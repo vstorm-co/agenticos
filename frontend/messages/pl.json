@@ -3779,7 +3779,19 @@
     "cardTrigger": "Wyzwalacz",
     "bindingModeValue": "Wartość",
     "bindingModeStep": "Z kroku",
-    "triggerHintApi": "Uruchom go przez POST /api/v1/workflow-runs albo przez WebSocket runów. Pełne żądanie pokazuje Trigger. Kolejne kroki czytają wejście jako payload."
+    "triggerHintApi": "Uruchom go przez POST /api/v1/workflow-runs albo przez WebSocket runów. Pełne żądanie pokazuje Trigger. Kolejne kroki czytają wejście jako payload.",
+    "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
+    "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",
+    "validationControlSwitchedOff": "Kroku, który decyduje o drodze przebiegu, nie można wyłączyć.",
+    "validationBindingReadsSwitchedOff": "To czyta wyłączony krok, więc nic by nie otrzymało.",
+    "stepName": "Nazwa kroku",
+    "stepSwitchedOff": "Wyłączony",
+    "stepNotes": "Notatka",
+    "stepNotesPlaceholder": "Po co jest ten krok, dla tego, kto edytuje go następny",
+    "stepIsSwitchedOff": "Wyłączony: pomijany, gdy przebieg do niego dotrze",
+    "stepHasNote": "Ma notatkę",
+    "menuSwitchOff": "Wyłącz",
+    "menuSwitchOn": "Włącz"
   },
   "artifacts": {
     "title": "Artefakty",

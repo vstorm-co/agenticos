@@ -178,7 +178,7 @@ export function sourceCandidates(
           nodeId: node.id,
           port: port.id,
           fieldPath,
-          nodeLabel: nodeDisplayName(definition.name, node.id, true),
+          nodeLabel: nodeDisplayName(definition.name, node.id, true, node.label),
           portLabel: port.label,
           typeToken: schemaTypeToken(sourceType),
           dynamic: isDynamic(sourceType),

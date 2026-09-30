@@ -1,5 +1,5 @@
 ---
-source_sha: "3454b4f371cb"
+source_sha: "7a0f4dcfd476"
 ---
 
 # Workflows { #workflows }
@@ -130,6 +130,18 @@ uzupełniony cichą wartością domyślną. Niektóre pola trzymają wartości z
 wierszy, do której **Add row** dodaje, którą przestawiasz i z której usuwasz, albo
 typowany wybór, który podmienia formularz pod nim. Okno wchodzi w nie rekurencyjnie,
 zamiast odsyłać do osobnego ekranu.
+
+### Nazywanie kroku, notatka i wyłączanie { #naming-noting-and-switching-off-a-step }
+
+**Step name** nadaje krokowi własną nazwę, pokazywaną na jego karcie i wszędzie, gdzie
+późniejszy krok wybiera, co czytać - dwa kroki **Send a message** stają się *Tell sales*
+i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez względu na wielkość
+liter. **Note** zachowuje zdanie dla tego, kto edytuje workflow następny, oznaczone na
+karcie. **Switched off** albo **Switch off** w menu kontekstowym kroku zostawia krok na
+kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie robi i przekazuje
+przebieg dalej. Publikacja odrzuca wyłączony wyzwalacz lub krok decydujący o drodze oraz
+każdy krok, który czyta wynik wyłączonego. Wszystkie trzy są zapisane w grafie, więc
+wersje je zachowują.
 
 ### Wybór zasobów { #resource-pickers }
 

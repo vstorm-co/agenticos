@@ -5986,7 +5986,19 @@
     "cardTrigger": "Auslöser",
     "bindingModeValue": "Wert",
     "bindingModeStep": "Aus einem Schritt",
-    "triggerHintApi": "Starten Sie ihn mit POST /api/v1/workflow-runs oder über den Run-WebSocket. Trigger zeigt die ganze Anfrage. Die folgenden Schritte lesen die Eingabe als payload."
+    "triggerHintApi": "Starten Sie ihn mit POST /api/v1/workflow-runs oder über den Run-WebSocket. Trigger zeigt die ganze Anfrage. Die folgenden Schritte lesen die Eingabe als payload.",
+    "validationLabelTaken": "Ein anderer Schritt heißt bereits „{label}“.",
+    "validationTriggerSwitchedOff": "Der Trigger kann nicht ausgeschaltet werden.",
+    "validationControlSwitchedOff": "Ein Schritt, der den Weg des Laufs entscheidet, kann nicht ausgeschaltet werden.",
+    "validationBindingReadsSwitchedOff": "Das liest einen ausgeschalteten Schritt und bekäme daher nichts.",
+    "stepName": "Name des Schritts",
+    "stepSwitchedOff": "Ausgeschaltet",
+    "stepNotes": "Notiz",
+    "stepNotesPlaceholder": "Wofür dieser Schritt da ist, für wen ihn als Nächstes bearbeitet",
+    "stepIsSwitchedOff": "Ausgeschaltet: wird übersprungen, wenn der Lauf ihn erreicht",
+    "stepHasNote": "Hat eine Notiz",
+    "menuSwitchOff": "Ausschalten",
+    "menuSwitchOn": "Einschalten"
   },
   "artifacts": {
     "title": "Artefakte",

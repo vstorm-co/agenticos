@@ -1,5 +1,5 @@
 ---
-source_sha: "3454b4f371cb"
+source_sha: "7a0f4dcfd476"
 ---
 
 # Workflows { #workflows }
@@ -139,6 +139,18 @@ rellenado con un valor por defecto silencioso. Algunos campos guardan valores
 estructurados: una lista de filas a la que **Add row** añade, que reordenas y de la
 que quitas, o una elección tipada que cambia el subformulario de debajo. El diálogo
 entra en ellos en lugar de mandarte a otra pantalla.
+
+### Nombrar un paso, anotarlo y apagarlo { #naming-noting-and-switching-off-a-step }
+
+**Step name** da a un paso un nombre propio, que se muestra en su tarjeta y allí donde un
+paso posterior elige qué leer - dos pasos **Send a message** pasan a ser *Tell sales* y
+*Tell support*. Dos pasos no pueden compartir nombre, sin distinguir mayúsculas.
+**Note** guarda una línea para quien edite el workflow después, marcada en la tarjeta.
+**Switched off**, o **Switch off** en el menú contextual del paso, deja el paso en el
+lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y pasa la
+ejecución al siguiente. Publicar rechaza el disparador o un paso que decide el camino
+apagados, y cualquier paso que lea la salida de uno apagado. Los tres se guardan en el
+grafo, así que las versiones los conservan.
 
 ### Selectores de recursos { #resource-pickers }
 

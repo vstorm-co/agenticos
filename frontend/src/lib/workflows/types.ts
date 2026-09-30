@@ -141,6 +141,12 @@ export interface NodeInstance {
   config: Record<string, unknown>;
   policy?: NodePolicy | null;
   layout: NodePosition;
+  /** What the builder calls this step, unique in the graph; the catalog name when unset. */
+  label?: string | null;
+  /** A note on the step, shown on the canvas. */
+  notes?: string | null;
+  /** Switched off: skipped when the run reaches it, handing the run on. */
+  disabled?: boolean;
 }
 
 /** How many tries a failing step gets, and the wait between them. Mirrors `RetryPolicy`. */
@@ -369,7 +375,11 @@ export function nodeDisplayName(
   definitionName: string,
   nodeId: Uuid,
   disambiguate = false,
+  label?: string | null,
 ): string {
+  // A step the builder named is called that: names are unique in a graph.
+  const own = label?.trim();
+  if (own) return own;
   return disambiguate ? `${definitionName} · ${shortNodeId(nodeId)}` : definitionName;
 }
 

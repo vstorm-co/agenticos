@@ -54,12 +54,15 @@ export function nodeNames(graph: WorkflowGraph | null, catalog: NodeCatalog): Ma
     const definition = catalog.items.find(
       (item) => item.id === node.definition_id && item.version === node.definition_version,
     );
-    return [node.id, definition?.name ?? node.definition_id] as const;
+    return [node.id, definition?.name ?? node.definition_id, node.label] as const;
   });
   const uses = new Map<string, number>();
   for (const [, name] of named) uses.set(name, (uses.get(name) ?? 0) + 1);
   return new Map(
-    named.map(([id, name]) => [id, nodeDisplayName(name, id, (uses.get(name) ?? 0) > 1)]),
+    named.map(([id, name, label]) => [
+      id,
+      nodeDisplayName(name, id, (uses.get(name) ?? 0) > 1, label),
+    ]),
   );
 }
 

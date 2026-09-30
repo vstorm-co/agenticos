@@ -154,6 +154,24 @@ describe("the canvas menu", () => {
     );
   });
 
+  it("switches a step off and on, and never the trigger", async () => {
+    seed(node("a"), node("b", "act.one", 300));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    const card = container.querySelector('[data-node-id="b"]') as HTMLElement;
+
+    fireEvent.contextMenu(card);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Switch off/ }));
+    expect(store.getState().graph?.nodes.find((item) => item.id === "b")?.disabled).toBe(true);
+
+    fireEvent.contextMenu(card);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Switch on/ }));
+    expect(store.getState().graph?.nodes.find((item) => item.id === "b")?.disabled).toBe(false);
+
+    fireEvent.contextMenu(container.querySelector('[data-node-id="a"]') as HTMLElement);
+    await screen.findByRole("menuitem", { name: /Open settings/ });
+    expect(screen.queryByRole("menuitem", { name: /Switch off/ })).toBeNull();
+  });
+
   it("adds a step where the canvas was right-clicked, and undoes it", async () => {
     seed(node("a"));
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);

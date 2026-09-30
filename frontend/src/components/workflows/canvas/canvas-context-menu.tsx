@@ -1,7 +1,17 @@
 "use client";
 
 import { useMemo } from "react";
-import { Clipboard, Copy, Maximize, Redo2, Settings2, Trash2, Undo2 } from "lucide-react";
+import {
+  CirclePause,
+  CirclePlay,
+  Clipboard,
+  Copy,
+  Maximize,
+  Redo2,
+  Settings2,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -66,6 +76,8 @@ export function CanvasContextMenu({ target, catalog, onAdd, onFitView }: CanvasM
   const history = useWorkflowEditorStore((state) => state.history);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
+  const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
+  const graph = useWorkflowEditorStore((state) => state.graph);
   const sections = useMemo(
     () => pickerSections(catalog.filter((definition) => isAddableInScope(definition, scopePath))),
     [catalog, scopePath],
@@ -75,6 +87,13 @@ export function CanvasContextMenu({ target, catalog, onAdd, onFitView }: CanvasM
 
   if (target.kind === "node") {
     const store = useWorkflowEditorStore.getState;
+    const node = graph?.nodes.find((candidate) => candidate.id === target.nodeId);
+    const definition = catalog.find(
+      (item) => item.id === node?.definition_id && item.version === node?.definition_version,
+    );
+    // The trigger and a step that decides the way cannot be skipped.
+    const switchable =
+      node !== undefined && node.id !== graph?.entry_node_id && definition?.kind !== "control";
     return (
       <ContextMenuContent className="w-56">
         <ContextMenuItem onSelect={() => editNode(target.nodeId)}>
@@ -91,6 +110,14 @@ export function CanvasContextMenu({ target, catalog, onAdd, onFitView }: CanvasM
           <Copy />
           {t("menuDuplicate")}
         </ContextMenuItem>
+        {switchable && (
+          <ContextMenuItem
+            onSelect={() => updateNodeDetails(node.id, { disabled: !node.disabled })}
+          >
+            {node.disabled ? <CirclePlay /> : <CirclePause />}
+            {node.disabled ? t("menuSwitchOn") : t("menuSwitchOff")}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           variant="destructive"

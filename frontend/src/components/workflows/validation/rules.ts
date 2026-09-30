@@ -455,3 +455,39 @@ function requiredFields(schema: JsonSchema): string[] {
     ? required.filter((name): name is string => typeof name === "string")
     : [];
 }
+
+/**
+ * Rule 13 — names tell steps apart, and a step switched off leaves nothing
+ * waiting on it: no two steps share a name (ignoring case), the trigger and a
+ * step that decides the way stay on, and nothing reads a step that is off.
+ */
+export function rule13NamedAndSwitchedOffSteps(
+  graph: WorkflowGraph,
+  definitions: DefinitionMap,
+): RawProblem[] {
+  const problems: RawProblem[] = [];
+  const named = new Set<string>();
+  const off = new Set<string>();
+  for (const n of graph.nodes) {
+    const label = n.label?.trim() ?? "";
+    if (label !== "") {
+      const key = label.toLowerCase();
+      if (named.has(key)) problems.push(node(n.id, "label-taken", { label }));
+      else named.add(key);
+    }
+    if (n.disabled !== true) continue;
+    off.add(n.id);
+    if (n.id === graph.entry_node_id) problems.push(node(n.id, "trigger-switched-off"));
+    else if (definitionFor(definitions, n.id)?.kind === "control") {
+      problems.push(node(n.id, "control-switched-off"));
+    }
+  }
+  for (const binding of graph.bindings) {
+    if (binding.source.kind === "node_output" && off.has(binding.source.node_id)) {
+      problems.push(
+        nodeField(binding.target_node_id, binding.target_field, "binding-reads-switched-off"),
+      );
+    }
+  }
+  return problems;
+}

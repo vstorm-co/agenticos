@@ -685,6 +685,23 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().isDirty).toBe(true);
   });
 
+  it("updateNodeDetails names, notes and switches off one step as one edit", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodeDetails("b", { label: "Tidy", notes: "why", disabled: true });
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")).toMatchObject({
+      label: "Tidy",
+      notes: "why",
+      disabled: true,
+    });
+    store.getState().undo();
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.label).toBeUndefined();
+  });
+
+  it("updateNodeDetails is a no-op before seeding", () => {
+    store.getState().updateNodeDetails("b", { label: "Tidy" });
+    expect(store.getState().graph).toBeNull();
+  });
+
   it("updateNodePolicy is a no-op before seeding", () => {
     store.getState().updateNodePolicy("b", { on_error: "route" });
     expect(store.getState().graph).toBeNull();

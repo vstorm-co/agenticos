@@ -132,6 +132,17 @@ list of rows you **Add row** to, reorder and remove, or a typed choice that swap
 the sub-form beneath it. The dialog recurses into those rather than sending you to
 a separate screen.
 
+### Naming a step, noting it and switching it off { #naming-noting-and-switching-off-a-step }
+
+**Step name** gives a step a name of its own, shown on its card and wherever a later step
+picks what to read - two **Send a message** steps become *Tell sales* and *Tell
+support*. No two steps may share a name, ignoring case. **Note** keeps a line for
+whoever edits the workflow next, marked on the card. **Switched off**, or **Switch
+off** in the step's right-click menu, keeps a step on the canvas, dimmed, and skips it
+when a run reaches it: it does nothing and hands the run on. Publishing refuses the
+trigger or a step that decides the way switched off, and any step that reads the
+output of one that is off. All three are saved in the graph, so versions keep them.
+
 ### Resource pickers { #resource-pickers }
 
 A setting that pins a resource opens a picker rather than a free-text field, so a

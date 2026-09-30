@@ -80,7 +80,12 @@ export default function WorkflowRunPage({ params }: PageProps) {
       (entry) =>
         entry.id === instance?.definition_id && entry.version === instance?.definition_version,
     );
-    return nodeDisplayName(definition?.name ?? instance?.definition_id ?? nodeId, nodeId, true);
+    return nodeDisplayName(
+      definition?.name ?? instance?.definition_id ?? nodeId,
+      nodeId,
+      true,
+      instance?.label,
+    );
   };
 
   if (isLoading || run === null || !workflow) {

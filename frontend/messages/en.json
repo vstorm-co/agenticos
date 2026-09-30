@@ -6127,7 +6127,19 @@
     "cardTrigger": "Trigger",
     "bindingModeValue": "Value",
     "bindingModeStep": "From a step",
-    "triggerHintApi": "Start it with POST /api/v1/workflow-runs, or over the run WebSocket. Trigger shows the full request. The steps after it read the input as payload."
+    "triggerHintApi": "Start it with POST /api/v1/workflow-runs, or over the run WebSocket. Trigger shows the full request. The steps after it read the input as payload.",
+    "validationLabelTaken": "Another step is already called “{label}”.",
+    "validationTriggerSwitchedOff": "The trigger cannot be switched off.",
+    "validationControlSwitchedOff": "A step that decides which way the run goes cannot be switched off.",
+    "validationBindingReadsSwitchedOff": "This reads a step that is switched off, so it would receive nothing.",
+    "stepName": "Step name",
+    "stepSwitchedOff": "Switched off",
+    "stepNotes": "Note",
+    "stepNotesPlaceholder": "What this step is for, for whoever edits it next",
+    "stepIsSwitchedOff": "Switched off: skipped when the run reaches it",
+    "stepHasNote": "Has a note",
+    "menuSwitchOff": "Switch off",
+    "menuSwitchOn": "Switch on"
   },
   "artifacts": {
     "title": "Artifacts",

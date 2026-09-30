@@ -46,7 +46,14 @@ export function ScopeBreadcrumb({ catalog }: ScopeBreadcrumbProps) {
     return scopePath.map((id) => {
       const definition = definitions.get(id) ?? null;
       const label =
-        definition === null ? shortNodeId(id) : nodeDisplayName(definition.name, id, true);
+        definition === null
+          ? shortNodeId(id)
+          : nodeDisplayName(
+              definition.name,
+              id,
+              true,
+              graph.nodes.find((node) => node.id === id)?.label,
+            );
       return { id, label };
     });
   }, [graph, catalog, scopePath]);

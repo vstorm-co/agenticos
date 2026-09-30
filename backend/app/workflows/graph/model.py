@@ -49,6 +49,20 @@ class NodeInstance(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
     policy: NodePolicy | None = None
     layout: NodePosition
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description="What the builder calls this step, unique in the graph; the step's "
+        "name from the catalog when unset",
+    )
+    notes: str | None = Field(
+        default=None, max_length=2000, description="A note on the step, shown on the canvas"
+    )
+    disabled: bool = Field(
+        default=False,
+        description="Switched off: the step is skipped when the run reaches it and "
+        "passes on to the next, without doing anything",
+    )
 
     @property
     def routes_errors(self) -> bool:

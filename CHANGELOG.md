@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Name a workflow step, note it and switch it off.** A step's own name shows on
+  its card and in every binding list and problem, and must be unique in the graph; a
+  note is marked on the card; a switched-off step stays on the canvas, dimmed, and is
+  skipped when a run reaches it. Publishing refuses switching off the trigger or a
+  deciding step, and reading a step that is off. `NodeInstance` gains `label`,
+  `notes` and `disabled` (#1939).
 - **Find, rename, switch and retire workflows from the console.** The list
   searches by name, description and tag, filters by tag and sorts by last edit,
   name or age, all kept in the address. The editor renames a workflow in place and

@@ -42,6 +42,11 @@ describe("shortNodeId / nodeDisplayName", () => {
     expect(nodeDisplayName("Echo", "abcdef123456789")).toBe("Echo");
   });
 
+  it("calls a step the builder named by its name, whatever else is asked", () => {
+    expect(nodeDisplayName("Echo", "abcdef123456789", true, " Tell sales ")).toBe("Tell sales");
+    expect(nodeDisplayName("Echo", "abcdef123456789", false, "  ")).toBe("Echo");
+  });
+
   it("appends a short id suffix when disambiguation is asked for", () => {
     expect(nodeDisplayName("Echo", "abcdef123456789", true)).toBe("Echo · abcdef");
   });

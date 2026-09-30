@@ -39,6 +39,7 @@ import {
   rule7NoCycles,
   rule8NoParallelFanout,
   rule9RequiredInputsBound,
+  rule13NamedAndSwitchedOffSteps,
 } from "./rules";
 import { allDominators, deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
 import { MESSAGE_KEYS, type RawProblem, type ValidationTranslator } from "./types";
@@ -129,6 +130,7 @@ export function validateGraph(
     ...rule6NestedScopeBoundaries(graph, scopes, nodeScope),
     ...rule8NoParallelFanout(graph, definitions),
     ...rule9RequiredInputsBound(graph, definitions),
+    ...rule13NamedAndSwitchedOffSteps(graph, definitions),
   ];
   return problems.map((problem) => render(problem, t));
 }

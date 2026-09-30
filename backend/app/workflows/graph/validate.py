@@ -177,6 +177,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _rule_10_error_routes(graph, definitions)
     problems += _rule_11_loop_bodies(graph, definitions, node_scope)
     problems += _rule_12_policies(graph, definitions)
+    problems += _rule_13_named_and_switched_off_steps(graph, definitions)
 
     if problems:
         raise GraphValidationError(problems)
@@ -1538,6 +1539,55 @@ def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Probl
                 (
                     f"nodes.{node.id}.policy.retry",
                     "Repeating this step's call is not safe, so it cannot retry",
+                )
+            )
+    return problems
+
+
+# Rule 13 - a step's own name, and what switching one off may not break
+
+
+def _rule_13_named_and_switched_off_steps(
+    graph: WorkflowGraph, definitions: DefinitionMap
+) -> Problems:
+    """Names tell steps apart, and a step switched off leaves nothing waiting on it.
+
+    Two steps may not share a name, ignoring case: the name is how a builder tells
+    them apart in every list of bindings and problems. A step switched off does
+    nothing, so it may be neither the trigger nor a step that decides which way the
+    run goes, and nothing may read its output - it has none to give.
+    """
+    problems: Problems = []
+    named: dict[str, UUID] = {}
+    for node in graph.nodes:
+        label = (node.label or "").strip()
+        if label:
+            key = label.casefold()
+            if key in named:
+                problems.append(
+                    (f"nodes.{node.id}.label", f"Another step is already called '{label}'")
+                )
+            else:
+                named[key] = node.id
+        if not node.disabled:
+            continue
+        definition = definitions.get(node.id)
+        if node.id == graph.entry_node_id:
+            problems.append((f"nodes.{node.id}.disabled", "The trigger cannot be switched off"))
+        elif definition is not None and definition.kind == "control":
+            problems.append(
+                (
+                    f"nodes.{node.id}.disabled",
+                    "A step that decides which way the run goes cannot be switched off",
+                )
+            )
+    for index, binding in enumerate(graph.bindings):
+        source = binding.source
+        if isinstance(source, NodeOutputRef) and graph.node_by_id[source.node_id].disabled:
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "This reads a step that is switched off, so it would receive nothing",
                 )
             )
     return problems

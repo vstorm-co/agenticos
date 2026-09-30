@@ -135,6 +135,22 @@ describe("a node card", () => {
     expect(screen.getByText("Default branch only")).toBeTruthy();
   });
 
+  it("goes by the name the builder gave, and marks a note and a step that is off", () => {
+    seed([
+      instance("i", "logic.if", { config: { condition: "value.ok" } }),
+      instance("m", "data.map", {
+        label: "Tidy the lead",
+        notes: "For the EU team",
+        disabled: true,
+      }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(screen.getByText("Tidy the lead")).toBeInTheDocument();
+    expect(screen.getByTitle("For the EU team")).toHaveAttribute("aria-label", "Has a note");
+    expect(screen.getByLabelText(/Switched off/)).toBeInTheDocument();
+  });
+
   it("shows a policy and the error port it gives the step", () => {
     seed([
       instance("m", "data.map", {

@@ -48,10 +48,10 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -415,6 +415,18 @@ async def _completed_outputs(
     return outputs
 
 
+class SkippedStep(BaseModel):
+    """What a switched-off step hands on: that it was skipped, and nothing else."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    skipped: Literal[True] = True
+
+
+async def _skip(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+    return Completed[SkippedStep](output=SkippedStep())
+
+
 @dataclass(frozen=True, slots=True)
 class _ResolvedCall:
     """Everything a node's call needs that the run's own rows decide."""
@@ -445,6 +457,18 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
         raise NodeDefinitionMissingError(
             node_id=node.definition_id, version=node.definition_version
         ) from exc
+    if node.disabled:
+        # Switched off: nothing is resolved or called. Publishing made sure nothing
+        # reads this step's output, so an empty one hands the run on.
+        return _ResolvedCall(
+            graph=graph,
+            node=node,
+            definition=definition,
+            handler=_skip,
+            config=None,
+            input=None,
+            arrived_output=None,
+        )
     if definition.handler is None:
         raise NodeHandlerMissingError(node_id=node.definition_id, version=node.definition_version)
 

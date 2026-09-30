@@ -8,6 +8,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from "@
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
+import { StepDetails } from "./step-details";
 import {
   WarningBadge,
   fieldErrors,
@@ -99,6 +100,13 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
           )}
           {definition !== null && (
             <>
+              <StepDetails
+                node={node}
+                catalogName={definition.name}
+                canSwitchOff={node.id !== graph.entry_node_id && definition.kind !== "control"}
+                disabled={readOnly}
+                onChange={store.updateNodeDetails}
+              />
               <NodeForm
                 definition={definition}
                 node={node}

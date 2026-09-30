@@ -55,7 +55,12 @@ export type ValidationCode =
   | "fanout-port-multiple-edges"
   // Rule 9 — every required input bound exactly once.
   | "input-bound-twice"
-  | "input-not-bound";
+  | "input-not-bound"
+  // Rule 13 — a step's own name, and what switching one off may not break.
+  | "label-taken"
+  | "trigger-switched-off"
+  | "control-switched-off"
+  | "binding-reads-switched-off";
 
 /**
  * The `next-intl` key each code renders through, under the top-level `workflows`
@@ -92,6 +97,10 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "fanout-port-multiple-edges": "validationFanoutPortMultipleEdges",
   "input-bound-twice": "validationInputBoundTwice",
   "input-not-bound": "validationInputNotBound",
+  "label-taken": "validationLabelTaken",
+  "trigger-switched-off": "validationTriggerSwitchedOff",
+  "control-switched-off": "validationControlSwitchedOff",
+  "binding-reads-switched-off": "validationBindingReadsSwitchedOff",
 };
 
 /** Interpolation values for a message, passed straight to the translator. */

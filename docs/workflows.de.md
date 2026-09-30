@@ -1,5 +1,5 @@
 ---
-source_sha: "3454b4f371cb"
+source_sha: "7a0f4dcfd476"
 ---
 
 # Workflows { #workflows }
@@ -149,6 +149,19 @@ strukturierte Werte: eine Liste von Zeilen, zu der **Add row** hinzufügt, die S
 umsortieren und aus der Sie entfernen, oder eine typisierte Wahl, die das Unterformular
 darunter austauscht. Der Dialog geht in diese hinein, statt Sie auf einen eigenen
 Bildschirm zu schicken.
+
+### Einen Schritt benennen, notieren und ausschalten { #naming-noting-and-switching-off-a-step }
+
+**Step name** gibt einem Schritt einen eigenen Namen, der auf seiner Karte steht und
+überall dort, wo ein späterer Schritt wählt, was er liest - zwei Schritte **Send a
+message** werden zu *Tell sales* und *Tell support*. Zwei Schritte dürfen nicht
+denselben Namen tragen, ohne Beachtung der Groß- und Kleinschreibung. **Note** hält eine
+Zeile für den nächsten Bearbeiter fest, auf der Karte markiert. **Switched off** oder
+**Switch off** im Kontextmenü des Schritts lässt einen Schritt gedimmt auf der
+Zeichenfläche und überspringt ihn, wenn ein Lauf ihn erreicht: Er tut nichts und gibt
+den Lauf weiter. Das Veröffentlichen lehnt einen ausgeschalteten Trigger oder
+entscheidenden Schritt ab, ebenso jeden Schritt, der die Ausgabe eines ausgeschalteten
+liest. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
 
 ### Ressourcen-Auswahlfelder { #resource-pickers }
 

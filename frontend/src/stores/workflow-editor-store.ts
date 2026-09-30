@@ -192,6 +192,11 @@ export interface WorkflowEditorState {
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
   /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
   updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
+  /** Rename a step, note it, or switch it off - one undoable edit. */
+  updateNodeDetails: (
+    nodeId: Uuid,
+    details: Partial<Pick<NodeInstance, "label" | "notes" | "disabled">>,
+  ) => void;
   /** Set (or replace) the binding on one node field. */
   upsertBinding: (binding: Binding) => void;
   /** Remove the binding on one node field, if any. */
@@ -498,6 +503,15 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       const { graph } = get();
       if (graph === null) return;
       const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, policy } : node));
+      commit({ ...graph, nodes });
+    },
+
+    updateNodeDetails: (nodeId, details) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) =>
+        node.id === nodeId ? { ...node, ...details } : node,
+      );
       commit({ ...graph, nodes });
     },
 

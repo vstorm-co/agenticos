@@ -1,7 +1,16 @@
 "use client";
 
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import { AlertTriangle, ArrowUpRight, Cable, RotateCw, ShieldAlert, Timer } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Cable,
+  CirclePause,
+  RotateCw,
+  ShieldAlert,
+  StickyNote,
+  Timer,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { nodeVisual } from "@/components/workflows/node-visuals";
@@ -82,7 +91,12 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
 
   const kind = definition?.kind ?? "action";
   const scopeOwner = definition !== null && ownsAScope(definition);
-  const name = nodeDisplayName(definition?.name ?? instance.definition_id, instance.id);
+  const name = nodeDisplayName(
+    definition?.name ?? instance.definition_id,
+    instance.id,
+    false,
+    instance.label,
+  );
   const visual = nodeVisual(instance.definition_id, definition?.category ?? "");
   const Icon = visual.icon;
   const inputs: Port[] = definition?.ports.filter((port) => port.kind === "input") ?? [];
@@ -158,6 +172,8 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         selected ? "ring-primary/60 border-primary/40 ring-2" : "hover:shadow-md",
         run?.status === "failed" && "border-destructive/50 ring-destructive/30 ring-2",
         runView && run === null && "opacity-50",
+        // Switched off: still on the canvas, visibly out of the run.
+        instance.disabled && "border-dashed opacity-60",
       )}
     >
       {inputs.map((port) => (
@@ -189,6 +205,26 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-sm leading-5 font-medium">{name}</span>
             <span className="flex shrink-0 items-center gap-1">
+              {instance.disabled && (
+                <span
+                  role="img"
+                  aria-label={t("stepIsSwitchedOff")}
+                  title={t("stepIsSwitchedOff")}
+                  className="text-muted-foreground"
+                >
+                  <CirclePause aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
+              {instance.notes && (
+                <span
+                  role="img"
+                  aria-label={t("stepHasNote")}
+                  title={instance.notes}
+                  className="text-muted-foreground"
+                >
+                  <StickyNote aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
               {problems > 0 && (
                 <span
                   role="img"
