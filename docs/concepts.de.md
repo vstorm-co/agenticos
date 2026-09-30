@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "aad00e7657d4"
 ---
 
 # Begriffe { #concepts }
@@ -97,16 +97,18 @@ Veröffentlichung es verschieben darf.
 
 Ein Environment wartet also entweder:
 
-- **darauf, dass etwas darauf promotet wird** — so verhält sich `production`, das
-  Default; oder
+- **darauf, dass etwas darauf promotet wird** — so sollte sich `production`
+  verhalten, sobald ein `dev` oder `staging` daneben steht; oder
 - **es folgt jeder Veröffentlichung** — was ein `dev`, in dem jemand iteriert,
-  meistens will.
+  meistens will, und was `production` tut, solange es das einzige Environment ist.
 
 Zwei Folgen sind erwähnenswert:
 
 1. Die **erste** Veröffentlichung legt `production` auf der eben geprägten
    Version an, denn ein Agent ohne Environment hat überhaupt keinen Ort zum
-   Laufen.
+   Laufen, und es folgt Veröffentlichungen, bis jemand es anheftet. Ein später
+   hinzugefügtes Environment wartet auf eine Promotion, sofern nichts anderes
+   eingestellt ist.
 2. Ein **Rollback landet auf demselben Weg** wie eine Veröffentlichung — es *ist*
    die Veröffentlichung eines älteren Specs. Eine alte Version wieder vor Menschen
    zu stellen, ist daher ein Klick auf ihrer Verlaufszeile (promote), keine

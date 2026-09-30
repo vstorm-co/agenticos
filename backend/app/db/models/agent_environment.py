@@ -11,7 +11,9 @@ the spec, which describes what the agent *is*.
 
 **Publishing mints a version; putting it somewhere is a separate decision.**
 Each environment says whether it follows publishes (`tracks_latest`) or waits to
-be promoted onto, and the default is to wait. Publish used to repoint the
+be promoted onto. An environment somebody adds waits by default; the `production`
+the first publish creates follows, because while it is the only one there is
+nothing to promote between. Publish used to repoint the
 default silently, which made "publish" and "deploy to production" one click with
 nothing on screen saying so.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "aad00e7657d4"
 ---
 
 # Conceptos { #concepts }
@@ -94,15 +94,17 @@ publicación puede moverlo.
 
 Así que un entorno o bien:
 
-- **espera a que asciendan algo a él** — que es lo que hace `production`, el
-  entorno por defecto; o
+- **espera a que asciendan algo a él** — que es lo que debería hacer `production`
+  cuando ya hay un `dev` o un `staging` a su lado; o
 - **sigue cada publicación** — que es lo que suele querer un `dev` en el que
-  alguien está iterando.
+  alguien está iterando, y lo que hace `production` mientras es el único entorno.
 
 Dos consecuencias que vale la pena enunciar:
 
 1. La **primera** publicación crea `production` sobre la versión que acaba de
-   acuñar, porque un agent sin entorno no tiene dónde ejecutarse.
+   acuñar, porque un agent sin entorno no tiene dónde ejecutarse, y sigue las
+   publicaciones hasta que alguien lo fija. Un entorno añadido después espera a
+   que asciendan algo a él, salvo que se indique lo contrario.
 2. Un **rollback aterriza igual** que una publicación — *es* una publicación de
    un spec más antiguo. Así que volver a poner una versión antigua delante de la
    gente es un clic en su fila del historial (promover), no un efecto colateral

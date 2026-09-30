@@ -2132,11 +2132,11 @@ class TestPublishAndRollback:
         assert sorted(row.version for row in versions) == [1, 2, 3]
         assert total == 3
         assert third.id not in (first.id, second.id)
-        # And the pointer stays where the default environment is: a rollback is a
-        # publish of an older spec, so it lands the same way. Putting the old
-        # version back in front of people is a promotion, one click on its
-        # history row - not a side effect of restoring the draft.
-        assert agent.current_version_id == first.id
+        # And the pointer follows the default environment: a rollback is a
+        # publish of an older spec, so it lands the same way - on a lone
+        # production, which follows publishes, that is the rolled-back version.
+        # A pinned production would stay put (see TestPublishingIsNotDeploying).
+        assert agent.current_version_id == third.id
         restored = await db.get(AgentVersion, third.id)
         original = await db.get(AgentVersion, first.id)
         assert restored.spec == original.spec
@@ -4644,6 +4644,12 @@ class TestPublishingIsNotDeploying:
             tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
         )
         first = await registry.publish(tenant.ctx, agent.id)
+        # The production a first publish creates follows; pinning it is what
+        # somebody does once there is a second environment to promote from.
+        created = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        await AgentEnvironmentService(db).update(
+            tenant.ctx, agent.id, created[0].id, EnvironmentUpdate(tracks_latest=False)
+        )
 
         second = await registry.publish(tenant.ctx, agent.id)
 
@@ -4689,10 +4695,27 @@ class TestPublishingIsNotDeploying:
         version = await registry.publish(tenant.ctx, agent.id)
 
         listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
-        assert [(row.name, row.version_id, row.is_default) for row in listed] == [
-            ("production", version.id, True)
-        ]
+        assert [
+            (row.name, row.version_id, row.is_default, row.tracks_latest) for row in listed
+        ] == [("production", version.id, True, True)]
         assert agent.current_version_id == version.id
+
+    async def test_a_lone_production_serves_the_next_publish(self, db) -> None:
+        """With one environment there is nothing to promote between, so the
+        version somebody just published is the one that answers."""
+        tenant = await _tenant(db, name="Solo")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        assert [(row.version_id, row.behind_by) for row in listed] == [(second.id, 0)]
+        assert agent.current_version_id == second.id
 
     async def test_switching_an_environment_to_follow_adopts_the_newest_now(self, db) -> None:
         """A mode that claims to follow and does not until something else
@@ -4705,9 +4728,12 @@ class TestPublishingIsNotDeploying:
             tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
         )
         await registry.publish(tenant.ctx, agent.id)
-        newest = await registry.publish(tenant.ctx, agent.id)
         listed = await environments.list_for_agent(tenant.ctx, agent.id)
         production = next(row for row in listed if row.is_default)
+        await environments.update(
+            tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=False)
+        )
+        newest = await registry.publish(tenant.ctx, agent.id)
 
         await environments.update(
             tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)

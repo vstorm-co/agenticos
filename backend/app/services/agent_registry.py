@@ -1972,8 +1972,11 @@ class AgentRegistryService:
 
         The **first** publish is different, and has to be: an agent with no
         environment has nowhere to run at all, so it gets its `production`
-        default here, pinned to the version that just appeared. Every publish
-        after that leaves it where it is until somebody promotes.
+        default here, on the version that just appeared - and **following
+        publishes**. With one environment there is nothing to promote between,
+        and pinning it made every change a publish and then a promotion before it
+        could be tried. Somebody who adds a `dev` or a `staging` pins
+        `production`, and from then on a publish leaves it where it is.
 
         `Agent.current_version_id` mirrors the default environment, which is what
         a surface naming no environment resolves through - so it moves when that
@@ -1988,6 +1991,7 @@ class AgentRegistryService:
                 name="production",
                 version_id=version.id,
                 is_default=True,
+                tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
         else:

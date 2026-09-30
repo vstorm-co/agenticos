@@ -88,14 +88,17 @@ may move it.
 
 So an environment either:
 
-- **waits to be promoted onto** — which is what `production`, the default, does; or
+- **waits to be promoted onto** — which is what `production` should do once there
+  is a `dev` or a `staging` beside it; or
 - **follows every publish** — which is what a `dev` somebody is iterating in
-  usually wants.
+  usually wants, and what `production` does while it is the only environment.
 
 Two consequences worth stating:
 
 1. The **first** publish creates `production` on the version it just minted,
-   because an agent with no environment has nowhere to run at all.
+   because an agent with no environment has nowhere to run at all, and it follows
+   publishes until somebody pins it. An environment added later waits to be
+   promoted onto unless it is told otherwise.
 2. A **rollback lands the same way** as a publish — it *is* a publish of an older
    spec. So putting an old version back in front of people is one click on its
    history row (promote), not a side effect of restoring the draft.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "aad00e7657d4"
 ---
 
 # Koncepcje { #concepts }
@@ -92,15 +92,17 @@ publikacja może nim ruszyć.
 
 Środowisko zatem albo:
 
-- **czeka, aż coś zostanie na nie wypromowane** — tak działa `production`,
-  domyślne; albo
+- **czeka, aż coś zostanie na nie wypromowane** — tak powinno działać
+  `production`, kiedy obok jest już `dev` albo `staging`; albo
 - **podąża za każdą publikacją** — czego zwykle oczekuje się od `dev`, w którym
-  ktoś iteruje.
+  ktoś iteruje, i tak działa `production`, dopóki jest jedynym środowiskiem.
 
 Dwie konsekwencje warte powiedzenia:
 
 1. **Pierwsza** publikacja tworzy `production` na wersji, którą właśnie wybiła,
-   bo agent bez środowiska nie ma się w ogóle gdzie uruchomić.
+   bo agent bez środowiska nie ma się w ogóle gdzie uruchomić, i to środowisko
+   podąża za publikacjami, dopóki ktoś go nie przypnie. Środowisko dodane później
+   czeka na promocję, chyba że ustawi się inaczej.
 2. **Rollback ląduje tak samo** jak publikacja — *jest* publikacją starszego
    speca. Postawienie starej wersji z powrotem przed ludźmi to jedno kliknięcie
    w jej wierszu historii (promote), a nie efekt uboczny przywrócenia draftu.

@@ -3459,7 +3459,7 @@
       "n100Default": "100 (Standard)",
       "namedMissing": "{name} (fehlt)",
       "eachPersonsOwnNamed": "{name} (eigenes Konto jeder Person)",
-      "namedPointersAtPublished": "Eine Veröffentlichung prägt eine Version; sie irgendwohin zu stellen ist eine eigene Entscheidung. Ein Environment wartet entweder darauf, dass etwas darauf heraufgestuft wird – so macht es der Standard – oder es folgt jeder Veröffentlichung, was ein Dev-Environment meist will. Ein an ein Environment gebundener Bot liefert dessen Version.",
+      "namedPointersAtPublished": "Eine Veröffentlichung prägt eine Version; sie irgendwohin zu stellen ist eine eigene Entscheidung. Ein Environment wartet entweder darauf, dass etwas darauf heraufgestuft wird, oder es folgt jeder Veröffentlichung. Production folgt, solange es das einzige Environment ist; heften Sie es an, sobald ein Dev- oder Staging-Environment daneben steht. Ein an ein Environment gebundener Bot liefert dessen Version.",
       "newAgent": "Neuer Agent",
       "noAgentHereMatches": "Kein Agent hier passt zu diesem Filter und dieser Suche.",
       "noAgentsYet": "Noch keine Agents",

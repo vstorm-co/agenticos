@@ -2166,15 +2166,17 @@ class TestPublish:
         assert frozen["note"] == "first cut"
         assert audit.call_args.kwargs["details"] == {"version": 3, "note": "first cut"}
         assert published is version
-        # A first publish mints the default environment, pinned to the version
-        # that just went live - so every published agent has one, and has
-        # somewhere to run at all.
+        # A first publish mints the default environment on the version that
+        # just went live - so every published agent has somewhere to run - and
+        # following publishes: with one environment there is nothing to promote
+        # between, so the next publish should be what answers.
         created = environments.create.call_args.kwargs
-        assert (created["name"], created["is_default"], created["version_id"]) == (
-            "production",
-            True,
-            version.id,
-        )
+        assert (
+            created["name"],
+            created["is_default"],
+            created["version_id"],
+            created["tracks_latest"],
+        ) == ("production", True, version.id, True)
         # Two writes to the agent row, and only one of them names a version: the
         # status is publish's, the pointer is the default environment's.
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
