@@ -57,6 +57,9 @@ export interface OnboardingTourState {
 export function useOnboardingTour(): OnboardingTourState {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  // Not persisted, so true on every page load until this load's session check
+  // has set the user - which is the user worth deciding on.
+  const sessionLoading = useAuthStore((state) => state.isLoading);
   const setUser = useAuthStore((state) => state.setUser);
   const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
   const t = useTranslations("onboarding");
@@ -132,10 +135,14 @@ export function useOnboardingTour(): OnboardingTourState {
   const back = useCallback(() => setIndex(Math.max(clamped - 1, 0)), [clamped, setIndex]);
 
   // Auto-start fires at most once per page load, so a failed persist cannot loop
-  // the tour back open and a manual restart is never fought by the effect.
+  // the tour back open and a manual restart is never fought by the effect. Only
+  // on the user this load read: the stored one is whatever was signed in with,
+  // and a person who finished onboarding since - in another tab, on another
+  // device - was greeted by the first-run tour until the check answered.
   const hasAutoStarted = useRef(false);
   const shouldAutoStart =
     path === ROUTES.DASHBOARD &&
+    !sessionLoading &&
     !permissionsLoading &&
     !permissionsError &&
     !!user &&

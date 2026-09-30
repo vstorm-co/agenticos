@@ -232,7 +232,10 @@ class SessionService:
             or session.impersonator_user_id is not None
             or session.expires_at <= now
             or session.rotated_at is None
-            or now - session.rotated_at > timedelta(seconds=grace)
+            # Not in the future either: a clock set back after the rotation
+            # would otherwise keep the spent token inside the window for as long
+            # as the clock is behind.
+            or not timedelta(0) <= now - session.rotated_at <= timedelta(seconds=grace)
         ):
             return None
         logger.info("refresh_token_grace_reuse", extra={"session_id": str(session.id)})

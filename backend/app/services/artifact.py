@@ -165,11 +165,12 @@ img {{ max-width: 100%; }}
 </body></html>
 """
 
-_HEAD_OPEN = re.compile(rb"<head\b[^>]*>", re.IGNORECASE)
-_HTML_OPEN = re.compile(rb"<html\b[^>]*>", re.IGNORECASE)
-# Only at the very start, after an optional byte-order mark and whitespace: that
-# is the one place a browser honours a doctype.
-_DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype\b[^>]*>", re.IGNORECASE)
+# What may come before the first real content of a document: a byte-order mark,
+# whitespace, comments and the doctype. Always matches, possibly empty, and only
+# at the start - so nothing inside a comment, a script or the body can move it.
+_DOCUMENT_LEAD = re.compile(
+    rb"\A(?:\xef\xbb\xbf)?(?:\s+|<!--.*?-->)*(?:<!doctype\b[^>]*>)?", re.IGNORECASE | re.DOTALL
+)
 
 _LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "artifact_lib"
 
@@ -817,19 +818,17 @@ def _view(version: ArtifactVersion) -> ArtifactView:
 
 
 def with_platform_script(document: bytes) -> bytes:
-    """The document with :data:`PLATFORM_SCRIPT` first in it.
+    """The document with :data:`PLATFORM_SCRIPT` first in it, after the doctype.
 
-    After `<head>`, else after `<html>`, else after the doctype - never before
-    it: a doctype that is not the first thing in the document is ignored, and a
-    page written with one but without `<html>` and `<head>` (both optional in
-    HTML) would render in quirks mode.
+    First, because the script only listens on `document`, and a `<script>`
+    before `<html>` is placed by the parser into the head it opens implicitly -
+    the page's own `<html lang>` attributes still land on that element. After
+    the doctype, because one that is not first is ignored and the page renders
+    in quirks mode. It used to look for `<head>`, then `<html>`, by pattern, and
+    a `<!-- <head> -->` comment or the text of a script put it where it never ran.
     """
-    script = PLATFORM_SCRIPT.encode("utf-8")
-    for opening in (_HEAD_OPEN, _HTML_OPEN, _DOCTYPE):
-        found = opening.search(document)
-        if found is not None:
-            return document[: found.end()] + script + document[found.end() :]
-    return script + document
+    lead = next(_DOCUMENT_LEAD.finditer(document)).end()
+    return document[:lead] + PLATFORM_SCRIPT.encode("utf-8") + document[lead:]
 
 
 def render(version: ArtifactVersion, data: bytes, *, title: str) -> bytes:
@@ -1222,6 +1221,9 @@ class ArtifactService:
             raise refused_field(
                 "pinned_version_id", "That version of the artifact is no longer kept."
             )
+        # A kept row whose bytes are gone would pin the link to a page that 404s.
+        if not await get_file_storage().exists(version.storage_path):
+            raise refused_field("pinned_version_id", "That version's content is gone from storage.")
         return version.number
 
     async def clear_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:

@@ -438,6 +438,10 @@ class TestPublicLinkSettings:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.lock", new=lock or AsyncMock()),
+            patch(
+                f"{PATH}.get_file_storage",
+                return_value=MagicMock(exists=AsyncMock(return_value=True)),
+            ),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.update", new=_apply),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
@@ -535,6 +539,21 @@ class TestPublicLinkSettings:
                 lock=AsyncMock(side_effect=lambda *_a, **_k: order.append("lock")),
             )
         assert order == ["lock", "check"]
+
+    async def test_a_pin_to_a_version_whose_bytes_are_gone_is_refused(self) -> None:
+        """It would pin the link to a page that 404s."""
+        artifact = _artifact(_ctx())
+        storage = MagicMock(exists=AsyncMock(return_value=False))
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version",
+                new=AsyncMock(return_value=_version(artifact, number=2)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+            pytest.raises(BadRequestError, match="gone from storage") as refused,
+        ):
+            await _service()._pinned_number(artifact, uuid.uuid4())
+        assert refused.value.details["fields"][0]["field"] == "pinned_version_id"
 
     async def test_a_pin_to_a_version_that_is_not_kept_is_refused(self) -> None:
         artifact = _artifact(_ctx())
@@ -768,20 +787,35 @@ class TestTheLibrarySet:
 
 
 class TestThePlatformScript:
-    def test_it_goes_right_after_the_head(self) -> None:
-        document = artifacts.with_platform_script(b"<!doctype html><HTML><Head lang=x><title>")
-        assert document.startswith(b"<!doctype html><HTML><Head lang=x><script data-agenticos")
+    def test_it_goes_right_after_the_doctype_before_the_html_tag(self) -> None:
+        # Before <html>, the parser opens the head for it; the page's own <html>
+        # attributes still land on that element.
+        document = artifacts.with_platform_script(b"<!doctype html><HTML lang=x><Head><title>")
+        assert document.startswith(b"<!doctype html><script data-agenticos")
+        assert document.endswith(b"</script><HTML lang=x><Head><title>")
 
-    def test_without_a_head_it_goes_after_the_html_tag(self) -> None:
+    def test_without_a_doctype_it_goes_first(self) -> None:
         document = artifacts.with_platform_script(b"<html lang=en><body>")
-        assert document.startswith(b"<html lang=en><script data-agenticos")
+        assert document.startswith(b"<script data-agenticos")
 
-    def test_without_either_it_goes_after_the_doctype_and_never_before_it(self) -> None:
-        # Both tags are optional in HTML; a doctype that is not first is ignored,
-        # and the page would render in quirks mode.
-        document = artifacts.with_platform_script(b"\xef\xbb\xbf\n<!DOCTYPE html><p>x</p>")
-        assert document.startswith(b"\xef\xbb\xbf\n<!DOCTYPE html><script data-agenticos")
+    def test_a_doctype_after_a_mark_whitespace_and_comments_is_kept_first(self) -> None:
+        # A doctype that is not first is ignored, and the page renders in quirks mode.
+        document = artifacts.with_platform_script(
+            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><p>x</p>"
+        )
+        assert document.startswith(
+            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><script data-agenticos"
+        )
         assert document.endswith(b"</script><p>x</p>")
+
+    @pytest.mark.security
+    def test_a_tag_inside_a_comment_or_a_script_cannot_move_it(self) -> None:
+        """Found by pattern, `<head>` inside a comment took the script into the
+        comment, where it never ran and links bypassed the confirmation."""
+        page = b"<!doctype html><!-- <head> --><script>var s = '<html>'</script><p>x</p>"
+        document = artifacts.with_platform_script(page)
+        assert document.startswith(b"<!doctype html><script data-agenticos")
+        assert document.endswith(b"</script>" + page[len(b"<!doctype html>") :])
 
     def test_a_doctype_later_in_the_page_is_not_the_one_it_looks_for(self) -> None:
         document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>")

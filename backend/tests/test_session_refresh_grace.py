@@ -51,6 +51,13 @@ class TestClaimRefreshGrace:
         with patch(_REPO, AsyncMock(return_value=row)):
             assert await SessionService(MagicMock()).claim_refresh_grace("spent") is None
 
+    async def test_a_rotation_stamped_in_the_future_is_outside_the_window(self) -> None:
+        """A clock set back after the rotation would keep the spent token inside
+        the window for as long as the clock stays behind."""
+        row = _row(rotated_ago=-timedelta(minutes=10))
+        with patch(_REPO, AsyncMock(return_value=row)):
+            assert await SessionService(MagicMock()).claim_refresh_grace("spent") is None
+
     async def test_a_row_that_never_recorded_its_rotation_is_outside_the_window(self) -> None:
         """Rows rotated before `rotated_at` existed keep the old behaviour."""
         with patch(_REPO, AsyncMock(return_value=_row(rotated_ago=None))):

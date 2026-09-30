@@ -117,7 +117,13 @@ Two things are versioned separately from this file and worth knowing about:
   `/auth/me` under the cross-tab lock; and an embed origin's port must be in
   range. From the security review: `read_artifact` reads as the
   person listening, so on a public widget or an embed, where the run stands in
-  for an anonymous visitor, it opens nothing.
+  for an anonymous visitor, it opens nothing. From the fourth: a refresh
+  rotation stamped in the future is outside the reuse grace window; a pin to a
+  version whose bytes are gone is refused; the platform script is placed right
+  after the document's lead, so a `<head>` inside a comment or a script cannot
+  move it where it never runs; and the first-run tour waits for the page's
+  session check, instead of greeting a person who finished onboarding since
+  they signed in.
 - **An artifact whose stored bytes are gone answers 404, not 500.** A version
   row whose file storage no longer has - a restored database beside an older
   volume - made the page, its thumbnail and `read_artifact` fail with a server

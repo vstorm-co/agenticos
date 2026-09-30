@@ -120,7 +120,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   nav.pathname = "/dashboard";
   useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
-  useAuthStore.setState({ user: user(), isAuthenticated: true });
+  useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
 });
 
 describe("OnboardingTour", () => {
