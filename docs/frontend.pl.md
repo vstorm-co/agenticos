@@ -1,5 +1,5 @@
 ---
-source_sha: "565baceaed60"
+source_sha: "22652979b979"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -137,7 +137,7 @@ Z katalogu `frontend/`. W korzeniu repozytorium vitest nie znajduje konfiguracji
 zgłasza około 164 widmowych porażek i zostawia niepotrzebny katalog cache.
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx   # while writing
+bunx vitest run src/components/chat/usage-meter.test.tsx   # while writing
 ```
 
 Raz, przed pushem — z korzenia repozytorium:

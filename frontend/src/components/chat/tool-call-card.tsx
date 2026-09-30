@@ -109,9 +109,10 @@ export function ToolCallCard({
   // transcript they came back to for something else. Opening those on mount made every
   // past turn a wall, which is what a replayed conversation looked like. A chart is the
   // other way round: only the last step of a turn is handed `startOpen`, so three
-  // charts arrived as two headers and one picture.
+  // charts arrived as two headers and one picture. And bookkeeping never opens on
+  // its own - see `staysClosed`.
   const [expanded, setExpanded] = useState(
-    toolCall.status === "completed" && (startOpen || opensOnSight),
+    toolCall.status === "completed" && entry?.staysClosed !== true && (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 

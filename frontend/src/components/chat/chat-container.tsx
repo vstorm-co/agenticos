@@ -9,7 +9,8 @@ import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
-import { UsageStrip } from "./usage-strip";
+import { ComposerStatus } from "./composer-status";
+import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
@@ -26,7 +27,6 @@ import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
-import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import type {
   PendingApproval,
   AskUserQuestion,
@@ -532,7 +532,6 @@ function ChatUI({
       })),
     [messages, agentNames, authUser, t],
   );
-  const tc = useTranslations("common");
   // The same query the file panel beside the transcript makes, so the fill under the
   // input costs nothing extra - and appears when a conversation is *opened* rather than
   // after the next turn reports one.
@@ -645,130 +644,89 @@ function ChatUI({
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
             <div ref={setAttachmentSlot} />
-            {/* Around the whole composer, not around a row inside it: the glow
+            {/* `@container`, so the composer and the line under it change shape
+                on their own width rather than on the window's. They are not the
+                same question: at 900px with the conversation list open this box
+                is 360px wide, and a viewport breakpoint showed a reading there
+                that had nowhere to go. */}
+            <div className="@container">
+              {/* Around the whole composer, not around a row inside it: the glow
                 blooms outward from the edge it is given, and given an inner row
                 it bloomed into the card's own fill and was all but invisible.
                 Always mounted and always lit - at rest it breathes, on a voice
                 it rises with the level, and while the answer is being thought
                 through it sweeps. */}
-            {/* Lit only while the microphone is actually open. At rest it is a
+              {/* Lit only while the microphone is actually open. At rest it is a
                 glow with nothing to report, and during a turn the transcript
                 already says what is happening. */}
-            <VoiceGlow stream={mic.stream} active={mic.state === "live"} borderRadius={16}>
-              {/* All the way around the composer, and only while somebody is in
+              <VoiceGlow stream={mic.stream} active={mic.state === "live"} borderRadius={16}>
+                {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
-              <Beam
-                size="md"
-                borderRadius={16}
-                active={composerFocused}
-                onFocusChange={setComposerFocused}
-              >
-                <div
-                  data-tour="chat-composer"
-                  // `@container`, so the readings below drop out on the
-                  // composer's own width rather than on the window's. They are
-                  // not the same question: at 900px with the conversation list
-                  // open this box is 360px wide, and a viewport breakpoint
-                  // showed a reading there that had nowhere to go.
-                  className="panel focus-within:border-foreground/30 @container rounded-2xl transition-colors"
+                <Beam
+                  size="md"
+                  borderRadius={16}
+                  active={composerFocused}
+                  onFocusChange={setComposerFocused}
                 >
-                  <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
-                    {isArchived && (
-                      <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
-                        {t("conversationArchived")}
-                      </p>
-                    )}
-                    {/* One row under the text, not three bands around it. The
-                        connection pill and the readings go left, who-answers
-                        and how go right, and `ChatInput` puts the microphone
-                        and the send button after them - the send button has to
-                        stay inside its own `<form>`, which is what decides
-                        that this is a slot rather than a row of our own. */}
-                    <ChatInput
-                      onSend={sendMessage}
-                      disabled={
-                        !isConnected ||
-                        isArchived ||
-                        !!pendingApproval ||
-                        !!(pendingQuestions && pendingQuestions.length)
-                      }
-                      isProcessing={isProcessing}
-                      onStop={onStop}
-                      slashContext={slashContext}
-                      commands={slashCommands}
-                      attachmentSlot={attachmentSlot}
-                      mic={mic}
-                      statusSlot={
-                        <>
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
-                          >
-                            <span
-                              className={`inline-block h-1.5 w-1.5 rounded-full ${
-                                isConnected ? "bg-success" : "bg-destructive"
-                              }`}
-                            />
-                            {/* The dot is the status; the word only names it.
-                                In a composer too narrow for both, the dot is
-                                what survives. */}
-                            <span className="hidden @[26rem]:inline">
-                              {isConnected ? tc("live") : tc("offline")}
-                            </span>
-                          </span>
-                          {/* The readings used to sit above the text, where a
-                              number changing pushed the caret down a line.
-                              Hidden below `sm`, where the row has the agent
-                              picker and five buttons to fit already. */}
-                          <span className="hidden min-w-0 @[34rem]:flex">
-                            <UsageStrip
+                  <div
+                    data-tour="chat-composer"
+                    className="panel focus-within:border-foreground/30 rounded-2xl transition-colors"
+                  >
+                    <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
+                      {isArchived && (
+                        <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
+                          {t("conversationArchived")}
+                        </p>
+                      )}
+                      {/* One row of actions under the text, the same at every
+                          level of every limit: attach and who answers on the left;
+                          usage, the model, the microphone and send on the right. A
+                          limit near its end changes an icon's colour and never
+                          costs the row a button. */}
+                      <ChatInput
+                        onSend={sendMessage}
+                        disabled={
+                          !isConnected ||
+                          isArchived ||
+                          !!pendingApproval ||
+                          !!(pendingQuestions && pendingQuestions.length)
+                        }
+                        isProcessing={isProcessing}
+                        onStop={onStop}
+                        slashContext={slashContext}
+                        commands={slashCommands}
+                        attachmentSlot={attachmentSlot}
+                        mic={mic}
+                        // Who answers first and largest: it is the most
+                        // consequential choice in the composer.
+                        controlsSlot={<AgentPicker />}
+                        actionsSlot={
+                          <>
+                            <UsageMeter
                               usage={lastUsage}
                               workspace={workspace}
                               total={conversationCost}
                               contextWindow={contextWindow}
-                              quiet
                             />
-                          </span>
-                        </>
-                      }
-                      controlsSlot={
-                        <>
-                          {/* Who answers, first and largest: it is the most
-                              consequential choice in the composer and it was a
-                              tab inside a popover. */}
-                          <AgentPicker />
-                          <div data-tour="chat-model-picker">
-                            <ChatControls
-                              onModelProfileChange={onModelProfileChange}
-                              onApprovalModeChange={onApprovalModeChange}
-                              agentModel={agentModel}
-                            />
-                          </div>
-                          {/* Chat is the one surface with no PageHeader, so the
-                              "?" that replays a page's tips has nowhere else to
-                              live here - except in a composer this narrow,
-                              where it is the first thing that can go. */}
-                          <span className="hidden @[30rem]:block">
-                            <RestartTourButton />
-                          </span>
-                        </>
-                      }
-                    />
+                            <div data-tour="chat-model-picker">
+                              <ChatControls
+                                onModelProfileChange={onModelProfileChange}
+                                onApprovalModeChange={onApprovalModeChange}
+                                agentModel={agentModel}
+                              />
+                            </div>
+                          </>
+                        }
+                      />
+                    </div>
                   </div>
-                </div>
-              </Beam>
-            </VoiceGlow>
-            {/* Text floating over a transcript needs its own pane behind it,
-                or it collides with whatever scrolls past. Opaque, like every
-                other surface: a translucent chip took its colour from whatever
-                line of the transcript happened to be under it. */}
-            <p className="text-center">
-              <span className="text-muted-foreground bg-background mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[11px] tracking-wider uppercase">
-                {t("aiCanMakeMistakes")}
-              </span>
-            </p>
+                </Beam>
+              </VoiceGlow>
+              <ComposerStatus isConnected={isConnected} />
+            </div>
           </div>
         </div>
       </div>

@@ -60,6 +60,78 @@ describe("rendering an answer", () => {
     expect(screen.getByRole("cell", { name: "Acme" })).toBeInTheDocument();
   });
 
+  it("keeps a figure on one line and a sentence free to wrap", () => {
+    // `148 420` broken after its thousands separator reads as two numbers.
+    markdown(
+      [
+        "| repo | downloads: yesterday / 7 days / 30 days, from PyPI |",
+        "| --- | --- |",
+        "| full-stack-ai-agent-template | 7 630 / 36 924 / 148 420 |",
+      ].join("\n"),
+    );
+
+    expect(screen.getByRole("cell", { name: "7 630 / 36 924 / 148 420" }).className).toContain(
+      "whitespace-nowrap",
+    );
+    expect(
+      screen.getByRole("cell", { name: "full-stack-ai-agent-template" }).className,
+    ).not.toContain("whitespace-nowrap");
+    expect(screen.getByRole("columnheader", { name: "repo" }).className).toContain(
+      "whitespace-nowrap",
+    );
+    expect(
+      screen.getByRole("columnheader", { name: /downloads: yesterday/ }).className,
+    ).not.toContain("whitespace-nowrap");
+  });
+
+  it("draws headers in sentence case rather than mono capitals", () => {
+    markdown(["| Stars |", "| --- |", "| 1 922 |"].join("\n"));
+
+    const header = screen.getByRole("columnheader", { name: "Stars" });
+    expect(header.className).not.toContain("uppercase");
+    expect(header.className).not.toContain("font-mono");
+  });
+
+  it("copies a table as a table and as markdown, for whichever the paste wants", async () => {
+    // A spreadsheet reads the HTML; a text field reads the markdown.
+    const write = vi.fn().mockResolvedValue(undefined);
+    const received: Record<string, Blob>[] = [];
+    class FakeClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        received.push(items);
+      }
+    }
+    vi.stubGlobal("navigator", { clipboard: { write, writeText: vi.fn() } });
+    vi.stubGlobal("ClipboardItem", FakeClipboardItem);
+    markdown(["| name | note |", "| --- | --- |", "| Acme | a <b> \\| c |"].join("\n"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy table" }));
+
+    expect(write).toHaveBeenCalledTimes(1);
+    const texts = await Promise.all(
+      received.flatMap((items) => [items["text/plain"]?.text(), items["text/html"]?.text()]),
+    );
+    expect(texts).toEqual([
+      ["| name | note |", "| --- | --- |", "| Acme | a <b> \\| c |"].join("\n"),
+      "<table><thead><tr><th>name</th><th>note</th></tr></thead>" +
+        "<tbody><tr><td>Acme</td><td>a &lt;b&gt; | c</td></tr></tbody></table>",
+    ]);
+    expect(screen.getByRole("button", { name: "Copied to clipboard" })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("copies the markdown alone where the browser has no rich clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("ClipboardItem", undefined);
+    markdown(["| name |", "| --- |", "| Acme |"].join("\n"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy table" }));
+
+    expect(writeText).toHaveBeenCalledWith("| name |\n| --- |\n| Acme |");
+    vi.unstubAllGlobals();
+  });
+
   it("shows a fenced block's language, and offers it for copying", () => {
     // The one thing people take out of a chat answer.
     markdown("```python\nprint(1)\n```");

@@ -81,7 +81,7 @@ export function AgentPicker() {
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
-          className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex min-w-0 items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
+          className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground inline-flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
         >
           {selected ? (
             <AgentAvatar
@@ -95,7 +95,7 @@ export function AgentPicker() {
               <Bot className="h-3 w-3" />
             </span>
           )}
-          <span className="max-w-[160px] truncate font-mono text-xs tracking-wider uppercase">
+          <span className="max-w-[160px] truncate text-sm font-medium">
             {selected?.name ?? t("none")}
           </span>
           <ChevronDown className="text-muted-foreground h-3 w-3" />

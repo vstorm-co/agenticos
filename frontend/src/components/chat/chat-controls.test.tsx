@@ -77,10 +77,26 @@ describe("the chat controls trigger", () => {
     expect(document.querySelector("[data-chat-settings-trigger]")).toBe(found);
   });
 
-  it("says only 'Controls' until the model is overridden", () => {
+  it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {
     open();
 
-    expect(trigger()).toHaveTextContent("Controls");
+    expect(trigger()).toHaveTextContent("");
+    expect(trigger()).toHaveAttribute("title", "Chat controls");
+  });
+
+  it("names the agent's own model until the conversation overrides it", () => {
+    // An icon says nothing about which model answers, so its tooltip does.
+    open({
+      agentModel: {
+        profile_id: "agent-profile",
+        provider: "anthropic",
+        model: "claude-sonnet-5-5",
+        label: "Sonnet 5.5",
+      },
+    });
+
+    expect(trigger()).toHaveAttribute("title", "Model: Sonnet 5.5");
+    expect(screen.queryByTestId("override-dot")).toBeNull();
   });
 
   it("names the model this conversation was moved onto", async () => {
@@ -92,7 +108,8 @@ describe("the chat controls trigger", () => {
     await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
 
     expect(handlers.onModelProfileChange).toHaveBeenCalledWith("p-1");
-    expect(trigger()).toHaveTextContent("openai default");
+    expect(trigger()).toHaveAttribute("title", "Model: openai default");
+    expect(screen.getByTestId("override-dot")).toBeInTheDocument();
   });
 
   it("offers a way back to the agent's own model, once there is one to go back from", async () => {
@@ -106,7 +123,8 @@ describe("the chat controls trigger", () => {
     await userEvent.click(screen.getByRole("button", { name: /Back to the agent/ }));
 
     expect(handlers.onModelProfileChange).toHaveBeenLastCalledWith(null);
-    expect(trigger()).toHaveTextContent("Controls");
+    expect(trigger()).toHaveAttribute("title", "Chat controls");
+    expect(screen.queryByTestId("override-dot")).toBeNull();
   });
 
   it("says whether the override is saved yet", async () => {
@@ -131,7 +149,7 @@ describe("the chat controls trigger", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
 
-    expect(trigger()).toHaveTextContent("Controls");
+    expect(trigger()).toHaveAttribute("title", "Chat controls");
   });
 });
 

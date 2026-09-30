@@ -49,6 +49,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The chat composer is one row of actions.** The model picker is an icon
+  beside the microphone, naming the model in its tooltip, and what the
+  conversation is using - the context window, the cost, the budgets, the
+  workspace - is one icon that fills with the context share and turns amber or
+  red when any reading nears its limit; the numbers open on a click. The
+  disclaimer is a footnote, the connection shows only when it is lost, and on a
+  phone the composer no longer sits under the tab bar.
+- **Tables in an answer are easier to read and to take away.** Headers are in
+  sentence case, a figure stays on one line in tabular digits, a text column
+  keeps a readable width, and the rule under the last column is back. A copy
+  button on hover copies the table as HTML for a spreadsheet or a document and
+  as markdown for a text field.
+- **A published page's card in chat shows the page** - the version that run
+  published - instead of an icon and a title.
+- **Memory steps stay folded** even as the last step of a turn: what an agent
+  notes for itself is not what the person asked to see.
 - **A link inside a published page opens after a confirmation.** The page still
   has no `allow-popups`; a platform script turns the click into a request, and
   the console, the public page and the embed show the full address and open it in
@@ -63,6 +79,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The "Claude Code like" template binds the `artifact-pages` skill.** A
+  template can now name a skill bundled with every organization; installing
+  used to hand that name to the gallery, which did not know it, so the agent
+  built pages without the style written for them.
 - **A run in a named environment no longer republishes the default
   environment's page.** The environment is part of an artifact's identity, read
   from the run, so `staging` publishes a page of its own. Deleting an

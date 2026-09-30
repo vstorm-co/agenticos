@@ -1,5 +1,5 @@
 ---
-source_sha: "565baceaed60"
+source_sha: "22652979b979"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -139,7 +139,7 @@ Desde `frontend/`. En la raíz del repositorio vitest no encuentra configuració
 informa de unos 164 fallos fantasma y deja un directorio de caché perdido.
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx   # while writing
+bunx vitest run src/components/chat/usage-meter.test.tsx   # while writing
 ```
 
 Una vez, antes de hacer push — desde la raíz del repositorio:

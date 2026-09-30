@@ -130,7 +130,7 @@ From `frontend/`. At the repository root vitest finds no config, reports around
 164 phantom failures and leaves a stray cache directory.
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx   # while writing
+bunx vitest run src/components/chat/usage-meter.test.tsx   # while writing
 ```
 
 Once, before pushing — from the repository root:

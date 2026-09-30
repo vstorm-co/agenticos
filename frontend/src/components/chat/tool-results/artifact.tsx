@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, PanelsTopLeft } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
 import { ROUTES } from "@/lib/constants";
 
 export interface PublishedArtifactPayload {
@@ -55,12 +56,21 @@ export function PublishedArtifactResult({ data }: { data: PublishedArtifactPaylo
   return (
     <Link
       href={`${ROUTES.ARTIFACT_DETAIL(data.artifactId)}?version=${encodeURIComponent(data.versionId)}`}
-      className="hover:bg-accent/40 my-1 flex items-center gap-3 rounded-xl border p-3 transition-colors"
+      className="hover:bg-accent/40 my-1 flex items-center gap-3 rounded-xl border p-2 pr-3 transition-colors"
     >
-      <PanelsTopLeft className="text-muted-foreground h-5 w-5 shrink-0" />
+      {/* The page itself, the way the Artifacts listing draws it: an icon and a
+          title said a page existed, and nothing about whether it was the one
+          that was asked for. */}
+      <span className="border-foreground/10 bg-muted/40 relative h-24 w-36 shrink-0 overflow-hidden rounded-lg border sm:h-28 sm:w-44">
+        <ArtifactThumbnail
+          artifactId={data.artifactId}
+          versionId={data.versionId}
+          title={data.title}
+        />
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate text-sm font-medium">{data.title}</span>
-        <span className="text-muted-foreground block text-xs">
+        <span className="text-foreground line-clamp-2 text-sm font-medium">{data.title}</span>
+        <span className="text-muted-foreground mt-1 block text-xs">
           {data.unchanged
             ? t("artifactUnchanged", { version: data.version })
             : t("artifactVersion", { version: data.version })}

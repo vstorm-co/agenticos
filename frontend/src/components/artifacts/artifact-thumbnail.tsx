@@ -76,11 +76,20 @@ function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
  * fades in. If the address cannot be had, the lines stay and stop pulsing - a
  * card that pulses forever says "loading" about something that never will.
  */
-export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; title: string }) {
+export function ArtifactThumbnail({
+  artifactId,
+  title,
+  versionId = null,
+}: {
+  artifactId: string;
+  title: string;
+  /** One version rather than the current one - what a chat's run published. */
+  versionId?: string | null;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const near = useNearViewport(box);
   const scale = useFitScale(box);
-  const view = useArtifactView(artifactId, null, near);
+  const view = useArtifactView(artifactId, versionId, near);
   const [loaded, setLoaded] = useState(false);
   // A frame unmounted off screen paints again when it comes back, so the lines
   // return with it rather than a blank card waiting for the load.

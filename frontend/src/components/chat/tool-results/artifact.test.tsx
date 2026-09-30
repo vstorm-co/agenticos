@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PublishedArtifactResult, parsePublishedArtifact } from "./artifact";
+
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: ({ artifactId, versionId }: { artifactId: string; versionId: string }) => (
+    <span data-testid="thumbnail">{`${artifactId}@${versionId}`}</span>
+  ),
+}));
 
 const PUBLISHED = {
   kind: "artifact",
@@ -58,6 +64,8 @@ describe("PublishedArtifactResult", () => {
     );
     expect(screen.getByRole("link")).toHaveAttribute("href", "/artifacts/a1?version=v%203");
     expect(screen.getByText("Version 3 · open the page")).toBeInTheDocument();
+    // The preview is of that version too, not of whatever the link shows today.
+    expect(screen.getByTestId("thumbnail")).toHaveTextContent("a1@v 3");
   });
 
   it("says when nothing changed and no version was added", () => {

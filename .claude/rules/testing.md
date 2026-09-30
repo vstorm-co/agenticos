@@ -26,7 +26,7 @@ after an edit it answers the same question ten to fifty times slower.
 | `backend/` | `uv run pytest tests/test_sandbox_workspace.py -q` | ~6s, nearly all importing the app |
 | `backend/` | `uv run pytest tests/api/test_workspace_routes.py -k bytes -x` | ~6s, same |
 | `backend/` | `uv run pytest tests/test_a.py tests/test_b.py -q` | as many files as the change touched |
-| `frontend/` | `bunx vitest run src/components/chat/usage-strip.test.tsx` | 2s |
+| `frontend/` | `bunx vitest run src/components/chat/usage-meter.test.tsx` | 2s |
 | `frontend/` | `bunx vitest run src/components/chat` | a directory |
 
 Then, once, before the push:
