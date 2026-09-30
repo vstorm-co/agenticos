@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.db.models.workflow_run import DispatchOutbox, NodeRunStatus
+from app.db.models.workflow_run import DispatchOutbox, NodeRun, NodeRunStatus
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
@@ -71,7 +70,8 @@ class TestWait:
     async def test_a_wait_parks_on_its_clock_and_goes_on_once_it_comes_due(
         self, engine: AsyncEngine
     ):
-        graph, wait = _waiting({"seconds": 1})
+        # Long enough that no machine drives past it; the clock is moved below.
+        graph, wait = _waiting({"seconds": 60})
         seeded = await seed_run(engine, graph)
 
         parked = await drive(seeded)
@@ -87,9 +87,24 @@ class TestWait:
                     )
                 )
             ).scalar_one()
-        assert row.available_at > datetime.now(UTC)
+        assert row.available_at > datetime.now(UTC) + timedelta(seconds=50)
 
-        await asyncio.sleep(1.2)
+        # A minute passes: the step was reached a minute ago, and its row is due.
+        a_minute_ago = datetime.now(UTC) - timedelta(seconds=61)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(NodeRun)
+                .where(
+                    NodeRun.workflow_run_id == seeded.run.id, NodeRun.node_instance_id == wait.id
+                )
+                .values(created_at=a_minute_ago)
+            )
+            await db.execute(
+                update(DispatchOutbox)
+                .where(DispatchOutbox.id == row.id)
+                .values(available_at=a_minute_ago)
+            )
+            await db.commit()
         finished = await drive(seeded)
         assert finished.status == "succeeded"
 
