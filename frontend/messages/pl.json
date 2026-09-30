@@ -169,6 +169,7 @@
     "linkSentHeading": "Link wysłany. <em>Już leci.</em>",
     "loggedOut": "Wylogowano",
     "loginFailedPleaseTry": "Logowanie nie powiodło się. Spróbuj ponownie.",
+    "loginTimedOut": "Serwer nie odpowiedział na czas. Sprawdź połączenie i spróbuj ponownie.",
     "n8Chars": "8+ znaków",
     "n8Chars2": "8+ znaków",
     "passwordMustBeAt": "Hasło musi mieć co najmniej 8 znaków",

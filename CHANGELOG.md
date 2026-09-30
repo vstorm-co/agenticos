@@ -92,6 +92,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A sign-in that the network never answers no longer spins forever.** After
+  an idle laptop or a VPN reconnect the login request could go out on a dead
+  connection and hang until the page was reloaded; it now gives up after 20
+  seconds and says the server did not answer. A session check sent before the
+  sign-in and answered after it can no longer put the new account back on the
+  login page.
 - People are no longer signed out several times a day by their own refresh. Two
   tabs refreshing on the shared cookie, or a refresh whose answer was lost to a VPN
   reconnect or a closed lid, presented the token the rotation had just spent, and

@@ -88,10 +88,11 @@ describe("signing in with a directory account", () => {
     await signIn("jdoe", "s3cret");
 
     await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith("/auth/ldap/login", {
-        username: "jdoe",
-        password: "s3cret",
-      }),
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/auth/ldap/login",
+        { username: "jdoe", password: "s3cret" },
+        { signal: expect.any(AbortSignal) },
+      ),
     );
   });
 
@@ -111,10 +112,11 @@ describe("signing in with a directory account", () => {
     await signIn("jdoe", "s3cret");
 
     await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith(`/auth/ldap/login?flow=${FLOW}`, {
-        username: "jdoe",
-        password: "s3cret",
-      }),
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/auth/ldap/login?flow=${FLOW}`,
+        { username: "jdoe", password: "s3cret" },
+        { signal: expect.any(AbortSignal) },
+      ),
     );
   });
 
@@ -141,6 +143,37 @@ describe("signing in with a directory account", () => {
     await signIn("jdoe", "pw");
 
     expect(await screen.findByText("Login failed. Please try again.")).toBeInTheDocument();
+  });
+
+  it("says the server did not answer when a sign-in times out", async () => {
+    // A request a dead connection swallowed spun the button until a reload.
+    vi.mocked(apiClient.post).mockRejectedValue(new DOMException("timed out", "TimeoutError"));
+    mount();
+    await openDirectoryForm();
+
+    await signIn("jdoe", "pw");
+
+    expect(
+      await screen.findByText(
+        "The server did not answer in time. Check your connection and try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Login" })).toBeEnabled();
+  });
+
+  it("says the same for the password form", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new DOMException("timed out", "TimeoutError"));
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Email"), "a@example.com");
+    await userEvent.type(screen.getByLabelText("Password"), "pw");
+    await userEvent.click(screen.getByRole("button", { name: /Sign in|Login/ }));
+
+    expect(
+      await screen.findByText(
+        "The server did not answer in time. Check your connection and try again.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("says why a sign-in that left the page sent the person back", () => {

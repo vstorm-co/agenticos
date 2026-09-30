@@ -35,6 +35,16 @@ const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 // one the cookies now hold, leaving the socket and the page as different people.
 let identityEpoch = 0;
 
+/**
+ * How long a sign-in request may take before the form says so.
+ *
+ * Without a bound a request that never answers - sent over a connection a VPN
+ * reconnect or a sleeping laptop left dead - spins the button until somebody
+ * reloads, and the reload then signs in at once on a fresh connection. Twenty
+ * seconds is far past a slow login and short enough to be told to try again.
+ */
+export const SIGN_IN_TIMEOUT_MS = 20_000;
+
 /** What a sign-in route answers: the account, and the token the chat socket needs. */
 interface SignInResponse {
   user: User;
@@ -196,6 +206,11 @@ export function useAuth() {
       setLoading(true);
       try {
         const response = await request();
+        // A check that set out before this sign-in - the page's own /auth/me,
+        // answering late over a slow network - must not land afterwards and
+        // sign out the account that just arrived.
+        identityEpoch += 1;
+        authCheckPromise = null;
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
@@ -210,7 +225,13 @@ export function useAuth() {
 
   const login = useCallback(
     (credentials: LoginRequest, returnTo?: string | null) =>
-      signIn(() => apiClient.post<SignInResponse>("/auth/login", credentials), returnTo),
+      signIn(
+        () =>
+          apiClient.post<SignInResponse>("/auth/login", credentials, {
+            signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
+          }),
+        returnTo,
+      ),
     [signIn],
   );
 
@@ -226,7 +247,13 @@ export function useAuth() {
       const path = invitationFlow
         ? `/auth/ldap/login?${INVITATION_FLOW_PARAM}=${invitationFlow}`
         : "/auth/ldap/login";
-      return signIn(() => apiClient.post<SignInResponse>(path, credentials), returnTo);
+      return signIn(
+        () =>
+          apiClient.post<SignInResponse>(path, credentials, {
+            signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
+          }),
+        returnTo,
+      );
     },
     [signIn],
   );

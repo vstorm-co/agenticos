@@ -166,6 +166,11 @@ function localizedMessage(error: ApiError, t: Translate): string {
  * default - to one English sentence that 51 callers rendered under every
  * locale (#603).
  */
+/** Whether a request was given up on by its own `AbortSignal.timeout`. */
+export function isTimeout(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "TimeoutError";
+}
+
 export function getErrorMessage(err: unknown, t: Translate, fallback?: string): string {
   if (err instanceof ApiError) return localizedMessage(err, t);
   if (err instanceof Error) return err.message;

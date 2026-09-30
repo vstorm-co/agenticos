@@ -683,6 +683,7 @@
     "loggingIn": "Logging in...",
     "login": "Login",
     "loginFailedPleaseTry": "Login failed. Please try again.",
+    "loginTimedOut": "The server did not answer in time. Check your connection and try again.",
     "loginSuccess": "Successfully logged in",
     "emailChange": {
       "confirming": "Confirming this address…",

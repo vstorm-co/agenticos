@@ -679,6 +679,7 @@
     "loggingIn": "Anmeldung läuft …",
     "login": "Anmelden",
     "loginFailedPleaseTry": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "loginTimedOut": "Der Server hat nicht rechtzeitig geantwortet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "loginSuccess": "Erfolgreich angemeldet",
     "emailChange": {
       "confirming": "Diese Adresse wird bestätigt …",
