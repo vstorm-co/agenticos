@@ -403,11 +403,10 @@ class WorkflowExecutionService:
         )
 
         now = datetime.now(UTC)
+        settings = StoredWorkflowSettings.model_validate(workflow.settings)
         if deadline_seconds is None:
             # Nothing that started the run named a deadline: the workflow's own.
-            deadline_seconds = StoredWorkflowSettings.model_validate(
-                workflow.settings
-            ).default_deadline_seconds
+            deadline_seconds = settings.default_deadline_seconds
         deadline_at = (
             now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
         )
@@ -423,6 +422,7 @@ class WorkflowExecutionService:
             budget_limit=budget_limit,
             node_count=len(graph.nodes),
             deadline_at=deadline_at,
+            timezone=settings.timezone,
             root_run_id=causation.root_run_id if causation else None,
             causation_run_id=causation.causation_run_id if causation else None,
             visited_trigger_ids=causation.visited_trigger_ids if causation else [],

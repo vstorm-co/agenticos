@@ -1,5 +1,5 @@
 ---
-source_sha: "f86de24f31d9"
+source_sha: "da2f5f60c622"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -182,7 +182,7 @@ uno toma `items`, una lista vinculada desde un paso anterior, y la mayoría entr
 | `transform.aggregate` | Reúne los valores de cada campo de todos los elementos en una lista por campo, como `values` |
 | `transform.split_out` | Convierte una lista dentro de cada elemento en elementos propios |
 | `transform.summarize` | Cuenta, suma, promedia, halla el menor o el mayor, o cuenta valores distintos, por grupo |
-| `transform.date_time` | Ahora, o un `value` vinculado desplazado una cantidad, escrito en una zona horaria |
+| `transform.date_time` | Ahora, o un `value` vinculado desplazado una cantidad, escrito en una zona horaria - la del workflow salvo que el paso indique otra |
 | `transform.crypto` | Calcula el hash o codifica en base64 el `text` vinculado, o crea un UUID o hex aleatorio |
 
 Un campo es una ruta con puntos, `customer.email`, y un elemento sin él nunca es un
@@ -634,7 +634,8 @@ ser un valor JSON. Solo calcula, así que es `pure` y requiere `code:execute`.
 
 En el editor, el script de un paso de código se escribe en un editor de código:
 Python o JavaScript resaltado en ambos temas, Tab y Shift+Tab para sangrar, Enter
-que conserva la sangría, paréntesis y comillas que se cierran al escribirlos, y las
+que conserva la sangría, paréntesis y comillas que se cierran al escribirlos, el
+paréntesis junto al cursor enmarcado con su pareja, y las
 claves del `args` vinculado ofrecidas al escribir `args["` o, en JavaScript,
 `args.`. Esc y luego Tab sale del editor. **Test step** ejecuta solo el script con
 lo que entregaron los pasos anteriores.

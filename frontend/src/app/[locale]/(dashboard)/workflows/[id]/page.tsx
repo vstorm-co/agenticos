@@ -40,6 +40,7 @@ import {
 } from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
+import { WorkflowDescription } from "@/components/workflows/editor/workflow-description";
 import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
@@ -174,7 +175,18 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             onRename={(name) => actions.update.mutate({ id: workflow.id, update: { name } })}
           />
         }
-        description={workflow.description ?? undefined}
+        description={
+          // An editor is offered one to write; a reader sees none that is not there.
+          canEdit || workflow.description ? (
+            <WorkflowDescription
+              description={workflow.description}
+              canEdit={canEdit}
+              onChange={(description) =>
+                actions.update.mutate({ id: workflow.id, update: { description } })
+              }
+            />
+          ) : undefined
+        }
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={

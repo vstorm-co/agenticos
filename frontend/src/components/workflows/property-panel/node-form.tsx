@@ -72,6 +72,7 @@ import {
   singleFieldSchema,
   type Defs,
   type ResourceKind,
+  repeatsLabel,
   type Schema,
   type UnionShape,
 } from "./schema-model";
@@ -424,10 +425,14 @@ function ConfigCode({
   const error = ctx.errors.get(field);
   const label = labelOf(schema, name);
   const description = schema["description"];
+  // A description that only says the label again is its hover hint instead.
+  const hinted = typeof description === "string" && repeatsLabel(label, description);
   const placeholder = schema["x-placeholder"];
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} title={hinted ? description : undefined}>
+        {label}
+      </Label>
       <CodeEditor
         id={id}
         language={language}
@@ -438,7 +443,7 @@ function ConfigCode({
         disabled={ctx.disabled}
         argKeys={argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
       />
-      {typeof description === "string" && (
+      {typeof description === "string" && !hinted && (
         <p className="text-muted-foreground text-xs">{description}</p>
       )}
       {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
@@ -808,20 +813,23 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
 
   const field = bindingFieldPath(path);
   return (
-    <BindingField
-      targetNodeId={ctx.node.id}
-      targetField={field}
-      name={name}
-      schema={schema}
-      required={required}
-      bindings={ctx.bindings}
-      graph={ctx.graph}
-      catalog={ctx.catalog}
-      error={ctx.errors.get(field)}
-      disabled={ctx.disabled}
-      onUpsert={ctx.upsertBinding}
-      onRemove={ctx.removeBinding}
-    />
+    // Named for the dialog, which says a missing value once its field was left.
+    <div data-field={field}>
+      <BindingField
+        targetNodeId={ctx.node.id}
+        targetField={field}
+        name={name}
+        schema={schema}
+        required={required}
+        bindings={ctx.bindings}
+        graph={ctx.graph}
+        catalog={ctx.catalog}
+        error={ctx.errors.get(field)}
+        disabled={ctx.disabled}
+        onUpsert={ctx.upsertBinding}
+        onRemove={ctx.removeBinding}
+      />
+    </div>
   );
 }
 

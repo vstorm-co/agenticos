@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -109,6 +109,35 @@ describe("a step's missing values", () => {
     act(() => store.getState().revealProblems());
 
     expect(screen.getByText(/has no value yet/)).toBeInTheDocument();
+  });
+
+  it("says it once its field was left, and forgets that when the dialog closes", () => {
+    const NOTED = makeDefinition({
+      id: "test.noted",
+      name: "Noted",
+      input_schema: REQUIRED_INPUT,
+      config_schema: {
+        type: "object",
+        properties: { subject: { type: "string", title: "Subject" } },
+        required: ["subject"],
+      },
+    });
+    seed(node("a", "test.noted"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[NOTED]} />);
+
+    // A field that is not a bound input is left without saying anything.
+    fireEvent.focusOut(screen.getByLabelText(/^Subject/));
+    expect(screen.queryByText(/has no value yet/)).toBeNull();
+
+    const input = document.querySelector("[data-field='value'] input") as HTMLElement;
+    fireEvent.focusOut(input);
+    fireEvent.focusOut(input);
+    expect(screen.getByText(/has no value yet/)).toBeInTheDocument();
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    act(() => store.getState().editNode("a"));
+    expect(screen.queryByText(/has no value yet/)).toBeNull();
   });
 });
 

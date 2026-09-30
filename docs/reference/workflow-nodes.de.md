@@ -1,5 +1,5 @@
 ---
-source_sha: "f86de24f31d9"
+source_sha: "da2f5f60c622"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -190,7 +190,7 @@ nimmt `items`, eine aus einem früheren Schritt gebundene Liste, und die meisten
 | `transform.aggregate` | Sammelt die Werte jedes Felds über alle Elemente in einer Liste je Feld, als `values` |
 | `transform.split_out` | Macht aus einer Liste in jedem Element eigene Elemente |
 | `transform.summarize` | Zählt, summiert, mittelt, findet das Kleinste oder Größte oder zählt verschiedene Werte, je Gruppe |
-| `transform.date_time` | Jetzt oder ein gebundener `value`, um eine Menge verschoben und in einer Zeitzone geschrieben |
+| `transform.date_time` | Jetzt oder ein gebundener `value`, um eine Menge verschoben und in einer Zeitzone geschrieben - der des Workflows, sofern der Schritt keine nennt |
 | `transform.crypto` | Hasht oder base64-kodiert den gebundenen `text` oder erzeugt eine UUID oder zufälliges Hex |
 
 Ein Feld ist ein Pfad mit Punkten, `customer.email`, und ein Element ohne es ist nie
@@ -659,7 +659,7 @@ Schritts, das ein JSON-Wert sein muss. Es rechnet und tut sonst nichts, also ist
 Im Editor wird das Skript eines Code-Schritts in einem Code-Editor geschrieben:
 Python oder JavaScript, in beiden Themes hervorgehoben, Tab und Shift+Tab zum
 Einrücken, Enter behält die Einrückung, Klammern und Anführungszeichen schließen
-sich beim Tippen, und die Schlüssel des gebundenen `args` werden angeboten, sobald
+sich beim Tippen, die Klammer am Cursor wird mit ihrem Gegenstück umrahmt, und die Schlüssel des gebundenen `args` werden angeboten, sobald
 `args["` oder, in JavaScript, `args.` getippt wird. Esc und dann Tab verlässt den
 Editor. **Test step** führt das Skript allein mit dem aus, was die Schritte davor
 weitergegeben haben.

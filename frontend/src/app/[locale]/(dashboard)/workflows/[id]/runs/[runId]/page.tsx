@@ -36,11 +36,23 @@ import {
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
 import { RunFiles } from "@/components/workflows/runs/run-files";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
-import { useNodeCatalog, usePermissions, useWorkflow, useWorkflowRun } from "@/hooks";
+import {
+  useCausingRun,
+  useNodeCatalog,
+  usePermissions,
+  useWorkflow,
+  useWorkflowRun,
+} from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, formatRunDuration } from "@/lib/utils";
 import { stepDataOf } from "@/lib/workflows/step-data";
-import { isRunRetryable, isRunTerminal, nodeDisplayName, shortNodeId } from "@/lib/workflows/types";
+import {
+  isRunRetryable,
+  isRunTerminal,
+  type NodeInstance,
+  nodeDisplayName,
+  shortNodeId,
+} from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
 import { useWorkflowEditorStore } from "@/stores";
 
@@ -201,6 +213,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </p>
       )}
 
+      {run.causation_run_id !== null && (
+        <CausedBy runId={run.causation_run_id} triggeredBy={run.triggered_by} />
+      )}
+
       {problem && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -259,6 +275,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       {node.attempts > 1 ? ` · ${t("runAttempts", { count: node.attempts })}` : ""}
                     </p>
                     {node.error && <StepProblem problem={node.error} />}
+                    <CalledRun
+                      config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
+                      output={node.output}
+                    />
                   </li>
                 ))}
               </ul>
@@ -267,6 +287,57 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** What started this run, linked where the viewer may open it. */
+function CausedBy({ runId, triggeredBy }: { runId: string; triggeredBy: string }) {
+  const t = useTranslations("pages.workflows");
+  const { causing, refused } = useCausingRun(runId);
+  const cause =
+    triggeredBy === "workflow_call" || triggeredBy === "workflow_failed" ? triggeredBy : "other";
+  return (
+    <p className="text-muted-foreground text-sm">
+      {t(`runCausedBy.${cause}`)}{" "}
+      {causing !== null ? (
+        <Link
+          className="text-foreground underline underline-offset-4"
+          href={ROUTES.WORKFLOW_RUN_DETAIL(causing.workflow_id, causing.id)}
+        >
+          {t("runTitle", { id: shortNodeId(causing.id) })}
+        </Link>
+      ) : (
+        refused && t("runCausedByHidden")
+      )}
+    </p>
+  );
+}
+
+/** A Run a workflow step's link to the run it started, once it has one. */
+function CalledRun({
+  config,
+  output,
+}: {
+  config: NodeInstance | undefined;
+  output: Record<string, unknown> | null;
+}) {
+  const t = useTranslations("pages.workflows");
+  const workflowId = config?.config["workflow_id"];
+  const called = output?.["run_id"];
+  if (
+    config?.definition_id !== "workflow.run" ||
+    typeof workflowId !== "string" ||
+    typeof called !== "string"
+  ) {
+    return null;
+  }
+  return (
+    <Link
+      className="text-xs underline underline-offset-4"
+      href={ROUTES.WORKFLOW_RUN_DETAIL(workflowId, called)}
+    >
+      {t("runOpenCalled", { id: shortNodeId(called) })}
+    </Link>
   );
 }
 

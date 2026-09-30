@@ -64,6 +64,7 @@ async def create_run(
     reply_conversation_id: UUID | None = None,
     retry_of_run_id: UUID | None = None,
     parent_node_run_id: UUID | None = None,
+    timezone: str = "UTC",
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -84,6 +85,7 @@ async def create_run(
         budget_limit=budget_limit,
         node_count=node_count,
         deadline_at=deadline_at,
+        timezone=timezone,
         root_run_id=root_run_id or run_id,
         causation_run_id=causation_run_id,
         visited_trigger_ids=visited_trigger_ids,

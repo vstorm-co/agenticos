@@ -93,6 +93,38 @@ describe("RunHistory", () => {
     expect(url.set).toHaveBeenCalledWith("page", null);
   });
 
+  it("narrows to runs started within a window counted back from now", async () => {
+    const now = Date.parse("2026-09-30T12:00:00Z");
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    url.values = { since: "24h" };
+    render(<RunHistory workflowId="wf" />);
+
+    expect(history.query).toHaveBeenLastCalledWith(
+      expect.objectContaining({ createdAfter: "2026-09-29T12:00:00.000Z" }),
+    );
+    expect(screen.getByText("No runs match")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Started by" }));
+    expect(screen.getByRole("option", { name: "Another workflow" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "A failed run" })).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Started" }));
+    await userEvent.click(screen.getByRole("option", { name: "Last 7 days" }));
+    expect(url.set).toHaveBeenCalledWith("since", "7d");
+    expect(url.set).toHaveBeenCalledWith("page", null);
+    vi.restoreAllMocks();
+  });
+
+  it("ignores a window the address names that it does not know", () => {
+    url.values = { since: "forever" };
+    render(<RunHistory workflowId="wf" />);
+    expect(history.query).toHaveBeenLastCalledWith(
+      expect.objectContaining({ createdAfter: undefined }),
+    );
+    expect(screen.getByText("No runs yet")).toBeTruthy();
+  });
+
   it("says when a workflow has not run yet", () => {
     render(<RunHistory workflowId="wf" />);
     expect(screen.getByText("No runs yet")).toBeTruthy();

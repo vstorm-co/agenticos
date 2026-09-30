@@ -13,7 +13,7 @@ shape, so they chain: filter, sort, limit, then write the rows.
 | `transform.aggregate` | Collects each field's values across the items into one list per field |
 | `transform.split_out` | Turns a list inside each item into items of their own |
 | `transform.summarize` | Counts, sums, averages, finds the least or greatest, by group |
-| `transform.date_time` | Now, or a bound moment moved by an amount, written out in a timezone |
+| `transform.date_time` | Now, or a bound moment moved by an amount, written out in a timezone - the run's (the workflow's setting when it started) unless the step names one |
 | `transform.crypto` | Hashes or encodes text, or makes a UUID or random hex |
 
 ## Missing keys

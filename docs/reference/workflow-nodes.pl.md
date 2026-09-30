@@ -1,5 +1,5 @@
 ---
-source_sha: "f86de24f31d9"
+source_sha: "da2f5f60c622"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -179,7 +179,7 @@ Kroki **Transform** przekształcają listę obiektów bez kroku z kodem. Każdy 
 | `transform.aggregate` | Zbiera wartości każdego pola ze wszystkich elementów w jedną listę na pole, jako `values` |
 | `transform.split_out` | Zamienia listę wewnątrz każdego elementu w osobne elementy |
 | `transform.summarize` | Liczy, sumuje, uśrednia, znajduje najmniejszą lub największą albo liczy różne wartości, w grupach |
-| `transform.date_time` | Teraz albo powiązana `value` przesunięta o wartość, zapisana w strefie czasowej |
+| `transform.date_time` | Teraz albo powiązana `value` przesunięta o wartość, zapisana w strefie czasowej - workflow, chyba że krok wskazuje własną |
 | `transform.crypto` | Liczy skrót lub koduje base64 powiązany `text` albo tworzy UUID lub losowy hex |
 
 Pole to ścieżka z kropkami, `customer.email`, a element bez niego nigdy nie jest
@@ -627,7 +627,8 @@ Tylko liczy, więc jest `pure` i wymaga `code:execute`.
 
 W edytorze skrypt kroku z kodem pisze się w edytorze kodu: Python albo
 JavaScript podświetlony w obu motywach, Tab i Shift+Tab do wcięć, Enter
-zachowujący wcięcie, nawiasy i cudzysłowy domykane podczas pisania oraz klucze
+zachowujący wcięcie, nawiasy i cudzysłowy domykane podczas pisania, nawias przy
+kursorze obrysowany razem z pasującym oraz klucze
 powiązanego `args` podpowiadane po wpisaniu `args["` albo, w JavaScript, `args.`.
 Esc, a potem Tab, opuszcza edytor. **Test step** uruchamia sam skrypt na tym, co
 przekazały kroki przed nim.

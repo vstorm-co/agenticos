@@ -60,7 +60,8 @@ Above the cards, a search finds a workflow by its name, description or tags, a t
 filter narrows the list to one tag, and the order is the last edit, the name or the
 newest first. All of it is kept in the address, so a reload or a shared link shows
 the same list. In the editor, click the name to rename the workflow - its handle, the
-part API callers use, stays - and **+ Tag** files it under a tag.
+part API callers use, stays - click the description under it, or **Add a
+description**, to change it, and **+ Tag** files it under a tag.
 
 A published workflow whose trigger runs on its own - a webhook, a schedule or a new
 table record - has an **Active** switch in the editor's header, and its card says
@@ -190,6 +191,10 @@ both from the last test run started in the editor, or the latest one when it ope
 it as it is, and **Fields** lists every field by path with its type: the paths a later
 step reads.
 
+Before any run, both panes list the fields the step declares, by path and
+type, and those can be dragged too. A table shows its first 50 rows until **Show
+more** lays out the rest, and a cell cut to its column shows the whole value on hover.
+
 A column or a field of **Input** can be dragged onto a setting, which then reads
 it from that step, as if it were picked from **From a step**. A field that does not
 fit is refused with the reason: a type the setting does not take, or a step that
@@ -289,9 +294,10 @@ wrong. Every step with a problem carries a red mark on the canvas and a count in
 A step's settings stay short. What the step needs, and whatever you already set, show
 at once; optional settings still at their defaults wait under **More options**, and
 **When it is slow or fails** and a note open when you ask for them or once they are set.
-A required value you have not given yet is not flagged beside its field until you try
-to run or publish: the step's mark on the canvas and the count above say it from the
-start, and the field says it from then on.
+A required value you have not given yet is not flagged beside its field until you
+leave that field or try to run or publish: the step's mark on the canvas and the
+count above say it from the start. A description that only repeats its field's
+name is a hint on the name instead of a line under the field.
 
 The messages name the specific fault: a required input with no value, an input
 set by more than one source, a connection whose ports carry different shapes, a
@@ -361,7 +367,8 @@ what it does. The settings are the workflow's, not a version's: a change applies
 to every run started after it, and publishing keeps them.
 
 - **Timezone** - a schedule's cron expression is read in it, across daylight
-  saving too. UTC when unset.
+  saving too, and a **Date & time** step that names no timezone writes in it. A
+  run keeps the one set when it started. UTC when unset.
 - **Default deadline** - the deadline a run gets when whatever starts it names
   none.
 - **Error workflow** - a published workflow starting from **On failure of a
@@ -399,7 +406,8 @@ and every step it took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 
-**Status**, **Version** and **Started by** narrow the runs, and the list answers a
+**Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a
 run's page, clicking a step shows its **Input** and **Output** from that run.
@@ -516,7 +524,9 @@ those fields first.
 
 The step waits for the called run and hands on its `output`, or
 goes on at once with **Wait for it to finish** off. The called run is linked to the
-calling run and shows on the runs pages like any other. A call back into a workflow
+calling run both ways - its page says **Called by** that run, and the step's line on
+the caller's page opens the run it started - and shows on the runs pages like any
+other. A run an error workflow started says which run's failure started it. A call back into a workflow
 already running in the chain, or more than five calls deep, is refused.
 
 ### When another workflow fails { #when-another-workflow-fails }

@@ -79,7 +79,14 @@ afterEach(() => store.getState().teardown());
 describe("InputPane", () => {
   it("says a step with nothing before it reads nothing", () => {
     const graph = line();
-    render(<InputPane graph={graph} node={graph.nodes[0] as NodeInstance} names={new Map()} />);
+    render(
+      <InputPane
+        graph={graph}
+        catalog={[STEP]}
+        node={graph.nodes[0] as NodeInstance}
+        names={new Map()}
+      />,
+    );
     expect(screen.getByText(/Nothing comes into this step/)).toBeTruthy();
   });
 
@@ -97,6 +104,7 @@ describe("InputPane", () => {
     render(
       <InputPane
         graph={graph}
+        catalog={[STEP]}
         node={graph.nodes[2] as NodeInstance}
         names={new Map([["a", "First"]])}
       />,
@@ -107,6 +115,56 @@ describe("InputPane", () => {
     expect(screen.getByRole("cell", { name: "pinned" })).toBeTruthy();
     expect(screen.getByText("x")).toBeTruthy();
     expect(screen.getByText(/No data yet/)).toBeTruthy();
+  });
+});
+
+const LEAD = {
+  type: "object",
+  properties: { email: { type: "string" }, score: { type: "integer" } },
+};
+const SCORER = makeDefinition({
+  id: "test.scorer",
+  ports: [port("in", "input", null), port("out", "output", LEAD)],
+});
+const ROUTER = makeDefinition({
+  id: "test.router",
+  ports: [port("in", "input", null), port("hot", "output", LEAD), port("cold", "output", LEAD)],
+});
+
+describe("the fields a step declares, before any run", () => {
+  it("lists what a step before this one hands on, to drag onto a setting", () => {
+    const graph = line({}, node("a", "test.scorer"));
+    seed(graph);
+    render(
+      <InputPane
+        graph={graph}
+        catalog={[STEP, SCORER]}
+        node={graph.nodes[1] as NodeInstance}
+        names={new Map()}
+      />,
+    );
+
+    expect(screen.getByText("No run yet. It declares:")).toBeTruthy();
+    const email = screen.getByText("email").closest("li") as HTMLElement;
+    expect(email).toHaveAttribute("draggable", "true");
+    expect(within(email).getByText("string")).toBeTruthy();
+    const setData = vi.fn();
+    fireEvent.dragStart(email, { dataTransfer: { setData, effectAllowed: "" } });
+    expect(JSON.parse(setData.mock.calls[0]?.[1] as string)).toEqual({
+      nodeId: "a",
+      path: ["email"],
+      type: "string",
+    });
+    expect(screen.getByText("integer")).toBeTruthy();
+  });
+
+  it("lists a step's own declared output, naming the port when it has several", () => {
+    seed(line({ definition_id: "test.router" }));
+    renderOutput(ROUTER, [STEP, ROUTER]);
+
+    expect(screen.getByText("hot · email")).toBeTruthy();
+    expect(screen.getByText("cold · score")).toBeTruthy();
+    expect(screen.getByText("hot · email").closest("li")).toHaveAttribute("draggable", "false");
   });
 });
 

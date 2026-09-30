@@ -171,3 +171,35 @@ export function completeArg(
   const position = at.from + key.length + closing.length;
   return { text: next, start: position, end: position };
 }
+
+const OPENERS: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
+const OPENER_OF: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+
+/**
+ * The bracket beside the caret and the one that matches it, as their indexes -
+ * the one just before the caret first, as editors do - or null when neither
+ * side is a bracket or it is unmatched. Counted by kind only: a bracket inside a
+ * string counts too, which is the price of not parsing the language.
+ */
+export function matchingBracket(text: string, caret: number): [number, number] | null {
+  for (const at of [caret - 1, caret]) {
+    const char = text[at];
+    if (char === undefined) continue;
+    const closer = OPENERS[char];
+    const opener = OPENER_OF[char];
+    if (closer === undefined && opener === undefined) continue;
+    const step = closer !== undefined ? 1 : -1;
+    const same = char;
+    const other = closer ?? (opener as string);
+    let depth = 0;
+    for (let index = at + step; index >= 0 && index < text.length; index += step) {
+      if (text[index] === same) depth += 1;
+      else if (text[index] === other) {
+        if (depth === 0) return step === 1 ? [at, index] : [index, at];
+        depth -= 1;
+      }
+    }
+    return null;
+  }
+  return null;
+}

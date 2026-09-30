@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
-import { useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+import { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 
 vi.mock("@/lib/workflows/runs-api", () => ({
   listWorkflowRuns: vi.fn(),
@@ -52,6 +52,27 @@ describe("useWorkflowRuns", () => {
     });
     expect(toast.error).toHaveBeenCalled();
     expect(result.current.runs).toEqual([]);
+  });
+});
+
+describe("useCausingRun", () => {
+  it("reads the run that started this one, and nothing for a run nothing started", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("succeeded"));
+    const { result } = renderHook(() => useCausingRun("caller"), { wrapper });
+    await waitFor(() => expect(result.current.causing).not.toBeNull());
+    expect(api.getWorkflowRun).toHaveBeenCalledWith("caller");
+
+    vi.mocked(api.getWorkflowRun).mockClear();
+    const none = renderHook(() => useCausingRun(null), { wrapper });
+    expect(none.result.current).toEqual({ causing: null, refused: false });
+    expect(api.getWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it("says it is refused when the caller may not open that run", async () => {
+    vi.mocked(api.getWorkflowRun).mockRejectedValue(new Error("Not found"));
+    const { result } = renderHook(() => useCausingRun("hidden"), { wrapper });
+    await waitFor(() => expect(result.current.refused).toBe(true));
+    expect(result.current.causing).toBeNull();
   });
 });
 

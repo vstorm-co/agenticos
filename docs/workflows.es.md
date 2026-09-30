@@ -1,5 +1,5 @@
 ---
-source_sha: "55ba26e8d460"
+source_sha: "dc6a1fc68de4"
 ---
 
 # Workflows { #workflows }
@@ -69,7 +69,8 @@ Sobre las tarjetas, una búsqueda encuentra un workflow por su nombre, descripci
 etiquetas, un filtro de etiquetas acota la lista a una, y el orden es la última edición,
 el nombre o los más nuevos primero. Todo se guarda en la dirección, así que recargar o
 un enlace compartido muestran la misma lista. En el editor, haz clic en el nombre para
-cambiarlo - su identificador, el que usan quienes llaman a la API, se mantiene - y
+cambiarlo - su identificador, el que usan quienes llaman a la API, se mantiene -, haz
+clic en la descripción debajo, o en **Add a description**, para cambiarla, y
 **+ Tag** le asigna una etiqueta.
 
 Un workflow publicado cuyo disparador funciona solo - un webhook, una programación o un
@@ -203,6 +204,11 @@ la más reciente. **Table** dispone los datos en filas, una lista de registros c
 por registro. **JSON** los muestra tal cual, y **Fields** lista cada campo por ruta con su
 tipo: las rutas que lee un paso posterior.
 
+Antes de ninguna ejecución, ambos paneles listan los campos que el paso declara, por
+ruta y tipo, y también se pueden arrastrar. Una tabla muestra sus primeras 50 filas hasta
+que **Show more** despliega el resto, y una celda recortada a su columna muestra el valor
+completo al pasar el ratón.
+
 Una columna o un campo de **Input** se puede arrastrar sobre un ajuste, que
 entonces lo lee de ese paso, como si se eligiera en **From a step**. Un campo que no
 encaja se rechaza con el motivo: un tipo que el ajuste no admite, o un paso que no
@@ -303,10 +309,13 @@ El editor comprueba el grafo mientras editas y muestra qué está mal donde est�
 Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
 estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores
 predeterminados esperan bajo **More options**, y **When it is slow or fails** y una nota
-se abren cuando los pides o cuando ya están puestos. Un valor obligatorio que aún no has
-dado no se señala junto a su campo hasta que intentas ejecutar o publicar: la marca del
-paso en el lienzo y el recuento de arriba lo dicen desde el principio, y el campo a
-partir de entonces.
+se abren cuando los pides o cuando ya están puestos.
+
+Un valor obligatorio que aún no has
+dado no se señala junto a su campo hasta que dejas ese campo o intentas ejecutar o
+publicar: la marca del paso en el lienzo y el recuento de arriba lo dicen desde el
+principio. Una descripción que solo repite el nombre del campo es una pista sobre el
+nombre en lugar de una línea bajo el campo.
 
 Los mensajes nombran el fallo concreto: un input obligatorio sin valor, un input
 puesto por más de una fuente, una conexión cuyos puertos llevan formas distintas, un
@@ -376,7 +385,8 @@ que hace. Los ajustes son del workflow, no de una versión: un cambio vale para 
 ejecución iniciada después, y publicar los conserva.
 
 - **Timezone** - en ella se lee la expresión cron de una programación, también con
-  el cambio de hora. UTC si no se indica.
+  el cambio de hora, y en ella escribe un paso **Date & time** que no indica zona
+  propia. Una ejecución conserva la fijada al empezar. UTC si no se indica.
 - **Default deadline** - el plazo que recibe una ejecución cuando lo que la inicia no
   indica ninguno.
 - **Error workflow** - un workflow publicado que empieza por **On failure of a
@@ -417,7 +427,8 @@ detiene. Sus **Files** listan lo que guardaron sus pasos - una descarga, una pá
 renderizada, la salida de un script -, cada uno descargable.
 
 
-**Status**, **Version** y **Started by** acotan las ejecuciones, y la lista responde
+**Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
+días) acotan las ejecuciones, y la lista responde
 una página cada vez; cada filtro queda en la dirección, así que una lista filtrada
 se puede enlazar. **Runs** en la lista de workflows muestra juntas las ejecuciones de
 todos. En la página de una ejecución, hacer clic en un paso muestra su **Input** y su
@@ -543,7 +554,10 @@ esos campos.
 
 El paso espera a la ejecución llamada y entrega su `output`, o sigue
 enseguida con **Wait for it to finish** desactivado. La ejecución llamada queda
-vinculada a la que llama y aparece en las páginas de ejecuciones como cualquier otra.
+vinculada a la que llama en ambos sentidos - su página dice **Called by** esa ejecución,
+y la línea del paso en la página de quien llama abre la ejecución que inició - y aparece
+en las páginas de ejecuciones como cualquier otra. Una ejecución iniciada por un
+workflow de errores dice qué ejecución fallida la inició.
 Una llamada de vuelta a un workflow que ya se ejecuta en la cadena, o con más de cinco
 niveles, se rechaza.
 

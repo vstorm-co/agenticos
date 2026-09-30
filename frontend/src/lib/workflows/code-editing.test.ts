@@ -6,6 +6,7 @@ import {
   erasePair,
   indent,
   indentUnit,
+  matchingBracket,
   newline,
   typePair,
 } from "./code-editing";
@@ -104,5 +105,23 @@ describe("argKeyAt and completeArg", () => {
     expect(completeArg("args.sc", 7, { from: 5, quote: null }, "scores")).toEqual(
       at("args.scores", 11),
     );
+  });
+});
+
+describe("matchingBracket", () => {
+  it("pairs the bracket before the caret, or the one after it, with its match", () => {
+    const text = "f(a[0], {b: (c)})";
+    expect(matchingBracket(text, 2)).toEqual([1, 16]);
+    expect(matchingBracket(text, 17)).toEqual([1, 16]);
+    expect(matchingBracket(text, 3)).toEqual([3, 5]);
+    expect(matchingBracket(text, 12)).toEqual([12, 14]);
+    expect(matchingBracket(text, 16)).toEqual([8, 15]);
+  });
+
+  it("is null beside no bracket, at either end, or for one left open", () => {
+    expect(matchingBracket("abc", 1)).toBeNull();
+    expect(matchingBracket("", 0)).toBeNull();
+    expect(matchingBracket("(()", 1)).toBeNull();
+    expect(matchingBracket("())", 3)).toBeNull();
   });
 });

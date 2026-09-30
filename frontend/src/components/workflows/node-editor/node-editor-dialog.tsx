@@ -69,8 +69,12 @@ export function NodeEditorDialog({
   );
 
   const [policyShown, setPolicyShown] = useState(false);
+  // The fields left since the dialog opened: a value still missing from one of
+  // them is said at once, not only once a run or a publish was tried.
+  const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const close = () => {
     setPolicyShown(false);
+    setLeft(new Set());
     store.editNode(null);
   };
   const definition =
@@ -128,7 +132,13 @@ export function NodeEditorDialog({
         >
           {withInput && (
             <div className="bg-muted/30 border-border lg:border-r">
-              <InputPane graph={graph} node={node} names={names} readOnly={runData} />
+              <InputPane
+                graph={graph}
+                catalog={catalog}
+                node={node}
+                names={names}
+                readOnly={runData}
+              />
             </div>
           )}
           <div className={cn("space-y-5", !withData && "h-full overflow-y-auto px-6 py-5")}>
@@ -150,25 +160,41 @@ export function NodeEditorDialog({
                   disabled={readOnly}
                   onChange={store.updateNodeDetails}
                 />
-                <NodeForm
-                  definition={definition}
-                  node={node}
-                  graph={graph}
-                  catalog={catalogIndex}
-                  bindings={graph.bindings}
-                  errors={fieldErrors(
-                    // A value not given yet is said once a run or a publish was
-                    // tried; the canvas already marks the step.
-                    store.problemsRevealed
-                      ? problems
-                      : problems.filter((problem) => problem.code !== "input-not-bound"),
-                    node.id,
-                  )}
-                  disabled={readOnly}
-                  updateNodeConfig={store.updateNodeConfig}
-                  upsertBinding={store.upsertBinding}
-                  removeBinding={store.removeBinding}
-                />
+                {/* Listens for focus leaving a field inside it; the fields are the
+                    controls, this is only where their blur is heard. */}
+                {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                <div
+                  onBlur={(event) => {
+                    const field = (event.target as HTMLElement)
+                      .closest("[data-field]")
+                      ?.getAttribute("data-field");
+                    if (field != null && !left.has(field)) setLeft(new Set([...left, field]));
+                  }}
+                >
+                  <NodeForm
+                    definition={definition}
+                    node={node}
+                    graph={graph}
+                    catalog={catalogIndex}
+                    bindings={graph.bindings}
+                    errors={fieldErrors(
+                      // A value not given yet is said once its field was left, or a
+                      // run or a publish was tried; the canvas already marks the step.
+                      store.problemsRevealed
+                        ? problems
+                        : problems.filter(
+                            (problem) =>
+                              problem.code !== "input-not-bound" ||
+                              (problem.field !== null && left.has(problem.field)),
+                          ),
+                      node.id,
+                    )}
+                    disabled={readOnly}
+                    updateNodeConfig={store.updateNodeConfig}
+                    upsertBinding={store.upsertBinding}
+                    removeBinding={store.removeBinding}
+                  />
+                </div>
                 {node.definition_id !== "loop.item" && !isTrigger(definition) && (
                   <div className="border-border border-t pt-5">
                     {/* Retries, a time limit and error routing are for later: shown

@@ -132,7 +132,7 @@ export interface SourceCandidate {
 const MAX_FIELD_DEPTH = 3;
 
 /** Every field path under an output port, depth first, down to {@link MAX_FIELD_DEPTH}. */
-function outputFieldPaths(
+export function outputFieldPaths(
   definition: NodeDefinition,
   portId: string,
   prefix: readonly string[] = [],

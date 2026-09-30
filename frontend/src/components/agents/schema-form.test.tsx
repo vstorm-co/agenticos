@@ -1042,3 +1042,24 @@ describe("a field that suggests rather than restricts", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 });
+
+describe("a hint on hover", () => {
+  it("puts an x-hint on the label, for a pointer and a screen reader, not under the field", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { zone: { type: "string", title: "Timezone", "x-hint": "An IANA timezone" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="hint"
+      />,
+    );
+    expect(screen.getByText("Timezone").closest("label")).toHaveAttribute(
+      "title",
+      "An IANA timezone",
+    );
+    expect(screen.getByLabelText("Timezone. An IANA timezone")).toBeInTheDocument();
+  });
+});

@@ -809,7 +809,9 @@
         "webhook": "Webhook",
         "chat": "Czat",
         "schedule": "Harmonogram",
-        "table_created": "Nowy rekord"
+        "table_created": "Nowy rekord",
+        "workflow_call": "Inny workflow",
+        "workflow_failed": "Nieudany przebieg"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -1040,7 +1042,24 @@
       "importDone": "Zaimportowano jako szkic.",
       "importUnresolved": "Plik nie zawiera agentów, tabel, sekretów ani członków innego wdrożenia. Wybierz je w edytorze przed publikacją:",
       "importNothingToChoose": "Plik niczego nie pominął. Edytor oznaczy wszystko, czego krok jeszcze potrzebuje przed publikacją.",
-      "automationsHeading": "Automatyzacje"
+      "automationsHeading": "Automatyzacje",
+      "describe": "Dodaj opis",
+      "describeHint": "Kliknij, aby edytować opis",
+      "describeLabel": "Opis workflow",
+      "runFilterSince": "Uruchomione",
+      "runSince": {
+        "1h": "Ostatnia godzina",
+        "24h": "Ostatnie 24 godziny",
+        "7d": "Ostatnie 7 dni",
+        "30d": "Ostatnie 30 dni"
+      },
+      "runCausedBy": {
+        "workflow_call": "Wywołane przez",
+        "workflow_failed": "Uruchomione po niepowodzeniu",
+        "other": "Uruchomione przez"
+      },
+      "runCausedByHidden": "uruchomienie, którego nie możesz otworzyć",
+      "runOpenCalled": "Otwórz uruchomienie {id}"
     }
   },
   "rag": {
@@ -3712,7 +3731,7 @@
       "files": "Pliki",
       "code": "Kod",
       "logic": "Rozgałęzienia",
-      "control": "Pętle",
+      "control": "Przepływ",
       "error": "Błędy",
       "http": "HTTP",
       "notification": "Powiadomienia",
@@ -3814,7 +3833,7 @@
       "decide": "Zadaj Jev od TypeSafe typowane pytanie",
       "knowledge": "Przeszukaj bazę wiedzy",
       "logic": "Wybierz ścieżkę albo połącz je z powrotem",
-      "control": "Powtórz kroki dla każdego elementu",
+      "control": "Pętla po elementach, czekanie albo inny workflow",
       "error": "Złap błąd albo go zgłoś",
       "people": "Poczekaj na decyzję osoby",
       "core": "Co workflow odpowiada",
@@ -3897,7 +3916,7 @@
       "schema": "Pola"
     },
     "dataEmpty": "Nic tu nie ma",
-    "dataMoreRows": "{count, plural, one {Jeszcze # wiersz} few {Jeszcze # wiersze} many {Jeszcze # wierszy} other {Jeszcze # wiersza}} w JSON",
+    "dataMoreRows": "{count, plural, one {Pokaż jeszcze # wiersz} few {Pokaż jeszcze # wiersze} many {Pokaż jeszcze # wierszy} other {Pokaż jeszcze # wiersza}}",
     "stepInput": "Wejście",
     "stepInputNone": "Do tego kroku nic nie wchodzi: od niego zaczyna się workflow.",
     "stepPinned": "Przypięte",
@@ -4001,7 +4020,9 @@
     "chatPanelSend": "Wyślij",
     "chatPanelRunning": "Trwa",
     "chatPanelNoAnswer": "Run zakończył się bez odpowiedzi: powiąż tekst kroku Output, by odpowiadał.",
-    "chatPanelClose": "Zamknij czat"
+    "chatPanelClose": "Zamknij czat",
+    "dataDeclared": "Jeszcze bez uruchomienia. Deklaruje:",
+    "dataFewerRows": "Pokaż tylko pierwsze 50"
   },
   "artifacts": {
     "title": "Artefakty",

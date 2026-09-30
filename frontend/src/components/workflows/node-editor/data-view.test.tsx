@@ -20,11 +20,16 @@ describe("DataView", () => {
     expect(screen.getByText("string")).toBeTruthy();
   });
 
-  it("says how many rows it leaves to the JSON", () => {
-    const records = Array.from({ length: 53 }, (_, id) => ({ id }));
+  it("shows the first rows, and every row once asked", async () => {
+    const records = Array.from({ length: 53 }, (_, id) => ({ id, note: `note ${id}` }));
     render(<DataView value={{ records }} />);
     expect(screen.getAllByRole("row")).toHaveLength(51);
-    expect(screen.getByText("3 more rows in JSON")).toBeTruthy();
+    expect(screen.getByRole("cell", { name: "note 0" })).toHaveAttribute("title", "note 0");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show 3 more rows" }));
+    expect(screen.getAllByRole("row")).toHaveLength(54);
+    await userEvent.click(screen.getByRole("button", { name: "Show the first 50 only" }));
+    expect(screen.getAllByRole("row")).toHaveLength(51);
   });
 
   it("says when there is nothing in it", async () => {

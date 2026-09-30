@@ -1,5 +1,5 @@
 ---
-source_sha: "55ba26e8d460"
+source_sha: "dc6a1fc68de4"
 ---
 
 # Workflows { #workflows }
@@ -64,7 +64,8 @@ Nad kartami wyszukiwanie znajduje workflow po nazwie, opisie lub tagach, filtr t
 zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo najnowsze
 najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony link
 pokazują tę samą listę. W edytorze kliknij nazwę, aby zmienić nazwę workflow - jego
-identyfikator, którego używają wywołujący API, zostaje - a **+ Tag** przypisuje tag.
+identyfikator, którego używają wywołujący API, zostaje - kliknij opis pod nią albo
+**Add a description**, aby go zmienić, a **+ Tag** przypisuje tag.
 
 Opublikowany workflow, którego wyzwalacz działa sam - webhook, harmonogram lub nowy
 rekord tabeli - ma przełącznik **Active** w nagłówku edytora, a jego karta mówi
@@ -193,6 +194,11 @@ otwarciu, z najnowszego. **Table** układa dane w wiersze, listę rekordów po j
 na rekord. **JSON** pokazuje je takimi, jakie są, a **Fields** wymienia każde pole po ścieżce
 z jego typem: ścieżki, które czyta późniejszy krok.
 
+Przed pierwszym przebiegiem oba panele wymieniają pola, które krok deklaruje, po ścieżce
+i typie, i je też można przeciągać. Tabela pokazuje pierwsze 50 wierszy, dopóki **Show
+more** nie rozłoży reszty, a komórka ucięta do szerokości kolumny pokazuje całą wartość
+po najechaniu.
+
 Kolumnę albo pole z **Input** można przeciągnąć na ustawienie, które wtedy czyta
 je z tamtego kroku, tak jakby wybrano je w **From a step**. Pole, które nie pasuje,
 zostaje odrzucone z podaniem powodu: typ, którego ustawienie nie przyjmuje, albo
@@ -293,8 +299,9 @@ Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już u
 widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają pod **More
 options**, a **When it is slow or fails** i notatka otwierają się na żądanie albo gdy są
 ustawione. Wymagana wartość, której jeszcze nie podano, nie jest oznaczana przy polu,
-dopóki nie spróbujesz uruchomić ani opublikować: znacznik kroku na kanwie i licznik
-powyżej mówią o niej od początku, a pole od tego momentu.
+dopóki nie opuścisz tego pola albo nie spróbujesz uruchomić lub opublikować: znacznik
+kroku na kanwie i licznik powyżej mówią o niej od początku. Opis, który tylko powtarza
+nazwę pola, jest podpowiedzią przy nazwie zamiast wiersza pod polem.
 
 Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
 przez więcej niż jedno źródło, połączenie, którego porty niosą różne kształty, krok,
@@ -364,7 +371,8 @@ to, co robi. Należą do workflow, nie do wersji: zmiana dotyczy każdego przebi
 rozpoczętego po niej, a publikacja je zachowuje.
 
 - **Timezone** - w niej czytane jest wyrażenie cron harmonogramu, także przy zmianie
-  czasu. Bez ustawienia UTC.
+  czasu, i w niej pisze krok **Date & time**, który nie wskazuje własnej strefy.
+  Przebieg zachowuje tę ustawioną w chwili startu. Bez ustawienia UTC.
 - **Default deadline** - termin, który dostaje przebieg, gdy to, co go uruchamia, nie
   podaje żadnego.
 - **Error workflow** - opublikowany workflow zaczynający się od **On failure of a
@@ -403,7 +411,8 @@ Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 
-**Status**, **Version** i **Started by** zawężają przebiegi, a lista odpowiada po
+**Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
+albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
 podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
@@ -528,8 +537,10 @@ sprawdzonym najpierw względem tych pól.
 
 Krok czeka na wywołany przebieg i przekazuje
 jego `output` albo od razu idzie dalej, gdy **Wait for it to finish** jest wyłączone.
-Wywołany przebieg jest powiązany z wywołującym i widać go na stronach przebiegów jak
-każdy inny. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
+Wywołany przebieg jest powiązany z wywołującym w obie strony - jego strona mówi
+**Called by** ten przebieg, a wiersz kroku na stronie wywołującego otwiera przebieg,
+który krok uruchomił - i widać go na stronach przebiegów jak każdy inny. Przebieg
+uruchomiony przez workflow błędów mówi, niepowodzenie którego przebiegu go uruchomiło. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
 niż pięć wywołań, zostaje odrzucone.
 
 ### Gdy inny workflow zawiedzie { #when-another-workflow-fails }

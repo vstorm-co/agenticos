@@ -57,6 +57,22 @@ export function useRunHistory(query: RunHistoryQuery) {
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading };
 }
 
+/**
+ * The run that started this one - the caller of a workflow it ran, the run whose
+ * failure it answers - for a link back to it. `refused` when the caller may not
+ * open that run: its workflow is not shared with them.
+ */
+export function useCausingRun(runId: string | null) {
+  const { data, isError } = useQuery({
+    queryKey: qk.workflows.run(runId ?? ""),
+    queryFn: () => getWorkflowRun(runId as string),
+    enabled: runId !== null,
+    // A 404 is an answer, not a blip.
+    retry: false,
+  });
+  return { causing: data ?? null, refused: isError };
+}
+
 /** One run - its state, its steps and its graph, read again while it is live. */
 export function useWorkflowRun(runId: string) {
   const t = useTranslations("pages.workflows");

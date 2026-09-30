@@ -67,7 +67,9 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      // A field that answers Ctrl+Enter itself - saving what was typed in it -
+      // has taken the key.
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.defaultPrevented) {
         event.preventDefault();
         run();
       }

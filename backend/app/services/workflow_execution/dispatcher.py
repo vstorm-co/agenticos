@@ -840,6 +840,7 @@ async def begin_attempt(
         workflow_id=run.workflow_id,
         run_input=run.input,
         triggered_by=run.triggered_by,
+        timezone=run.timezone,
         arrived_output=call.arrived_output,
         idempotency_key=key,
     )

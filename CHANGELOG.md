@@ -348,6 +348,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **What the workflow issues proposed and the first pass left out.** The
+  description is edited in the editor's header like the name (#1942). Run
+  history narrows by when a run started (#1943). A date step that names no
+  timezone writes in the workflow's, kept on the run from its start in
+  `workflow_runs.timezone` (migration `0121_workflow_run_timezone.py`, #1944).
+  A called run links back to its caller and the calling step to the run it
+  started (#1946). Before any run a step's panes list the fields it declares,
+  and a long table can show every row (#1934). The code editor boxes the
+  bracket beside the cursor with its match (#1952). A missing value is said
+  once its field is left, and a description that only repeats its label
+  becomes a hint on it (#1957).
 - **A table can be created from a CSV file.** #1961 asked for it and only
   importing into an existing table shipped: **Start from a CSV file** in New
   table reads the columns and their types from the file, and its rows are

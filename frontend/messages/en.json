@@ -3539,7 +3539,9 @@
         "webhook": "Webhook",
         "chat": "Chat",
         "schedule": "Schedule",
-        "table_created": "New record"
+        "table_created": "New record",
+        "workflow_call": "Another workflow",
+        "workflow_failed": "A failed run"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",
@@ -3741,7 +3743,24 @@
       "importDone": "Imported as a draft.",
       "importUnresolved": "The file carries no agents, tables, secrets or members of another deployment. Choose these in the editor before you publish:",
       "importNothingToChoose": "The file left nothing out. The editor marks anything a step still needs before it publishes.",
-      "automationsHeading": "Automations"
+      "automationsHeading": "Automations",
+      "describe": "Add a description",
+      "describeHint": "Click to edit the description",
+      "describeLabel": "Workflow description",
+      "runFilterSince": "Started",
+      "runSince": {
+        "1h": "Last hour",
+        "24h": "Last 24 hours",
+        "7d": "Last 7 days",
+        "30d": "Last 30 days"
+      },
+      "runCausedBy": {
+        "workflow_call": "Called by",
+        "workflow_failed": "Started by the failure of",
+        "other": "Started by"
+      },
+      "runCausedByHidden": "a run you cannot open",
+      "runOpenCalled": "Open run {id}"
     },
     "retention": {
       "title": "Data retention",
@@ -6067,7 +6086,7 @@
       "files": "Files",
       "code": "Code",
       "logic": "Branching",
-      "control": "Loops",
+      "control": "Flow",
       "error": "Errors",
       "http": "HTTP",
       "notification": "Notifications",
@@ -6162,7 +6181,7 @@
       "decide": "Ask TypeSafe's Jev a typed question",
       "knowledge": "Search a knowledge base",
       "logic": "Choose a path, or join them again",
-      "control": "Repeat steps for every item",
+      "control": "Loop over items, wait, or run another workflow",
       "error": "Catch a failure, or raise one",
       "people": "Wait for a person's decision",
       "core": "What the workflow answers",
@@ -6245,7 +6264,7 @@
       "schema": "Fields"
     },
     "dataEmpty": "Nothing in it",
-    "dataMoreRows": "{count, plural, one {# more row} other {# more rows}} in JSON",
+    "dataMoreRows": "{count, plural, one {Show # more row} other {Show # more rows}}",
     "stepInput": "Input",
     "stepInputNone": "Nothing comes into this step: it starts the workflow.",
     "stepPinned": "Pinned",
@@ -6349,7 +6368,9 @@
     "chatPanelSend": "Send",
     "chatPanelRunning": "Running",
     "chatPanelNoAnswer": "The run ended without an answer: bind an Output step's text to answer.",
-    "chatPanelClose": "Close the chat"
+    "chatPanelClose": "Close the chat",
+    "dataDeclared": "No run yet. It declares:",
+    "dataFewerRows": "Show the first 50 only"
   },
   "artifacts": {
     "title": "Artifacts",

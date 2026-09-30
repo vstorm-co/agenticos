@@ -40,6 +40,7 @@ export async function listRunHistory(query: RunHistoryQuery): Promise<WorkflowRu
   if (query.status !== undefined) params["status"] = query.status;
   if (query.mode !== undefined) params["mode"] = query.mode;
   if (query.triggeredBy !== undefined) params["triggered_by"] = query.triggeredBy;
+  if (query.createdAfter !== undefined) params["created_after"] = query.createdAfter;
   return apiClient.get<WorkflowRunList>(ROOT, { params });
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -26,12 +27,30 @@ import { WorkflowRunStatusBadge, RUN_DOT } from "./run-status";
 const ALL = "all";
 const STATUSES = Object.keys(RUN_DOT) as WorkflowRunStatus[];
 const MODES = ["test", "real"] as const;
-const TRIGGERS = ["api", "websocket", "webhook", "chat", "schedule", "table_created"] as const;
+const TRIGGERS = [
+  "api",
+  "websocket",
+  "webhook",
+  "chat",
+  "schedule",
+  "table_created",
+  "workflow_call",
+  "workflow_failed",
+] as const;
+const HOUR_MS = 3_600_000;
+/** How far back each "started within" choice reaches. */
+const SINCE_MS: Record<string, number> = {
+  "1h": HOUR_MS,
+  "24h": 24 * HOUR_MS,
+  "7d": 7 * 24 * HOUR_MS,
+  "30d": 30 * 24 * HOUR_MS,
+};
 
 /**
  * A run history: newest first, a page at a time, narrowed by state, by draft or
- * published version and by what started it - every filter applied on the server,
- * and each kept in the address so a filtered list can be linked. One workflow's
+ * published version, by what started it and by how recently - every filter
+ * applied on the server, and each kept in the address so a filtered list can be
+ * linked. One workflow's
  * runs, or with no `workflowId` every workflow's the caller may see, each row
  * naming its workflow. A row opens the run.
  */
@@ -42,6 +61,11 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
   const [status, setStatus] = useUrlState("status");
   const [mode, setMode] = useUrlState("mode");
   const [trigger, setTrigger] = useUrlState("trigger");
+  const [since, setSince] = useUrlState("since");
+  // What "the last 24 hours" counts back from: the page's opening, or the moment
+  // the choice was made - not each render, which would make every poll a new query.
+  const [anchor, setAnchor] = useState(() => Date.now());
+  const reach = since === null ? undefined : SINCE_MS[since];
   const [pageParam, setPage] = useUrlState("page");
   const page = Math.max(0, Number(pageParam ?? "0") || 0);
   const { runs, total, isLoading } = useRunHistory({
@@ -49,6 +73,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     status: (status ?? undefined) as WorkflowRunStatus | undefined,
     mode: (mode ?? undefined) as "real" | "test" | undefined,
     triggeredBy: trigger ?? undefined,
+    createdAfter: reach === undefined ? undefined : new Date(anchor - reach).toISOString(),
     page,
   });
   const { workflows } = useWorkflows({ enabled: workflowId === undefined });
@@ -113,7 +138,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     },
   ];
 
-  const filtered = status !== null || mode !== null || trigger !== null;
+  const filtered = status !== null || mode !== null || trigger !== null || reach !== undefined;
   return (
     <ListCard
       title={t("runsTitle")}
@@ -141,6 +166,15 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
             value={trigger ?? ALL}
             onChange={narrow(setTrigger)}
             options={TRIGGERS.map((value) => [value, t(`trigger.${value}`)])}
+          />
+          <Filter
+            label={t("runFilterSince")}
+            value={reach === undefined ? ALL : (since as string)}
+            onChange={(value) => {
+              setAnchor(Date.now());
+              narrow(setSince)(value);
+            }}
+            options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
           />
         </div>
       }

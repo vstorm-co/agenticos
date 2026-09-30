@@ -648,6 +648,11 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * A description shown on hover over the label instead of under the field:
+   * set by a form for one that only says the label again.
+   */
+  "x-hint"?: string;
+  /**
    * Values a field suggests without restricting itself to them.
    *
    * The open counterpart of `enum`: the backend validates a plain string, so the

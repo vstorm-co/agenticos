@@ -90,6 +90,7 @@ describe("a run history", () => {
       status: "failed",
       mode: "test",
       triggeredBy: "webhook",
+      createdAfter: "2026-09-29T12:00:00.000Z",
       page: 2,
     });
     expect(apiClient.get).toHaveBeenLastCalledWith("/workflow-runs", {
@@ -100,6 +101,7 @@ describe("a run history", () => {
         status: "failed",
         mode: "test",
         triggered_by: "webhook",
+        created_after: "2026-09-29T12:00:00.000Z",
       },
     });
   });

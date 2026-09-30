@@ -164,9 +164,12 @@ function SchemaField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id}>
+        <Label htmlFor={id} title={property["x-hint"]}>
           {label}
           {required && <span className="text-muted-foreground"> *</span>}
+          {property["x-hint"] !== undefined && (
+            <span className="sr-only">{`. ${property["x-hint"]}`}</span>
+          )}
         </Label>
         {kind === "boolean" && (
           <Switch

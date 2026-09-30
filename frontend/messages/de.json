@@ -4551,7 +4551,9 @@
         "webhook": "Webhook",
         "chat": "Chat",
         "schedule": "Zeitplan",
-        "table_created": "Neuer Datensatz"
+        "table_created": "Neuer Datensatz",
+        "workflow_call": "Anderer Workflow",
+        "workflow_failed": "Fehlgeschlagener Lauf"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -4782,7 +4784,24 @@
       "importDone": "Als Entwurf importiert.",
       "importUnresolved": "Die Datei enthält keine Agents, Tabellen, Secrets oder Mitglieder eines anderen Deployments. Wähle diese im Editor, bevor du veröffentlichst:",
       "importNothingToChoose": "Die Datei hat nichts weggelassen. Der Editor markiert alles, was ein Schritt vor dem Veröffentlichen noch braucht.",
-      "automationsHeading": "Automatisierungen"
+      "automationsHeading": "Automatisierungen",
+      "describe": "Beschreibung hinzufügen",
+      "describeHint": "Zum Bearbeiten der Beschreibung klicken",
+      "describeLabel": "Workflow-Beschreibung",
+      "runFilterSince": "Gestartet",
+      "runSince": {
+        "1h": "Letzte Stunde",
+        "24h": "Letzte 24 Stunden",
+        "7d": "Letzte 7 Tage",
+        "30d": "Letzte 30 Tage"
+      },
+      "runCausedBy": {
+        "workflow_call": "Aufgerufen von",
+        "workflow_failed": "Gestartet nach dem Fehlschlag von",
+        "other": "Gestartet von"
+      },
+      "runCausedByHidden": "einem Run, den du nicht öffnen kannst",
+      "runOpenCalled": "Run {id} öffnen"
     }
   },
   "profile": {
@@ -5919,7 +5938,7 @@
       "files": "Dateien",
       "code": "Code",
       "logic": "Verzweigungen",
-      "control": "Schleifen",
+      "control": "Ablauf",
       "error": "Fehler",
       "http": "HTTP",
       "notification": "Benachrichtigungen",
@@ -6021,7 +6040,7 @@
       "decide": "Jev von TypeSafe eine typisierte Frage stellen",
       "knowledge": "Eine Wissensbasis durchsuchen",
       "logic": "Einen Weg wählen oder Wege zusammenführen",
-      "control": "Schritte für jedes Element wiederholen",
+      "control": "Über Elemente schleifen, warten oder einen anderen Workflow ausführen",
       "error": "Einen Fehler abfangen oder auslösen",
       "people": "Auf die Entscheidung einer Person warten",
       "core": "Was der Workflow antwortet",
@@ -6104,7 +6123,7 @@
       "schema": "Felder"
     },
     "dataEmpty": "Nichts darin",
-    "dataMoreRows": "{count, plural, one {# weitere Zeile} other {# weitere Zeilen}} im JSON",
+    "dataMoreRows": "{count, plural, one {# weitere Zeile zeigen} other {# weitere Zeilen zeigen}}",
     "stepInput": "Eingabe",
     "stepInputNone": "In diesen Schritt kommt nichts: Mit ihm beginnt der Workflow.",
     "stepPinned": "Angeheftet",
@@ -6208,7 +6227,9 @@
     "chatPanelSend": "Senden",
     "chatPanelRunning": "Läuft",
     "chatPanelNoAnswer": "Der Run endete ohne Antwort: Binde den Text eines Output-Schritts, um zu antworten.",
-    "chatPanelClose": "Chat schließen"
+    "chatPanelClose": "Chat schließen",
+    "dataDeclared": "Noch kein Run. Deklariert:",
+    "dataFewerRows": "Nur die ersten 50 zeigen"
   },
   "artifacts": {
     "title": "Artefakte",

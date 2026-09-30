@@ -325,9 +325,28 @@ export function asFormProperty(schema: Schema): FormProperty {
  * enums) for that leaf. `required` places the field in the schema's `required`.
  */
 export function singleFieldSchema(name: string, schema: Schema, required: boolean): FormSchema {
+  const description = schema["description"];
+  const hinted =
+    typeof description === "string" && repeatsLabel(labelOf(schema, name), description)
+      ? { ...schema, description: undefined, "x-hint": description }
+      : schema;
   return {
     type: "object",
-    properties: { [name]: asFormProperty(schema) },
+    properties: { [name]: asFormProperty(hinted) },
     required: required ? [name] : [],
   };
+}
+
+/** Words past which a description says more than its label does. */
+const HINT_WORDS = 6;
+
+/**
+ * Whether a description only says its field's label again - "An IANA timezone"
+ * under Timezone - so it is a hint on hover rather than a line under the field.
+ */
+export function repeatsLabel(label: string, description: string): boolean {
+  return (
+    description.trim().split(/\s+/).length <= HINT_WORDS &&
+    description.toLowerCase().includes(label.trim().toLowerCase())
+  );
 }

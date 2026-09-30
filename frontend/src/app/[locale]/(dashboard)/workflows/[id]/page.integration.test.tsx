@@ -273,6 +273,27 @@ describe("the workflow editor page header", () => {
     expect(screen.getByRole("button", { name: "My Workflow" })).toBeInTheDocument();
   });
 
+  it("describes the workflow under its name", async () => {
+    await renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Add a description" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Workflow description" }),
+      "Scores new leads{Control>}{Enter}{/Control}",
+    );
+    expect(actions.update.mutate).toHaveBeenCalledWith({
+      id: "w1",
+      update: { description: "Scores new leads" },
+    });
+  });
+
+  it("offers a reader no description where there is none", async () => {
+    state.canEdit = false;
+    await renderPage();
+    await screen.findByTestId("canvas");
+    expect(screen.queryByText("Add a description")).not.toBeInTheDocument();
+  });
+
   it("tags the workflow and takes a tag off", async () => {
     await renderPage();
 

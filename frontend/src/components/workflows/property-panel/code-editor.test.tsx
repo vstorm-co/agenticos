@@ -68,6 +68,25 @@ describe("CodeEditor", () => {
     expect([underlay.scrollTop, underlay.scrollLeft]).toEqual([120, 8]);
   });
 
+  it("marks the bracket beside the caret and its match, scrolled with the text", async () => {
+    render(<Harness initial={"f(a)\n".repeat(40)} />);
+    editor().scrollTop = 60;
+    await userEvent.click(editor());
+    editor().setSelectionRange(2, 2);
+    fireEvent.select(editor());
+
+    const layer = screen.getByTestId("bracket-match");
+    expect([...layer.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(["(", ")"]);
+    expect(layer.scrollTop).toBe(60);
+    editor().scrollTop = 90;
+    fireEvent.scroll(editor());
+    expect(layer.scrollTop).toBe(90);
+
+    editor().setSelectionRange(0, 0);
+    fireEvent.select(editor());
+    expect(screen.queryByTestId("bracket-match")).not.toBeInTheDocument();
+  });
+
   it("lets Tab leave once Escape is pressed", async () => {
     render(<Harness />);
     await userEvent.click(editor());

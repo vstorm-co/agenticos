@@ -17,11 +17,12 @@ import {
   knownOutputs,
   sourcesOf,
 } from "@/lib/workflows/step-data";
+import { effectiveDefinition } from "@/lib/workflows/ports";
 import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
-import { DataView } from "./data-view";
+import { DataView, DeclaredOutput } from "./data-view";
 import { WebhookListener } from "./webhook-listener";
 
 function Pane({
@@ -60,11 +61,14 @@ function Empty({ children }: { children: React.ReactNode }) {
  */
 export function InputPane({
   graph,
+  catalog,
   node,
   names,
   readOnly = false,
 }: {
   graph: WorkflowGraph;
+  /** Where a step with no data yet finds the fields it declares. */
+  catalog: NodeDefinition[];
   node: NodeInstance;
   names: Map<string, string>;
   /** A run's view: what that run's steps handed on, whatever is pinned on them. */
@@ -73,6 +77,15 @@ export function InputPane({
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const sources = sourcesOf(graph, node.id);
+  /** The step's catalog entry, with the ports this instance has. */
+  const declared = (source: string) => {
+    const instance = graph.nodes.find((candidate) => candidate.id === source);
+    const definition = catalog.find(
+      (entry) =>
+        entry.id === instance?.definition_id && entry.version === instance.definition_version,
+    );
+    return instance && definition ? effectiveDefinition(instance, definition) : null;
+  };
 
   return (
     <Pane title={t("stepInput")}>
@@ -92,7 +105,11 @@ export function InputPane({
               {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
             </div>
             {output === null ? (
-              <Empty>{t("stepNoDataYet")}</Empty>
+              <DeclaredOutput
+                definition={declared(source)}
+                source={source}
+                fallback={<Empty>{t("stepNoDataYet")}</Empty>}
+              />
             ) : (
               <DataView value={output} source={source} />
             )}
@@ -262,7 +279,12 @@ export function OutputPane({
             </div>
           )}
           {shown === null ? (
-            failed == null && <Empty>{t("stepOutputNone")}</Empty>
+            failed == null && (
+              <DeclaredOutput
+                definition={effectiveDefinition(node, definition)}
+                fallback={<Empty>{t("stepOutputNone")}</Empty>}
+              />
+            )
           ) : (
             <DataView value={shown} />
           )}

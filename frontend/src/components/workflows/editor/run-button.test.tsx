@@ -57,6 +57,11 @@ describe("RunButton", () => {
     expect(mutate).toHaveBeenCalledTimes(2);
     fireEvent.keyDown(window, { key: "Enter" });
     expect(mutate).toHaveBeenCalledTimes(2);
+    // A field that took Ctrl+Enter for itself - saving a description - does not run.
+    const taken = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, cancelable: true });
+    taken.preventDefault();
+    window.dispatchEvent(taken);
+    expect(mutate).toHaveBeenCalledTimes(2);
   });
 
   it("asks for the declared fields first", async () => {

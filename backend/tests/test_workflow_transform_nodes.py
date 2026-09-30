@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
+from app.core.permissions import AuthContext
+from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed
 from app.workflows.nodes._transform import MISSING, ItemsInput, assign, lookup, without
 from app.workflows.nodes.transform import _handler as steps
@@ -211,6 +214,28 @@ class TestDateTimeAndCrypto:
         assert isinstance(refused, Failed) and refused.error.code == "DATETIME_NEEDS_A_VALUE"
         with pytest.raises(ValidationError, match="is not a timezone"):
             steps.DateTimeConfig(timezone="Mars/Base")
+
+    async def test_a_step_naming_no_timezone_writes_in_the_runs(self):
+        moment = steps.DateTimeInput.model_validate({"value": "2026-01-15T12:00:00Z"})
+        unnamed = steps.DateTimeConfig(operation="format", format="%H:%M")
+        running = context.DispatchContext(
+            organization_id=uuid.uuid4(),
+            workflow_run_id=uuid.uuid4(),
+            node_run_id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            attempt_no=1,
+            auth=AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner"),
+            resumed_agent_run_id=None,
+            timezone="Asia/Tokyo",
+        )
+        with context.dispatching_as(running):
+            assert _out(await steps.date_time(unnamed, moment))["formatted"] == "21:00"
+            named = steps.DateTimeConfig(operation="format", format="%H:%M", timezone="UTC")
+            assert _out(await steps.date_time(named, moment))["formatted"] == "12:00"
+        # Outside a run - nothing to take it from - it is UTC.
+        assert _out(await steps.date_time(unnamed, moment))["formatted"] == "12:00"
+        # A cleared field arrives as an explicit null, which names no timezone either.
+        assert steps.DateTimeConfig.model_validate({"timezone": None}).timezone is None
 
     async def test_text_is_hashed_or_encoded_and_ids_are_made(self):
         text = steps.CryptoInput(text="hello")

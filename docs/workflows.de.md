@@ -1,5 +1,5 @@
 ---
-source_sha: "55ba26e8d460"
+source_sha: "dc6a1fc68de4"
 ---
 
 # Workflows { #workflows }
@@ -70,7 +70,8 @@ einem Schritt, den dieses Deployment nicht hat, wird abgelehnt, und nichts entst
 ein Tag-Filter grenzt die Liste auf einen Tag ein, und sortiert wird nach letzter
 Bearbeitung, Name oder den neuesten zuerst. Alles bleibt in der Adresse, sodass ein
 Neuladen oder ein geteilter Link dieselbe Liste zeigt. Im Editor benennt ein Klick auf
-den Namen den Workflow um - sein Kennzeichen, das API-Aufrufer verwenden, bleibt - und
+den Namen den Workflow um - sein Kennzeichen, das API-Aufrufer verwenden, bleibt -, ein
+Klick auf die Beschreibung darunter oder **Add a description** ändert sie, und
 **+ Tag** ordnet ihn einem Tag zu.
 
 Ein veröffentlichter Workflow, dessen Trigger von selbst läuft - ein Webhook, ein
@@ -216,6 +217,11 @@ Zeilen an, eine Liste von Datensätzen mit einer Zeile je Datensatz. **JSON** ze
 sie sind, und **Fields** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
 Schritt liest.
 
+Vor dem ersten Lauf listen beide Bereiche die Felder, die der Schritt deklariert, mit Pfad
+und Typ, und auch sie lassen sich ziehen. Eine Tabelle zeigt ihre ersten 50 Zeilen, bis
+**Show more** den Rest anzeigt, und eine auf die Spaltenbreite gekürzte Zelle zeigt beim
+Überfahren den ganzen Wert.
+
 Eine Spalte oder ein Feld aus **Input** lässt sich auf eine Einstellung ziehen,
 die es dann aus jenem Schritt liest, als wäre es unter **From a step**
 gewählt. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den die
@@ -326,9 +332,10 @@ Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was S
 bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten
 warten unter **More options**, und **When it is slow or fails** sowie eine Notiz öffnen
 sich auf Wunsch oder sobald sie gesetzt sind. Ein erforderlicher Wert, den Sie noch
-nicht angegeben haben, wird neben seinem Feld erst markiert, wenn Sie ausführen oder
-veröffentlichen wollen: Die Markierung des Schritts auf der Zeichenfläche und die Zahl
-darüber sagen es von Anfang an, das Feld ab dann.
+nicht angegeben haben, wird neben seinem Feld erst markiert, wenn Sie das Feld verlassen
+oder ausführen oder veröffentlichen wollen: Die Markierung des Schritts auf der
+Zeichenfläche und die Zahl darüber sagen es von Anfang an. Eine Beschreibung, die nur den
+Namen des Felds wiederholt, ist ein Hinweis am Namen statt einer Zeile unter dem Feld.
 
 Die Meldungen benennen den konkreten Fehler: ein Pflicht-Input ohne Wert, ein Input,
 den mehr als eine Quelle setzt, eine Verbindung, deren Ports unterschiedliche Formen
@@ -407,7 +414,8 @@ wird, nicht was er tut. Sie gehören dem Workflow, nicht einer Version: Eine Än
 gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
 
 - **Timezone** - darin wird der Cron-Ausdruck eines Zeitplans gelesen, auch über die
-  Zeitumstellung hinweg. Ohne Angabe UTC.
+  Zeitumstellung hinweg, und darin schreibt ein **Date & time**-Schritt, der keine
+  eigene Zeitzone nennt. Ein Lauf behält die beim Start gesetzte. Ohne Angabe UTC.
 - **Default deadline** - die Frist, die ein Lauf bekommt, wenn das, was ihn startet,
   keine nennt.
 - **Error workflow** - ein veröffentlichter Workflow, der mit **On failure of a
@@ -450,7 +458,8 @@ run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben -
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 
 
-**Status**, **Version** und **Started by** grenzen die Läufe ein, und die Liste
+**Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
+die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
 gefilterte Liste verlinken lässt. **Runs** in der Workflow-Liste zeigt die Läufe
 aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
@@ -584,7 +593,10 @@ mit der gebundenen Eingabe, die zuerst gegen diese Felder geprüft wird.
 Der Schritt
 wartet auf den aufgerufenen Lauf und gibt dessen `output` weiter, oder geht sofort
 weiter, wenn **Wait for it to finish** aus ist. Der aufgerufene Lauf ist mit dem
-aufrufenden verknüpft und erscheint auf den Laufseiten wie jeder andere. Ein Aufruf
+aufrufenden in beide Richtungen verknüpft - seine Seite sagt **Called by** diesen Lauf,
+und die Zeile des Schritts auf der Seite des Aufrufers öffnet den Lauf, den er gestartet
+hat - und erscheint auf den Laufseiten wie jeder andere. Ein von einem Fehler-Workflow
+gestarteter Lauf sagt, welcher fehlgeschlagene Lauf ihn gestartet hat. Ein Aufruf
 zurück in einen Workflow, der in der Kette schon läuft, oder tiefer als fünf Aufrufe,
 wird abgelehnt.
 

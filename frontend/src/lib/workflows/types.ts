@@ -583,6 +583,8 @@ export interface RunHistoryQuery {
   status?: WorkflowRunStatus;
   mode?: "real" | "test";
   triggeredBy?: string;
+  /** Only runs started at or after this instant, ISO 8601. */
+  createdAfter?: string;
   /** Zero-based. */
   page: number;
 }

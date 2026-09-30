@@ -248,6 +248,12 @@ class WorkflowRun(Base, TimestampMixin):
     spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    # The workflow's timezone when the run was admitted, like its deadline: what a
+    # date step writes a moment in when it names none, the same for the whole run
+    # however the settings change while it lasts.
+    timezone: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="UTC", server_default="UTC"
+    )
     # Incremented in the same transaction as each `WorkflowEvent` insert -
     # never a shared sequence, so a cursor for one run stays small, dense and
     # meaningless for another. See `app.services.workflow_execution.events`.

@@ -11,6 +11,7 @@ import {
   labelOf,
   ownTitle,
   objectFields,
+  repeatsLabel,
   resolveRef,
   resourceKind,
   singleFieldSchema,
@@ -269,8 +270,40 @@ describe("singleFieldSchema / asFormProperty", () => {
     expect(singleFieldSchema("value", { type: "string" }, false).required).toEqual([]);
   });
 
+  it("moves a description that only says the label again into a hover hint", () => {
+    const hinted = singleFieldSchema(
+      "timezone",
+      { type: "string", title: "Timezone", description: "An IANA timezone" },
+      false,
+    );
+    expect(hinted.properties?.["timezone"]).toMatchObject({
+      description: undefined,
+      "x-hint": "An IANA timezone",
+    });
+    const kept = singleFieldSchema(
+      "seconds",
+      { type: "integer", title: "Wait for", description: "How long after the step is reached" },
+      false,
+    );
+    expect(kept.properties?.["seconds"]?.description).toBe("How long after the step is reached");
+  });
+
   it("views a catalog schema as a form property without copying it", () => {
     const schema: Schema = { type: "string" };
     expect(asFormProperty(schema)).toBe(schema);
+  });
+});
+
+describe("repeatsLabel", () => {
+  it("is true for a short description naming its label, whatever the case", () => {
+    expect(repeatsLabel("Timezone", "An IANA timezone")).toBe(true);
+    expect(repeatsLabel(" Channel ", "The channel to post to")).toBe(true);
+  });
+
+  it("is false for one that says more, or does not name the label", () => {
+    expect(repeatsLabel("Channel", "The channel the message goes to, once it is approved")).toBe(
+      false,
+    );
+    expect(repeatsLabel("Bot", "Which integration sends it")).toBe(false);
   });
 });

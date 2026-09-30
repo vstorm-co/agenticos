@@ -213,6 +213,24 @@ class TestTheDefaultDeadline:
         assert defaulted.deadline_at - named.deadline_at > timedelta(minutes=8)
 
 
+class TestTheRunsTimezone:
+    async def test_a_run_keeps_the_workflows_timezone_as_it_stood_at_the_start(self, db, owner):
+        workflow = await _workflow(db, owner)
+        await _publish(db, owner, workflow, _graph("trigger.manual"))
+        registry = WorkflowRegistryService(db)
+        await registry.update_settings(
+            owner, workflow.id, WorkflowSettings(timezone="Europe/Warsaw")
+        )
+        service = WorkflowExecutionService(db)
+
+        before = await service.start(owner, workflow.id)
+        await registry.update_settings(owner, workflow.id, WorkflowSettings(timezone="Asia/Tokyo"))
+        after = await service.start(owner, workflow.id)
+
+        stored = {run.id: run.timezone for run in (await db.execute(select(WorkflowRun))).scalars()}
+        assert (stored[before.id], stored[after.id]) == ("Europe/Warsaw", "Asia/Tokyo")
+
+
 async def _failing_setup(engine: AsyncEngine) -> tuple[Any, Workflow]:
     """A real run that fails, of a workflow whose error workflow is published."""
     factory = async_sessionmaker(engine, expire_on_commit=False)

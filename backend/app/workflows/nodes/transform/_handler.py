@@ -27,6 +27,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 from app.workflows.nodes import _expr
 from app.workflows.nodes._transform import (
@@ -354,11 +355,17 @@ class DateTimeConfig(_Config):
         max_length=100,
         description="How to write it out, such as %d.%m.%Y",
     )
-    timezone: str = Field(default="UTC", max_length=64, description="An IANA timezone")
+    timezone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="An IANA timezone, such as Europe/Warsaw. Empty: the workflow's own",
+    )
 
     @field_validator("timezone")
     @classmethod
-    def _a_timezone_that_exists(cls, value: str) -> str:
+    def _a_timezone_that_exists(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         try:
             ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as exc:
@@ -378,8 +385,9 @@ class DateTimeOutput(_Config):
 
 
 async def date_time(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
-    """Now, or the bound moment moved by an amount, written out in a timezone. A
-    moment with no timezone of its own is read as UTC."""
+    """Now, or the bound moment moved by an amount, written out in a timezone -
+    the step's, else the run's (the workflow's setting when it started), else UTC
+    outside a run. A moment with no timezone of its own is read as UTC."""
     settings = config if isinstance(config, DateTimeConfig) else DateTimeConfig()
     bound = node_input.value if isinstance(node_input, DateTimeInput) else None
     if settings.operation != "now" and bound is None:
@@ -395,7 +403,9 @@ async def date_time(config: BaseModel | None, node_input: BaseModel | None) -> N
         moment += shift
     elif settings.operation == "subtract":
         moment -= shift
-    local = moment.astimezone(ZoneInfo(settings.timezone))
+    running = context.active()
+    zone = settings.timezone or (running.timezone if running is not None else "UTC")
+    local = moment.astimezone(ZoneInfo(zone))
     return Completed[DateTimeOutput](
         output=DateTimeOutput(value=local, formatted=local.strftime(settings.format))
     )

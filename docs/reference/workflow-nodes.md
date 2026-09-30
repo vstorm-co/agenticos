@@ -171,7 +171,7 @@ chain.
 | `transform.aggregate` | Collects each field's values across the items into one list per field, as `values` |
 | `transform.split_out` | Turns a list inside each item into items of their own |
 | `transform.summarize` | Counts, sums, averages, finds the least or greatest, or counts the distinct values, by group |
-| `transform.date_time` | Now, or a bound `value` moved by an amount, written out in a timezone |
+| `transform.date_time` | Now, or a bound `value` moved by an amount, written out in a timezone - the workflow's unless the step names one |
 | `transform.crypto` | Hashes or base64-encodes the bound `text`, or makes a UUID or random hex |
 
 A field is a dotted path, `customer.email`, and an item without it is never an
@@ -607,7 +607,8 @@ JSON value. It computes and nothing else, so it is `pure` and needs `code:execut
 
 In the editor, a code step's script is written in a code editor: Python or
 JavaScript highlighted in both themes, Tab and Shift+Tab to indent, Enter keeping
-the indentation, brackets and quotes closed as they are typed, and the keys of the
+the indentation, brackets and quotes closed as they are typed, the bracket beside
+the cursor boxed with its match, and the keys of the
 bound `args` offered as `args["` or, in JavaScript, `args.` is typed. Esc, then
 Tab, leaves the editor. **Test step** runs the script alone on what the steps
 before it handed on.

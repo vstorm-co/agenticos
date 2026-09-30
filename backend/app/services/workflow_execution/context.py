@@ -74,6 +74,9 @@ class DispatchContext:
     """What the run was admitted with - `WorkflowRun.input`, frozen at start."""
     triggered_by: str = "api"
     """Which surface admitted the run - `WorkflowRun.triggered_by`."""
+    timezone: str = "UTC"
+    """The run's timezone - `WorkflowRun.timezone`, the workflow's when it was
+    admitted - that a date step writes a moment in when it names none."""
     idempotency_key: str = ""
     """This attempt's `NodeAttempt.idempotency_key` - stable across retries of the
     same logical operation, distinct across loop iterations. What a node sends
