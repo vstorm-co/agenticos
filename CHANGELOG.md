@@ -58,6 +58,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **`seed-skills` refreshes bundled skills nobody edited.** Every copy of a
+  bundled skill now records which version it was written from, so a copy left
+  as seeded is replaced with the version a release ships - files and all, with
+  a `skill.refreshed` audit entry - while a copy edited here is left alone.
+  `--replace` takes the bundled version over edits, and `--dry-run` prints the
+  plan for each skill instead of "would install" for every one. A copy made
+  before this release is reported as untracked unless it already matches.
 - **The chat composer is one row of actions.** The model picker is an icon
   beside the microphone, naming the model in its tooltip, and what the
   conversation is using - the context window, the cost, the budgets, the
@@ -92,6 +99,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An artifact whose stored bytes are gone answers 404, not 500.** A version
+  row whose file storage no longer has - a restored database beside an older
+  volume - made the page, its thumbnail and `read_artifact` fail with a server
+  error; the page is now not found, the tool says to publish it again, and the
+  mismatch is logged.
 - **A sign-in that the network never answers no longer spins forever.** After
   an idle laptop or a VPN reconnect the login request could go out on a dead
   connection and hang until the page was reloaded; it now gives up after 20

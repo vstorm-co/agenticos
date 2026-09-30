@@ -1,5 +1,5 @@
 ---
-source_sha: "a02d0afc5f98"
+source_sha: "82ec723c8c80"
 ---
 
 # Skills { #skills }
@@ -235,11 +235,24 @@ Der Seed-Befehl tut dasselbe vom Terminal aus, für skriptgesteuerte Installatio
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Er ist über den Namen idempotent — ein Skill, den die Organisation bereits hat,
-bleibt genau so, wie er ist, sodass eine bearbeitete Rückerstattungsregel ein
-erneutes Seeding überlebt.
+Er installiert, was fehlt, und **aktualisiert, was niemand bearbeitet hat**. Jede
+Kopie hält fest, aus welcher mitgelieferten Version sie geschrieben wurde;
+verbessert ein Release einen mitgelieferten Skill, wird die unberührte Kopie einer
+Organisation durch die neue ersetzt — samt Dateien, mit erhöhter Version und einem
+Audit-Eintrag `skill.refreshed`.
+
+Eine hier bearbeitete Kopie bleibt genau so, wie sie ist, sodass eine bearbeitete
+Rückerstattungsregel ein erneutes Seeding überlebt; `--replace` ist der einzige
+Weg, die mitgelieferte Version über solche Bearbeitungen zu legen, und der
+Audit-Eintrag hält fest, dass es geschah. Eine Kopie von vor der
+Versionserfassung, die von der mitgelieferten abweicht, wird ebenfalls gemeldet
+und in Ruhe gelassen, denn nichts kann sagen, ob sie bearbeitet wurde.
+
+Der Befehl gibt für jeden Skill aus, was er getan hat, und `--dry-run` gibt
+denselben Plan aus, ohne zu schreiben.
 
 `e2e/seed.setup.ts` legt ebenfalls einen über die UI an, und genau dagegen prüft
 die E2E-Suite.

@@ -1,5 +1,5 @@
 ---
-source_sha: "a02d0afc5f98"
+source_sha: "82ec723c8c80"
 ---
 
 # Skills { #skills }
@@ -228,11 +228,23 @@ scripts:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Es idempotente por nombre — un skill que la organización ya tiene se deja
-exactamente como está, así que una política de reembolsos editada sobrevive a un
-reseed.
+Instala lo que falta y **actualiza lo que nadie ha editado**. Cada copia registra
+de qué versión incluida se escribió, así que cuando una versión mejora un skill
+incluido, la copia intacta de una organización se sustituye por la nueva — con sus
+archivos, con la versión incrementada y una entrada de auditoría
+`skill.refreshed`.
+
+Una copia editada aquí se deja exactamente como está, así que una política de
+reembolsos editada sobrevive a un reseed; `--replace` es la única forma de tomar
+la versión incluida por encima de esas ediciones, y la entrada de auditoría lo
+dice. Una copia hecha antes de que se registraran las versiones y distinta de la
+incluida también se informa y se deja, porque nada puede decir si se editó.
+
+El comando imprime qué hizo con cada skill, y `--dry-run` imprime el mismo plan
+sin escribir.
 
 `e2e/seed.setup.ts` también crea uno a través de la UI, que es contra lo que
 afirma la suite E2E.

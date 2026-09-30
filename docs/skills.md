@@ -217,10 +217,22 @@ The seed command does the same from a terminal, for scripted setups:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-It is idempotent by name — a skill the organization already has is left exactly as
-it is, so an edited refund policy survives a reseed.
+It installs what is missing and **refreshes what nobody has edited**. Every copy
+records which bundled version it was written from, so when a release improves a
+bundled skill, an organization's untouched copy is replaced with the new one —
+files and all, with its version bumped and a `skill.refreshed` audit entry.
+
+A copy edited here is left exactly as it is, so an edited refund policy survives a
+reseed; `--replace` is the one way to take the bundled version over such edits,
+and the audit entry says it did. A copy made before versions were recorded and
+different from the bundled one is reported and left alone too, since nothing can
+tell whether it was edited.
+
+The command prints what it did with each skill, and `--dry-run` prints the same
+plan without writing.
 
 `e2e/seed.setup.ts` also creates one through the UI, which is what the E2E suite
 asserts against.

@@ -159,6 +159,7 @@ async def create(
     content: str,
     category: str | None = None,
     visibility: str = Visibility.PRIVATE.value,
+    library_fingerprint: str | None = None,
 ) -> Skill:
     skill = Skill(
         organization_id=organization_id,
@@ -168,6 +169,7 @@ async def create(
         content=content,
         category=category,
         visibility=visibility,
+        library_fingerprint=library_fingerprint,
     )
     db.add(skill)
     await db.flush()

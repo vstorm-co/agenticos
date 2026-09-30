@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -127,6 +128,46 @@ def _decode_text(name: str, raw: bytes) -> str:
             ),
             details={"name": name},
         ) from exc
+
+
+class LibraryRefresh(StrEnum):
+    """What `seed-skills` does, or would do, with one bundled skill."""
+
+    INSTALL = "install"
+    """The organization has no skill by that name."""
+    CURRENT = "current"
+    """Its copy already says what the shipped folder says."""
+    UPDATE = "update"
+    """An unedited copy of an earlier version - or an edited one, when asked to."""
+    EDITED = "edited"
+    """Edited here since it was copied; left alone."""
+    UNTRACKED = "untracked"
+    """Copied before fingerprints were kept and different now; left alone."""
+
+
+def _fingerprint_of(skill: Skill) -> str:
+    """The fingerprint of what the organization's copy says now."""
+    return skill_library.fingerprint(
+        description=skill.description,
+        category=skill.category,
+        content=skill.content,
+        resources=((resource.name, resource.content) for resource in skill.resources),
+    )
+
+
+def _refresh_plan(
+    existing: Skill | None, bundled: skill_library.LibrarySkill, *, replace_edited: bool
+) -> LibraryRefresh:
+    if existing is None:
+        return LibraryRefresh.INSTALL
+    here = _fingerprint_of(existing)
+    if here == bundled.fingerprint:
+        return LibraryRefresh.CURRENT
+    if here == existing.library_fingerprint or replace_edited:
+        return LibraryRefresh.UPDATE
+    if existing.library_fingerprint is None:
+        return LibraryRefresh.UNTRACKED
+    return LibraryRefresh.EDITED
 
 
 class SkillService:
@@ -300,6 +341,7 @@ class SkillService:
         content: str,
         category: str | None = None,
         visibility: Visibility = Visibility.PRIVATE,
+        library_fingerprint: str | None = None,
     ) -> Skill:
         """Create a skill.
 
@@ -332,6 +374,7 @@ class SkillService:
             content=content,
             category=category,
             visibility=visibility.value,
+            library_fingerprint=library_fingerprint,
         )
         await record_audit(
             self.db,
@@ -396,6 +439,119 @@ class SkillService:
             raise NotFoundError(message="No such bundled skill", details={"key": key})
         return await self._copy_library_skill(ctx, bundled, seeded=True)
 
+    async def plan_library_refresh(
+        self, ctx: AuthContext, key: str, *, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """What `refresh_from_library` would do with one bundled skill, writing nothing.
+
+        Raises:
+            NotFoundError: If no such skill ships with this deployment.
+        """
+        bundled, existing = await self._library_pair(ctx, key)
+        return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+
+    async def refresh_from_library(
+        self, ctx: AuthContext, key: str, *, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """Bring the organization's copy of a bundled skill up to the shipped version.
+
+        Missing, it is installed. An unedited copy of an earlier version - one
+        that still matches the fingerprint it was written with - is replaced,
+        files and all, with its version bumped, because nobody chose what it
+        says: the platform did, and the platform now says something better. A
+        copy edited here is the organization's and is left alone unless
+        `replace_edited` says to take the bundled version over the edits, and so
+        is one copied before fingerprints were kept, since nothing can tell
+        whether it was edited.
+
+        Raises:
+            NotFoundError: If no such skill ships with this deployment.
+            AlreadyExistsError: If another writer installed it between the check
+                and the copy - the listing's top-up, racing a seed.
+        """
+        bundled, existing = await self._library_pair(ctx, key)
+        plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        if existing is None:
+            await self._copy_library_skill(ctx, bundled, seeded=True)
+        elif plan is LibraryRefresh.UPDATE:
+            await self._overwrite_from_library(
+                ctx,
+                existing,
+                bundled,
+                replaced_edits=_fingerprint_of(existing) != existing.library_fingerprint,
+            )
+        elif plan is LibraryRefresh.CURRENT and existing.library_fingerprint != bundled.fingerprint:
+            # Says what the folder says, but was never stamped as saying it -
+            # copied before fingerprints were kept. Stamp it, so the next release
+            # can tell an untouched copy from an edited one.
+            await skill_repo.update(
+                self.db, skill=existing, update_data={"library_fingerprint": bundled.fingerprint}
+            )
+        return plan
+
+    async def _library_pair(
+        self, ctx: AuthContext, key: str
+    ) -> tuple[skill_library.LibrarySkill, Skill | None]:
+        bundled = skill_library.get(key)
+        if bundled is None:
+            raise NotFoundError(message="No such bundled skill", details={"key": key})
+        existing = await skill_repo.get_by_name(
+            self.db, bundled.name, organization_id=ctx.organization_id
+        )
+        return bundled, existing
+
+    async def _overwrite_from_library(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        bundled: skill_library.LibrarySkill,
+        *,
+        replaced_edits: bool,
+    ) -> None:
+        for resource in list(skill.resources):
+            await skill_repo.delete_resource(self.db, resource)
+        # The loaded collection still holds the rows just deleted, and the update
+        # below refreshes the skill - see `remove_resource` for what that did.
+        self.db.expire(skill, ["resources"])
+        for resource in bundled.resources:
+            await skill_repo.create_resource(
+                self.db,
+                skill_id=skill.id,
+                name=resource.name,
+                description=None,
+                content=resource.content,
+            )
+        updated = await skill_repo.update(
+            self.db,
+            skill=skill,
+            update_data={
+                "description": bundled.description,
+                "content": bundled.content,
+                "category": bundled.category,
+                "version": skill.version + 1,
+                "library_fingerprint": bundled.fingerprint,
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.refreshed",
+            target_type="skill",
+            target_id=str(skill.id),
+            # What every bound agent executes changed, and `replaced_edits` is
+            # the part somebody may go looking for: whether an operator chose to
+            # take the bundled version over what the organization had written.
+            details={
+                "key": bundled.key,
+                "name": bundled.name,
+                "version": updated.version,
+                "resources": len(bundled.resources),
+                "seeded": True,
+                "replaced_edits": replaced_edits,
+            },
+        )
+
     async def _copy_library_skill(
         self,
         ctx: AuthContext,
@@ -417,6 +573,7 @@ class SkillService:
             content=bundled.content,
             category=bundled.category,
             visibility=Visibility.ORG,
+            library_fingerprint=bundled.fingerprint,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(

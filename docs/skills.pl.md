@@ -1,5 +1,5 @@
 ---
-source_sha: "a02d0afc5f98"
+source_sha: "82ec723c8c80"
 ---
 
 # Skille { #skills }
@@ -222,10 +222,22 @@ Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Jest idempotentna po nazwie — skill, który organizacja już ma, zostaje dokładnie
-taki, jaki jest, więc edytowana polityka zwrotów przeżywa ponowny seed.
+Instaluje to, czego brakuje, i **odświeża to, czego nikt nie edytował**. Każda
+kopia zapamiętuje, z której wersji dołączonego skilla została zapisana, więc gdy
+wydanie ulepsza dołączony skill, nieruszana kopia w organizacji jest zastępowana
+nową — razem z plikami, z podbitą wersją i wpisem audytu `skill.refreshed`.
+
+Kopia edytowana na miejscu zostaje dokładnie taka, jaka jest, więc edytowana
+polityka zwrotów przeżywa ponowny seed; `--replace` to jedyny sposób, żeby wziąć
+dołączoną wersję zamiast takich edycji, a wpis audytu to odnotowuje. Kopia
+zrobiona, zanim wersje były zapisywane, i różna od dołączonej też jest zgłaszana i
+zostawiana, bo nic nie powie, czy ktoś ją edytował.
+
+Komenda wypisuje, co zrobiła z każdym skillem, a `--dry-run` wypisuje ten sam plan
+bez zapisywania.
 
 `e2e/seed.setup.ts` tworzy jednego również przez UI i to na nim opiera swoje
 asercje zestaw E2E.
