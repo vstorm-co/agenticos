@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Transform steps for lists of objects.** Edit fields, Sort, Limit, Remove
+  duplicates, Aggregate, Split out, Summarize, Date & time and Crypto reshape data
+  without a code step. Each is pure and typed, most take and hand on `items`, and
+  an item missing a field is handled the same way by all of them (#1948).
 - **Switch, Wait, Filter a list and Combine lists steps.** **Switch** takes the first
   of many named rules that holds, or `otherwise`, and rejoins at a Merge. **Wait**
   holds a run for a number of seconds or until a bound time on a durable timer that

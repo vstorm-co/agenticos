@@ -1,5 +1,5 @@
 ---
-source_sha: "7ccc42c4fbd4"
+source_sha: "eb16e8f9c260"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -153,6 +153,36 @@ scheitert sonst mit `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## Transform { #transform }
+
+Die **Transform**-Schritte formen eine Liste von Objekten ohne Code-Schritt um. Jeder
+nimmt `items`, eine aus einem früheren Schritt gebundene Liste, und die meisten geben
+`items` weiter, sodass sie sich verketten lassen.
+
+| Schritt | Tut |
+|---|---|
+| `transform.edit_fields` | Setzt Felder aus JMESPath-Ausdrücken über jedes `item`, entfernt Felder oder behält nur die gesetzten |
+| `transform.sort` | Sortiert der Reihe nach nach Feldern, auf- oder absteigend |
+| `transform.limit` | Behält die ersten oder die letzten Elemente |
+| `transform.remove_duplicates` | Behält das erste jeder Gruppe von Elementen, die auf den genannten Feldern oder ganz gleich sind |
+| `transform.aggregate` | Sammelt die Werte jedes Felds über alle Elemente in einer Liste je Feld, als `values` |
+| `transform.split_out` | Macht aus einer Liste in jedem Element eigene Elemente |
+| `transform.summarize` | Zählt, summiert, mittelt, findet das Kleinste oder Größte oder zählt verschiedene Werte, je Gruppe |
+| `transform.date_time` | Jetzt oder ein gebundener `value`, um eine Menge verschoben und in einer Zeitzone geschrieben |
+| `transform.crypto` | Hasht oder base64-kodiert den gebundenen `text` oder erzeugt eine UUID oder zufälliges Hex |
+
+Ein Feld ist ein Pfad mit Punkten, `customer.email`, und ein Element ohne es ist nie
+ein Fehler. Sort stellt es ans Ende, Remove duplicates behandelt „fehlt“ als eigenen
+Wert, Aggregate und Summarize lassen es aus, Split out behält das Element unverändert,
+und Edit fields setzt `null`, wo sein Ausdruck nichts findet. Crypto ist nicht für
+Geheimnisse gedacht: Nichts darin verwendet einen Schlüssel.
+
+::: app.workflows.nodes.transform._handler.EditFieldsConfig
+
+::: app.workflows.nodes.transform._handler.SummarizeConfig
+
+::: app.workflows.nodes.transform._handler.DateTimeConfig
 
 ## logic.if und logic.merge { #logic-if-and-logic-merge }
 

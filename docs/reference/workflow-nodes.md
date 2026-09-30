@@ -137,6 +137,36 @@ a field, the second's wins; merging item by item needs objects, and fails with
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
 
+## Transform { #transform }
+
+The **Transform** steps reshape a list of objects without a code step. Each takes
+`items`, a list bound from an earlier step, and most hand on `items`, so they
+chain.
+
+| Step | Does |
+|---|---|
+| `transform.edit_fields` | Sets fields from JMESPath expressions over each `item`, removes fields, or keeps only the ones set |
+| `transform.sort` | Sorts by fields in turn, ascending or descending |
+| `transform.limit` | Keeps the first or the last items |
+| `transform.remove_duplicates` | Keeps the first of each set of items equal on the fields named, or on the whole item |
+| `transform.aggregate` | Collects each field's values across the items into one list per field, as `values` |
+| `transform.split_out` | Turns a list inside each item into items of their own |
+| `transform.summarize` | Counts, sums, averages, finds the least or greatest, or counts the distinct values, by group |
+| `transform.date_time` | Now, or a bound `value` moved by an amount, written out in a timezone |
+| `transform.crypto` | Hashes or base64-encodes the bound `text`, or makes a UUID or random hex |
+
+A field is a dotted path, `customer.email`, and an item without it is never an
+error. Sort puts it last, Remove duplicates treats "missing" as a value of its
+own, Aggregate and Summarize leave it out, Split out keeps the item as it is, and
+Edit fields sets `null` where its expression finds nothing. Crypto is not for
+secrets: nothing in it is keyed.
+
+::: app.workflows.nodes.transform._handler.EditFieldsConfig
+
+::: app.workflows.nodes.transform._handler.SummarizeConfig
+
+::: app.workflows.nodes.transform._handler.DateTimeConfig
+
 ## logic.if and logic.merge { #logic-if-and-logic-merge }
 
 `logic.if` evaluates a JMESPath condition over its bound `value` and continues

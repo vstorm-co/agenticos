@@ -5904,7 +5904,8 @@
       "people": "Personen",
       "slack": "Slack",
       "mattermost": "Mattermost",
-      "telegram": "Telegram"
+      "telegram": "Telegram",
+      "transform": "Umformen"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -6006,7 +6007,8 @@
       "mattermost": "In Mattermost senden, lesen und suchen",
       "telegram": "An einen Telegram-Chat senden",
       "http": "Eine API aufrufen, herunter- oder hochladen",
-      "notification": "Mitglieder deiner Organisation benachrichtigen"
+      "notification": "Mitglieder deiner Organisation benachrichtigen",
+      "transform": "Listen sortieren, begrenzen und umformen"
     },
     "pickerSection": {
       "start": "Start",

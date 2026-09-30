@@ -1,5 +1,5 @@
 ---
-source_sha: "7ccc42c4fbd4"
+source_sha: "eb16e8f9c260"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -143,6 +143,36 @@ po elemencie wymaga obiektów, inaczej kończy się `COMBINE_NEEDS_OBJECTS`.
 ::: app.workflows.nodes.data_filter._handler.DataFilterConfig
 
 ::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## Transform { #transform }
+
+Kroki **Transform** przekształcają listę obiektów bez kroku z kodem. Każdy przyjmuje
+`items`, listę powiązaną z wcześniejszego kroku, a większość przekazuje dalej
+`items`, więc da się je łączyć w łańcuch.
+
+| Krok | Robi |
+|---|---|
+| `transform.edit_fields` | Ustawia pola z wyrażeń JMESPath nad każdym `item`, usuwa pola albo zostawia tylko ustawione |
+| `transform.sort` | Sortuje po kolejnych polach, rosnąco lub malejąco |
+| `transform.limit` | Zostawia pierwsze albo ostatnie elementy |
+| `transform.remove_duplicates` | Zostawia pierwszy z każdej grupy elementów równych na wskazanych polach albo w całości |
+| `transform.aggregate` | Zbiera wartości każdego pola ze wszystkich elementów w jedną listę na pole, jako `values` |
+| `transform.split_out` | Zamienia listę wewnątrz każdego elementu w osobne elementy |
+| `transform.summarize` | Liczy, sumuje, uśrednia, znajduje najmniejszą lub największą albo liczy różne wartości, w grupach |
+| `transform.date_time` | Teraz albo powiązana `value` przesunięta o wartość, zapisana w strefie czasowej |
+| `transform.crypto` | Liczy skrót lub koduje base64 powiązany `text` albo tworzy UUID lub losowy hex |
+
+Pole to ścieżka z kropkami, `customer.email`, a element bez niego nigdy nie jest
+błędem. Sort stawia go na końcu, Remove duplicates traktuje „brak” jako osobną
+wartość, Aggregate i Summarize go pomijają, Split out zostawia element bez zmian, a
+Edit fields ustawia `null`, gdy wyrażenie nic nie znajdzie. Crypto nie służy do
+sekretów: nic w nim nie używa klucza.
+
+::: app.workflows.nodes.transform._handler.EditFieldsConfig
+
+::: app.workflows.nodes.transform._handler.SummarizeConfig
+
+::: app.workflows.nodes.transform._handler.DateTimeConfig
 
 ## logic.if i logic.merge { #logic-if-and-logic-merge }
 

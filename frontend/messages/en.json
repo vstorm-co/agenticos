@@ -6051,7 +6051,8 @@
       "people": "People",
       "slack": "Slack",
       "mattermost": "Mattermost",
-      "telegram": "Telegram"
+      "telegram": "Telegram",
+      "transform": "Transform"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -6147,7 +6148,8 @@
       "mattermost": "Post, read and look up in Mattermost",
       "telegram": "Send to a Telegram chat",
       "http": "Call an API, download or upload",
-      "notification": "Tell members of your organization"
+      "notification": "Tell members of your organization",
+      "transform": "Sort, limit and reshape lists"
     },
     "pickerSection": {
       "start": "Start",

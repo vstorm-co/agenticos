@@ -151,6 +151,7 @@ def load_builtins() -> None:
         table_record_update,
         table_record_upsert,
         text_extract,
+        transform,
         trigger_chat,
         trigger_manual,
         trigger_schedule,

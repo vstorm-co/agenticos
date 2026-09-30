@@ -1,4 +1,17 @@
-import { Bot, Code2, Download, File, GitBranch, Search, Send, Table2, Zap } from "lucide-react";
+import {
+  ArrowUpDown,
+  Bot,
+  Code2,
+  Download,
+  File,
+  FingerprintPattern,
+  GitBranch,
+  Search,
+  Send,
+  Table2,
+  WandSparkles,
+  Zap,
+} from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -18,6 +31,12 @@ describe("nodeVisual", () => {
     expect(nodeVisual("http.download", "http").icon).toBe(Download);
     expect(nodeVisual("future.file.step", "files").icon).toBe(File);
     expect(nodeVisual("future.code.step", "code").icon).toBe(Code2);
+  });
+
+  it("draws each Transform step by what it does to the list", () => {
+    expect(nodeVisual("transform.sort", "transform").icon).toBe(ArrowUpDown);
+    expect(nodeVisual("transform.crypto", "transform").icon).toBe(FingerprintPattern);
+    expect(groupVisual("transform").icon).toBe(WandSparkles);
   });
 
   it("keeps every tile neutral but an error step's", () => {
@@ -48,6 +67,8 @@ describe("categoryRank", () => {
     expect(categoryRank("triggers")).toBe(0);
     expect(categoryRank("agent")).toBeLessThan(categoryRank("logic"));
     expect(categoryRank("tables")).toBeLessThan(categoryRank("slack"));
+    expect(categoryRank("data")).toBeLessThan(categoryRank("transform"));
+    expect(categoryRank("transform")).toBeLessThan(categoryRank("files"));
     expect(categoryRank("custom")).toBe(CATEGORY_ORDER.length);
   });
 });

@@ -3697,7 +3697,8 @@
       "people": "Ludzie",
       "slack": "Slack",
       "mattermost": "Mattermost",
-      "telegram": "Telegram"
+      "telegram": "Telegram",
+      "transform": "Przekształcenia"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -3799,7 +3800,8 @@
       "mattermost": "Wysyłaj, czytaj i wyszukuj w Mattermost",
       "telegram": "Wyślij na czat Telegrama",
       "http": "Wywołaj API, pobierz albo wyślij plik",
-      "notification": "Powiadom członków organizacji"
+      "notification": "Powiadom członków organizacji",
+      "transform": "Sortuj, ogranicz i przekształcaj listy"
     },
     "pickerSection": {
       "start": "Start",
