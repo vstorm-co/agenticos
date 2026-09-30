@@ -82,6 +82,23 @@ async def test_a_batch_writes_every_record_that_fits_and_names_each_that_does_no
     assert events == 3  # the first record, then the batch's two
 
 
+async def test_a_batch_lists_in_the_order_it_was_written(db):
+    """One transaction wrote them all: `now()` gave every record one `created_at`
+    and the id tiebreak shuffled an imported file."""
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+    names = [f"Customer {n:02}" for n in range(12)]
+
+    await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(records=[RecordCreate(values={customer: name}) for name in names]),
+    )
+
+    listed = await service.list_records(ctx, table.id)
+    assert [record.values[customer] for record in listed.items] == names
+
+
 async def test_a_batch_refuses_a_value_for_an_archived_column_on_its_own(db):
     service, ctx, table = await _setup(db)
     customer, quantity = cid(table, "Customer"), cid(table, "Quantity")

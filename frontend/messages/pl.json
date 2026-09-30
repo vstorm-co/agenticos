@@ -4087,7 +4087,14 @@
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
         "multi_select": "Wybór wielokrotny"
-      }
+      },
+      "fromCsv": "Zacznij od pliku CSV",
+      "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",
+      "fromCsvChosen": "{file} - {count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}} do importu",
+      "fromCsvTypes": "Typ każdej kolumny odczytano z jej wartości. Sprawdź je przed utworzeniem: typu nie da się później zmienić.",
+      "csvEmpty": "Ten plik nie ma wierszy pod nagłówkiem.",
+      "csvTooWide": "Tabela mieści najwyżej {max} kolumn.",
+      "csvColumn": "Kolumna {n}"
     },
     "schema": {
       "title": "Kolumny",

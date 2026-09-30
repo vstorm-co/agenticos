@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Upload } from "lucide-react";
 
-import { type CellProblem, readCell } from "./csv-cells";
+import { type CellProblem, readCell, readCsvFile } from "./csv-cells";
 import {
   Button,
   Dialog,
@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { parseCsv } from "@/lib/csv";
 import { DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
 import { batchRefusal, createRecords } from "@/lib/tables-api";
@@ -47,6 +46,15 @@ type Step =
   | { name: "importing"; done: number; total: number }
   | { name: "done"; created: number; failures: Failure[] };
 
+/** A file read before the dialog opened, and where each of its columns goes. */
+export interface CsvPreset {
+  fileName: string;
+  headers: string[];
+  rows: string[][];
+  /** The column id each header goes to, in header order; null for one not imported. */
+  mapping: (string | null)[];
+}
+
 /** The table column a file's header goes to by default: the one of the same name, if any. */
 function guess(header: string, columns: ColumnDef[]): string {
   const name = header.trim().toLowerCase();
@@ -70,18 +78,25 @@ export function ImportCsvDialog({
   columns,
   open,
   onOpenChange,
+  preset,
 }: {
   tableId: string;
   /** The table's live columns - where a file's columns can go. */
   columns: ColumnDef[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** A file already read and mapped, to open on: the table was just made from it. */
+  preset?: CsvPreset;
 }) {
   const t = useTranslations("tables.import");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>({ name: "pick", error: null });
-  const [mapping, setMapping] = useState<string[]>([]);
+  const [step, setStep] = useState<Step>(
+    preset ? { name: "map", ...preset } : { name: "pick", error: null },
+  );
+  const [mapping, setMapping] = useState<string[]>(
+    preset?.mapping.map((target) => target ?? SKIP) ?? [],
+  );
 
   const close = (next: boolean) => {
     if (step.name === "importing") return;
@@ -90,14 +105,13 @@ export function ImportCsvDialog({
   };
 
   const pick = async (file: File) => {
-    const [headers, ...rest] = parseCsv(await file.text());
-    const rows = rest.filter((row) => row.some((cell) => cell.trim() !== ""));
-    if (!headers || rows.length === 0) {
+    const read = await readCsvFile(file);
+    if (read === null) {
       setStep({ name: "pick", error: t("empty") });
       return;
     }
-    setMapping(headers.map((header) => guess(header, columns)));
-    setStep({ name: "map", fileName: file.name, headers, rows });
+    setMapping(read.headers.map((header) => guess(header, columns)));
+    setStep({ name: "map", fileName: file.name, ...read });
   };
 
   const byId = new Map(columns.map((column) => [column.id, column]));

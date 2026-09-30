@@ -177,6 +177,14 @@ to `POST /tables/{id}/records/batch`, which writes each record on its own and li
 the ones it refused with their codes, and the console lists every failed row with its
 line. Each record added starts the table's triggers, as any other would.
 
+A new table can start from a file too: **Start from a CSV file** in **New table** turns
+the header into columns and gives each the narrowest type all its values read as -
+integer, number, yes/no, date, or an ISO date and time - and otherwise text, or long
+text once a value has a line break or runs past 1,000 characters. The name comes from
+the file, and both can be changed before creating, since a type cannot change later.
+Once the table exists the import opens with every column already mapped, and the
+table opens after it.
+
 ## Safe retries { #safe-retries }
 
 Every record write accepts an `Idempotency-Key` header (at most 128 characters). A

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -138,5 +138,59 @@ describe("the tables catalog page", () => {
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/tables/t-new"));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("imports a file's rows into a table started from it, then opens the table", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        ...table(),
+        id: "t-new",
+        name: "Leads",
+        columns: [
+          {
+            id: "c-company",
+            label: "Company",
+            type: "text",
+            nullable: true,
+            default: null,
+            options: [],
+            archived: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ created: 1, failed: [] });
+    render(<TablesPage />, { wrapper });
+    await screen.findByText("No tables yet");
+
+    const [headerNewTable] = screen.getAllByRole("button", { name: "New table" });
+    await userEvent.click(headerNewTable as HTMLElement);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Start from a CSV file"), {
+        target: { files: [new File(["Company,Seats\nAcme,3\n"], "Leads.csv")] },
+      });
+    });
+    // Seats is left out of the table, so it is not imported either.
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Remove column" })[1] as HTMLElement,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+
+    expect(await screen.findByRole("combobox", { name: "Where Company goes" })).toHaveTextContent(
+      "Company",
+    );
+    expect(screen.getByRole("combobox", { name: "Where Seats goes" })).toHaveTextContent(
+      "Don't import",
+    );
+    expect(push).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Import 1 row" }));
+    expect(await screen.findByText("1 record added.")).toBeInTheDocument();
+    expect(apiClient.post).toHaveBeenLastCalledWith("/tables/t-new/records/batch", {
+      records: [{ external_id: null, values: { "c-company": "Acme" } }],
+    });
+
+    // The footer's Close and the corner X both close it.
+    await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0] as HTMLElement);
+    expect(push).toHaveBeenCalledWith("/tables/t-new");
   });
 });

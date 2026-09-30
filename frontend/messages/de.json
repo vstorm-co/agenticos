@@ -6294,7 +6294,14 @@
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
         "multi_select": "Mehrfachauswahl"
-      }
+      },
+      "fromCsv": "Mit einer CSV-Datei beginnen",
+      "fromCsvHint": "Ihre Kopfzeile wird zu den Spalten, jede mit dem Typ ihrer Werte, und ihre Zeilen werden importiert, sobald die Tabelle existiert.",
+      "fromCsvChosen": "{file} - {count, plural, one {# Zeile} other {# Zeilen}} zum Importieren",
+      "fromCsvTypes": "Der Typ jeder Spalte wurde aus ihren Werten gelesen. Prüfe sie vor dem Erstellen: Ein Typ lässt sich später nicht ändern.",
+      "csvEmpty": "Diese Datei hat keine Zeilen unter ihrer Kopfzeile.",
+      "csvTooWide": "Eine Tabelle fasst höchstens {max} Spalten.",
+      "csvColumn": "Spalte {n}"
     },
     "schema": {
       "title": "Spalten",

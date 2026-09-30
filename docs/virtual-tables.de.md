@@ -1,5 +1,5 @@
 ---
-source_sha: "8989c4031891"
+source_sha: "3b91bbe3bade"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -201,6 +201,15 @@ gesendet wird. Der Rest geht zu je 200 an `POST /tables/{id}/records/batch`, das
 Datensatz einzeln schreibt und die abgelehnten mit ihren Codes auflistet, und die Konsole
 listet jede gescheiterte Zeile mit ihrer Zeilennummer. Jeder hinzugefügte Datensatz
 startet die Trigger der Tabelle wie jeder andere.
+
+Eine neue Tabelle kann auch mit einer Datei beginnen: **Start from a CSV file** in
+**New table** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
+sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum oder Datum und
+Uhrzeit in ISO - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
+hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
+sich vor dem Erstellen ändern, da sich ein Typ später nicht ändern lässt. Sobald die
+Tabelle existiert, öffnet sich der Import mit jeder Spalte schon zugeordnet, danach die
+Tabelle.
 
 ## Sichere Wiederholungen { #safe-retries }
 

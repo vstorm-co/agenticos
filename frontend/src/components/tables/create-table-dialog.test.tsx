@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,12 +36,15 @@ describe("CreateTableDialog", () => {
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "  " } });
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
-    expect(onCreate).toHaveBeenCalledWith({
-      name: "Orders",
-      description: null,
-      visibility: "private",
-      columns: [],
-    });
+    expect(onCreate).toHaveBeenCalledWith(
+      {
+        name: "Orders",
+        description: null,
+        visibility: "private",
+        columns: [],
+      },
+      null,
+    );
   });
 
   it("changing visibility is reflected in the submission", async () => {
@@ -62,7 +65,7 @@ describe("CreateTableDialog", () => {
     await user.click(screen.getByRole("option", { name: "Organization" }));
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
-    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ visibility: "org" }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ visibility: "org" }), null);
   });
 
   it("adds a column, edits its label and type, and includes it in the submission", async () => {
@@ -87,6 +90,7 @@ describe("CreateTableDialog", () => {
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ columns: [{ label: "Total", type: "number" }] }),
+      null,
     );
   });
 
@@ -107,7 +111,7 @@ describe("CreateTableDialog", () => {
     await user.click(screen.getByRole("button", { name: /add column/i }));
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
-    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ columns: [] }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ columns: [] }), null);
   });
 
   it("edits one of several columns without touching the others", async () => {
@@ -143,6 +147,7 @@ describe("CreateTableDialog", () => {
           { label: "Second", type: "number" },
         ],
       }),
+      null,
     );
   });
 
@@ -303,5 +308,104 @@ describe("CreateTableDialog", () => {
     );
 
     expect(screen.getByLabelText("Name")).toHaveValue("");
+  });
+
+  describe("started from a CSV file", () => {
+    function renderDialog(onCreate = vi.fn()) {
+      render(
+        <CreateTableDialog
+          open
+          onOpenChange={vi.fn()}
+          onCreate={onCreate}
+          isCreating={false}
+          error={null}
+        />,
+      );
+      return onCreate;
+    }
+
+    async function choose(content: string, name = "Leads.csv") {
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("Start from a CSV file"), {
+          target: { files: [new File([content], name)] },
+        });
+      });
+    }
+
+    it("reads the name, the columns and their types from the file", async () => {
+      const user = userEvent.setup();
+      const onCreate = renderDialog();
+
+      await choose("Company,Seats,Paid,,Company,Notes\nAcme,3,yes,a,x,one\nGlobex,12,no,b,y,two\n");
+
+      expect(screen.getByLabelText("Name")).toHaveValue("Leads");
+      expect(screen.getByText("Leads.csv - 2 rows to import")).toBeInTheDocument();
+      const labels = screen
+        .getAllByLabelText("Column label")
+        .map((input) => (input as HTMLInputElement).value);
+      expect(labels).toEqual(["Company", "Seats", "Paid", "Column 4", "Company 2", "Notes"]);
+      // The last column is left out, so its file column is not imported.
+      const removes = screen.getAllByRole("button", { name: "Remove column" });
+      await user.click(removes.at(-1) as HTMLElement);
+      await user.click(screen.getByRole("button", { name: /create table/i }));
+
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Leads",
+          columns: [
+            { label: "Company", type: "text" },
+            { label: "Seats", type: "integer" },
+            { label: "Paid", type: "boolean" },
+            { label: "Column 4", type: "text" },
+            { label: "Company 2", type: "text" },
+          ],
+        }),
+        {
+          fileName: "Leads.csv",
+          headers: ["Company", "Seats", "Paid", "", "Company", "Notes"],
+          rows: [
+            ["Acme", "3", "yes", "a", "x", "one"],
+            ["Globex", "12", "no", "b", "y", "two"],
+          ],
+          labels: ["Company", "Seats", "Paid", "Column 4", "Company 2", null],
+        },
+      );
+    });
+
+    it("keeps a name already typed, and shortens a header too long for a label", async () => {
+      renderDialog();
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Mine" } });
+      const long = "L".repeat(70);
+
+      await choose(`${long},${long}\n1,2\n`);
+
+      expect(screen.getByLabelText("Name")).toHaveValue("Mine");
+      const labels = screen
+        .getAllByLabelText("Column label")
+        .map((input) => (input as HTMLInputElement).value);
+      expect(labels).toEqual(["L".repeat(64), `${"L".repeat(62)} 2`]);
+    });
+
+    it("refuses a file with no rows or with more columns than a table holds", async () => {
+      renderDialog();
+
+      await choose("A,B\n");
+      expect(screen.getByText("That file has no rows under its header.")).toBeInTheDocument();
+
+      const wide = Array.from({ length: 101 }, (_, at) => `C${at}`);
+      await choose(`${wide.join(",")}\n${wide.join(",")}\n`);
+      expect(screen.getByText("A table holds at most 100 columns.")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Column label")).not.toBeInTheDocument();
+    });
+
+    it("ignores a file input left empty", async () => {
+      renderDialog();
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText("Start from a CSV file"), {
+          target: { files: [] },
+        });
+      });
+      expect(screen.queryByLabelText("Column label")).not.toBeInTheDocument();
+    });
   });
 });

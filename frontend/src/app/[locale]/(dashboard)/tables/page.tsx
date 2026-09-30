@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { Plus, Table2 } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { CreateTableDialog } from "@/components/tables/create-table-dialog";
+import { type CsvStart, CreateTableDialog } from "@/components/tables/create-table-dialog";
+import { type CsvPreset, ImportCsvDialog } from "@/components/tables/import-csv-dialog";
 import { TableCard } from "@/components/tables/table-card";
 import {
   Button,
@@ -21,6 +22,19 @@ import {
 import { useTables, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+import type { TableRead } from "@/types/tables";
+
+/** The file a table was started from, mapped onto the columns it was created with. */
+function presetFor(table: TableRead, csv: CsvStart): CsvPreset {
+  return {
+    fileName: csv.fileName,
+    headers: csv.headers,
+    rows: csv.rows,
+    mapping: csv.labels.map(
+      (label) => table.columns.find((column) => column.label === label)?.id ?? null,
+    ),
+  };
+}
 
 export default function TablesPage() {
   const t = useTranslations("pages.tables");
@@ -35,6 +49,7 @@ export default function TablesPage() {
   const { can } = usePermissions();
   const canCreate = can(Perm.tablesCreate);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importing, setImporting] = useState<{ table: TableRead; preset: CsvPreset } | null>(null);
   const router = useRouter();
 
   return (
@@ -105,17 +120,34 @@ export default function TablesPage() {
       <CreateTableDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreate={(input) =>
+        onCreate={(input, csv) =>
           create.mutate(input, {
             onSuccess: (table) => {
               setCreateOpen(false);
-              router.push(ROUTES.TABLE_DETAIL(table.id));
+              // Started from a file: its rows go in first, with the progress
+              // and every row that did not make it in view, then the table.
+              if (csv) setImporting({ table, preset: presetFor(table, csv) });
+              else router.push(ROUTES.TABLE_DETAIL(table.id));
             },
           })
         }
         isCreating={create.isPending}
         error={create.error}
       />
+
+      {importing && (
+        <ImportCsvDialog
+          key={importing.table.id}
+          tableId={importing.table.id}
+          columns={importing.table.columns}
+          preset={importing.preset}
+          open
+          onOpenChange={() => {
+            setImporting(null);
+            router.push(ROUTES.TABLE_DETAIL(importing.table.id));
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "8989c4031891"
+source_sha: "3b91bbe3bade"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -188,6 +188,14 @@ zostanie wysłane. Reszta trafia po 200 do `POST /tables/{id}/records/batch`, kt
 zapisuje każdy rekord osobno i wymienia odrzucone z ich kodami, a konsola wypisuje każdy
 nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabeli, jak
 każdy inny.
+
+Nowa tabela też może zacząć się od pliku: **Start from a CSV file** w **New table**
+zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
+wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data albo data i godzina
+w ISO - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
+przekracza 1000 znaków. Nazwa pochodzi z pliku i obie rzeczy można zmienić przed
+utworzeniem, bo typu nie da się później zmienić. Gdy tabela już istnieje, import
+otwiera się z każdą kolumną już przypisaną, a po nim otwiera się tabela.
 
 ## Bezpieczne ponawianie { #safe-retries }
 

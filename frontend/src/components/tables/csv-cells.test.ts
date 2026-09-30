@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readCell } from "./csv-cells";
+import { inferType, readCell, readCsvFile } from "./csv-cells";
 import type { ColumnDef, ColumnTypeName } from "@/types/tables";
 
 const col = (type: ColumnTypeName): ColumnDef => ({
@@ -55,5 +55,36 @@ describe("readCell", () => {
     expect(readCell(col("single_select"), "Old")).toEqual({ problem: "option" });
     expect(readCell(col("multi_select"), "Rush; gift;")).toEqual({ value: ["o1", "o2"] });
     expect(readCell(col("multi_select"), "Rush; Nope")).toEqual({ problem: "option" });
+  });
+});
+
+describe("inferType", () => {
+  it("picks the narrowest type every value reads as, ignoring blanks", () => {
+    expect(inferType(["3", "", "12"])).toBe("integer");
+    expect(inferType(["0", "1"])).toBe("integer");
+    expect(inferType(["3", "2,5"])).toBe("number");
+    expect(inferType(["yes", "No", " "])).toBe("boolean");
+    expect(inferType(["2026-09-30", "2026-10-01"])).toBe("date");
+    expect(inferType(["2026-09-30T10:00:00Z", "2026-09-30 11:30"])).toBe("datetime");
+  });
+
+  it("falls back to text, long text for a line break or a long value, text when empty", () => {
+    expect(inferType(["Acme", "3"])).toBe("text");
+    // Parsable by `Date`, but not written as ISO: not a datetime.
+    expect(inferType(["Sep 30 2026"])).toBe("text");
+    expect(inferType(["one\ntwo"])).toBe("long_text");
+    expect(inferType(["x".repeat(1001)])).toBe("long_text");
+    expect(inferType(["", "  "])).toBe("text");
+  });
+});
+
+describe("readCsvFile", () => {
+  it("reads the header and the rows that hold anything, or null when none do", async () => {
+    expect(await readCsvFile(new File(["A,B\n1,2\n,\n"], "f.csv"))).toEqual({
+      headers: ["A", "B"],
+      rows: [["1", "2"]],
+    });
+    expect(await readCsvFile(new File(["A,B\n"], "f.csv"))).toBeNull();
+    expect(await readCsvFile(new File([""], "f.csv"))).toBeNull();
   });
 });

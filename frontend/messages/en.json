@@ -6435,7 +6435,14 @@
         "datetime": "Date & time",
         "single_select": "Single select",
         "multi_select": "Multi select"
-      }
+      },
+      "fromCsv": "Start from a CSV file",
+      "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",
+      "fromCsvChosen": "{file} - {count, plural, one {# row} other {# rows}} to import",
+      "fromCsvTypes": "Each column's type was read from its values. Check them before creating: a type cannot change later.",
+      "csvEmpty": "That file has no rows under its header.",
+      "csvTooWide": "A table holds at most {max} columns.",
+      "csvColumn": "Column {n}"
     },
     "schema": {
       "title": "Columns",

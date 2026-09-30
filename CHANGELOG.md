@@ -348,6 +348,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A table can be created from a CSV file.** #1961 asked for it and only
+  importing into an existing table shipped: **Start from a CSV file** in New
+  table reads the columns and their types from the file, and its rows are
+  imported, already mapped, once the table exists.
+- **Records written together keep their order.** A batch, an imported file
+  or a workflow's loop writes its records in one transaction, and each took
+  that transaction's start as its `created_at`, so the default listing's id
+  tiebreak shuffled them. A record is now stamped when it is written.
 - **Archiving a column says what still uses it.** A refused archive, from the
   header menu or the Columns dialog, lists the workflows (linked), saved views
   and triggers that use the column instead of a notice naming nothing - #1963

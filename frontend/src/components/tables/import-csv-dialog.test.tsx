@@ -51,6 +51,44 @@ beforeEach(() => {
 });
 
 describe("ImportCsvDialog", () => {
+  it("opens on a file already read and mapped, for a table just made from it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 2, failed: [] });
+    const user = userEvent.setup();
+    render(
+      <ImportCsvDialog
+        tableId="t1"
+        columns={columns}
+        open
+        onOpenChange={vi.fn()}
+        preset={{
+          fileName: "people.csv",
+          headers: ["Who", "Seats", "Notes"],
+          rows: [
+            ["Acme", "3", "x"],
+            ["Globex", "4", "y"],
+          ],
+          mapping: ["name", "seats", null],
+        }}
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getByText("2 rows in people.csv.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Where Who goes" })).toHaveTextContent("Name");
+    expect(screen.getByRole("combobox", { name: "Where Notes goes" })).toHaveTextContent(
+      "Don't import",
+    );
+    await user.click(screen.getByRole("button", { name: "Import 2 rows" }));
+
+    expect(await screen.findByText("2 records added.")).toBeInTheDocument();
+    expect(sent()).toEqual([
+      [
+        { external_id: null, values: { name: "Acme", seats: 3 } },
+        { external_id: null, values: { name: "Globex", seats: 4 } },
+      ],
+    ]);
+  });
+
   it("says so when a file holds no rows", async () => {
     renderDialog();
 

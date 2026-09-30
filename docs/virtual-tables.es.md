@@ -1,5 +1,5 @@
 ---
-source_sha: "8989c4031891"
+source_sha: "3b91bbe3bade"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -191,6 +191,14 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 200 a `POST /tables/{id}/records/batch`, que escribe cada registro por separado y
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
+
+Una tabla nueva también puede empezar desde un archivo: **Start from a CSV file** en
+**New table** convierte la cabecera en columnas y da a cada una el tipo más estrecho
+en que se leen todos sus valores - entero, número, sí/no, fecha, o fecha y hora ISO -
+y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
+caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, ya
+que un tipo no puede cambiar después. Cuando la tabla existe, la importación se abre
+con cada columna ya asignada, y después se abre la tabla.
 
 ## Reintentos seguros { #safe-retries }
 

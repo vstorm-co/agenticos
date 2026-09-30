@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2 } from "lucide-react";
+import { FileUp, Plus, Trash2 } from "lucide-react";
+
+import { inferType, readCsvFile } from "./csv-cells";
 import {
   Button,
   Dialog,
@@ -25,10 +27,54 @@ import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/table
 
 const FORM = { fields: ["name"], identifiedBy: "name" } as const;
 
+/** A table holds at most this many columns; `MAX_COLUMNS` in the service. */
+const MAX_COLUMNS = 100;
+/** The longest table or column name; `Label` in the service's schema. */
+const MAX_LABEL = 64;
+
 interface DraftColumn {
   key: string;
   label: string;
   type: ColumnTypeName;
+  /** The file column it was read from, for a table started from a CSV file. */
+  source?: number;
+}
+
+/** A file a new table was started from: its rows are imported once the table exists. */
+export interface CsvStart {
+  fileName: string;
+  headers: string[];
+  rows: string[][];
+  /** For each of the file's columns, the label of the column it became; null once removed. */
+  labels: (string | null)[];
+}
+
+/**
+ * A draft column per file column: its header as the label - one that is blank,
+ * too long or already taken made unique, as the service refuses two alike - and
+ * the type its values read as.
+ */
+function columnsFrom(
+  headers: string[],
+  rows: string[][],
+  unnamed: (n: number) => string,
+): DraftColumn[] {
+  const taken = new Set<string>();
+  return headers.map((header, at) => {
+    const base = header.trim().slice(0, MAX_LABEL).trim() || unnamed(at + 1);
+    let label = base;
+    for (let n = 2; taken.has(label); n += 1) {
+      const suffix = ` ${n}`;
+      label = base.slice(0, MAX_LABEL - suffix.length) + suffix;
+    }
+    taken.add(label);
+    return {
+      key: crypto.randomUUID(),
+      label,
+      type: inferType(rows.map((row) => row[at] ?? "")),
+      source: at,
+    };
+  });
 }
 
 /** Name, columns, visibility - a table's creation flow, in one dialog. */
@@ -41,12 +87,15 @@ export function CreateTableDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (input: {
-    name: string;
-    description: string | null;
-    visibility: TableVisibility;
-    columns: ColumnInput[];
-  }) => void;
+  onCreate: (
+    input: {
+      name: string;
+      description: string | null;
+      visibility: TableVisibility;
+      columns: ColumnInput[];
+    },
+    csv: CsvStart | null,
+  ) => void;
   isCreating: boolean;
   error: unknown;
 }) {
@@ -56,6 +105,12 @@ export function CreateTableDialog({
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<TableVisibility>("private");
   const [columns, setColumns] = useState<DraftColumn[]>([]);
+  const [csv, setCsv] = useState<{
+    fileName: string;
+    headers: string[];
+    rows: string[][];
+  } | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
 
   // `submitFailure`, not `fieldProblems`: a taken name is a 409 `AlreadyExistsError`
   // reporting a fact about the row that exists (`details: {name}`), not a
@@ -75,23 +130,41 @@ export function CreateTableDialog({
     setDescription("");
     setVisibility("private");
     setColumns([]);
+    setCsv(null);
+    setCsvError(null);
+  }
+
+  async function startFrom(file: File) {
+    const read = await readCsvFile(file);
+    if (read === null || read.headers.length > MAX_COLUMNS) {
+      setCsvError(read === null ? t("csvEmpty") : t("csvTooWide", { max: MAX_COLUMNS }));
+      return;
+    }
+    setCsvError(null);
+    setCsv({ fileName: file.name, ...read });
+    if (!name.trim()) setName(file.name.replace(/\.csv$/i, "").slice(0, MAX_LABEL));
+    setColumns(columnsFrom(read.headers, read.rows, (n) => t("csvColumn", { n })));
   }
 
   function submit() {
     // The only caller is the footer's Create button, which is `disabled` for
     // a blank name - a disabled button fires no click, so `submit` never runs
     // with an empty `name` and this needs no guard of its own.
-    onCreate({
-      name: name.trim(),
-      description: description.trim() || null,
-      visibility,
-      columns: columns
-        .filter((column) => column.label.trim())
-        .map((column) => ({
-          label: column.label.trim(),
-          type: column.type,
-        })),
-    });
+    const kept = columns.filter((column) => column.label.trim());
+    onCreate(
+      {
+        name: name.trim(),
+        description: description.trim() || null,
+        visibility,
+        columns: kept.map((column) => ({ label: column.label.trim(), type: column.type })),
+      },
+      csv && {
+        ...csv,
+        labels: csv.headers.map(
+          (_, at) => kept.find((column) => column.source === at)?.label.trim() ?? null,
+        ),
+      },
+    );
   }
 
   return (
@@ -142,6 +215,30 @@ export function CreateTableDialog({
               <SelectItem value="org">{t("visibility.org")}</SelectItem>
             </SelectContent>
           </Select>
+          <div className="space-y-1.5">
+            <label className="border-border hover:bg-accent/40 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm">
+              <FileUp aria-hidden="true" className="text-muted-foreground size-4" />
+              <span className="min-w-0 flex-1 truncate">
+                {csv === null
+                  ? t("fromCsv")
+                  : t("fromCsvChosen", { file: csv.fileName, count: csv.rows.length })}
+              </span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="sr-only"
+                aria-label={t("fromCsv")}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void startFrom(file);
+                }}
+              />
+            </label>
+            <p className="text-muted-foreground text-xs">
+              {csv === null ? t("fromCsvHint") : t("fromCsvTypes")}
+            </p>
+            {csvError !== null && <p className="text-destructive text-xs">{csvError}</p>}
+          </div>
           <div className="space-y-2" data-tour="table-dialog-columns">
             {columns.map((column) => (
               <div key={column.key} className="flex items-center gap-2">

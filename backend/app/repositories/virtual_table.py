@@ -397,8 +397,15 @@ async def insert_record(
     so two concurrent inserts of one external id cannot both succeed: the second
     waits for the first to commit, then finds the row and returns nothing.
     """
+    # The clock, not `now()`: that is when the transaction began, so every record
+    # a batch, an imported file or a workflow's loop wrote got one instant and the
+    # id tiebreak shuffled them out of the order they were written in. Read once,
+    # in a CTE - a volatile one is evaluated once however often it is referenced.
+    clock = select(func.clock_timestamp().label("at")).cte("written_at")
+    written_at = select(clock.c.at).scalar_subquery()
     statement = (
         pg_insert(VirtualTableRecord)
+        .add_cte(clock)
         .values(
             id=uuid4(),
             organization_id=organization_id,
@@ -409,10 +416,10 @@ async def insert_record(
             revision=1,
             created_by=created_by,
             updated_by=created_by,
-            # Both from the same `now()`, so a record nobody has edited sorts by when it
-            # was created rather than falling behind every edited one as a NULL would.
-            created_at=func.now(),
-            updated_at=func.now(),
+            # One stamp for both, so a record nobody has edited sorts by when it was
+            # created rather than falling behind every edited one as a NULL would.
+            created_at=written_at,
+            updated_at=written_at,
         )
         .on_conflict_do_nothing(
             index_elements=["table_id", "external_id"],
