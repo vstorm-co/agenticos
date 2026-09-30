@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **A personal service is asked for when the agent needs it.** The dashboard
+  chat no longer puts a connect card under every answer for an agent bound to
+  each person's own account. A service the person has not connected, holds
+  several of, or must authorize again is offered to the model as
+  `connect_account`; when a question needs it the run pauses on a card with the
+  connect button, and once the account is connected the same run carries on
+  with that service's tools. Skipping it lets the run carry on without them.
+  Channels, the API and a turn with nobody signed in still brief the model that
+  the service is missing, as before.
+
 ## [0.0.515] - 2026-09-30
 
 ### Added

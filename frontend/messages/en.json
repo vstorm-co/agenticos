@@ -835,6 +835,18 @@
         "unauthorized": "Needs authorizing again"
       }
     },
+    "connectAccount": {
+      "title": "The agent needs your {name}",
+      "connect": "Connect",
+      "openServers": "Open MCP servers",
+      "continue": "Continue",
+      "skip": "Skip",
+      "gap": {
+        "not_connected": "Connect your own {name} account and the agent carries on with it.",
+        "undecided": "You hold several {name} connections. Mark one as default, then continue.",
+        "unauthorized": "Your {name} connection needs authorizing again. Authorize it, then continue."
+      }
+    },
     "controls": {
       "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",

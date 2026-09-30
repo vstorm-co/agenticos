@@ -28,6 +28,7 @@ from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
@@ -394,6 +395,40 @@ class TestToolSearchDefersMcp:
         offered = await self._tools_the_model_sees(built)
 
         assert offered == ["search_tools"]
+
+    @pytest.mark.anyio
+    async def test_a_surfaces_own_capability_stays_in_view_when_bound(self):
+        """`connect_account` is how a service the person has not connected gets
+        connected; hidden behind search it is a tool the model never knows to
+        look for, so an extra capability's tools are not deferred."""
+
+        async def unused() -> str:
+            return "unreachable"
+
+        on_use = ConnectOnUse(
+            services=[
+                PendingService(
+                    request=ConnectionRequest(
+                        catalog_key="notion", name="Notion", gap="not_connected"
+                    ),
+                    resolve=unused,
+                )
+            ],
+            request_connection=AsyncMock(return_value=False),
+        )
+        built = build_agent(
+            AgentSpec(
+                name="x", capabilities=[{"id": "tool_search", "config": {"strategy": "keywords"}}]
+            ),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[self._mcp_toolset()],
+            extra_capabilities=[on_use],
+        )
+
+        offered = await self._tools_the_model_sees(built)
+
+        assert sorted(offered) == ["connect_account", "search_tools"]
 
     @pytest.mark.anyio
     async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):

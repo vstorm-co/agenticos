@@ -248,6 +248,7 @@ async def _run(
     attachments: Any = None,
     subagent_events: Any = None,
     on_personal_gaps: Any = None,
+    request_connection: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -263,6 +264,7 @@ async def _run(
         stream=stream,
         subagent_events=subagent_events,
         on_personal_gaps=on_personal_gaps,
+        request_connection=request_connection,
     )
 
 
@@ -1070,3 +1072,13 @@ class TestTellingTheChatWhatThePersonCannotReach:
             await _run(_db(), on_personal_gaps=sink)
 
         sink.assert_not_awaited()
+
+    async def test_the_way_to_ask_for_a_connection_reaches_the_build(self):
+        """It decides what is built - a tool instead of a briefing - so it has to
+        arrive at `prepare`, not be set on the deps afterwards like the sinks."""
+        ask = AsyncMock()
+
+        with _runner(_prepared()) as runner:
+            await _run(_db(), request_connection=ask)
+
+        assert runner.prepare.await_args.kwargs["request_connection"] is ask

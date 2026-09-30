@@ -1,5 +1,5 @@
 ---
-source_sha: "6cababc00add"
+source_sha: "e7e0d166cfc5"
 ---
 
 # Konsola { #the-console }
@@ -123,9 +123,9 @@ Trzy rzeczy w kompozytorze, które warto znać.
 danej usłudze rozmawia z nią jako ty. Kontrolki czatu wymieniają, które z usług
 agenta potrzebują twojego konta i czy każda jest gotowa, wraz z przyciskiem
 połączenia, który otwiera zgodę providera w nowej karcie. Zapytaj przed
-połączeniem, a agent powie, że nie może sięgnąć do usługi — a karta pod
-odpowiedzią zaproponuje ten sam przycisk, więc naprawa jest jedno kliknięcie od
-odmowy.
+połączeniem, a nic się nie pojawi, dopóki agent faktycznie nie potrzebuje usługi:
+wtedy odpowiedź zatrzymuje się na karcie z tym przyciskiem, a po podłączeniu konta
+ta sama odpowiedź idzie dalej. **Skip** pozwala jej iść dalej bez usługi.
 
 **Załączniki** są parsowane i przekazywane wyłącznie do tej rozmowy; nie trafiają
 do [kolekcji wiedzy](file-processing.md). Zobacz

@@ -13,6 +13,7 @@ from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
+from app.agents.connect_on_use import ConnectionRequest
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
@@ -134,6 +135,9 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # A run waiting for the person to connect one of their own services;
+        # completed by `connect_account_response`, one at a time under `_ask_lock`.
+        self._connect_future: asyncio.Future[bool] | None = None
         # The running turn's timeline, so `_ask_one` can record a mid-turn
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
@@ -159,8 +163,8 @@ class AgentSession:
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
 
-        A `stop` cancels the running turn; an `ask_user_response` unblocks a
-        paused run; any other control frame is ignored; a bare message starts a
+        A `stop` cancels the running turn; an `ask_user_response` or a
+        `connect_account_response` unblocks a paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
 
         A frame that will *act* on the session is refused first if that session
@@ -202,6 +206,15 @@ class AgentSession:
                     render_answer(answers[0] if answers else None),
                     asked_by=self._pending_asked_by,
                 )
+            return
+
+        if msg_type == "connect_account_response":
+            waiting = self._connect_future
+            if waiting is None or waiting.done():
+                return
+            if not await self._reauthorize():
+                return
+            waiting.set_result(data.get("connected") is True)
             return
 
         if msg_type is not None:
@@ -319,6 +332,10 @@ class AgentSession:
         fut = self._ask_user_future
         if fut is not None and not fut.done():
             fut.set_result([])
+        # The same for a run waiting on a connection: nobody is there to make it.
+        waiting = self._connect_future
+        if waiting is not None and not waiting.done():
+            waiting.set_result(False)
         # `shield` is what makes the two endings distinguishable: without it
         # `wait_for`'s timeout cancels the turn *through* the wait, and the
         # explicit cancellation below - the path every existing test covers, and
@@ -448,6 +465,7 @@ class AgentSession:
                     on_compaction=self._compaction_event,
                     browser_events=self._browser_event,
                     on_personal_gaps=self._personal_gaps_event,
+                    request_connection=self._request_connection,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -678,6 +696,28 @@ class AgentSession:
             return await fut
         finally:
             self._ask_user_future = None
+
+    async def _request_connection(self, request: ConnectionRequest) -> bool:
+        """Pause the run: ask the client to connect a service, and wait for the answer.
+
+        Emits `connect_account`, then awaits the future the frame dispatcher
+        completes when `connect_account_response` arrives - `connected` true once
+        the person says they connected it, false when they skip it. A socket that
+        goes away answers false. Under `_ask_lock`, like a question, so a prompt
+        from a delegate waits for this one rather than being drawn over it.
+        """
+        async with self._ask_lock:
+            waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+            self._connect_future = waiting
+            try:
+                await send_event(
+                    self.websocket,
+                    "connect_account",
+                    {"catalog_key": request.catalog_key, "name": request.name, "gap": request.gap},
+                )
+                return await waiting
+            finally:
+                self._connect_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.

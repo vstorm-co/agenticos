@@ -198,6 +198,7 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "connect_account"
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
@@ -665,4 +666,18 @@ export interface PersonalServiceGap {
   /** As the catalog names it; the key where the catalog no longer holds it. */
   name: string;
   gap: PersonalServiceGapKind;
+}
+
+/**
+ * A run paused on `connect_account`: the agent needs one of the person's own
+ * services, and waits while they connect it.
+ *
+ * Sent as `connect_account` only when the agent reaches for the service, never
+ * up front; answered with `connect_account_response`. Never "nobody to speak
+ * as" - a run with nobody signed in cannot wait for anybody.
+ */
+export interface ConnectionRequest {
+  catalog_key: string;
+  name: string;
+  gap: Exclude<PersonalServiceGapKind, "nobody_to_speak_as">;
 }

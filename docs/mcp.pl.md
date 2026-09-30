@@ -1,5 +1,5 @@
 ---
-source_sha: "97da4b30471c"
+source_sha: "51315ca719eb"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -178,10 +178,14 @@ oddawałoby go kanałowi.
     agent. Dopóki nie wybierze, agent jej to mówi — ciche zgadnięcie starszego
     workspace'u byłoby gorsze.
 
-    W czacie w dashboardzie ten sam fakt przychodzi jako karta, zanim odpowie
-    model, z przyciskiem podłączenia; a kontrolki czatu wypisują osobiste usługi
-    agenta wraz z ich statusem, więc nowy członek widzi, co podłączyć, jeszcze
-    zanim zapyta. Zobacz [stronę konsoli](console.md#chat).
+    Czat w dashboardzie pyta wtedy, gdy agent potrzebuje usługi, nie wcześniej.
+    Usługa, której osoba nie podłączyła, ma do niej kilka połączeń albo musi
+    autoryzować ją ponownie, trafia do modelu jako `connect_account`: gdy pytanie
+    wymaga Notion, run zatrzymuje się na karcie z przyciskiem podłączenia, a po
+    podłączeniu konta ten sam run idzie dalej z narzędziami Notion. Pominięty,
+    idzie dalej bez nich. Kontrolki czatu wypisują też osobiste usługi agenta
+    wraz z ich statusem, więc nowy członek widzi, co podłączyć, jeszcze zanim
+    zapyta. Zobacz [stronę konsoli](console.md#chat).
 
 Prefiksem narzędzi osobistego powiązania jest klucz katalogowy, niezależnie od
 tego, jak każdy nazwał swoje połączenie, więc agent przedstawia wszystkim

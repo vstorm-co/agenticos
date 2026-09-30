@@ -22,6 +22,7 @@ import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
 import { InterruptedNotice } from "./interrupted-notice";
+import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
@@ -32,6 +33,7 @@ import type {
   AskUserQuestion,
   AskUserAnswer,
   Compaction,
+  ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
   Decision,
@@ -164,6 +166,8 @@ export function ChatContainer() {
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    pendingConnection,
+    sendConnectionResponse,
   } = useChat({
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
@@ -370,6 +374,8 @@ export function ChatContainer() {
       onResumeDecisions={sendResumeDecisions}
       pendingQuestions={pendingQuestions}
       onAnswerQuestions={sendAskUserResponses}
+      pendingConnection={pendingConnection}
+      onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
     />
   );
@@ -442,6 +448,9 @@ interface ChatUIProps {
   onResumeDecisions?: (decisions: Decision[]) => void;
   pendingQuestions?: AskUserQuestion[] | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
+  /** The service a paused run waits for the person to connect. */
+  pendingConnection?: ConnectionRequest | null;
+  onConnectionResponse?: (connected: boolean) => void;
   onStop?: () => void;
 }
 
@@ -481,6 +490,8 @@ function ChatUI({
   onResumeDecisions,
   pendingQuestions,
   onAnswerQuestions,
+  pendingConnection,
+  onConnectionResponse,
   onStop,
 }: ChatUIProps) {
   const t = useTranslations("chat");
@@ -613,6 +624,15 @@ function ChatUI({
                 reviewConfigs={pendingApproval.reviewConfigs}
                 onDecisions={onResumeDecisions}
                 disabled={!isConnected}
+              />
+            </div>
+          )}
+          {pendingConnection && onConnectionResponse && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <ConnectAccountPrompt
+                request={pendingConnection}
+                disabled={!isConnected}
+                onRespond={onConnectionResponse}
               />
             </div>
           )}

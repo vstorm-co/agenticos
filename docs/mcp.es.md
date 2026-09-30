@@ -1,5 +1,5 @@
 ---
-source_sha: "97da4b30471c"
+source_sha: "51315ca719eb"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -178,10 +178,15 @@ canal sería entregárselo al canal.
     como la que habla un agent. Hasta que elija, el agent se lo pide — adivinar en
     silencio el workspace más antiguo sería peor.
 
-    En el chat del dashboard el mismo hecho llega como una tarjeta, antes de que el
-    modelo responda, con un botón para conectar; y los controles del chat listan
-    los servicios personales del agent con su estado, así que un miembro nuevo ve
-    qué conectar antes de preguntar. Ver [la página de la consola](console.md#chat).
+    El chat del dashboard pregunta cuando el agent necesita el servicio, no antes.
+    Un servicio que la persona no ha conectado, del que tiene varias conexiones o
+    que debe autorizar de nuevo se ofrece al modelo como `connect_account`: cuando
+    una pregunta necesita Notion, el run se detiene en una tarjeta con el botón para
+    conectar y, en cuanto la cuenta está conectada, el mismo run sigue con las
+    herramientas de Notion. Si se omite, sigue sin ellas. Los controles del chat
+    también listan los servicios personales del agent con su estado, así que un
+    miembro nuevo ve qué conectar antes de preguntar. Ver
+    [la página de la consola](console.md#chat).
 
 El prefijo de herramientas de una vinculación personal es la clave del catálogo,
 se llame como se llame la conexión de cada persona, así que el agent presenta

@@ -1,5 +1,5 @@
 ---
-source_sha: "6cababc00add"
+source_sha: "e7e0d166cfc5"
 ---
 
 # La consola { #the-console }
@@ -121,8 +121,10 @@ Tres cosas del compositor que conviene saber.
 servicio le habla como tú. Los controles del chat enumeran qué servicios del
 agent necesitan una cuenta tuya y si cada uno está listo, con un botón de conexión
 que abre el consentimiento del provider en una pestaña nueva. Si preguntas antes
-de conectar, el agent dice que no puede llegar al servicio - y una tarjeta bajo la
-respuesta ofrece ese mismo botón, así que el arreglo está a un clic del rechazo.
+de conectar, no aparece nada hasta que el agent necesita de verdad el servicio:
+entonces la respuesta se detiene en una tarjeta con ese botón y, en cuanto la
+cuenta está conectada, la misma respuesta sigue con él. **Skip** deja que siga
+sin él.
 
 **Los adjuntos** se parsean y se entregan solo a esa conversación; no se añaden a
 una [colección de conocimiento](file-processing.md). Consulta

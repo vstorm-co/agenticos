@@ -19,6 +19,7 @@ import type {
   BrowserFrame,
   ChatMessageFile,
   Compaction,
+  ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
   Decision,
@@ -169,6 +170,8 @@ export function useChat(options: UseChatOptions = {}) {
   // effect reads as "a reloaded parked run".
   const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // A run paused until the person connects one of their own services, or `null`.
+  const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
   //
@@ -652,6 +655,13 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "connect_account": {
+          // The agent reached for a service this person has not connected, and
+          // the run is waiting on them - the only moment the card is worth its space.
+          setPendingConnection(wsEvent.data as ConnectionRequest);
+          break;
+        }
+
         case "ask_user": {
           const { questions } = wsEvent.data as {
             questions: { question: string; options: string[]; allow_custom: boolean }[];
@@ -961,6 +971,7 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
     approvalOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
@@ -1019,6 +1030,7 @@ export function useChat(options: UseChatOptions = {}) {
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
     setCompacting(null);
     setCompactionImpossible(null);
     setPersonalGaps([]);
@@ -1316,6 +1328,16 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
+  /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
+  const sendConnectionResponse = useCallback(
+    (connected: boolean) => {
+      if (!isConnected) return;
+      setPendingConnection(null);
+      sendMessage({ type: "connect_account_response", connected });
+    },
+    [isConnected, sendMessage],
+  );
+
   /** Take the turn off screen without telling the server anything.
    *
    *  What `stopGeneration` does after it has sent its frame, and what a
@@ -1335,6 +1357,7 @@ export function useChat(options: UseChatOptions = {}) {
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
     setDelegations(closeOpenDelegations);
   }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
 
@@ -1496,5 +1519,8 @@ export function useChat(options: UseChatOptions = {}) {
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
+    pendingConnection,
+    sendConnectionResponse,
   };
 }

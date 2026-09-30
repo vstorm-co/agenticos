@@ -60,6 +60,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
@@ -108,6 +109,12 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, Workspac
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.connect_on_use import (
+    ConnectionCallback,
+    ConnectionRequest,
+    ConnectOnUse,
+    PendingService,
+)
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
@@ -117,7 +124,9 @@ from app.agents.observability import current_trace_id
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
+    McpServerRef,
     ObservabilitySpec,
+    PersonalMcpServerRef,
     SpecialistSpec,
     SubagentRef,
     TraceContent,
@@ -189,6 +198,7 @@ from app.services.mcp_connection import (
     UnavailablePersonalService,
     UnavailablePrefixCollision,
     build_toolsets_for_agent,
+    connect_personal_toolset,
 )
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -1379,6 +1389,39 @@ def _with_personal_service_gaps(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _connect_on_use(
+    unavailable: Sequence[UnavailableBinding],
+    *,
+    refs: Sequence[McpServerRef],
+    user_id: UUID | None,
+    request_connection: ConnectionCallback | None,
+) -> tuple[ConnectOnUse | None, list[UnavailableBinding]]:
+    """Split the gaps into those the run offers to connect on use and those it briefs.
+
+    Only a personal service the person talking could put right, and only where
+    a surface can hold the run while they do. Everything else - a prefix
+    collision, a turn with nobody to speak as, a surface that cannot wait - is
+    briefed exactly as before.
+    """
+    if request_connection is None or user_id is None:
+        return None, list(unavailable)
+    personal = {ref.catalog_key: ref for ref in refs if isinstance(ref, PersonalMcpServerRef)}
+    pending: list[PendingService] = []
+    briefed: list[UnavailableBinding] = []
+    for gap in unavailable:
+        if not isinstance(gap, UnavailablePersonalService) or gap.gap == "nobody_to_speak_as":
+            briefed.append(gap)
+            continue
+        request = ConnectionRequest(
+            catalog_key=gap.catalog_key, name=personal_service_gap(gap).name, gap=gap.gap
+        )
+        resolve = partial(connect_personal_toolset, personal[gap.catalog_key], user_id=user_id)
+        pending.append(PendingService(request=request, resolve=resolve))
+    if not pending:
+        return None, briefed
+    return ConnectOnUse(services=pending, request_connection=request_connection), briefed
+
+
 def _binding_gap_briefing(
     gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
 ) -> str:
@@ -1906,6 +1949,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
+        request_connection: ConnectionCallback | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -1945,6 +1989,11 @@ class AgentRunnerService:
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
                 and then to the default environment's version.
+            request_connection: How to ask the person at the keyboard to connect
+                one of their own services while the run waits. Given, a personal
+                binding they have not connected is offered to the model as
+                `connect_account` rather than briefed as unavailable - so nobody
+                is asked to connect a service the agent never reaches for.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -1983,6 +2032,9 @@ class AgentRunnerService:
             version_id=version_id,
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
+            # Passed in rather than set on the built deps like `on_compaction`:
+            # whether a gap is briefed or offered as a tool decides what is built.
+            request_connection=request_connection,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2069,6 +2121,7 @@ class AgentRunnerService:
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
+        request_connection: ConnectionCallback | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2227,9 +2280,13 @@ class AgentRunnerService:
             sender_user_id=personal_mcp_user_id,
         )
         spec_toolsets = resolved.toolsets
-        spec = _with_personal_service_gaps(
-            spec, resolved.unavailable, surface, sender_present=sender_present
+        on_use, briefed = _connect_on_use(
+            resolved.unavailable,
+            refs=spec.mcp_servers,
+            user_id=personal_mcp_user_id,
+            request_connection=request_connection,
         )
+        spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
 
         run = existing_run
         if run is None:
@@ -2416,6 +2473,7 @@ class AgentRunnerService:
             resources=resources,
             secrets=secrets,
             extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
+            extra_capabilities=() if on_use is None else (on_use,),
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
@@ -2451,10 +2509,11 @@ class AgentRunnerService:
             workspace_at_start=started_with,
             # Only personal gaps reach the chat's connect card - a prefix collision
             # is the agent author's to fix by renaming a connection, not something
-            # the person talking connects an account for (#1442).
+            # the person talking connects an account for (#1442). Nor does one the
+            # run offers to connect on use: that card appears when it is used.
             personal_service_gaps=[
                 personal_service_gap(gap)
-                for gap in resolved.unavailable
+                for gap in briefed
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,

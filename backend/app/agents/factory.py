@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -155,6 +155,7 @@ def build_agent(
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
+    extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
@@ -188,6 +189,11 @@ def build_agent(
             context, and a spec carries only the id.
         extra_toolsets: Toolsets resolved outside the registry, such as MCP
             servers configured per organization.
+        extra_capabilities: Capabilities a surface adds for this run alone,
+            outside the spec - `connect_account` where somebody can connect a
+            service while the run waits. Their tools are never deferred behind
+            tool search: a tool the model has to find first is one it does not
+            know to look for.
         agent_period_spend: How to read what *this agent* has booked this month,
             for the cap in its own spec. Omitted where there is no database to
             ask - a preview - in which case that cap meters only this run.
@@ -326,6 +332,7 @@ def build_agent(
         budget,
         ApprovalGate(required_tool_names=approval_required, gate_every_tool=gate_every_tool),
         *configured,
+        *extra_capabilities,
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.

@@ -40,6 +40,7 @@ from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
+from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
@@ -312,6 +313,7 @@ class ChatAgentRunner:
         on_compaction: CompactionSink | None = None,
         browser_events: BrowserEventSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
+        request_connection: ConnectionCallback | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
@@ -357,6 +359,10 @@ class ChatAgentRunner:
                 confidences and, when the agent asked for them, the viewport. A
                 `browse_page` call is the longest tool call this platform makes;
                 without this it is a tool call that goes quiet for a minute.
+            request_connection: How to ask the person to connect one of their
+                own services while the run waits. Given, a personal service they
+                have not connected is asked for when the agent reaches for it,
+                and `on_personal_gaps` hears only the gaps nobody here can fix.
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -394,6 +400,7 @@ class ChatAgentRunner:
             # caller who may not waive approvals is told, and the turn does not
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
+            request_connection=request_connection,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions

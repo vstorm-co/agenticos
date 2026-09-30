@@ -1,5 +1,5 @@
 ---
-source_sha: "97da4b30471c"
+source_sha: "51315ca719eb"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -183,9 +183,14 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
     spricht. Bis zur Wahl fordert der Agent dazu auf — still den älteren Workspace
     zu raten wäre schlechter.
 
-    Im Dashboard-Chat kommt derselbe Sachverhalt als Karte an, bevor das Modell
-    antwortet, mit einer Schaltfläche zum Verbinden; und die Bedienelemente des
-    Chats listen die persönlichen Dienste des Agents mit ihrem Status, sodass ein
+    Der Dashboard-Chat fragt, wenn der Agent den Dienst braucht, nicht vorher.
+    Ein Dienst, den die Person nicht verbunden hat, zu dem sie mehrere
+    Connections hält oder den sie erneut autorisieren muss, wird dem Modell
+    stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
+    der Run an einer Karte mit der Schaltfläche zum Verbinden an, und sobald das
+    Konto verbunden ist, arbeitet derselbe Run mit den Notion-Tools weiter.
+    Übersprungen, arbeitet er ohne sie weiter. Die Bedienelemente des Chats listen
+    außerdem die persönlichen Dienste des Agents mit ihrem Status, sodass ein
     neues Mitglied sieht, was zu verbinden ist, bevor es fragt. Siehe
     [die Konsolen-Seite](console.md#chat).
 

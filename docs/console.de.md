@@ -1,5 +1,5 @@
 ---
-source_sha: "6cababc00add"
+source_sha: "e7e0d166cfc5"
 ---
 
 # Die Konsole { #the-console }
@@ -133,10 +133,10 @@ Person](mcp.md#whose-account-a-binding-speaks-through) bei einem Dienst gebunden
 ist, spricht mit diesem Dienst als Sie. Die Steuerelemente des Chats führen auf,
 welche Dienste des Agents ein Konto von Ihnen brauchen und ob es jeweils bereit
 ist, mit einer Schaltfläche, die die Zustimmungsseite des Providers in einem
-neuen Tab öffnet. Fragen Sie, bevor Sie sich verbunden haben, sagt der Agent,
-dass er den Dienst nicht erreichen kann - und eine Karte unter der Antwort
-bietet dieselbe Schaltfläche an, sodass die Lösung einen Klick von der Ablehnung
-entfernt ist.
+neuen Tab öffnet. Fragen Sie, bevor Sie sich verbunden haben, erscheint nichts,
+bis der Agent den Dienst tatsächlich braucht: Dann hält die Antwort an einer
+Karte mit dieser Schaltfläche an, und sobald das Konto verbunden ist, geht
+dieselbe Antwort damit weiter. **Überspringen** lässt sie ohne ihn weitergehen.
 
 **Anhänge** werden geparst und nur dieser einen Unterhaltung übergeben; sie
 werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe

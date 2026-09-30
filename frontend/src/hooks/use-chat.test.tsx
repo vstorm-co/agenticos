@@ -2571,6 +2571,52 @@ describe("what the person cannot reach", () => {
   });
 });
 
+describe("a run waiting for a service to be connected", () => {
+  const REQUEST = { catalog_key: "notion", name: "Notion", gap: "not_connected" };
+
+  it("holds the request the paused run sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("connect_account", REQUEST);
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+  });
+
+  it("answers the run and takes the card down", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(true));
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: true });
+  });
+
+  it("keeps the card when the socket is offline", () => {
+    // The run is still waiting; a card taken down now leaves no way to release it.
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(false));
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("takes the card down when another conversation is opened", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+  });
+});
+
 describe("useChat - watching a browse", () => {
   /** One browser frame, replayed the way the server sends one. */
   function browserFrame(type: string, data: Record<string, unknown>): void {

@@ -89,6 +89,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEnt
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.subagents import Delegation
 from app.agents.compaction_events import CompactionEvent
+from app.agents.connect_on_use import ConnectionRequest
 from app.agents.deps import AgentDeps
 from app.agents.subagent_events import (
     SubagentFinished,
@@ -1463,6 +1464,107 @@ class TestAskingTheUser:
         assert await ask2 == "usd"
 
 
+class TestConnectingAnAccount:
+    """The pause `connect_account` puts in a run while somebody connects a service.
+
+    The same shape as a question: one future, completed by a response frame -
+    so every way the answer can go wrong has to release it, or the turn waits
+    forever on a card nobody can close.
+    """
+
+    _NOTION = ConnectionRequest(catalog_key="notion", name="Notion", gap="not_connected")
+
+    async def test_the_person_connecting_releases_the_run_that_asked(self):
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_connection(self._NOTION))
+        await _wait(asked)
+
+        assert _sent_events(session) == [
+            ("connect_account", {"catalog_key": "notion", "name": "Notion", "gap": "not_connected"})
+        ]
+
+        await session.handle_frame({"type": "connect_account_response", "connected": True})
+
+        assert await waiting is True
+        assert session._connect_future is None
+
+    @pytest.mark.parametrize("answer", [False, None, "yes", 1])
+    async def test_anything_but_a_plain_yes_is_a_skip(self, answer: object):
+        """Only `true` attaches anything; a malformed frame still releases the run."""
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_connection(self._NOTION))
+        await _wait(asked)
+        await session.handle_frame({"type": "connect_account_response", "connected": answer})
+
+        assert await waiting is False
+
+    async def test_an_answer_nobody_asked_for_is_ignored(self):
+        session = _session()
+
+        with patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth:
+            await session.handle_frame({"type": "connect_account_response", "connected": True})
+
+        assert _sent_events(session) == []
+        auth.assert_not_awaited()
+
+    async def test_a_second_answer_does_not_replace_the_first(self):
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_connection(self._NOTION))
+        await _wait(asked)
+        await session.handle_frame({"type": "connect_account_response", "connected": False})
+        await session.handle_frame({"type": "connect_account_response", "connected": True})
+
+        assert await waiting is False
+
+    async def test_a_revoked_session_cannot_release_the_run(self):
+        websocket = MagicMock()
+        websocket.send_json = AsyncMock()
+        websocket.close = AsyncMock()
+        session = AgentSession(websocket, MagicMock(), MagicMock(), auth_token="live-token")
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        session._connect_future = future
+
+        with (
+            patch("app.services.agent_session.get_db_context") as db_context,
+            patch(
+                "app.services.agent_session.authenticate_socket_token",
+                new=AsyncMock(side_effect=AuthenticationError(message="Impersonation has ended")),
+            ),
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            await session.handle_frame({"type": "connect_account_response", "connected": True})
+
+        assert not future.done()
+        websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_a_question_asked_meanwhile_waits_for_the_connection(self):
+        """One prompt on the wire at a time: a delegate's question queued behind
+        the card is sent only once the card is answered."""
+        session = _session()
+        asked = _next_frame(session)
+
+        waiting = asyncio.create_task(session._request_connection(self._NOTION))
+        await _wait(asked)
+        question = asyncio.create_task(session._ask_one("Which region?", []))
+        await asyncio.sleep(0)
+        assert _frame_types(session) == ["connect_account"]
+
+        asked_next = _next_frame(session)
+        await session.handle_frame({"type": "connect_account_response", "connected": True})
+        assert await waiting is True
+        await _wait(asked_next)
+        assert _frame_types(session) == ["connect_account", "ask_user"]
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+        assert await question == "eu"
+
+
 class TestAttachedFiles:
     async def test_a_frame_carrying_only_a_file_is_not_an_empty_message(self):
         """ "Have a look at this" with the sentence left off is an ordinary way to
@@ -2646,6 +2748,31 @@ class TestASocketThatWentAway:
         await session.shutdown()
 
         assert answered == [[]]
+        assert not task.cancelled()
+
+    async def test_a_connection_nobody_can_make_no_longer_holds_the_turn_open(self):
+        """The same for a run waiting on `connect_account`: nobody is there to
+        connect anything, so the wait ends as a skip and the turn goes on."""
+        session = _session()
+        answered: list[bool] = []
+        asked = asyncio.Event()
+
+        async def turn() -> None:
+            asked.set()
+            answered.append(
+                await session._request_connection(
+                    ConnectionRequest(catalog_key="notion", name="Notion", gap="not_connected")
+                )
+            )
+
+        task = asyncio.create_task(turn())
+        await asked.wait()
+        assert session._connect_future is not None
+        session._turn_task = task
+
+        await session.shutdown()
+
+        assert answered == [False]
         assert not task.cancelled()
 
     async def test_a_session_with_no_turn_in_flight_returns_at_once(self):

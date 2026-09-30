@@ -831,6 +831,18 @@
         "unauthorized": "Muss erneut autorisiert werden"
       }
     },
+    "connectAccount": {
+      "title": "Der Agent braucht Ihr {name}",
+      "connect": "Verbinden",
+      "openServers": "MCP-Server öffnen",
+      "continue": "Weiter",
+      "skip": "Überspringen",
+      "gap": {
+        "not_connected": "Verbinden Sie Ihr eigenes {name}-Konto, und der Agent arbeitet damit weiter.",
+        "undecided": "Sie haben mehrere {name}-Verbindungen. Markieren Sie eine als Standard und fahren Sie dann fort.",
+        "unauthorized": "Ihre {name}-Verbindung muss erneut autorisiert werden. Autorisieren Sie sie und fahren Sie dann fort."
+      }
+    },
     "controls": {
       "approvalMode": "Freigabemodus",
       "backAgentAposS": "Zurück zum eigenen Modell des Agents",
