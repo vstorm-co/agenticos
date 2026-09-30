@@ -36,6 +36,7 @@ export type ValidationCode =
   | "edge-incompatible"
   | "binding-field-path-unknown"
   | "binding-incompatible"
+  | "binding-template-not-text"
   // Rule 4 — branch-local data availability.
   | "binding-self-reference"
   | "binding-unavailable"
@@ -83,6 +84,7 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "edge-incompatible": "validationEdgeIncompatible",
   "binding-field-path-unknown": "validationBindingFieldPathUnknown",
   "binding-incompatible": "validationBindingIncompatible",
+  "binding-template-not-text": "validationBindingTemplateNotText",
   "binding-self-reference": "validationBindingSelfReference",
   "binding-unavailable": "validationBindingUnavailable",
   "merge-duplicate-branch": "validationMergeDuplicateBranch",

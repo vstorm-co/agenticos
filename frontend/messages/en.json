@@ -6196,7 +6196,13 @@
     "stepHasPinnedData": "Has pinned data: test runs use it instead of running the step",
     "dataDragHint": "Drag a field onto a setting to read it from this step.",
     "bindingDropIncompatible": "“{field}” is not a value {target} can take.",
-    "bindingDropUnreachable": "This step cannot read that one: it does not always run before it."
+    "bindingDropUnreachable": "This step cannot read that one: it does not always run before it.",
+    "validationBindingTemplateNotText": "A template makes text, and this field does not take text.",
+    "bindingModeTemplate": "Template",
+    "templateInsert": "Insert a value into {field}",
+    "templateInsertPlaceholder": "Insert a value…",
+    "templateUnknown": "{placeholder} names nothing this step can read.",
+    "templatePreview": "Preview:"
   },
   "artifacts": {
     "title": "Artifacts",

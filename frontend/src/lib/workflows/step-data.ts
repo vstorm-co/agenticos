@@ -1,4 +1,4 @@
-import type { Uuid, WorkflowGraph, WorkflowNodeRunRead } from "./types";
+import { outputRefs, type Uuid, type WorkflowGraph, type WorkflowNodeRunRead } from "./types";
 
 /** What one step did the last time a watched test run reached it. */
 export interface StepData {
@@ -48,9 +48,8 @@ export function stepDataOf(runId: string, rows: WorkflowNodeRunRead[]): Record<U
 export function sourcesOf(graph: WorkflowGraph, nodeId: Uuid): Uuid[] {
   const sources = new Set<Uuid>();
   for (const binding of graph.bindings) {
-    if (binding.target_node_id === nodeId && binding.source.kind === "node_output") {
-      sources.add(binding.source.node_id);
-    }
+    if (binding.target_node_id !== nodeId) continue;
+    for (const ref of outputRefs(binding.source)) sources.add(ref.node_id);
   }
   for (const edge of graph.edges) {
     if (edge.target_node_id === nodeId) sources.add(edge.source_node_id);

@@ -6055,7 +6055,13 @@
     "stepHasPinnedData": "Hat angeheftete Daten: Testläufe verwenden sie, statt den Schritt auszuführen",
     "dataDragHint": "Ziehen Sie ein Feld auf eine Einstellung, damit sie es aus diesem Schritt liest.",
     "bindingDropIncompatible": "„{field}“ ist kein Wert, den {target} annehmen kann.",
-    "bindingDropUnreachable": "Dieser Schritt kann jenen nicht lesen: Er läuft nicht immer davor."
+    "bindingDropUnreachable": "Dieser Schritt kann jenen nicht lesen: Er läuft nicht immer davor.",
+    "validationBindingTemplateNotText": "Eine Vorlage ergibt Text, und dieses Feld nimmt keinen Text an.",
+    "bindingModeTemplate": "Vorlage",
+    "templateInsert": "Einen Wert in {field} einfügen",
+    "templateInsertPlaceholder": "Wert einfügen…",
+    "templateUnknown": "{placeholder} bezeichnet nichts, was dieser Schritt lesen kann.",
+    "templatePreview": "Vorschau:"
   },
   "artifacts": {
     "title": "Artefakte",

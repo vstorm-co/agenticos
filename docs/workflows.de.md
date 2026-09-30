@@ -1,5 +1,5 @@
 ---
-source_sha: "70489ea11349"
+source_sha: "772f6626f9fd"
 ---
 
 # Workflows { #workflows }
@@ -156,6 +156,16 @@ seiner Beschriftung schalten zwischen ihnen um:
   vorgelagerte Ausgabe sagt **No compatible upstream outputs**, statt eine ungültige
   Wahl anzubieten.
 
+Ein Textfeld hat eine dritte Art, **Template**: Text mit Werten aus früheren Schritten,
+etwa `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. Ein Platzhalter
+nennt einen Schritt und einen Pfad in dessen Ausgabe, wird beim Veröffentlichen wie ein
+Binding geprüft und folgt dem Schritt, wenn er umbenannt wird. **Insert a value…** fügt
+einen an der Cursorposition ein, ebenso ein aus **Input** gezogenes Feld. Mit den Daten
+eines Testlaufs erscheint darunter eine Vorschau des Ergebnisses. Nichts wird
+ausgewertet: Wenn der Schritt läuft, wird jeder Platzhalter zum Text seines Werts, zu
+JSON für eine Liste oder ein Objekt, und einer ohne Wert dahinter lässt den Schritt mit
+`INVALID_BINDING` scheitern und nennt ihn.
+
 Ein Pflicht-Input ohne Wert ist ein Validierungsproblem, das am Knoten markiert und
 nicht mit einem stillen Standardwert gefüllt wird. Manche Felder enthalten
 strukturierte Werte: eine Liste von Zeilen, zu der **Add row** hinzufügt, die Sie
@@ -179,30 +189,30 @@ liest. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
 ### Die Daten eines Schritts, Anheften und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
 Beim Bearbeiten eines Workflows stellt der Dialog die Einstellungen eines Schritts zwischen
-zwei Bereiche. **Eingabe** zeigt, was jeder Schritt weitergegeben hat, aus dem er liest, und
-**Ausgabe**, was der Schritt selbst weitergegeben hat, beides aus dem letzten im Editor
-gestarteten Testlauf oder beim Öffnen aus dem neuesten. **Tabelle** legt die Daten als
+zwei Bereiche. **Input** zeigt, was jeder Schritt weitergegeben hat, aus dem er liest, und
+**Output**, was der Schritt selbst weitergegeben hat, beides aus dem letzten im Editor
+gestarteten Testlauf oder beim Öffnen aus dem neuesten. **Table** legt die Daten als
 Zeilen an, eine Liste von Datensätzen mit einer Zeile je Datensatz. **JSON** zeigt sie, wie
-sie sind, und **Felder** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
+sie sind, und **Fields** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
 Schritt liest.
 
-Eine Spalte oder ein Feld aus **Eingabe** lässt sich auf eine Einstellung ziehen,
-die es dann aus jenem Schritt liest, als wäre es unter **Aus einem Schritt**
+Eine Spalte oder ein Feld aus **Input** lässt sich auf eine Einstellung ziehen,
+die es dann aus jenem Schritt liest, als wäre es unter **From a step**
 gewählt. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den die
 Einstellung nicht annimmt, oder ein Schritt, der nicht immer davor läuft. Innerhalb
 eines frei geformten Werts wie `values` einer Zuordnung oder `payload` eines
 Auslösers gilt der Typ, den der Lauf gezeigt hat. Die Auswahl bietet solche Werte
-ebenfalls jeder Einstellung an, mit **Feld darin** für den Pfad.
+ebenfalls jeder Einstellung an, mit **Field inside it** für den Pfad.
 
-**Diese Daten anheften** behält die Ausgabe am Schritt, und **Daten zum Anheften eingeben**
+**Pin this data** behält die Ausgabe am Schritt, und **Write data to pin**
 tippt eine als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt angeheftete
 Daten weiter, statt den Schritt auszuführen, sodass ein langsamer Modellaufruf oder ein
 Schreibzugriff auf ein Live-System einmal erfolgt und wiederverwendet wird. Ein Schritt, der
 den Weg entscheidet, wird nie angeheftet, und das Veröffentlichen entfernt jede Anheftung:
 Eine veröffentlichte Version führt ihre Schritte immer aus. Ein Stecknadelsymbol markiert
-die Karte, und **Lösen** entfernt sie.
+die Karte, und **Unpin** entfernt sie.
 
-**Schritt testen** führt den Schritt allein aus. Der Lauf behält nur den Schritt und die
+**Test step** führt den Schritt allein aus. Der Lauf behält nur den Schritt und die
 Schritte, die zu ihm führen, und jeder davon mit bekannter Ausgabe, angeheftet oder aus dem
 letzten Testlauf, gibt sie weiter, statt zu laufen. Die übrigen laufen, und nichts nach dem
 Schritt läuft. Ein schreibender Schritt fragt zuerst, denn der Test schreibt wirklich. Ein

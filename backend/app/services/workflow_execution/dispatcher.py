@@ -91,11 +91,12 @@ from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler
 from app.workflows.contracts.definition import RetryGuarantee as CallGuarantee
 from app.workflows.contracts.io import (
-    BindingSource,
     FileRef,
     LiteralValue,
     NodeOutputRef,
     TableIORef,
+    TemplateValue,
+    output_refs,
 )
 from app.workflows.contracts.policy import ERROR_PORT, RetryPolicy
 from app.workflows.contracts.results import (
@@ -323,27 +324,76 @@ def _field_owner(definition: NodeDefinition, field_name: str) -> str | None:
     return None
 
 
-def _resolve_source(source: BindingSource, outputs: dict[UUID, dict[str, Any] | None]) -> Any:
-    """A binding's value, from the stored result of each source node.
+def _read_output(ref: NodeOutputRef, outputs: dict[UUID, dict[str, Any] | None]) -> Any:
+    """What `ref` names in the stored result of its node.
 
-    A `NodeOutputRef` on a node's `error` port reads the error it failed with;
-    on any other port, the output it completed with. Publishing keeps each to its
-    own path, so the other half is simply absent.
+    On a node's `error` port it reads the error the node failed with; on any other
+    port, the output it completed with. Publishing keeps each to its own path, so
+    the other half is simply absent.
     """
+    stored = outputs.get(ref.node_id) or {}
+    wanted = "failed" if ref.port == ERROR_PORT else "completed"
+    value: Any = stored.get("error" if wanted == "failed" else "output")
+    if stored.get("status") != wanted:
+        value = None
+    for part in ref.field_path:
+        value = None if value is None else value.get(part)
+    return value
+
+
+def _placeholder_text(value: Any) -> str:
+    """A template placeholder's value as text: itself for a string, JSON for anything else."""
+    return (
+        value
+        if isinstance(value, str)
+        else json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    )
+
+
+def _resolve_source(
+    source: FileRef | TableIORef | NodeOutputRef | LiteralValue,
+    outputs: dict[UUID, dict[str, Any] | None],
+) -> Any:
+    """A binding's value, from the stored result of each source node."""
     if isinstance(source, LiteralValue):
         return source.value
     if isinstance(source, NodeOutputRef):
-        stored = outputs.get(source.node_id) or {}
-        wanted = "failed" if source.port == ERROR_PORT else "completed"
-        value: Any = stored.get("error" if wanted == "failed" else "output")
-        if stored.get("status") != wanted:
-            value = None
-        for part in source.field_path:
-            value = None if value is None else value.get(part)
-        return value
+        return _read_output(source, outputs)
     if isinstance(source, FileRef | TableIORef):
         return source.model_dump(mode="json")
     raise TypeError(f"Unknown binding source: {source!r}")
+
+
+def _render_template(
+    template: TemplateValue,
+    outputs: dict[UUID, dict[str, Any] | None],
+    *,
+    graph: WorkflowGraph,
+    node_id: UUID,
+    field: str,
+) -> str:
+    """A template's text, each placeholder replaced by its value.
+
+    Raises:
+        InvalidBindingError: A placeholder resolved to nothing.
+    """
+    text: list[str] = []
+    for part in template.parts:
+        if isinstance(part, str):
+            text.append(part)
+            continue
+        value = _read_output(part, outputs)
+        if value is None:
+            source_node = graph.node_by_id[part.node_id]
+            raise InvalidBindingError(
+                node_instance_id=node_id,
+                field=field,
+                placeholder=".".join(
+                    (source_node.label or source_node.definition_id, *part.field_path)
+                ),
+            )
+        text.append(_placeholder_text(value))
+    return "".join(text)
 
 
 def _resolve_io(
@@ -365,7 +415,13 @@ def _resolve_io(
     for binding in graph.bindings:
         if binding.target_node_id != node.id:
             continue
-        value = _resolve_source(binding.source, outputs)
+        value = (
+            _render_template(
+                binding.source, outputs, graph=graph, node_id=node.id, field=binding.target_field
+            )
+            if isinstance(binding.source, TemplateValue)
+            else _resolve_source(binding.source, outputs)
+        )
         owner = _field_owner(definition, binding.target_field)
         if owner == "input":
             input_values[binding.target_field] = value
@@ -500,9 +556,10 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
         raise NodeHandlerMissingError(node_id=node.definition_id, version=node.definition_version)
 
     referenced_nodes = {
-        binding.source.node_id
+        ref.node_id
         for binding in graph.bindings
-        if binding.target_node_id == node.id and isinstance(binding.source, NodeOutputRef)
+        if binding.target_node_id == node.id
+        for ref in output_refs(binding.source)
     }
     outputs = await _completed_outputs(
         db,

@@ -137,6 +137,15 @@ label switch between them:
   upstream says **No compatible upstream outputs** rather than offering an invalid
   pick.
 
+A text field has a third way, **Template**: text with values from earlier steps in
+it, such as `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. A
+placeholder names a step and a path into its output, is checked at publish like a
+binding, and follows the step when it is renamed. **Insert a value…** adds one at
+the cursor, and so does a field dragged from **Input**. With a test run's data, the
+result is previewed beneath. Nothing is evaluated: when the step runs, each
+placeholder becomes its value's text, JSON for a list or an object, and one with
+nothing behind it fails the step with `INVALID_BINDING`, naming it.
+
 A required input with no value yet is a validation problem, flagged on the node
 rather than filled with a silent default. Some fields hold structured values: a
 list of rows you **Add row** to, reorder and remove, or a typed choice that swaps

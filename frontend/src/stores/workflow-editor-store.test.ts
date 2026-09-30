@@ -318,6 +318,14 @@ describe("useWorkflowEditorStore graph slice", () => {
       target_field: "x",
       source: { kind: "literal", value: 2 },
     };
+    const template: Binding = {
+      target_node_id: "c",
+      target_field: "note",
+      source: {
+        kind: "template",
+        parts: ["From ", { kind: "node_output", node_id: "t", port: "out", field_path: [] }],
+      },
+    };
     store.getState().seedGraph({
       entry_node_id: "t",
       nodes: [
@@ -366,7 +374,7 @@ describe("useWorkflowEditorStore graph slice", () => {
           target_port: "in",
         },
       ],
-      bindings: [read, literal, into],
+      bindings: [read, literal, into, template],
       scopes: [],
     });
 
@@ -394,6 +402,13 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(graph.bindings).toEqual([
       { ...read, source: { ...read.source, node_id: "w" } },
       literal,
+      {
+        ...template,
+        source: {
+          kind: "template",
+          parts: ["From ", { kind: "node_output", node_id: "w", port: "out", field_path: [] }],
+        },
+      },
     ]);
   });
 
@@ -601,6 +616,14 @@ describe("useWorkflowEditorStore graph slice", () => {
       target_field: field,
       source: { kind: "node_output", node_id: from, port: "out", field_path: [] },
     });
+    const templateBinding = (target: string, field: string, from: string): Binding => ({
+      target_node_id: target,
+      target_field: field,
+      source: {
+        kind: "template",
+        parts: ["Hi ", { kind: "node_output", node_id: from, port: "out", field_path: [] }],
+      },
+    });
     const scope = (scopeNode: string, exit: string, body: string[]): ScopeBoundary => ({
       scope_node_id: scopeNode,
       body_node_ids: body,
@@ -618,6 +641,8 @@ describe("useWorkflowEditorStore graph slice", () => {
         outputBinding("b", "f2", "c"), // source survives → kept
         literalBinding("b", "f3"), // not a node reference → kept
         literalBinding("a", "f4"), // target is the removed node → dropped
+        templateBinding("b", "f5", "c"), // placeholders survive → kept
+        templateBinding("b", "f6", "a"), // a placeholder reads the removed node → dropped
       ],
       scopes: [
         scope("b", "c", []), // wholly outside the removed node → kept
@@ -629,7 +654,7 @@ describe("useWorkflowEditorStore graph slice", () => {
     store.getState().deleteSelection();
 
     const graph = store.getState().graph;
-    expect(graph?.bindings.map((binding) => binding.target_field)).toEqual(["f2", "f3"]);
+    expect(graph?.bindings.map((binding) => binding.target_field)).toEqual(["f2", "f3", "f5"]);
     expect(graph?.scopes).toHaveLength(1);
     expect(graph?.scopes[0]?.body_node_ids).toEqual([]);
     expect(graph?.entry_node_id).toBe("b");

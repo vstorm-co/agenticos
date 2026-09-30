@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Template fields that mix text with values from earlier steps.** A text field's
+  **Template** mode takes text such as `New lead: {{Form.payload.name}}`, with
+  **Insert a value…**, drops from the Input pane and a preview from the last test
+  run. Each placeholder is checked at publish like a binding and rendered when the
+  step runs, JSON for a list or an object; one with nothing behind it fails the
+  step with `INVALID_BINDING` naming it. Bindings gain a `template` source (#1938).
 - **Map a workflow step's field by dragging it.** A column or a field of the step
   dialog's Input pane dropped on a setting binds it to that field, and one that
   does not fit is refused with the reason. Inside a free-form value the type the

@@ -12,16 +12,18 @@ import { create } from "zustand";
 
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
 import type { StepData } from "@/lib/workflows/step-data";
-import type {
-  Binding,
-  CanvasNote,
-  NodeInstance,
-  NodePolicy,
-  NodePosition,
-  ScopeBoundary,
-  Uuid,
-  WorkflowEdge,
-  WorkflowGraph,
+import {
+  outputRefs,
+  renameOutputRefs,
+  type Binding,
+  type CanvasNote,
+  type NodeInstance,
+  type NodePolicy,
+  type NodePosition,
+  type ScopeBoundary,
+  type Uuid,
+  type WorkflowEdge,
+  type WorkflowGraph,
 } from "@/lib/workflows/types";
 
 /**
@@ -372,7 +374,7 @@ function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
   const bindings = graph.bindings.filter(
     (binding) =>
       ids.has(binding.target_node_id) &&
-      (binding.source.kind !== "node_output" || ids.has(binding.source.node_id)),
+      outputRefs(binding.source).every((ref) => ids.has(ref.node_id)),
   );
   const scopes = graph.scopes.filter(
     (scope) =>
@@ -535,11 +537,12 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
                 ),
               bindings: base.bindings
                 .filter((item) => item.target_node_id !== replaces)
-                .map((item) =>
-                  item.source.kind === "node_output" && item.source.node_id === replaces
-                    ? { ...item, source: { ...item.source, node_id: node.id } }
-                    : item,
-                ),
+                .map((item) => ({
+                  ...item,
+                  source: renameOutputRefs(item.source, (nodeId) =>
+                    nodeId === replaces ? node.id : nodeId,
+                  ),
+                })),
             };
       commit({
         ...kept,

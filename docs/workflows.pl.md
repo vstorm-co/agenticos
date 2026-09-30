@@ -1,5 +1,5 @@
 ---
-source_sha: "70489ea11349"
+source_sha: "772f6626f9fd"
 ---
 
 # Workflows { #workflows }
@@ -137,6 +137,16 @@ etykiety przełączają między nimi:
   dla pola. Pole, dla którego nic wcześniej nie pasuje, mówi **No compatible upstream
   outputs** zamiast proponować błędny wybór.
 
+Pole tekstowe ma trzeci sposób, **Template**: tekst z wartościami z wcześniejszych
+kroków, na przykład `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+Placeholder wskazuje krok i ścieżkę w jego wyjściu, jest sprawdzany przy publikacji
+tak jak binding i podąża za krokiem, gdy ten zmieni nazwę. **Insert a value…** wstawia
+go w miejscu kursora, podobnie jak pole przeciągnięte z **Input**. Gdy są dane z
+przebiegu testowego, pod polem widać podgląd wyniku. Nic nie jest wykonywane: gdy krok
+działa, każdy placeholder staje się tekstem swojej wartości, JSON-em dla listy albo
+obiektu, a taki, za którym nic nie stoi, kończy krok błędem `INVALID_BINDING`, który
+go wskazuje.
+
 Wymagany input bez wartości to problem walidacji, oznaczony na węźle, a nie
 uzupełniony cichą wartością domyślną. Niektóre pola trzymają wartości złożone: listę
 wierszy, do której **Add row** dodaje, którą przestawiasz i z której usuwasz, albo
@@ -157,29 +167,29 @@ wersje je zachowują.
 
 ### Dane kroku, przypinanie i test jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 
-Podczas edycji workflow okno umieszcza ustawienia kroku między dwoma panelami. **Wejście**
-pokazuje, co przekazał każdy krok, z którego ten krok czyta, a **Wyjście** – co przekazał
+Podczas edycji workflow okno umieszcza ustawienia kroku między dwoma panelami. **Input**
+pokazuje, co przekazał każdy krok, z którego ten krok czyta, a **Output** – co przekazał
 sam krok. Oba pochodzą z ostatniego przebiegu testowego uruchomionego w edytorze albo, po
-otwarciu, z najnowszego. **Tabela** układa dane w wiersze, listę rekordów po jednym wierszu
-na rekord. **JSON** pokazuje je takimi, jakie są, a **Pola** wymienia każde pole po ścieżce
+otwarciu, z najnowszego. **Table** układa dane w wiersze, listę rekordów po jednym wierszu
+na rekord. **JSON** pokazuje je takimi, jakie są, a **Fields** wymienia każde pole po ścieżce
 z jego typem: ścieżki, które czyta późniejszy krok.
 
-Kolumnę albo pole z **Wejścia** można przeciągnąć na ustawienie, które wtedy czyta
-je z tamtego kroku, tak jakby wybrano je w **Z kroku**. Pole, które nie pasuje,
+Kolumnę albo pole z **Input** można przeciągnąć na ustawienie, które wtedy czyta
+je z tamtego kroku, tak jakby wybrano je w **From a step**. Pole, które nie pasuje,
 zostaje odrzucone z podaniem powodu: typ, którego ustawienie nie przyjmuje, albo
 krok, który nie zawsze działa przed tym. Wewnątrz wartości o dowolnym kształcie,
 takiej jak `values` mapowania czy `payload` wyzwalacza, typem jest ten, który
 pokazał przebieg. Lista wyboru też oferuje takie wartości każdemu ustawieniu, a
-ścieżkę wpisuje się w **Pole w środku**.
+ścieżkę wpisuje się w **Field inside it**.
 
-**Przypnij te dane** zachowuje wynik na kroku, a **Wpisz dane do przypięcia** pozwala
+**Pin this data** zachowuje wynik na kroku, a **Write data to pin** pozwala
 wpisać własny jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy
 przekazuje przypięte dane zamiast uruchamiać krok, więc wolne wywołanie modelu albo zapis
 do działającego systemu wykonuje się raz i jest używany ponownie. Krok, który decyduje o
 drodze, nigdy nie jest przypinany, a publikacja usuwa każde przypięcie: opublikowana wersja
-zawsze uruchamia swoje kroki. Ikona pinezki oznacza kartę, a **Odepnij** ją usuwa.
+zawsze uruchamia swoje kroki. Ikona pinezki oznacza kartę, a **Unpin** ją usuwa.
 
-**Testuj krok** uruchamia sam krok. Przebieg zachowuje tylko ten krok i kroki, które do
+**Test step** uruchamia sam krok. Przebieg zachowuje tylko ten krok i kroki, które do
 niego prowadzą, a każdy z nich o znanym wyniku, przypiętym albo z ostatniego przebiegu
 testowego, przekazuje go zamiast się uruchamiać. Pozostałe działają, a nic po kroku nie
 rusza. Krok, który zapisuje, najpierw pyta, bo test naprawdę zapisuje. Kroku w pętli nie da

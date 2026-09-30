@@ -1,5 +1,5 @@
 ---
-source_sha: "70489ea11349"
+source_sha: "772f6626f9fd"
 ---
 
 # Workflows { #workflows }
@@ -147,6 +147,15 @@ etiqueta alternan entre ellas:
   ({type})* para un campo. Un campo sin nada compatible antes dice **No compatible
   upstream outputs** en lugar de ofrecer una elección inválida.
 
+Un campo de texto tiene una tercera forma, **Template**: texto con valores de pasos
+anteriores, como `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. Un
+marcador nombra un paso y una ruta dentro de su salida, se comprueba al publicar como un
+binding y sigue al paso cuando se renombra. **Insert a value…** añade uno en el cursor,
+igual que un campo arrastrado desde **Input**. Con los datos de una ejecución de prueba,
+el resultado se previsualiza debajo. Nada se evalúa: cuando el paso se ejecuta, cada
+marcador pasa a ser el texto de su valor, JSON para una lista o un objeto, y uno sin
+nada detrás hace fallar el paso con `INVALID_BINDING`, nombrándolo.
+
 Un input obligatorio sin valor es un problema de validación, señalado en el nodo y no
 rellenado con un valor por defecto silencioso. Algunos campos guardan valores
 estructurados: una lista de filas a la que **Add row** añade, que reordenas y de la
@@ -168,28 +177,28 @@ grafo, así que las versiones los conservan.
 ### Los datos de un paso, fijarlos y probar un solo paso { #a-steps-data-pinning-and-testing-one-step }
 
 Al editar un workflow, el diálogo coloca los ajustes de un paso entre dos paneles.
-**Entrada** muestra lo que entregó cada paso del que lee, y **Salida** lo que entregó el
+**Input** muestra lo que entregó cada paso del que lee, y **Output** lo que entregó el
 propio paso, ambos de la última ejecución de prueba iniciada en el editor o, al abrirlo, de
-la más reciente. **Tabla** dispone los datos en filas, una lista de registros con una fila
-por registro. **JSON** los muestra tal cual, y **Campos** lista cada campo por ruta con su
+la más reciente. **Table** dispone los datos en filas, una lista de registros con una fila
+por registro. **JSON** los muestra tal cual, y **Fields** lista cada campo por ruta con su
 tipo: las rutas que lee un paso posterior.
 
-Una columna o un campo de **Entrada** se puede arrastrar sobre un ajuste, que
-entonces lo lee de ese paso, como si se eligiera en **De un paso**. Un campo que no
+Una columna o un campo de **Input** se puede arrastrar sobre un ajuste, que
+entonces lo lee de ese paso, como si se eligiera en **From a step**. Un campo que no
 encaja se rechaza con el motivo: un tipo que el ajuste no admite, o un paso que no
 siempre se ejecuta antes que este. Dentro de un valor de forma libre, como `values`
 de un mapeo o `payload` de un disparador, el tipo es el que mostró la ejecución. El
-selector también ofrece esos valores a cualquier ajuste, con **Campo dentro** para
+selector también ofrece esos valores a cualquier ajuste, con **Field inside it** para
 la ruta.
 
-**Fijar estos datos** conserva la salida en el paso, y **Escribir datos para fijar** permite
+**Pin this data** conserva la salida en el paso, y **Write data to pin** permite
 teclear una como objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega
 los datos fijados en lugar de ejecutar el paso, así que una llamada lenta a un modelo o una
 escritura en un sistema real se hace una vez y se reutiliza. Un paso que decide el camino
 nunca se fija, y publicar elimina todo lo fijado: una versión publicada siempre ejecuta sus
-pasos. Un icono de chincheta marca la tarjeta, y **Soltar** lo quita.
+pasos. Un icono de chincheta marca la tarjeta, y **Unpin** lo quita.
 
-**Probar paso** ejecuta el paso solo. La ejecución conserva únicamente el paso y los pasos
+**Test step** ejecuta el paso solo. La ejecución conserva únicamente el paso y los pasos
 que llevan a él, y cada uno de ellos con salida conocida, fijada o de la última ejecución de
 prueba, la entrega en lugar de ejecutarse. Los demás se ejecutan, y nada después del paso lo
 hace. Un paso que escribe pregunta antes, porque la prueba escribe de verdad. Un paso dentro

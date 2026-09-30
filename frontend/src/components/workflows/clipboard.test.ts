@@ -166,12 +166,17 @@ describe("pasteClipboard", () => {
         binding("a", nodeOutputRef("b")), // internal: node_id remaps
         binding("b", externalRef), // external: node_id untouched
         binding("a", literal), // non-node source: untouched
+        binding("b", { kind: "template", parts: ["x", nodeOutputRef("a"), externalRef] }),
       ],
       scopes: [],
     };
     const result = pasteClipboard(clip, minter());
 
-    const [internal, external, constant] = result.clipboard.bindings;
+    const [internal, external, constant, templated] = result.clipboard.bindings;
+    expect(templated?.source).toEqual({
+      kind: "template",
+      parts: ["x", nodeOutputRef("new-1"), externalRef],
+    });
     expect(internal?.target_node_id).toBe("new-1");
     expect((internal?.source as NodeOutputRef).node_id).toBe("new-2");
     expect(external?.target_node_id).toBe("new-2");

@@ -1,7 +1,7 @@
-"""What a node's input may be bound to: a literal, another node's output, a file
-or a table.
+"""What a node's input may be bound to: a literal, another node's output, a
+template of text and outputs, a file or a table.
 
-Four `kind`-discriminated variants make up `BindingSource`. `FileRef` and
+Five `kind`-discriminated variants make up `BindingSource`. `FileRef` and
 `TableIORef` are resolved against real resources - the storage backing behind a
 `FileRef` is #1791's; the table it names is `app.db.models.virtual_table`'s -
 while `NodeOutputRef` and `LiteralValue` resolve entirely within the graph
@@ -76,10 +76,44 @@ class LiteralValue(BaseModel):
     value: Any
 
 
+MAX_TEMPLATE_PARTS = 100
+
+
+class TemplateValue(BaseModel):
+    """Text with values from earlier steps in it: "New lead: {name} from {company}".
+
+    `parts` alternate between text and `NodeOutputRef`s, rendered into one string
+    when the step runs - each reference as its value's text, JSON for a list or an
+    object. Placeholders only: nothing in a template is evaluated. A reference that
+    resolves to nothing fails the step with `INVALID_BINDING` naming it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: Literal["template"] = "template"
+    parts: tuple[Annotated[str, Field(max_length=4000)] | NodeOutputRef, ...] = Field(
+        min_length=1, max_length=MAX_TEMPLATE_PARTS
+    )
+
+    @property
+    def refs(self) -> tuple[NodeOutputRef, ...]:
+        return tuple(part for part in self.parts if isinstance(part, NodeOutputRef))
+
+
 BindingSource = Annotated[
-    FileRef | TableIORef | NodeOutputRef | LiteralValue, Field(discriminator="kind")
+    FileRef | TableIORef | NodeOutputRef | TemplateValue | LiteralValue,
+    Field(discriminator="kind"),
 ]
 """What a target field's binding resolves to."""
+
+
+def output_refs(source: BindingSource) -> tuple[NodeOutputRef, ...]:
+    """Every other node's output `source` reads: itself, a template's placeholders, or none."""
+    if isinstance(source, NodeOutputRef):
+        return (source,)
+    if isinstance(source, TemplateValue):
+        return source.refs
+    return ()
 
 
 class Binding(BaseModel):

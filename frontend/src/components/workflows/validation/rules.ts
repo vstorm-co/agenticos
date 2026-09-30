@@ -13,7 +13,15 @@
  * the binding form marks an unfilled required field for the editor's own sake.
  */
 
-import type { JsonSchema, ScopeBoundary, WorkflowEdge, WorkflowGraph } from "@/lib/workflows/types";
+import {
+  outputRefs,
+  type Binding,
+  type JsonSchema,
+  type NodeOutputRef,
+  type ScopeBoundary,
+  type WorkflowEdge,
+  type WorkflowGraph,
+} from "@/lib/workflows/types";
 
 import {
   portShapesCompatible,
@@ -74,7 +82,7 @@ export function danglingReferences(graph: WorkflowGraph): RawProblem[] {
         nodeField(binding.target_node_id, binding.target_field, "binding-target-node-missing"),
       );
     }
-    if (binding.source.kind === "node_output" && !ids.has(binding.source.node_id)) {
+    if (outputRefs(binding.source).some((ref) => !ids.has(ref.node_id))) {
       problems.push(
         nodeField(binding.target_node_id, binding.target_field, "binding-source-node-missing"),
       );
@@ -161,22 +169,20 @@ export function rule3TypeCompatibility(
       problems.push(edge(e.id, "edge-incompatible"));
     }
   }
-  for (const binding of graph.bindings) {
-    if (binding.source.kind !== "node_output") continue;
-    const sourceDefinition = definitionFor(definitions, binding.source.node_id);
+  for (const { binding, ref, templated } of outputReads(graph)) {
+    const sourceDefinition = definitionFor(definitions, ref.node_id);
     const targetDefinition = definitionFor(definitions, binding.target_node_id);
     if (sourceDefinition === null || targetDefinition === null) continue;
-    const sourceType = resolveFieldType(
-      sourceDefinition,
-      binding.source.port,
-      binding.source.field_path,
-    );
+    const sourceType = resolveFieldType(sourceDefinition, ref.port, ref.field_path);
     if (sourceType === UNKNOWN) {
       problems.push(
         nodeField(binding.target_node_id, binding.target_field, "binding-field-path-unknown"),
       );
       continue;
     }
+    // A placeholder becomes text whatever it holds; the field taking text is
+    // checked once per template, below.
+    if (templated) continue;
     const targetType = fieldType(targetDefinition, binding.target_field);
     if (targetType !== UNKNOWN && !typesCompatible(sourceType, targetType)) {
       problems.push(
@@ -187,6 +193,40 @@ export function rule3TypeCompatibility(
   return problems;
 }
 
+/** A template makes text, so the field it is bound to must take text. */
+export function templateTargets(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const binding of graph.bindings) {
+    if (binding.source.kind !== "template") continue;
+    const targetDefinition = definitionFor(definitions, binding.target_node_id);
+    if (targetDefinition === null) continue;
+    const targetType = fieldType(targetDefinition, binding.target_field);
+    if (targetType !== UNKNOWN && !typesCompatible({ type: "string" }, targetType)) {
+      problems.push(
+        nodeField(binding.target_node_id, binding.target_field, "binding-template-not-text"),
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * Every read of another step's output: a binding reading one, or a template's
+ * placeholder - each checked like a binding of its own, and flagged, since what a
+ * placeholder holds becomes text.
+ */
+function outputReads(
+  graph: WorkflowGraph,
+): { binding: Binding; ref: NodeOutputRef; templated: boolean }[] {
+  return graph.bindings.flatMap((binding) =>
+    outputRefs(binding.source).map((ref) => ({
+      binding,
+      ref,
+      templated: binding.source.kind === "template",
+    })),
+  );
+}
+
 // Rule 4 — branch-local data availability (dominators).
 
 export function rule4BranchLocalAvailability(
@@ -194,9 +234,8 @@ export function rule4BranchLocalAvailability(
   dominators: Map<string, Set<string>>,
 ): RawProblem[] {
   const problems: RawProblem[] = [];
-  for (const binding of graph.bindings) {
-    if (binding.source.kind !== "node_output") continue;
-    const sourceId = binding.source.node_id;
+  for (const { binding, ref } of outputReads(graph)) {
+    const sourceId = ref.node_id;
     const targetId = binding.target_node_id;
     if (sourceId === targetId) {
       problems.push(nodeField(targetId, binding.target_field, "binding-self-reference"));
@@ -318,9 +357,8 @@ export function rule6NestedScopeBoundaries(
     if (isSanctionedBoundaryEdge(e, entryBoundary, exitBoundary)) continue;
     problems.push(edge(e.id, "edge-crosses-scope"));
   }
-  for (const binding of graph.bindings) {
-    if (binding.source.kind !== "node_output") continue;
-    if (nodeScope.get(binding.source.node_id) !== nodeScope.get(binding.target_node_id)) {
+  for (const { binding, ref } of outputReads(graph)) {
+    if (nodeScope.get(ref.node_id) !== nodeScope.get(binding.target_node_id)) {
       problems.push(
         nodeField(binding.target_node_id, binding.target_field, "binding-crosses-scope"),
       );
@@ -482,8 +520,8 @@ export function rule13NamedAndSwitchedOffSteps(
       problems.push(node(n.id, "control-switched-off"));
     }
   }
-  for (const binding of graph.bindings) {
-    if (binding.source.kind === "node_output" && off.has(binding.source.node_id)) {
+  for (const { binding, ref } of outputReads(graph)) {
+    if (off.has(ref.node_id)) {
       problems.push(
         nodeField(binding.target_node_id, binding.target_field, "binding-reads-switched-off"),
       );

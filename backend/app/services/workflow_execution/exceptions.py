@@ -139,13 +139,24 @@ class NodeHandlerMissingError(WorkflowDispatchRefusedError):
 
 
 class InvalidBindingError(WorkflowDispatchRefusedError):
-    """A bound value can never satisfy the target node's config or input schema."""
+    """A bound value can never satisfy the target node's config or input schema.
+
+    For a template, `field` and `placeholder` name the placeholder that resolved
+    to nothing: the step it reads, by its name, and the path into its output.
+    """
 
     message = "A bound value does not satisfy this node's input schema"
     code = "INVALID_BINDING"
 
-    def __init__(self, *, node_instance_id: UUID) -> None:
-        super().__init__(details={"node_instance_id": node_instance_id})
+    def __init__(
+        self, *, node_instance_id: UUID, field: str | None = None, placeholder: str | None = None
+    ) -> None:
+        details: dict[str, object] = {"node_instance_id": node_instance_id}
+        message = None
+        if placeholder is not None:
+            details |= {"field": field, "placeholder": placeholder}
+            message = f"The template in {field} has nothing for {placeholder}"
+        super().__init__(message=message, details=details)
 
 
 class PrincipalRevokedError(WorkflowDispatchRefusedError):

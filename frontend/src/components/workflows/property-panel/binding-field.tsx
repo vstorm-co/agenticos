@@ -32,7 +32,22 @@ import {
   sourceCandidates,
 } from "./bindings";
 import type { SourceCandidate } from "./bindings";
+import { TemplateField } from "./template-field";
 import { labelOf, singleFieldSchema, unwrapOptional, type Schema } from "./schema-model";
+
+/** A value typed here, one an earlier step hands on, or text with such values in it. */
+type Mode = "value" | "step" | "template";
+
+const MODE_LABELS: Record<Mode, string> = {
+  value: "bindingModeValue",
+  step: "bindingModeStep",
+  template: "bindingModeTemplate",
+};
+
+function modeOf(binding: Binding | undefined): Mode {
+  if (binding?.source.kind === "template") return "template";
+  return isNodeOutput(binding) ? "step" : "value";
+}
 
 export interface BindingFieldProps {
   /** The node this field belongs to. */
@@ -70,6 +85,8 @@ export interface BindingFieldProps {
  *
  * A field dragged from the step dialog's Input pane binds it the same way, and is
  * refused with the reason when it is none of the sources the picker would offer.
+ * A text field has a third mode, **Template**: text with values from earlier
+ * steps in it (`TemplateField`).
  */
 export function BindingField({
   targetNodeId,
@@ -87,12 +104,14 @@ export function BindingField({
 }: BindingFieldProps) {
   const t = useTranslations("workflows");
   const binding = bindingFor(bindings, targetNodeId, targetField);
-  const boundToNode = isNodeOutput(binding);
-  // Binding mode with no source chosen yet has no binding to derive from, so it is
-  // held locally until a source is picked (or the toggle is turned back off).
-  const [pendingBind, setPendingBind] = useState(false);
-  const bindingMode = boundToNode || pendingBind;
+  // A mode with nothing written yet - no source picked, no template typed - has no
+  // binding to derive from, so it is held locally until one is.
+  const [pendingMode, setPendingMode] = useState<Mode | null>(null);
+  const mode = pendingMode ?? modeOf(binding);
+  const bindingMode = mode === "step";
   const label = labelOf(schema, name);
+  const modes: Mode[] =
+    unwrapOptional(schema)["type"] === "string" ? ["value", "step", "template"] : ["value", "step"];
 
   const candidates = useMemo(
     () => sourceCandidates(graph, catalog, targetNodeId, schema),
@@ -101,16 +120,9 @@ export function BindingField({
 
   const idPrefix = `bind-${targetField.replace(/[^a-zA-Z0-9]+/g, "-")}`;
 
-  const toggle = (next: boolean) => {
-    if (next) {
-      setPendingBind(true);
-      if (binding !== undefined && binding.source.kind === "literal") {
-        onRemove(targetNodeId, targetField);
-      }
-    } else {
-      setPendingBind(false);
-      if (boundToNode) onRemove(targetNodeId, targetField);
-    }
+  const switchTo = (next: Mode) => {
+    setPendingMode(next);
+    if (binding !== undefined && modeOf(binding) !== next) onRemove(targetNodeId, targetField);
   };
 
   const current = candidateForBinding(candidates, binding);
@@ -143,6 +155,8 @@ export function BindingField({
   const drop = (event: DragEvent) => {
     event.preventDefault();
     setDropping(false);
+    // A template takes a dropped field as a placeholder instead (`TemplateField`).
+    if (mode === "template") return;
     const field = droppedField(event);
     if (field === null) return;
     const found = candidateForField(candidates, field.nodeId, field.path);
@@ -153,7 +167,7 @@ export function BindingField({
       (found.extraPath.length === 0 || observedFits(unwrapOptional(schema)["type"], field.type));
     if (found !== undefined && fits) {
       setDropProblem(null);
-      setPendingBind(false);
+      setPendingMode(null);
       bindTo(found.candidate, found.extraPath);
       return;
     }
@@ -190,27 +204,41 @@ export function BindingField({
         aria-label={t("bindingToggleLabel", { field: label })}
         className="bg-muted absolute top-0 right-0 z-10 flex rounded-md p-0.5 text-[11px]"
       >
-        {[false, true].map((fromStep) => (
+        {modes.map((option) => (
           <button
-            key={String(fromStep)}
+            key={option}
             type="button"
             role="radio"
-            aria-checked={bindingMode === fromStep}
+            aria-checked={mode === option}
             disabled={disabled}
-            onClick={() => bindingMode !== fromStep && toggle(fromStep)}
+            onClick={() => mode !== option && switchTo(option)}
             className={cn(
               "rounded px-2 py-0.5 font-medium transition-colors disabled:opacity-50",
-              bindingMode === fromStep
+              mode === option
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {fromStep ? t("bindingModeStep") : t("bindingModeValue")}
+            {t(MODE_LABELS[option])}
           </button>
         ))}
       </div>
 
-      {bindingMode ? (
+      {mode === "template" ? (
+        <TemplateField
+          targetNodeId={targetNodeId}
+          targetField={targetField}
+          label={label}
+          template={binding?.source.kind === "template" ? binding.source : undefined}
+          graph={graph}
+          catalog={catalog}
+          idPrefix={idPrefix}
+          error={error}
+          disabled={disabled}
+          onUpsert={onUpsert}
+          onRemove={onRemove}
+        />
+      ) : bindingMode ? (
         <div className="space-y-1.5">
           <Label>
             {label}

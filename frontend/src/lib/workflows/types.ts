@@ -105,8 +105,43 @@ export interface LiteralValue {
   value: unknown;
 }
 
+/**
+ * Text with values from earlier steps in it, rendered when the step runs. Mirrors
+ * `TemplateValue`: `parts` alternate between text and references.
+ */
+export interface TemplateValue {
+  kind: "template";
+  parts: (string | NodeOutputRef)[];
+}
+
 /** What a target field's binding resolves to. Mirrors `BindingSource`, discriminated on `kind`. */
-export type BindingSource = FileRef | TableIORef | NodeOutputRef | LiteralValue;
+export type BindingSource = FileRef | TableIORef | NodeOutputRef | TemplateValue | LiteralValue;
+
+/** Every other step's output a source reads: itself, a template's placeholders, or none. */
+export function outputRefs(source: BindingSource): NodeOutputRef[] {
+  if (source.kind === "node_output") return [source];
+  if (source.kind === "template") {
+    return source.parts.filter((part): part is NodeOutputRef => typeof part !== "string");
+  }
+  return [];
+}
+
+/** `source` with each step it reads renamed by `rename` - a paste's new ids, a replaced step. */
+export function renameOutputRefs(
+  source: BindingSource,
+  rename: (nodeId: Uuid) => Uuid,
+): BindingSource {
+  if (source.kind === "node_output") return { ...source, node_id: rename(source.node_id) };
+  if (source.kind === "template") {
+    return {
+      ...source,
+      parts: source.parts.map((part) =>
+        typeof part === "string" ? part : { ...part, node_id: rename(part.node_id) },
+      ),
+    };
+  }
+  return source;
+}
 
 /**
  * One field of one node instance, bound to a source. Mirrors `Binding`.

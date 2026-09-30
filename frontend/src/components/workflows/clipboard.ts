@@ -1,10 +1,10 @@
-import type {
-  Binding,
-  NodeOutputRef,
-  NodePosition,
-  ScopeBoundary,
-  Uuid,
-  WorkflowGraph,
+import {
+  renameOutputRefs,
+  type Binding,
+  type NodePosition,
+  type ScopeBoundary,
+  type Uuid,
+  type WorkflowGraph,
 } from "@/lib/workflows/types";
 import type { EditorSelection, WorkflowClipboard } from "@/stores/workflow-editor-store";
 
@@ -140,15 +140,12 @@ export function pasteClipboard(
 /**
  * A binding's source with any internal node reference remapped.
  *
- * Only a `NodeOutputRef` naming a copied node is rewritten; a reference to an
- * uncopied node, or a non-node source (file, table, literal), is returned
- * unchanged. This is the one place a source is inspected, and it reads only the
- * discriminant and `node_id`, never a node's `config`.
+ * Only a `NodeOutputRef` naming a copied node is rewritten, on its own or as a
+ * template's placeholder; a reference to an uncopied node, or a non-node source
+ * (file, table, literal), is returned unchanged. This is the one place a source
+ * is inspected, and it reads only the discriminant and `node_id`, never a node's
+ * `config`.
  */
 function remapSource(binding: Binding, idMap: Record<Uuid, Uuid>): Binding["source"] {
-  const { source } = binding;
-  if (source.kind !== "node_output") return source;
-  const remapped = idMap[source.node_id];
-  if (remapped === undefined) return source;
-  return { ...source, node_id: remapped } satisfies NodeOutputRef;
+  return renameOutputRefs(binding.source, (nodeId) => idMap[nodeId] ?? nodeId);
 }

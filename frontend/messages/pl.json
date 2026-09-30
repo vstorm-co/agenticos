@@ -3848,7 +3848,13 @@
     "stepHasPinnedData": "Ma przypięte dane: przebiegi testowe używają ich zamiast uruchamiać krok",
     "dataDragHint": "Przeciągnij pole na ustawienie, by czytało je z tego kroku.",
     "bindingDropIncompatible": "„{field}” nie jest wartością, jaką może przyjąć {target}.",
-    "bindingDropUnreachable": "Ten krok nie może czytać tamtego: nie zawsze działa przed nim."
+    "bindingDropUnreachable": "Ten krok nie może czytać tamtego: nie zawsze działa przed nim.",
+    "validationBindingTemplateNotText": "Szablon tworzy tekst, a to pole nie przyjmuje tekstu.",
+    "bindingModeTemplate": "Szablon",
+    "templateInsert": "Wstaw wartość do {field}",
+    "templateInsertPlaceholder": "Wstaw wartość…",
+    "templateUnknown": "{placeholder} nie wskazuje niczego, co ten krok może czytać.",
+    "templatePreview": "Podgląd:"
   },
   "artifacts": {
     "title": "Artefakty",

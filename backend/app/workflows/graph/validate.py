@@ -86,7 +86,15 @@ from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
 from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
-from app.workflows.contracts.io import FileRef, LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.io import (
+    Binding,
+    FileRef,
+    LiteralValue,
+    NodeOutputRef,
+    TableIORef,
+    TemplateValue,
+    output_refs,
+)
 from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
@@ -155,6 +163,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _config_schema_problems(graph, definitions)
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
+    problems += _template_binding_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
     problems += await _file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
@@ -390,7 +399,7 @@ def _dangling_reference_problems(graph: WorkflowGraph) -> Problems:
             problems.append(
                 (f"bindings.{index}", "This binding's target node is not in this graph")
             )
-        if isinstance(binding.source, NodeOutputRef) and binding.source.node_id not in node_ids:
+        if any(ref.node_id not in node_ids for ref in output_refs(binding.source)):
             problems.append(
                 (f"bindings.{index}", "This binding's source node is not in this graph")
             )
@@ -703,20 +712,20 @@ def _rule_3_type_compatibility(
             problems.append(
                 (f"edges.{edge.id}", "The source and target ports carry incompatible shapes")
             )
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, NodeOutputRef):
-            continue
-        source_definition = definitions.get(binding.source.node_id)
+    for index, binding, ref, templated in _output_reads(graph):
+        source_definition = definitions.get(ref.node_id)
         target_definition = definitions.get(binding.target_node_id)
         if source_definition is None or target_definition is None:
             continue
-        source_type = _resolve_field_path(
-            ports[binding.source.node_id], binding.source.port, binding.source.field_path
-        )
+        source_type = _resolve_field_path(ports[ref.node_id], ref.port, ref.field_path)
         if source_type is _UNKNOWN:
             problems.append(
                 (f"bindings.{index}", "This field path does not exist on the source port's schema")
             )
+            continue
+        if templated:
+            # A placeholder becomes text whatever it holds; the field taking text
+            # is `_template_binding_problems`' to check, once per template.
             continue
         target_type = _field_type(target_definition, binding.target_field)
         if target_type is not _UNKNOWN and not _types_compatible(source_type, target_type):
@@ -754,6 +763,38 @@ def _literal_binding_type_problems(graph: WorkflowGraph, definitions: Definition
                 (f"bindings.{index}", "This literal value does not match the target field's type")
             )
     return problems
+
+
+def _template_binding_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A `TemplateValue` makes text, so the field it is bound to must take text."""
+    problems: Problems = []
+    for index, binding in enumerate(graph.bindings):
+        if not isinstance(binding.source, TemplateValue):
+            continue
+        target_definition = definitions.get(binding.target_node_id)
+        if target_definition is None:
+            continue
+        target_type = _field_type(target_definition, binding.target_field)
+        if target_type is not _UNKNOWN and not _types_compatible(str, target_type):
+            problems.append(
+                (f"bindings.{index}", "A template makes text, and this field does not take text")
+            )
+    return problems
+
+
+def _output_reads(graph: WorkflowGraph) -> list[tuple[int, Binding, NodeOutputRef, bool]]:
+    """Every read of another node's output: the binding, the reference, and whether
+    the reference is a template's placeholder.
+
+    A template reads one per placeholder, each checked like a binding of its own
+    - it exists, it runs before the reader, it is in scope - and flagged, since
+    what it holds becomes text rather than filling the field as it is.
+    """
+    return [
+        (index, binding, ref, isinstance(binding.source, TemplateValue))
+        for index, binding in enumerate(graph.bindings)
+        for ref in output_refs(binding.source)
+    ]
 
 
 def _binding_target_field_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
@@ -1061,10 +1102,8 @@ def _rule_4_branch_local_availability(
     target sits in - the source must dominate the loop itself.
     """
     problems: Problems = []
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, NodeOutputRef):
-            continue
-        source_id = binding.source.node_id
+    for index, binding, ref, _templated in _output_reads(graph):
+        source_id = ref.node_id
         target_id = _at_level_of(binding.target_node_id, node_scope.get(source_id), node_scope)
         if target_id is None:
             # Not an enclosing scope's node - rule 6 says so.
@@ -1249,10 +1288,8 @@ def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID,
         if _is_sanctioned_boundary_edge(edge, entry_boundary_by_node, exit_boundary_by_node):
             continue
         problems.append((f"edges.{edge.id}", "This edge crosses a scope boundary"))
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, NodeOutputRef):
-            continue
-        source_id = binding.source.node_id
+    for index, binding, ref, _templated in _output_reads(graph):
+        source_id = ref.node_id
         chain = owner_chain(binding.target_node_id, node_scope)
         source_scope = node_scope.get(source_id)
         if source_id in chain:
@@ -1384,23 +1421,21 @@ def _rule_10_error_routes(graph: WorkflowGraph, definitions: DefinitionMap) -> P
                 (f"nodes.{node.id}", "An error handler's default branch must lead somewhere")
             )
 
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, NodeOutputRef):
-            continue
-        source = graph.node_by_id.get(binding.source.node_id)
+    for index, binding, ref, _templated in _output_reads(graph):
+        source = graph.node_by_id.get(ref.node_id)
         if source is None or not source.routes_errors:
             continue
         on_error_path = _reached_through(graph, source.id, lambda port: port == ERROR_PORT)
         on_success_path = _reached_through(graph, source.id, lambda port: port != ERROR_PORT)
         target = binding.target_node_id
-        if binding.source.port == ERROR_PORT and target in on_success_path:
+        if ref.port == ERROR_PORT and target in on_success_path:
             problems.append(
                 (
                     f"bindings.{index}",
                     "This binding reads the step's error on a path where it may have succeeded",
                 )
             )
-        elif binding.source.port != ERROR_PORT and target in on_error_path:
+        elif ref.port != ERROR_PORT and target in on_error_path:
             problems.append(
                 (
                     f"bindings.{index}",
@@ -1581,9 +1616,8 @@ def _rule_13_named_and_switched_off_steps(
                     "A step that decides which way the run goes cannot be switched off",
                 )
             )
-    for index, binding in enumerate(graph.bindings):
-        source = binding.source
-        if isinstance(source, NodeOutputRef) and graph.node_by_id[source.node_id].disabled:
+    for index, _binding, ref, _templated in _output_reads(graph):
+        if graph.node_by_id[ref.node_id].disabled:
             problems.append(
                 (
                     f"bindings.{index}",
