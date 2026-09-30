@@ -121,6 +121,13 @@ class TestStoring:
             OrganizationSecretService._check_purpose("openai", SecretKind.AWS_CREDENTIALS)
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", list(SecretKind))
+    async def test_the_escape_hatch_takes_any_shape(self, kind):
+        """`custom` names no service, so it is how an HTTP API's credential - a
+        shape no catalogued service takes - is stored at all."""
+        OrganizationSecretService._check_purpose("custom", kind)
+
+    @pytest.mark.anyio
     async def test_a_private_key_records_its_owner(self):
         """The database refuses a private secret with no owner - a row nobody
         can see and nobody can delete. This is where that is made impossible."""

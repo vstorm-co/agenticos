@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, KeyRound, Plus } from "lucide-react";
+import { AlertTriangle, ExternalLink, KeyRound, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import {
   Badge,
+  Button,
   Label,
   Select,
   SelectContent,
@@ -13,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSecrets } from "@/hooks";
+import { usePermissions, useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import type { StorableSecretKind } from "@/types/secrets";
 
 export interface SecretPickerProps {
@@ -43,12 +47,22 @@ export interface SecretPickerProps {
  * kind/metadata-only selection the model and connector forms already use. A field
  * that names a `kind` narrows the list to it; a mismatched stored kind is one the
  * runtime would refuse, so it is not offered.
+ *
+ * **New secret** stores one without leaving the editor: the vault's own form,
+ * fixed to the field's kind, choosing the new secret on save. The value goes
+ * from that form to the vault and nowhere else - only the id comes back.
  */
 export function SecretPicker({ value, onChange, disabled, kind, error, label }: SecretPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerSecretLabel");
-  const { secrets, isLoading } = useSecrets();
+  const { secrets, kinds, isLoading, create } = useSecrets();
+  const { can } = usePermissions();
+  const [adding, setAdding] = useState(false);
   const offered = kind === undefined ? secrets : secrets.filter((secret) => secret.kind === kind);
+  // The field's kind as this build knows it. One it has no form for offers no
+  // dialog; a field naming none takes any shape, so the whole vault form opens.
+  const shape = kind === undefined ? undefined : kinds.find((entry) => entry.kind === kind);
+  const addable = can(Perm.secretsEdit) && (kind === undefined || shape !== undefined);
 
   const chosen = offered.find((secret) => secret.id === value);
   // An id naming no secret the caller can see - deleted, or in another scope.
@@ -87,13 +101,39 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
       )}
       {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
 
-      <Link
-        href={ROUTES.VAULT}
-        className="text-muted-foreground inline-flex items-center gap-1.5 text-xs underline underline-offset-4"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {t("pickerSecretStore")}
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        {addable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("pickerSecretNew")}
+          </Button>
+        )}
+        <Link
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground inline-flex items-center gap-1.5 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          {t("pickerSecretStore")}
+        </Link>
+      </div>
+      {addable && (
+        <AddSecretDialog
+          open={adding}
+          onOpenChange={setAdding}
+          kinds={kinds}
+          kind={shape?.kind}
+          isPending={create.isPending}
+          onSubmit={async (data) => onChange((await create.mutateAsync(data)).id)}
+        />
+      )}
     </div>
   );
 }

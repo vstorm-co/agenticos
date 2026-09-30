@@ -5861,7 +5861,7 @@
     "pickerSecretPlaceholder": "Ein Secret wählen",
     "pickerSecretsEmpty": "Noch keine Secrets gespeichert.",
     "pickerSecretOrphaned": "Das angegebene Secret ist nicht mehr verfügbar.",
-    "pickerSecretStore": "Ein Secret im Vault speichern",
+    "pickerSecretStore": "Vault öffnen",
     "pickerMembersChosen": "{count, plural, =0 {Mitglieder wählen} =1 {1 Mitglied} other {# Mitglieder}}",
     "pickerMembersScope": "Empfänger",
     "panelMultiSelected": "{count, plural, =1 {1 Knoten ausgewählt} other {# Knoten ausgewählt}}",
@@ -6128,7 +6128,8 @@
     "nodeFormMapName": "Name {index}",
     "nodeFormMapValue": "Wert {index}",
     "nodeFormMapNamePlaceholder": "Name",
-    "nodeFormMapValuePlaceholder": "Wert"
+    "nodeFormMapValuePlaceholder": "Wert",
+    "pickerSecretNew": "Neues Secret"
   },
   "artifacts": {
     "title": "Artefakte",

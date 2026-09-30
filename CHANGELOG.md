@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A new secret from a workflow step.** A step's secret field offers New
+  secret: the vault's form fixed to the kind the field takes, choosing the new
+  secret on save, so an HTTP credential or a decision key is added without
+  leaving the editor. Only the id reaches the graph (#1950).
 - **A webhook's test URL, and a Respond to webhook step.** Listen for test event
   on a draft's webhook trigger opens a test URL for two minutes; the one call to
   it is pinned as the trigger's output and never starts a run. A graph holding
@@ -324,6 +328,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A secret for "Something else" can take any shape.** The vault form offers
+  every kind for it, but the server stored only an API key that way and refused
+  the rest - which left an HTTP step's credential, a kind no listed service
+  takes, impossible to add.
 - **Headers can be edited on a step.** A step's headers - an HTTP request's,
   a download's, an upload's, a webhook answer's - showed as an empty text box
   that could not hold them; each is now a row of a name and its value. The list

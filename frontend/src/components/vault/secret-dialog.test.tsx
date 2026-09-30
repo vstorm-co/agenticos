@@ -128,6 +128,39 @@ const STORED: Secret = {
   hint: "4Q2X",
 };
 
+describe("AddSecretDialog with the kind fixed", () => {
+  it("asks no service, and stores the field's kind as custom", async () => {
+    const onSubmit = vi.fn().mockResolvedValue({});
+    render(
+      <AddSecretDialog
+        open
+        onOpenChange={vi.fn()}
+        kinds={KINDS}
+        kind="gcp_service_account"
+        onSubmit={onSubmit}
+        isPending={false}
+      />,
+    );
+
+    expect(screen.queryByRole("combobox", { name: "Which one" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Kind" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Drive reader");
+    await userEvent.type(
+      screen.getByLabelText(/Service Account Json/, { selector: "input" }),
+      "sa-json",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Drive reader",
+        purpose: "custom",
+        value: expect.objectContaining({ kind: "gcp_service_account" }),
+      }),
+    );
+  });
+});
+
 describe("AddSecretDialog", () => {
   function open(onSubmit = vi.fn().mockResolvedValue({})) {
     render(

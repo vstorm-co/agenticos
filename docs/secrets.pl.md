@@ -1,5 +1,5 @@
 ---
-source_sha: "78a92d55183a"
+source_sha: "3354f9a35a24"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -115,6 +115,11 @@ dodany, token nie może zostać skierowany na inny serwer przez edycję źródł
 i żaden inny klucz nie może go zastąpić.
 
 `http_credential` to reguła `git_token` dla kroku [`http.request`](reference/workflow-nodes.md#http-request) workflowu: URL kroku wpisuje ten, kto edytuje workflow, i może on pochodzić z wejścia runa, więc originy, do których token może trafić, są zapieczętowane razem z nim, np. `https://api.example.com`. Krok sprawdza origin URL-a, który zaraz wywoła, i każdego przekierowania, za którym idzie, i nie wysyła tokena nigdzie indziej. Żaden inny rodzaj sekretu nie może go zastąpić.
+
+Pole sekretu w kroku workflow oferuje **New secret**: formularz samego vault,
+ustalony na rodzaj, który pole przyjmuje, i zapisany jako `custom`, jedyny cel
+przyjmujący dowolny kształt. Nowy sekret zostaje wybrany po zapisaniu. Jego wartość
+trafia do vault i nigdzie indziej, a graf przechowuje tylko jego id.
 
 `entra_app` to to, jako co loguje się źródło synchronizacji SharePoint albo
 OneDrive. Jego zasięg ustala się w Microsoft Entra, nie tutaj: o tym, które

@@ -114,6 +114,11 @@ The step checks the origin of the URL it is about to call, and of every redirect
 follows, and sends the token nowhere else. No other kind of secret can stand in for
 it.
 
+A workflow step's secret field offers **New secret**: the vault's own form, fixed
+to the kind the field takes and stored as `custom`, the one purpose that takes any
+shape. The new secret is chosen on save. Its value goes to the vault and nowhere
+else, and the graph holds only its id.
+
 `entra_app` is what a SharePoint or OneDrive sync source signs in as. Its reach is
 set in Microsoft Entra, not here: the Graph permissions an administrator consented
 to decide which sites it can read, and a token does not say which those are. Grant

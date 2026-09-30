@@ -3654,7 +3654,7 @@
     "pickerSecretPlaceholder": "Wybierz sekret",
     "pickerSecretsEmpty": "Nie zapisano jeszcze sekretów.",
     "pickerSecretOrphaned": "Wskazany sekret nie jest już dostępny.",
-    "pickerSecretStore": "Zapisz sekret w vault",
+    "pickerSecretStore": "Otwórz vault",
     "pickerMembersChosen": "{count, plural, =0 {Wybierz członków} =1 {1 członek} few {# członków} many {# członków} other {# członka}}",
     "pickerMembersScope": "Odbiorcy",
     "panelMultiSelected": "{count, plural, =1 {Zaznaczono 1 węzeł} few {Zaznaczono # węzły} many {Zaznaczono # węzłów} other {Zaznaczono # węzła}}",
@@ -3921,7 +3921,8 @@
     "nodeFormMapName": "Nazwa {index}",
     "nodeFormMapValue": "Wartość {index}",
     "nodeFormMapNamePlaceholder": "Nazwa",
-    "nodeFormMapValuePlaceholder": "Wartość"
+    "nodeFormMapValuePlaceholder": "Wartość",
+    "pickerSecretNew": "Nowy sekret"
   },
   "artifacts": {
     "title": "Artefakty",
