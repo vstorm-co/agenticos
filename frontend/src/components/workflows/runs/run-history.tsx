@@ -110,7 +110,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     {
       key: "mode",
       header: t("runColumns.mode"),
-      cell: (run) => (run.mode === "test" ? t("modeTest") : t("modeReal")),
+      cell: (run) => (run.mode === "test" ? t("runModeTest") : t("runModeReal")),
     },
     {
       key: "trigger",
@@ -148,27 +148,31 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <Filter
             label={t("runFilterStatus")}
+            any={t("runFilterAnyStatus")}
             value={status ?? ALL}
             onChange={narrow(setStatus)}
             options={STATUSES.map((value) => [value, t(`runStatus.${value}`)])}
           />
           <Filter
             label={t("runFilterMode")}
+            any={t("runFilterAnyMode")}
             value={mode ?? ALL}
             onChange={narrow(setMode)}
             options={MODES.map((value) => [
               value,
-              value === "test" ? t("modeTest") : t("modeReal"),
+              value === "test" ? t("runModeTest") : t("runModeReal"),
             ])}
           />
           <Filter
             label={t("runFilterTrigger")}
+            any={t("runFilterAnyTrigger")}
             value={trigger ?? ALL}
             onChange={narrow(setTrigger)}
             options={TRIGGERS.map((value) => [value, t(`trigger.${value}`)])}
           />
           <Filter
             label={t("runFilterSince")}
+            any={t("runFilterAnySince")}
             value={reach === undefined ? ALL : (since as string)}
             onChange={(value) => {
               setAnchor(Date.now());
@@ -206,23 +210,25 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
 
 function Filter({
   label,
+  any,
   value,
   onChange,
   options,
 }: {
   label: string;
+  /** What the filter reads when it narrows nothing: "Any status", "Anyone". */
+  any: string;
   value: string;
   onChange: (value: string) => void;
   options: [string, string][];
 }) {
-  const t = useTranslations("pages.workflows");
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-8 w-auto min-w-32 text-xs" aria-label={label}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>{t("runFilterAny", { filter: label })}</SelectItem>
+        <SelectItem value={ALL}>{any}</SelectItem>
         {options.map(([option, text]) => (
           <SelectItem key={option} value={option}>
             {text}

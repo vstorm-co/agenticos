@@ -88,7 +88,7 @@ describe("RunHistory", () => {
     expect(screen.getByText("No runs match")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Status" }));
-    await userEvent.click(screen.getByRole("option", { name: "Any Status" }));
+    await userEvent.click(screen.getByRole("option", { name: "Any status" }));
     expect(url.set).toHaveBeenCalledWith("status", null);
     expect(url.set).toHaveBeenCalledWith("page", null);
   });

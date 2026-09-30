@@ -1,5 +1,5 @@
 ---
-source_sha: "f28fad52f4d0"
+source_sha: "eb55690f9368"
 ---
 
 # Workflows { #workflows }
@@ -429,6 +429,8 @@ gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
 - **Timezone** - darin wird der Cron-Ausdruck eines Zeitplans gelesen, auch über die
   Zeitumstellung hinweg, und darin schreibt ein **Date & time**-Schritt, der keine
   eigene Zeitzone nennt. Ein Lauf behält die beim Start gesetzte. Ohne Angabe UTC.
+  Das Feld sagt, wie spät es dort gerade ist, und lehnt eine Zeitzone ab, die der
+  Browser nicht kennt.
 - **Default deadline** - die Frist, die ein Lauf bekommt, wenn das, was ihn startet,
   keine nennt.
 - **Error workflow** - ein veröffentlichter Workflow, der mit **On failure of a
@@ -468,13 +470,17 @@ den er ausgeführt hat, jeder Schritt markiert mit dem, was der Run mit ihm geta
 seinen Versuchen und seinem Fehler, und die Schritte, die er nie erreicht hat,
 blass. **Open loop body** zeigt die Iterationen einer Schleife auf dieselbe Weise.
 
-Die Ausgabe des Runs und jeder Schritt, den er gemacht hat, Iteration für Iteration,
+Die Antwort des Runs - sein Text, sein strukturiertes Ergebnis, die Passagen, auf
+die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst unter
+**Raw output** - und jeder Schritt, den er gemacht hat, Iteration für Iteration,
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 
 
-**Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
+In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
+**Published**, und ein aus der Konsole oder über die HTTP-API gestarteter Lauf
+lautet **Console or API**. **Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
 die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
 gefilterte Liste verlinken lässt. **Runs** in der Workflow-Liste zeigt die Läufe

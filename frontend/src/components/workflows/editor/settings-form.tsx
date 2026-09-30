@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   Button,
@@ -23,6 +23,24 @@ const NONE = "none";
 /** Every IANA timezone this browser knows, for the timezone field's suggestions. */
 function timezones(): string[] {
   return Intl.supportedValuesOf("timeZone");
+}
+
+/**
+ * The time it is now in a timezone, or null when the browser does not know the
+ * zone - the field then says so rather than letting a schedule run in a place
+ * that does not exist.
+ */
+function timeIn(zone: string, locale: string): string | null {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
 }
 
 /** A whole number from a field, or null when it is empty. */
@@ -49,6 +67,7 @@ export function WorkflowSettingsForm({
   onSave: (settings: WorkflowSettings) => void;
 }) {
   const t = useTranslations("pages.workflows");
+  const locale = useLocale();
   const { workflows } = useWorkflows();
   const saved = workflow.settings;
   const [timezone, setTimezone] = useState(saved.timezone);
@@ -65,10 +84,12 @@ export function WorkflowSettingsForm({
       candidate.id !== workflow.id && candidate.live_trigger === WORKFLOW_FAILED_TRIGGER,
   );
   const minutes = wholeOrNull(deadline);
+  const zone = timezone.trim() || "UTC";
+  const now = timeIn(zone, locale);
 
   const save = () =>
     onSave({
-      timezone: timezone.trim() || "UTC",
+      timezone: zone,
       default_deadline_seconds: minutes === null ? null : minutes * 60,
       error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
       run_retention_days: wholeOrNull(retention),
@@ -86,6 +107,8 @@ export function WorkflowSettingsForm({
           list="workflow-timezones"
           value={timezone}
           disabled={disabled}
+          aria-invalid={now === null}
+          aria-describedby="workflow-timezone-hint"
           onChange={(event) => setTimezone(event.target.value)}
         />
         <datalist id="workflow-timezones">
@@ -93,7 +116,15 @@ export function WorkflowSettingsForm({
             <option key={zone} value={zone} />
           ))}
         </datalist>
-        <p className="text-muted-foreground text-xs">{t("settingsTimezoneHint")}</p>
+        {now === null ? (
+          <p id="workflow-timezone-hint" className="text-destructive text-xs">
+            {t("settingsTimezoneUnknown", { zone })}
+          </p>
+        ) : (
+          <p id="workflow-timezone-hint" className="text-muted-foreground text-xs">
+            {t("settingsTimezoneNow", { time: now })} {t("settingsTimezoneHint")}
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -162,7 +193,7 @@ export function WorkflowSettingsForm({
       </div>
 
       {!disabled && (
-        <Button onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving || now === null}>
           {t("settingsSave")}
         </Button>
       )}

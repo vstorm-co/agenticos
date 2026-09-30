@@ -27,13 +27,13 @@ import {
   FigureCard,
   Skeleton,
 } from "@/components/ui";
-import { JsonView } from "@/components/ui/json-view";
 import {
   NodeRunOverlayProvider,
   summarizeNodeRuns,
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
+import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { RunFiles } from "@/components/workflows/runs/run-files";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import {
@@ -197,8 +197,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
         <FigureCard
           icon={ListChecks}
           label={t("runSteps")}
-          value={String(stepsRun)}
-          caption={t("runStepsCaption", { count: nodes.length })}
+          value={t("runStepsOf", { done: stepsRun, count: nodes.length })}
         />
       </div>
 
@@ -246,7 +245,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               {run.output ? (
-                <JsonView value={run.output} />
+                <RunAnswer output={run.output} />
               ) : (
                 <p className="text-muted-foreground text-sm">
                   {live ? t("runOutputPending") : t("runOutputNone")}
@@ -254,7 +253,6 @@ export default function WorkflowRunPage({ params }: PageProps) {
               )}
             </CardContent>
           </Card>
-          <RunFiles runId={run.id} files={files} />
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">{t("runStepList")}</CardTitle>
@@ -285,6 +283,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
               </ul>
             </CardContent>
           </Card>
+          <RunFiles runId={run.id} files={files} />
         </div>
       </div>
     </div>

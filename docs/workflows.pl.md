@@ -1,5 +1,5 @@
 ---
-source_sha: "f28fad52f4d0"
+source_sha: "eb55690f9368"
 ---
 
 # Workflows { #workflows }
@@ -387,7 +387,8 @@ rozpoczętego po niej, a publikacja je zachowuje.
 
 - **Timezone** - w niej czytane jest wyrażenie cron harmonogramu, także przy zmianie
   czasu, i w niej pisze krok **Date & time**, który nie wskazuje własnej strefy.
-  Przebieg zachowuje tę ustawioną w chwili startu. Bez ustawienia UTC.
+  Przebieg zachowuje tę ustawioną w chwili startu. Bez ustawienia UTC. Pole mówi,
+  która jest tam teraz godzina, i odrzuca strefę, której przeglądarka nie zna.
 - **Default deadline** - termin, który dostaje przebieg, gdy to, co go uruchamia, nie
   podaje żadnego.
 - **Error workflow** - opublikowany workflow zaczynający się od **On failure of a
@@ -425,11 +426,15 @@ krokiem oznaczonym tym, co run z nim zrobił, jego próbami i błędem, oraz wys
 krokami, do których nigdy nie dotarł. **Open loop body** pokazuje w ten sam sposób
 iteracje pętli.
 
-Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
+Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się oparł, i
+liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
+krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 
-**Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
+Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
+**Published**, a przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
+API**. **Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
 albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
 podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow

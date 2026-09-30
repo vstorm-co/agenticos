@@ -381,7 +381,8 @@ to every run started after it, and publishing keeps them.
 
 - **Timezone** - a schedule's cron expression is read in it, across daylight
   saving too, and a **Date & time** step that names no timezone writes in it. A
-  run keeps the one set when it started. UTC when unset.
+  run keeps the one set when it started. UTC when unset. The field says what time
+  it is there now, and refuses a zone the browser does not know.
 - **Default deadline** - the deadline a run gets when whatever starts it names
   none.
 - **Error workflow** - a published workflow starting from **On failure of a
@@ -416,12 +417,15 @@ ended with, if any. Beside them is the graph it executed, with each step marked 
 what the run did with it, its tries and its error, and the steps it never reached
 faded. **Open loop body** shows a loop's iterations the same way.
 
-The run's output
-and every step it took, iteration by iteration, sit alongside. A run still going
+The run's answer - its text, its structured result, the passages it drew on and how
+many files it made, with the JSON itself under **Raw output** - and every step it
+took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 
-**Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+In the list a test run's version reads **Draft (test)** and a real one's
+**Published**, and a run started from the console or the HTTP API reads **Console or
+API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a

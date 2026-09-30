@@ -1,5 +1,5 @@
 ---
-source_sha: "f28fad52f4d0"
+source_sha: "eb55690f9368"
 ---
 
 # Workflows { #workflows }
@@ -401,7 +401,8 @@ ejecución iniciada después, y publicar los conserva.
 
 - **Timezone** - en ella se lee la expresión cron de una programación, también con
   el cambio de hora, y en ella escribe un paso **Date & time** que no indica zona
-  propia. Una ejecución conserva la fijada al empezar. UTC si no se indica.
+  propia. Una ejecución conserva la fijada al empezar. UTC si no se indica. El campo
+  dice qué hora es allí ahora y rechaza una zona que el navegador no conoce.
 - **Default deadline** - el plazo que recibe una ejecución cuando lo que la inicia no
   indica ninguno.
 - **Error workflow** - un workflow publicado que empieza por **On failure of a
@@ -439,13 +440,16 @@ paso marcado por lo que el run hizo con él, sus intentos y su error, y los paso
 que nunca llegó atenuados. **Open loop body** muestra las iteraciones de un bucle de
 la misma manera.
 
-La salida del run y cada paso que dio, iteración a iteración, están
-al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
+apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
+que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 
 
-**Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
+En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real
+**Published**, y un run iniciado desde la consola o la API HTTP dice **Console or
+API**. **Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
 días) acotan las ejecuciones, y la lista responde
 una página cada vez; cada filtro queda en la dirección, así que una lista filtrada
 se puede enlazar. **Runs** en la lista de workflows muestra juntas las ejecuciones de

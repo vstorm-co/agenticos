@@ -100,6 +100,43 @@ describe("WorkflowSettingsForm", () => {
     });
   });
 
+  it("says what time it is in the zone, and refuses one the browser does not know", async () => {
+    const onSave = vi.fn();
+    render(
+      <WorkflowSettingsForm
+        workflow={workflow()}
+        disabled={false}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    expect(screen.getByText(/^It is \d{1,2}:\d{2}( [AP]M)? there now\./)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Timezone"), { target: { value: "Mars/Olympus" } });
+    expect(screen.getByText("Mars/Olympus is not a timezone this browser knows.")).toBeTruthy();
+    expect(screen.getByLabelText("Timezone")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled();
+  });
+
+  it("does not take any other failure for an unknown zone", () => {
+    const format = vi.spyOn(Intl, "DateTimeFormat").mockImplementation(() => {
+      throw new TypeError("broken");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(() =>
+      render(
+        <WorkflowSettingsForm
+          workflow={workflow()}
+          disabled={false}
+          saving={false}
+          onSave={vi.fn()}
+        />,
+      ),
+    ).toThrow("broken");
+    format.mockRestore();
+    vi.mocked(console.error).mockRestore();
+  });
+
   it("reads without writing for a caller who cannot edit", () => {
     render(<WorkflowSettingsForm workflow={workflow()} disabled saving={false} onSave={vi.fn()} />);
     expect(screen.getByLabelText("Timezone")).toBeDisabled();

@@ -513,6 +513,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow run's page shows its answer, not the envelope around it.** The
+  Output card reads the run's text, its structured result, the passages it drew
+  on and how many files it made, with the JSON folded under **Raw output**; the
+  steps count reads "3 of 3", and the step list sits above the files. In the
+  runs list a test run's version reads **Draft (test)** and a real one's
+  **Published**, a run started from the console or the API **Console or API**,
+  and each filter says what it narrows nothing to - **Any status**, **Any
+  version**, **Any trigger**, **Any time**. A workflow's timezone setting says
+  what time it is there now and refuses a zone the browser does not know.
 - **A workflow's card on the list says what starts it and how it last ran.**
   Beside the trigger's icon: "Schedule · 4 steps", one **Live** or **Draft**
   status, and the last run's status and when - "Not run yet" until then, with
