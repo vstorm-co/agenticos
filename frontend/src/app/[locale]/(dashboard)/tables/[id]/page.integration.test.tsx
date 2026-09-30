@@ -53,7 +53,7 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     onSort: (sort: { by: string; direction: string }) => void;
     onOpenRecord: (r: RecordRead) => void;
     canEdit: boolean;
-    onAddRecord?: () => void;
+    onAddRecord?: (initial?: Record<string, unknown>) => void;
     columnActions?: Record<"onSort" | "onRename" | "onHide" | "onArchive", (arg: unknown) => void>;
     onAddColumn?: () => void;
     records: RecordRead[];
@@ -68,7 +68,10 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     >
       <button onClick={() => onOpenRecord({ ...RECORD })}>open-record-from-grid</button>
       <button onClick={() => onSort({ by: "name", direction: "desc" })}>resort-by-name</button>
-      {onAddRecord && <button onClick={onAddRecord}>add-from-empty-grid</button>}
+      {onAddRecord && <button onClick={() => onAddRecord()}>add-from-empty-grid</button>}
+      {onAddRecord && (
+        <button onClick={() => onAddRecord({ name: "Ada" })}>add-from-new-line</button>
+      )}
       {onAddColumn && <button onClick={onAddColumn}>add-column</button>}
       <button onClick={onEndReached}>scroll-to-end</button>
       {columnActions &&
@@ -95,12 +98,14 @@ vi.mock("@/components/tables/new-record-dialog", () => ({
   NewRecordDialog: ({
     open,
     onOpenChange,
+    initial,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    initial?: Record<string, unknown>;
   }) =>
     open ? (
-      <div role="dialog" aria-label="new-record-dialog">
+      <div role="dialog" aria-label="new-record-dialog" data-initial={JSON.stringify(initial)}>
         <button onClick={() => onOpenChange(false)}>close-new-record</button>
       </div>
     ) : null,
@@ -484,6 +489,14 @@ describe("the table detail page", () => {
 
     await user.click(screen.getByRole("button", { name: "add-from-empty-grid" }));
     expect(screen.getByRole("dialog", { name: "new-record-dialog" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-new-record" }));
+
+    // A line that needs more than it holds opens the form with what was typed.
+    await user.click(screen.getByRole("button", { name: "add-from-new-line" }));
+    expect(screen.getByRole("dialog", { name: "new-record-dialog" })).toHaveAttribute(
+      "data-initial",
+      JSON.stringify({ name: "Ada" }),
+    );
   });
 
   it("offers a viewer without can_edit no way to add a record", async () => {

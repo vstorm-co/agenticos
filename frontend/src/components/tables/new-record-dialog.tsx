@@ -26,6 +26,8 @@ interface NewRecordDialogProps {
   columns: ColumnDef[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** What the form starts with - a value typed on the grid's new-record line. */
+  initial?: Record<string, CellValue>;
 }
 
 /** Whether a column needs a value from whoever adds a record: not nullable, and no default. */
@@ -64,11 +66,20 @@ function isEmpty(value: CellValue | undefined): boolean {
  * The record is made by the member, like any other write: its history says so,
  * and a table trigger fires for it.
  */
-export function NewRecordDialog({ tableId, columns, open, onOpenChange }: NewRecordDialogProps) {
+export function NewRecordDialog({
+  tableId,
+  columns,
+  open,
+  onOpenChange,
+  initial,
+}: NewRecordDialogProps) {
   const t = useTranslations("pages.tables.newRecord");
   const { create } = useRecordMutation(tableId);
   const live = columns.filter((column) => !column.archived);
-  const [values, setValues] = useState<Record<string, CellValue>>(() => seed(live));
+  const [values, setValues] = useState<Record<string, CellValue>>(() => ({
+    ...seed(live),
+    ...initial,
+  }));
   const [tried, setTried] = useState(false);
 
   const missing = live.filter((column) => isRequired(column) && isEmpty(values[column.id]));

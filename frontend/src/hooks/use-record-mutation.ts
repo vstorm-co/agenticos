@@ -51,9 +51,9 @@ function chainsFor(client: QueryClient): WriteChains {
  * must not lose what the user typed or dragged. Every other failure toasts,
  * the same as any other mutation in this codebase.
  *
- * `commit` is how a surface writes a record's values. `create` and `remove` are
- * the create and delete mutations no console control calls yet. `fetchRecord`
- * reads one record fresh, for "reload and reapply".
+ * `commit` is how a surface writes a record's values; `create` adds one - the
+ * Add record form and the grid's new-record line - and `remove` deletes one.
+ * `fetchRecord` reads one record fresh, for "reload and reapply".
  */
 export function useRecordMutation(tableId: string) {
   const tErrors = useTranslations("errors");

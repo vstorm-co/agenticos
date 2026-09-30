@@ -4152,7 +4152,11 @@
       "deleteDescription": "Usunięte rekordy znikają ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla każdego z nich. Tego nie można cofnąć.",
       "deleted": "{count, plural, one {Usunięto # rekord.} few {Usunięto # rekordy.} many {Usunięto # rekordów.} other {Usunięto # rekordu.}}",
       "deleteConflict": "{count, plural, one {# rekord zmienił się od wczytania i został zachowany. Sprawdź go i spróbuj ponownie.} few {# rekordy zmieniły się od wczytania i zostały zachowane. Sprawdź je i spróbuj ponownie.} many {# rekordów zmieniło się od wczytania i zostało zachowanych. Sprawdź je i spróbuj ponownie.} other {# rekordu zmieniło się od wczytania i zostało zachowane. Sprawdź je i spróbuj ponownie.}}",
-      "addColumn": "Dodaj kolumnę"
+      "addColumn": "Dodaj kolumnę",
+      "newRecord": "Nowy rekord",
+      "newRecordLine": "Nowy rekord: {column}",
+      "newRecordPlaceholder": "Wpisz {column} i naciśnij Enter, by dodać rekord",
+      "newRecordAdded": "Dodano {value}"
     },
     "filters": {
       "button": "Filtr",

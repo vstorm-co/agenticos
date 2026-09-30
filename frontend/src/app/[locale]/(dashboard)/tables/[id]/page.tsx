@@ -62,6 +62,7 @@ import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUrlState } from "@/hooks/use-url-state";
 import { emptyViewConfig } from "@/types/tables";
 import type {
+  CellValue,
   ColumnDef,
   ColumnInput,
   RecordFilter,
@@ -99,7 +100,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
-  const [addingRecord, setAddingRecord] = useState(false);
+  // What the Add record form opens with - null while it is closed. Each opening
+  // mounts the form afresh, so what it starts from is read then.
+  const [addingRecord, setAddingRecord] = useState<Record<string, CellValue> | null>(null);
+  const [addCount, setAddCount] = useState(0);
+  const addRecord = (initial: Record<string, CellValue> = {}) => {
+    setAddCount(addCount + 1);
+    setAddingRecord(initial);
+  };
   const [addingColumn, setAddingColumn] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -267,7 +275,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               <Share2 className="h-4 w-4" /> {t("share")}
             </Button>
             {canEdit && (
-              <Button size="sm" onClick={() => setAddingRecord(true)}>
+              <Button size="sm" onClick={() => addRecord()}>
                 <Plus className="h-4 w-4" /> {t("addRecord")}
               </Button>
             )}
@@ -371,7 +379,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           <TableGridView
             tableId={id}
             canEdit={canEdit}
-            onAddRecord={canEdit ? () => setAddingRecord(true) : undefined}
+            onAddRecord={canEdit ? addRecord : undefined}
             columnActions={canEdit ? columnActions : undefined}
             onAddColumn={canEdit ? () => setAddingColumn(true) : undefined}
             columns={columns}
@@ -506,8 +514,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         <NewRecordDialog
           tableId={id}
           columns={table.columns}
-          open={addingRecord}
-          onOpenChange={setAddingRecord}
+          key={addCount}
+          open={addingRecord !== null}
+          initial={addingRecord ?? undefined}
+          onOpenChange={(open) => {
+            if (!open) setAddingRecord(null);
+          }}
         />
       )}
 

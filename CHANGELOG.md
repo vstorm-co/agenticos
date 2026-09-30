@@ -348,6 +348,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A table's grid adds records as you type.** The new-record line under the
+  rows, which #1958 asked for, was missing: what is typed goes into the first
+  text column and Enter creates the record, or opens Add record with it when
+  another column is required.
 - **A required setting left empty stops "Ready to publish".** An agent, a
   table or the people to tell that a step still needs is now marked in the
   editor, as publishing would refuse it, instead of the badge saying the draft

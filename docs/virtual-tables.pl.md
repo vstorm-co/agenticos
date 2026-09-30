@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9e6e603bbe"
+source_sha: "d41654f9946d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -137,6 +137,11 @@ zanim rekord zostanie zapisany; każda inna pusta kolumna przyjmuje wartość do
 Kliknięcie komórki edytuje ją w miejscu: Enter lub kliknięcie obok zapisuje, Escape
 zostawia ją bez zmian, a pole tak/nie, które nie może być puste, przełącza się jednym
 kliknięciem. Przycisk rozwinięcia na końcu wiersza otwiera cały rekord.
+
+Linia pod siatką dodaje rekordy podczas pisania: to, co wpiszesz, trafia do pierwszej
+kolumny tekstowej, a Enter tworzy rekord i zostawia linię gotową na następny. Tabela z
+inną wymaganą kolumną otwiera zamiast tego **Add record** z wpisaną wartością, więc
+nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się

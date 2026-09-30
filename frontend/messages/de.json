@@ -6359,7 +6359,11 @@
       "deleteDescription": "Gelöschte Datensätze verschwinden aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für jeden ausgelöst. Das lässt sich nicht rückgängig machen.",
       "deleted": "{count, plural, one {# Datensatz gelöscht.} other {# Datensätze gelöscht.}}",
       "deleteConflict": "{count, plural, one {# Datensatz wurde seit dem Laden geändert und behalten. Prüfen Sie ihn und versuchen Sie es erneut.} other {# Datensätze wurden seit dem Laden geändert und behalten. Prüfen Sie sie und versuchen Sie es erneut.}}",
-      "addColumn": "Spalte hinzufügen"
+      "addColumn": "Spalte hinzufügen",
+      "newRecord": "Neuer Datensatz",
+      "newRecordLine": "Neuer Datensatz: {column}",
+      "newRecordPlaceholder": "Gib {column} ein und drücke Enter, um einen Datensatz hinzuzufügen",
+      "newRecordAdded": "{value} hinzugefügt"
     },
     "filters": {
       "button": "Filter",

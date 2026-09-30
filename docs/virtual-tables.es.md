@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9e6e603bbe"
+source_sha: "d41654f9946d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -140,6 +140,12 @@ antes de escribir el registro; cualquier otra columna vacía toma su valor
 predeterminado. Al hacer clic en una celda se edita en su sitio: Enter o hacer clic
 fuera la guarda, Escape la deja sin cambios, y un sí/no que no puede quedar vacío
 cambia con un clic. El botón de expandir al final de una fila abre el registro entero.
+
+La línea bajo la cuadrícula añade registros mientras escribes: lo que escribes va a la
+primera columna de texto, y Enter crea el registro y deja la línea lista para el
+siguiente. Una tabla con otra columna obligatoria abre en su lugar **Add record** con el
+valor escrito ya puesto, así que no se escribe nada hasta que están todos los valores
+obligatorios.
 
 Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
 edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse

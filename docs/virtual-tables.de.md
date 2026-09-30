@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9e6e603bbe"
+source_sha: "d41654f9946d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -149,6 +149,12 @@ ausgefüllt sein, bevor der Datensatz geschrieben wird; jede andere leere Spalte
 oder ein Klick daneben speichert, Escape lässt sie unverändert, und ein Ja/Nein, das
 nicht leer sein darf, wechselt mit einem Klick. Die Schaltfläche zum Aufklappen am
 Zeilenende öffnet den ganzen Datensatz.
+
+Die Zeile unter dem Raster fügt Datensätze beim Tippen hinzu: Was du tippst, landet
+in der ersten Textspalte, und Enter legt den Datensatz an und lässt die Zeile für den
+nächsten bereit. Eine Tabelle mit einer weiteren Pflichtspalte öffnet stattdessen
+**Add record** mit dem getippten Wert, sodass nichts geschrieben wird, bevor alle
+Pflichtwerte da sind.
 
 Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
 Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber

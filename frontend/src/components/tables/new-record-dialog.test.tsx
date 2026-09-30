@@ -50,6 +50,20 @@ describe("isRequired", () => {
 });
 
 describe("NewRecordDialog", () => {
+  it("starts from a value typed on the grid's new-record line", () => {
+    render(
+      <NewRecordDialog
+        tableId="t1"
+        columns={columns}
+        open
+        onOpenChange={vi.fn()}
+        initial={{ name: "Ada" }}
+      />,
+      { wrapper },
+    );
+    expect(screen.getByLabelText(/^Name/)).toHaveValue("Ada");
+  });
+
   it("asks for every live column and marks the required ones", () => {
     renderDialog();
 

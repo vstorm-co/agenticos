@@ -6500,7 +6500,11 @@
       "deleteDescription": "Deleted records leave every view, and a table trigger watching deletions fires for each. This cannot be undone.",
       "deleted": "{count, plural, one {# record deleted.} other {# records deleted.}}",
       "deleteConflict": "{count, plural, one {# record changed since you loaded it and was kept. Check it and try again.} other {# records changed since you loaded them and were kept. Check them and try again.}}",
-      "addColumn": "Add column"
+      "addColumn": "Add column",
+      "newRecord": "New record",
+      "newRecordLine": "New record: {column}",
+      "newRecordPlaceholder": "Type a {column} and press Enter to add a record",
+      "newRecordAdded": "Added {value}"
     },
     "filters": {
       "button": "Filter",

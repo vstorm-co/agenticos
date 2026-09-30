@@ -517,6 +517,17 @@ describe("TableGridView", () => {
       expect(onAddColumn).toHaveBeenCalled();
     });
 
+    it("offers a new-record line under the rows, and none under an empty table", async () => {
+      const onAddRecord = vi.fn();
+      renderEditable({ onAddRecord });
+      expect(screen.getByRole("textbox", { name: /^New record:/ })).toBeInTheDocument();
+    });
+
+    it("has no new-record line where records cannot be added", () => {
+      renderEditable({ records: [], onAddRecord: vi.fn() });
+      expect(screen.queryByRole("textbox", { name: /^New record:/ })).toBeNull();
+    });
+
     it("offers to add a record from the empty state", async () => {
       const onAddRecord = vi.fn();
       const user = userEvent.setup();

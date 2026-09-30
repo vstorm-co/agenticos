@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { InlineCell } from "./inline-cell";
+import { NewRecordRow } from "./new-record-row";
 import { selectChips } from "./option-chip";
 import {
   Button,
@@ -66,8 +67,11 @@ export function TableGridView({
   onSort: (sort: RecordSort) => void;
   onOpenRecord: (record: RecordRead) => void;
   canEdit: boolean;
-  /** Offered from the empty state when records may be added. */
-  onAddRecord?: () => void;
+  /**
+   * Offered from the empty state when records may be added, and from the
+   * new-record line under the grid with what was typed there.
+   */
+  onAddRecord?: (initial?: Record<string, CellValue>) => void;
   /**
    * A menu on each header - sort, rename, hide, archive - for whoever may
    * change the table. The menu sorts, so the header is not a sort button too.
@@ -270,10 +274,13 @@ export function TableGridView({
           <EmptyState
             title={tEmpty("title")}
             description={tEmpty("description")}
-            cta={onAddRecord ? { label: tEmpty("add"), onClick: onAddRecord } : undefined}
+            cta={onAddRecord ? { label: tEmpty("add"), onClick: () => onAddRecord() } : undefined}
           />
         }
       />
+      {onAddRecord && records.length > 0 && (
+        <NewRecordRow tableId={tableId} columns={columns} onNeedsMore={onAddRecord} />
+      )}
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}

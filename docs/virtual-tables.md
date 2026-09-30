@@ -130,6 +130,11 @@ place: Enter or clicking away saves it, Escape leaves it unchanged, and a yes/no
 cannot be empty flips with one click. The expand button at the end of a row opens the
 whole record.
 
+The line under the grid adds records as you type: what you type goes into the first
+text column, and Enter creates the record and leaves the line ready for the next. A
+table with another required column opens **Add record** with the typed value filled
+in instead, so nothing is written until every required value is there.
+
 Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
 newer change is refused rather than written over it. The record then opens with the
 refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
