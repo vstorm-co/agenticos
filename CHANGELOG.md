@@ -109,8 +109,8 @@ Two things are versioned separately from this file and worth knowing about:
   500; pinning a version takes the lock a publish prunes under; the platform
   script goes after a leading doctype rather than before it; the Page style tab
   no longer calls the agent's other skills missing; and an environment with a
-  run still working cannot be removed, since its pages would land on
-  production's. From the second review: `seed-skills` counts a
+  run still working or parked on an approval cannot be removed, since its
+  pages would land on production's. From the second review: `seed-skills` counts a
   file description written on a copy as an edit and decides under a row lock on
   the row as it is now; a template no longer binds a bundled skill the installer
   may not read; restoring a version whose bytes are gone is refused; and a

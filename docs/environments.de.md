@@ -1,5 +1,5 @@
 ---
-source_sha: "e47c65e68d46"
+source_sha: "6377722666ce"
 ---
 
 # Umgebungen { #environments }
@@ -87,8 +87,8 @@ Eine Seite, die der Agent veröffentlicht, folgt derselben Trennung. Ein Run in
 einer benannten Umgebung veröffentlicht ein eigenes
 [Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
 Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
-Eine Umgebung mit einem noch laufenden Run lässt sich erst entfernen, wenn der Run
-endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
+Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
+sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
 Seiten denen von Produktion.
 
 ## Tracing pro Umgebung { #tracing-per-environment }

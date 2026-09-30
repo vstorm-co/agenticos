@@ -1,5 +1,5 @@
 ---
-source_sha: "e47c65e68d46"
+source_sha: "6377722666ce"
 ---
 
 # Środowiska { #environments }
@@ -81,8 +81,8 @@ wersje, jeden komplet ksiąg.
 Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisku
 publikuje własny [artefakt](artifacts.md#one-name-one-link), więc próba `dev` na
 cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
-czytelnicy produkcji. Środowiska z wciąż pracującym runem nie da się usunąć, dopóki
-run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
+czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
+akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
 strony — produkcji.
 
 ## Ślady per środowisko { #tracing-per-environment }

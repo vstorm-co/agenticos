@@ -1,5 +1,5 @@
 ---
-source_sha: "e47c65e68d46"
+source_sha: "6377722666ce"
 ---
 
 # Entornos { #environments }
@@ -82,8 +82,8 @@ contabilidad.
 Una página que el agent publica sigue la misma separación. Un run en un entorno
 con nombre publica un [artefacto](artifacts.md#one-name-one-link) propio, así que
 probar `dev` con el informe semanal nunca vuelve a publicar la página que abren
-los lectores de producción. Un entorno con un run todavía en marcha no se puede
-eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
+los lectores de producción. Un entorno con un run todavía en marcha, o esperando
+una aprobación, no se puede eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
 defecto, y sus páginas a las de producción.
 
 ## Trazas por entorno { #tracing-per-environment }

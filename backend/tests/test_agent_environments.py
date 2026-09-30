@@ -481,7 +481,7 @@ class TestDelete:
         with (
             patch(_REPO) as environments,
             patch(
-                "app.services.agent_environment.agent_run_repo.count_running_in_environment",
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
                 new=AsyncMock(side_effect=lambda *_a, **_k: order.append("count") or 2),
             ),
         ):
@@ -509,7 +509,7 @@ class TestDelete:
                 new=AsyncMock(side_effect=lambda *_a, **_k: order.append("detach")),
             ) as detach,
             patch(
-                "app.services.agent_environment.agent_run_repo.count_running_in_environment",
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
                 new=AsyncMock(return_value=0),
             ),
         ):

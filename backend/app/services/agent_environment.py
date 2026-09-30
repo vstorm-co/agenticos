@@ -252,10 +252,11 @@ class AgentEnvironmentService:
             NotFoundError: If the environment is not this agent's.
             BadRequestError: If it is the default - an agent without a default
                 is an agent plain surfaces cannot run.
-            ConcurrentChangeError: If a run of it is still executing. Deleting
-                the row sets that run's `environment_id` to null, which reads as
-                the default - so a staging run still working would publish its
-                pages over production's. It is refused until the run ends.
+            ConcurrentChangeError: If a run of it is still running or parked on
+                an approval. Deleting the row sets that run's `environment_id` to
+                null, which reads as the default - so a staging run still working,
+                or resumed after a decision, would publish its pages over
+                production's. It is refused until the run ends.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
         if environment.is_default:
@@ -268,16 +269,16 @@ class AgentEnvironmentService:
         # delete: the count would miss it, and the delete would null its
         # environment while it still runs.
         await agent_environment_repo.lock(self.db, environment.id)
-        running = await agent_run_repo.count_running_in_environment(
+        unfinished = await agent_run_repo.count_unfinished_in_environment(
             self.db, environment_id=environment.id, organization_id=ctx.organization_id
         )
-        if running:
+        if unfinished:
             raise ConcurrentChangeError(
                 message=(
-                    f"{running} run(s) are still answering from {environment.name!r}. "
-                    "Remove it once they finish, or stop them first."
+                    f"{unfinished} run(s) in {environment.name!r} are still running or "
+                    "waiting for an approval. Remove it once they finish, or stop them first."
                 ),
-                details={"environment_id": str(environment.id), "running": running},
+                details={"environment_id": str(environment.id), "unfinished": unfinished},
             )
         name = environment.name
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)

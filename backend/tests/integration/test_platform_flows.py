@@ -4689,6 +4689,13 @@ class TestPublishingIsNotDeploying:
         with pytest.raises(ConcurrentChangeError, match="staging"):
             await environments.delete(tenant.ctx, agent.id, staging.id)
 
+        # Parked on an approval counts too: it resumes on the version it parked
+        # with, and a gated publish runs after the decision.
+        run.status = RunStatus.AWAITING_APPROVAL.value
+        await db.flush()
+        with pytest.raises(ConcurrentChangeError, match="waiting for an approval"):
+            await environments.delete(tenant.ctx, agent.id, staging.id)
+
         run.status = RunStatus.COMPLETED.value
         await db.flush()
         await environments.delete(tenant.ctx, agent.id, staging.id)

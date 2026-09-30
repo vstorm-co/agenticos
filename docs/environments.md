@@ -73,8 +73,9 @@ move it. One agent, two audiences, two versions, one set of books.
 A page the agent publishes follows the same split. A run in a named environment
 publishes an [artifact](artifacts.md#one-name-one-link) of its own, so trying
 `dev` on the weekly report never republishes the page production readers open.
-An environment with a run still working cannot be removed until the run ends:
-deleting it would hand that run to the default, and its pages to production's.
+An environment with a run still working, or waiting for an approval, cannot be
+removed until the run ends: deleting it would hand that run to the default, and
+its pages to production's.
 
 ## Tracing per environment
 
