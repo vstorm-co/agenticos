@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.515] - 2026-09-30
+
 ### Added
 
 - **Published pages look like the console.** The library set gains
