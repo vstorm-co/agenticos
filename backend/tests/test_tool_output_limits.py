@@ -212,6 +212,52 @@ class TestReduction:
         )
         assert out == "small"
 
+    async def test_a_page_of_forty_thousand_characters_arrives_whole_by_default(self):
+        """At the old 10,000 a fetched page arrived as a preview to page through,
+        which read as the tool being broken; an ordinary page now passes as it is."""
+        limits = build_limits(ToolOutputLimitsConfig(), backend=StateBackend())
+        page = "x" * 40_000
+        out = await limits.after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result=page
+        )
+        assert out == page
+        assert ToolOutputLimitsConfig().max_chars == 20_000
+
+    async def test_a_full_fetch_arrives_whole_with_its_url_and_title(self):
+        """`web_fetch` returns up to 50,000 characters of content by default, and
+        the URL, title and truncation marker come on top of it."""
+        limits = build_limits(ToolOutputLimitsConfig(), backend=StateBackend())
+        fetched = {
+            "url": "https://example.com/" + "a" * 500,
+            "title": "A long page",
+            "content": "x" * 50_000 + "\n\n[Content truncated]",
+        }
+        out = await limits.after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result=fetched
+        )
+        assert out == fetched
+
+    def test_a_threshold_in_tokens_defaults_to_the_same_size_in_tokens(self):
+        config = ToolOutputLimitsConfig(over_tokens=True)
+        assert config.threshold == 15_000
+        assert config.max_chars == 20_000
+        assert ToolOutputLimitsConfig(over_tokens=True, threshold=1_000).max_chars == 4_000
+
+    async def test_a_lowered_threshold_still_shortens_what_crosses_it(self):
+        """Truncating at 10,000 with the 20,000 default kept a 15,000-character
+        return as it was; left unset, what is kept follows the threshold."""
+        config = ToolOutputLimitsConfig(action="truncate", threshold=10_000)
+        assert config.max_chars == 10_000
+        limits = build_limits(config, backend=StateBackend())
+        out = await limits.after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="z" * 15_000
+        )
+        assert len(str(out)) < 15_000
+
+    def test_a_truncation_the_binding_names_is_kept(self):
+        config = ToolOutputLimitsConfig(threshold=10_000, max_chars=15_000, over_tokens=True)
+        assert (config.threshold, config.max_chars) == (10_000, 15_000)
+
     async def test_an_oversized_return_is_spilled_and_reads_back_in_full(self):
         limits = build_limits(
             ToolOutputLimitsConfig(action="spill", threshold=500), backend=StateBackend()

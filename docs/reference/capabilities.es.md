@@ -1,5 +1,5 @@
 ---
-source_sha: "6093b312c6d2"
+source_sha: "65adefd66779"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1663,9 +1663,9 @@ reducción en sí es el `ToolOutputLimits` de
 | Configuración | Valor por defecto | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | tamaño a partir del cual se reduce un retorno |
+| `threshold` | 60000 | tamaño a partir del cual se reduce un retorno; 15000 cuando `over_tokens` está activado |
 | `over_tokens` | `false` | mide el umbral en tokens estimados, no en caracteres |
-| `max_chars` | 4000 | caracteres que se conservan cuando se trunca un retorno, o cuando un volcado recae en un truncado |
+| `max_chars` | 20000 | caracteres que se conservan cuando se trunca un retorno, o cuando un volcado recae en un truncado; sin fijar, nunca más que el umbral |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail`: qué extremo o extremos conservar |
 | `strip_ansi` | `false` | quita los códigos de color del terminal antes de medir y reducir |
 | `summary_prompt` | el propio de la biblioteca | qué se le dice al modelo que resume; tiene que contener `{tool_name}` y `{output}` |

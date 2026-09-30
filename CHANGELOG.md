@@ -28,6 +28,14 @@ Two things are versioned separately from this file and worth knowing about:
   with that service's tools. Skipping it lets the run carry on without them.
   Channels, the API and a turn with nobody signed in still brief the model that
   the service is missing, as before.
+- **Tool output limits let an ordinary page through.** The default threshold
+  is 60,000 characters, up from 10,000 - clear of a full `web_fetch` with its
+  URL and title - and a truncation keeps 20,000, up from 4,000: a fetched page
+  or a file of 30,000 to 40,000 characters arrived as a preview to page
+  through, which read as the tool failing. Measured in tokens, the default is
+  15,000. A truncation left unset never keeps more than the threshold, so a
+  binding that lowers only the threshold still shortens what crosses it. An
+  agent that set its own values keeps them.
 
 ## [0.0.515] - 2026-09-30
 
