@@ -603,6 +603,8 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "error": {
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const { message } = wsEvent.data as { message: string };
@@ -683,6 +685,10 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "complete": {
           setIsProcessing(false);
+          // A turn that ended is waiting on nothing: a card left up would answer
+          // a run that is gone - a sibling tool failing or parking ends it too.
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
           // this handler parsed, and reading a field off it silently yields
           // `undefined` - which looked exactly like a turn nobody measured.

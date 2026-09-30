@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
@@ -429,6 +429,52 @@ class TestToolSearchDefersMcp:
         offered = await self._tools_the_model_sees(built)
 
         assert sorted(offered) == ["connect_account", "search_tools"]
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_connecting(self):
+        """`connect_account` is itself the question; under `ASK_ALL` it reaches
+        the person without first being put to them for approval."""
+        asked: list[str] = []
+
+        async def request_connection(request: ConnectionRequest) -> bool:
+            asked.append(request.catalog_key)
+            return False
+
+        async def unused() -> str:
+            return "unreachable"
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[
+                ConnectOnUse(
+                    services=[
+                        PendingService(
+                            request=ConnectionRequest(
+                                catalog_key="notion", name="Notion", gap="not_connected"
+                            ),
+                            resolve=unused,
+                        )
+                    ],
+                    request_connection=request_connection,
+                )
+            ],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(parts=[ToolCallPart("connect_account", {"service": "notion"})])
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["notion"]
+        approval.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):

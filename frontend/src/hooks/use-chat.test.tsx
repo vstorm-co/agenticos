@@ -2618,6 +2618,21 @@ describe("a run waiting for a service to be connected", () => {
     expect(frame(0)).toEqual({ type: "connect_account_response", connected: false });
   });
 
+  it.each(["complete", "error"])("takes the card down when the turn ends (%s)", (type) => {
+    // The run it belonged to is gone; answering the card would reach nothing.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    receive(type, {});
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(sent).not.toHaveBeenCalled();
+  });
+
   it("does not answer twice for a card already answered", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });

@@ -10,12 +10,17 @@ import type { McpCatalogEntry } from "@/types/mcp";
 const state = vi.hoisted(() => ({
   connections: [] as McpConnectionRecord[],
   loading: false,
+  fetching: false,
   servers: [] as McpCatalogEntry[],
   opened: [] as { returnTo?: string; keepThisTab?: boolean }[],
 }));
 
 vi.mock("@/hooks/use-mcp-connections", () => ({
-  useMcpConnections: () => ({ connections: state.connections, isLoading: state.loading }),
+  useMcpConnections: () => ({
+    connections: state.connections,
+    isLoading: state.loading,
+    isFetching: state.fetching,
+  }),
 }));
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: state.servers, isLoading: false }),
@@ -95,6 +100,7 @@ describe("ConnectAccountPrompt", () => {
   beforeEach(() => {
     state.connections = [];
     state.loading = false;
+    state.fetching = false;
     state.servers = [NOTION];
     state.opened = [];
   });
@@ -157,6 +163,21 @@ describe("ConnectAccountPrompt", () => {
         onRespond={onRespond}
       />,
     );
+
+    expect(onRespond).not.toHaveBeenCalled();
+  });
+
+  it("reads the list after the refresh a mount starts, not the cache before it", () => {
+    // Cached as not connected, refreshed as connected: the refresh is not the fix.
+    state.fetching = true;
+    const onRespond = vi.fn();
+    const { rerender } = render(
+      <ConnectAccountPrompt request={request()} disabled={false} onRespond={onRespond} />,
+    );
+
+    state.fetching = false;
+    state.connections = [own()];
+    rerender(<ConnectAccountPrompt request={request()} disabled={false} onRespond={onRespond} />);
 
     expect(onRespond).not.toHaveBeenCalled();
   });

@@ -45,13 +45,15 @@ export function ConnectAccountPrompt({
   const t = useTranslations("chat.connectAccount");
   const locale = useLocale();
   const { servers } = useMcpCatalog();
-  const { connections, isLoading } = useMcpConnections();
+  const { connections, isLoading, isFetching } = useMcpConnections();
   const [connecting, setConnecting] = useState<McpCatalogEntry | null>(null);
   const entry = servers.find((one) => one.key === request.catalog_key) ?? null;
   const status = ownAccountStatus(request.catalog_key, connections);
   // What the list said once it had loaded, which is what a fix is a change from.
+  // After the refresh a mount starts too: a cached list is loaded but old, and a
+  // baseline read from it would count that refresh as the fix.
   const [before, setBefore] = useState<string | null>(null);
-  if (!isLoading && before === null) setBefore(status);
+  if (!isLoading && !isFetching && before === null) setBefore(status);
   const repaired = before !== null && before !== "connected" && status === "connected";
 
   useEffect(() => {

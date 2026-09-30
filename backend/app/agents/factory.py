@@ -58,6 +58,7 @@ from app.agents.capabilities.media import (
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
+from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import ModelRequestSpec
@@ -330,7 +331,15 @@ def build_agent(
         # instructions.
         ReinjectSystemPrompt(),
         budget,
-        ApprovalGate(required_tool_names=approval_required, gate_every_tool=gate_every_tool),
+        ApprovalGate(
+            required_tool_names=approval_required,
+            gate_every_tool=gate_every_tool,
+            asking_tool_names=(
+                frozenset({CONNECT_ACCOUNT})
+                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+                else frozenset()
+            ),
+        ),
         *configured,
         *extra_capabilities,
         # Every agent, not only one that compacts. The warning is most useful to

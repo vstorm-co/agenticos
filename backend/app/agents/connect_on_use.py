@@ -31,10 +31,12 @@ from pydantic_ai.toolsets import (
     ToolsetFunc,
 )
 
-from app.agents.approval import ASKS_THE_PERSON
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.agents.mcp import tool_prefix
+
+CONNECT_ACCOUNT = "connect_account"
+"""The tool's name, which the approval gate leaves ungated where this is attached."""
 
 OwnAccountGap = Literal["not_connected", "undecided", "unauthorized"]
 """Why a signed-in person's own account on a service cannot be used - each one
@@ -126,12 +128,7 @@ class ConnectOnUse(AbstractCapability[AgentDeps]):
         holds lives on this instance, so building the set again changes nothing.
         """
         connect: FunctionToolset[AgentDeps] = FunctionToolset()
-        connect.add_function(
-            self._connect_account,
-            name="connect_account",
-            takes_ctx=True,
-            metadata={ASKS_THE_PERSON: True},
-        )
+        connect.add_function(self._connect_account, name=CONNECT_ACCOUNT, takes_ctx=True)
         parts: list[AbstractToolset[AgentDeps]] = [connect]
         parts.extend(
             DynamicToolset(self._slot(service.request.catalog_key), per_run_step=True)
