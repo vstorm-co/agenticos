@@ -6,12 +6,20 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { WorkflowApprovalsCard } from "@/components/runs/workflow-approvals-card";
 import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
+import {
+  useApprovals,
+  usePermissions,
+  useRuns,
+  useSpend,
+  useUrlState,
+  useWorkflowApprovals,
+} from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
@@ -117,7 +125,10 @@ export default function RunsPage() {
   // read one query key, so this is the same request rather than a second one.
   // `total` rather than the page's length: the endpoint answers fifty rows at a
   // time, and a badge that stops at fifty is a badge that stops being a count.
-  const { total: waiting } = useApprovals({ enabled: canDecide });
+  const { total: toolsWaiting } = useApprovals({ enabled: canDecide });
+  // Workflow steps waiting on a person are the same queue to the reader.
+  const { total: stepsWaiting } = useWorkflowApprovals({ enabled: canDecide });
+  const waiting = toolsWaiting + stepsWaiting;
   // The two figures that were three cards above the strip. On the tab they name
   // instead: a card of one number is a lot of the page's height for something a
   // badge says, and the height mattered - the three of them cost about 380px, so
@@ -233,7 +244,10 @@ export default function RunsPage() {
                     data-tour="activity-approvals"
                     className="mt-0 min-h-0 flex-1 overflow-y-auto"
                   >
-                    <ApprovalsTab period={period} onFocusRun={focusRun} />
+                    <div className="space-y-4">
+                      <WorkflowApprovalsCard />
+                      <ApprovalsTab period={period} onFocusRun={focusRun} />
+                    </div>
                   </TabsContent>
                 )}
 

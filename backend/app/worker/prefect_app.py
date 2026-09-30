@@ -56,6 +56,14 @@ from app.worker.tasks.trigger_tasks import (
     run_scheduled_trigger_flow,
     sweep_sandbox_operations_flow,
 )
+from app.worker.tasks.workflow_tasks import (
+    workflow_dispatch_node_flow,
+    workflow_dispatch_poll_flow,
+    workflow_reconcile_flow,
+    workflow_run_retention_sweep_flow,
+    workflow_schedules_check_flow,
+    workflow_table_triggers_flow,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +228,56 @@ async def main() -> None:
         await notification_retention_sweep_flow.ato_deployment(
             name="notification-retention-sweep",
             schedules=[_every(86400)],
+        )
+    )
+    # Daily, like the other retention sweeps: the runs each workflow's settings
+    # no longer keep, and the files they made.
+    deployments.append(
+        await workflow_run_retention_sweep_flow.ato_deployment(
+            name="workflow-run-retention-sweep",
+            schedules=[_every(86400)],
+        )
+    )
+    # On-demand: one dispatch tick, triggered directly by a run starting or
+    # advancing, and by the two sweeps below when a trigger was lost.
+    deployments.append(
+        await workflow_dispatch_node_flow.ato_deployment(name="workflow-dispatch-node")
+    )
+    # Every 10 seconds: the forward-progress guarantee for `pending` outbox
+    # rows whose direct trigger never fired. Short, because this is the
+    # ordinary path's own backstop, not a slow sweep.
+    deployments.append(
+        await workflow_dispatch_poll_flow.ato_deployment(
+            name="workflow-dispatch-poll",
+            schedules=[_every(10)],
+        )
+    )
+    # Every 30 seconds: claims stranded by a dead worker, `in_flight`
+    # attempts nobody settled, and decided approvals nobody woke the
+    # workflow for. Longer than the poll interval on purpose - a lease has
+    # to actually expire (`WORKFLOW_DISPATCH_LEASE_SECONDS`) before there is
+    # anything here to find.
+    deployments.append(
+        await workflow_reconcile_flow.ato_deployment(
+            name="workflow-reconcile",
+            schedules=[_every(30)],
+        )
+    )
+    # Every minute, like the agent-trigger heartbeat: fire the workflow
+    # schedules that have come due. A schedule's interval floor is a minute, so
+    # a faster tick would find nothing new.
+    deployments.append(
+        await workflow_schedules_check_flow.ato_deployment(
+            name="workflow-schedules-check",
+            schedules=[_every(60)],
+        )
+    )
+    # A record's trigger should start soon after it is added, and a tick with no
+    # new records costs one indexed query on the outbox's pending rows.
+    deployments.append(
+        await workflow_table_triggers_flow.ato_deployment(
+            name="workflow-table-triggers",
+            schedules=[_every(10)],
         )
     )
     logger.info(

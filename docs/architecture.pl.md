@@ -1,5 +1,5 @@
 ---
-source_sha: "8d9cf7ac71b1"
+source_sha: "cb5cd8136482"
 ---
 
 # Architektura { #architecture }
@@ -235,7 +235,7 @@ odpowiada.
 Obie granice są dowodzone na prawdziwej bazie danych w
 `tests/integration/test_run_commit_boundary.py`.
 
-### Jedyny inny wczesny commit { #the-one-other-early-commit }
+### Drugi wczesny commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` jest drugim, i to z odwrotnego powodu: nie
 dlatego, że transakcja byłaby trzymana zbyt długo, ale dlatego, że zaraz zostanie
@@ -248,6 +248,17 @@ Bez commitu jest to 401, wciąż żywy skompromitowany łańcuch i żaden ślad,
 cokolwiek się wydarzyło. `test_the_response_survives_the_refusal_that_follows_it`
 wycofuje transakcję po wywołaniu i sprawdza, co zostało
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### Webhook, który czeka na swoją odpowiedź { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` jest trzeci. Webhook, którego graf zawiera krok
+Respond to webhook, odpowiada nadawcy tym, co ten krok zapisze, więc żądanie musi
+czekać na run, który jeszcze nie wystartował - a nie wystartuje, dopóki przyjęcie
+nie będzie widoczne dla workera. Serwis zatwierdza run i rekord dostarczenia,
+uruchamia dispatch odłożony przez `spawn_after_commit` (inaczej uruchomiłby go
+dopiero zamykający commit sesji), a potem odpytuje odpowiedź runa. Po commicie nic
+nie jest zapisywane, więc zamykający commit nie ma już nic do zrobienia.
+`TestAnsweringTheSender` prowadzi run z tego dispatchu.
 
 Widoczność tnie w obie strony. Cokolwiek rozumowało wcześniej „wiersza
 wykonującego się runa nie da się zobaczyć”, rozumuje teraz o wierszu, który
@@ -346,6 +357,29 @@ przetrwać restart, jest deploymentem Prefecta.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Runy workflowów: outbox i krótkie transakcje { #workflow-runs-an-outbox-and-short-transactions }
+
+Run workflowu może trwać dni - węzeł może czekać na zatwierdzenie - więc żaden
+proces nie trzyma jego pozycji. Trzyma ją Postgres: `dispatch_outbox` wskazuje
+każdy gotowy węzeł, a każdy flow workera przejmuje jeden wiersz, wykonuje jedną
+próbę i ją rozlicza. Kod jest w `app/services/workflow_execution/dispatcher.py`.
+
+Każda próba to trzy krótkie transakcje wokół wywołania, które nie trzyma
+żadnej. Claim commituje lease na wierszu; wiersz próby jest commitowany jako
+`in_flight`, zanim handler zostanie wywołany, więc worker, który umrze w trakcie,
+zostawia coś, co reconciler może znaleźć; a rozliczenie commituje wynik, koszt i
+wiersz outboxa następnego węzła razem, więc wynik nigdy nie jest trwały bez
+kolejnego kroku. Dopóki handler działa, worker odnawia lease we własnych
+transakcjach, a odnowienie, które nie znajduje już claimu, informuje o tym handler.
+
+Każda zmiana statusu po claimie jest chroniona tokenem claimu i tym, że wiersz
+nadal jest przejęty, pod blokadą braną w jednej kolejności - run, run węzła,
+outbox - przez dispatcher i reconciler tak samo. Jedynym zapisem, który nie jest
+chroniony, jest koszt: to, co wywołanie wydało, jest księgowane nawet wtedy, gdy
+jego wynik przychodzi za późno, by zostać przyjęty. Przerwana próba nigdy nie jest uznawana za
+udaną ani nieudaną: staje się `uncertain`, a automatycznie ponawiany jest tylko
+węzeł zadeklarowany jako idempotentny.
 
 ## Runy agenta: capability nigdy nie pobiera { #agent-runs-a-capability-never-fetches }
 
@@ -958,6 +992,9 @@ opracowany przykład.
   `SessionService.detect_refresh_reuse` commituje sesję, którą właśnie unieważnił,
   i wpis mówiący dlaczego — bo jego wywołujący natychmiast podnosi 401, a wycofanie
   cofnęłoby oba.
+- Webhook, którego graf odpowiada na dostarczenia, zatwierdza przyjęcie w
+  `WorkflowExposureService._answer`, żeby run mógł wystartować, gdy żądanie czeka
+  na krok Respond to webhook.
 - Praca w tle, która czyta wiersz zapisany przez to żądanie, jest przekazywana
   przez **`spawn_after_commit`**, nigdy przez `spawn`.
 - Cienka domena to moduł; gruba to podpakiet z fasadą, a nic spoza niego nie

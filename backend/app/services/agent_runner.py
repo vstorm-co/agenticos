@@ -109,7 +109,7 @@ from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.deps import AgentDeps, CompactionSink
-from app.agents.factory import BuiltAgent, build_agent
+from app.agents.factory import AgentOutput, BuiltAgent, answer_text, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
@@ -597,6 +597,15 @@ class PausedRunState(BaseModel):
         description=(
             "What the request that parked this run asked for, so the continuation "
             "is the same run rather than a default-mode one wearing its id"
+        ),
+    )
+    output_schema: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer shape the run was asked for, when its caller replaced the "
+            "agent's own - an `agent.run` step's. Restored on resume, so the answer "
+            "that arrives after an approval has the shape the caller is waiting "
+            "for. Null keeps the version's own `output_schema`"
         ),
     )
     plan: list[dict[str, Any]] = Field(
@@ -1127,6 +1136,14 @@ class PreparedRun:
     library emits no event for.
     """
 
+    output_schema: dict[str, Any] | None = None
+    """The answer shape the caller asked for in place of the agent's own, if any.
+
+    Already applied to `spec`; kept apart so a park records it (the version's own
+    schema needs no recording - the resume rebuilds that version) and the
+    continuation is asked for the same shape the caller is waiting on.
+    """
+
     admitted_as: AdmittedAs = field(default_factory=AdmittedAs)
     """What the request that started this run said about it, for a resume to restore.
 
@@ -1147,7 +1164,7 @@ class PreparedRun:
         *,
         message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
-    ) -> AgentRunResult[str | DeferredToolRequests]:
+    ) -> AgentRunResult[AgentOutput]:
         """Run the agent to an answer, metered.
 
         The non-streaming half of :meth:`iterate`, and it exists for the same
@@ -1168,7 +1185,7 @@ class PreparedRun:
         user_prompt: str | Sequence[UserContent] | None,
         *,
         message_history: Sequence[ModelMessage] | None,
-    ) -> AsyncIterator[AgentIteration[AgentDeps, str | DeferredToolRequests]]:
+    ) -> AsyncIterator[AgentIteration[AgentDeps, AgentOutput]]:
         """Iterate the agent's graph, metered, for a surface that streams.
 
         **The meter is here rather than at the call site because a surface that
@@ -1203,8 +1220,8 @@ class PreparedRun:
 
 
 def _outcome(
-    agent_run: AgentIteration[AgentDeps, str | DeferredToolRequests],
-) -> AgentRunResult[str | DeferredToolRequests]:
+    agent_run: AgentIteration[AgentDeps, AgentOutput],
+) -> AgentRunResult[AgentOutput]:
     """What the iterated run ended with.
 
     Raises:
@@ -1219,15 +1236,16 @@ def _outcome(
 
 
 def _classify_output(
-    result: AgentRunResult[str | DeferredToolRequests], *, parked: dict[str, str]
-) -> tuple[RunStatus, str, PausedRunState | None]:
+    result: AgentRunResult[AgentOutput], *, parked: dict[str, str]
+) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
     The success half of both run surfaces - the batch runner's `_run` and the
     chat runner - which have to move in lockstep: a `DeferredToolRequests` output
     is a run parked on an approval, and a new `PausedRunState` field or a change to
     how a park is recorded belongs in one place rather than two copies. Anything
-    else is the completed answer. The exception paths differ between the two (the
+    else is the completed answer: its text, and - for an agent that answers in
+    an `output_schema` - the object itself, which the text shows as JSON. The exception paths differ between the two (the
     chat surface re-raises so the waiting caller is told why) and stay with each.
     """
     if isinstance(result.output, DeferredToolRequests):
@@ -1235,11 +1253,13 @@ def _classify_output(
             messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
             tool_call_ids=parked,
         )
-        return RunStatus.AWAITING_APPROVAL, "", paused
-    return RunStatus.COMPLETED, result.output, None
+        return RunStatus.AWAITING_APPROVAL, "", None, paused
+    if isinstance(result.output, dict):
+        return RunStatus.COMPLETED, answer_text(result.output), result.output, None
+    return RunStatus.COMPLETED, result.output, None, None
 
 
-type RunStream = Callable[[AgentIteration[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+type RunStream = Callable[[AgentIteration[AgentDeps, AgentOutput]], Awaitable[None]]
 """How a surface that shows an answer arriving drives the run.
 
 Given to :meth:`AgentRunnerService.execute`, which iterates the graph instead of
@@ -1805,6 +1825,8 @@ class RunSegment:
 
     Attributes:
         output: What the agent answered, empty when it parked again or stopped.
+        structured: The answer as an object, when the run answered in an
+            `output_schema`; its text is then that object shown as JSON.
         run: The run row, as `finish` left it.
         tool_calls: What this execution called, in order, each with what came
             back - `None` on the call the run is now parked on.
@@ -1818,6 +1840,7 @@ class RunSegment:
     run: AgentRun
     tool_calls: list[RecordedToolCall]
     settled: dict[str, str]
+    structured: dict[str, Any] | None = None
 
 
 class AgentRunnerService:
@@ -1904,8 +1927,10 @@ class AgentRunnerService:
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        version_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
+        output_schema: dict[str, Any] | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -1945,6 +1970,12 @@ class AgentRunnerService:
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
                 and then to the default environment's version.
+            version_id: Run exactly this published version, whatever any
+                environment pins - a workflow step built against it. Takes
+                precedence over `environment_id`.
+            output_schema: The shape the answer must have, in place of the
+                version's own `output_schema` - a workflow step that needs an
+                object. Already checked by the caller.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -1953,14 +1984,19 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
-        agent, spec, version_id = await self.registry.get_runnable_spec(
-            ctx, agent_id, environment_id=effective_environment_id
-        )
+        if version_id is not None:
+            agent, spec, version_id = await self.registry.get_pinned_spec(ctx, agent_id, version_id)
+        else:
+            agent, spec, version_id = await self.registry.get_runnable_spec(
+                ctx, agent_id, environment_id=effective_environment_id
+            )
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
+        if output_schema is not None:
+            spec = spec.model_copy(update={"output_schema": output_schema})
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -1984,6 +2020,7 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+        prepared.output_schema = output_schema
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
             # property of the *surface*, not of the run, and `_assemble` already
@@ -3470,6 +3507,7 @@ class AgentRunnerService:
                 # surfaces pass through, and a surface that had to remember it
                 # would be the surface that forgot (#1326, #1343).
                 "admitted_as": prepared.admitted_as,
+                "output_schema": prepared.output_schema,
                 "delegated_approvals": {
                     str(parked.approval_id): parked.task_id
                     for parked in prepared.approvals.requested
@@ -3556,12 +3594,16 @@ class AgentRunnerService:
         message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
+        version_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
+        content: Sequence[UserContent] = (),
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        output_schema: dict[str, Any] | None = None,
+        structured: list[dict[str, Any]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3569,7 +3611,8 @@ class AgentRunnerService:
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
 
         `environment_id` runs the version that environment pins - the API's way
-        of exercising a dev environment before promoting it.
+        of exercising a dev environment before promoting it. `version_id` runs
+        one named version instead, as a workflow step does.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -3578,6 +3621,10 @@ class AgentRunnerService:
         before. They are also linked to the turn they arrived with, so a file
         posted in a channel is a file in the transcript rather than a sentence
         about one.
+
+        `content` is what the model sees beside the prompt that is not a chat
+        file - a workflow step's images, already loaded from the run's files and
+        checked there. Appended after the prompt and any attachments.
 
         `said` is what the person actually wrote, when `prompt` is something this
         caller assembled around it - a widget's placement note, a channel's
@@ -3591,6 +3638,11 @@ class AgentRunnerService:
         run-scoped one is released outright - so a caller cannot read it
         afterwards, and every other caller of this method would have to unpack a
         tuple it has no use for.
+
+        `output_schema` asks for an answer of that shape in place of the
+        version's own, and `structured` is filled with the answer as an object
+        when it is one - a list for the reason `outbound` is. The returned text
+        is then that object shown as JSON, for a surface that shows text.
 
         An empty answer with the run in `awaiting_approval` means a tool call
         is parked; the caller shows the queue rather than an answer.
@@ -3606,7 +3658,9 @@ class AgentRunnerService:
             acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
+            version_id=version_id,
             on_compaction=on_compaction,
+            output_schema=output_schema,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -3620,6 +3674,11 @@ class AgentRunnerService:
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             ).build_prompt(prompt, attachments)
+        if content:
+            assembled = [
+                *(assembled if isinstance(assembled, list) else [assembled]),
+                *content,
+            ]
         segment = await self._run(
             prepared,
             user_prompt=assembled,
@@ -3641,6 +3700,8 @@ class AgentRunnerService:
         # not open to a channel run, which writes no messages (#205).
         if tool_calls is not None:
             tool_calls.extend(segment.tool_calls)
+        if structured is not None and segment.structured is not None:
+            structured.append(segment.structured)
         return segment.output, segment.run
 
     async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
@@ -3757,6 +3818,8 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure)
         spec = _with_channel_tools(spec, exposure)
+        if state.output_schema is not None:
+            spec = spec.model_copy(update={"output_schema": state.output_schema})
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -3816,6 +3879,7 @@ class AgentRunnerService:
             # planning capability's, off `PausedRunState.plan`.
             plan_items=state.plan,
         )
+        prepared.output_schema = state.output_schema
         prepared.built.ledger.book(_spend_already_booked(run))
 
         # Out of the queue once the build has succeeded, and before anything is
@@ -4065,6 +4129,7 @@ class AgentRunnerService:
         status = RunStatus.FAILED
         error: str | None = None
         output = ""
+        structured: dict[str, Any] | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         called: list[RecordedToolCall] = []
@@ -4109,7 +4174,9 @@ class AgentRunnerService:
             # the one call a person reviewed as the one call with no recorded
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
-            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            status, output, structured, paused = _classify_output(
+                result, parked=prepared.approvals.parked
+            )
             if paused is not None:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
@@ -4224,7 +4291,13 @@ class AgentRunnerService:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
-        return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
+        return RunSegment(
+            output=output,
+            run=prepared.run,
+            tool_calls=called,
+            settled=settled,
+            structured=structured,
+        )
 
     async def list_runs(
         self,

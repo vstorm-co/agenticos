@@ -16,10 +16,11 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
 
@@ -28,7 +29,14 @@ from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
-from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.factory import (
+    _AUDIENCE_AWARE,
+    DEFAULT_MAX_STEPS,
+    BuiltAgent,
+    _fits_schema,
+    answer_text,
+    build_agent,
+)
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     SPEC_VERSION,
@@ -722,3 +730,87 @@ class TestWhoHearsAboutAnAgent:
         )
 
         assert "@" not in spec.to_yaml()
+
+
+_SCORE = {
+    "type": "object",
+    "properties": {"score": {"type": "integer"}, "tier": {"type": "string"}},
+    "required": ["score"],
+    "additionalProperties": False,
+}
+
+
+class TestAStructuredAnswer:
+    def test_a_spec_from_before_answers_in_text(self):
+        """A verbatim stored document with no `output_schema` still loads, as prose."""
+        spec = AgentSpec.from_yaml("spec_version: 12\nname: Old\ninstructions: Be brief.\n")
+        assert spec.output_schema is None
+
+    def test_an_object_schema_round_trips_through_yaml(self):
+        spec = AgentSpec(name="Scorer", output_schema=_SCORE)
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    @pytest.mark.parametrize(
+        ("schema", "message"),
+        [
+            ({"type": 42}, "not a valid JSON Schema"),
+            ({"type": "array", "items": {"type": "string"}}, 'needs "type": "object"'),
+            (
+                {"type": "object", "description": "x" * 20_000},
+                "over 16384 bytes",
+            ),
+        ],
+        ids=["invalid", "not-an-object", "too-large"],
+    )
+    def test_a_schema_that_cannot_shape_an_answer_is_refused(self, schema, message):
+        with pytest.raises(ValidationError, match=message):
+            AgentSpec(name="Scorer", output_schema=schema)
+
+    @pytest.mark.anyio
+    async def test_the_agent_answers_with_an_object_of_the_schema(self):
+        built = build_agent(
+            AgentSpec(name="Scorer", output_schema=_SCORE),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        with built.agent.override(model=TestModel(custom_output_args={"score": 87})):
+            result = await built.agent.run("Score this lead", deps=built.deps)
+        assert result.output == {"score": 87}
+
+    @pytest.mark.anyio
+    async def test_an_answer_that_breaks_the_schema_is_sent_back_once_more(self):
+        answers = iter([{"score": "high"}, {"score": 91, "tier": "hot"}])
+        seen: list[str] = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            for message in messages:
+                for part in getattr(message, "parts", []):
+                    if part.part_kind == "retry-prompt":
+                        seen.append(str(part.content))
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=next(answers))]
+            )
+
+        built = build_agent(
+            AgentSpec(name="Scorer", output_schema=_SCORE),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        with built.agent.override(model=FunctionModel(respond)):
+            result = await built.agent.run("Score this lead", deps=built.deps)
+
+        assert result.output == {"score": 91, "tier": "hot"}
+        assert any("at score: 'high' is not of type 'integer'" in text for text in seen)
+
+    def test_a_parked_run_passes_the_schema_check_untouched(self):
+        """What a parked run ends with is not an answer, and is handed on untouched."""
+        parked = DeferredToolRequests()
+        assert _fits_schema(_SCORE)(parked) is parked
+
+    def test_a_free_text_agent_answers_in_text(self):
+        built = build_agent(AgentSpec(name="Writer"), _model_spec(), organization_id=uuid.uuid4())
+        assert built.agent.output_type == [str, DeferredToolRequests]
+
+    def test_an_object_is_shown_as_a_json_block_and_prose_as_itself(self):
+        assert answer_text("Plain.") == "Plain."
+        assert answer_text({"tier": "wärm"}) == '```json\n{\n  "tier": "wärm"\n}\n```'

@@ -1,5 +1,5 @@
 ---
-source_sha: "8d9cf7ac71b1"
+source_sha: "cb5cd8136482"
 ---
 
 # Arquitectura { #architecture }
@@ -240,7 +240,7 @@ y un run que falta en el historial es un run del que nadie responde.
 Los dos límites se demuestran contra una base de datos real en
 `tests/integration/test_run_commit_boundary.py`.
 
-### El único otro commit temprano { #the-one-other-early-commit }
+### Un segundo commit temprano { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` es el segundo, y por la razón contraria: no
 porque la transacción se mantendría demasiado tiempo, sino porque está a punto de
@@ -254,6 +254,18 @@ Sin commit, eso es un 401, una cadena comprometida todavía viva y ningún regis
 de que pasara nada. `test_the_response_survives_the_refusal_that_follows_it`
 revierte después de la llamada y comprueba qué queda
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### Un webhook que espera su respuesta { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` es el tercero. Un webhook cuyo grafo contiene un
+paso Respond to webhook responde a su remitente con lo que ese paso registra, así
+que la petición tiene que esperar a un run que aún no ha empezado, y no puede
+empezar hasta que la admisión sea visible para el worker. El servicio confirma el
+run y su registro de entrega, inicia el dispatch que `spawn_after_commit` dejó en
+cola (si no, solo lo iniciaría el commit final de la sesión) y después consulta la
+respuesta del run. Tras el commit no se escribe nada, así que el commit final ya no
+tiene nada que hacer. `TestAnsweringTheSender` hace avanzar el run desde ese
+dispatch.
 
 La visibilidad corta por los dos lados. Todo lo que antes razonaba «la fila de un
 run en ejecución no se puede ver» razona ahora sobre una fila que *sí* se ve, y el
@@ -352,6 +364,31 @@ cualquier cosa que deba sobrevivir a un reinicio es un deployment de Prefect.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Runs de workflows: un outbox y transacciones cortas { #workflow-runs-an-outbox-and-short-transactions }
+
+Un run de workflow puede durar días - un nodo puede esperar una aprobación -,
+así que ningún proceso guarda su posición. La guarda Postgres: `dispatch_outbox`
+nombra cada nodo que está listo, y cada flow de worker reclama una fila, ejecuta
+un intento y lo liquida. El código está en
+`app/services/workflow_execution/dispatcher.py`.
+
+Cada intento son tres transacciones cortas alrededor de una llamada que no
+mantiene ninguna. El claim confirma un lease sobre la fila; la fila del intento
+se confirma como `in_flight` antes de llamar al handler, así que un worker que
+muere a mitad de la llamada deja algo que el reconciler puede encontrar; y la
+liquidación confirma juntos el resultado, el coste y la fila de outbox del
+siguiente nodo, así que un resultado nunca es duradero sin su siguiente paso.
+Mientras el handler se ejecuta, el worker renueva su lease en transacciones
+propias, y una renovación que ya no encuentra el claim se lo comunica al handler.
+
+Cada cambio de estado tras el claim queda protegido por el token del claim y por
+que la fila siga reclamada, bajo un bloqueo que el dispatcher y el reconciler
+toman en el mismo orden - run, run de nodo, outbox. El coste es la única
+escritura que no lo está: lo que gastó una llamada se contabiliza aunque su
+resultado llegue demasiado tarde para aceptarse. Un intento interrumpido nunca se da
+por logrado ni por fallido: pasa a `uncertain`, y solo un nodo declarado
+idempotente se reintenta automáticamente.
 
 ## Runs de agents: una capability nunca consulta { #agent-runs-a-capability-never-fetches }
 
@@ -964,6 +1001,9 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
   `SessionService.detect_refresh_reuse` hace commit de la sesión que acaba de
   revocar y de la entrada que dice por qué — porque quien lo llama lanza un 401
   inmediatamente después, y la reversión desharía ambas.
+- Un webhook cuyo grafo responde a sus entregas confirma la admisión en
+  `WorkflowExposureService._answer`, para que el run pueda empezar mientras la
+  petición espera su paso Respond to webhook.
 - El trabajo en segundo plano que lee una fila que esta petición escribió se
   entrega con **`spawn_after_commit`**, nunca con `spawn`.
 - Un dominio fino es un módulo; uno grueso es un subpaquete con una fachada, y nada

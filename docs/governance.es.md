@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1186,6 +1186,17 @@ delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
     herramientas de un servidor quedan expuestas se fija en la conexión, así que cada
     agent enlazado a ella recibe las mismas.
 
+### Un paso de workflow que pregunta a una persona { #workflow-step-approvals }
+
+Un workflow pregunta con un paso [`human.approval`](reference/workflow-nodes.md#human-approval)
+en lugar de una herramienta protegida: el paso escribe su propia solicitud - un
+título, los detalles que recibió, quién puede decidir y hasta cuándo - y su run la
+espera. La pestaña **Approvals** las lista encima de las llamadas a herramientas, y
+decidir una despierta el run, que sigue según la respuesta. Una decisión es
+definitiva y queda en el registro de auditoría junto con lo que se preguntó. Un
+paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
+que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
+
 ## Alertas { #alerts }
 
 Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que se
@@ -1533,6 +1544,13 @@ su ajuste.
 Se configura en **Organizaciones → un workspace → Miembros → Retención**,
 protegido por `org:settings`. Un barrido corre una vez al día y **borra de
 verdad**: una política que conservara las filas no sería una política.
+
+Los datos de [Virtual Tables](virtual-tables.md#limits-and-retention) entran en el mismo
+barrido, con plazos de todo el deployment que ninguna organización fija: los receipts de
+idempotencia a las 24 horas, las filas de outbox despachadas a los 3 días y el history de
+un registro a los 365 días, que es también lo que elimina el history de un registro
+borrado. La entrada que escribe nombra `table_receipts`, `table_outbox` o `table_history` y
+un recuento.
 
 Los tres números propios del despliegue —`retention_defaults`,
 `retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes

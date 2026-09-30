@@ -566,6 +566,48 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many table writes one member may make per minute, counted per member
+    # and organization in the shared Redis: a record create, update, upsert or
+    # delete, and a table create, rename, archive or schema change. Every one of
+    # them stores a snapshot in history, and a receipt when an idempotency key
+    # rides along, so a member editing one cell back and forth is the way a
+    # tenant grows a shared database with tiny requests (#1823). Wide enough
+    # for an import script or a person editing by hand, narrow enough that a
+    # loop is refused after a minute rather than after a night.
+    RATE_LIMIT_TABLE_WRITES_PER_MINUTE: int = Field(default=300, gt=0)
+    # Virtual Tables quotas, per organization. Every one is a ceiling on what one
+    # tenant may store in the shared PostgreSQL, and a write over one is refused
+    # with QUOTA_EXCEEDED and audited without its content (#1823). Tables count
+    # archived ones, because a table is never deleted and its rows stay.
+    TABLES_MAX_PER_ORGANIZATION: int = Field(default=200, gt=0)
+    TABLES_MAX_RECORDS_PER_TABLE: int = Field(default=100_000, gt=0)
+    # The serialized size of one record's values, in bytes. It bounds a create's
+    # and a delete's history snapshot and a receipt's copy, since each holds one
+    # record at most.
+    TABLES_MAX_RECORD_BYTES: int = Field(default=1_000_000, ge=1)
+    # How long an idempotency receipt answers a retry. After it, the same key is
+    # a new write. Also the bound on how long a receipt's full copy of a record
+    # is kept.
+    TABLES_RECEIPT_TTL_HOURS: int = Field(default=24, gt=0)
+    # How long a dispatched outbox row is kept. Undispatched rows are events the
+    # table-trigger consumer has not judged yet, and wait for the setting below.
+    TABLES_OUTBOX_RETENTION_DAYS: int = Field(default=3, gt=0)
+    # How long an *undispatched* outbox row is kept before it is dropped anyway.
+    # The table-trigger heartbeat (#1785) marks every row it judges, so a row
+    # this old means the worker has not run for that long. This is a dead-letter
+    # cutoff, not a claim the event was delivered: past it, the row is gone and
+    # no trigger will ever start for that record. Long, so a worker brought back
+    # after an outage has a generous window to catch up on its backlog first.
+    TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS: int = Field(default=30, gt=0)
+    # How long a record's history is kept, counted from the change, for a deleted
+    # record as much as a live one.
+    TABLES_HISTORY_RETENTION_DAYS: int = Field(default=365, gt=0)
+    # How many quota-refusal audit entries this process writes at once. Moving that
+    # write off the request's own connection pool (so a burst of refusals cannot
+    # drain it) left it otherwise unbounded, opening one live connection per
+    # refusal; this caps it the way CHAT_CONVERT_MAX_CONCURRENCY and
+    # ML_MAX_CONCURRENT_PARSES cap their own pools of concurrent work.
+    TABLES_MAX_CONCURRENT_QUOTA_AUDITS: int = Field(default=4, gt=0)
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
@@ -635,6 +677,102 @@ class Settings(BaseSettings):
     # it should be able to run something over the file. The ceiling is where
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
+
+    # A hard ceiling on one workflow graph. `_dominators` (app.workflows.graph.validate)
+    # retains a full dominator set per node - up to O(n^2) total memberships for a
+    # linear chain of n nodes, ~330 MiB of traced allocation at 4,000 nodes in an
+    # isolated benchmark - and the console routes that accept a graph are explicitly
+    # unmetered (SECURITY.md's hardening checklist), so an unbounded graph is a
+    # resource-exhaustion vector rather than only a slow request. Checked before a
+    # draft is even persisted, not only at publish.
+    WORKFLOW_GRAPH_MAX_NODES: int = Field(default=500, gt=0)
+    WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
+    WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
+    # The largest payload a run may be started with, as compact JSON. It is stored
+    # on the run's row and read at every `core.input` dispatch, and the surfaces
+    # that supply it are open to API keys and webhooks (#1792), so an unbounded one
+    # is a row anyone who may start a run can grow without limit.
+    WORKFLOW_RUN_MAX_INPUT_BYTES: int = Field(default=262_144, gt=0)
+    # How long a webhook delivery whose graph answers it (`webhook.respond`) holds
+    # its request open for that answer. Past it the sender gets the `202` a
+    # delivery without one gets, and the run goes on; a proxy in front with a
+    # shorter read timeout cuts the wait first.
+    WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=300)
+
+    # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
+    # before `workflow-reconcile` treats it as abandoned and reclaims it. Long
+    # enough that an ordinary node call is never reclaimed out from under
+    # itself; short enough that a worker that dies mid-call is noticed within
+    # one reconcile tick rather than stalling the run indefinitely.
+    WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
+    # The retry schedule of a node whose `policy` sets none - a node's own
+    # `policy.retry` replaces all three. The ceiling counts failed and
+    # interrupted attempts only - an attempt that waits (an approval, a backoff
+    # the node asked for) does not use it up - and the backoff doubles from the
+    # base per such attempt, capped at the max.
+    WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
+    WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
+    WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
+
+    # What one `control.foreach` may iterate. The list is frozen into the
+    # loop's first attempt before any iteration starts, so it is bounded in
+    # count and in stored size - a longer list is refused, never truncated.
+    # Nesting is bounded at publish, and every node run a run creates, loop
+    # iterations included, counts against the per-run ceiling.
+    WORKFLOW_FOREACH_MAX_ITEMS: int = Field(default=1000, gt=0)
+    WORKFLOW_FOREACH_MAX_MANIFEST_BYTES: int = Field(default=1_048_576, gt=0)
+    WORKFLOW_FOREACH_MAX_DEPTH: int = Field(default=3, gt=0)
+    WORKFLOW_RUN_MAX_NODE_RUNS: int = Field(default=10_000, gt=0)
+
+    # A ceiling on how much workflow node work one organization, and one caller
+    # (across every organization they run in), may have queued or running on the
+    # shared runner at once. Each start reserves its graph's node count against
+    # these, and a start that would push past its ceiling is refused (429) until
+    # running work drains. This is what the per-minute run limit cannot do on its
+    # own: a limiter that charges one token per start lets an authenticated caller
+    # start many wide graphs below the rate limit and grow a persistent backlog on
+    # the runner shared with ingestion, triggers, approvals and notifications,
+    # starving other tenants (#1907).
+    #
+    # Left unset, each derives from `WORKFLOW_GRAPH_MAX_NODES` - a multiple of it
+    # (see the validator) - so raising the graph cap raises these with it rather
+    # than leaving a fixed default below a single largest run and refusing every
+    # start. The defaults below are those multiples at the default 500-node cap.
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG: int = Field(default=5000, gt=0)
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL: int = Field(default=2000, gt=0)
+
+    @model_validator(mode="after")
+    def validate_workflow_admission_quota(self) -> "Settings":
+        """Keep each admission ceiling at least one graph's worth of nodes.
+
+        A ceiling below `WORKFLOW_GRAPH_MAX_NODES` turns the quota into a
+        workflow-wide outage the moment nothing else is running, since each start
+        reserves the whole graph in the worst case. So a ceiling left at its
+        default is derived from the graph cap - a multiple of it, reproducing the
+        5000/2000 defaults at the default 500-node cap - which keeps a deployment
+        that only raised the graph cap starting up instead of failing on a fixed
+        default that is now too low. An *explicit* ceiling below the graph cap is
+        a real misconfiguration and is refused at startup rather than at the first
+        refused run.
+        """
+        multiples = {
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG": 10,
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL": 4,
+        }
+        for name, multiple in multiples.items():
+            if name in self.model_fields_set:
+                if getattr(self, name) < self.WORKFLOW_GRAPH_MAX_NODES:
+                    raise ValueError(
+                        f"{name} must be at least WORKFLOW_GRAPH_MAX_NODES "
+                        f"({self.WORKFLOW_GRAPH_MAX_NODES}), or a single largest-possible run "
+                        "could never be admitted"
+                    )
+            else:
+                object.__setattr__(
+                    self, name, max(getattr(self, name), multiple * self.WORKFLOW_GRAPH_MAX_NODES)
+                )
+        return self
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and

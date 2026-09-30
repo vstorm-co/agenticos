@@ -472,6 +472,37 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
+### Workflow runs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | The largest payload a run may be started with, as compact JSON. It is kept on the run for its `core.input` node, so a larger one is refused with `413` before the run is admitted |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | How long a webhook delivery whose graph has a Respond to webhook step waits for its answer before it is answered `202` and the run goes on. A proxy in front with a shorter read timeout cuts the wait first |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
+| `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to. These three apply to a node whose `policy.retry` sets none |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | The longest list a `control.foreach` iterates. A longer one fails the loop with `FOREACH_TOO_MANY_ITEMS` instead of being truncated |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | The largest list a loop freezes, as JSON. A larger one fails the loop with `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | How deep loops may nest. A graph with deeper loops cannot be published |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | The most node runs one run may create, loop iterations included. An iteration that would pass it fails the run with `NODE_RUN_LIMIT` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | The most queued or running node work one organization may hold at once. A start reserves its graph's node count against this, and one over it is refused with `429` until running work drains. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | The same ceiling for a single caller, counted across every organization they run in, so a person who can create organizations cannot multiply their allowance by spreading runs across them. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+
+The per-caller run limit (`RATE_LIMIT_RUN_PER_MINUTE`) charges one token per
+start, which cannot tell a one-node graph from a five-hundred-node one. These two
+ceilings do: they bound the queued and running node work behind the shared runner
+so one caller cannot start many wide graphs below the rate limit and grow a
+backlog that starves other tenants.
+
+A workflow run moves through three Prefect deployments. `workflow-dispatch-node`
+runs one node's attempt and is submitted on demand; `workflow-dispatch-poll`
+runs every 10 seconds and submits any node that is due and was not submitted
+within the last lease; `workflow-reconcile` runs every 30 seconds and recovers
+claims and attempts a dead worker left behind. Even idle, the two schedules
+create about 11,500 flow runs a day, so size the Prefect server's database and
+its flow-run retention for that.
+
 ## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
@@ -1059,8 +1090,9 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
 page's config and logo, and a visitor's upload. The console's own routes are
-behind a session and are not metered — whether the whole API should carry a
-ceiling is a separate decision, not this one.
+behind a session and are not metered, with one exception: writes to
+[Virtual Tables](virtual-tables.md), which store a snapshot per change. Whether the
+whole API should carry a ceiling is a separate decision, not this one.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -1070,6 +1102,7 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, a table create, rename, archive or schema change, and saving, changing or deleting a saved view. Applies to the console as much as to a script. Reads are not counted |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
@@ -1184,6 +1217,39 @@ stays safe but shared.
 
     With two proxies in front, collapse the header to one hop at your edge — only
     the last hop is trustworthy.
+
+## Virtual Tables limits and retention { #virtual-tables-limits-and-retention }
+
+What one organization may store in [Virtual Tables](virtual-tables.md#limits-and-retention),
+and how long the copies a write leaves behind are kept. A write over a limit is refused
+with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the content.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tables per organization. Archived ones count, because nothing deletes a table |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Records in one table |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialized size of one record's values, in bytes. Minimum `1`. It also bounds what a create's and a delete's history row and a receipt hold; a record already over the limit still deletes, keeping a byte-count marker instead of its values |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | How long an undispatched outbox row is kept. The [table-trigger](virtual-tables.md#triggers) heartbeat marks each row it judges, so a row this old means the worker has been down that long. This is a dead-letter cutoff, not a claim the event was delivered - past it, the row is gone and no trigger starts for that record |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | How long a record's history is kept, counted from the change, for a deleted record as well |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | How many quota-refusal audit entries this process writes at once, so a burst of refusals cannot open an unbounded number of database connections. The rest of a burst waits on this bound instead |
+
+The three retention periods are applied by the daily
+[retention sweep](governance.md#retention), for every organization, and are not
+per-organization settings.
+
+The sweep's per-pass budget for these three classes scales with
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` rather than a fixed number of batches - but that limit is
+per *member* (`limit_table_write` counts each member's writes on their own allowance), so the
+budget also scales with how many active members the organization has: up to
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` rows per active member per day, in batches of
+500.
+
+That figure is doubled for headroom, so a pre-existing backlog shrinks rather than merely
+holding level, and capped at 50 members' worth so one unusually large organization cannot make
+its own pass grow without bound - it still drains, just over more passes, the same as every
+other retention class once a backlog outgrows its budget.
 
 ## A worker whose event loop has stopped turning
 

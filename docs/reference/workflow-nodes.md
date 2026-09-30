@@ -1,0 +1,729 @@
+# Workflow nodes { #workflow-nodes }
+
+Every step a workflow can contain, with what it is configured with, what it
+reads, what it produces and what a failure means. The palette in the editor
+lists the same nodes from the same registry. The field documentation below is
+generated from the source.
+
+A few rules hold for every node:
+
+- **An edge sets order, and a binding carries a value.** A node's input fields
+  are bound to earlier outputs, to a literal, or to a file or table reference.
+  See [Configuring a node](../workflows.md#configuring-a-node).
+- **A path into a free-form value is checked when the node runs.** A trigger's
+  payload, a mapped record and an agent's structured answer have no fixed
+  shape, so a binding such as `payload.email` is accepted at publish time and
+  validated against its target when the node is dispatched. A value that does
+  not fit fails the run with `INVALID_BINDING`, and the handler never sees it.
+- **Resources are checked twice.** Publishing refuses a collection, agent
+  version, credential or recipient that the graph's author cannot reach. Each
+  run checks it again against the run's own principal, because access can be
+  withdrawn in between.
+- **Effect kind and retries** decide what the engine may do after a failure. A
+  `pure` or `idempotent` step is retried. A step that may already have acted
+  and gives no guarantee stops for a person instead. A node's own
+  [policy](#error-handling) sets how often it is retried, how long a call may
+  take and where a failure goes.
+
+## Triggers { #triggers }
+
+A workflow starts from one trigger, the node its graph begins at. Publishing a
+version switches its trigger on; see
+[Starting a workflow from outside the console](../workflows.md#starting-a-workflow-from-outside-the-console).
+Each trigger hands the steps after it what its surface started the run with, frozen
+when the run is admitted and at most `WORKFLOW_RUN_MAX_INPUT_BYTES`. A test run
+started with an input of another shape fails the trigger with
+`TRIGGER_INPUT_INVALID`. A second trigger, or a trigger that is not where the graph
+starts, is refused at publish.
+
+### core.input { #core-input }
+
+**API request.** Started from an HTTP request or over a WebSocket. It hands the graph the run's input as `payload`, whatever the caller sent, and names the surface in `triggered_by`. Its id stays `core.input`, so a graph written before Manual and API were separate still starts from the API.
+
+::: app.workflows.contracts.io.WorkflowInputPayload
+
+Its **Input fields** make the input a contract. A field has a name, a type - text,
+number, whole number, yes or no, date or choice - and whether it is required. With
+none, a run takes any JSON object. With some, **Start a run** asks for each by name,
+a run whose input misses one, sends one of the wrong type or sends one not declared
+is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
+`payload.<field>` is type-checked at publish.
+
+::: app.workflows.nodes.core_input._handler.InputField
+
+### trigger.manual { #trigger-manual }
+
+**Manual.** Started by a person - **Run** in the editor, or **Start a run** on its
+runs page. It hands the graph what **API request** does and takes the same input
+fields, which the editor asks for before the run starts.
+
+### trigger.chat { #trigger-chat }
+
+**Chat message.** Started by a message in the chat, with this workflow picked to
+answer. Its `core.output` text is written back into that conversation.
+
+::: app.workflows.nodes._triggers.ChatTriggerOutput
+
+### trigger.webhook { #trigger-webhook }
+
+**Webhook.** Started by a signed delivery to the workflow's own address, which the
+first publish of the node creates along with its signing secret.
+
+Before it is published, **Listen for test event** in the trigger's Output pane
+opens a test URL for the draft for two minutes. The one call sent to it, a JSON
+object, is pinned as the trigger's output, so each step after it can be tested
+on a real delivery. The test URL checks no signature and never starts a run.
+
+::: app.workflows.nodes._triggers.WebhookTriggerOutput
+
+### trigger.schedule { #trigger-schedule }
+
+**Schedule.** Started on a clock, in the workflow's timezone and at most once a
+minute.
+
+::: app.workflows.nodes._triggers.ScheduleTriggerConfig
+
+::: app.workflows.nodes._triggers.ScheduleTriggerOutput
+
+### trigger.table_record { #trigger-table-record }
+
+**New table record.** Started by a record added to its table that matches every
+filter as it was added. Publishing it needs read access to the table.
+
+::: app.workflows.nodes._triggers.TableRecordTriggerConfig
+
+::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_call { #trigger-workflow-call }
+
+**Called by a workflow.** Started by another workflow's `workflow.run` step, with
+the fields it declares - the same fields as **Manual** - and never by hand or over
+the API. The caller's input is checked against them before the run starts.
+
+### trigger.workflow_failed { #trigger-workflow-failed }
+
+**On failure of a workflow.** Started once for each real run that fails of a
+workflow whose settings name this one as its error workflow, as the member who
+chose it. A run this trigger started never starts an error workflow itself.
+
+::: app.workflows.nodes._triggers.WorkflowFailedTriggerOutput
+
+## core.output { #core-output }
+
+What the workflow answers. Its bound fields become the run's `output`, which
+the API returns and the invoking surface delivers. It has the same fields as
+`agent.run`'s output, so an agent's answer binds straight across. An output
+with nothing bound is an empty answer.
+
+::: app.workflows.contracts.io.WorkflowOutputPayload
+
+## webhook.respond { #webhook-respond }
+
+**Respond to webhook.** Answers the delivery that started the run with a status
+(200 to 599), headers and a JSON `body` bound from an earlier step. A delivery to
+a graph holding this step waits for it instead of taking `202`, for at most
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. The first respond step to complete
+is the answer, a retry of the same delivery gets it again, and the run goes on
+after it. A run that ends without reaching the step answers `202` if it
+succeeded and `500` if it did not. Headers the API's own response owns are
+refused at publish: framing, `Content-Type`, `Set-Cookie`, and the CORS and
+browser-policy headers.
+
+::: app.workflows.nodes.webhook_respond.WebhookRespondConfig
+
+## data.map { #data-map }
+
+Builds a small typed record from earlier outputs. Each mapping reads one value
+with a JMESPath expression and converts it to `string`, `number`, `integer`,
+`boolean`, `json`, `file_ref` or `table_ref`. A value that cannot be converted
+fails with `MAPPING_COERCION_FAILED` and names the field.
+
+::: app.workflows.nodes.data_map._handler.DataMapConfig
+
+::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.filter and data.combine { #data-filter-and-data-combine }
+
+**Filter a list** keeps the items of a bound list for which a JMESPath condition
+over `item` and `index` holds, and says how many it dropped. **Combine lists**
+makes one list of `first` and `second`: `append` puts one after the other,
+`by_position` merges the objects at the same position, and `by_key` merges into
+each object of the first the second's object with the same `key`. Where both have
+a field, the second's wins; merging item by item needs objects, and fails with
+`COMBINE_NEEDS_OBJECTS` otherwise.
+
+::: app.workflows.nodes.data_filter._handler.DataFilterConfig
+
+::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
+## Transform { #transform }
+
+The **Transform** steps reshape a list of objects without a code step. Each takes
+`items`, a list bound from an earlier step, and most hand on `items`, so they
+chain.
+
+| Step | Does |
+|---|---|
+| `transform.edit_fields` | Sets fields from JMESPath expressions over each `item`, removes fields, or keeps only the ones set |
+| `transform.sort` | Sorts by fields in turn, ascending or descending |
+| `transform.limit` | Keeps the first or the last items |
+| `transform.remove_duplicates` | Keeps the first of each set of items equal on the fields named, or on the whole item |
+| `transform.aggregate` | Collects each field's values across the items into one list per field, as `values` |
+| `transform.split_out` | Turns a list inside each item into items of their own |
+| `transform.summarize` | Counts, sums, averages, finds the least or greatest, or counts the distinct values, by group |
+| `transform.date_time` | Now, or a bound `value` moved by an amount, written out in a timezone - the workflow's unless the step names one |
+| `transform.crypto` | Hashes or base64-encodes the bound `text`, or makes a UUID or random hex |
+
+A field is a dotted path, `customer.email`, and an item without it is never an
+error. Sort puts it last, Remove duplicates treats "missing" as a value of its
+own, Aggregate and Summarize leave it out, Split out keeps the item as it is, and
+Edit fields sets `null` where its expression finds nothing. Crypto is not for
+secrets: nothing in it is keyed.
+
+Chained, they answer common questions with no code step:
+
+- **The best leads, once each** - **Remove duplicates** on `email`, **Sort** by
+  `score` descending, **Limit** to 10, then **Edit fields** keeping only `name` and
+  `score`, ready for a message.
+- **Totals by region** - **Split out** `lines`, so each order line is an item, then
+  **Summarize** the `sum` of `amount` grouped by `region`: one item per region with
+  `sum_amount`.
+- **One list of addresses** - **Aggregate** `email` hands on `values.email`, every
+  address in one list, for any setting that takes a list.
+
+Each step reads `items` from the one before. `tests/integration/test_workflow_transform_composed.py`
+runs the first two as written.
+
+::: app.workflows.nodes.transform._handler.EditFieldsConfig
+
+::: app.workflows.nodes.transform._handler.SummarizeConfig
+
+::: app.workflows.nodes.transform._handler.DateTimeConfig
+
+## logic.if and logic.merge { #logic-if-and-logic-merge }
+
+`logic.if` evaluates a JMESPath condition over its bound `value` and continues
+down the `true` or the `false` port. Every node on the untaken branch is
+recorded as `skipped`. `logic.merge` rejoins the two branches. It runs once the
+taken branch reaches it and passes that branch's output on as `value`.
+Publishing checks that a merge's inputs leave one `logic.if` through different
+ports, so exactly one of them ever runs.
+
+Expressions can select, filter and compare, and call a fixed set of pure
+functions: `abs`, `avg`, `ceil`, `contains`, `ends_with`, `floor`, `join`,
+`keys`, `length`, `max`, `merge`, `min`, `not_null`, `reverse`, `sort`,
+`starts_with`, `sum`, `to_array`, `to_number`, `to_string`, `type` and
+`values`. Null, `false`, and an empty string, list or object are false, and
+everything else is true, including `0`. An expression that does not parse, or
+calls anything else, cannot be published.
+
+::: app.workflows.nodes.logic_if._handler.LogicIfConfig
+
+::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.switch { #logic-switch }
+
+**Switch.** Sends the run down the first of many branches whose rule holds. Each
+rule has a name, which is its branch's port, and a JMESPath condition over the
+bound `value`, tried in order; `otherwise` takes the run when none holds. Its
+branches rejoin at a `logic.merge`, which accepts them because exactly one is ever
+taken. A rule that fails on its data fails the step with `CONDITION_FAILED` and
+names the rule.
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchOutput
+
+## knowledge.search { #knowledge-search }
+
+Searches knowledge collections for a bound `query` and returns the passages as
+typed sources, best first. An empty result is a successful search. A
+collection that is gone, or no longer readable by the run's principal, fails
+the step with `COLLECTION_NOT_ACCESSIBLE`. The step never searches fewer
+collections than the graph names.
+
+::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
+
+::: app.workflows.contracts.io.SourceRef
+
+## Decisions { #decisions }
+
+Three steps ask TypeSafe's Jev a typed question about a bound `text`, with a
+TypeSafe API key from the vault. Jev does not write text: it answers the
+question with a confidence from 0 to 1, in one request, and it can only answer
+with one of the answers the step allows. Below the step's `min_confidence` the
+step leaves by its `unsure` port instead, so a workflow decides there what a
+person or an agent does with a doubtful case.
+
+| Step | Asks | Leaves by |
+|---|---|---|
+| `decide.yes_no` | a yes-or-no question | `yes`, `no` or `unsure` |
+| `decide.choose` | which of up to 255 options fits | `out` with the `choice`, or `unsure` |
+| `decide.score` | where the text sits on a rubric of 2 to 10 levels | `out` with the `score`, or `unsure` |
+
+The key is checked at publish and read again on every run. A key that is gone
+or unshared fails the step with `SECRET_NOT_USABLE`, a model that does not
+answer with `DECISION_FAILED`, which is retried as the step's policy says, and a
+deployment built without the `browser` extra with `DECISION_MODEL_UNAVAILABLE`.
+A merge may rejoin a decision's branches, as it rejoins an If / else step's.
+
+::: app.workflows.nodes._decide.DecisionConfig
+
+::: app.workflows.nodes.decide_choose._handler.ChooseConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.decide_score._handler.ScoreConfig
+    options:
+      show_bases: false
+
+## Channels { #channels }
+
+Slack, Mattermost and Telegram each have a group of steps of their own that act
+as one of the organization's bots on that platform, through the adapter its replies
+already go through, so a message a workflow sends arrives as that bot, and a step
+can read what the bot may read. A platform has only the steps its bots can take.
+
+| Step | Slack | Mattermost | Telegram | Hands on |
+|---|---|---|---|---|
+| **Send a message** (`<platform>.message.send`) | yes | yes | yes | where it was sent |
+| **Read messages** (`<platform>.messages.read`) | yes | yes | - | `messages`, oldest first |
+| **List members** (`<platform>.members.list`) | yes | yes | administrators | `members`, with their platform ids |
+| **Find channels** (`<platform>.channels.find`) | yes | yes | - | `channels` |
+
+A step takes a bot of its own platform only, and a bot speaks for the whole
+organization, so acting as one needs `channels:manage`: the graph's author to
+publish, the run's principal on every run. A bot deleted, switched off or of another
+platform stops the step with `CHANNEL_NOT_USABLE`. A platform that refuses a call at
+run time fails it with `CHANNEL_UNSUPPORTED`, and one that does not answer with
+`CHANNEL_CALL_FAILED`. Sending is never repeated on its own.
+
+::: app.workflows.nodes._channels.ChannelBotConfig
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadOutput
+
+::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
+
+::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
+## agent.run { #agent-run }
+
+Asks a published agent, at the exact version the step pins, through the same
+runner as chat and the API, with the agent's budget, approvals, guardrails and
+run history. The run is recorded with the surface `workflow`. Bound `sources`
+are appended to the prompt as numbered context. An approval-gated tool call
+parks the step, and the decision resumes the same agent run.
+
+An agent with an answer format of its own hands its object on as `structured`.
+`structured_output_schema` asks for another shape in its place: the agent is run
+with that schema, and an answer that breaks it is sent back to the model to be
+fixed. The object is checked once more before anything downstream runs. An
+agent that never produces one that fits fails the step with `AGENT_RUN_FAILED`,
+and an answer with no object where one was asked for fails it with
+`STRUCTURED_OUTPUT_MISMATCH`.
+
+| Agent run ended | Step result |
+|---|---|
+| Completed | Completed |
+| Awaiting approval | Waits, then resumes the same run |
+| Budget exceeded | `AGENT_BUDGET_EXCEEDED` |
+| Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
+| Otherwise | `AGENT_RUN_FAILED` |
+
+Bound `attachments` are images from the run's files - a download, a rendered PDF
+page, a transformed photo - shown to the agent as pictures rather than as a link it
+cannot open. Only PNG, JPEG, WebP and GIF are shown. Any other file fails with
+`UNSUPPORTED_ATTACHMENT_TYPE`, so read a document's text with `text.extract` first.
+
+It is never retried automatically, because an agent may have called tools with
+side effects.
+
+::: app.workflows.nodes.agent_run._handler.AgentRunConfig
+
+::: app.workflows.nodes.agent_run._handler.AgentRunOutput
+
+## http.request { #http-request }
+
+Calls an HTTP API. Every request and every redirect passes the deployment's
+SSRF check and is sent to the address that check approved. A credential is an
+[HTTP credential](../secrets.md#kinds) from the vault, and it is
+sent only to the origins the secret allows. The response is read under
+`max_response_bytes` and handed back without `Set-Cookie`, the authentication
+headers or the token.
+
+The credential goes as a bearer token, Basic authentication, a header you name
+or, with `query`, a URL parameter you name. **Import cURL** in the editor reads a
+command pasted from an API's docs into the method, URL, headers and JSON body. A
+credential in the command is never kept in the step: the step is set to send it
+the same way, and the vault form opens with it filled in.
+
+A `GET` can page through a list with `pagination`: following a next URL the
+response names, sending back a cursor, or counting a page parameter up. Each
+page's `items_path` items are collected into `items`, in order. Paging stops when
+there is no next page, when a page has no items, or at `max_pages`, when
+`complete` is false. Every page together reads no more than
+`max_response_bytes`, and a next page on another origin gets no credential.
+
+| What happened | Result |
+|---|---|
+| The URL is private, loopback, metadata or not http(s) | `URL_REFUSED`, nothing sent |
+| The URL is outside the credential's origins | `SECRET_ORIGIN_DENIED`, nothing sent |
+| The connection never opened | `HTTP_UNREACHABLE`, retried |
+| Sent, no answer, `GET` or an idempotency header | `HTTP_NO_RESPONSE`, retried |
+| Sent, no answer, any other write | Uncertain: the run stops for a person |
+| Non-2xx | `HTTP_ERROR_STATUS`, or the response as output with `on_error_status: complete` |
+| Larger than the limit | `RESPONSE_TOO_LARGE` |
+| A page's `items_path` finds something that is not a list | `PAGE_ITEMS_NOT_A_LIST` |
+
+::: app.workflows.nodes.http_request._handler.HttpRequestConfig
+
+::: app.workflows.nodes.http_request._handler.HttpAuth
+
+::: app.workflows.nodes.http_request._handler.HttpPagination
+
+::: app.workflows.nodes.http_request._handler.HttpRequestOutput
+
+## notification.send { #notification-send }
+
+Notifies members of the organization in the app, by email, or both, through
+the notification center. Recipients are members named by id. At run time each
+one must still be an active member who can see the workflow, and anyone else is
+dropped. If nobody is left, the step fails with `NO_PERMITTED_RECIPIENTS`. Each
+person's preferences for **Workflow notifications** still apply. The step
+completes when the notification is written, and email is delivered afterwards.
+A retried step writes no second notification.
+
+::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## human.approval { #human-approval }
+
+**Ask for approval** stops the run until a person approves or rejects what it is
+about to do, then goes on by `approved` or `rejected`. The approver reads the
+step's `title` and the `details` bound to it, in the **Approvals** tab of
+Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
+decide, and they are notified in the app; left empty, anyone holding
+`approvals:decide` may. Past `timeout_hours` the request expires and the step
+leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
+it asked. Each run of the step asks once, so a retry or a loop iteration never
+asks twice for the same thing.
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
+## flow.wait { #flow-wait }
+
+**Wait.** Holds the run at the step for `seconds` after it is reached, or until a
+bound `until`, then goes on; at most thirty days. The step is parked on a timer
+whose dispatch row comes due then, so the wait survives a worker restart and holds
+no worker, and other branches go on meanwhile. A moment already past goes on at
+once, and the run's deadline still applies.
+
+With **Wait for a call to the run's resume link**, the step waits instead until the
+address a **Resume link** step gave is called, at most `seconds` (thirty days when
+unset). `POST` that address with a JSON object, or nothing: the step hands the body on
+as `body`, with `called` true, and the run goes on. Nobody calling in time, it goes on
+with `called` false. A call while nothing waits - before the step is reached, after
+it went on, or once the run ended - is refused with `WORKFLOW_NOT_WAITING` (409), and a
+link that is not the run's answers `404`.
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.resume_link { #flow-resume-link }
+
+**Resume link.** Hands on `url`, the address that resumes this run's Wait steps
+waiting for a call - for a message or a request before the Wait, so whoever answers
+can go on with the run. Every run has its own, made from its id under the
+deployment's secret and shown to nobody else: holding it is what lets a caller
+resume the run, so it is sent only where the answer should come from.
+
+::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
+
+## Error handling { #error-handling }
+
+Every node takes an optional `policy` beside its config.
+
+| Field | Default | Effect |
+|---|---|---|
+| `timeout_seconds` | none | A call still running after this long is cut off. A step with no external write, or one whose call is idempotent, fails with `NODE_TIMEOUT` and may be retried. A write that may have landed becomes uncertain and stops for a person |
+| `retry.max_attempts` | `WORKFLOW_RETRY_CEILING` | Tries in total, the first included. Only a failure the node marks retryable is tried again, and publishing refuses more than one try for a step whose call is not safe to repeat |
+| `retry.backoff`, `base_delay_seconds`, `max_delay_seconds` | `exponential`, `2`, `60` | The wait between tries: fixed, or doubling up to the ceiling |
+| `on_error` | `fail_run` | `route` sends a failure that retries did not settle out of the node's `error` port instead of failing the run |
+
+A node whose policy routes its errors has an extra `error` output port. It
+carries the `WorkflowError`: `code`, `message`, `details` and `retryable`. The
+node's normal output exists only on its other ports, so publishing refuses a
+binding that reads the output on the error path, or the error on the success
+path. The error port has to lead somewhere, and the two paths may rejoin at a
+`logic.merge`.
+
+`error.handle` takes that error on its `in` port and leaves by the first branch
+whose `code` and `retryable` both match, or by `default`, which must be
+connected. `error.raise` fails its branch with a code, a message and details
+that the author sets.
+
+Some failures are never routed. Revoked access, a spent budget (the run's or an
+agent's), a cancelled run, a passed deadline, the per-run node ceiling and an
+effect of unknown outcome end the run however the graph is wired. A revision
+conflict or a validation error can be routed but is never retried blindly,
+because the same input fails the same way again.
+
+::: app.workflows.contracts.policy.NodePolicy
+
+::: app.workflows.contracts.policy.RetryPolicy
+
+::: app.workflows.nodes.error_handle._handler.ErrorHandleConfig
+
+::: app.workflows.nodes.error_handle._handler.HandledError
+
+::: app.workflows.nodes.error_raise._handler.ErrorRaiseConfig
+
+## Loops { #loops }
+
+`control.foreach` runs its body once for every element of a bound `items` list,
+one element at a time and in order. It then continues through its `done` port
+with `results` in input order, `errors` and `count`. The body starts at
+`loop.item`, wired from the loop's `body` port, which provides `item`, `index`
+and `count`. It ends at `loop.yield`, whose bound `value` is the iteration's
+result. No edge leads back to the loop. A step in the body may bind to anything
+that ran before the loop, and nothing outside the body may bind into it.
+
+The list is frozen when the loop starts, so an iteration never sees a source
+that changed during the run. A list longer than `WORKFLOW_FOREACH_MAX_ITEMS`, or
+larger than `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES`, is refused rather than
+truncated. An empty list gives `results: []` without running the body. Each
+iteration's steps run in their own scope, with their own attempts, idempotency
+keys and costs. The next iteration is scheduled in the transaction that ends the
+previous one, so a restart resumes at the right index and never repeats a
+confirmed write. An approval inside an iteration resumes that iteration.
+
+With `item_error_policy: stop`, the default, the loop fails at the first failed
+iteration and the error's details carry that iteration's `scope_path`. With
+`collect`, the item's result is `null`, the error is added to `errors` and the
+loop carries on. Loops nest at most `WORKFLOW_FOREACH_MAX_DEPTH` deep, and
+every node run a run creates counts against `WORKFLOW_RUN_MAX_NODE_RUNS`. There
+is no `while` loop and no parallel map.
+
+::: app.workflows.nodes.control_foreach._handler.ForeachConfig
+
+::: app.workflows.nodes.control_foreach._handler.ForeachOutput
+
+::: app.workflows.nodes.loop_item._handler.LoopItemOutput
+
+## Virtual Tables { #virtual-tables }
+
+Seven nodes read and write [Virtual Tables](../virtual-tables.md) through the same
+service the console, the API and an agent's table tools use. Validation, revision
+conflicts, quotas, history, receipts and audit are the same on every surface.
+
+| Node | Does | Effect |
+|---|---|---|
+| `table.record.create` | Adds a record | write |
+| `table.record.upsert` | Creates or updates the record with an external id | write |
+| `table.record.update` | Changes some of a record's cells | write |
+| `table.record.delete` | Deletes a record, keeping its history | write |
+| `table.record.get` | Finds one record by id or external id | read |
+| `table.record.query` | Reads one page of records, filtered and sorted | read |
+| `table.create` | Creates a new table with a typed schema | write |
+
+Each record node pins its table in its config, checked at publish against the
+graph's author, and checked again as the run's principal on every run. Values are
+bound and keyed by column id or by column label. A record comes back with its values
+twice: `values` by column id, for bindings, and `fields` by label, to read. A key
+that names no live column fails with `UNKNOWN_COLUMN`.
+
+A write carries the step's operation key, so a retried step replays its first write.
+An update, upsert or delete with no revision bound writes at the record's current
+revision, read under the record's lock, and the replay holds even when the first
+write already moved that revision on. A revision that moved is `REVISION_CONFLICT`, which is not retried: the same revision would
+conflict again, so route it to a fresh read with `error.handle`. A missing
+record is `found: false` from `table.record.get`, not a failure. `table.record.query`
+reads at most 100 records a page and says `has_more`. It never reads a whole large
+table on its own.
+
+`table.create` is its own node and needs `tables:create`. Its output carries the
+new table as a reference a later node's `table` can be bound to, and each column's
+id by label. A table that a live workflow reads or writes, or a column it pins,
+cannot be archived while that workflow's current version uses it.
+
+Four more steps read what the organization's tables are, and change nothing.
+
+| Step | Does | Leaves by |
+|---|---|---|
+| `table.list` | lists the tables the principal sees, searched by name | `out`, with `tables` and `total` |
+| `table.describe` | reads one table's name and columns | `out`, with `columns` |
+| `table.exists` | whether a table of this exact name exists | `yes`, with its id, or `no` |
+| `table.record.exists` | whether any record matches the filters | `yes`, with the first one's id, or `no` |
+
+`table.exists` matches the whole name without regard to case, so a workflow can
+create its table the first time it runs and reuse it after. The two questions
+leave by exactly one port, and a `logic.merge` can join the branches again.
+
+::: app.workflows.nodes.table_list._handler.TableListOutput
+
+::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
+
+::: app.workflows.nodes.table_record_exists._handler.TableRecordExistsConfig
+
+::: app.workflows.nodes._tables.TableRecordOutput
+
+::: app.workflows.nodes.table_record_get._handler.TableRecordLookup
+
+::: app.workflows.nodes.table_record_query._handler.TableRecordQueryConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreateConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Files { #files }
+
+A file a step makes is stored as a file of its run and handed on as a `FileRef`: an
+id, the type its bytes turned out to be, and a size. A step reads a file only if
+its own run made it or the run was started with it - a `FileRef` bound in the
+graph, checked at publish against a run the author can see. Any other file,
+another organization's or another run's, is `FILE_NOT_FOUND`, so knowing an id
+grants nothing. A run's files are listed and downloaded from its page.
+
+| Node | Does | Effect |
+|---|---|---|
+| `http.download` | Fetches a file over HTTP, streamed, and stores it | write |
+| `http.upload` | Sends a file to an HTTP endpoint, streamed from storage | write |
+| `file.read` | Reads a file as text, a JSON value or CSV rows | read |
+| `file.write` | Stores text, a JSON value or rows as a file | write |
+| `text.extract` | The text of a TXT, JSON, CSV, text PDF or DOCX file | read |
+| `convert.csv_to_json` | A CSV file as a JSON file of rows | write |
+| `convert.json_to_csv` | A JSON list of flat objects as a CSV file | write |
+| `convert.text_to_file` | Text as a TXT file | write |
+| `convert.pdf_to_png` | Chosen PDF pages as PNG images | write |
+| `image.transform` | Crops, resizes, rotates or converts an image | write |
+
+A download follows the same SSRF and credential rules as `http.request`, up to five
+redirects. Its body is counted as it arrives and refused past `max_bytes`, and its
+type is sniffed from the bytes, so `expected_content_types` cannot be fooled by a
+header. `text.extract` does no OCR: a scanned page fails the step with
+`TEXT_EXTRACTION_NEEDS_OCR` and names the pages. A corrupt document is
+`DOCUMENT_CORRUPT`, a Word document that unpacks past the archive bounds a chat
+upload has `DOCUMENT_TOO_LARGE`, and a password-protected PDF `DOCUMENT_ENCRYPTED`.
+
+An image is measured before it is decoded. Its width times height, a crop box and
+a requested size are each checked against `CHAT_IMAGE_MAX_PIXELS`, and the result
+carries none of the source's metadata. Every step that stores a file stores a new
+one on each attempt, so it is `at_least_once`.
+
+::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
+
+::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
+
+::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+::: app.workflows.nodes.text_extract._handler.TextExtractOutput
+
+::: app.workflows.nodes.convert_pdf_to_png._handler.ConvertPdfToPngConfig
+
+::: app.workflows.nodes.image_transform._handler.ImageTransformConfig
+
+## Python { #python }
+
+Two nodes run Python, for two kinds of work.
+
+`code.python.simple` runs a short script in the Monty sandbox, which has no
+filesystem, no network and a small standard library. The script reads the bound
+values as `args`, and its last expression is the step's `result`, which must be a
+JSON value. It computes and nothing else, so it is `pure` and needs `code:execute`.
+
+In the editor, a code step's script is written in a code editor: Python or
+JavaScript highlighted in both themes, Tab and Shift+Tab to indent, Enter keeping
+the indentation, brackets and quotes closed as they are typed, the bracket beside
+the cursor boxed with its match, and the keys of the
+bound `args` offered as `args["` or, in JavaScript, `args.` is typed. Esc, then
+Tab, leaves the editor. **Test step** runs the script alone on what the steps
+before it handed on.
+
+`code.python.sandbox` runs full Python with packages and the run's files on the
+organization's `sandboxd` connection, and needs `sandbox:execute`. The script finds
+its input files in `inputs`, writes files to `outputs` and sets `result`. It is a
+durable job: the first dispatch starts it in the background, and every later one
+checks on it in the same session, so a restarted worker reconnects instead of
+starting it again. No platform credential is ever staged into the sandbox, and
+what the script can reach beyond its files is the host runtime's own
+configuration - choose a runtime without network for untrusted work.
+
+| What happened | Result |
+|---|---|
+| The result is not JSON | `PYTHON_OUTPUT_NOT_JSON` |
+| The script raised or ran past a limit | `PYTHON_ERROR` |
+| The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
+| No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
+| It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
+| The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
+
+::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
+
+## JavaScript { #javascript }
+
+`code.javascript.sandbox` runs JavaScript on Node as the same durable job, on the
+same `sandboxd` connection, and needs `sandbox:execute`. The script is the body of
+an async function: it reads the bound values as `args`, its input files in
+`inputs`, writes files to `outputs`, may `await`, and what it `return`s is the
+step's `result` - `null` when it returns nothing. `require` loads Node's own
+modules and whatever the runtime has installed. Choose a runtime with Node.
+
+Its failures are the Python sandbox's, named for JavaScript: a thrown error is
+`JAVASCRIPT_ERROR`, a result that is no JSON value - a function, a `BigInt` -
+is `JAVASCRIPT_OUTPUT_NOT_JSON`, and the timeout and the output bounds are
+`JAVASCRIPT_SANDBOX_TIMEOUT` and `JAVASCRIPT_OUTPUT_TOO_LARGE`.
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
+## workflow.run { #workflow-run }
+
+**Run a workflow.** Runs another workflow's published version, one that starts
+from **Called by a workflow**, with the bound `input`, as this run acts. The step
+waits for the called run to end and hands on its `output`, or fails with
+`CALLED_WORKFLOW_FAILED` and the called run's error; with **Wait for it to finish**
+off, it hands on the started run at once. The called run is linked to the step and
+to this run's chain. A call into a workflow already running further up the chain
+fails with `WORKFLOW_CALL_LOOP`, and one deeper than five calls with
+`WORKFLOW_CALL_TOO_DEEP`. A test run of the draft calls the published workflow for
+real.
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunConfig
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunOutput
+
+## Adding a node { #adding-a-node }
+
+A node is a package under `backend/app/workflows/nodes/`: `__init__.py`
+registers a `NodeDefinition`, `_handler.py` implements it, and `README.md`
+explains why it exists. `load_builtins` imports the package.
+`tests/test_workflow_node_layout.py` enforces the layout. A handler returns
+`Completed`, `Waiting`, `Failed` or `Uncertain` and never raises. It reads the
+run it executes for from `app.services.workflow_execution.context.current()`.
+
+A typed node declares three Pydantic models: its config, set in the editor and
+frozen at publish; its input, whose fields are what bindings fill; and its
+output, which later steps bind to. `extra="forbid"` on each keeps a typo out of a
+published graph. Choose `retry_guarantee` for what a repeat of the call would do:
+`idempotent` when the handler makes a repeat harmless itself - a table write passes
+`operation_key()` - `at_least_once` when a repeat is acceptable, and `none` when it
+is not. A node that reads or writes a resource declares `check_resources`, which
+publishing runs against the author and every run against its principal.
+
+The console draws a node from its definition, with its icon and tint in
+`frontend/src/components/workflows/node-visuals.ts`. Test the handler directly for
+its refusals, and drive it once through `tests/integration/workflow_run_support.py`
+so its config, bindings and output are proved in a real run.
+
+::: app.workflows.contracts.definition.NodeDefinition

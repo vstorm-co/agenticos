@@ -1,5 +1,5 @@
 ---
-source_sha: "8d9cf7ac71b1"
+source_sha: "cb5cd8136482"
 ---
 
 # Architektur { #architecture }
@@ -237,7 +237,7 @@ den niemand geradesteht.
 Beide Grenzen sind gegen eine echte Datenbank in
 `tests/integration/test_run_commit_boundary.py` nachgewiesen.
 
-### Der eine andere frühe Commit { #the-one-other-early-commit }
+### Ein zweiter früher Commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` ist der zweite, und zwar aus dem
 umgekehrten Grund: nicht weil die Transaktion zu lange gehalten würde, sondern
@@ -252,6 +252,18 @@ Eintrag darüber, dass etwas geschehen ist.
 `test_the_response_survives_the_refusal_that_follows_it` rollt nach dem Aufruf
 zurück und prüft, was geblieben ist
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### Ein Webhook, der auf seine Antwort wartet { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` ist der dritte. Ein Webhook, dessen Graph einen
+Schritt Respond to webhook enthält, beantwortet seinen Absender mit dem, was dieser
+Schritt festhält, also muss die Anfrage auf einen Run warten, der noch nicht
+gestartet ist - und er kann nicht starten, bevor die Zulassung für den Worker
+sichtbar ist. Der Service committet den Run und seinen Zustellungseintrag, startet
+den Dispatch, den `spawn_after_commit` eingereiht hat (sonst startete ihn erst der
+abschließende Commit der Session), und fragt dann die Antwort des Runs ab. Nach dem
+Commit wird nichts geschrieben, also hat der abschließende Commit nichts mehr zu
+tun. `TestAnsweringTheSender` treibt den Run aus diesem Dispatch an.
 
 Sichtbarkeit schneidet in beide Richtungen. Alles, was früher schloss „die Zeile
 eines laufenden Runs kann nicht gesehen werden“, schließt jetzt über eine Zeile,
@@ -356,6 +368,33 @@ einen Neustart überleben muss, ist ein Prefect-Deployment.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Workflow-Runs: eine Outbox und kurze Transaktionen { #workflow-runs-an-outbox-and-short-transactions }
+
+Ein Workflow-Run kann Tage dauern - ein Knoten kann auf eine Freigabe warten -,
+deshalb hält kein Prozess seine Position. Das tut Postgres: `dispatch_outbox`
+nennt jeden Knoten, der bereit ist, und jeder Worker-Flow übernimmt eine Zeile,
+führt einen Versuch aus und schließt ihn ab. Der Code liegt in
+`app/services/workflow_execution/dispatcher.py`.
+
+Jeder Versuch besteht aus drei kurzen Transaktionen um einen Aufruf, der keine
+hält. Der Claim committet einen Lease auf die Zeile; die Versuchszeile wird als
+`in_flight` committet, bevor der Handler aufgerufen wird, sodass ein Worker, der
+mitten im Aufruf stirbt, etwas hinterlässt, das der Reconciler findet; und der
+Abschluss committet das Ergebnis, die Kosten und die Outbox-Zeile des nächsten
+Knotens gemeinsam, sodass kein Ergebnis ohne seinen nächsten Schritt dauerhaft
+ist. Solange der Handler läuft, erneuert der Worker seinen Lease in eigenen
+Transaktionen, und eine Erneuerung, die den Claim nicht mehr vorfindet, teilt
+das dem Handler mit.
+
+Jeder Statuswechsel nach dem Claim ist an das Token des Claims gebunden und
+daran, dass die Zeile noch beansprucht ist, unter einer Sperre, die Dispatcher
+und Reconciler in derselben Reihenfolge nehmen - Run, Knoten-Run, Outbox. Die
+eine Ausnahme sind die Kosten: Was ein Aufruf ausgegeben hat, wird auch dann
+verbucht, wenn sein Ergebnis zu spät kommt, um angenommen zu werden. Ein
+unterbrochener Versuch gilt nie als gelungen oder gescheitert: Er wird
+`uncertain`, und nur ein als idempotent deklarierter Knoten wird automatisch
+erneut versucht.
 
 ## Agent-Runs: Eine Capability holt nie selbst { #agent-runs-a-capability-never-fetches }
 
@@ -981,6 +1020,9 @@ durchgearbeitetes Beispiel.
   `SessionService.detect_refresh_reuse` committet die soeben widerrufene Session
   und den Eintrag, der sagt warum — denn sein Aufrufer wirft unmittelbar danach
   einen 401, und das Zurückrollen würde beides rückgängig machen.
+- Ein Webhook, dessen Graph seine Zustellungen beantwortet, committet die
+  Zulassung in `WorkflowExposureService._answer`, damit der Run starten kann,
+  während die Anfrage auf ihren Schritt Respond to webhook wartet.
 - Hintergrundarbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, wird
   mit **`spawn_after_commit`** übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,

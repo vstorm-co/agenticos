@@ -1,5 +1,5 @@
 ---
-source_sha: "e7531729ae8e"
+source_sha: "8c159d3186cc"
 ---
 
 # API HTTP { #the-http-api }
@@ -62,7 +62,10 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 Odpowiedź niesie identyfikator runa, wynik i status. Dwa opcjonalne pola w ciele
 warto znać: `conversation_id` kontynuuje istniejący wątek, a `environment_id`
-wybiera, [które środowisko](environments.md) odpowiada.
+wybiera, [które środowisko](environments.md) odpowiada. Agent z
+[formatem odpowiedzi](concepts.md#spec) odpowiada obiektem: jest on w `structured`,
+już sprawdzony względem `output_schema` agenta, a `output` pokazuje ten sam obiekt
+jako blok JSON.
 
 !!! info "Wywołujący API nie może obejść nadzoru"
 
@@ -95,6 +98,135 @@ to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
 Odpowiedź niesie też `categories` i `tags`: każdą odrębną etykietę na agentach,
 które możesz wylistować, niezależnie od filtra i strony — wybory, które podaje menu
 filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
+
+## Uruchamianie workflowu { #running-a-workflow }
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
+```
+
+To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
+węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). Tutaj uruchamia się tylko wersja, która startuje od tego wyzwalacza albo bez żadnego: każda inna odpowiada `409
+WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
+wymaga `workflows:edit`.
+
+`deadline_seconds` (do trzydziestu dni) ustawia termin
+sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
+po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
+albo run czekający na zatwierdzenie nie są przez niego przerywane. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
+po przekroczeniu limitu odpowiada `429` z `Retry-After`.
+
+`GET /api/v1/workflow-runs/{id}` zwraca status runa, `spent_cost`, `error` oraz, gdy jego węzeł [`core.output`](reference/workflow-nodes.md#core-output) już się wykonał, `output`, a
+`POST /api/v1/workflow-runs/{id}/cancel` go zatrzymuje. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` zwraca strumień zdarzeń runa
+od najstarszego, z `next_cursor` do odesłania jako `after`: pozostaje taki sam,
+dopóki nie ma nic nowszego, więc odpytywanie z nim śledzi trwający run. Kto może
+robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` wymienia każdy krok, który wykonał run,
+łącznie z iteracjami pętli, każdy z jego `scope_path`, statusem, próbami, kosztem i
+typowanym błędem, którym ostatnio się zakończył, a `GET
+/api/v1/workflow-runs/{id}/graph` zwraca graf, który run wykonuje: graf jego wersji
+albo snapshot draftu runa testowego.
+
+### Eksport i import workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) zwraca szkic jako przenośny
+plik: `name`, `description`, `tags`, `settings`, `graph` i `unresolved`, czyli krok
+i pole każdego pominiętego przypięcia zasobu. Nie zawiera identyfikatorów tego
+wdrożenia ani wartości sekretów. `POST /api/v1/workflows/import`
+(`workflows:create`) przyjmuje taki plik i odpowiada `201` z nowym szkicem
+`workflow` i jego przypięciami `unresolved`; graf, który się nie parsuje albo
+zawiera krok, którego to wdrożenie nie ma, to `400` i nic nie powstaje.
+
+### Śledzenie runa przez WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` uwierzytelnia się tak jak gniazdo
+czatu, z tokenem dostępu jako subprotokołem `access_token.<token>`. Wyślij
+`{"type": "start", "workflow_id": ..., "input": {...}}`, żeby uruchomić run, albo
+`{"type": "attach", "run_id": ..., "after": <cursor>}`, żeby śledzić istniejący.
+Serwer wysyła `{"type": "run", "run": {...}}`, gdy zaczyna śledzić, i ponownie, gdy
+run się kończy, oraz `{"type": "event", "event": {...}, "cursor": ...}` dla każdego
+zdarzenia pomiędzy. Odrzucona ramka dostaje `{"type": "error", "code": ...,
+"message": ...}`, a unieważniona sesja zamyka gniazdo kodem `4001`. Jedno gniazdo
+śledzi jeden run; nowa ramka zastępuje run, który śledziło. Ramka `start` zużywa ten
+sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
+`RATE_LIMIT_EXCEEDED`.
+
+### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
+
+Workflow, którego węzłem wyzwalacza jest webhook albo harmonogram, dostaje swoją
+ekspozycję przy publikacji tej wersji, a odpowiedź na publikację niesie ją jako
+`exposure`. Sekret do podpisu webhooka jest w `webhook_secret` publikacji, która
+pierwszy raz go włącza, i nigdzie indziej. `GET /api/v1/workflows/{id}/exposure`
+odczytuje ją z powrotem albo zwraca `null` dla workflow, który startuje inaczej.
+`PATCH .../exposures/{exposure_id}` z `{"is_active": false}` ją wstrzymuje, a `POST
+.../exposures/{exposure_id}/rotate-secret` wymienia sekret webhooka i raz zwraca
+nowy. Oba wymagają `workflows:edit` i `workflows:run` na workflow. `webhook_url`
+webhooka to adres, na który dostarcza nadawca:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+Odpowiada `202` z `{"run_id": ..., "duplicate": false}`, gdy tylko run zostanie
+przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęto,
+odpowiada `"duplicate": true` z id pierwszego runa. Podpis, który się nie weryfikuje,
+to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
+a wstrzymany albo nieznany webhook to `404`.
+
+Graf z krokiem [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+odpowiada zamiast tego statusem, nagłówkami i treścią JSON tego kroku, a
+ponowienie dostarczenia dostaje tę samą odpowiedź. Żądanie czeka na nią najwyżej
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`, potem odpowiada `202` jak wyżej; run,
+który przed odpowiedzią się nie powiedzie, zostanie anulowany albo wyczerpie
+budżet, to `500` `WORKFLOW_WEBHOOK_UNANSWERED` z nazwą runa.
+
+Przed publikacją `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+otwiera testowy URL dla szkicu, zwracany jako `url` z `test_token` w środku i otwarty na
+jedno wywołanie przez dwie minuty. Wywołanie nie potrzebuje podpisu, dostaje
+odpowiedź `{"captured": true}` i nie uruchamia runa. `GET .../webhook-test/{token}`
+odczytuje `state` (`listening`, `caught` albo `expired`) i odebrane `delivery`.
+
+## Praca z tabelami { #working-with-tables }
+
+`values` rekordu są kluczowane id kolumn; `GET /api/v1/tables/{id}` wymienia kolumny.
+Każdy zapis przyjmuje `Idempotency-Key`: ponowienie z tym samym kluczem i treścią
+odpowiada wynikiem pierwszego zapisu i `Idempotent-Replayed: true` zamiast zapisywać
+znowu, a ten sam klucz z inną treścią to `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` zmienia część komórek i wymaga `expected_revision`,
+którą ostatnio odczytałeś; nieaktualna to `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` tworzy rekord albo go aktualizuje, a gdy już
+istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje, przeszukuje
+i sortuje po jednej stronie naraz, a `POST .../records/count` mówi, ile rekordów
+pasuje do tych samych filtrów i wyszukiwania, najwyżej 100 000.
+
+Workflow, którego węzłem wyzwalacza jest **New table record**, po publikacji
+uruchamia się dla każdego rekordu dodanego do jego tabeli. `GET .../triggers`
+wymienia workflow, które startują od tabeli, `PATCH .../triggers/{trigger_id}` z
+`{"is_active": false}` wstrzymuje jeden, a `GET .../triggers/{trigger_id}/admissions`
+wymienia, co zdecydował o każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).
+
 ## Usługi ML { #the-ml-services }
 
 Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za

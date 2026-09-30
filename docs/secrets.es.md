@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "3354f9a35a24"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -100,6 +100,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
+| `http_credential` | Un token que envía un paso HTTP de un workflow, un nombre de usuario opcional y los orígenes a los que puede enviarse |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
@@ -114,6 +115,13 @@ quedar atada al nombre que ordene primero.
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
 token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
 puede ocupar su lugar.
+
+`http_credential` es la regla de `git_token` para un paso [`http.request`](reference/workflow-nodes.md#http-request) de un workflow: la URL del paso la escribe quien edita el workflow, y puede venir de la entrada de un run, así que los orígenes a los que puede ir el token se sellan con él, como `https://api.example.com`. El paso comprueba el origen de la URL que va a llamar, y de cada redirección que sigue, y no envía el token a ningún otro sitio. Ningún otro tipo de secreto puede sustituirlo.
+
+El campo de secreto de un paso de workflow ofrece **New secret**: el propio
+formulario del vault, fijado al tipo que acepta el campo y guardado como `custom`,
+el único propósito que admite cualquier forma. El secreto nuevo queda elegido al
+guardar. Su valor va al vault y a ningún otro sitio, y el grafo guarda solo su id.
 
 `entra_app` es la identidad con la que inicia sesión una fuente de sincronización
 de SharePoint u OneDrive. Su alcance se fija en Microsoft Entra, no aquí: los
@@ -168,6 +176,12 @@ fila del trigger junto con la `key_version` que lo selló, con la misma forma qu
 signing secret de un bot de canal. Nunca se devuelve ni se registra en claro; la
 verificación lo desella, compara en tiempo constante, y una entrega que falla es un
 403. Mira [Conceptos](concepts.md#trigger).
+
+**Webhooks de workflows.** La clave HMAC con la que se firman las entregas de un
+webhook de workflow, generada por la plataforma, sellada para la organización y
+guardada en la fila del webhook con su `key_version`. Se muestra una vez, cuando se
+crea o se sustituye, y nunca más; una rotación de la clave maestra la vuelve a
+envolver junto con el resto. Consulta [Workflows](workflows.md#a-webhook-or-a-schedule).
 
 **Embeds.** Un widget `jwt` verifica los tokens de visitante contra un signing
 secret HS256 que guarda el backend del cliente. Está sellado a la organización del

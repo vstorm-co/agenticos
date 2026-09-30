@@ -1,5 +1,5 @@
 ---
-source_sha: "52c1284c9aae"
+source_sha: "9c1a3f3e2325"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -8,7 +8,7 @@ Eine Seite, jedes Modul, beschrieben. Die Screenshots folgen dem Theme, in dem
 Sie die Website lesen - schalten Sie es mit dem Umschalter im Kopfbereich um, und
 jedes Bild auf dieser Seite schaltet mit.
 
-Aufgenommen am 01.09.2026 aus einem laufenden Deployment: 35 Bildschirme, 27
+Aufgenommen am 01.09.2026 aus einem laufenden Deployment: 42 Bildschirme, 34
 davon in beiden Themes unter `docs/assets/screens/`, in `light/` und `dark/`
 gleich benannt. Die acht Builder-Bildschirme gibt es nur in dunkel, und sie sagen
 das dort, wo sie erscheinen.
@@ -134,6 +134,57 @@ Jede Version, die dieser Agent hatte. Die, die im März live war, ist immer noch
 Derselbe Agent als Graph: was ihn erreicht und wonach er greift. Ein gestrichelter Kasten ist etwas, an dem nichts hängt - ein Budget ohne eigene Obergrenze liest sich als Lücke statt als Default.
 
 ![Visual map](assets/screens/dark/builder-visual-map.webp)
+## Workflows und Tabellen { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+Der Katalog der Automatisierungen, eine Karte pro Workflow: sein Status, wer ihn erreichen kann, ob eine Version live ist und wann er zuletzt bearbeitet wurde, mit seinen Runs, dem Editor und einer Kopie einen Klick entfernt.
+
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
+
+### Der Workflow-Editor { #the-workflow-editor }
+
+Die Zeichenfläche hat die ganze Breite: der Graph als Karten, die sagen, wofür jeder Schritt eingerichtet ist oder zu welcher Gruppe er gehört, die Einstellungen eines Schritts in einem Dialog darüber und jeder Schritt zum Hinzufügen einen Klick - oder einen Rechtsklick - entfernt. Eine Schleife zeigt, wie viele Schritte ihr Körper enthält.
+
+![Der Workflow-Editor](assets/screens/light/workflow-editor.webp#only-light)
+![Der Workflow-Editor](assets/screens/dark/workflow-editor.webp#only-dark)
+
+### Der Körper einer Schleife { #a-loops-body }
+
+In einer Schleife, ein Schritt ausgewählt: die Tabelle, in die er schreibt, und ihre Spalten, eine Datensatz-ID aus dem aktuellen Element der Schleife, die Werte, die er schreibt, und seine Policy - drei Versuche und Fehler, die über seinen roten **Error**-Port zu einer Fehlerbehandlung gehen, statt den Run fehlschlagen zu lassen.
+
+![Der Körper einer Schleife](assets/screens/light/workflow-loop-body.webp#only-light)
+![Der Körper einer Schleife](assets/screens/dark/workflow-loop-body.webp#only-dark)
+
+### Runs { #runs }
+
+Jeder Run eines Workflows, die neuesten zuerst: ob er den Draft oder die veröffentlichte Version ausgeführt hat, was ihn gestartet hat, wann, wie lange und zu welchen Kosten. **Start a run** testet den Draft mit einem eigenen Input.
+
+![Runs](assets/screens/light/workflow-runs.webp#only-light)
+![Runs](assets/screens/dark/workflow-runs.webp#only-dark)
+
+### Ein Run { #a-run }
+
+Ein Run, wie er abgelaufen ist: der Graph, den er ausgeführt hat, jeder Schritt markiert mit dem, was er getan hat, die Ausgabe, mit der er geantwortet hat, und jeder Schritt, den er gemacht hat, Iteration für Iteration.
+
+![Ein Run](assets/screens/light/workflow-run.webp#only-light)
+![Ein Run](assets/screens/dark/workflow-run.webp#only-dark)
+
+### Tabellen { #tables }
+
+Typisierte Datensätze, die Ihre Agenten, Workflows und Integrationen lesen und schreiben, eine Karte pro Tabelle mit dem, wer sie erreichen kann, und ihrer Schema-Version.
+
+![Tabellen](assets/screens/light/tables.webp#only-light)
+![Tabellen](assets/screens/dark/tables.webp#only-dark)
+
+### Eine Tabelle { #a-table }
+
+Die Datensätze einer Tabelle, nachdem der Run oben jeden niedrigen Wert angehoben hat: Auswahlwerte als farbige Chips und dieselben Datensätze als Kanban-Board oder Liste einen Tab weiter.
+
+![Eine Tabelle](assets/screens/light/table-detail.webp#only-light)
+![Eine Tabelle](assets/screens/dark/table-detail.webp#only-dark)
+
 ## Knowledge { #knowledge }
 
 ### Knowledge bases { #knowledge-bases }
@@ -284,7 +335,7 @@ Die eigene Identität und Richtlinie dieses Deployments: Registrierung, Einladun
 
 ## Fazit { #recap }
 
-- 27 Module liegen in beiden Themes in `docs/assets/screens/`, unter demselben
+- 34 Module liegen in beiden Themes in `docs/assets/screens/`, unter demselben
   Namen; die acht Builder-Bildschirme gibt es nur in dunkel.
 - Auf dieser Website wird ein Bild zweimal geschrieben, mit `#only-light` und
   `#only-dark`; Material zeigt das, was zur Palette des Lesers passt.

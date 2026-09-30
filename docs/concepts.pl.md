@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "552010905ca7"
 ---
 
 # Koncepcje { #concepts }
@@ -45,6 +45,14 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
     Nowe pola dostają wartości domyślne, więc agent opublikowany dziś nadal
     wczytuje się po aktualizacji. Usunięcie albo zmiana nazwy pola to migracja,
     a nie edycja.
+
+!!! info "Odpowiedź może być danymi"
+
+    Domyślnie agent odpowiada tekstem. Ustaw **Answer format** na dane
+    strukturalne albo `output_schema` w specu, a odpowie obiektem z nazwanymi
+    polami: model dostaje prośbę o ten kształt, a odpowiedź, która go łamie, wraca
+    do poprawki, zanim run się skończy. API zwraca obiekt jako `structured`, czat i
+    kanały pokazują go jako blok JSON, a krok `agent.run` przekazuje go dalej.
 
 !!! info "Szablon to spec, który ktoś już napisał"
 

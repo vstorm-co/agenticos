@@ -204,6 +204,32 @@ export function problemList(error: unknown): string[] | null {
   return strings.length > 0 ? strings : null;
 }
 
+/** Something a refused schema change named as still using what it would remove. */
+export interface SchemaDependent {
+  kind: string;
+  id: string;
+  /** Null when the caller may not open it: it still blocks, but is not named. */
+  name: string | null;
+}
+
+/**
+ * What a `SCHEMA_DEPENDENCY` refusal named, so the console can say what to change
+ * first. Null when the failure was not that kind.
+ */
+export function schemaDependents(error: unknown): SchemaDependent[] | null {
+  if (!(error instanceof ApiError)) return null;
+  const dependents = error.details?.dependents;
+  if (!Array.isArray(dependents)) return null;
+  const named = dependents.filter(
+    (item): item is SchemaDependent =>
+      isRecord(item) &&
+      typeof item.kind === "string" &&
+      typeof item.id === "string" &&
+      (item.name === null || typeof item.name === "string"),
+  );
+  return named.length > 0 ? named : null;
+}
+
 /**
  * Does this field problem belong to `owned`?
  *

@@ -41,6 +41,10 @@ class MessagePart(BaseSchema):
     put nor the answer it acted on (#502). `asked_by` names the delegate a question
     came from, because a question from a specialist reads differently from one the
     main agent put itself (#1042).
+
+    A `workflow_run` entry is a workflow's answer to a chat turn (#1792): the run
+    it was, the status it ended with and, if it failed, why. The run's own text
+    answer is the row's `content`.
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -55,7 +59,9 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user"] = Field(description="What this entry is.")
+    type: Literal["text", "thinking", "tool", "ask_user", "workflow_run"] = Field(
+        description="What this entry is."
+    )
     text: str | None = Field(
         default=None, description="The words, for a `text` or `thinking` entry."
     )
@@ -75,6 +81,22 @@ class MessagePart(BaseSchema):
             "agent asked it itself, and on every question stored before this field "
             "existed."
         ),
+    )
+    run_id: str | None = Field(
+        default=None, description="Which workflow run answered, for a `workflow_run` entry."
+    )
+    workflow_id: str | None = Field(
+        default=None, description="Which workflow that run was of, for a `workflow_run` entry."
+    )
+    workflow_name: str | None = Field(
+        default=None,
+        description="What that workflow was called when it answered, for a `workflow_run` entry.",
+    )
+    status: str | None = Field(
+        default=None, description="How the run ended, for a `workflow_run` entry."
+    )
+    error: str | None = Field(
+        default=None, description="Why the run failed, for a failed `workflow_run` entry."
     )
 
 

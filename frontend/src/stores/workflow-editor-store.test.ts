@@ -1,0 +1,1017 @@
+import { beforeEach, describe, expect, it } from "vitest";
+
+import type { Binding, NodeInstance, ScopeBoundary, WorkflowGraph } from "@/lib/workflows/types";
+import { useWorkflowEditorStore } from "./workflow-editor-store";
+
+/** An edit to the working graph: one more step at `(x, y)`, the start if `becomesEntry`. */
+function insertAt(x: number, y: number, becomesEntry = false): string {
+  const id = crypto.randomUUID();
+  useWorkflowEditorStore.getState().insertNode({
+    node: { id, definition_id: "act", definition_version: 1, config: {}, layout: { x, y } },
+    edge: null,
+    bindings: [],
+    becomesEntry,
+    replaces: null,
+  });
+  return id;
+}
+
+const INITIAL = useWorkflowEditorStore.getState();
+
+function reset() {
+  useWorkflowEditorStore.setState(
+    {
+      workflowId: null,
+      generation: 0,
+      expectedRevision: null,
+      isDirty: false,
+      graph: null,
+      scopePath: [],
+      selection: { nodeIds: [], edgeIds: [] },
+      clipboard: null,
+      history: { canUndo: false, canRedo: false },
+      conflict: null,
+    },
+    // Keep the actions, replace only the data slices.
+    false,
+  );
+}
+
+const NODE: NodeInstance = {
+  id: "11111111-1111-1111-1111-111111111111",
+  definition_id: "debug.echo",
+  definition_version: 1,
+  config: {},
+  layout: { x: 0, y: 0 },
+};
+
+/** A node with an explicit id and layout, for graph-slice fixtures. */
+function nodeAt(id: string, x: number, y: number): NodeInstance {
+  return { id, definition_id: "debug.echo", definition_version: 1, config: {}, layout: { x, y } };
+}
+
+/** A two-node graph with one edge and `a` as entry — a minimal editable draft. */
+function seededGraph(): WorkflowGraph {
+  return {
+    entry_node_id: "a",
+    nodes: [nodeAt("a", 0, 0), nodeAt("b", 100, 0)],
+    edges: [
+      { id: "e1", source_node_id: "a", source_port: "out", target_node_id: "b", target_port: "in" },
+    ],
+    bindings: [],
+    scopes: [],
+  };
+}
+
+describe("useWorkflowEditorStore", () => {
+  beforeEach(reset);
+
+  it("exposes its actions on the initial state", () => {
+    expect(typeof INITIAL.load).toBe("function");
+    expect(INITIAL.workflowId).toBeNull();
+  });
+
+  it("load resets ephemeral slices, sets the workflow and bumps the generation", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().markDirty();
+    store.getState().enterScope("scope-1");
+    store.getState().setConflict(7);
+
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 3 });
+
+    const state = store.getState();
+    expect(state.workflowId).toBe("wf-1");
+    expect(state.expectedRevision).toBe(3);
+    expect(state.generation).toBe(1);
+    expect(state.isDirty).toBe(false);
+    expect(state.scopePath).toEqual([]);
+    expect(state.conflict).toBeNull();
+  });
+
+  it("teardown clears the workflow and bumps the generation again", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 3 });
+    store.getState().markDirty();
+
+    store.getState().teardown();
+
+    const state = store.getState();
+    expect(state.workflowId).toBeNull();
+    expect(state.expectedRevision).toBeNull();
+    expect(state.generation).toBe(2);
+    expect(state.isDirty).toBe(false);
+  });
+
+  it("tracks the canvas selection and clears it", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().setSelection({ nodeIds: ["n1"], edgeIds: ["e1"] });
+    expect(store.getState().selection).toEqual({ nodeIds: ["n1"], edgeIds: ["e1"] });
+
+    store.getState().clearSelection();
+    expect(store.getState().selection).toEqual({ nodeIds: [], edgeIds: [] });
+  });
+
+  it("pushes and pops the foreach scope path", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().enterScope("a");
+    store.getState().enterScope("b");
+    expect(store.getState().scopePath).toEqual(["a", "b"]);
+
+    store.getState().exitScope();
+    expect(store.getState().scopePath).toEqual(["a"]);
+
+    store.getState().setScopePath(["x", "y", "z"]);
+    expect(store.getState().scopePath).toEqual(["x", "y", "z"]);
+  });
+
+  it("holds a clipboard and history flags for the leaf branches", () => {
+    const store = useWorkflowEditorStore;
+    const clipboard = { nodes: [NODE], edges: [], bindings: [], scopes: [] };
+    store.getState().setClipboard(clipboard);
+    expect(store.getState().clipboard).toBe(clipboard);
+
+    store.getState().setClipboard(null);
+    expect(store.getState().clipboard).toBeNull();
+
+    store.getState().setHistoryFlags({ canUndo: true, canRedo: false });
+    expect(store.getState().history).toEqual({ canUndo: true, canRedo: false });
+  });
+
+  it("moves through the dirty / saved lifecycle", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().markDirty();
+    expect(store.getState().isDirty).toBe(true);
+
+    store.getState().setConflict(5);
+    store.getState().markSaved(9);
+    const state = store.getState();
+    expect(state.isDirty).toBe(false);
+    expect(state.expectedRevision).toBe(9);
+    expect(state.conflict).toBeNull();
+
+    store.getState().setExpectedRevision(12);
+    expect(store.getState().expectedRevision).toBe(12);
+  });
+
+  it("sets and clears the conflict banner", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().setConflict(4);
+    expect(store.getState().conflict).toEqual({ currentRevision: 4 });
+
+    store.getState().clearConflict();
+    expect(store.getState().conflict).toBeNull();
+  });
+
+  it("guards a save against a stale generation or a workflow switch", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 1 });
+
+    const token = store.getState().beginSave();
+    expect(token).toEqual({ generation: 1, workflowId: "wf-1" });
+    expect(store.getState().isSaveCurrent(token)).toBe(true);
+
+    // A remount (another load) bumps the generation, so the captured token is stale.
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 1 });
+    expect(store.getState().isSaveCurrent(token)).toBe(false);
+
+    // A switch to a different workflow also invalidates a same-generation token.
+    const other = store.getState().beginSave();
+    store.setState({ workflowId: "wf-2" });
+    expect(store.getState().isSaveCurrent(other)).toBe(false);
+  });
+});
+
+describe("useWorkflowEditorStore restore-to-draft", () => {
+  const store = useWorkflowEditorStore;
+
+  beforeEach(() => {
+    reset();
+    store.getState().teardown();
+    reset();
+  });
+
+  it("discardPendingSave clears the dirty flag, orphans an in-flight save and says it was dirty", () => {
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 2 });
+    store.getState().markDirty();
+    const inFlight = store.getState().beginSave();
+
+    expect(store.getState().discardPendingSave()).toBe(true);
+    expect(store.getState().isDirty).toBe(false);
+    expect(store.getState().isSaveCurrent(inFlight)).toBe(false);
+    // The revision is the server's fact, not the save's: it stays for the restore to send.
+    expect(store.getState().expectedRevision).toBe(2);
+
+    expect(store.getState().discardPendingSave()).toBe(false);
+  });
+
+  it("replaceDraft installs the restored graph at its revision with a fresh history", () => {
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 2 });
+    store.getState().seedGraph(seededGraph());
+    insertAt(9, 9);
+    store.getState().setConflict(4);
+    const clipboard = { nodes: [NODE], edges: [], bindings: [], scopes: [] };
+    store.getState().setClipboard(clipboard);
+    const generation = store.getState().generation;
+    const restored: WorkflowGraph = { ...seededGraph(), entry_node_id: NODE.id, nodes: [NODE] };
+
+    store.getState().replaceDraft(restored, 5);
+
+    const state = store.getState();
+    expect(state.graph).toBe(restored);
+    expect(state.expectedRevision).toBe(5);
+    expect(state.isDirty).toBe(false);
+    expect(state.conflict).toBeNull();
+    expect(state.history).toEqual({ canUndo: false, canRedo: false });
+    expect(state.workflowId).toBe("wf-1");
+    expect(state.generation).toBe(generation + 1);
+    // What the user copied survives: a node from the old draft can still be pasted.
+    expect(state.clipboard).toBe(clipboard);
+
+    // Undo has nothing to step back to, so it cannot bring the old draft back.
+    store.getState().undo();
+    expect(store.getState().graph).toBe(restored);
+
+    // History records from the restored graph onwards.
+    insertAt(1, 1);
+    expect(store.getState().history.canUndo).toBe(true);
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toEqual(restored.nodes);
+  });
+});
+
+describe("useWorkflowEditorStore graph slice", () => {
+  const store = useWorkflowEditorStore;
+
+  beforeEach(() => {
+    reset();
+    // Null the module-level history recorder that a prior test's `seedGraph` set.
+    store.getState().teardown();
+    reset();
+  });
+
+  it("seedGraph installs the working graph without marking it dirty", () => {
+    store.getState().seedGraph(seededGraph());
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().isDirty).toBe(false);
+    expect(store.getState().history).toEqual({ canUndo: false, canRedo: false });
+    expect(store.getState().getGraph()?.entry_node_id).toBe("a");
+  });
+
+  it("insertNode adds the step, its wire and bindings in one undoable change", () => {
+    store.getState().seedGraph(seededGraph());
+    const binding = {
+      target_node_id: "n",
+      target_field: "text",
+      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["text"] },
+    };
+    store.getState().insertNode({
+      node: {
+        id: "n",
+        definition_id: "act",
+        definition_version: 1,
+        config: {},
+        layout: { x: 3, y: 4 },
+      },
+      edge: {
+        id: "e-n",
+        source_node_id: "a",
+        source_port: "out",
+        target_node_id: "n",
+        target_port: "in",
+      },
+      bindings: [binding],
+      becomesEntry: false,
+      replaces: null,
+    });
+
+    const state = store.getState();
+    expect(state.graph?.nodes.at(-1)?.layout).toEqual({ x: 3, y: 4 });
+    expect(state.graph?.edges.at(-1)?.id).toBe("e-n");
+    expect(state.graph?.bindings.at(-1)).toEqual(binding);
+    expect(state.graph?.entry_node_id).toBe("a");
+    expect(state.isDirty).toBe(true);
+    // The new step is what the user now looks at, and the canvas is asked to show it.
+    expect(state.selection).toEqual({ nodeIds: ["n"], edgeIds: [] });
+    expect(state.revealNodeId).toBe("n");
+    store.getState().clearReveal();
+    expect(store.getState().revealNodeId).toBeNull();
+
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().graph?.edges).toHaveLength(seededGraph().edges.length);
+  });
+
+  it("insertNode puts a new trigger in the old one's place, keeping its wires and readers", () => {
+    const store = useWorkflowEditorStore;
+    const read: Binding = {
+      target_node_id: "b",
+      target_field: "text",
+      source: { kind: "node_output", node_id: "t", port: "out", field_path: ["body"] },
+    };
+    const literal: Binding = {
+      target_node_id: "b",
+      target_field: "other",
+      source: { kind: "literal", value: 1 },
+    };
+    const into: Binding = {
+      target_node_id: "t",
+      target_field: "x",
+      source: { kind: "literal", value: 2 },
+    };
+    const template: Binding = {
+      target_node_id: "c",
+      target_field: "note",
+      source: {
+        kind: "template",
+        parts: ["From ", { kind: "node_output", node_id: "t", port: "out", field_path: [] }],
+      },
+    };
+    store.getState().seedGraph({
+      entry_node_id: "t",
+      nodes: [
+        {
+          id: "t",
+          definition_id: "core.input",
+          definition_version: 1,
+          config: {},
+          layout: { x: 0, y: 0 },
+        },
+        {
+          id: "b",
+          definition_id: "act",
+          definition_version: 1,
+          config: {},
+          layout: { x: 300, y: 0 },
+        },
+        {
+          id: "c",
+          definition_id: "act",
+          definition_version: 1,
+          config: {},
+          layout: { x: 600, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "t",
+          source_port: "out",
+          target_node_id: "b",
+          target_port: "in",
+        },
+        {
+          id: "e2",
+          source_node_id: "b",
+          source_port: "out",
+          target_node_id: "c",
+          target_port: "in",
+        },
+        {
+          id: "e3",
+          source_node_id: "c",
+          source_port: "out",
+          target_node_id: "t",
+          target_port: "in",
+        },
+      ],
+      bindings: [read, literal, into, template],
+      scopes: [],
+    });
+
+    store.getState().insertNode({
+      node: {
+        id: "w",
+        definition_id: "trigger.webhook",
+        definition_version: 1,
+        config: {},
+        layout: { x: 0, y: 0 },
+      },
+      edge: null,
+      bindings: [],
+      becomesEntry: true,
+      replaces: "t",
+    });
+
+    const graph = store.getState().graph!;
+    expect(graph.entry_node_id).toBe("w");
+    expect(graph.nodes.map((item) => item.id)).toEqual(["b", "c", "w"]);
+    expect(graph.edges.map((item) => [item.id, item.source_node_id, item.target_node_id])).toEqual([
+      ["e1", "w", "b"],
+      ["e2", "b", "c"],
+    ]);
+    expect(graph.bindings).toEqual([
+      { ...read, source: { ...read.source, node_id: "w" } },
+      literal,
+      {
+        ...template,
+        source: {
+          kind: "template",
+          parts: ["From ", { kind: "node_output", node_id: "w", port: "out", field_path: [] }],
+        },
+      },
+    ]);
+  });
+
+  it("insertNode makes a step the start when told to, even with no graph seeded", () => {
+    const id = insertAt(1, 2, true);
+    expect(store.getState().graph?.entry_node_id).toBe(id);
+    expect(store.getState().graph?.nodes).toHaveLength(1);
+  });
+
+  it("connectNodes adds an edge from a validated connection", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().connectNodes({
+      source: "b",
+      target: "a",
+      sourceHandle: "out",
+      targetHandle: "in",
+    });
+    const edges = store.getState().graph?.edges ?? [];
+    expect(edges).toHaveLength(2);
+    expect(edges[1]).toMatchObject({ source_node_id: "b", target_node_id: "a" });
+  });
+
+  it("connectNodes adds the bindings it is given with the edge, as one undoable edit", () => {
+    store.getState().seedGraph(seededGraph());
+    const binding = {
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["echoed"] },
+    };
+
+    store
+      .getState()
+      .connectNodes({ source: "a", target: "b", sourceHandle: "out", targetHandle: "in" }, [
+        binding,
+      ]);
+    expect(store.getState().graph?.edges).toHaveLength(2);
+    expect(store.getState().graph?.bindings).toEqual([binding]);
+
+    store.getState().undo();
+    expect(store.getState().graph?.edges).toHaveLength(1);
+    expect(store.getState().graph?.bindings).toEqual([]);
+  });
+
+  it("connectNodes ignores a connection missing a handle", () => {
+    store.getState().seedGraph(seededGraph());
+    store
+      .getState()
+      .connectNodes({ source: "a", target: "b", sourceHandle: null, targetHandle: "in" });
+    expect(store.getState().graph?.edges).toHaveLength(1);
+  });
+
+  it("connectNodes is a no-op before a graph is seeded", () => {
+    store
+      .getState()
+      .connectNodes({ source: "a", target: "b", sourceHandle: "out", targetHandle: "in" });
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("applyNodeChanges moves a node and marks dirty", () => {
+    store.getState().seedGraph(seededGraph());
+    store
+      .getState()
+      .applyNodeChanges([
+        { id: "a", type: "position", position: { x: 40, y: 60 }, dragging: false },
+      ]);
+    expect(store.getState().graph?.nodes[0]?.layout).toEqual({ x: 40, y: 60 });
+    expect(store.getState().isDirty).toBe(true);
+  });
+
+  it("applyNodeChanges ignores a change that leaves every layout unchanged", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  it("applyNodeChanges folds select changes into the selection, keeping the edge ids", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: [], edgeIds: ["e1"] });
+
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: ["e1"] });
+
+    store.getState().applyNodeChanges([
+      { id: "a", type: "select", selected: false },
+      { id: "b", type: "select", selected: true },
+    ]);
+    expect(store.getState().selection.nodeIds).toEqual(["b"]);
+  });
+
+  it("applyNodeChanges keeps the selection object when a select changes nothing", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    const before = store.getState().selection;
+
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    store.getState().applyNodeChanges([{ id: "b", type: "select", selected: false }]);
+    expect(store.getState().selection).toBe(before);
+  });
+
+  it("applyNodeChanges drops a removed node from the selection", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a", "b"], edgeIds: [] });
+
+    store.getState().applyNodeChanges([{ id: "b", type: "remove" }]);
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+  });
+
+  it("applyEdgeChanges folds select and remove changes into the edge selection", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+
+    store.getState().applyEdgeChanges([{ id: "e1", type: "select", selected: true }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: ["e1"] });
+    expect(store.getState().isDirty).toBe(false);
+
+    store.getState().applyEdgeChanges([{ id: "e1", type: "remove" }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: [] });
+    expect(store.getState().graph?.edges).toHaveLength(0);
+  });
+
+  it("keeps the selection through a config edit", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+
+    store.getState().updateNodeConfig("a", { message: "hi" });
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+  });
+
+  it("applyNodeChanges removes a node and prunes its edge", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().applyNodeChanges([{ id: "b", type: "remove" }]);
+    expect(store.getState().graph?.nodes).toHaveLength(1);
+    expect(store.getState().graph?.edges).toHaveLength(0);
+  });
+
+  it("applyNodeChanges ignores an added node it does not already hold", () => {
+    store.getState().seedGraph(seededGraph());
+    store
+      .getState()
+      .applyNodeChanges([
+        { type: "add", item: { id: "ghost", position: { x: 0, y: 0 }, data: {} } },
+      ]);
+    const ids = store.getState().graph?.nodes.map((node) => node.id);
+    expect(ids).toEqual(["a", "b"]);
+  });
+
+  it("applyNodeChanges is a no-op before a graph is seeded", () => {
+    store.getState().applyNodeChanges([{ id: "a", type: "remove" }]);
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("applyEdgeChanges removes an edge but ignores a selection change", () => {
+    store.getState().seedGraph({
+      ...seededGraph(),
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "a",
+          source_port: "out",
+          target_node_id: "b",
+          target_port: "in",
+        },
+        {
+          id: "e2",
+          source_node_id: "b",
+          source_port: "out",
+          target_node_id: "a",
+          target_port: "in",
+        },
+      ],
+    });
+    store.getState().applyEdgeChanges([{ id: "e1", type: "select", selected: true }]);
+    expect(store.getState().graph?.edges).toHaveLength(2);
+    expect(store.getState().isDirty).toBe(false);
+
+    store.getState().applyEdgeChanges([{ id: "e1", type: "remove" }]);
+    expect(store.getState().graph?.edges.map((edge) => edge.id)).toEqual(["e2"]);
+    expect(store.getState().isDirty).toBe(true);
+  });
+
+  it("applyEdgeChanges is a no-op before a graph is seeded", () => {
+    store.getState().applyEdgeChanges([{ id: "e1", type: "remove" }]);
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("deleteSelection removes selected nodes and edges and re-homes the entry", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    const graph = store.getState().graph;
+    expect(graph?.nodes.map((node) => node.id)).toEqual(["b"]);
+    expect(graph?.edges).toHaveLength(0);
+    expect(graph?.entry_node_id).toBe("b");
+    expect(store.getState().selection).toEqual({ nodeIds: [], edgeIds: [] });
+  });
+
+  it("deleteSelection prunes the bindings and scopes a removed node leaves dangling", () => {
+    const literalBinding = (target: string, field: string): Binding => ({
+      target_node_id: target,
+      target_field: field,
+      source: { kind: "literal", value: 1 },
+    });
+    const outputBinding = (target: string, field: string, from: string): Binding => ({
+      target_node_id: target,
+      target_field: field,
+      source: { kind: "node_output", node_id: from, port: "out", field_path: [] },
+    });
+    const templateBinding = (target: string, field: string, from: string): Binding => ({
+      target_node_id: target,
+      target_field: field,
+      source: {
+        kind: "template",
+        parts: ["Hi ", { kind: "node_output", node_id: from, port: "out", field_path: [] }],
+      },
+    });
+    const scope = (scopeNode: string, exit: string, body: string[]): ScopeBoundary => ({
+      scope_node_id: scopeNode,
+      body_node_ids: body,
+      entry_port: "body",
+      exit_node_id: exit,
+      exit_port: "out",
+    });
+
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [nodeAt("a", 0, 0), nodeAt("b", 100, 0), nodeAt("c", 200, 0)],
+      edges: [],
+      bindings: [
+        outputBinding("b", "f1", "a"), // source is the removed node → dropped
+        outputBinding("b", "f2", "c"), // source survives → kept
+        literalBinding("b", "f3"), // not a node reference → kept
+        literalBinding("a", "f4"), // target is the removed node → dropped
+        templateBinding("b", "f5", "c"), // placeholders survive → kept
+        templateBinding("b", "f6", "a"), // a placeholder reads the removed node → dropped
+      ],
+      scopes: [
+        scope("b", "c", []), // wholly outside the removed node → kept
+        scope("b", "c", ["a"]), // body names the removed node → dropped
+        scope("a", "b", ["b"]), // owner is the removed node → dropped
+      ],
+    });
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+
+    const graph = store.getState().graph;
+    expect(graph?.bindings.map((binding) => binding.target_field)).toEqual(["f2", "f3", "f5"]);
+    expect(graph?.scopes).toHaveLength(1);
+    expect(graph?.scopes[0]?.body_node_ids).toEqual([]);
+    expect(graph?.entry_node_id).toBe("b");
+  });
+
+  it("deleteSelection emptying the graph clears the entry node", () => {
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [nodeAt("a", 0, 0)],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.nodes).toHaveLength(0);
+    expect(store.getState().graph?.entry_node_id).toBe("");
+  });
+
+  it("deleteSelection removes a selected edge on its own", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: [], edgeIds: ["e1"] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.edges).toHaveLength(0);
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+  });
+
+  it("deleteSelection is a no-op with nothing selected, or before seeding", () => {
+    store.getState().deleteSelection();
+    expect(store.getState().graph).toBeNull();
+
+    store.getState().seedGraph(seededGraph());
+    store.getState().deleteSelection();
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  it("updateNodeConfig replaces one node's config", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodeConfig("b", { message: "hi" });
+    const target = store.getState().graph?.nodes.find((node) => node.id === "b");
+    expect(target?.config).toEqual({ message: "hi" });
+    expect(store.getState().graph?.nodes.find((node) => node.id === "a")?.config).toEqual({});
+  });
+
+  it("updateNodePolicy replaces one node's policy, and clears it", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodePolicy("b", { on_error: "route" });
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.policy).toEqual({
+      on_error: "route",
+    });
+    store.getState().updateNodePolicy("b", null);
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.policy).toBeNull();
+    expect(store.getState().isDirty).toBe(true);
+  });
+
+  it("updateNodeDetails names, notes and switches off one step as one edit", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodeDetails("b", { label: "Tidy", notes: "why", disabled: true });
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")).toMatchObject({
+      label: "Tidy",
+      notes: "why",
+      disabled: true,
+    });
+    store.getState().undo();
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.label).toBeUndefined();
+  });
+
+  it("updateNodeDetails is a no-op before seeding", () => {
+    store.getState().updateNodeDetails("b", { label: "Tidy" });
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("updateNodePolicy is a no-op before seeding", () => {
+    store.getState().updateNodePolicy("b", { on_error: "route" });
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("switching scope drops the selection, since what was selected is no longer drawn", () => {
+    store.getState().seedGraph(seededGraph());
+    const selected = { nodeIds: ["a"], edgeIds: [] };
+    store.getState().setSelection(selected);
+    store.getState().enterScope("a");
+    expect(store.getState().selection.nodeIds).toEqual([]);
+    store.getState().setSelection(selected);
+    store.getState().exitScope();
+    expect(store.getState().selection.nodeIds).toEqual([]);
+    store.getState().setSelection(selected);
+    store.getState().setScopePath([]);
+    expect(store.getState().selection.nodeIds).toEqual([]);
+  });
+
+  it("updateNodeConfig is a no-op before seeding", () => {
+    store.getState().updateNodeConfig("b", { message: "hi" });
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("upsertBinding inserts then replaces a binding on one field", () => {
+    store.getState().seedGraph(seededGraph());
+    const first: Binding = {
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "literal", value: 1 },
+    };
+    store.getState().upsertBinding(first);
+    expect(store.getState().graph?.bindings).toHaveLength(1);
+
+    const second: Binding = { ...first, source: { kind: "literal", value: 2 } };
+    store.getState().upsertBinding(second);
+    const bindings = store.getState().graph?.bindings ?? [];
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]?.source).toEqual({ kind: "literal", value: 2 });
+  });
+
+  it("removeBinding drops the binding on one field", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().upsertBinding({
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "literal", value: 1 },
+    });
+    store.getState().removeBinding("b", "message");
+    expect(store.getState().graph?.bindings).toHaveLength(0);
+  });
+
+  it("upsertBinding and removeBinding are no-ops before seeding", () => {
+    const binding: Binding = {
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "literal", value: 1 },
+    };
+    store.getState().upsertBinding(binding);
+    store.getState().removeBinding("b", "message");
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("insertSubgraph merges a clip and selects what it added", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().insertSubgraph({
+      nodes: [nodeAt("c", 200, 0)],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    expect(store.getState().graph?.nodes).toHaveLength(3);
+    expect(store.getState().graph?.entry_node_id).toBe("a");
+    expect(store.getState().selection).toEqual({ nodeIds: ["c"], edgeIds: [] });
+  });
+
+  it("insertSubgraph into an empty graph adopts the clip's first node as the entry", () => {
+    store.getState().seedGraph({ ...seededGraph(), nodes: [], edges: [], entry_node_id: "" });
+    store.getState().insertSubgraph({
+      nodes: [nodeAt("c", 0, 0), nodeAt("d", 50, 0)],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    expect(store.getState().graph?.entry_node_id).toBe("c");
+  });
+
+  it("insertSubgraph with an empty clip keeps the entry and is a no-op before seeding", () => {
+    store.getState().insertSubgraph({ nodes: [], edges: [], bindings: [], scopes: [] });
+    expect(store.getState().graph).toBeNull();
+
+    store.getState().seedGraph(seededGraph());
+    store.getState().insertSubgraph({ nodes: [], edges: [], bindings: [], scopes: [] });
+    expect(store.getState().graph?.entry_node_id).toBe("a");
+    expect(store.getState().selection).toEqual({ nodeIds: [], edgeIds: [] });
+  });
+
+  it("undo and redo step the graph through history and report the flags", () => {
+    store.getState().seedGraph(seededGraph());
+    const id = insertAt(10, 10);
+    expect(store.getState().graph?.nodes).toHaveLength(3);
+
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().graph?.nodes.some((node) => node.id === id)).toBe(false);
+    expect(store.getState().history.canRedo).toBe(true);
+
+    store.getState().redo();
+    expect(store.getState().graph?.nodes).toHaveLength(3);
+    expect(store.getState().history.canUndo).toBe(true);
+  });
+
+  it("undo and redo do nothing at the ends of the stack", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    store.getState().redo();
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+  });
+
+  it("undo and redo do nothing before a graph is seeded", () => {
+    store.getState().undo();
+    store.getState().redo();
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("getSelectedNode returns the node only when exactly one is selected", () => {
+    store.getState().seedGraph(seededGraph());
+    expect(store.getState().getSelectedNode()).toBeNull();
+
+    store.getState().setSelection({ nodeIds: ["a", "b"], edgeIds: [] });
+    expect(store.getState().getSelectedNode()).toBeNull();
+
+    store.getState().setSelection({ nodeIds: ["b"], edgeIds: [] });
+    expect(store.getState().getSelectedNode()?.id).toBe("b");
+
+    store.getState().setSelection({ nodeIds: ["missing"], edgeIds: [] });
+    expect(store.getState().getSelectedNode()).toBeNull();
+  });
+
+  it("getSelectedNode is null before a graph is seeded", () => {
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    expect(store.getState().getSelectedNode()).toBeNull();
+  });
+});
+
+describe("notes on the canvas", () => {
+  beforeEach(reset);
+
+  const notes = () => useWorkflowEditorStore.getState().graph?.notes ?? [];
+
+  it("adds a selected note where asked, writes it, sizes it, and undoes it", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph(seededGraph());
+
+    const id = state().addNote({ x: 10, y: 20 });
+    expect(notes()).toEqual([{ id, text: "", layout: { x: 10, y: 20 } }]);
+    expect(state().selection.nodeIds).toEqual([id]);
+
+    state().updateNote(id, { text: "**Why**" });
+    state().updateNote("elsewhere", { text: "nothing" });
+    expect(notes()[0]?.text).toBe("**Why**");
+
+    // Edits made in quick succession undo together, the way typing does.
+    state().undo();
+    expect(notes()).toEqual([]);
+  });
+
+  it("starts a first note on an empty canvas, and writes nothing before one exists", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().updateNote("n", { text: "x" });
+    expect(state().graph).toBeNull();
+    state().addNote({ x: 0, y: 0 });
+    expect(notes()).toHaveLength(1);
+  });
+
+  it("moves, resizes and removes a note apart from the steps", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [{ id: "n", text: "t", layout: { x: 0, y: 0 } }],
+    });
+    const steps = state().graph?.nodes;
+
+    state().applyNodeChanges([{ type: "position", id: "n", position: { x: 5, y: 6 } }]);
+    state().applyNodeChanges([
+      { type: "dimensions", id: "n", dimensions: { width: 300, height: 200 }, resizing: true },
+    ]);
+    // A measure without a resize, and a select, change nothing kept.
+    state().applyNodeChanges([
+      { type: "dimensions", id: "n", dimensions: { width: 1, height: 1 } },
+      { type: "select", id: "n", selected: true },
+    ]);
+    expect(notes()).toEqual([
+      { id: "n", text: "t", layout: { x: 5, y: 6 }, width: 300, height: 200 },
+    ]);
+    expect(state().graph?.nodes).toBe(steps);
+
+    state().applyNodeChanges([{ type: "remove", id: "n" }]);
+    expect(notes()).toEqual([]);
+  });
+
+  it("moves only the note a change names, and a removed one stays removed", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [
+        { id: "n", text: "t", layout: { x: 0, y: 0 } },
+        { id: "m", text: "u", layout: { x: 0, y: 0 } },
+      ],
+    });
+
+    state().applyNodeChanges([
+      { type: "remove", id: "n" },
+      { type: "position", id: "n", position: { x: 9, y: 9 } },
+    ]);
+
+    expect(notes()).toEqual([{ id: "m", text: "u", layout: { x: 0, y: 0 } }]);
+  });
+
+  it("deletes a selected note with the selection, and keeps notes when a step goes", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [
+        { id: "n", text: "t", layout: { x: 0, y: 0 } },
+        { id: "m", text: "u", layout: { x: 0, y: 0 } },
+      ],
+    });
+
+    state().setSelection({ nodeIds: ["n", "b"], edgeIds: [] });
+    state().deleteSelection();
+
+    expect(notes().map((note) => note.id)).toEqual(["m"]);
+    expect(state().graph?.nodes.map((node) => node.id)).toEqual(["a"]);
+  });
+});
+
+describe("arranging the canvas", () => {
+  beforeEach(reset);
+
+  it("moves several steps as one edit, and nothing before a graph is seeded", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().moveNodes(new Map([["a", { x: 1, y: 1 }]]));
+    expect(state().graph).toBeNull();
+
+    state().seedGraph(seededGraph());
+    state().moveNodes(new Map([["b", { x: 9, y: 9 }]]));
+    expect(state().graph?.nodes.map((node) => node.layout)).toEqual([
+      { x: 0, y: 0 },
+      { x: 9, y: 9 },
+    ]);
+  });
+
+  it("keeps the connection a step is for while the picker stays open", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().beginSplit("e1");
+    state().setOverlay("picker");
+    expect(state().splitEdgeId).toBe("e1");
+    state().setOverlay("shortcuts");
+    expect(state().splitEdgeId).toBeNull();
+  });
+});
+
+describe("pinning many steps at once", () => {
+  it("pins each named step that is in the graph, as one edit", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().pinOutputs({ a: { x: 1 } });
+    expect(store.getState().graph).toBeNull();
+
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [
+        { id: "a", definition_id: "d", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+        { id: "b", definition_id: "d", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().pinOutputs({ a: { x: 1 }, gone: { y: 2 } });
+
+    const nodes = store.getState().graph?.nodes ?? [];
+    expect(nodes.map((node) => node.pinned_output)).toEqual([{ x: 1 }, undefined]);
+    expect(store.getState().isDirty).toBe(true);
+    store.getState().teardown();
+  });
+});

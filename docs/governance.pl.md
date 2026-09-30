@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1215,6 +1215,17 @@ delegacja uruchomiona od nowa i tak wydała to, co wydała.
     narzędzia serwera są wystawione, ustawia się na połączeniu, więc każdy agent
     z nim powiązany dostaje te same.
 
+### Krok workflow, który pyta osobę { #workflow-step-approvals }
+
+Workflow pyta krokiem [`human.approval`](reference/workflow-nodes.md#human-approval),
+a nie narzędziem za bramką: krok zapisuje własną prośbę - tytuł, podane mu
+szczegóły, kto może zdecydować i do kiedy - a jego run na nią czeka. Zakładka
+**Approvals** pokazuje je nad wywołaniami narzędzi, a decyzja budzi run, który idzie
+dalej według odpowiedzi. Decyzja jest ostateczna i trafia do dziennika audytu razem
+z tym, o co pytano. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
+oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
+swoje prośby.
+
 ## Alerty { #alerts }
 
 Każdy alert tutaj dotyczy runa, na którego nikt nie patrzy. Run czatu, który
@@ -1565,6 +1576,12 @@ Dlatego okres jest **na klasę** i oba obowiązki dostają swoje ustawienie.
 Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bramką
 `org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
 zostawiałaby wiersze, nie byłaby polityką.
+
+Dane [Virtual Tables](virtual-tables.md#limits-and-retention) wchodzą do tego samego sweepa,
+z okresami całego wdrożenia, których nie ustawia żadna organizacja: receipts idempotencji
+po 24 godzinach, wysłane wiersze outbox po 3 dniach i history rekordu po 365 dniach, co
+usuwa też history usuniętego rekordu. Wpis, który zapisuje, nazywa `table_receipts`,
+`table_outbox` lub `table_history` i liczbę.
 
 Trzy własne liczby wdrożenia — `retention_defaults`, `retention_max_days` i
 `audit_retention_floor_days` — to pola ustawień wdrożenia, zapisywane przez app

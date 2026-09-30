@@ -13,15 +13,19 @@ just another client" true rather than aspirational.
 
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai import ModelRetry, StructuredDict
 from pydantic_ai.capabilities import AbstractCapability, ReinjectSystemPrompt, ToolSearch
+from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -86,6 +90,31 @@ _AUDIENCE_AWARE = frozenset(
 DEFAULT_MAX_STEPS = 100
 
 
+type AgentAnswer = str | dict[str, Any]
+"""What a finished run answers: prose, or an object of the spec's `output_schema`."""
+
+type AgentOutput = AgentAnswer | DeferredToolRequests
+"""What a run ends with: an answer, or the calls parked on a human."""
+
+
+def answer_text(answer: AgentAnswer) -> str:
+    """An answer as text for a surface that shows text.
+
+    Prose is itself. An object is shown as a fenced JSON block, which every
+    surface that renders an answer - the chat, the widget, Slack, Telegram -
+    draws as code; a caller that wants the object reads it where it is handed
+    over as one (`structured`) rather than parsing this back.
+    """
+    if isinstance(answer, str):
+        return answer
+    return "```json\n" + json.dumps(answer, ensure_ascii=False, indent=2) + "\n```"
+
+
+# How often the model may be sent back to fix an answer that does not fit the
+# spec's `output_schema` before the run fails on it.
+OUTPUT_RETRIES = 2
+
+
 @dataclass
 class BuiltAgent:
     """A runnable agent plus what the caller needs to observe and account for it.
@@ -99,7 +128,7 @@ class BuiltAgent:
     # gated tool is parked, Pydantic AI ends the run with the calls waiting on a
     # human instead. The caller must handle both, which is the point of making
     # it visible in the type.
-    agent: PydanticAgent[AgentDeps, str | DeferredToolRequests]
+    agent: PydanticAgent[AgentDeps, AgentOutput]
     deps: AgentDeps
     ledger: SpendLedger
     # Exposed rather than buried in the agent's capability list: the caller
@@ -344,18 +373,21 @@ def build_agent(
     # over. Reconstructing the prompt and the tool schemas from the spec
     # afterwards would be a second implementation of everything above this line.
     recorder = RunRecorder()
-    agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
+    agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
         system_prompt=spec.instructions or "",
-        # `str` first so the model answers in text; `DeferredToolRequests`
-        # is not a shape the model can choose, it is what the run ends with when
-        # the approval gate parks a call.
-        output_type=[str, DeferredToolRequests],
+        # The answer first - text, or the spec's object - then
+        # `DeferredToolRequests`, which is not a shape the model can choose: it
+        # is what the run ends with when the approval gate parks a call.
+        output_type=_output_type(spec.output_schema),
+        retries={"output": OUTPUT_RETRIES},
         capabilities=capabilities,
         toolsets=_defer_for_tool_search(configured, extra_toolsets or []),
     )
 
+    if spec.output_schema is not None:
+        agent.output_validator(_fits_schema(spec.output_schema))
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)
 
     return BuiltAgent(
@@ -465,8 +497,42 @@ def _spend_limits(
     return limits
 
 
+def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
+    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    if schema is None:
+        return [str, DeferredToolRequests]
+    return [
+        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        DeferredToolRequests,
+    ]
+
+
+def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:
+    """An output validator sending the model back when its answer breaks `schema`.
+
+    Pydantic AI hands a structured answer on as a dict and checks only that it
+    is one; the schema's own rules - required fields, types, enums - are checked
+    here, so a surface that promises the shape never receives anything else.
+    The first problem is named, with where it is, because that is what the
+    model can fix on its next try.
+    """
+    checker = validators.validator_for(schema)(schema)
+
+    def fits(output: AgentOutput) -> AgentOutput:
+        if isinstance(output, dict):
+            problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
+            if problem is not None:
+                where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
+                raise ModelRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}"
+                )
+        return output
+
+    return fits
+
+
 def _instrument(
-    agent: PydanticAgent[AgentDeps, str | DeferredToolRequests],
+    agent: PydanticAgent[AgentDeps, AgentOutput],
     spec: AgentSpec,
     secrets: Mapping[UUID, StorableSecret],
     *,

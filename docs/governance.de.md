@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1296,6 +1296,18 @@ ausgegeben, was sie ausgegeben hat.
     fragen. Welche Tools eines Servers freigelegt sind, wird auf der Verbindung
     gesetzt, also bekommt jeder daran gebundene Agent dieselben.
 
+### Ein Workflow-Schritt, der eine Person fragt { #workflow-step-approvals }
+
+Ein Workflow fragt mit einem [`human.approval`](reference/workflow-nodes.md#human-approval)-Schritt
+statt mit einem abgesicherten Tool: Der Schritt schreibt seine eigene Anfrage -
+einen Titel, die ihm übergebenen Details, wer entscheiden darf und bis wann -, und
+sein Run wartet darauf. Der Tab **Approvals** listet sie über den Tool-Aufrufen,
+und eine Entscheidung weckt den Run, der nach der Antwort weitergeht. Eine
+Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten.
+Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
+Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
+bricht seine Anfragen ab.
+
 ## Alerts { #alerts }
 
 Jeder Alert hier handelt von einem Run, auf den niemand schaut. Ein Chat-Run, der
@@ -1666,6 +1678,12 @@ Klasse**, und beide Pflichten bekommen eine Einstellung.
 Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahrung**,
 abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
 **hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
+
+Daten der [Virtual Tables](virtual-tables.md#limits-and-retention) gehören zum selben Sweep,
+mit Fristen für das ganze Deployment, die keine Organisation setzt: Idempotenz-Receipts nach
+24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History eines Datensatzes nach
+365 Tagen, wodurch auch die History eines gelöschten Datensatzes entfernt wird. Der Eintrag,
+den er schreibt, nennt `table_receipts`, `table_outbox` oder `table_history` und eine Zahl.
 
 Die drei eigenen Zahlen des Deployments - `retention_defaults`,
 `retention_max_days` und `audit_retention_floor_days` - sind Felder der

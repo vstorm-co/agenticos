@@ -627,6 +627,52 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.virtual_tables import VirtualTableService
+
+
+def get_virtual_table_service(db: DBSession) -> VirtualTableService:
+    """Create VirtualTableService instance with database session."""
+    return VirtualTableService(db)
+
+
+VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
+
+
+def get_streaming_virtual_table_service(db: StreamingDBSession) -> VirtualTableService:
+    """The table service for a CSV export, and nothing else.
+
+    The export's lines are read from the database while the response is being
+    sent, after an ordinary `DBSession` has committed and closed. The export
+    writes nothing, which is what makes a request-scoped session acceptable
+    here; see `StreamingDBSession`.
+    """
+    return VirtualTableService(db)
+
+
+StreamingVirtualTableSvc = Annotated[
+    VirtualTableService, Depends(get_streaming_virtual_table_service)
+]
+
+from app.services.virtual_tables import TableViewService
+
+
+def get_table_view_service(db: DBSession) -> TableViewService:
+    """Create TableViewService instance with database session."""
+    return TableViewService(db)
+
+
+TableViewSvc = Annotated[TableViewService, Depends(get_table_view_service)]
+
+from app.services.virtual_tables.triggers import TableTriggerService
+
+
+def get_table_trigger_service(db: DBSession) -> TableTriggerService:
+    """Create TableTriggerService instance with database session."""
+    return TableTriggerService(db)
+
+
+TableTriggerSvc = Annotated[TableTriggerService, Depends(get_table_trigger_service)]
+
 from app.services.artifact import ArtifactService
 
 
@@ -653,6 +699,72 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.workflow_registry import WorkflowRegistryService
+
+
+def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
+    """Create WorkflowRegistryService instance with database session."""
+    return WorkflowRegistryService(db)
+
+
+WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
+
+from app.services.workflow_portable import WorkflowPortableService
+
+
+def get_workflow_portable_service(db: DBSession) -> WorkflowPortableService:
+    return WorkflowPortableService(db)
+
+
+WorkflowPortableSvc = Annotated[WorkflowPortableService, Depends(get_workflow_portable_service)]
+
+from app.services.workflow_execution import WorkflowExecutionService
+
+
+def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
+    return WorkflowExecutionService(db)
+
+
+WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
+
+from app.services.workflow_execution.approvals import WorkflowApprovalService
+
+
+def get_workflow_approval_service(db: DBSession) -> WorkflowApprovalService:
+    return WorkflowApprovalService(db)
+
+
+WorkflowApprovalSvc = Annotated[WorkflowApprovalService, Depends(get_workflow_approval_service)]
+
+from app.services.workflow_exposure import WorkflowExposureService
+
+
+def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
+    return WorkflowExposureService(db)
+
+
+WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
+
+from app.services.workflow_execution.resume import WorkflowResumeService
+
+
+def get_workflow_resume_service(db: DBSession) -> WorkflowResumeService:
+    return WorkflowResumeService(db)
+
+
+WorkflowResumeSvc = Annotated[WorkflowResumeService, Depends(get_workflow_resume_service)]
+
+from app.services.workflow_webhook_test import WorkflowWebhookTestService
+
+
+def get_workflow_webhook_test_service(db: DBSession, redis: Redis) -> WorkflowWebhookTestService:
+    return WorkflowWebhookTestService(db, redis)
+
+
+WorkflowWebhookTestSvc = Annotated[
+    WorkflowWebhookTestService, Depends(get_workflow_webhook_test_service)
+]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
@@ -739,6 +851,25 @@ async def limit_agent_run(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
 
 
+async def limit_workflow_run(ctx: Auth) -> None:
+    """Refuse a caller starting more workflow runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    each start queues dispatch work - outbox rows, worker flow runs, events -
+    and a run's nodes can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_workflow_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="workflow_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
+
+
 async def limit_ml_call(ctx: Auth) -> None:
     """Refuse a caller asking the ML services for more than their share.
 
@@ -758,6 +889,34 @@ async def limit_ml_call(ctx: Auth) -> None:
         limit=rate_limit.ml_limit(),
     )
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
+
+
+async def limit_table_write(ctx: Auth) -> None:
+    """Refuse a member writing to Virtual Tables faster than the deployment allows.
+
+    Keyed on the member and the organization, so one person's loop does not spend
+    another's allowance and the same person in two organizations has two. Unlike the
+    run and ML limits this one also covers the console: a table write from the browser
+    stores exactly what the same write from a script does, so metering only the script
+    would leave the cheap way in open.
+
+    Unlike the run and ML limits this one is a storage boundary, not just a load
+    control: every write stores a history row and, when keyed, a receipt, faster
+    than the retention sweep can remove them if left unbounded. So it keeps a
+    per-process floor when the shared limiter cannot count (Redis down or
+    unconfigured), rather than inheriting the fail-open default that would leave
+    every table write unmetered for the length of a cache outage (#1823).
+
+    Usage::
+
+        @router.post("/{table_id}/records", dependencies=[Depends(limit_table_write)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="table_write",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.table_write_limit(),
+    )
+    _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:

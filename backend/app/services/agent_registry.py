@@ -149,6 +149,8 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "tables:read",
+        "tables:write",
     }
 )
 
@@ -2486,6 +2488,36 @@ class AgentRegistryService:
                 ),
                 details={"limit": limit, "held": held},
             )
+
+    async def get_pinned_spec(
+        self, ctx: AuthContext, agent_id: UUID, version_id: UUID
+    ) -> tuple[Agent, AgentSpec, UUID]:
+        """The spec of one named published version, for a caller that pins it.
+
+        A workflow's `agent.run` step names the version it was built against, and
+        runs that version whatever is published since - which is why it cannot use
+        `get_runnable_spec`, whose answer follows the default environment. Delegation
+        pins a version the same way. The agent must still be one this caller may run
+        and not archived, and the version must be this agent's.
+
+        Raises:
+            NotFoundError: The agent or the version is not reachable, or the version
+                belongs to another agent.
+            BadRequestError: The agent is archived.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        version = await agent_repo.get_version(
+            self.db, version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.agent_id != agent.id:
+            raise NotFoundError(
+                message="Agent version not found", details={"version_id": str(version_id)}
+            )
+        return agent, AgentSpec.model_validate(version.spec), version.id
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

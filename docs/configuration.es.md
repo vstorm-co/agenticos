@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "3d41e332c829"
 ---
 
 # Configuración { #configuration }
@@ -491,6 +491,37 @@ media ejecución la deja en `running` sin nada que la termine. El techo no tiene
 ser exacto — un run vivo que el barrido marque igualmente lo devuelve su propia
 escritura terminal — así que ponlo bastante por encima de tu run legítimo más largo y
 no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
+
+### Runs de workflows { #workflow-runs }
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | La carga más grande con la que se puede iniciar un run, como JSON compacto. Se guarda en el run para su nodo `core.input`, así que una mayor se rechaza con `413` antes de admitir el run |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Cuánto espera su respuesta una entrega de webhook cuyo grafo tiene un paso Respond to webhook antes de recibir `202` mientras el run sigue. Un proxy delante con un tiempo de lectura más corto corta antes la espera |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Cuánto dura el claim de un worker sobre un nodo de workflow antes de darlo por abandonado. El worker lo renueva cada tercio de ese tiempo mientras el nodo se ejecuta, así que acota cuánto tarda en notarse un worker muerto, no cuánto puede durar un nodo |
+| `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera. Estos tres se aplican a un nodo cuya `policy.retry` no fija los suyos |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | La lista más larga que recorre un `control.foreach`. Una más larga hace fallar el bucle con `FOREACH_TOO_MANY_ITEMS` en lugar de truncarse |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | La lista más grande que congela un bucle, como JSON. Una mayor hace fallar el bucle con `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Cuánto pueden anidarse los bucles. Un grafo con bucles más profundos no se puede publicar |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | El máximo de ejecuciones de nodo que puede crear un run, iteraciones de bucle incluidas. Una iteración que lo superaría hace fallar el run con `NODE_RUN_LIMIT` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Cuánto trabajo de nodos en cola o en ejecución puede tener una organización a la vez. Un start reserva contra este límite el número de nodos de su grafo, y uno que lo supere se rechaza con `429` hasta que el trabajo en ejecución se drene. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | El mismo tope para un único llamante, contado a través de todas las organizaciones en las que ejecuta runs, para que una persona que puede crear organizaciones no multiplique su margen repartiendo runs entre ellas. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
+
+El límite de runs por llamante (`RATE_LIMIT_RUN_PER_MINUTE`) cobra un token por
+start y no distingue un grafo de un nodo de uno de quinientos. Estos dos topes sí:
+acotan el trabajo de nodos en cola y en ejecución detrás del runner compartido,
+para que un llamante no pueda arrancar muchos grafos anchos por debajo del límite
+de tasa y hacer crecer una cola que deje sin recursos a otros inquilinos.
+
+Un run de workflow pasa por tres deployments de Prefect. `workflow-dispatch-node`
+ejecuta un intento de un nodo y se envía bajo demanda; `workflow-dispatch-poll`
+se ejecuta cada 10 segundos y envía cada nodo pendiente que no se envió dentro
+de la última duración de un claim; `workflow-reconcile` se ejecuta cada 30 segundos y recupera los
+claims e intentos que dejó un worker muerto. Incluso sin trabajo, las dos
+programaciones crean unos 11.500 flow runs al día, así que dimensiona para ello
+la base de datos del servidor de Prefect y la retención de flow runs.
 
 ## Modelos de IA — se configuran en la aplicación, no aquí { #ai-models-configured-in-the-app-not-here }
 
@@ -1099,8 +1130,9 @@ Se aplican a las superficies que un desconocido puede alcanzar, y solo a ellas: 
 pública de runs, el script del widget, su configuración, el handshake del socket de
 cualquiera de las dos superficies, la configuración y el logo de una página alojada, y
 la subida de un visitante. Las rutas propias de la consola están detrás de una sesión
-y no se miden — si toda la API debería llevar un techo es una decisión aparte, no
-esta.
+y no se miden, con una excepción: las escrituras en
+[Virtual Tables](virtual-tables.md), que guardan una instantánea por cambio. Si toda la
+API debería llevar un techo es una decisión aparte, no esta.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
@@ -1110,6 +1142,7 @@ esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Escrituras en [Virtual Tables](virtual-tables.md), **por miembro y organización**: un create, update, upsert o delete de registro, un create, renombrado, archivado o cambio de esquema de tabla, y guardar, cambiar o borrar una vista guardada. Se aplica a la consola igual que a un script. Las lecturas no se cuentan |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con
@@ -1226,6 +1259,39 @@ que este ajuste es; apagado, el límite sigue siendo seguro pero compartido.
 
     Con dos proxies delante, colapsa la cabecera a un solo salto en tu borde: solo el
     último salto es fiable.
+
+## Límites y retención de Virtual Tables { #virtual-tables-limits-and-retention }
+
+Cuánto puede guardar una organización en [Virtual Tables](virtual-tables.md#limits-and-retention)
+y cuánto tiempo se conservan las copias que deja una escritura. Una escritura por encima de
+un límite se rechaza con `QUOTA_EXCEEDED` (402) y una entrada de auditoría que nombra el
+límite, nunca el contenido.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tablas por organización. Las archivadas cuentan, porque nada borra una tabla |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Registros en una tabla |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt; un registro ya por encima del límite igualmente se borra, conservando solo una marca con el tamaño en vez de los valores |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Cuánto tiempo se conserva una fila de outbox sin despachar. El heartbeat de los [triggers de tabla](virtual-tables.md#triggers) marca cada fila que evalúa, así que una fila tan antigua significa que el worker lleva ese tiempo caído. Es un corte de carta muerta, no una afirmación de que el evento se entregó - pasado ese tiempo, la fila desaparece y ningún trigger se inicia para ese registro |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Cuánto tiempo se conserva el history de un registro, contado desde el cambio, también para un registro borrado |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Cuántas entradas de auditoría de rechazo por cuota escribe este proceso a la vez, para que una ráfaga de rechazos no abra un número ilimitado de conexiones a la base de datos. El resto de la ráfaga espera a este límite |
+
+Los tres periodos de retención los aplica el [barrido de retención](governance.md#retention)
+diario, para cada organización; no son ajustes por organización.
+
+El presupuesto de un barrido para estas tres clases escala con
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` en vez de con un número fijo de lotes - pero ese límite es
+por *miembro* (`limit_table_write` cuenta las escrituras de cada miembro en su propia cuota),
+así que el presupuesto también escala con cuántos miembros activos tiene la organización:
+hasta `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` filas por miembro activo al día, en
+lotes de 500.
+
+Esa cifra se duplica como margen, para que un rezago ya existente se reduzca en vez de
+solo mantenerse plano, y se limita a 50 miembros, para que una organización inusualmente
+grande no haga crecer su propio barrido sin límite - igualmente se drena, solo en más
+barridos, como cualquier otra clase de retención cuando un rezago supera su presupuesto.
 
 ## Un worker cuyo bucle de eventos ha dejado de girar { #a-worker-whose-event-loop-has-stopped-turning }
 

@@ -575,6 +575,7 @@ async def run_agent(
         # under - so a caller cannot attach a file by guessing its id.
         user_id=ctx.subject_id,
     )
+    structured: list[dict[str, Any]] = []
     output, run = await service.execute(
         ctx,
         agent_id,
@@ -583,10 +584,12 @@ async def run_agent(
         conversation_id=data.conversation_id,
         environment_id=data.environment_id,
         attachments=attachments,
+        structured=structured,
     )
     return AgentRunResult(
         run_id=run.id,
         output=output,
+        structured=structured[0] if structured else None,
         status=run.status,
         cost_usd=run.cost_usd,
         cost_is_partial=run.cost_is_partial,

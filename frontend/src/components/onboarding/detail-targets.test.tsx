@@ -12,6 +12,7 @@ import {
   ORG_MEMBERS,
   ORG_ROLES,
   SETTINGS_DETAIL,
+  TABLE_DETAIL,
   WORKSPACE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
@@ -72,10 +73,11 @@ describe("useDetailTargets", () => {
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/org-1/roles");
     expect(result.current[ORG_GROUPS]?.href).toBe("/orgs/org-1/groups");
     expect(result.current[ORG_DIRECTORY]?.href).toBe("/orgs/org-1/directory");
-    // The two "?"-only sections need no fetch: settings resolves to its first
-    // page, a workspace to nothing to open, and neither is ever pending.
+    // The three "?"-only sections need no fetch: settings resolves to its first
+    // page, a workspace and a table to nothing to open, and none is ever pending.
     expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
     expect(result.current[WORKSPACE_DETAIL]).toEqual({ pending: false, href: null });
+    expect(result.current[TABLE_DETAIL]).toEqual({ pending: false, href: null });
   });
 
   it("prefers the seeded getting-started agent and default collection over the first row", () => {

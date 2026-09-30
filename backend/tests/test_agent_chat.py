@@ -418,6 +418,7 @@ class TestAddressingAModel:
 class TestWhatTheClientIsShown:
     def test_an_answer_is_shown_as_the_model_wrote_it(self):
         assert display_output("42 days") == "42 days"
+        assert display_output({"days": 42}) == '```json\n{\n  "days": 42\n}\n```'
 
     def test_a_parked_run_produces_no_text_of_its_own(self):
         """This value is stored as the assistant message's `content`, so a notice

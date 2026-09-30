@@ -4,7 +4,11 @@ import { useAgentSelectionStore } from "./agent-selection-store";
 
 describe("Agent selection store", () => {
   beforeEach(() => {
-    useAgentSelectionStore.setState({ selectedAgentId: null, defaultAgentId: null });
+    useAgentSelectionStore.setState({
+      selectedAgentId: null,
+      defaultAgentId: null,
+      selectedWorkflowId: null,
+    });
   });
 
   it("starts on the general assistant", () => {
@@ -55,5 +59,16 @@ describe("Agent selection store", () => {
     // The whole point of a default is that a fresh browser starts on it.
     useAgentSelectionStore.getState().setDefault("a2");
     expect(localStorage.getItem("agent-selection")).toContain("a2");
+  });
+
+  it("hands the chat to a workflow until an agent is picked again", () => {
+    useAgentSelectionStore.getState().select("a1");
+    useAgentSelectionStore.getState().selectWorkflow("w1");
+    expect(useAgentSelectionStore.getState()).toMatchObject({
+      selectedAgentId: "a1",
+      selectedWorkflowId: "w1",
+    });
+    useAgentSelectionStore.getState().select("a2");
+    expect(useAgentSelectionStore.getState().selectedWorkflowId).toBeNull();
   });
 });

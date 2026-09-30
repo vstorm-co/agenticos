@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "3d41e332c829"
 ---
 
 # Konfiguracja { #configuration }
@@ -479,6 +479,37 @@ nie musi być dokładny — żywy run, który zamiatanie mimo to przestawi, zost
 przestawiony z powrotem przez własny zapis końcowy — więc ustaw go daleko za swoim
 najdłuższym uprawnionym runem i nie bliżej. Zobacz
 [Governance](governance.md#a-run-whose-process-died).
+
+### Runy workflowów { #workflow-runs }
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Największy ładunek, z jakim można uruchomić run, jako zwarty JSON. Jest przechowywany w runie dla jego węzła `core.input`, więc większy zostaje odrzucony z `413`, zanim run zostanie przyjęty |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Jak długo dostarczenie webhooka, którego graf ma krok Respond to webhook, czeka na odpowiedź, zanim dostanie `202`, a run toczy się dalej. Proxy przed nim z krótszym limitem odczytu przerywa czekanie wcześniej |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
+| `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Jak głęboko mogą się zagnieżdżać pętle. Grafu z głębszymi pętlami nie da się opublikować |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Najwięcej przebiegów węzłów, jakie może utworzyć jeden run, łącznie z iteracjami pętli. Iteracja, która by go przekroczyła, kończy run błędem `NODE_RUN_LIMIT` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Ile oczekującej lub działającej pracy węzłów może naraz trzymać jedna organizacja. Start rezerwuje na poczet tego limitu liczbę węzłów swojego grafu, a start ponad limit jest odrzucany z `429`, dopóki działająca praca nie zejdzie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Ten sam limit dla pojedynczego wołającego, liczony we wszystkich organizacjach, w których uruchamia runy, żeby osoba mogąca tworzyć organizacje nie zwielokrotniła swojego przydziału, rozkładając runy między nie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
+
+Limit runów na wołającego (`RATE_LIMIT_RUN_PER_MINUTE`) nalicza jeden token na
+start i nie odróżni grafu z jednym węzłem od grafu z pięciuset. Te dwa limity to
+potrafią: ograniczają oczekującą i działającą pracę węzłów za współdzielonym
+runnerem, żeby jeden wołający nie mógł uruchomić wielu szerokich grafów poniżej
+limitu tempa i narastać zaległości, które zagłodzą innych najemców.
+
+Run workflowu przechodzi przez trzy deploymenty Prefecta. `workflow-dispatch-node`
+wykonuje jedną próbę jednego węzła i jest zlecany na żądanie;
+`workflow-dispatch-poll` działa co 10 sekund i zleca każdy gotowy węzeł, który
+nie został zlecony w ciągu ostatniego czasu claimu; `workflow-reconcile` działa
+co 30 sekund i odzyskuje claimy i próby pozostawione przez martwego workera.
+Nawet bez żadnej pracy oba harmonogramy tworzą około 11 500 flow runów dziennie,
+więc dobierz do tego bazę danych serwera Prefect i retencję flow runów.
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 
@@ -1082,8 +1113,9 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
 powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
-trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
-osobna decyzja, nie ta.
+trasy konsoli są za sesją i nie są mierzone, z jednym wyjątkiem: zapisami do
+[Virtual Tables](virtual-tables.md), które przechowują migawkę każdej zmiany. Czy całe
+API powinno nosić sufit, to osobna decyzja, nie ta.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
@@ -1093,6 +1125,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z
@@ -1212,6 +1245,37 @@ współdzielony.
 
     Przy dwóch proxy z przodu zwiń nagłówek do jednego przeskoku na swojej krawędzi
     — wiarygodny jest tylko ostatni przeskok.
+
+## Limity i retencja Virtual Tables { #virtual-tables-limits-and-retention }
+
+Ile jedna organizacja może przechowywać w [Virtual Tables](virtual-tables.md#limits-and-retention)
+i jak długo trzymane są kopie, które zostawia zapis. Zapis ponad limit jest odrzucany
+kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Jak długo trzymany jest niewysłany wiersz outbox. Heartbeat [wyzwalaczy tabel](virtual-tables.md#triggers) oznacza każdy oceniony wiersz, więc wiersz tak stary znaczy, że worker tyle nie działał. To dead-letter cutoff, a nie deklaracja, że zdarzenie zostało dostarczone - po tym czasie wiersz znika i dla tego rekordu żaden wyzwalacz nie wystartuje |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Ile wpisów audytu odmowy limitu ten proces zapisuje naraz, żeby seria odmów nie otwierała nieograniczonej liczby połączeń do bazy. Reszta serii czeka na to ograniczenie |
+
+Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention), dla
+każdej organizacji; nie są ustawieniami per organizacja.
+
+Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+zamiast ze stałej liczby batchy - ale ten limit jest per *członek* (`limit_table_write` liczy
+zapisy każdego członka na jego własnym koncie), więc budżet skaluje się też z liczbą aktywnych
+członków organizacji: aż do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` wierszy na
+aktywnego członka dziennie, w batchach po 500.
+
+Ta liczba jest podwajana dla zapasu, żeby istniejąca zaległość się kurczyła, a nie tylko
+utrzymywała na stałym poziomie, i ograniczona do 50 członków, żeby jedna nietypowo duża
+organizacja nie rozrastała własnego przebiegu bez końca - nadal się drenuje, tylko w kilku
+przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie swój budżet.
 
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 

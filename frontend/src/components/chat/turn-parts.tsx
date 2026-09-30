@@ -12,6 +12,7 @@ import { AgentSteps } from "./agent-step";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
+import { WorkflowRunCard } from "./workflow-run-card";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -87,6 +88,8 @@ export function TurnParts({
             // that thought twice would otherwise show two of them.
             isStreaming={isStreaming && run.isLast}
           />
+        ) : run.part.type === "workflow_run" && run.part.workflowRun ? (
+          <WorkflowRunCard key={run.part.id} run={run.part.workflowRun} />
         ) : run.part.type === "ask_user" ? (
           <AskUserBlock
             key={run.part.id}
@@ -281,7 +284,7 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user") {
+    if (part.type === "ask_user" || part.type === "workflow_run") {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }

@@ -6,6 +6,7 @@
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
 import { canonicalFacet } from "@/lib/agent-facets";
+import type { RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
@@ -68,6 +69,51 @@ export const qk = {
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+  },
+  workflows: {
+    all: () => ["workflows"] as const,
+    // Called with nothing it is the prefix over every page, which is what a
+    // mutation invalidates and what the registry query reads: the list is walked
+    // to completion and held under one key, filtered and paged in the browser.
+    // A `(skip, limit)` variant stays a sub-key of that prefix, so a caller that
+    // ever reads one server page is invalidated by the same bare `list()`.
+    list: (skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["workflows", "list"] as const)
+        : (["workflows", "list", skip, limit] as const),
+    detail: (id: string) => ["workflows", id] as const,
+    versions: (id: string) => ["workflows", id, "versions"] as const,
+    version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,
+    // Every registered node type, for the editor's palette. Changes on redeploy,
+    // not while someone edits - so its own key, cached like the capability catalog.
+    nodeCatalog: () => ["workflows", "node-catalog"] as const,
+    // The virtual tables a node's `TableIORef` pins, read by the table + column
+    // picker. Under "workflows" so an editor-wide invalidation refreshes them; the
+    // list the picker filters in the browser, and one table for its live schema.
+    tables: () => ["workflows", "tables"] as const,
+    table: (id: string) => ["workflows", "tables", id] as const,
+    // A workflow's runs, and one run's state, steps and graph. Under the workflow
+    // so starting a run from its page refreshes the list beside it.
+    runs: (id: string) => ["workflows", id, "runs"] as const,
+    // A filtered page of runs: one workflow's, under it, or every workflow's.
+    runHistory: (query: RunHistoryQuery) =>
+      [
+        ...(query.workflowId === undefined
+          ? ["workflows", "all-runs"]
+          : ["workflows", query.workflowId, "runs"]),
+        "history",
+        query,
+      ] as const,
+    run: (runId: string) => ["workflows", "run", runId] as const,
+    runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
+    runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
+    runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
+    // The decisions workflow steps wait on. Under "workflows" so a decision's
+    // invalidation of every run refreshes the queue with them.
+    approvals: () => ["workflows", "approvals"] as const,
+    // The webhooks and schedules that run a workflow unattended.
+    exposure: (id: string) => ["workflows", id, "exposure"] as const,
+    webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
@@ -506,5 +552,47 @@ export const qk = {
     // resolved on the server above `[locale]` and handed down through a context,
     // so it never enters the query cache at all.
     notice: () => ["branding", "notice"] as const,
+  },
+  tables: {
+    all: () => ["tables"] as const,
+    // The whole query object as the key, matching `skills.list`/`context.list`:
+    // the server applies `search`/`includeArchived`/paging, so two filters are
+    // two cache entries rather than one list narrowed on the client.
+    list: (query: {
+      search: string;
+      includeArchived: boolean;
+      sort: string;
+      skip: number;
+      limit: number;
+    }) => ["tables", "list", query] as const,
+    // Every `list(...)` page at once: what creating, renaming or archiving a
+    // table invalidates, without refetching every cached table's records.
+    lists: () => ["tables", "list"] as const,
+    detail: (id: string) => ["tables", id] as const,
+    schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
+    // The workflows a table runs when a record is added, and what each record led to.
+    triggers: (id: string) => ["tables", id, "triggers"] as const,
+    triggerAdmissions: (id: string, triggerId: string) =>
+      ["tables", id, "triggers", triggerId, "admissions"] as const,
+    // A table's records under one query - the active view's filters/sort/page,
+    // or a kanban lane's own narrowed one. Keyed on the whole query object so a
+    // lane's filtered fetch and the grid's unfiltered one never collide.
+    records: (tableId: string, query: unknown) => ["tables", tableId, "records", query] as const,
+    // Every `records(tableId, …)` query at once: what a record write invalidates,
+    // without also refetching the table itself, its views and its schema versions.
+    recordsAll: (tableId: string) => ["tables", tableId, "records"] as const,
+    // The grid's records loaded page after page, and how many match: both under
+    // `recordsAll`, so a record write refreshes them with every other listing.
+    recordsInfinite: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "infinite", query] as const,
+    recordCount: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "count", query] as const,
+    // One record, as "reload and reapply" refetches it after a conflict.
+    record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    views: (tableId: string) => ["tables", tableId, "views"] as const,
+    // One kind's views, as the picker for that tab reads them; under `views` so
+    // one invalidation refreshes every kind.
+    viewsOfKind: (tableId: string, kind: string | null) =>
+      ["tables", tableId, "views", kind ?? "all"] as const,
   },
 } as const;

@@ -1,0 +1,534 @@
+---
+source_sha: "3b91bbe3bade"
+---
+
+# Virtual Tables { #virtual-tables }
+
+Una **virtual table** es una tabla tipada de registros que una organización mantiene
+para sus agents, [workflows](workflows.md) e integraciones: pedidos por conciliar, archivos por
+procesar, leads a los que dar seguimiento.
+
+Las tablas son metadatos más JSONB. Nada crea una tabla SQL física, así que crear una
+tabla cuesta una fila, renombrar una columna no cambia ningún registro y ningún tenant
+puede hacer crecer el catálogo de la base de datos. Toda lectura y escritura pasa por
+un único servicio, `VirtualTableService`, de modo que la consola, las herramientas del
+agent, los nodos de workflow y la API pública comparten las mismas reglas. Esta página
+describe el servicio y sus rutas HTTP bajo `/api/v1/tables`; el documento OpenAPI es su
+contrato.
+
+## Cómo se construye una tabla { #how-a-table-is-built }
+
+| Parte | Qué es | Identidad |
+|---|---|---|
+| **Table** | Un nombre, un propietario, una visibilidad y grants, como un [archivo de contexto](context.md) | `id`, estable |
+| **Schema version** | Una instantánea inmutable de las columnas. Un cambio añade la versión N+1 | `version` |
+| **Column** | Una etiqueta, un tipo, si puede estar vacía y un valor por defecto opcional | `id`, estable |
+| **Option** | Una opción de una columna select | `id`, estable |
+| **Record** | Valores de celda indexados por el id de la columna, una revision y un `external_id` opcional | `id`, estable |
+
+Los valores se indexan por el **id** de la columna, nunca por su etiqueta. Por eso
+renombrar reescribe una versión del esquema y ningún registro. Un registro recuerda la
+versión del esquema con la que se escribió por última vez.
+
+Un registro guarda solo las celdas que tienen valor. Una celda enviada como `null` se
+vacía, y una lectura no muestra nada para ella. En un create, el valor por defecto de una
+columna rellena solo las celdas que omites; una celda que envías como `null` queda vacía.
+
+## Tipos de columna { #column-types }
+
+| Tipo | Se guarda como | Filtros |
+|---|---|---|
+| `text` | Texto de hasta 1.000 caracteres | `eq` `ne` `contains` `starts_with` `in` `is_null` |
+| `long_text` | Texto de hasta 100.000 caracteres | igual que `text` |
+| `number` | Un número finito | `eq` `ne` `lt` `lte` `gt` `gte` `in` `is_null` |
+| `integer` | Un número entero, como máximo 2^53 - 1 | igual que `number` |
+| `boolean` | `true` o `false` | `eq` `ne` `is_null` |
+| `date` | `YYYY-MM-DD` | igual que `number` |
+| `datetime` | ISO 8601 con zona horaria, guardado como UTC | igual que `number` |
+| `single_select` | El id de una opción | `eq` `ne` `in` `is_null` |
+| `multi_select` | Una lista de ids de opciones | `contains` `is_null` |
+
+El texto se guarda exactamente como se envía. Los espacios al principio y al final, los
+saltos de línea y los valores formados solo por espacios son datos del usuario, así que
+no se recortan. Solo se aplica un límite de longitud, y el carácter NUL se rechaza, en las celdas y también en nombres, etiquetas,
+descripciones y external ids, porque PostgreSQL no puede almacenarlo.
+
+Las comparaciones solo coinciden con celdas que tienen valor. Usa `is_null` para
+encontrar las vacías.
+
+## Cambiar un esquema { #changing-a-schema }
+
+`PUT /tables/{id}/schema` recibe la lista completa de columnas que debe tener la tabla y
+la `expected_version` que el llamante leyó por última vez. El servicio la concilia con
+las columnas actuales:
+
+- Una columna con `id` es esa columna. Una columna sin él es nueva.
+- El **tipo de una columna nunca cambia**, porque los valores guardados bajo él dejarían
+  de significar lo que significaban. Añade una columna nueva en su lugar.
+- No se borra nada. Una columna u opción omitida se **archiva**: sus valores siguen
+  siendo legibles y filtrables, y escribir en ella se rechaza con `ARCHIVED_COLUMN`.
+- Las archivadas cuentan para los límites. Una tabla tiene como máximo 100 columnas y una
+  columna select como máximo 100 opciones, archivadas incluidas. Un cambio que superara
+  alguno se rechaza con `INVALID_SCHEMA` y no añade versión, así que no se puede sustituir
+  una lista llena de opciones; añade una columna nueva en su lugar.
+- Una columna nueva obligatoria necesita un valor por defecto, ya que los registros
+  existentes no guardan nada para ella. Una columna existente no puede pasar a ser
+  obligatoria mientras algún registro no tenga valor en ella, y una columna obligatoria no
+  puede volver del archivo sin un valor por defecto, porque los registros escritos mientras
+  estaba archivada no podían guardar uno.
+- Una `expected_version` obsoleta es un `SCHEMA_VERSION_CONFLICT`.
+- Un envío idéntico a las columnas actuales, con los mismos ids, orden, etiquetas y
+  opciones, no cambia nada: no se añade versión y se devuelve la tabla actual. Reordenar o
+  cambiar una etiqueta es un cambio.
+
+Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
+y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
+defecto la próxima vez que se edita el registro.
+
+Una escritura de registro y un cambio de esquema o el archivado de la misma tabla se
+turnan: la escritura espera a la que está en curso y se juzga luego según lo que esta
+confirmó, así que un registro nunca cae en una tabla archivada un momento antes.
+
+Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
+dependencias registrado si algo que el llamante puede ver y también cambiar aún la usa.
+Las vistas guardadas (ver [Vistas guardadas](#saved-views)) y los workflows que leen o
+escriben la tabla registran los suyos en `app/services/virtual_tables/dependencies.py`,
+y también los disparadores de tabla, que bloquean a quien archive: un disparador que
+filtra por una columna que ya no existe volvería roto.
+
+Un rechazo enumera cada
+dependiente en `SCHEMA_DEPENDENCY` con su `kind`, `id` y `name`, y `name` es null para
+un disparador de un workflow que el llamante no puede abrir. La consola los muestra en
+el diálogo que preguntó, un workflow como enlace a él. Cualquier otro dependiente nunca
+se nombra y nunca bloquea al llamante: su función se adapta al cambio por sí misma.
+
+## Registros y revisions { #records-and-revisions }
+
+Cada registro tiene una `revision`, que empieza en 1 y sube con cada cambio.
+
+| Operación | Ruta | Necesita `expected_revision` |
+|---|---|---|
+| Crear | `POST /tables/{id}/records` | No |
+| Actualizar celdas indicadas | `PATCH /tables/{id}/records/{record_id}` | Sí |
+| Borrar | `DELETE /tables/{id}/records/{record_id}?expected_revision=` | Sí |
+| Upsert | `PUT /tables/{id}/records/by-external-id/{external_id}` | Solo si el registro existe |
+| Leer, exists | `GET .../records/{record_id}`, `.../by-external-id/{external_id}`, `.../exists` | No |
+
+Una actualización o un borrado que indica una revision antigua se rechaza con
+`REVISION_CONFLICT` (409) y `details.current_revision`; no se sobrescribe nada. Lee el
+registro de nuevo y reintenta. Un upsert que encuentra un registro existente y no recibe
+`expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
+enviar.
+
+Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
+igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un
+llamante que usa el servicio directamente recibe `INVALID_RECORD`.
+
+Los upserts concurrentes de un mismo external id crean un solo registro. El que pierde lo
+encuentra y se le responde como a una actualización: necesita la revision o se le dice
+cuál enviar.
+
+Una actualización que dejaría cada celda como está no cambia nada. La revision se mantiene,
+no se escribe fila de historial ni receipt, y se devuelve el registro actual. Una
+`expected_revision` obsoleta sigue siendo un conflicto, porque se comprueba primero. Un
+upsert que encuentra el registro sigue la misma regla.
+
+Un borrado es un borrado definitivo. El historial del registro se conserva hasta que su retención lo elimina.
+
+## Editar registros en la consola { #editing-in-the-console }
+
+Un miembro que puede editar la tabla añade, cambia y elimina registros desde su página.
+**Add record** pide un valor por cada columna activa, con el tipo de la columna. Una
+columna obligatoria sin valor predeterminado lleva la marca `*` y hay que rellenarla
+antes de escribir el registro; cualquier otra columna vacía toma su valor
+predeterminado. Al hacer clic en una celda se edita en su sitio: Enter o hacer clic
+fuera la guarda, Escape la deja sin cambios, y un sí/no que no puede quedar vacío
+cambia con un clic. Las flechas mueven entre celdas, y el botón de expandir al final de
+una fila abre el registro entero.
+
+La línea bajo la cuadrícula añade registros mientras escribes: lo que escribes va a la
+primera columna de texto, y Enter crea el registro y deja la línea lista para el
+siguiente. Una tabla con otra columna obligatoria abre en su lugar **Add record** con el
+valor escrito ya puesto, así que no se escribe nada hasta que están todos los valores
+obligatorios.
+
+Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
+edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
+encima. El registro se abre entonces con el valor rechazado junto a **Reload and
+reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
+cuántos. El panel del registro elimina uno solo de la misma forma.
+
+Un borrado espera unos
+segundos con **Undo** en su aviso antes de enviarse; los registros salen de todas las
+vistas a la vez, y Undo los devuelve intactos. Un miembro que solo
+puede ver la tabla ve la misma cuadrícula en modo lectura, y hacer clic en una fila abre
+el registro.
+
+Para un miembro que puede editar la tabla, la cabecera de una columna abre un menú.
+**Sort ascending** y **Sort descending** ordenan la cuadrícula por ella, y **Hide in this
+view** la quita de la pantalla hasta que el botón de columnas ocultas la vuelve a mostrar;
+**Save view** guarda ambas cosas. **Rename** y **Archive column** cambian la tabla para
+todos, cada una como la misma nueva versión del esquema que escribiría el diálogo
+Columns, y un archivado de algo que aún se usa se rechaza, con los workflows, vistas y
+disparadores enumerados en el diálogo. El **+** tras la última columna añade una, opcional al principio. El tipo de una
+columna nunca cambia.
+
+### Importar y exportar { #import-and-export }
+
+**Export** guarda lo que muestra la página como un archivo CSV: los registros que
+coinciden con los filtros y la búsqueda, en el orden de la cuadrícula, con sus columnas
+visibles. `POST /tables/{id}/records/export` hace lo mismo para quien llama, con los
+mismos filtros, búsqueda, orden y una lista de `columns`. Una opción se escribe como su
+etiqueta, varias como `a; b`, y una celda de texto que una hoja de cálculo leería como
+fórmula empieza por `'`. Más de 100.000 registros coincidentes se rechazan con
+`EXPORT_TOO_LARGE` (413).
+
+**Import** lee un archivo CSV separado por comas o punto y coma cuya primera fila nombra
+sus columnas. Cada columna del archivo se asocia a la columna de la tabla con el mismo
+nombre, o a **External id**, y puede dirigirse a otra u omitirse. Un valor que no se lee
+en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va de 200 en
+200 a `POST /tables/{id}/records/batch`, que escribe cada registro por separado y
+enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
+línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
+
+Una tabla nueva también puede empezar desde un archivo: **Start from a CSV file** en
+**New table** convierte la cabecera en columnas y da a cada una el tipo más estrecho
+en que se leen todos sus valores - entero, número, sí/no, fecha, o fecha y hora ISO -
+y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
+caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, ya
+que un tipo no puede cambiar después. Cuando la tabla existe, la importación se abre
+con cada columna ya asignada, y después se abre la tabla.
+
+## Reintentos seguros { #safe-retries }
+
+Toda escritura de registros acepta una cabecera `Idempotency-Key` (como máximo 128
+caracteres). Un reintento con la misma clave y el mismo cuerpo devuelve la primera
+respuesta, con `Idempotent-Replayed: true`, y no escribe nada, aunque el registro haya
+cambiado entretanto. La misma clave con un cuerpo distinto se rechaza con
+`IDEMPOTENCY_KEY_REUSED`.
+
+La cabecera marca un create, update o upsert repetido. Un borrado repetido responde 204
+como la primera vez y no se marca.
+
+Una clave pertenece al llamante y al tipo de escritura, así que dos llamantes pueden usar
+la misma cadena y un mismo llamante puede usarla para un create y un upsert. Solo se
+guardan los éxitos: una escritura rechazada no deja recibo, de modo que la corriges y
+reintentas con la misma clave.
+
+Una repetición solo se responde a un llamante que aún pueda editar la tabla. Una vez
+revocado el acceso, el mismo reintento es un 404.
+
+Un receipt dura 24 horas. Después la clave se olvida, y la misma clave con el mismo cuerpo
+es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respuesta.
+Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva. La duración se aplica al usar la
+clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
+receipts que nadie reintentó.
+
+## Listar y filtrar { #listing-and-filtering }
+
+`GET /tables/{id}/records` recorre una tabla por páginas; `POST /tables/{id}/records/query`
+añade filtros tipados, que deben cumplirse todos. Ambos están acotados: `limit` va de 1 a
+100, `skip` es como máximo 10.000 y una consulta tiene como máximo 20 filtros.
+
+`search` es el texto que un registro debe contener, sin distinguir mayúsculas, en
+cualquier columna activa de texto o texto largo o en la etiqueta de una opción de
+selección que guarda. Se combina con los filtros, y una búsqueda en blanco no busca
+nada. Una vista guardada la conserva junto a sus filtros. En la consola la envía el
+cuadro de búsqueda, y **Filter** escribe las condiciones: una columna, un operador que
+su tipo admite y un valor. Cada condición completa acota los registros al momento, y
+**Save view** guarda las condiciones, la búsqueda y el orden en la vista en pantalla.
+
+El orden es total. Al orden pedido (`created_at`, `updated_at` o una columna ordenable) le
+sigue el id del registro, de modo que una página nunca repite ni se salta un registro en
+una tabla sin cambios. Los registros sin valor en la columna ordenada van al final en
+ambas direcciones. Una columna `multi_select` no se puede ordenar. `updated_at` se fija al crear un registro y
+avanza con cada edición, así que los registros que nadie ha editado se ordenan por su
+momento de creación.
+
+Un listado no tiene `total`, porque contar una tabla filtrada no es barato: `has_more`
+indica si sigue otra página. `POST /tables/{id}/records/count` responde a esa pregunta
+por separado, para los filtros y la búsqueda de una consulta, y cuenta como mucho hasta
+100.000; `capped` indica que coinciden más. La consola muestra ese número junto a las
+pestañas de vistas, y su cuadrícula carga cien registros cada vez al desplazarse y dibuja
+solo las filas visibles. Más allá de los 10.000 registros que una consulta puede saltar,
+pide un filtro o una búsqueda.
+
+## Vistas guardadas { #saved-views }
+
+Una **vista** es un filtro, orden y agrupación guardados sobre los registros de una
+tabla - lo que guardan las pantallas de tabla/kanban/lista de la consola para que
+nadie tenga que rehacer el mismo tablero en cada visita. Es un subrecurso de la
+tabla, no un recurso compartible propio: una vista no tiene propietario ni grants
+de su propio tipo, y `shared` significa solo "visible para cualquiera que ya tenga
+`tables:view` sobre la tabla superior" - nunca amplía el acceso más allá de lo que
+permite la propia tabla.
+
+`GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
+listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
+(como máximo 100): primero las vistas propias del llamante, luego las compartidas,
+cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, search, sort,
+visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
+necesita la presentación de la consola: `visible_columns` (`null` significa cada
+columna viva) y `group_by` (una columna `single_select` viva, para los carriles de
+un tablero kanban).
+
+| Campo | Significado |
+|---|---|
+| `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
+| `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
+| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_delete` | Si este llamante puede borrarla |
+
+Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
+una vista necesita `tables:edit` sobre la tabla, así que un propietario al que se le
+retiró el permiso de edición aún puede borrar sus vistas, pero ya no reformarlas ni
+compartirlas.
+
+Cambiar o borrar una vista es más estrecho:
+solo su propietario, o un llamante cuyo [scope](permissions.md) de `tables:edit`
+sea `ALL` - no "cualquiera que pueda editar la tabla" - de modo que un editor
+compartido no pueda redirigir en silencio el filtro guardado de otro miembro. Se
+rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
+`NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
+llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
+puede hacer este llamante.
+
+Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
+una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
+ordenar o agrupar: una de las suyas o - para un llamante cuyo scope de `tables:edit`
+sea `ALL` - una compartida. Ninguna otra vista bloquea el archivado ni se nombra,
+porque el llamante no podría quitarla de en medio; eso incluye toda vista privada de
+otro miembro, que no se revela ni siquiera a un llamante con scope `ALL`. Mostrar
+una columna en `visible_columns` tampoco bloquea.
+
+Lo que una vista aún nombra de una columna que ya no está viva se omite al leer la
+vista: un filtro sobre ella desaparece, un orden por ella vuelve a `created_at`, una
+agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya no
+muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
+guardada no se reescribe.
+
+## Triggers { #triggers }
+
+Un [workflow](workflows.md#when-a-table-record-is-added) cuyo nodo trigger es **New
+table record** se ejecuta, una vez publicado, por cada registro que se añade a su tabla,
+llegue por donde llegue: en la consola, por la API, con la herramienta de tablas de un
+agent o con el paso de tabla de otro workflow. Un upsert que crea un registro lo inicia;
+uno que lo actualiza, no. Publicarlo requiere acceso de lectura a la tabla y permiso para
+ejecutar el workflow, porque se ejecuta como el miembro que lo publicó, nunca como el
+autor del registro. El acceso de ese miembro se vuelve a comprobar con cada registro.
+
+El trigger ejecuta la versión que lo encendió, y la siguiente publicación lo pasa a la
+nueva versión. Sus filtros usan los operadores de [Listar y filtrar](#listing-and-filtering)
+y se evalúan sobre el registro tal como se creó, así que una edición posterior ni lo
+inicia ni lo detiene. Pasa al run el registro entero: `record_id`, `values` por id de
+columna, los mismos valores como `fields` por etiqueta y `author_id`, para que el run
+pueda cambiarlo de vuelta con `table.record.update`. **Triggers**, en la página de la
+tabla, enumera los workflows que empiezan por ella, pausa y reanuda cada uno y abre su
+historial.
+
+Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
+publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de
+registros, así que ningún registro confirmado antes de ese momento lo inicia y nada de lo
+añadido mientras estuvo apagado se reproduce. Un heartbeat del worker lee el evento de
+outbox de cada registro nuevo en unos diez segundos. Decide una vez por trigger y registra
+la decisión; una segunda pasada, o un segundo worker, la encuentra y no inicia nada.
+
+**History** lista cada decisión, de la más reciente a la más antigua, sin los valores del
+registro:
+
+| Se muestra como | Por qué |
+|---|---|
+| Started a run | Se cumplió cada filtro; el run está enlazado |
+| Skipped | El registro no coincidió, o se añadió antes de activar el trigger |
+| Blocked | Se habría iniciado a sí mismo de nuevo, la cadena superó cinco triggers de profundidad o 50 runs, o la cuota de admisión rechazó el run |
+| Could not start | El miembro con el que se ejecuta ya no puede leer la tabla ni ejecutar el workflow, o no se pudo leer la creación del registro |
+
+Un workflow que escribe en una tabla puede iniciar los triggers de esa tabla, y así
+sucesivamente a través de otras tablas. Cada run lleva la cadena a la que pertenece, y un
+trigger por el que la cadena ya pasó se bloquea en lugar de iniciarse otra vez: eso impide
+que dos workflows que añaden registros a las tablas del otro entren en bucle. Una columna
+que un trigger filtra no se puede archivar hasta que el trigger de su workflow deje de
+filtrar por ella y se publique, aunque esté pausado, y una tabla por la que empieza un
+workflow publicado no se puede archivar hasta que ese workflow empiece de otra forma.
+
+## Qué se confirma junto { #what-commits-together }
+
+Una escritura de registro, su fila de historial, su recibo de idempotencia y, en un
+create, una fila de outbox `table.record.created` se escriben en una transacción y se
+confirman o se revierten juntas. Un fallo en cualquier paso no deja ninguna. Los cambios
+de tabla y de esquema se registran en el [audit log](governance.md); los cambios de
+registros, en el historial por registro, que conserva las celdas que tocó cada cambio.
+
+Dos de estos almacenes guardan copias de lo escrito. Un receipt guarda el registro completo
+tal como lo devolvió la escritura, y el historial guarda lo que cambió, así que borrar un
+registro elimina la fila actual y deja ambos hasta que su retención los elimina. Las filas
+de outbox guardan ids. Trátalos a los tres como datos personales si lo son las celdas;
+consulta [protección de datos](data-protection.md#the-database) y
+[límites y retención](#limits-and-retention).
+
+La fila de outbox es el traspaso a lo que reaccione a un registro nuevo: hoy, los
+[triggers](#triggers). Su heartbeat reclama las filas sin despachar en su propia sesión,
+evalúa cada una frente a los triggers de la tabla y la marca como despachada en la misma
+transacción. Una fila sin despachar solo se elimina por su propia ventana de retención,
+mucho más larga (más abajo) - un corte de carta muerta para un worker caído todo ese
+tiempo, no una afirmación de que el evento llegó a recogerse.
+
+## Límites y retención { #limits-and-retention }
+
+Un tenant solo puede hacer crecer la base compartida hasta donde el deployment lo permita.
+Cada límite es un ajuste del deployment, se aplica **por organización**, de modo que el uso
+de un tenant nunca cuenta contra otro, y se rechaza con `QUOTA_EXCEEDED` (402) cuando una
+escritura lo superaría.
+
+| Ajuste | Por defecto | Limita |
+|---|---|---|
+| `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
+| `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
+| `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
+
+El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
+100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el
+[audit log](governance.md) con esos mismos dos campos. La solicitud rechazada no escribe
+nada. Las escrituras están además limitadas a `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) por
+miembro y organización, en la consola igual que por la API; un miembro por encima recibe un
+429 con `Retry-After`. Consulta [configuración](configuration.md#rate-limiting).
+
+**Qué guarda el historial.** Un create guarda el registro completo en `after`, y un delete
+guarda el registro completo en `before`; el límite del registro acota ambos. Un registro
+anterior al límite, o escrito antes de que se bajara `TABLES_MAX_RECORD_BYTES`, puede seguir
+superándolo - su delete guarda entonces `before` como
+`{"omitted": {"bytes": <su tamaño>, "limit": <el límite>}}` en vez de los valores, y aun así
+se completa. Un update guarda solo las celdas que cambiaron: `before` contiene sus valores
+anteriores y `after` los nuevos, y una columna ausente de un lado estaba vacía allí. Editar
+una celda de un registro grande cuesta por tanto una celda, por muchas veces que se repita.
+
+**Retención.** El [barrido de retención](governance.md#retention) diario elimina también los
+datos de las tablas, de verdad y por lotes, para cada organización:
+
+| Qué | Se elimina cuando | Ajuste |
+|---|---|---|
+| Receipts | Más antiguos de 24 horas | `TABLES_RECEIPT_TTL_HOURS` |
+| Filas de outbox | Despachadas hace más de 3 días | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Filas de outbox sin despachar | Nunca despachadas y con 30 días: el heartbeat de los triggers lleva ese tiempo sin ejecutarse, y ningún trigger se iniciará para esos registros | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Historial | Más antiguo de 365 días, para un registro borrado igual que para uno vivo | `TABLES_HISTORY_RETENTION_DAYS` |
+
+El barrido escribe una entrada de auditoría por organización, que nombra la clase
+(`table_receipts`, `table_outbox`, `table_history`) y el recuento. Son ajustes del
+deployment, no por organización. Los registros y las tablas nunca los elimina.
+
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` es una cuota *por miembro*, así que el presupuesto de
+un barrido para cada una de las tres clases escala tanto con ese límite como con el número
+de miembros activos de la organización, con margen para que un rezago existente se reduzca
+en vez de solo mantenerse plano - cada miembro que escribe sin parar a la vez nunca adelanta
+al barrido, hasta un límite generoso de para cuántos miembros se dimensiona el barrido de una
+organización. Las cifras están en
+[configuración](configuration.md#virtual-tables-limits-and-retention). Un rezago mayor se
+trabaja en varios barridos más, igual que en cualquier otra clase.
+
+## Quién puede hacer qué { #who-can-do-what }
+
+| Permission | Quién la tiene |
+|---|---|
+| `tables:view` | Owner, admin, builder y operator ven todas las tablas; un member o viewer ve las suyas, las visibles para la organización y las compartidas |
+| `tables:edit` | Owner y admin editan todas; un builder edita las suyas y las compartidas; un member edita las suyas |
+| `tables:create` | Owner, admin, builder, member |
+
+`tables:view` y `tables:edit` son permissions de recurso, así que un [grant](permissions.md)
+sobre una tabla amplía un rol solo para esa tabla: un viewer con `edit` sobre una tabla
+edita esa tabla y nada más. Compartir usa las mismas rutas `/tables/{id}/sharing` que los
+demás recursos compartidos. Los registros heredan el acceso de su tabla, y el esquema lo impone: una fila de records,
+history u outbox referencia su tabla también a través de la organización, así que no puede
+nombrar una tabla de otro tenant.
+
+La tabla de otra organización y una a la que el llamante no puede acceder son ambas un
+404. Un contexto sin sujeto autenticado no alcanza nada.
+
+Si un llamante concreto puede editar una tabla concreta también está directamente
+en la respuesta: `TableSummary.can_edit` y `TableRead.can_edit` se resuelven en el
+servidor (scope del rol o un grant explícito) y se envían en cada lectura, igual
+que `Agent.can_run` - así una fila del catálogo o una página de detalle nunca
+tienen que adivinar si sus controles de edición serían rechazados. El propio
+`can_manage` y `can_delete` de una vista guardada son la misma idea, un nivel más abajo (ver
+[Vistas guardadas](#saved-views)).
+
+## Errores { #errors }
+
+Cada rechazo responde `{"error": {"code", "message", "details"}}`, y el `code` es lo que
+un cliente usa para bifurcar.
+
+| Código | Estado | Significado |
+|---|---|---|
+| `REVISION_CONFLICT` | 409 | El registro cambió desde que se leyó |
+| `REVISION_REQUIRED` | 428 | Un upsert de un registro existente necesita `expected_revision` |
+| `SCHEMA_VERSION_CONFLICT` | 409 | El esquema cambió desde que se leyó |
+| `SCHEMA_DEPENDENCY` | 409 | Algo depende de lo que el cambio elimina |
+| `TABLE_ARCHIVED` | 409 | La tabla rechaza escrituras |
+| `ALREADY_EXISTS` | 409 | El nombre de la tabla, el de una vista o el external id ya está en uso |
+| `INVALID_RECORD` | 422 | Un valor no encaja con su columna; `details.fields` nombra cada uno |
+| `ARCHIVED_COLUMN` | 422 | Un valor nombra una columna archivada |
+| `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
+| `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
+| `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`) y su techo |
+| `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
+| `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |
+| `AUTHORIZATION_ERROR` | 403 | Al llamante le falta la permission que exige una ruta de colección (`tables:view`, `tables:create`) |
+| `CONCURRENT_CHANGE` | 409 | Un upsert perdió una carrera con el borrado del mismo registro. Reinténtalo |
+| `NOT_FOUND` | 404 | No existe esa tabla o registro, o no es alcanzable para el llamante |
+
+## Llamar al servicio desde Python { #calling-the-service-from-python }
+
+```python
+service = VirtualTableService(db)
+table = await service.create_table(ctx, TableCreate(name="Orders", columns=[
+    ColumnInput(label="Customer", type="text"),
+]))
+customer = str(table.columns[0].id)
+
+written = await service.upsert_record(
+    ctx, table.id, "ORD-1042", RecordUpsert(values={customer: "Acme"}),
+    operation_key="import-2026-09-21-row-17",
+)
+
+# Send the revision back to change it; a stale one raises RevisionConflictError.
+await service.upsert_record(
+    ctx, table.id, "ORD-1042",
+    RecordUpsert(values={customer: "Acme Ltd"}, expected_revision=written.record.revision),
+)
+```
+
+La organización siempre viene de `ctx`, nunca de un argumento. El servicio nunca hace
+commit: lo hace la sesión de la solicitud, y un worker es dueño de su propio ámbito de
+sesión.
+
+## Añadir un tipo de columna { #adding-a-column-type }
+
+Un tipo de columna es una entrada de `COLUMN_TYPES` en
+`backend/app/services/virtual_tables/types.py`, con su nombre en `ColumnTypeName` en
+`backend/app/schemas/virtual_table.py`. La entrada dice cómo se lee la celda del
+registro para comparar y ordenar (un `SqlKind`), qué operadores de filtro admite, si se
+ordena y qué validador atraviesa cada escritura y cada operando de filtro. El validador
+devuelve el valor tal como se guarda o lanza `CellProblem` con un mensaje para quien lo
+escribió. Todas las superficies llaman al mismo servicio, así que la consola, la API,
+los agents y los workflows aceptan el tipo nuevo a la vez, y un [trigger](#triggers)
+filtra por él con las mismas reglas.
+
+La consola necesita el tipo en `ColumnTypeName` en `frontend/src/types/tables.ts`, un
+editor en `record-cell-editor.tsx`, una opción en los diálogos de esquema y de crear
+tabla, y su etiqueta en los tres catálogos de mensajes. Las pruebas van en
+`backend/tests/test_virtual_table_types.py` para el validador, y en una prueba de
+integración que escribe, filtra y ordena un registro del tipo nuevo.
+
+## Aún no construido { #not-built-yet }
+
+- **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
+  a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
+  está aún por acordar.
+- Crear o borrar registros desde la consola. Los agents llegan a las tablas a través de
+  la [capability Tables](reference/capabilities.md#tables), y los workflows a través de
+  los [nodos de tablas](reference/workflow-nodes.md#virtual-tables).
+- Un trigger al actualizar o borrar un registro. Los [triggers](#triggers) solo se
+  inician al crear.
+- Reanudar desde la consola un run que se detuvo como **Needs attention**. Se puede
+  cancelar e iniciar un run nuevo.

@@ -65,9 +65,12 @@ import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
+import * as tables from "./tables/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as workflowRuns from "./workflow-runs/[[...path]]/route";
+import * as workflows from "./workflows/[[...path]]/route";
 
 /**
  * Every mount of the shared forwarder.
@@ -135,9 +138,12 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
+  ["tables", tables],
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["workflow-runs", workflowRuns],
+  ["workflows", workflows],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
   ["me/dashboard-layout/presets", dashboardPresets],

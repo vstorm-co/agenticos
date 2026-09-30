@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "3354f9a35a24"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
+| `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -112,6 +113,13 @@ zostać przypisane do tej, której nazwa sortuje się pierwsza.
 URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został
 dodany, token nie może zostać skierowany na inny serwer przez edycję źródła
 i żaden inny klucz nie może go zastąpić.
+
+`http_credential` to reguła `git_token` dla kroku [`http.request`](reference/workflow-nodes.md#http-request) workflowu: URL kroku wpisuje ten, kto edytuje workflow, i może on pochodzić z wejścia runa, więc originy, do których token może trafić, są zapieczętowane razem z nim, np. `https://api.example.com`. Krok sprawdza origin URL-a, który zaraz wywoła, i każdego przekierowania, za którym idzie, i nie wysyła tokena nigdzie indziej. Żaden inny rodzaj sekretu nie może go zastąpić.
+
+Pole sekretu w kroku workflow oferuje **New secret**: formularz samego vault,
+ustalony na rodzaj, który pole przyjmuje, i zapisany jako `custom`, jedyny cel
+przyjmujący dowolny kształt. Nowy sekret zostaje wybrany po zapisaniu. Jego wartość
+trafia do vault i nigdzie indziej, a graf przechowuje tylko jego id.
 
 `entra_app` to to, jako co loguje się źródło synchronizacji SharePoint albo
 OneDrive. Jego zasięg ustala się w Microsoft Entra, nie tutaj: o tym, które
@@ -169,6 +177,12 @@ w tym samym kształcie co signing secret bota kanału. Nigdy nie jest zwracany a
 logowany jawnie; weryfikacja odpieczętowuje go, porównuje w stałym czasie,
 a dostarczenie, które się nie powiedzie, to 403. Zobacz
 [Pojęcia](concepts.md#trigger).
+
+**Webhooki workflow.** Klucz HMAC, którym podpisywane są dostarczenia webhooka
+workflow, wygenerowany przez platformę, zapieczętowany dla organizacji i
+przechowywany w wierszu webhooka razem z jego `key_version`. Jest pokazywany raz, gdy
+jest tworzony albo wymieniany, i nigdy więcej; rotacja klucza głównego przepakowuje go
+razem z resztą. Zobacz [Workflow](workflows.md#a-webhook-or-a-schedule).
 
 **Embedy.** Widget `jwt` weryfikuje tokeny odwiedzających wobec signing secretu
 HS256, który trzyma backend klienta. Jest zapieczętowany dla organizacji agenta

@@ -15,6 +15,8 @@ import {
   Plug,
   Repeat,
   ShieldCheck,
+  Table2,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +75,13 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
         dataTour: "nav-agents",
       },
+      {
+        labelKey: "workflows",
+        href: ROUTES.WORKFLOWS,
+        icon: Workflow,
+        permission: Perm.workflowsView,
+        dataTour: "nav-workflows",
+      },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
       { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
       {
@@ -97,6 +106,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.RAG,
         icon: Database,
         permission: Perm.collectionsView,
+      },
+      {
+        labelKey: "tables",
+        href: ROUTES.TABLES,
+        icon: Table2,
+        permission: Perm.tablesView,
+        dataTour: "nav-tables",
       },
     ],
   },

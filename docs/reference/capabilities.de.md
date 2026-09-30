@@ -1,5 +1,5 @@
 ---
-source_sha: "1c0ca646d240"
+source_sha: "17ed88d9faec"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -33,6 +33,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
 | `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
 | `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` |
@@ -1547,6 +1548,32 @@ Bei jedem Fehler, oder wenn das reservierte Budget bereits verbraucht ist, fäll
 sie auf die Zielanker-Zeile zurück. Eine fehlgeschlagene Erzeugung blockiert den
 Run nie.
 
+## Tabellen { #tables }
+
+Liest und schreibt die [Virtual Tables](../virtual-tables.md), die das Binding
+freigibt. Das Panel im Builder listet die Tabellen der Organisation. Haken Sie eine
+an und wählen Sie, was der Agent darin tun darf: Datensätze lesen, hinzufügen,
+ändern und löschen. Ein Upsert braucht Hinzufügen und Ändern, weil er den Datensatz
+anlegt, wenn keiner seinen Schlüssel hat.
+
+Die Freigaben sind Teil des veröffentlichten Specs, den das Modell nicht ändern
+kann. Ein Aufruf, der eine andere Tabelle oder eine nicht freigegebene Operation
+nennt, wird abgelehnt, bevor etwas gelesen wird. Jeder Aufruf durchläuft außerdem
+die eigene Zugriffsprüfung des Tabellen-Service als das Mitglied, für das der Run
+handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut. Eine nicht mehr
+geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufruf.
+
+`create_table` wird nur mit **Allow create** angeboten, und das Mitglied braucht
+weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die
+der Agent anlegt, ist für den Rest dieses Runs nutzbar.
+
+Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
+Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
+eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
+wiederholter Aufruf seine erste Antwort erneut ab. Werte werden per Spalten-ID oder
+Label angegeben. Konflikte, Validierung, Kontingente, Historie und Audit sind
+dieselben wie in der Konsole und der API, weil jedes Tool denselben Service aufruft.
+
 ## Datum und Uhrzeit { #date-and-time }
 
 Keine Tools. Legt das aktuelle Datum und die aktuelle Uhrzeit in die Instruktionen
@@ -1969,8 +1996,10 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables` und jeder [Workflow-Knoten für Tabellen](workflow-nodes.md#virtual-tables) |
+| `tables:write` | die Workflow-Knoten für Tabellen, die schreiben |
 
-!!! note "Alle acht werden heute standardmäßig gewährt"
+!!! note "Alle zehn werden heute standardmäßig gewährt"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`. Die Verwaltung
     von Scopes pro Organisation ist [Roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)-Arbeit;

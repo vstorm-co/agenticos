@@ -1,4 +1,4 @@
-import { CalendarClock, Code2, Globe, MessageSquare, Zap } from "lucide-react";
+import { CalendarClock, Code2, Globe, MessageSquare, Workflow, Zap } from "lucide-react";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,9 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  // A workflow's `agent.run` step - the workflows module's own mark, so a run a
+  // graph asked for is recognisable as one.
+  workflow: Workflow,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -44,6 +47,7 @@ const LABEL_KEYS = {
   mattermost: "surfaceMattermost",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  workflow: "surfaceWorkflow",
 } as const;
 
 /**

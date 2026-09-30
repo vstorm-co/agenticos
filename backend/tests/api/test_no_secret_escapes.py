@@ -97,6 +97,16 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "person wiring the relay can sign deliveries; TriggerRead (every read and "
         "the listing) has no such field, so it is never re-exposed"
     ),
+    "webhook_secret": (
+        "a workflow webhook's minted signing secret, returned once by the publish "
+        "that first switches it on so its publisher can sign deliveries; "
+        "WorkflowExposureRead (every read) has no such field, so it is never re-exposed"
+    ),
+    "test_token": (
+        "a draft webhook's test URL, returned once to the editor who opened it and "
+        "open for one call for two minutes; reading what it caught takes the token "
+        "in the path and returns none"
+    ),
     "secret_id": "a reference to a stored secret, not the secret",
     "secret_hint": (
         "the vault's own four characters, so a reader can tell which credential a "

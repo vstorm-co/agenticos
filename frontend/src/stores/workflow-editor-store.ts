@@ -1,0 +1,799 @@
+"use client";
+
+import {
+  applyEdgeChanges as rfApplyEdgeChanges,
+  applyNodeChanges as rfApplyNodeChanges,
+  type Connection,
+  type EdgeChange,
+  type Node as FlowNode,
+  type NodeChange,
+} from "@xyflow/react";
+import { create } from "zustand";
+
+import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
+import type { StepData } from "@/lib/workflows/step-data";
+import {
+  outputRefs,
+  renameOutputRefs,
+  type Binding,
+  type CanvasNote,
+  type NodeInstance,
+  type NodePolicy,
+  type NodePosition,
+  type ScopeBoundary,
+  type Uuid,
+  type WorkflowEdge,
+  type WorkflowGraph,
+} from "@/lib/workflows/types";
+
+/**
+ * The workflow editor's ephemeral state — everything that is *not* server data,
+ * plus the single source of truth for the in-progress draft graph.
+ *
+ * The design keeps *server* data (the persisted `WorkflowDetail`) in the
+ * TanStack Query cache; the **working copy** being edited lives here, as `graph`.
+ * The canvas leaf renders `graph` as controlled `@xyflow/react` props and applies
+ * every change back through this store, so palette, property panel, history and
+ * clipboard all read and mutate one graph rather than a per-leaf copy.
+ *
+ * ## Seams for the leaf branches
+ *
+ * The slices and their setters are defined here so a leaf fills *behaviour*
+ * without redefining the store's public shape:
+ *
+ * - **Working graph** (`#1787` canvas leaf) is seeded by the editor page from
+ *   `WorkflowDetail.draft_graph` (`seedGraph`) and mutated through `insertNode`,
+ *   `connectNodes`, `applyNodeChanges`/`applyEdgeChanges`, `deleteSelection`,
+ *   `updateNodeConfig`, `upsertBinding`/`removeBinding` and `insertSubgraph`.
+ *   Every mutation marks the draft dirty and records a history snapshot.
+ * - **Canvas selection** (`#1787` canvas leaf) is folded from the `select` and
+ *   `remove` changes `applyNodeChanges`/`applyEdgeChanges` receive, and handed
+ *   back to `<ReactFlow>` as each node's `selected`, so a graph edit that rebuilds
+ *   the nodes keeps what was selected.
+ * - **Undo/redo** (history leaf, `components/workflows/history.ts`) keeps the
+ *   bounded snapshot stack in its own module; the store owns the recorder for
+ *   the current graph and exposes `undo`/`redo`, reporting reachability here via
+ *   `setHistoryFlags`; the toolbar reads `history.canUndo`/`canRedo`.
+ * - **Clipboard** (clipboard leaf, `components/workflows/clipboard.ts`) computes
+ *   a remapped selection and stores it via `setClipboard`; the canvas pastes it
+ *   back through `insertSubgraph`.
+ * - **Foreach scope** (foreach leaf) pushes/pops `scopePath` with `enterScope` /
+ *   `exitScope`; the breadcrumb, palette filter and binding-picker reachability
+ *   all read `scopePath`.
+ * - **Autosave + conflict** (autosave leaf, ports `save-handler.ts`) reads
+ *   `beginSave()` before dispatching a draft `PATCH`, checks `isSaveCurrent`
+ *   when it resolves, calls `markSaved` on success and `setConflict` on a 409.
+ *
+ * ## Generation guard and remount
+ *
+ * The editor tree is keyed on `workflowId` and remounted on switch, and `load`
+ * bumps `generation` every time. A save captured under one generation is
+ * refused by `isSaveCurrent` once another `load` (a remount, or a switch to a
+ * different workflow) has bumped it — the guard that stops a slow save from a
+ * previous editor instance landing on the current one.
+ */
+
+/** What the canvas has selected. Node and edge selections are tracked apart. */
+export interface EditorSelection {
+  nodeIds: Uuid[];
+  edgeIds: Uuid[];
+}
+
+/**
+ * A copied selection, ready to paste. The clipboard leaf produces this from the
+ * working graph; the shape is the flat `WorkflowGraph` sub-lists — the copied
+ * nodes, the edges induced among them, the bindings those nodes target, and any
+ * fully contained scope. It is a self-contained snapshot: paste re-ids it
+ * against the current graph, so the originals may be deleted or the workflow
+ * switched without the clip going stale. `body_node_ids` is re-mapped on paste,
+ * never server-authored here.
+ */
+export interface WorkflowClipboard {
+  nodes: NodeInstance[];
+  edges: WorkflowEdge[];
+  bindings: Binding[];
+  scopes: ScopeBoundary[];
+}
+
+/** Whether undo and redo can move — the history leaf reports this; the toolbar reads it. */
+/**
+ * A new step and everything that comes with it, applied as one change: the node,
+ * the wire into it, the bindings that wire implies, and whether it becomes the
+ * workflow's start. One change is one undo - adding a step and wiring it is one
+ * thing the user did.
+ */
+export interface NodeInsertion {
+  node: NodeInstance;
+  edge: WorkflowEdge | null;
+  bindings: Binding[];
+  becomesEntry: boolean;
+  /**
+   * The node this one takes the place of - the workflow's trigger, when another
+   * is added. Its wires leave from the new node instead, through the same port,
+   * and the bindings that read it read the new node: a builder switching how a
+   * workflow starts keeps the flow they built after it.
+   */
+  replaces: Uuid | null;
+  /**
+   * The connection the step is put into the middle of: removed, and replaced by
+   * one from the new step to where it led, when their ports fit.
+   */
+  split?: { edgeId: Uuid; tail: WorkflowEdge | null };
+}
+
+/** What floats over the canvas on request: the step picker, or the shortcut sheet. */
+export type CanvasOverlay = "picker" | "shortcuts" | null;
+
+export interface HistoryFlags {
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+/**
+ * The draft-conflict banner state. Set from a `409` on autosave or publish,
+ * carrying the revision the server says is current so **Overwrite** can resend
+ * against it.
+ */
+export interface ConflictState {
+  currentRevision: number;
+}
+
+/**
+ * A token the autosave leaf captures before it builds a draft request, and
+ * checks against the store when the request resolves.
+ */
+export interface SaveToken {
+  generation: number;
+  workflowId: Uuid | null;
+}
+
+/** Everything the editor page hands the store when a workflow loads. */
+export interface LoadEditorInput {
+  workflowId: Uuid;
+  /** The `draft_revision` the detail read carried — the first `expected_revision`. */
+  expectedRevision: number;
+}
+
+export interface WorkflowEditorState {
+  /** The workflow being edited, or null before the first `load` / after `teardown`. */
+  workflowId: Uuid | null;
+  /** Bumped on every `load` and `teardown`; the guard's monotonic clock. */
+  generation: number;
+  /** The revision the next draft save must send as `expected_revision`. */
+  expectedRevision: number | null;
+  /** Whether the working graph has un-saved edits. */
+  isDirty: boolean;
+  /** The working draft graph, or null before the page seeds it / after teardown. */
+  graph: WorkflowGraph | null;
+  /** The foreach scope, root-to-current (empty at the root scope). */
+  scopePath: Uuid[];
+  selection: EditorSelection;
+  /** A node just added, for the canvas to scroll to once; null when there is none. */
+  revealNodeId: Uuid | null;
+  /** The step whose settings are open in the editor's dialog; null when none is. */
+  editingNodeId: Uuid | null;
+  /**
+   * Whether a missing required value is said yet: only once a run or a publish
+   * was tried, so a step just added is not covered in red before anything is set.
+   */
+  problemsRevealed: boolean;
+  /** The step picker or the shortcut sheet, when one is open. */
+  overlay: CanvasOverlay;
+  /** The connection a step picked next goes into the middle of, when one was asked. */
+  splitEdgeId: Uuid | null;
+  /** Whether the canvas shows its minimap. */
+  minimapShown: boolean;
+  /**
+   * What each step handed on in the test runs watched since the editor opened,
+   * the latest winning - what a step's Input and Output show, and what a step
+   * test pins for the steps before it.
+   */
+  stepData: Record<Uuid, StepData>;
+  /** The test run whose steps feed `stepData`: the last one started, or found on opening. */
+  watchedRunId: string | null;
+  /** The step a step test is running for, until its run ends. */
+  testingNodeId: Uuid | null;
+  clipboard: WorkflowClipboard | null;
+  history: HistoryFlags;
+  conflict: ConflictState | null;
+
+  load: (input: LoadEditorInput) => void;
+  teardown: () => void;
+
+  /** Seed the working graph from the loaded draft and start a fresh history stack. */
+  seedGraph: (graph: WorkflowGraph) => void;
+
+  /** Apply a batch of `@xyflow/react` node changes (drag, remove) to the graph. */
+  applyNodeChanges: (changes: NodeChange[]) => void;
+  /** Apply a batch of `@xyflow/react` edge changes (remove) to the graph. */
+  applyEdgeChanges: (changes: EdgeChange[]) => void;
+  /** Apply a planned insertion, select the new step and ask the canvas to bring it into view. */
+  insertNode: (insertion: NodeInsertion) => void;
+  /** The canvas has brought `revealNodeId` into view. */
+  clearReveal: () => void;
+  /** Select a step and ask the canvas to bring it into view - a problem pointing at it. */
+  focusNode: (nodeId: Uuid) => void;
+  /** Open one step's settings, selecting it; `null` closes them. */
+  editNode: (nodeId: Uuid | null) => void;
+  /**
+   * Add an edge for a validated `@xyflow/react` connection, with any bindings it
+   * implies, as one edit - a single undo takes back both.
+   */
+  connectNodes: (connection: Connection, bindings?: Binding[]) => void;
+  /** Delete the selected nodes and edges, pruning anything left dangling. */
+  deleteSelection: () => void;
+  /** Replace one node's static `config`. */
+  updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
+  updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
+  /** Put an empty note on the canvas at `position`, selected, and return its id. */
+  addNote: (position: NodePosition) => Uuid;
+  /** Change one note's text or size - one undoable edit. */
+  updateNote: (noteId: Uuid, patch: Partial<Pick<CanvasNote, "text" | "width" | "height">>) => void;
+  /** Open the step picker or the shortcut sheet, or close whichever is open. */
+  setOverlay: (overlay: CanvasOverlay) => void;
+  /** Open the picker to put a step into the middle of `edgeId`. */
+  beginSplit: (edgeId: Uuid) => void;
+  toggleMinimap: () => void;
+  /** Move steps to new places at once - one undoable edit. */
+  moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
+  /** A run or a publish was tried: say every problem from now on. */
+  revealProblems: () => void;
+  /** Follow a test run's steps into `stepData`; `testing` names the step a step test is for. */
+  watchRun: (runId: string, testing?: Uuid) => void;
+  /** Fold what a watched run's steps did into `stepData`. */
+  mergeStepData: (data: Record<Uuid, StepData>) => void;
+  /** The watched run ended. */
+  finishTesting: () => void;
+  /** Pin each named step's data at once - one undoable edit. A step not in the graph is left out. */
+  pinOutputs: (outputs: Record<Uuid, Record<string, unknown>>) => void;
+  /** Rename a step, note it, or switch it off - one undoable edit. */
+  updateNodeDetails: (
+    nodeId: Uuid,
+    details: Partial<Pick<NodeInstance, "label" | "notes" | "disabled" | "pinned_output">>,
+  ) => void;
+  /** Set (or replace) the binding on one node field. */
+  upsertBinding: (binding: Binding) => void;
+  /** Remove the binding on one node field, if any. */
+  removeBinding: (targetNodeId: Uuid, targetField: string) => void;
+  /** Merge an already re-ided clip into the graph and select what it added. */
+  insertSubgraph: (sub: WorkflowClipboard) => void;
+
+  /** Step the graph back one history entry, if any. */
+  undo: () => void;
+  /** Step the graph forward one history entry, if any. */
+  redo: () => void;
+
+  /** The working graph, for a caller outside React (the clipboard handler). */
+  getGraph: () => WorkflowGraph | null;
+  /** The single selected node, or null when zero or many are selected. */
+  getSelectedNode: () => NodeInstance | null;
+
+  setSelection: (selection: EditorSelection) => void;
+  clearSelection: () => void;
+
+  setScopePath: (scopePath: Uuid[]) => void;
+  enterScope: (scopeNodeId: Uuid) => void;
+  exitScope: () => void;
+
+  setClipboard: (clipboard: WorkflowClipboard | null) => void;
+  setHistoryFlags: (history: HistoryFlags) => void;
+
+  markDirty: () => void;
+  markSaved: (revision: number) => void;
+  setExpectedRevision: (revision: number) => void;
+
+  setConflict: (currentRevision: number) => void;
+  clearConflict: () => void;
+
+  /**
+   * Stop any save of the current working copy from landing: the debounced one
+   * (the draft is no longer dirty, so the timer is cleared) and one already in
+   * flight (the generation moves, so `isSaveCurrent` drops its result). Returns
+   * whether the draft was dirty, so a caller whose own write then fails can put
+   * the edits back in line with `markDirty`.
+   */
+  discardPendingSave: () => boolean;
+  /**
+   * Replace the working copy with a draft the server just wrote (a restored
+   * version), at that draft's revision. History starts over from it: undoing
+   * past the restore would autosave the pre-restore graph straight back over it.
+   */
+  replaceDraft: (graph: WorkflowGraph, revision: number) => void;
+
+  /** Snapshot the guard token before dispatching a save. */
+  beginSave: () => SaveToken;
+  /** Whether a captured token still names the current editor instance. */
+  isSaveCurrent: (token: SaveToken) => boolean;
+}
+
+const EMPTY_SELECTION: EditorSelection = { nodeIds: [], edgeIds: [] };
+const NO_HISTORY: HistoryFlags = { canUndo: false, canRedo: false };
+
+/** The blank graph a mutation falls back to before the page has seeded one. */
+const EMPTY_GRAPH: WorkflowGraph = {
+  entry_node_id: "",
+  nodes: [],
+  edges: [],
+  bindings: [],
+  scopes: [],
+};
+
+/** The ephemeral slices reset on every `load` and cleared on `teardown`. */
+const CLEARED = {
+  isDirty: false,
+  graph: null as WorkflowGraph | null,
+  scopePath: [] as Uuid[],
+  selection: EMPTY_SELECTION,
+  revealNodeId: null,
+  editingNodeId: null,
+  problemsRevealed: false,
+  overlay: null as CanvasOverlay,
+  splitEdgeId: null as Uuid | null,
+  stepData: {} as Record<Uuid, StepData>,
+  watchedRunId: null as string | null,
+  testingNodeId: null as Uuid | null,
+  clipboard: null,
+  history: NO_HISTORY,
+  conflict: null,
+} as const;
+
+/**
+ * `notes` after the moves, resizes and removals xyflow reports for them. The
+ * same array when nothing changed, so a selection change alone writes nothing.
+ */
+function applyNoteChanges(notes: CanvasNote[], changes: NodeChange[]): CanvasNote[] {
+  let changed = false;
+  const next: CanvasNote[] = [];
+  for (const note of notes) {
+    let current: CanvasNote | null = note;
+    for (const change of changes) {
+      if (current === null || !("id" in change) || change.id !== note.id) continue;
+      if (change.type === "remove") current = null;
+      else if (change.type === "position" && change.position) {
+        current = { ...current, layout: { x: change.position.x, y: change.position.y } };
+      } else if (change.type === "dimensions" && change.dimensions && change.resizing) {
+        current = { ...current, width: change.dimensions.width, height: change.dimensions.height };
+      }
+    }
+    if (current !== note) changed = true;
+    if (current !== null) next.push(current);
+  }
+  return changed ? next : notes;
+}
+
+/**
+ * Drop everything the current node set no longer supports — an edge or binding
+ * or scope that names a removed node — and re-home the entry on the first
+ * surviving node if it was the one removed. The client mirror of the invariant
+ * the server keeps: the graph never references a node it does not hold.
+ */
+function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
+  const ids = new Set(graph.nodes.map((node) => node.id));
+  const edges = graph.edges.filter(
+    (edge) => ids.has(edge.source_node_id) && ids.has(edge.target_node_id),
+  );
+  const bindings = graph.bindings.filter(
+    (binding) =>
+      ids.has(binding.target_node_id) &&
+      outputRefs(binding.source).every((ref) => ids.has(ref.node_id)),
+  );
+  const scopes = graph.scopes.filter(
+    (scope) =>
+      ids.has(scope.scope_node_id) &&
+      ids.has(scope.exit_node_id) &&
+      scope.body_node_ids.every((id) => ids.has(id)),
+  );
+  const firstNode = graph.nodes[0];
+  const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (firstNode?.id ?? "");
+  // Notes name no step, so nothing here prunes them.
+  return { ...graph, entry_node_id, edges, bindings, scopes };
+}
+
+/**
+ * Fold `select` and `remove` changes into a list of selected ids: the controlled
+ * `<ReactFlow>` contract, where the caller owns the selection. Returns `ids`
+ * itself when nothing changed, so a caller can compare by identity.
+ */
+function foldSelection(ids: string[], changes: ReadonlyArray<NodeChange | EdgeChange>): string[] {
+  const next = new Set(ids);
+  for (const change of changes) {
+    if (change.type === "select") {
+      if (change.selected) next.add(change.id);
+      else next.delete(change.id);
+    } else if (change.type === "remove") {
+      next.delete(change.id);
+    }
+  }
+  return next.size === ids.length && ids.every((id) => next.has(id)) ? ids : [...next];
+}
+
+/** A stable signature over node identity and layout, to tell a real edit from a re-select. */
+function nodesSignature(nodes: NodeInstance[]): string {
+  return nodes.map((node) => `${node.id}:${node.layout.x}:${node.layout.y}`).join("|");
+}
+
+export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) => {
+  /**
+   * The undo/redo stack for the *current* graph, or null before it is seeded.
+   * Held here rather than in the reactive state because it is an imperative
+   * object, not a value the UI renders; it is recreated per `seedGraph` and
+   * cleared on `load`/`teardown`, so no stack survives a workflow switch.
+   */
+  let recorder: HistoryRecorder | null = null;
+
+  /** Set the graph, mark the draft dirty and record a history snapshot. */
+  const commit = (graph: WorkflowGraph): void => {
+    set({ graph, isDirty: true });
+    recorder?.record(graph);
+  };
+
+  return {
+    workflowId: null,
+    generation: 0,
+    expectedRevision: null,
+    // The builder's own view preference: kept across workflows, not a draft's.
+    minimapShown: false,
+    ...CLEARED,
+
+    load: ({ workflowId, expectedRevision }) => {
+      recorder?.dispose();
+      recorder = null;
+      set((state) => ({
+        ...CLEARED,
+        workflowId,
+        expectedRevision,
+        generation: state.generation + 1,
+      }));
+    },
+
+    teardown: () => {
+      recorder?.dispose();
+      recorder = null;
+      set((state) => ({
+        ...CLEARED,
+        workflowId: null,
+        expectedRevision: null,
+        generation: state.generation + 1,
+      }));
+    },
+
+    seedGraph: (graph) => {
+      recorder?.dispose();
+      recorder = createHistoryRecorder(graph, {
+        onFlagsChange: (flags) => get().setHistoryFlags(flags),
+      });
+      set({ graph, history: NO_HISTORY });
+    },
+
+    applyNodeChanges: (changes) => {
+      const { graph, selection } = get();
+      if (graph === null) return;
+      const nodeIds = foldSelection(selection.nodeIds, changes);
+      if (nodeIds !== selection.nodeIds) set({ selection: { ...selection, nodeIds } });
+      // A note is drawn among the steps but kept apart from them: its moves,
+      // resizes and removals change `notes`, never the steps.
+      const noteIds = new Set((graph.notes ?? []).map((note) => note.id));
+      if (changes.some((change) => "id" in change && noteIds.has(change.id))) {
+        const notes = applyNoteChanges(graph.notes ?? [], changes);
+        if (notes !== graph.notes) commit({ ...graph, notes });
+        return;
+      }
+      const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
+        id: node.id,
+        position: node.layout,
+        data: {},
+      }));
+      const applied = rfApplyNodeChanges(changes, flowNodes);
+      const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
+      const nodes: NodeInstance[] = [];
+      for (const flow of applied) {
+        const instance = byId.get(flow.id);
+        if (instance === undefined) continue;
+        nodes.push({ ...instance, layout: { x: flow.position.x, y: flow.position.y } });
+      }
+      if (nodesSignature(nodes) === nodesSignature(graph.nodes)) return;
+      commit(pruneToNodes({ ...graph, nodes }));
+    },
+
+    applyEdgeChanges: (changes) => {
+      const { graph, selection } = get();
+      if (graph === null) return;
+      const edgeIds = foldSelection(selection.edgeIds, changes);
+      if (edgeIds !== selection.edgeIds) set({ selection: { ...selection, edgeIds } });
+      const flowEdges = graph.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source_node_id,
+        target: edge.target_node_id,
+      }));
+      const applied = rfApplyEdgeChanges(changes, flowEdges);
+      // Only a removal changes the edge count; a selection change leaves it, and
+      // this editor offers no edge reconnection, so nothing else can differ.
+      if (applied.length === graph.edges.length) return;
+      const kept = new Set(applied.map((edge) => edge.id));
+      commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
+    },
+
+    insertNode: ({ node, edge, bindings, becomesEntry, replaces, split }) => {
+      const graph = get().graph ?? EMPTY_GRAPH;
+      const base =
+        split === undefined
+          ? graph
+          : {
+              ...graph,
+              edges: [
+                ...graph.edges.filter((item) => item.id !== split.edgeId),
+                ...(split.tail === null ? [] : [split.tail]),
+              ],
+            };
+      const kept =
+        replaces === null
+          ? base
+          : {
+              ...base,
+              nodes: base.nodes.filter((item) => item.id !== replaces),
+              edges: base.edges
+                .filter((item) => item.target_node_id !== replaces)
+                .map((item) =>
+                  item.source_node_id === replaces ? { ...item, source_node_id: node.id } : item,
+                ),
+              bindings: base.bindings
+                .filter((item) => item.target_node_id !== replaces)
+                .map((item) => ({
+                  ...item,
+                  source: renameOutputRefs(item.source, (nodeId) =>
+                    nodeId === replaces ? node.id : nodeId,
+                  ),
+                })),
+            };
+      commit({
+        ...kept,
+        entry_node_id: becomesEntry ? node.id : kept.entry_node_id,
+        nodes: [...kept.nodes, node],
+        edges: edge === null ? kept.edges : [...kept.edges, edge],
+        bindings: [...kept.bindings, ...bindings],
+      });
+      set({
+        selection: { nodeIds: [node.id], edgeIds: [] },
+        revealNodeId: node.id,
+        splitEdgeId: null,
+      });
+    },
+
+    clearReveal: () => set({ revealNodeId: null }),
+
+    focusNode: (nodeId) =>
+      set({ selection: { nodeIds: [nodeId], edgeIds: [] }, revealNodeId: nodeId }),
+
+    editNode: (nodeId) =>
+      set(
+        nodeId === null
+          ? { editingNodeId: null }
+          : { editingNodeId: nodeId, selection: { nodeIds: [nodeId], edgeIds: [] } },
+      ),
+
+    connectNodes: (connection, bindings = []) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const { source, target, sourceHandle, targetHandle } = connection;
+      if (sourceHandle === null || targetHandle === null) return;
+      const edge: WorkflowEdge = {
+        id: crypto.randomUUID(),
+        source_node_id: source,
+        source_port: sourceHandle,
+        target_node_id: target,
+        target_port: targetHandle,
+      };
+      commit({
+        ...graph,
+        edges: [...graph.edges, edge],
+        bindings: [...graph.bindings, ...bindings],
+      });
+    },
+
+    deleteSelection: () => {
+      const { graph, selection } = get();
+      if (graph === null) return;
+      const nodeIds = new Set(selection.nodeIds);
+      const edgeIds = new Set(selection.edgeIds);
+      if (nodeIds.size === 0 && edgeIds.size === 0) return;
+      const nodes = graph.nodes.filter((node) => !nodeIds.has(node.id));
+      const edges = graph.edges.filter((edge) => !edgeIds.has(edge.id));
+      const notes = graph.notes?.filter((note) => !nodeIds.has(note.id));
+      commit(pruneToNodes({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }));
+      set({ selection: EMPTY_SELECTION });
+    },
+
+    updateNodeConfig: (nodeId, config) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, config } : node));
+      commit({ ...graph, nodes });
+    },
+
+    updateNodePolicy: (nodeId, policy) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, policy } : node));
+      commit({ ...graph, nodes });
+    },
+
+    revealProblems: () => set({ problemsRevealed: true }),
+
+    watchRun: (runId, testing) => set({ watchedRunId: runId, testingNodeId: testing ?? null }),
+
+    mergeStepData: (data) => set({ stepData: { ...get().stepData, ...data } }),
+
+    finishTesting: () => set({ testingNodeId: null }),
+
+    setOverlay: (overlay) =>
+      set(overlay === "picker" ? { overlay } : { overlay, splitEdgeId: null }),
+
+    beginSplit: (edgeId) => set({ overlay: "picker", splitEdgeId: edgeId }),
+
+    toggleMinimap: () => set({ minimapShown: !get().minimapShown }),
+
+    moveNodes: (layouts) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => {
+        const layout = layouts.get(node.id);
+        return layout === undefined ? node : { ...node, layout };
+      });
+      commit({ ...graph, nodes });
+    },
+
+    addNote: (position) => {
+      const base = get().graph ?? EMPTY_GRAPH;
+      const id = crypto.randomUUID();
+      commit({ ...base, notes: [...(base.notes ?? []), { id, text: "", layout: position }] });
+      set({ selection: { nodeIds: [id], edgeIds: [] } });
+      return id;
+    },
+
+    updateNote: (noteId, patch) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const notes = (graph.notes ?? []).map((note) =>
+        note.id === noteId ? { ...note, ...patch } : note,
+      );
+      commit({ ...graph, notes });
+    },
+
+    pinOutputs: (outputs) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) =>
+        outputs[node.id] === undefined ? node : { ...node, pinned_output: outputs[node.id] },
+      );
+      commit({ ...graph, nodes });
+    },
+
+    updateNodeDetails: (nodeId, details) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) =>
+        node.id === nodeId ? { ...node, ...details } : node,
+      );
+      commit({ ...graph, nodes });
+    },
+
+    upsertBinding: (binding) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const others = graph.bindings.filter(
+        (existing) =>
+          !(
+            existing.target_node_id === binding.target_node_id &&
+            existing.target_field === binding.target_field
+          ),
+      );
+      commit({ ...graph, bindings: [...others, binding] });
+    },
+
+    removeBinding: (targetNodeId, targetField) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const bindings = graph.bindings.filter(
+        (binding) =>
+          !(binding.target_node_id === targetNodeId && binding.target_field === targetField),
+      );
+      commit({ ...graph, bindings });
+    },
+
+    insertSubgraph: (sub) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const first = sub.nodes[0];
+      const entry_node_id =
+        graph.nodes.length === 0 && first !== undefined ? first.id : graph.entry_node_id;
+      commit({
+        entry_node_id,
+        nodes: [...graph.nodes, ...sub.nodes],
+        edges: [...graph.edges, ...sub.edges],
+        bindings: [...graph.bindings, ...sub.bindings],
+        scopes: [...graph.scopes, ...sub.scopes],
+      });
+      set({ selection: { nodeIds: sub.nodes.map((node) => node.id), edgeIds: [] } });
+    },
+
+    undo: () => {
+      if (recorder === null) return;
+      const snapshot = recorder.undo();
+      if (snapshot === null) return;
+      set({ graph: snapshot, isDirty: true });
+    },
+
+    redo: () => {
+      if (recorder === null) return;
+      const snapshot = recorder.redo();
+      if (snapshot === null) return;
+      set({ graph: snapshot, isDirty: true });
+    },
+
+    getGraph: () => get().graph,
+
+    getSelectedNode: () => {
+      const { graph, selection } = get();
+      if (graph === null || selection.nodeIds.length !== 1) return null;
+      const [id] = selection.nodeIds;
+      return graph.nodes.find((node) => node.id === id) ?? null;
+    },
+
+    setSelection: (selection) => set({ selection }),
+    clearSelection: () => set({ selection: EMPTY_SELECTION }),
+
+    // Switching scope drops the selection: what was selected is no longer drawn,
+    // so xyflow could never deselect it, and the next click would add to it.
+    setScopePath: (scopePath) => set({ scopePath, selection: EMPTY_SELECTION }),
+    enterScope: (scopeNodeId) =>
+      set((state) => ({
+        scopePath: [...state.scopePath, scopeNodeId],
+        selection: EMPTY_SELECTION,
+      })),
+    exitScope: () =>
+      set((state) => ({ scopePath: state.scopePath.slice(0, -1), selection: EMPTY_SELECTION })),
+
+    setClipboard: (clipboard) => set({ clipboard }),
+    setHistoryFlags: (history) => set({ history }),
+
+    markDirty: () => set({ isDirty: true }),
+    markSaved: (revision) => set({ isDirty: false, expectedRevision: revision, conflict: null }),
+    setExpectedRevision: (revision) => set({ expectedRevision: revision }),
+
+    setConflict: (currentRevision) => set({ conflict: { currentRevision } }),
+    clearConflict: () => set({ conflict: null }),
+
+    discardPendingSave: () => {
+      const wasDirty = get().isDirty;
+      set((state) => ({ isDirty: false, generation: state.generation + 1 }));
+      return wasDirty;
+    },
+
+    replaceDraft: (graph, revision) => {
+      recorder?.dispose();
+      recorder = createHistoryRecorder(graph, {
+        onFlagsChange: (flags) => get().setHistoryFlags(flags),
+      });
+      set((state) => ({
+        ...CLEARED,
+        workflowId: state.workflowId,
+        // A copied selection is the user's, not the draft's: keep it pasteable.
+        clipboard: state.clipboard,
+        graph,
+        history: NO_HISTORY,
+        expectedRevision: revision,
+        generation: state.generation + 1,
+      }));
+    },
+
+    beginSave: () => {
+      const { generation, workflowId } = get();
+      return { generation, workflowId };
+    },
+    isSaveCurrent: (token) => {
+      const { generation, workflowId } = get();
+      return token.generation === generation && token.workflowId === workflowId;
+    },
+  };
+});
