@@ -1,5 +1,5 @@
 ---
-source_sha: "7a374d96fdea"
+source_sha: "ab4b40c81cb5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -496,6 +496,19 @@ zakresem.
 
 Samo pobranie to `web_fetch_tool` z Pydantic AI, oparte na chronionym przed SSRF
 `safe_download`, i to jest powód, dla którego nie jest to nasz kod.
+
+To, czym staje się odpowiedź, rozstrzyga się tutaj:
+
+- Strona (HTML, Markdown, JSON, zwykły tekst) wraca jako Markdown.
+- Obraz wraca jako obraz, dla modelu, który czyta obrazy.
+- PDF lub dokument biurowy wraca jako jego **wyodrębniony tekst**, odczytany tym samym
+  parserem, przez który przechodzi załącznik czatu, i przycięty do `max_content_chars`
+  jak strona. Biblioteka oddałaby surowe bajty, aby model przeczytał je natywnie. Model
+  serwowany za endpointem zgodnym z OpenAI, który tego nie potrafi, odrzuca całe
+  żądanie (`Unsupported chat content part type: 'file'`), a agent pobiera wtedy ten sam
+  dokument ponownie.
+- Plik binarny bez czytelnego tekstu (zeskanowany PDF, archiwum) dociera do modelu jako
+  błąd do ponowienia, który nazywa to, co przyszło.
 
 URL pochodzi od **modelu** i jest rozwiązywany z wnętrza kontenera, więc
 walidowanie go z góry — tak jak robi to `app.core.sanitize.validate_webhook_url`

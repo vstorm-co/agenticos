@@ -337,85 +337,14 @@ def _frame_to_png(frame: Any, *, max_bytes: int, max_pixels: int) -> bytes | Non
     return None
 
 
-class FileUploadService:
-    """Service for file upload validation, parsing, and persistence."""
+class DocumentText:
+    """Text out of a file's bytes, with no session and no upload behind it.
 
-    ALLOWED_MIME_TYPES = ALLOWED_MIME_TYPES
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    @staticmethod
-    def validate_upload(
-        content_type: str | None, size: int, filename: str = ""
-    ) -> tuple[bool, str | None]:
-        """Validate a chat attachment's type and size before it is stored.
-
-        The metadata phase, callable before the bytes exist (the channel preflight
-        runs it pre-download). Acceptance is `(normalised MIME ∈ allowlist) OR
-        (extension ∈ allowed set)`, because browsers send `application/octet-stream`
-        for `.msg`, `.odt`, `.xls` and often `.doc`. A *specific* declared MIME that
-        contradicts the extension is refused; the byte phase (`validate_bytes`) then
-        checks the content once it has arrived.
-
-        The size ceiling is `CHAT_MAX_UPLOAD_SIZE_MB`, its own setting rather than
-        the knowledge base's, because an attachment to an agent with no workspace is
-        pasted whole into the prompt while a document is chunked — the two surfaces
-        fail differently at the same size (#498).
-
-        Returns:
-            Tuple of (is_valid, error_message).
-        """
-        normalized = normalize_media_type(content_type)
-        accepted = (
-            normalized in ALLOWED_MIME_TYPES or file_extension(filename) in ALLOWED_EXTENSIONS
-        )
-        if not accepted:
-            return False, f"File type '{content_type}' is not supported."
-        if has_format_conflict(content_type, filename):
-            return False, "The file's declared type does not match its extension."
-        limit_mb = settings.CHAT_MAX_UPLOAD_SIZE_MB
-        if size > limit_mb * 1024 * 1024:
-            return False, f"File too large. Maximum size is {limit_mb}MB."
-        return True, None
-
-    @staticmethod
-    def validate_bytes(
-        data: bytes, content_type: str | None, filename: str = ""
-    ) -> tuple[bool, str | None]:
-        """Validate a chat attachment against its own first bytes, once they exist.
-
-        The byte phase: for a format whose container is knowable cheaply — TIFF, the
-        OLE-backed legacy formats, the ZIP-backed OOXML/OpenDocument ones — the magic
-        bytes must match the resolved format. This catches a forged signature and a
-        MIME/extension conflict that only the content reveals, on a file that already
-        cleared `validate_upload`. PDF and the text family have no cheap signature and
-        are not sniffed; the web-safe images do have one and are checked below, so a
-        corrupt or mislabelled image is refused at upload rather than stored under an
-        image MIME and failing the whole chat turn at the vision provider (#1654).
-        """
-        container = expected_container(content_type, filename)
-        if container is not None:
-            if sniff_container(data) != container:
-                return (
-                    False,
-                    "This file could not be accepted — its contents do not match its "
-                    "type or extension.",
-                )
-            return True, None
-        resolved = canonical_mime(content_type, filename)
-        if resolved in _WEB_SAFE_IMAGE_MIMES and sniff_image_header(data) != resolved:
-            return (
-                False,
-                "This file could not be accepted — its contents do not match its "
-                "type or extension.",
-            )
-        return True, None
-
-    @staticmethod
-    def classify_file(mime_type: str, filename: str) -> str:
-        """Classify file type based on MIME type and extension."""
-        return classify_file(mime_type, filename)
+    `FileUploadService` is what an attachment goes through, and it inherits this;
+    `extract_text` is the same parsing for bytes that arrived some other way - a
+    document `web_fetch` downloaded - so there is one reader per format rather than
+    one per way a file can reach a model.
+    """
 
     async def parse_content(
         self,
@@ -822,6 +751,99 @@ class FileUploadService:
         except Exception as e:
             logger.warning("DOC parsing failed: %s", e)
             return None
+
+
+async def extract_text(data: bytes, mime_type: str, filename: str) -> str | None:
+    """The text of a document that did not arrive as an upload, or `None`.
+
+    Dispatched exactly as an attachment is - `classify_file` over the declared
+    type and the name - and capped the same way, so a PDF read from a URL reaches
+    the model as the same text it would have had attached.
+    """
+    return await DocumentText().parse_content(
+        data, classify_file(mime_type, filename), mime_type, filename
+    )
+
+
+class FileUploadService(DocumentText):
+    """Service for file upload validation, parsing, and persistence."""
+
+    ALLOWED_MIME_TYPES = ALLOWED_MIME_TYPES
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    @staticmethod
+    def validate_upload(
+        content_type: str | None, size: int, filename: str = ""
+    ) -> tuple[bool, str | None]:
+        """Validate a chat attachment's type and size before it is stored.
+
+        The metadata phase, callable before the bytes exist (the channel preflight
+        runs it pre-download). Acceptance is `(normalised MIME ∈ allowlist) OR
+        (extension ∈ allowed set)`, because browsers send `application/octet-stream`
+        for `.msg`, `.odt`, `.xls` and often `.doc`. A *specific* declared MIME that
+        contradicts the extension is refused; the byte phase (`validate_bytes`) then
+        checks the content once it has arrived.
+
+        The size ceiling is `CHAT_MAX_UPLOAD_SIZE_MB`, its own setting rather than
+        the knowledge base's, because an attachment to an agent with no workspace is
+        pasted whole into the prompt while a document is chunked — the two surfaces
+        fail differently at the same size (#498).
+
+        Returns:
+            Tuple of (is_valid, error_message).
+        """
+        normalized = normalize_media_type(content_type)
+        accepted = (
+            normalized in ALLOWED_MIME_TYPES or file_extension(filename) in ALLOWED_EXTENSIONS
+        )
+        if not accepted:
+            return False, f"File type '{content_type}' is not supported."
+        if has_format_conflict(content_type, filename):
+            return False, "The file's declared type does not match its extension."
+        limit_mb = settings.CHAT_MAX_UPLOAD_SIZE_MB
+        if size > limit_mb * 1024 * 1024:
+            return False, f"File too large. Maximum size is {limit_mb}MB."
+        return True, None
+
+    @staticmethod
+    def validate_bytes(
+        data: bytes, content_type: str | None, filename: str = ""
+    ) -> tuple[bool, str | None]:
+        """Validate a chat attachment against its own first bytes, once they exist.
+
+        The byte phase: for a format whose container is knowable cheaply — TIFF, the
+        OLE-backed legacy formats, the ZIP-backed OOXML/OpenDocument ones — the magic
+        bytes must match the resolved format. This catches a forged signature and a
+        MIME/extension conflict that only the content reveals, on a file that already
+        cleared `validate_upload`. PDF and the text family have no cheap signature and
+        are not sniffed; the web-safe images do have one and are checked below, so a
+        corrupt or mislabelled image is refused at upload rather than stored under an
+        image MIME and failing the whole chat turn at the vision provider (#1654).
+        """
+        container = expected_container(content_type, filename)
+        if container is not None:
+            if sniff_container(data) != container:
+                return (
+                    False,
+                    "This file could not be accepted — its contents do not match its "
+                    "type or extension.",
+                )
+            return True, None
+        resolved = canonical_mime(content_type, filename)
+        if resolved in _WEB_SAFE_IMAGE_MIMES and sniff_image_header(data) != resolved:
+            return (
+                False,
+                "This file could not be accepted — its contents do not match its "
+                "type or extension.",
+            )
+        return True, None
+
+    @staticmethod
+    def classify_file(mime_type: str, filename: str) -> str:
+        """Classify file type based on MIME type and extension."""
+        return classify_file(mime_type, filename)
 
     async def upload(
         self,

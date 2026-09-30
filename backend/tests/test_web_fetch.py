@@ -16,11 +16,15 @@ applies to one lapses the day somebody switches `method`.
 
 import re
 
+import httpx2
+import pymupdf
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.capabilities import WebFetch
+from pydantic_ai.common_tools import web_fetch as web_fetch_module
+from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.native_tools import WebFetchTool
 from pydantic_ai.tools import Tool
@@ -290,6 +294,86 @@ class TestTheDomainFilterConfiguration:
         config = WebFetchConfig(allowed_domains=None, blocked_domains=None)
         assert config.allowed_domains is None
         assert config.blocked_domains is None
+
+
+def _serving(monkeypatch: pytest.MonkeyPatch, media_type: str, body: bytes) -> None:
+    """Answer every fetch with `body`, as the library's guarded download would."""
+
+    async def download(url: str, **_: object) -> httpx2.Response:
+        return httpx2.Response(200, headers={"content-type": media_type}, content=body)
+
+    monkeypatch.setattr(web_fetch_module, "safe_download", download)
+
+
+def _pdf(text: str) -> bytes:
+    document = pymupdf.open()
+    document.new_page().insert_text((72, 72), text)
+    return document.tobytes()
+
+
+class TestWhatADocumentBecomes:
+    """A fetched document reaches the model as text, the way an attachment does.
+
+    The library hands a PDF back as raw bytes for a model to read natively, and a
+    model served behind an OpenAI-compatible endpoint that cannot refuses the
+    whole request - `Unsupported chat content part type: 'file'` - after which the
+    agent fetched the same PDF again and failed the same way.
+    """
+
+    async def test_a_pdf_comes_back_as_its_text(self, monkeypatch: pytest.MonkeyPatch):
+        _serving(monkeypatch, "application/pdf", _pdf("Mer liv og boliger i bygatene"))
+
+        fetched = await _fetch(_built(), "https://example.com/files/planinitiativ.pdf")
+
+        assert not isinstance(fetched, BinaryContent)
+        assert fetched == {
+            "url": "https://example.com/files/planinitiativ.pdf",
+            "title": "",
+            "content": "Mer liv og boliger i bygatene",
+        }
+
+    async def test_a_long_document_is_cut_at_the_content_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The same rule as a page: a long one arrives shortened, and says so."""
+        _serving(monkeypatch, "application/pdf", _pdf("y" * 80))
+        fetcher = _local_tool(_built()).function.__self__
+        fetcher.max_content_length = 20
+
+        fetched = await fetcher("https://example.com/a.pdf")
+
+        assert isinstance(fetched, dict)
+        assert fetched["content"] == "y" * 20 + "\n\n[Content truncated]"
+
+    async def test_an_image_stays_an_image(self, monkeypatch: pytest.MonkeyPatch):
+        """A model that reads pictures is the only reason to fetch one."""
+        _serving(monkeypatch, "image/png", b"\x89PNG\r\n\x1a\n")
+
+        fetched = await _fetch(_built(), "https://example.com/chart.png")
+
+        assert isinstance(fetched, BinaryContent)
+        assert fetched.media_type == "image/png"
+
+    async def test_a_binary_with_no_text_is_a_retry_naming_what_came_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        _serving(monkeypatch, "application/octet-stream", bytes(range(128, 256)))
+
+        with pytest.raises(
+            ModelRetry, match="application/octet-stream, which has no readable text"
+        ):
+            await _fetch(_built(), "https://example.com/blob")
+
+    async def test_a_page_is_still_markdown(self, monkeypatch: pytest.MonkeyPatch):
+        _serving(
+            monkeypatch, "text/html", b"<html><title>T</title><body><p>Hello</p></body></html>"
+        )
+
+        fetched = await _fetch(_built(), "https://example.com/")
+
+        assert isinstance(fetched, dict)
+        assert fetched["title"] == "T"
+        assert fetched["content"].endswith("Hello")
 
 
 class TestHowItIsSwitchedOn:

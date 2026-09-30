@@ -467,6 +467,19 @@ scope.
 The fetch itself is Pydantic AI's `web_fetch_tool` over its SSRF-guarded
 `safe_download`, and that is the reason this is not code of ours.
 
+What a response turns into is decided here:
+
+- A page (HTML, Markdown, JSON, plain text) comes back as Markdown.
+- An image comes back as an image, for a model that reads pictures.
+- A PDF or an office document comes back as its **extracted text**, read by the same
+  parser a chat attachment goes through, and cut at `max_content_chars` like a page.
+  The library would hand back the raw bytes for the model to read natively. A model
+  served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
+  request (`Unsupported chat content part type: 'file'`), and the agent then fetches
+  the same document again.
+- A binary with no readable text (a scanned PDF, an archive) reaches the model as a
+  retryable error that names what came back.
+
 The URL comes from the **model** and is dereferenced from inside the container, so
 validating it up front — the way `app.core.sanitize.validate_webhook_url` does for a
 callback somebody handed us — is not sufficient on its own. `httpx` resolves the

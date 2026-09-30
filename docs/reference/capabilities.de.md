@@ -1,5 +1,5 @@
 ---
-source_sha: "7a374d96fdea"
+source_sha: "ab4b40c81cb5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -523,6 +523,19 @@ eigenen Scope.
 Der Abruf selbst ist das `web_fetch_tool` von Pydantic AI über dessen
 SSRF-geschütztes `safe_download`, und das ist der Grund, warum dies kein Code von
 uns ist.
+
+Was aus einer Antwort wird, entscheidet sich hier:
+
+- Eine Seite (HTML, Markdown, JSON, reiner Text) kommt als Markdown zurück.
+- Ein Bild kommt als Bild zurück, für ein Modell, das Bilder liest.
+- Ein PDF oder ein Office-Dokument kommt als sein **extrahierter Text** zurück, gelesen
+  vom selben Parser, durch den ein Chat-Anhang geht, und wie eine Seite bei
+  `max_content_chars` abgeschnitten. Die Bibliothek würde die rohen Bytes zurückgeben,
+  damit das Modell sie nativ liest. Ein Modell hinter einem OpenAI-kompatiblen Endpunkt,
+  das das nicht kann, lehnt die ganze Anfrage ab (`Unsupported chat content part type:
+  'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
+- Eine Binärdatei ohne lesbaren Text (ein gescanntes PDF, ein Archiv) erreicht das Modell
+  als wiederholbarer Fehler, der nennt, was zurückkam.
 
 Die URL kommt vom **Modell** und wird von innerhalb des Containers dereferenziert,
 deshalb reicht es nicht aus, sie vorab zu validieren — so wie es
