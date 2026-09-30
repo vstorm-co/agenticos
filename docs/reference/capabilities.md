@@ -1554,9 +1554,9 @@ produced, and lets the reduced form persist. The reduction itself is
 | Config | Default | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 50000 | size at or above which a return is reduced |
+| `threshold` | 60000 | size at or above which a return is reduced; 15000 when `over_tokens` is set |
 | `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
-| `max_chars` | 20000 | characters kept when a return is truncated, or a spill falls back to one |
+| `max_chars` | 20000 | characters kept when a return is truncated, or a spill falls back to one; left unset, never more than the threshold |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
 | `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
 | `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
