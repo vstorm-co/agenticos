@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
-import { LiveRun } from "./live-run";
+import { LiveRun, StaleRun } from "./live-run";
 import { useNodeRunSummary } from "./run-overlay";
 
 vi.mock("@/hooks", () => ({
@@ -26,13 +26,14 @@ function Card({ id }: { id: string }) {
 }
 
 describe("LiveRun", () => {
-  it("gives each step its run's status, says how the run stands, and closes on an edit", async () => {
+  it("gives each step its run's status, says how the run stands, and ends on an edit", async () => {
     store
       .getState()
       .seedGraph({ entry_node_id: "", nodes: [], edges: [], bindings: [], scopes: [] });
     const onClose = vi.fn();
+    const onStale = vi.fn();
     render(
-      <LiveRun workflowId="wf" runId="run-1" onClose={onClose}>
+      <LiveRun workflowId="wf" runId="run-1" onClose={onClose} onStale={onStale}>
         <Card id="a" />
         <Card id="b" />
       </LiveRun>,
@@ -52,6 +53,21 @@ describe("LiveRun", () => {
         .getState()
         .seedGraph({ entry_node_id: "", nodes: [], edges: [], bindings: [], scopes: [] });
     });
-    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onStale).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("StaleRun", () => {
+  it("says the graph changed since, links the run's page, and closes", async () => {
+    const onClose = vi.fn();
+    render(<StaleRun workflowId="wf" runId="run-1" onClose={onClose} />);
+
+    expect(screen.getByText("The graph changed since the last test run.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Open run/ }).getAttribute("href")).toBe(
+      "/workflows/wf/runs/run-1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Hide the run" }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

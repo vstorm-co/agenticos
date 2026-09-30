@@ -178,9 +178,10 @@ picks what to read - two **Send a message** steps become *Tell sales* and *Tell
 support*. No two steps may share a name, ignoring case. **Note** keeps a line for
 whoever edits the workflow next, marked on the card. **Switched off**, or **Switch
 off** in the step's right-click menu, keeps a step on the canvas, dimmed, and skips it
-when a run reaches it: it does nothing and hands the run on. Publishing refuses the
-trigger or a step that decides the way switched off, and any step that reads the
-output of one that is off. All three are saved in the graph, so versions keep them.
+when a run reaches it: it does nothing and hands on what came into it. Publishing
+refuses the trigger or a step that decides the way switched off, and a step that
+reads one that is off, unless what comes into it - along its one incoming connection,
+from a step that is on - has the field read, which it then hands on. All three are saved in the graph, so versions keep them.
 
 ### A step's data, pinning and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -384,9 +385,11 @@ Over the API, `PUT /api/v1/workflows/{id}/settings` replaces them.
 
 **Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does
 too - first asking for the fields a Manual or API trigger declares. The run then
-shows on the canvas as it happens: every step takes its status, tries and error, and
-a bar at the bottom says how the run stands, with **Open run** for its page. The next
-edit hides it. **Run** waits while an edit is still saving, and says why it cannot
+shows on the canvas as it happens: every step takes its status, tries and error, a
+connection says how many items went along it when the step before handed on a list,
+and a bar at the bottom says how the run stands, with **Open run** for its page. The
+next edit hides it and leaves a bar saying the graph changed since, still with
+**Open run**. A step that waited and went on counts one try, not two. **Run** waits while an edit is still saving, and says why it cannot
 run while the draft has problems.
 
 **Runs** in the editor's header, and the runs icon on a workflow's card, open its

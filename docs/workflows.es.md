@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6a1fc68de4"
+source_sha: "1537be2c7346"
 ---
 
 # Workflows { #workflows }
@@ -190,9 +190,11 @@ paso posterior elige qué leer - dos pasos **Send a message** pasan a ser *Tell 
 *Tell support*. Dos pasos no pueden compartir nombre, sin distinguir mayúsculas.
 **Note** guarda una línea para quien edite el workflow después, marcada en la tarjeta.
 **Switched off**, o **Switch off** en el menú contextual del paso, deja el paso en el
-lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y pasa la
-ejecución al siguiente. Publicar rechaza el disparador o un paso que decide el camino
-apagados, y cualquier paso que lea la salida de uno apagado. Los tres se guardan en el
+lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y entrega
+lo que le llegó. Publicar rechaza el disparador o un paso que decide el camino
+apagados, y un paso que lea uno apagado, salvo que lo que le llega - por su única
+conexión de entrada, desde un paso encendido - tenga el campo leído, que entonces
+entrega. Los tres se guardan en el
 grafo, así que las versiones los conservan.
 
 ### Los datos de un paso, fijarlos y probar un solo paso { #a-steps-data-pinning-and-testing-one-step }
@@ -404,8 +406,11 @@ Por la API, `PUT /api/v1/workflows/{id}/settings` los reemplaza.
 **Run**, en la cabecera del editor, prueba el draft al momento - `Ctrl`/`Cmd` +
 `Enter` también -, pidiendo antes los campos que declara un trigger Manual o API. El
 run aparece luego en el lienzo mientras ocurre: cada paso toma su estado, sus
-intentos y su error, y una barra abajo dice cómo va el run, con **Open run** para su
-página. La siguiente edición lo oculta. **Run** espera mientras un cambio se sigue
+intentos y su error, una conexión dice cuántos elementos pasaron por ella cuando el
+paso anterior entregó una lista, y una barra abajo dice cómo va el run, con **Open
+run** para su página. La siguiente edición lo oculta y deja una barra que dice que el
+grafo cambió desde entonces, aún con **Open run**. Un paso que esperó y siguió cuenta
+un intento, no dos. **Run** espera mientras un cambio se sigue
 guardando, y dice por qué no puede ejecutarse mientras el draft tenga problemas.
 
 **Runs** en la cabecera del editor, y el icono de runs en la tarjeta de un

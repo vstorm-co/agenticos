@@ -123,7 +123,8 @@ async def test_each_placeholder_is_checked_like_a_binding(engine: AsyncEngine):
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, first, later, out),
-        edges=(_edge(entry, first), _edge(first, later), _edge(later, out)),
+        # Two ways into `later`: switched off, which it would hand on is not known.
+        edges=(_edge(entry, first), _edge(first, later), _edge(entry, later), _edge(later, out)),
         bindings=(
             Binding(
                 target_node_id=first.id,

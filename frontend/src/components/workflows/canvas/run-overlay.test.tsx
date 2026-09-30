@@ -5,6 +5,7 @@ import type { WorkflowNodeRunRead } from "@/lib/workflows/types";
 
 import {
   NodeRunOverlayProvider,
+  listSize,
   summarizeNodeRuns,
   useIsRunView,
   useNodeRunSummary,
@@ -41,8 +42,29 @@ describe("summarizeNodeRuns", () => {
       succeeded: 1,
       attempts: 5,
       problem: { code: "BAD", message: "m" },
+      items: null,
     });
     expect(summary.get("B")?.status).toBe("running");
+  });
+
+  it("adds up the items each row handed on, while every row handed on a list", () => {
+    const summary = summarizeNodeRuns([
+      row({ output: { items: [1, 2] } }),
+      row({ output: { items: [3] } }),
+      row({ node_instance_id: "B", output: { items: [1] } }),
+      row({ node_instance_id: "B", output: { text: "no list" } }),
+    ]);
+    expect(summary.get("A")?.items).toBe(3);
+    expect(summary.get("B")?.items).toBeNull();
+  });
+});
+
+describe("listSize", () => {
+  it("is the length of the one list in an output, and null otherwise", () => {
+    expect(listSize({ records: [1, 2, 3], total: 3 })).toBe(3);
+    expect(listSize({ a: [1], b: [2] })).toBeNull();
+    expect(listSize({ text: "x" })).toBeNull();
+    expect(listSize(null)).toBeNull();
   });
 });
 

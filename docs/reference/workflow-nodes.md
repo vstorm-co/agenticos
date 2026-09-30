@@ -180,6 +180,20 @@ own, Aggregate and Summarize leave it out, Split out keeps the item as it is, an
 Edit fields sets `null` where its expression finds nothing. Crypto is not for
 secrets: nothing in it is keyed.
 
+Chained, they answer common questions with no code step:
+
+- **The best leads, once each** - **Remove duplicates** on `email`, **Sort** by
+  `score` descending, **Limit** to 10, then **Edit fields** keeping only `name` and
+  `score`, ready for a message.
+- **Totals by region** - **Split out** `lines`, so each order line is an item, then
+  **Summarize** the `sum` of `amount` grouped by `region`: one item per region with
+  `sum_amount`.
+- **One list of addresses** - **Aggregate** `email` hands on `values.email`, every
+  address in one list, for any setting that takes a list.
+
+Each step reads `items` from the one before. `tests/integration/test_workflow_transform_composed.py`
+runs the first two as written.
+
 ::: app.workflows.nodes.transform._handler.EditFieldsConfig
 
 ::: app.workflows.nodes.transform._handler.SummarizeConfig

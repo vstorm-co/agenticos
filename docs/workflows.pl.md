@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6a1fc68de4"
+source_sha: "1537be2c7346"
 ---
 
 # Workflows { #workflows }
@@ -181,8 +181,10 @@ i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez względu na wie
 liter. **Note** zachowuje zdanie dla tego, kto edytuje workflow następny, oznaczone na
 karcie. **Switched off** albo **Switch off** w menu kontekstowym kroku zostawia krok na
 kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie robi i przekazuje
-przebieg dalej. Publikacja odrzuca wyłączony wyzwalacz lub krok decydujący o drodze oraz
-każdy krok, który czyta wynik wyłączonego. Wszystkie trzy są zapisane w grafie, więc
+dalej to, co do niego dotarło. Publikacja odrzuca wyłączony wyzwalacz lub krok
+decydujący o drodze oraz krok, który czyta wyłączony, chyba że to, co do niego
+dociera - jedynym połączeniem wejściowym, z kroku, który jest włączony - ma czytane
+pole, które wtedy przekazuje dalej. Wszystkie trzy są zapisane w grafie, więc
 wersje je zachowują.
 
 ### Dane kroku, przypinanie i test jednego kroku { #a-steps-data-pinning-and-testing-one-step }
@@ -389,8 +391,11 @@ Przez API zastępuje je `PUT /api/v1/workflows/{id}/settings`.
 
 **Run** w nagłówku edytora od razu testuje szkic - `Ctrl`/`Cmd` + `Enter` też -
 najpierw prosząc o pola, które deklaruje wyzwalacz Manual albo API. Run pokazuje się
-potem na kanwie na bieżąco: każdy krok dostaje swój status, próby i błąd, a pasek na
-dole mówi, jak run stoi, z **Open run** do jego strony. Następna edycja go ukrywa.
+potem na kanwie na bieżąco: każdy krok dostaje swój status, próby i błąd, połączenie
+mówi, ile elementów nim przeszło, gdy krok przed nim przekazał listę, a pasek na dole
+mówi, jak run stoi, z **Open run** do jego strony. Następna edycja go ukrywa i zostawia
+pasek z informacją, że graf się od tego czasu zmienił, nadal z **Open run**. Krok,
+który poczekał i poszedł dalej, liczy jedną próbę, nie dwie.
 **Run** czeka, dopóki zmiana się zapisuje, i mówi, czemu nie może ruszyć, gdy szkic
 ma problemy.
 

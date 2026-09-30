@@ -67,8 +67,9 @@ describe("a template's placeholders", () => {
   });
 
   it("must each read a step that has run, in the same scope, that is not switched off", () => {
+    // `message` is not in what reaches `b`, so switched off it hands on nothing.
     const g = {
-      ...line([template("a", "message", ref("b", "echoed"))]),
+      ...line([template("a", "message", ref("b", "message"))]),
       nodes: [echo("a"), { ...echo("b"), disabled: true }],
     };
     const dominators = new Map([["a", new Set(["a"])]]);

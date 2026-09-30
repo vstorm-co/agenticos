@@ -1,5 +1,5 @@
 ---
-source_sha: "da2f5f60c622"
+source_sha: "5a5133da4c49"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -190,6 +190,20 @@ error. Sort lo pone al final, Remove duplicates trata "falta" como un valor prop
 Aggregate y Summarize lo omiten, Split out conserva el elemento tal cual, y Edit
 fields fija `null` donde su expresión no encuentra nada. Crypto no es para secretos:
 nada en él usa una clave.
+
+Encadenados, responden preguntas habituales sin un paso de código:
+
+- **Los mejores leads, una vez cada uno** - **Remove duplicates** por `email`,
+  **Sort** por `score` descendente, **Limit** a 10, y luego **Edit fields** dejando solo
+  `name` y `score`, listos para un mensaje.
+- **Totales por región** - **Split out** `lines`, para que cada línea de pedido sea un
+  elemento, y luego **Summarize** la `sum` de `amount` agrupada por `region`: un
+  elemento por región con `sum_amount`.
+- **Una lista de direcciones** - **Aggregate** `email` entrega `values.email`, todas
+  las direcciones en una lista, para cualquier ajuste que acepte una lista.
+
+Cada paso lee `items` del anterior. `tests/integration/test_workflow_transform_composed.py`
+ejecuta los dos primeros tal cual.
 
 ::: app.workflows.nodes.transform._handler.EditFieldsConfig
 

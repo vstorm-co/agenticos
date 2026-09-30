@@ -769,3 +769,22 @@ class TestNodeRunRead:
         assert read.attempts == 2 and read.cost == pytest.approx(0.15)
         assert read.error == {"code": "LAST", "message": "m"}
         assert _node_run_read(row, []).error is None
+
+        # A step that parked and was woken tried once: the wake carries the same try on.
+        parked = NodeAttempt(
+            node_run_id=row.id,
+            attempt_no=1,
+            status="completed",
+            retry_guarantee="idempotent",
+            result={"status": "waiting", "reason": "external_event", "resume_token": "t"},
+            cost=Decimal(0),
+        )
+        woken = NodeAttempt(
+            node_run_id=row.id,
+            attempt_no=2,
+            status="completed",
+            retry_guarantee="idempotent",
+            result={"status": "completed", "output": {"run_id": "r"}},
+            cost=Decimal(0),
+        )
+        assert _node_run_read(row, [parked, woken]).attempts == 1

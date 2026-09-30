@@ -505,9 +505,29 @@ function requiredFields(schema: JsonSchema | null): string[] {
 }
 
 /**
+ * Whether a step switched off hands on what `ref` reads from it: what comes in
+ * through its one incoming edge, from a step that is on, has that field, of a
+ * type the step's own output declares there. The analog of `_hands_on`.
+ */
+function handsOn(graph: WorkflowGraph, definitions: DefinitionMap, ref: NodeOutputRef): boolean {
+  const incoming = graph.edges.filter((edge) => edge.target_node_id === ref.node_id);
+  const edge = incoming[0];
+  if (incoming.length !== 1 || edge === undefined) return false;
+  const before = graph.nodes.find((candidate) => candidate.id === edge.source_node_id);
+  const arrivingFrom = definitionFor(definitions, edge.source_node_id);
+  const own = definitionFor(definitions, ref.node_id);
+  if (before?.disabled === true || arrivingFrom === null || own === null) return false;
+  return typesCompatible(
+    resolveFieldType(arrivingFrom, edge.source_port, ref.field_path),
+    resolveFieldType(own, ref.port, ref.field_path),
+  );
+}
+
+/**
  * Rule 13 — names tell steps apart, and a step switched off leaves nothing
  * waiting on it: no two steps share a name (ignoring case), the trigger and a
- * step that decides the way stay on, and nothing reads a step that is off.
+ * step that decides the way stay on, and nothing reads a step that is off -
+ * unless what comes into it has the field read, which it hands on instead.
  */
 export function rule13NamedAndSwitchedOffSteps(
   graph: WorkflowGraph,
@@ -531,7 +551,7 @@ export function rule13NamedAndSwitchedOffSteps(
     }
   }
   for (const { binding, ref } of outputReads(graph)) {
-    if (off.has(ref.node_id)) {
+    if (off.has(ref.node_id) && !handsOn(graph, definitions, ref)) {
       problems.push(
         nodeField(binding.target_node_id, binding.target_field, "binding-reads-switched-off"),
       );

@@ -549,13 +549,17 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             node_id=node.definition_id, version=node.definition_version
         ) from exc
     if node.disabled:
-        # Switched off: nothing is resolved or called. Publishing made sure nothing
-        # reads this step's output, so an empty one hands the run on.
+        # Switched off: nothing is resolved or called. What came in along its one
+        # live edge is handed on - publishing let a later step read only a field
+        # arriving there - and with no one such edge, an empty output.
+        arrived = await _AdvanceState(
+            db, run=run, graph=graph, scope_path=node_run.scope_path
+        ).arrived_output(node.id)
         return _ResolvedCall(
             graph=graph,
             node=node,
             definition=definition,
-            handler=_skip,
+            handler=_skip if arrived is None else _handing_on(arrived),
             config=None,
             input=None,
             arrived_output=None,

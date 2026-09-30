@@ -348,6 +348,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A test run on the canvas, and a step switched off, as proposed.** A
+  connection says how many items went along it when the step before handed
+  on a list, and an edit that ends the run's overlay leaves a bar with
+  **Open run** (#1933). A step switched off hands on what came into it, so a
+  later step may read a field arriving there; publishing refuses only a read
+  it could not answer (#1939). A step that waited and went on - a called
+  run, a timer - counts one try, where it showed two.
+- **The Transform reference shows the steps chained.** #1948 asked that they
+  compose without a code step in the reference's examples, which it had none
+  of: it now has three, and a test runs two of them end to end.
 - **What the workflow issues proposed and the first pass left out.** The
   description is edited in the editor's header like the name (#1942). Run
   history narrows by when a run started (#1943). A date step that names no

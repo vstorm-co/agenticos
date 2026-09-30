@@ -6,6 +6,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { WorkflowEdge } from "./workflow-edge";
 import type { WorkflowEdgeData } from "./graph-adapter";
+import { NodeRunOverlayProvider, type NodeRunSummary } from "./run-overlay";
 
 /** Render the custom edge inside an `<svg>`, the layer `@xyflow/react` gives it. */
 function renderEdge(data: WorkflowEdgeData | undefined, selected = false) {
@@ -45,6 +46,39 @@ describe("WorkflowEdge", () => {
     const { container, getByText } = renderEdge({ variant: "branch", label: "Then" });
     expect(container.querySelector("path")?.getAttribute("class")).toContain("stroke-primary");
     expect(getByText("Then")).toBeTruthy();
+  });
+
+  it("says on a run's canvas how many items the step before handed on", () => {
+    const summary = (items: number | null): NodeRunSummary => ({
+      status: "succeeded",
+      runs: 1,
+      succeeded: 1,
+      attempts: 1,
+      problem: null,
+      items,
+    });
+    const onRun = (items: number | null, label: string | null) =>
+      render(
+        <NodeRunOverlayProvider value={new Map([["a", summary(items)]])}>
+          <svg>
+            <WorkflowEdge
+              id="e1"
+              source="a"
+              target="b"
+              sourceX={0}
+              sourceY={0}
+              targetX={100}
+              targetY={100}
+              sourcePosition={Position.Right}
+              targetPosition={Position.Left}
+              data={{ variant: label === null ? "data" : "branch", label }}
+            />
+          </svg>
+        </NodeRunOverlayProvider>,
+      );
+    expect(onRun(3, null).getByText("3 items")).toBeTruthy();
+    expect(onRun(1, "Then").getByText("Then · 1 item")).toBeTruthy();
+    expect(onRun(null, null).container.querySelector("text")).toBeNull();
   });
 
   it("falls back to a data edge when no variant rides along", () => {

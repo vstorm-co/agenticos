@@ -1,5 +1,5 @@
 ---
-source_sha: "da2f5f60c622"
+source_sha: "5a5133da4c49"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -187,6 +187,20 @@ błędem. Sort stawia go na końcu, Remove duplicates traktuje „brak” jako o
 wartość, Aggregate i Summarize go pomijają, Split out zostawia element bez zmian, a
 Edit fields ustawia `null`, gdy wyrażenie nic nie znajdzie. Crypto nie służy do
 sekretów: nic w nim nie używa klucza.
+
+Połączone w łańcuch odpowiadają na częste pytania bez kroku z kodem:
+
+- **Najlepsze leady, każdy raz** - **Remove duplicates** po `email`, **Sort** po
+  `score` malejąco, **Limit** do 10, potem **Edit fields** zostawiające tylko `name`
+  i `score`, gotowe do wiadomości.
+- **Sumy według regionu** - **Split out** `lines`, aby każda pozycja zamówienia była
+  elementem, potem **Summarize** z `sum` pola `amount` grupowane po `region`: jeden
+  element na region z `sum_amount`.
+- **Jedna lista adresów** - **Aggregate** `email` przekazuje `values.email`, wszystkie
+  adresy na jednej liście, dla każdego ustawienia, które przyjmuje listę.
+
+Każdy krok czyta `items` z poprzedniego. `tests/integration/test_workflow_transform_composed.py`
+uruchamia dwa pierwsze dokładnie tak.
 
 ::: app.workflows.nodes.transform._handler.EditFieldsConfig
 

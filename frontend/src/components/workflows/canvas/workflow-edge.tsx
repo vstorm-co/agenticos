@@ -8,6 +8,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import type { EdgeVariant, WorkflowFlowEdge } from "./graph-adapter";
+import { useNodeRunSummary } from "./run-overlay";
 
 /** The stroke each edge variant draws with — data muted, error red, branch accented. */
 const VARIANT_CLASS: Record<EdgeVariant, string> = {
@@ -18,7 +19,8 @@ const VARIANT_CLASS: Record<EdgeVariant, string> = {
 
 /**
  * A typed workflow edge: a bezier path styled by its variant, with a control
- * node's branch labelled on the wire.
+ * node's branch labelled on the wire - and, on a run's canvas, how many items
+ * went along it when the step before handed on a list.
  *
  * The variant and label are computed once during projection (`edgeVariant`) and
  * ride in `data`; the label is drawn by `<BaseEdge>` itself (an SVG text node,
@@ -33,6 +35,7 @@ const VARIANT_CLASS: Record<EdgeVariant, string> = {
  */
 export function WorkflowEdge({
   id,
+  source,
   sourceX,
   sourceY,
   targetX,
@@ -55,7 +58,10 @@ export function WorkflowEdge({
     targetPosition,
   });
   const variant = data?.variant ?? "data";
-  const label = data?.label;
+  // On a run's canvas, how many items the step before handed along this wire.
+  const items = useNodeRunSummary(source)?.items ?? null;
+  const counted = items === null ? null : t("edgeItems", { count: items });
+  const label = [data?.label, counted].filter(Boolean).join(" · ") || undefined;
 
   // Removing the edge removes the button that holds focus, so hand focus back to the
   // canvas region the shortcuts listen on, or Cmd+Z right after deleting does nothing.

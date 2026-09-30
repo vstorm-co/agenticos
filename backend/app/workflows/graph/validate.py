@@ -186,7 +186,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _rule_10_error_routes(graph, definitions)
     problems += _rule_11_loop_bodies(graph, definitions, node_scope)
     problems += _rule_12_policies(graph, definitions)
-    problems += _rule_13_named_and_switched_off_steps(graph, definitions)
+    problems += _rule_13_named_and_switched_off_steps(graph, definitions, ports)
 
     if problems:
         raise GraphValidationError(problems)
@@ -1583,15 +1583,36 @@ def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Probl
 # Rule 13 - a step's own name, and what switching one off may not break
 
 
+def _hands_on(graph: WorkflowGraph, ports: PortMap, ref: NodeOutputRef) -> bool:
+    """Whether a step switched off hands on what `ref` reads from it.
+
+    Switched off, a step hands on what came in along its one incoming edge. That
+    is what `ref` gets if the step before is on and its output has the field, of a
+    type the switched-off step's own output declares there.
+    """
+    incoming = [edge for edge in graph.edges if edge.target_node_id == ref.node_id]
+    if len(incoming) != 1:
+        return False
+    edge = incoming[0]
+    if graph.node_by_id[edge.source_node_id].disabled:
+        return False
+    arriving = _resolve_field_path(ports[edge.source_node_id], edge.source_port, ref.field_path)
+    declared = _resolve_field_path(ports[ref.node_id], ref.port, ref.field_path)
+    if arriving is _UNKNOWN or declared is _UNKNOWN:
+        return False
+    return _types_compatible(arriving, declared)
+
+
 def _rule_13_named_and_switched_off_steps(
-    graph: WorkflowGraph, definitions: DefinitionMap
+    graph: WorkflowGraph, definitions: DefinitionMap, ports: PortMap
 ) -> Problems:
     """Names tell steps apart, and a step switched off leaves nothing waiting on it.
 
     Two steps may not share a name, ignoring case: the name is how a builder tells
     them apart in every list of bindings and problems. A step switched off does
     nothing, so it may be neither the trigger nor a step that decides which way the
-    run goes, and nothing may read its output - it has none to give.
+    run goes, and nothing may read its output unless it hands the field on - what
+    came into it has that field (`_hands_on`).
     """
     problems: Problems = []
     named: dict[str, UUID] = {}
@@ -1618,7 +1639,7 @@ def _rule_13_named_and_switched_off_steps(
                 )
             )
     for index, _binding, ref, _templated in _output_reads(graph):
-        if graph.node_by_id[ref.node_id].disabled:
+        if graph.node_by_id[ref.node_id].disabled and not _hands_on(graph, ports, ref):
             problems.append(
                 (
                     f"bindings.{index}",

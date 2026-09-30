@@ -3760,7 +3760,8 @@
         "other": "Started by"
       },
       "runCausedByHidden": "a run you cannot open",
-      "runOpenCalled": "Open run {id}"
+      "runOpenCalled": "Open run {id}",
+      "liveRunStale": "The graph changed since the last test run."
     },
     "retention": {
       "title": "Data retention",
@@ -6370,7 +6371,8 @@
     "chatPanelNoAnswer": "The run ended without an answer: bind an Output step's text to answer.",
     "chatPanelClose": "Close the chat",
     "dataDeclared": "No run yet. It declares:",
-    "dataFewerRows": "Show the first 50 only"
+    "dataFewerRows": "Show the first 50 only",
+    "edgeItems": "{count, plural, one {# item} other {# items}}"
   },
   "artifacts": {
     "title": "Artifacts",

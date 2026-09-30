@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEBUG_ECHO,
   echo,
+  edge,
   graph,
   makeCatalog,
   makeDefinition,
@@ -48,6 +49,43 @@ describe("rule 13 - names and switched-off steps", () => {
     expect(codes(g)).toEqual([
       ["a", "trigger-switched-off"],
       ["b", "control-switched-off"],
+      ["d", "binding-reads-switched-off"],
+    ]);
+  });
+
+  it("lets a step read one that is off when what comes into it has the field", () => {
+    const through = (first: ReturnType<typeof echo>, extra: ReturnType<typeof edge>[] = []) =>
+      graph({
+        entry: "a",
+        nodes: [first, { ...echo("c"), disabled: true }, echo("d"), echo("x")],
+        edges: [edge("e1", "a", "out", "c", "in"), edge("e2", "c", "out", "d", "in"), ...extra],
+        bindings: [nodeOutputBinding("d", "value", "c", "out", ["echoed"])],
+      });
+    // The trigger's `echoed` goes through the step that is off.
+    expect(codes(through(echo("a")))).toEqual([]);
+    // Two ways in: which one it would hand on is not known.
+    expect(codes(through(echo("a"), [edge("e3", "x", "out", "c", "in")]))).toEqual([
+      ["d", "binding-reads-switched-off"],
+    ]);
+  });
+
+  it("refuses the read when what comes in is off too, or lacks the field", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [
+        echo("a"),
+        { ...echo("b"), disabled: true },
+        { ...echo("c"), disabled: true },
+        echo("d"),
+      ],
+      edges: [edge("e1", "a", "out", "b", "in"), edge("e2", "b", "out", "c", "in")],
+      bindings: [
+        nodeOutputBinding("d", "value", "c", "out", ["echoed"]),
+        nodeOutputBinding("d", "message", "b", "out", ["message"]),
+      ],
+    });
+    expect(codes(g)).toEqual([
+      ["d", "binding-reads-switched-off"],
       ["d", "binding-reads-switched-off"],
     ]);
   });

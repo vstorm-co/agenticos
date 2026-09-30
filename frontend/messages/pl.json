@@ -1059,7 +1059,8 @@
         "other": "Uruchomione przez"
       },
       "runCausedByHidden": "uruchomienie, którego nie możesz otworzyć",
-      "runOpenCalled": "Otwórz uruchomienie {id}"
+      "runOpenCalled": "Otwórz uruchomienie {id}",
+      "liveRunStale": "Graf zmienił się od ostatniego przebiegu testowego."
     }
   },
   "rag": {
@@ -4022,7 +4023,8 @@
     "chatPanelNoAnswer": "Run zakończył się bez odpowiedzi: powiąż tekst kroku Output, by odpowiadał.",
     "chatPanelClose": "Zamknij czat",
     "dataDeclared": "Jeszcze bez uruchomienia. Deklaruje:",
-    "dataFewerRows": "Pokaż tylko pierwsze 50"
+    "dataFewerRows": "Pokaż tylko pierwsze 50",
+    "edgeItems": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}"
   },
   "artifacts": {
     "title": "Artefakty",

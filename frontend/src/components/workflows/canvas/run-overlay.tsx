@@ -13,6 +13,17 @@ export interface NodeRunSummary {
   attempts: number;
   /** The typed `WorkflowError` a row recorded - the platform's own words. */
   problem: WorkflowNodeRunRead["error"];
+  /**
+   * How many items the node handed on, across its rows: the length of the one
+   * list in its output. Null when an output holds no list, or more than one.
+   */
+  items: number | null;
+}
+
+/** The length of the one list among an output's fields, or null when there is not exactly one. */
+export function listSize(output: Record<string, unknown> | null): number | null {
+  const lists = Object.values(output ?? {}).filter((value) => Array.isArray(value));
+  return lists.length === 1 ? (lists[0] as unknown[]).length : null;
 }
 
 /** The order a node's summary takes its status by: what a reader has to see first. */
@@ -39,9 +50,11 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
         succeeded: row.status === "succeeded" ? 1 : 0,
         attempts: row.attempts,
         problem: row.error,
+        items: listSize(row.output),
       });
       continue;
     }
+    const items = listSize(row.output);
     const worse = SEVERITY.indexOf(row.status) < SEVERITY.indexOf(current.status);
     byNode.set(row.node_instance_id, {
       status: worse ? row.status : current.status,
@@ -49,6 +62,7 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
       succeeded: current.succeeded + (row.status === "succeeded" ? 1 : 0),
       attempts: current.attempts + row.attempts,
       problem: current.problem ?? row.error,
+      items: current.items === null || items === null ? null : current.items + items,
     });
   }
   return byNode;

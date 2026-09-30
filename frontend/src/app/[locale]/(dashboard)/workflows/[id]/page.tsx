@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { LiveRun, WorkflowCanvas } from "@/components/workflows/canvas";
+import { LiveRun, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
   DebugRun,
@@ -105,6 +105,12 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The test run started from Run, shown on the canvas until the next edit.
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
+  // That run once an edit ended its overlay: its page stays one click away.
+  const [staleRunId, setStaleRunId] = useState<string | null>(null);
+  const startedRun = (runId: string) => {
+    setStaleRunId(null);
+    setLiveRunId(runId);
+  };
   // A past run whose data "Debug in editor" brings into the draft.
   const [debugRunId, setDebugRunId] = useUrlState("debug");
 
@@ -231,10 +237,10 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               <Settings2 className="h-4 w-4" />
             </Button>
             {canEdit && (
-              <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
+              <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
             {canEdit && (
-              <RunButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
+              <RunButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
             {canEdit && (
               <EditorActions
@@ -255,9 +261,24 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           {liveRunId === null ? (
             <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
           ) : (
-            <LiveRun workflowId={workflow.id} runId={liveRunId} onClose={() => setLiveRunId(null)}>
+            <LiveRun
+              workflowId={workflow.id}
+              runId={liveRunId}
+              onClose={() => setLiveRunId(null)}
+              onStale={() => {
+                setStaleRunId(liveRunId);
+                setLiveRunId(null);
+              }}
+            >
               <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
             </LiveRun>
+          )}
+          {liveRunId === null && staleRunId !== null && (
+            <StaleRun
+              workflowId={workflow.id}
+              runId={staleRunId}
+              onClose={() => setStaleRunId(null)}
+            />
           )}
         </div>
       </div>

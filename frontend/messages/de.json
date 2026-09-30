@@ -4801,7 +4801,8 @@
         "other": "Gestartet von"
       },
       "runCausedByHidden": "einem Run, den du nicht öffnen kannst",
-      "runOpenCalled": "Run {id} öffnen"
+      "runOpenCalled": "Run {id} öffnen",
+      "liveRunStale": "Der Graph hat sich seit dem letzten Testlauf geändert."
     }
   },
   "profile": {
@@ -6229,7 +6230,8 @@
     "chatPanelNoAnswer": "Der Run endete ohne Antwort: Binde den Text eines Output-Schritts, um zu antworten.",
     "chatPanelClose": "Chat schließen",
     "dataDeclared": "Noch kein Run. Deklariert:",
-    "dataFewerRows": "Nur die ersten 50 zeigen"
+    "dataFewerRows": "Nur die ersten 50 zeigen",
+    "edgeItems": "{count, plural, one {# Element} other {# Elemente}}"
   },
   "artifacts": {
     "title": "Artefakte",

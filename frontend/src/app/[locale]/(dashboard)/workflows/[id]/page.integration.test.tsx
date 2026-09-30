@@ -103,17 +103,29 @@ vi.mock("@/components/workflows/canvas", () => ({
   LiveRun: ({
     runId,
     onClose,
+    onStale,
     children,
   }: {
     runId: string;
     onClose: () => void;
+    onStale: () => void;
     children: ReactNode;
   }) => (
     <div data-testid="live-run" data-run={runId}>
       <button type="button" onClick={onClose}>
         hide
       </button>
+      <button type="button" onClick={onStale}>
+        edit
+      </button>
       {children}
+    </div>
+  ),
+  StaleRun: ({ runId, onClose }: { runId: string; onClose: () => void }) => (
+    <div data-testid="stale-run" data-run={runId}>
+      <button type="button" onClick={onClose}>
+        dismiss
+      </button>
     </div>
   ),
 }));
@@ -206,6 +218,23 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "hide" }));
     expect(screen.queryByTestId("live-run")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("stale-run")).not.toBeInTheDocument();
+  });
+
+  it("keeps a way back to a run an edit ended, until the next run or a dismissal", async () => {
+    state.canEdit = true;
+    await renderPage();
+    await userEvent.click(await screen.findByTestId("run-button"));
+    await userEvent.click(screen.getByRole("button", { name: "edit" }));
+
+    expect(screen.queryByTestId("live-run")).not.toBeInTheDocument();
+    expect(screen.getByTestId("stale-run")).toHaveAttribute("data-run", "run-1");
+    // The next run takes its place.
+    await userEvent.click(screen.getByTestId("run-button"));
+    expect(screen.queryByTestId("stale-run")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "edit" }));
+    await userEvent.click(screen.getByRole("button", { name: "dismiss" }));
+    expect(screen.queryByTestId("stale-run")).not.toBeInTheDocument();
   });
 
   it("gives a view-only caller a read-only editor with no edit chrome", async () => {

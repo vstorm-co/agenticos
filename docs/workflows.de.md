@@ -1,5 +1,5 @@
 ---
-source_sha: "dc6a1fc68de4"
+source_sha: "1537be2c7346"
 ---
 
 # Workflows { #workflows }
@@ -203,9 +203,10 @@ denselben Namen tragen, ohne Beachtung der Groß- und Kleinschreibung. **Note** 
 Zeile für den nächsten Bearbeiter fest, auf der Karte markiert. **Switched off** oder
 **Switch off** im Kontextmenü des Schritts lässt einen Schritt gedimmt auf der
 Zeichenfläche und überspringt ihn, wenn ein Lauf ihn erreicht: Er tut nichts und gibt
-den Lauf weiter. Das Veröffentlichen lehnt einen ausgeschalteten Trigger oder
-entscheidenden Schritt ab, ebenso jeden Schritt, der die Ausgabe eines ausgeschalteten
-liest. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
+weiter, was bei ihm ankam. Das Veröffentlichen lehnt einen ausgeschalteten Trigger
+oder entscheidenden Schritt ab, ebenso einen Schritt, der einen ausgeschalteten liest,
+außer das, was bei diesem ankommt - über seine eine eingehende Verbindung, von einem
+eingeschalteten Schritt - hat das gelesene Feld, das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
 
 ### Die Daten eines Schritts, Anheften und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
@@ -433,8 +434,11 @@ gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
 **Run** in der Kopfzeile des Editors testet den Draft sofort - `Strg`/`Cmd` +
 `Enter` ebenso - und fragt zuerst nach den Feldern, die ein Manual- oder API-Trigger
 deklariert. Der Run erscheint dann live auf der Zeichenfläche: Jeder Schritt zeigt
-Status, Versuche und Fehler, und eine Leiste unten sagt, wie der Run steht, mit **Open
-run** für seine Seite. Die nächste Bearbeitung blendet ihn aus. **Run** wartet,
+Status, Versuche und Fehler, eine Verbindung sagt, wie viele Elemente über sie gingen,
+wenn der Schritt davor eine Liste weitergab, und eine Leiste unten sagt, wie der Run
+steht, mit **Open run** für seine Seite. Die nächste Bearbeitung blendet ihn aus und
+lässt eine Leiste stehen, dass sich der Graph seitdem geändert hat, weiter mit **Open
+run**. Ein Schritt, der gewartet hat und weiterging, zählt einen Versuch, nicht zwei. **Run** wartet,
 solange eine Änderung noch gespeichert wird, und sagt, warum er nicht laufen kann,
 solange der Draft Probleme hat.
 

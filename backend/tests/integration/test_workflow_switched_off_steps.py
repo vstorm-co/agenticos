@@ -97,7 +97,92 @@ async def test_a_switched_off_step_is_skipped_and_the_run_goes_on(engine: AsyncE
                 .where(NodeRun.node_instance_id == middle.id)
             )
         ).scalar_one()
+    # It hands on what came into it: the trigger's output, untouched.
+    assert attempt.result["output"]["payload"] == {"name": "Ada"}
+
+
+async def test_a_later_step_reads_a_field_through_a_step_that_is_off(engine: AsyncEngine):
+    first = _node("data.map", MAPPING)
+    middle = _node("data.map", MAPPING, disabled=True)
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, first, middle, output),
+        edges=(_edge(entry, first), _edge(first, middle), _edge(middle, output)),
+        bindings=(
+            _bind(first, "source", entry, "payload"),
+            _bind(middle, "source", entry, "payload"),
+            # `first` hands on `values.label`, and `middle` declares `values` too.
+            _bind(output, "text", middle, "values", "label"),
+        ),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output["text"] == "mapped"
+
+
+async def test_a_step_that_is_off_with_two_ways_in_hands_on_nothing(engine: AsyncEngine):
+    left, right = _node("data.map", MAPPING), _node("data.map", MAPPING)
+    middle = _node("data.map", MAPPING, disabled=True)
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, left, right, middle, output),
+        edges=(
+            _edge(entry, left),
+            _edge(entry, right),
+            _edge(left, middle),
+            _edge(right, middle),
+            _edge(middle, output),
+        ),
+        bindings=(
+            _bind(left, "source", entry, "payload"),
+            _bind(right, "source", entry, "payload"),
+            _bind(middle, "source", entry, "payload"),
+            _bind(output, "text", entry, "payload", "name"),
+        ),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+
+    await drive(seeded)
+
+    async with seeded.factory() as db:
+        attempt = (
+            await db.execute(
+                select(NodeAttempt)
+                .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
+                .where(NodeRun.node_instance_id == middle.id)
+            )
+        ).scalar_one()
     assert attempt.result == {"status": "completed", "output": {"skipped": True}}
+
+
+async def test_a_read_through_a_step_that_is_off_is_refused_when_what_comes_in_lacks_it(
+    engine: AsyncEngine,
+):
+    before = _node("data.map", MAPPING, disabled=True)
+    middle = _node("data.map", MAPPING, disabled=True)
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, before, middle, output),
+        edges=(_edge(entry, before), _edge(before, middle), _edge(middle, output)),
+        bindings=(
+            _bind(before, "source", entry, "payload"),
+            _bind(middle, "source", entry, "payload"),
+            # What reaches `middle` comes from a step that is off too.
+            _bind(output, "text", middle, "values", "label"),
+        ),
+    )
+
+    assert "This reads a step that is switched off, so it would receive nothing" in (
+        await _problems(engine, graph)
+    )
 
 
 async def test_nothing_may_read_a_switched_off_step(engine: AsyncEngine):

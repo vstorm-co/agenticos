@@ -844,8 +844,13 @@ __all__ = ["Causation", "WorkflowExecutionService"]
 def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunRead:
     """One node run as the API shows it: its latest failure, and what its tries cost."""
     # An attempt with no retry guarantee is the dispatcher's own record - a loop
-    # item's element, a loop's collected results - not a try at the step.
-    tries = [attempt for attempt in attempts if attempt.retry_guarantee is not None]
+    # item's element, a loop's collected results - not a try at the step; nor is
+    # one that parked, which the wake after it carries on as the same try.
+    tries = [
+        attempt
+        for attempt in attempts
+        if attempt.retry_guarantee is not None and (attempt.result or {}).get("status") != "waiting"
+    ]
     failed = [attempt for attempt in tries if attempt.status == NodeAttemptStatus.FAILED.value]
     latest_error = failed[-1].result.get("error") if failed and failed[-1].result else None
     completed = [
