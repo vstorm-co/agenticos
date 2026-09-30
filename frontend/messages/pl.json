@@ -3941,7 +3941,9 @@
       "noUrl": "Polecenie nie ma adresu http ani https.",
       "badMethod": "Krok HTTP wysyła GET, POST, PUT, PATCH albo DELETE.",
       "unclosedQuote": "Cudzysłów w poleceniu nie został zamknięty."
-    }
+    },
+    "codeArgKeys": "Klucze args",
+    "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor."
   },
   "artifacts": {
     "title": "Artefakty",

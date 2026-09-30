@@ -1,5 +1,5 @@
 ---
-source_sha: "cc0f1a92f341"
+source_sha: "f86de24f31d9"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -655,6 +655,14 @@ Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skrip
 die gebundenen Werte als `args`, und sein letzter Ausdruck ist das `result` des
 Schritts, das ein JSON-Wert sein muss. Es rechnet und tut sonst nichts, also ist es
 `pure` und braucht `code:execute`.
+
+Im Editor wird das Skript eines Code-Schritts in einem Code-Editor geschrieben:
+Python oder JavaScript, in beiden Themes hervorgehoben, Tab und Shift+Tab zum
+Einrücken, Enter behält die Einrückung, Klammern und Anführungszeichen schließen
+sich beim Tippen, und die Schlüssel des gebundenen `args` werden angeboten, sobald
+`args["` oder, in JavaScript, `args.` getippt wird. Esc und dann Tab verlässt den
+Editor. **Test step** führt das Skript allein mit dem aus, was die Schritte davor
+weitergegeben haben.
 
 `code.python.sandbox` führt vollständiges Python mit Paketen und den Dateien des Runs
 auf der `sandboxd`-Verbindung der Organisation aus und braucht `sandbox:execute`. Das

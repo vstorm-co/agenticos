@@ -1,5 +1,5 @@
 ---
-source_sha: "cc0f1a92f341"
+source_sha: "f86de24f31d9"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -631,6 +631,13 @@ Dos nodos ejecutan Python, para dos tipos de trabajo.
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los
 valores vinculados como `args`, y su última expresión es el `result` del paso, que debe
 ser un valor JSON. Solo calcula, así que es `pure` y requiere `code:execute`.
+
+En el editor, el script de un paso de código se escribe en un editor de código:
+Python o JavaScript resaltado en ambos temas, Tab y Shift+Tab para sangrar, Enter
+que conserva la sangría, paréntesis y comillas que se cierran al escribirlos, y las
+claves del `args` vinculado ofrecidas al escribir `args["` o, en JavaScript,
+`args.`. Esc y luego Tab sale del editor. **Test step** ejecuta solo el script con
+lo que entregaron los pasos anteriores.
 
 `code.python.sandbox` ejecuta Python completo con paquetes y los archivos del run en
 la conexión `sandboxd` de la organización, y requiere `sandbox:execute`. El script

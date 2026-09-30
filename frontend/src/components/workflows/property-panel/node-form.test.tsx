@@ -499,6 +499,48 @@ describe("config leaves", () => {
   });
 });
 
+describe("a code field", () => {
+  const code = makeDefinition({
+    id: "test.code",
+    config_schema: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+          title: "Code",
+          "x-code": "python",
+          "x-placeholder": "sum(args['x'])",
+          description: "Read the bound values as args.",
+        },
+      },
+      required: ["code"],
+    },
+    input_schema: null,
+  });
+
+  it("is edited in the code editor, with its help and its error", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: code,
+      config: { code: "x" },
+      errors: new Map([["code", "Not valid Python"]]),
+    });
+    const editor = screen.getByRole("textbox", { name: "Code" });
+    expect(editor).toHaveAttribute("placeholder", "sum(args['x'])");
+    expect(screen.getByText("Read the bound values as args.")).toBeVisible();
+    expect(screen.getByText("Not valid Python")).toBeVisible();
+
+    await userEvent.type(editor, "1");
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { code: "x1" });
+    await userEvent.clear(editor);
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("starts empty when nothing is written yet", () => {
+    renderForm({ definition: code });
+    expect(screen.getByRole("textbox", { name: "Code" })).toHaveValue("");
+  });
+});
+
 describe("an HTTP request", () => {
   it("offers to import a cURL command, and no other step does", () => {
     renderForm({

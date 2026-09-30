@@ -78,7 +78,7 @@ class JavaScriptSandboxConfig(BaseModel):
         min_length=1,
         max_length=200_000,
         json_schema_extra={
-            "x-textarea": True,
+            "x-code": "javascript",
             "x-placeholder": (
                 'const fs = require("node:fs");\nreturn fs.readdirSync(inputs).length;'
             ),

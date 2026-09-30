@@ -432,12 +432,7 @@ class WorkflowExposureService:
             self.db, exposure_id=exposure.id, delivery_id=delivery_id
         )
         if seen is not None:
-            _status, answered = await workflow_run_repo.get_run_answer(
-                self.db, seen.workflow_run_id
-            )
-            if answered is not None:
-                return WebhookAnswer.model_validate(answered)
-            return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+            return await self._replay(seen.workflow_run_id)
 
         fire = await self._fire_context(exposure)
         if fire is None:
@@ -473,6 +468,13 @@ class WorkflowExposureService:
             if answer is not None:
                 return answer
         return WebhookAdmitted(run_id=run.id, duplicate=False)
+
+    async def _replay(self, run_id: UUID) -> WebhookAdmitted | WebhookAnswer:
+        """What a retried delivery gets: the answer its first run gave, if it gave one."""
+        _status, answered = await workflow_run_repo.get_run_answer(self.db, run_id)
+        if answered is not None:
+            return WebhookAnswer.model_validate(answered)
+        return WebhookAdmitted(run_id=run_id, duplicate=True)
 
     async def _answer(self, run_id: UUID) -> WebhookAnswer | None:
         """Wait for a run's Respond to webhook step, and return what it answered.

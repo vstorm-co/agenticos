@@ -605,6 +605,13 @@ filesystem, no network and a small standard library. The script reads the bound
 values as `args`, and its last expression is the step's `result`, which must be a
 JSON value. It computes and nothing else, so it is `pure` and needs `code:execute`.
 
+In the editor, a code step's script is written in a code editor: Python or
+JavaScript highlighted in both themes, Tab and Shift+Tab to indent, Enter keeping
+the indentation, brackets and quotes closed as they are typed, and the keys of the
+bound `args` offered as `args["` or, in JavaScript, `args.` is typed. Esc, then
+Tab, leaves the editor. **Test step** runs the script alone on what the steps
+before it handed on.
+
 `code.python.sandbox` runs full Python with packages and the run's files on the
 organization's `sandboxd` connection, and needs `sandbox:execute`. The script finds
 its input files in `inputs`, writes files to `outputs` and sets `result`. It is a

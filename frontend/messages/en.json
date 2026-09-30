@@ -6289,7 +6289,9 @@
       "noUrl": "The command has no http or https URL.",
       "badMethod": "An HTTP step sends GET, POST, PUT, PATCH or DELETE.",
       "unclosedQuote": "A quote in the command is never closed."
-    }
+    },
+    "codeArgKeys": "Keys of args",
+    "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor."
   },
   "artifacts": {
     "title": "Artifacts",

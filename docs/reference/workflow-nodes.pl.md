@@ -1,5 +1,5 @@
 ---
-source_sha: "cc0f1a92f341"
+source_sha: "f86de24f31d9"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -624,6 +624,13 @@ Dwa węzły uruchamiają Pythona, do dwóch rodzajów pracy.
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako
 `args`, a jego ostatnie wyrażenie jest `result` kroku, które musi być wartością JSON.
 Tylko liczy, więc jest `pure` i wymaga `code:execute`.
+
+W edytorze skrypt kroku z kodem pisze się w edytorze kodu: Python albo
+JavaScript podświetlony w obu motywach, Tab i Shift+Tab do wcięć, Enter
+zachowujący wcięcie, nawiasy i cudzysłowy domykane podczas pisania oraz klucze
+powiązanego `args` podpowiadane po wpisaniu `args["` albo, w JavaScript, `args.`.
+Esc, a potem Tab, opuszcza edytor. **Test step** uruchamia sam skrypt na tym, co
+przekazały kroki przed nim.
 
 `code.python.sandbox` uruchamia pełnego Pythona z pakietami i plikami runa na
 połączeniu `sandboxd` organizacji i wymaga `sandbox:execute`. Skrypt znajduje pliki

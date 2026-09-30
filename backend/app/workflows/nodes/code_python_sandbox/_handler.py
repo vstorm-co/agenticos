@@ -65,7 +65,7 @@ class PythonSandboxConfig(BaseModel):
         min_length=1,
         max_length=200_000,
         json_schema_extra={
-            "x-textarea": True,
+            "x-code": "python",
             "x-placeholder": "import csv, os\nresult = len(os.listdir(inputs))",
         },
         description=(

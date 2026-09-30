@@ -6148,7 +6148,9 @@
       "noUrl": "Der Befehl hat keine http- oder https-URL.",
       "badMethod": "Ein HTTP-Schritt sendet GET, POST, PUT, PATCH oder DELETE.",
       "unclosedQuote": "Ein Anführungszeichen im Befehl wird nie geschlossen."
-    }
+    },
+    "codeArgKeys": "Schlüssel von args",
+    "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen."
   },
   "artifacts": {
     "title": "Artefakte",

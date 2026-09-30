@@ -34,7 +34,7 @@ class PythonSimpleConfig(BaseModel):
         min_length=1,
         max_length=50_000,
         json_schema_extra={
-            "x-textarea": True,
+            "x-code": "python",
             "x-placeholder": "sum(args['scores']) / len(args['scores'])",
         },
         description="Read the bound values as `args`; the last expression is the result.",

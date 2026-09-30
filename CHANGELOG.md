@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A code editor for the Python and JavaScript steps.** Highlighting in both
+  themes, Tab indentation, Enter that keeps the indentation, closing brackets
+  and quotes, and the keys of the bound `args` offered as they are typed; Esc
+  then Tab leaves it. It reuses highlight.js, already a dependency (#1952).
 - **Import cURL, query authentication and paging on the HTTP request step.**
   A pasted cURL fills the method, URL, headers and JSON body; a credential in
   it is lifted out and offered to the vault, never kept in the step. A token can

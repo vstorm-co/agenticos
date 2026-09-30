@@ -15,7 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
+import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
+import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
 import { CurlImport } from "@/components/workflows/property-panel/curl-import";
+import type { CodeLanguage } from "@/lib/workflows/code-editing";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import {
@@ -350,6 +354,21 @@ function ConfigLeaf({
     );
   }
 
+  const code = schema["x-code"];
+  if (code === "python" || code === "javascript") {
+    return (
+      <ConfigCode
+        language={code}
+        schema={schema}
+        name={name}
+        path={path}
+        ctx={ctx}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
   if (isBindable(schema)) {
     return (
       <BindingField
@@ -378,6 +397,52 @@ function ConfigLeaf({
       errors={error === undefined ? undefined : { [name]: error }}
       onChange={(next) => onChange(next[name])}
     />
+  );
+}
+
+/** A code field: the editor, its label and help, and the keys `args` will have. */
+function ConfigCode({
+  language,
+  schema,
+  name,
+  path,
+  ctx,
+  value,
+  onChange,
+}: {
+  language: CodeLanguage;
+  schema: Schema;
+  name: string;
+  path: (string | number)[];
+  ctx: FieldCtx;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const field = bindingFieldPath(path);
+  const id = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+  const error = ctx.errors.get(field);
+  const label = labelOf(schema, name);
+  const description = schema["description"];
+  const placeholder = schema["x-placeholder"];
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <CodeEditor
+        id={id}
+        language={language}
+        label={label}
+        value={typeof value === "string" ? value : ""}
+        onChange={(next) => onChange(next === "" ? undefined : next)}
+        placeholder={typeof placeholder === "string" ? placeholder : undefined}
+        disabled={ctx.disabled}
+        argKeys={argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
+      />
+      {typeof description === "string" && (
+        <p className="text-muted-foreground text-xs">{description}</p>
+      )}
+      {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+    </div>
   );
 }
 
