@@ -26,7 +26,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.main import app
-from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.services.workflow_execution.facade import WorkflowExecutionService, _read
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -83,6 +83,7 @@ def _run_row(**overrides: object):
     run.output = None
     run.root_run_id = run.id
     run.causation_run_id = None
+    run.retry_of_run_id = None
     run.depth = 0
     run.started_at = datetime.now(UTC)
     run.ended_at = None
@@ -244,6 +245,41 @@ class TestListRoute:
         body = response.json()
         assert body["total"] == 1
         assert body["items"][0]["id"] == str(run.id)
+
+    async def test_listing_passes_the_filters_through(self, owner_client: OpenClient):
+        listed = AsyncMock(return_value=([], 0))
+        with (
+            patch(f"{FACADE_PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(f"{FACADE_PATH}.workflow_run_repo.list_runs", new=listed),
+        ):
+            async with owner_client() as http:
+                response = await http.get(
+                    _url(),
+                    params=[
+                        ("status", "failed"),
+                        ("status", "cancelled"),
+                        ("mode", "test"),
+                        ("triggered_by", "webhook"),
+                        ("created_after", "2026-09-01T00:00:00Z"),
+                    ],
+                )
+        assert response.status_code == 200
+        filters = listed.await_args.kwargs["filters"]
+        assert [item.value for item in filters.statuses] == ["failed", "cancelled"]
+        assert (filters.mode.value, filters.triggered_by.value) == ("test", "webhook")
+        assert filters.created_after.year == 2026 and filters.created_before is None
+
+
+class TestRetryRoute:
+    async def test_retrying_answers_the_new_run(self, owner_client: OpenClient):
+        run = _run_row()
+        retry = AsyncMock(return_value=_read(run))
+        with patch.object(WorkflowExecutionService, "retry", new=retry):
+            async with owner_client() as http:
+                response = await http.post(_url(f"/{run.id}/retry"))
+        assert response.status_code == 201
+        assert response.json()["id"] == str(run.id)
+        assert retry.await_args.args[1] == run.id
 
 
 class TestGetRoute:

@@ -1,5 +1,5 @@
 ---
-source_sha: "772f6626f9fd"
+source_sha: "04e54f702a93"
 ---
 
 # Workflows { #workflows }
@@ -355,6 +355,23 @@ iteracje pętli.
 
 Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+
+
+**Status**, **Version** i **Started by** zawężają przebiegi, a lista odpowiada po
+jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
+podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow
+razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
+tego przebiegu.
+
+**Retry from failed step** uruchamia nowy przebieg tej samej wersji
+z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
+przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł, a
+zapis nigdy nie powtarza się dwa razy. Pętla działa ponownie i używa kroków
+każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
+roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
+testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
+/api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
+`status`, `mode`, `triggered_by`, `created_after` i `created_before`.
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 

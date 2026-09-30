@@ -130,7 +130,7 @@ export {
 } from "./use-workflows";
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
-export { useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+export { useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
 export { useWorkflowChat } from "./use-workflow-chat";

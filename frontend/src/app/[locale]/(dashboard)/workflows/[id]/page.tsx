@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { LiveRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
+  DebugRun,
   EditorActions,
   RunButton,
   VersionHistory,
@@ -28,7 +29,7 @@ import {
   SheetTitle,
   Skeleton,
 } from "@/components/ui";
-import { useNodeCatalog, useWorkflow, useWorkflowActions } from "@/hooks";
+import { useNodeCatalog, useUrlState, useWorkflow, useWorkflowActions } from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
 import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
@@ -93,6 +94,8 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const [triggersOpen, setTriggersOpen] = useState(false);
   // The test run started from Run, shown on the canvas until the next edit.
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
+  // A past run whose data "Debug in editor" brings into the draft.
+  const [debugRunId, setDebugRunId] = useUrlState("debug");
 
   useEffect(() => {
     if (workflow && seededId.current !== workflow.id) {
@@ -216,6 +219,9 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       </div>
       <NodeEditorDialog workflowId={workflow.id} catalog={nodes} readOnly={!canEdit} />
       {canEdit && <StepDataFeed workflowId={workflow.id} />}
+      {canEdit && debugRunId !== null && (
+        <DebugRun runId={debugRunId} catalog={nodes} onDone={() => setDebugRunId(null)} />
+      )}
       <Sheet open={triggersOpen} onOpenChange={setTriggersOpen}>
         <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
           <SheetHeader>

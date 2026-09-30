@@ -1,5 +1,5 @@
 ---
-source_sha: "772f6626f9fd"
+source_sha: "04e54f702a93"
 ---
 
 # Workflows { #workflows }
@@ -400,6 +400,24 @@ Die Ausgabe des Runs und jeder Schritt, den er gemacht hat, Iteration für Itera
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
+
+
+**Status**, **Version** und **Started by** grenzen die Läufe ein, und die Liste
+antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
+gefilterte Liste verlinken lässt. **Runs** in der Workflow-Liste zeigt die Läufe
+aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
+Schritt dessen **Input** und **Output** aus diesem Lauf.
+
+**Retry from failed step**
+startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
+erfolgreiche Schritt weitergibt, was er zuvor weitergegeben hat. So laufen nur der
+fehlgeschlagene Schritt und was er nicht erreicht hat, und ein Schreibzugriff
+geschieht nie zweimal. Eine Schleife läuft erneut und verwendet die erfolgreichen
+Schritte jedes Elements wieder. **Debug in editor** heftet an die Schritte des
+Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeben
+hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
+/api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,
+`mode`, `triggered_by`, `created_after` und `created_before`.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 

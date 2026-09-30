@@ -38,6 +38,7 @@ export const ROUTES = {
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   WORKFLOWS: "/workflows",
   WORKFLOW_DETAIL: (id: string) => `/workflows/${id}`,
+  WORKFLOW_ALL_RUNS: "/workflows/runs",
   WORKFLOW_RUNS: (id: string) => `/workflows/${id}/runs`,
   WORKFLOW_RUN_DETAIL: (id: string, runId: string) => `/workflows/${id}/runs/${runId}`,
   RUNS: "/runs",

@@ -8,6 +8,7 @@
 import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 import type {
+  RunHistoryQuery,
   WorkflowGraph,
   WorkflowNodeRunList,
   WorkflowRunFile,
@@ -24,6 +25,27 @@ export async function listWorkflowRuns(workflowId: string): Promise<WorkflowRunL
   return apiClient.get<WorkflowRunList>(ROOT, {
     params: { workflow_id: workflowId, limit: "100" },
   });
+}
+
+/** Runs a history page shows at once. */
+export const RUN_HISTORY_PAGE = 25;
+
+/** One page of a run history, newest first, filtered on the server. */
+export async function listRunHistory(query: RunHistoryQuery): Promise<WorkflowRunList> {
+  const params: Record<string, string> = {
+    skip: String(query.page * RUN_HISTORY_PAGE),
+    limit: String(RUN_HISTORY_PAGE),
+  };
+  if (query.workflowId !== undefined) params["workflow_id"] = query.workflowId;
+  if (query.status !== undefined) params["status"] = query.status;
+  if (query.mode !== undefined) params["mode"] = query.mode;
+  if (query.triggeredBy !== undefined) params["triggered_by"] = query.triggeredBy;
+  return apiClient.get<WorkflowRunList>(ROOT, { params });
+}
+
+/** Run again what a run ran, from where it stopped. */
+export async function retryWorkflowRun(runId: string): Promise<WorkflowRunRead> {
+  return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/retry`);
 }
 
 export async function getWorkflowRun(runId: string): Promise<WorkflowRunRead> {

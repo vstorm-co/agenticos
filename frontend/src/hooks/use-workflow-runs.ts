@@ -12,10 +12,12 @@ import {
   getWorkflowRunGraph,
   listWorkflowRunFiles,
   listWorkflowRunNodes,
+  listRunHistory,
   listWorkflowRuns,
+  retryWorkflowRun,
   startWorkflowRun,
 } from "@/lib/workflows/runs-api";
-import { isRunTerminal, type WorkflowRunRead } from "@/lib/workflows/types";
+import { isRunTerminal, type RunHistoryQuery, type WorkflowRunRead } from "@/lib/workflows/types";
 
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
@@ -41,6 +43,18 @@ export function useWorkflowRuns(workflowId: string) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, start };
+}
+
+/** A filtered page of runs, one workflow's or every workflow's, read again while any is live. */
+export function useRunHistory(query: RunHistoryQuery) {
+  const { data, isLoading } = useQuery({
+    queryKey: qk.workflows.runHistory(query),
+    queryFn: () => listRunHistory(query),
+    placeholderData: (previous) => previous,
+    refetchInterval: (current) =>
+      current.state.data?.items.some((run) => !isRunTerminal(run.status)) ? LIVE_POLL_MS : false,
+  });
+  return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading };
 }
 
 /** One run - its state, its steps and its graph, read again while it is live. */
@@ -79,6 +93,14 @@ export function useWorkflowRun(runId: string) {
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
+  const retry = useMutation({
+    mutationFn: () => retryWorkflowRun(runId),
+    onSuccess: (started) => {
+      void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(started.workflow_id) });
+      toast.success(t("runRetried"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
   return {
     run: run.data ?? null,
     isLoading: run.isLoading,
@@ -86,5 +108,6 @@ export function useWorkflowRun(runId: string) {
     files: files.data?.items ?? [],
     graph: graph.data ?? null,
     cancel,
+    retry,
   };
 }

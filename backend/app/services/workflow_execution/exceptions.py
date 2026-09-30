@@ -84,6 +84,17 @@ class WorkflowNotRunnableError(AppException):
         super().__init__(details={"workflow_id": workflow_id})
 
 
+class WorkflowRunNotRetryableError(AppException):
+    """Only a run that failed, was cancelled or ran out of budget is retried (409)."""
+
+    message = "Only a run that failed, was cancelled or ran out of budget can be retried"
+    code = "WORKFLOW_RUN_NOT_RETRYABLE"
+    status_code = 409
+
+    def __init__(self, *, run_id: UUID, status: str) -> None:
+        super().__init__(details={"run_id": run_id, "status": status})
+
+
 class WorkflowRunAlreadyTerminalError(AppException):
     """The run already ended; there is nothing left to cancel (409)."""
 

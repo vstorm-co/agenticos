@@ -472,6 +472,8 @@ export interface WorkflowRunRead {
   output: Record<string, unknown> | null;
   root_run_id: Uuid;
   causation_run_id: Uuid | null;
+  /** The run this one retries; its succeeded steps were not run again. */
+  retry_of_run_id: Uuid | null;
   depth: number;
   started_at: string | null;
   ended_at: string | null;
@@ -525,6 +527,22 @@ export interface WorkflowRunStart {
   input?: Record<string, unknown>;
   /** Test only this step of the draft, with what earlier steps are known to hand on. */
   step?: { node_id: Uuid; outputs: Record<Uuid, Record<string, unknown>> };
+}
+
+/** What a run history is narrowed to, and which page of it. */
+export interface RunHistoryQuery {
+  /** One workflow's runs; every workflow the caller may see when unset. */
+  workflowId?: Uuid;
+  status?: WorkflowRunStatus;
+  mode?: "real" | "test";
+  triggeredBy?: string;
+  /** Zero-based. */
+  page: number;
+}
+
+/** Whether a run can be retried from where it stopped. Mirrors `_RETRYABLE`. */
+export function isRunRetryable(status: WorkflowRunStatus): boolean {
+  return ["failed", "cancelled", "budget_exceeded"].includes(status);
 }
 
 /** Whether a run has ended for good. */

@@ -319,6 +319,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "workflows-list",
     permission: Perm.workflowsView,
   },
+  // Every workflow's runs, filtered on the server: one describing stop on the list.
+  {
+    id: "workflows-runs",
+    page: ROUTES.WORKFLOW_ALL_RUNS,
+    target: "workflows-runs",
+    permission: Perm.workflowsView,
+  },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.

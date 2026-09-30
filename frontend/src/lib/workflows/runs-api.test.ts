@@ -10,10 +10,12 @@ import {
   getWorkflowRunGraph,
   listWorkflowRunFiles,
   listWorkflowRunNodes,
+  listRunHistory,
   listWorkflowRuns,
+  retryWorkflowRun,
   startWorkflowRun,
 } from "./runs-api";
-import { isRunTerminal } from "./types";
+import { isRunRetryable, isRunTerminal } from "./types";
 
 vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 
@@ -73,6 +75,42 @@ describe("runs-api", () => {
     });
     await cancelWorkflowRun("r");
     expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-runs/r/cancel");
+  });
+});
+
+describe("a run history", () => {
+  it("asks for one page, narrowed only by the filters that are set", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    await listRunHistory({ page: 0 });
+    expect(apiClient.get).toHaveBeenLastCalledWith("/workflow-runs", {
+      params: { skip: "0", limit: "25" },
+    });
+    await listRunHistory({
+      workflowId: "wf",
+      status: "failed",
+      mode: "test",
+      triggeredBy: "webhook",
+      page: 2,
+    });
+    expect(apiClient.get).toHaveBeenLastCalledWith("/workflow-runs", {
+      params: {
+        skip: "50",
+        limit: "25",
+        workflow_id: "wf",
+        status: "failed",
+        mode: "test",
+        triggered_by: "webhook",
+      },
+    });
+  });
+
+  it("retries a run, and knows which runs can be", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "r2" });
+    await retryWorkflowRun("r");
+    expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-runs/r/retry");
+    expect(isRunRetryable("failed")).toBe(true);
+    expect(isRunRetryable("budget_exceeded")).toBe(true);
+    expect(isRunRetryable("succeeded")).toBe(false);
   });
 });
 

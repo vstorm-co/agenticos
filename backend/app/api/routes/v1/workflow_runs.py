@@ -9,6 +9,7 @@ collection route (it can list across every workflow the caller may see) and
 carries the collection gate to match.
 """
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -18,10 +19,12 @@ from app.api.deps import Auth, WorkflowExecutionSvc, limit_workflow_run, require
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowFileList,
     WorkflowNodeRunList,
+    WorkflowRunFilters,
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
@@ -66,12 +69,27 @@ async def list_workflow_runs(
     service: WorkflowExecutionSvc,
     ctx: Auth,
     workflow_id: UUID | None = Query(default=None),
+    run_status: list[WorkflowRunStatus] | None = Query(
+        default=None, alias="status", description="Only runs in one of these states"
+    ),
+    mode: WorkflowRunMode | None = Query(default=None),
+    triggered_by: WorkflowRunTrigger | None = Query(default=None),
+    created_after: datetime | None = Query(default=None, description="Started at or after"),
+    created_before: datetime | None = Query(default=None, description="Started before"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Runs this caller may see - across every workflow they can view, or
-    narrowed to one with `workflow_id`."""
-    return await service.list(ctx, workflow_id=workflow_id, skip=skip, limit=limit)
+    """Runs this caller may see, newest first - across every workflow they can view,
+    or narrowed to one with `workflow_id` - filtered by state, mode, what started
+    them and when."""
+    filters = WorkflowRunFilters(
+        statuses=tuple(run_status or ()),
+        mode=mode,
+        triggered_by=triggered_by,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    return await service.list(ctx, workflow_id=workflow_id, filters=filters, skip=skip, limit=limit)
 
 
 @router.get("/{run_id}", response_model=WorkflowRunRead)
@@ -84,6 +102,21 @@ async def get_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Aut
 async def cancel_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
     """Stop a run: no further node ever dispatches for it."""
     return await service.cancel(ctx, run_id)
+
+
+@router.post(
+    "/{run_id}/retry",
+    response_model=WorkflowRunRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_workflow_run)],
+)
+async def retry_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
+    """Run again what a failed, cancelled or over-budget run ran, from where it
+    stopped: each step that succeeded there hands on its output instead of running
+    again. A run that did not end that way answers 409 `WORKFLOW_RUN_NOT_RETRYABLE`.
+
+    Rate-limited like starting a run."""
+    return await service.retry(ctx, run_id)
 
 
 @router.get("/{run_id}/graph", response_model=WorkflowRunGraph)

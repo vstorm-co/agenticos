@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
   status: "draft" as string,
   live: false,
   triggerActive: null as boolean | null,
+  debug: null as string | null,
+  clearDebug: vi.fn(),
 }));
 const actions = vi.hoisted(() => ({
   update: { mutate: vi.fn() },
@@ -75,6 +77,7 @@ vi.mock("@/hooks", () => ({
   }),
   useNodeCatalog: () => ({ nodes: [] }),
   useWorkflowActions: () => actions,
+  useUrlState: () => [state.debug, state.clearDebug],
 }));
 
 vi.mock("@/components/workflows/canvas", () => ({
@@ -106,6 +109,11 @@ vi.mock("@/components/workflows/node-editor", () => ({
 }));
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,
+  DebugRun: ({ runId, onDone }: { runId: string; onDone: () => void }) => (
+    <button type="button" data-testid="debug-run" data-run={runId} onClick={onDone}>
+      debug
+    </button>
+  ),
   EditorActions: () => <div data-testid="editor-actions" />,
   RunButton: ({ onStarted }: { onStarted: (runId: string) => void }) => (
     <button type="button" data-testid="run-button" onClick={() => onStarted("run-1")}>
@@ -138,6 +146,8 @@ async function openHistory() {
 beforeEach(() => {
   state.canEdit = true;
   state.status = "draft";
+  state.debug = null;
+  state.clearDebug.mockReset();
   state.live = false;
   state.triggerActive = null;
   vi.clearAllMocks();
@@ -265,5 +275,25 @@ describe("the workflow editor page header", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "My Workflow" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove tag sales" })).not.toBeInTheDocument();
+  });
+});
+
+describe("debugging a past run in the editor", () => {
+  it("brings the run's data in when an editor opens it with ?debug=, and drops the request", async () => {
+    state.debug = "run-9";
+    await renderPage();
+
+    const debug = screen.getByTestId("debug-run");
+    expect(debug).toHaveAttribute("data-run", "run-9");
+    await userEvent.click(debug);
+    expect(state.clearDebug).toHaveBeenCalledWith(null);
+  });
+
+  it("does nothing for a caller who cannot edit", async () => {
+    state.debug = "run-9";
+    state.canEdit = false;
+    await renderPage();
+
+    expect(screen.queryByTestId("debug-run")).toBeNull();
   });
 });

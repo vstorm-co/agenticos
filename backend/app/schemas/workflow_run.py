@@ -8,7 +8,12 @@ from uuid import UUID
 from pydantic import Field, field_validator, model_validator
 
 from app.core.config import settings
-from app.db.models.workflow_run import NodeRunStatus, WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import (
+    NodeRunStatus,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.workflows.graph.model import pinned_output_fits
 
@@ -85,6 +90,16 @@ class WorkflowRunStart(BaseSchema):
         return self
 
 
+class WorkflowRunFilters(BaseSchema):
+    """What a run history is narrowed to; an unset field narrows nothing."""
+
+    statuses: tuple[WorkflowRunStatus, ...] = ()
+    mode: WorkflowRunMode | None = None
+    triggered_by: WorkflowRunTrigger | None = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+
+
 class WorkflowRunRead(BaseSchema, TimestampSchema):
     id: UUID
     workflow_id: UUID
@@ -104,6 +119,10 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
     )
     root_run_id: UUID
     causation_run_id: UUID | None
+    retry_of_run_id: UUID | None = Field(
+        default=None,
+        description="The run this one retries; its succeeded steps were not run again.",
+    )
     depth: int
     started_at: datetime | None
     ended_at: datetime | None

@@ -3387,6 +3387,10 @@
       "flow-routine-create": {
         "title": "Create a routine",
         "body": "Choose New schedule to run an agent on the clock, or New event trigger to run it when something happens. We'll move on the moment it exists."
+      },
+      "workflows-runs": {
+        "title": "Every workflow's runs",
+        "body": "What ran, across every workflow you can see, newest first. Narrow it to failed runs, to test runs of drafts or to what one trigger started. Open a run to see each step's data, retry it from the step that failed, or bring its data into the editor."
       }
     }
   },
@@ -3514,7 +3518,8 @@
         "trigger": "Started by",
         "started": "Started",
         "duration": "Duration",
-        "cost": "Cost"
+        "cost": "Cost",
+        "workflow": "Workflow"
       },
       "trigger": {
         "api": "API",
@@ -3668,7 +3673,22 @@
         "edited": "Last edited",
         "name": "Name",
         "created": "Newest"
-      }
+      },
+      "allRuns": "Runs",
+      "allRunsTitle": "Workflow runs",
+      "allRunsDescription": "Every run of the workflows you can see, newest first.",
+      "runRetryMark": "retry",
+      "runFilterStatus": "Status",
+      "runFilterMode": "Version",
+      "runFilterTrigger": "Started by",
+      "runFilterAny": "Any {filter}",
+      "runsNoMatch": "No runs match",
+      "runsNoMatchDetail": "Clear a filter to see more runs.",
+      "runRetry": "Retry from failed step",
+      "runRetried": "Retry started",
+      "runRetryOf": "Retries",
+      "runDebug": "Debug in editor",
+      "runDebugPinned": "{count, plural, =0 {Nothing to pin from this run} one {Pinned # step's data from the run} other {Pinned # steps' data from the run}}"
     },
     "retention": {
       "title": "Data retention",

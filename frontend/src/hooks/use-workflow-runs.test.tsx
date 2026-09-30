@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
-import { useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+import { useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 
 vi.mock("@/lib/workflows/runs-api", () => ({
   listWorkflowRuns: vi.fn(),
@@ -17,6 +17,8 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   listWorkflowRunFiles: vi.fn(),
   startWorkflowRun: vi.fn(),
   cancelWorkflowRun: vi.fn(),
+  listRunHistory: vi.fn(),
+  retryWorkflowRun: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -50,6 +52,46 @@ describe("useWorkflowRuns", () => {
     });
     expect(toast.error).toHaveBeenCalled();
     expect(result.current.runs).toEqual([]);
+  });
+});
+
+describe("useRunHistory", () => {
+  it("reads a filtered page of runs", async () => {
+    vi.mocked(api.listRunHistory).mockResolvedValue({ items: [run("succeeded")], total: 30 });
+    const query = { status: "succeeded" as const, page: 1 };
+    const { result } = renderHook(() => useRunHistory(query), { wrapper });
+    await waitFor(() => expect(result.current.total).toBe(30));
+    expect(result.current.runs).toHaveLength(1);
+    expect(api.listRunHistory).toHaveBeenCalledWith(query);
+  });
+
+  it("reads a live page again, and answers nothing before the first read", async () => {
+    vi.mocked(api.listRunHistory).mockResolvedValue({ items: [run("running")], total: 1 });
+    const { result } = renderHook(() => useRunHistory({ workflowId: "wf", page: 0 }), {
+      wrapper,
+    });
+    expect(result.current.runs).toEqual([]);
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+  });
+});
+
+describe("retrying a run", () => {
+  it("starts the retry and says so, or says why it could not", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("failed"));
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    vi.mocked(api.retryWorkflowRun)
+      .mockResolvedValueOnce({ id: "r2", workflow_id: "wf", status: "running" } as WorkflowRunRead)
+      .mockRejectedValueOnce(new Error("no"));
+    const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
+
+    await act(() => result.current.retry.mutateAsync());
+    expect(toast.success).toHaveBeenCalledWith("Retry started");
+    await act(async () => {
+      await result.current.retry.mutateAsync().catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalled();
   });
 });
 

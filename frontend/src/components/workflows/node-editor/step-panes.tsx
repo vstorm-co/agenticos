@@ -60,10 +60,13 @@ export function InputPane({
   graph,
   node,
   names,
+  readOnly = false,
 }: {
   graph: WorkflowGraph;
   node: NodeInstance;
   names: Map<string, string>;
+  /** A run's view: what that run's steps handed on, whatever is pinned on them. */
+  readOnly?: boolean;
 }) {
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
@@ -76,7 +79,9 @@ export function InputPane({
         <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>
       )}
       {sources.map((source) => {
-        const pinned = graph.nodes.find((candidate) => candidate.id === source)?.pinned_output;
+        const pinned = readOnly
+          ? null
+          : graph.nodes.find((candidate) => candidate.id === source)?.pinned_output;
         const output = pinned ?? stepData[source]?.output ?? null;
         return (
           <div key={source} className="space-y-1.5">
@@ -108,7 +113,10 @@ export function OutputPane({
   graph,
   node,
   definition,
+  readOnly = false,
 }: {
+  /** A run's view: what the step handed on in that run, with nothing to test or pin. */
+  readOnly?: boolean;
   workflowId: string;
   catalog: NodeDefinition[];
   graph: WorkflowGraph;
@@ -133,9 +141,9 @@ export function OutputPane({
     [graph, catalog, t],
   );
   const data = stepData[node.id];
-  const pinned = node.pinned_output ?? null;
+  const pinned = readOnly ? null : (node.pinned_output ?? null);
   const testing = testingNodeId === node.id || start.isPending;
-  const canPin = definition.kind !== "control";
+  const canPin = !readOnly && definition.kind !== "control";
   const blocked = isInsideALoop(graph, node.id)
     ? t("stepTestInsideALoop")
     : problems.length > 0
@@ -198,16 +206,18 @@ export function OutputPane({
     <Pane
       title={t("stepOutput")}
       actions={
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={blocked !== null || testing}
-          title={blocked ?? t("stepTestHint")}
-          onClick={ask}
-        >
-          {testing ? <Spinner className="size-3.5" /> : <FlaskConical className="size-3.5" />}
-          {t("stepTest")}
-        </Button>
+        readOnly ? undefined : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={blocked !== null || testing}
+            title={blocked ?? t("stepTestHint")}
+            onClick={ask}
+          >
+            {testing ? <Spinner className="size-3.5" /> : <FlaskConical className="size-3.5" />}
+            {t("stepTest")}
+          </Button>
+        )
       }
     >
       {draft !== null ? (

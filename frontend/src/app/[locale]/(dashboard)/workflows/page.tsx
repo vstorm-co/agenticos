@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Workflow } from "lucide-react";
+import Link from "next/link";
+import { Activity, Plus, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -203,16 +204,24 @@ export default function WorkflowsPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          canCreate ? (
-            <Button
-              onClick={() => setCreateOpen(true)}
-              disabled={create.isPending}
-              data-tour="workflows-new"
-            >
-              <Plus className="h-4 w-4" />
-              {t("newWorkflow")}
+          <>
+            <Button variant="outline" asChild>
+              <Link href={ROUTES.WORKFLOW_ALL_RUNS}>
+                <Activity className="h-4 w-4" />
+                {t("allRuns")}
+              </Link>
             </Button>
-          ) : undefined
+            {canCreate && (
+              <Button
+                onClick={() => setCreateOpen(true)}
+                disabled={create.isPending}
+                data-tour="workflows-new"
+              >
+                <Plus className="h-4 w-4" />
+                {t("newWorkflow")}
+              </Button>
+            )}
+          </>
         }
       />
 

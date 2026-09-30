@@ -3251,6 +3251,10 @@
       "flow-routine-create": {
         "title": "Eine Routine erstellen",
         "body": "Wählen Sie Neuer Zeitplan, um einen Agent nach der Uhr laufen zu lassen, oder Neuer Ereignis-Trigger, um ihn laufen zu lassen, wenn etwas passiert. Wir machen weiter, sobald sie besteht."
+      },
+      "workflows-runs": {
+        "title": "Die Läufe aller Workflows",
+        "body": "Was gelaufen ist, über alle Workflows, die Sie sehen, der neueste zuerst. Grenzen Sie auf fehlgeschlagene Läufe, auf Testläufe von Entwürfen oder auf das ein, was ein Auslöser gestartet hat. Öffnen Sie einen Lauf, um die Daten jedes Schritts zu sehen, ihn ab dem fehlgeschlagenen Schritt zu wiederholen oder seine Daten in den Editor zu holen."
       }
     }
   },
@@ -4526,7 +4530,8 @@
         "mode": "Version",
         "trigger": "Gestartet durch",
         "started": "Gestartet",
-        "status": "Status"
+        "status": "Status",
+        "workflow": "Workflow"
       },
       "trigger": {
         "api": "API",
@@ -4709,7 +4714,22 @@
         "edited": "Zuletzt bearbeitet",
         "name": "Name",
         "created": "Neueste"
-      }
+      },
+      "allRuns": "Läufe",
+      "allRunsTitle": "Workflow-Läufe",
+      "allRunsDescription": "Jeder Lauf der Workflows, die Sie sehen, der neueste zuerst.",
+      "runRetryMark": "Wiederholung",
+      "runFilterStatus": "Status",
+      "runFilterMode": "Version",
+      "runFilterTrigger": "Gestartet durch",
+      "runFilterAny": "{filter}: alle",
+      "runsNoMatch": "Kein Lauf passt",
+      "runsNoMatchDetail": "Entfernen Sie einen Filter, um mehr Läufe zu sehen.",
+      "runRetry": "Ab dem fehlgeschlagenen Schritt wiederholen",
+      "runRetried": "Wiederholung gestartet",
+      "runRetryOf": "Wiederholt",
+      "runDebug": "Im Editor debuggen",
+      "runDebugPinned": "{count, plural, =0 {Aus diesem Lauf gibt es nichts anzuheften} one {Daten von # Schritt aus dem Lauf angeheftet} other {Daten von # Schritten aus dem Lauf angeheftet}}"
     }
   },
   "profile": {

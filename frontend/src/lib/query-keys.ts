@@ -6,6 +6,7 @@
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
 import { canonicalFacet } from "@/lib/agent-facets";
+import type { RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
@@ -94,6 +95,15 @@ export const qk = {
     // A workflow's runs, and one run's state, steps and graph. Under the workflow
     // so starting a run from its page refreshes the list beside it.
     runs: (id: string) => ["workflows", id, "runs"] as const,
+    // A filtered page of runs: one workflow's, under it, or every workflow's.
+    runHistory: (query: RunHistoryQuery) =>
+      [
+        ...(query.workflowId === undefined
+          ? ["workflows", "all-runs"]
+          : ["workflows", query.workflowId, "runs"]),
+        "history",
+        query,
+      ] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,

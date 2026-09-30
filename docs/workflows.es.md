@@ -1,5 +1,5 @@
 ---
-source_sha: "772f6626f9fd"
+source_sha: "04e54f702a93"
 ---
 
 # Workflows { #workflows }
@@ -368,6 +368,23 @@ La salida del run y cada paso que dio, iteración a iteración, están
 al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
+
+
+**Status**, **Version** y **Started by** acotan las ejecuciones, y la lista responde
+una página cada vez; cada filtro queda en la dirección, así que una lista filtrada
+se puede enlazar. **Runs** en la lista de workflows muestra juntas las ejecuciones de
+todos. En la página de una ejecución, hacer clic en un paso muestra su **Input** y su
+**Output** de esa ejecución.
+
+**Retry from failed step** inicia una ejecución nueva
+de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
+entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
+alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
+reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
+en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
+ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
+`POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`
+acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 

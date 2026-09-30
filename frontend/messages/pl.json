@@ -788,7 +788,8 @@
         "mode": "Wersja",
         "trigger": "Uruchomione przez",
         "started": "Rozpoczęto",
-        "status": "Status"
+        "status": "Status",
+        "workflow": "Workflow"
       },
       "trigger": {
         "api": "API",
@@ -971,7 +972,22 @@
         "edited": "Ostatnio edytowane",
         "name": "Nazwa",
         "created": "Najnowsze"
-      }
+      },
+      "allRuns": "Przebiegi",
+      "allRunsTitle": "Przebiegi workflow",
+      "allRunsDescription": "Każdy przebieg workflow, które widzisz, od najnowszego.",
+      "runRetryMark": "ponowienie",
+      "runFilterStatus": "Status",
+      "runFilterMode": "Wersja",
+      "runFilterTrigger": "Uruchomione przez",
+      "runFilterAny": "{filter}: dowolny",
+      "runsNoMatch": "Żaden przebieg nie pasuje",
+      "runsNoMatchDetail": "Usuń filtr, by zobaczyć więcej przebiegów.",
+      "runRetry": "Ponów od nieudanego kroku",
+      "runRetried": "Ponowienie uruchomione",
+      "runRetryOf": "Ponawia",
+      "runDebug": "Debuguj w edytorze",
+      "runDebugPinned": "{count, plural, =0 {Z tego przebiegu nie ma czego przypiąć} one {Przypięto dane # kroku z przebiegu} few {Przypięto dane # kroków z przebiegu} many {Przypięto dane # kroków z przebiegu} other {Przypięto dane # kroku z przebiegu}}"
     }
   },
   "rag": {
@@ -2354,6 +2370,10 @@
       "flow-routine-create": {
         "body": "Wybierz Nowy harmonogram, żeby uruchamiać agenta według zegara, albo Nowy wyzwalacz zdarzenia, żeby uruchamiać go, gdy coś się wydarzy. Przejdziemy dalej, gdy tylko powstanie.",
         "title": "Utwórz rutynę"
+      },
+      "workflows-runs": {
+        "title": "Przebiegi wszystkich workflow",
+        "body": "Co się uruchomiło we wszystkich workflow, które widzisz, od najnowszego. Zawęź do nieudanych przebiegów, testów wersji roboczych albo tego, co uruchomił jeden wyzwalacz. Otwórz przebieg, żeby zobaczyć dane każdego kroku, ponowić go od nieudanego kroku albo przenieść jego dane do edytora."
       }
     }
   },

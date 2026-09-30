@@ -36,6 +36,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
 )
 from app.repositories import workflow as workflow_repo
+from app.schemas.workflow_run import WorkflowRunFilters
 
 
 async def create_run(
@@ -58,6 +59,7 @@ async def create_run(
     started_at: datetime,
     run_input: dict[str, Any] | None = None,
     reply_conversation_id: UUID | None = None,
+    retry_of_run_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -83,6 +85,7 @@ async def create_run(
         visited_trigger_ids=visited_trigger_ids,
         input=run_input or {},
         reply_conversation_id=reply_conversation_id,
+        retry_of_run_id=retry_of_run_id,
         depth=depth,
         started_at=started_at,
     )
@@ -148,10 +151,11 @@ async def list_runs(
     workflow_id: UUID | None = None,
     visible_to_user_id: UUID | None = None,
     shared_workflow_ids: list[UUID] | None = None,
+    filters: WorkflowRunFilters | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[WorkflowRun], int]:
-    """Runs in `organization_id`, optionally narrowed to one workflow.
+    """Runs in `organization_id`, optionally narrowed to one workflow and by `filters`.
 
     Without `workflow_id`, a `visible_to_user_id` narrows the list to runs of
     the workflows that user may see - their own, organization-visible ones
@@ -160,6 +164,17 @@ async def list_runs(
     reaches every workflow.
     """
     where = [WorkflowRun.organization_id == organization_id]
+    if filters is not None:
+        if filters.statuses:
+            where.append(WorkflowRun.status.in_([item.value for item in filters.statuses]))
+        if filters.mode is not None:
+            where.append(WorkflowRun.mode == filters.mode.value)
+        if filters.triggered_by is not None:
+            where.append(WorkflowRun.triggered_by == filters.triggered_by.value)
+        if filters.created_after is not None:
+            where.append(WorkflowRun.created_at >= filters.created_after)
+        if filters.created_before is not None:
+            where.append(WorkflowRun.created_at < filters.created_before)
     if workflow_id is not None:
         where.append(WorkflowRun.workflow_id == workflow_id)
     elif visible_to_user_id is not None:

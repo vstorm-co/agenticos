@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A run history you can debug.** Runs filter by status, draft or published
+  version and what started them, a page at a time on the server, and a new
+  **Runs** page lists every workflow's. A run's page shows each step's Input and
+  Output from that run. **Retry from failed step** starts a run in which every
+  step that succeeded hands on its earlier output, so no write is made twice, and
+  **Debug in editor** pins a run's step data onto the draft. `POST
+  /workflow-runs/{id}/retry` is new, and runs gain `retry_of_run_id` (#1943).
 - **Template fields that mix text with values from earlier steps.** A text field's
   **Template** mode takes text such as `New lead: {{Form.payload.name}}`, with
   **Insert a value…**, drops from the Input pane and a preview from the last test

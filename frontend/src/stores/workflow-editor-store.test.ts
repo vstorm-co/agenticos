@@ -990,3 +990,28 @@ describe("arranging the canvas", () => {
     expect(state().splitEdgeId).toBeNull();
   });
 });
+
+describe("pinning many steps at once", () => {
+  it("pins each named step that is in the graph, as one edit", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().pinOutputs({ a: { x: 1 } });
+    expect(store.getState().graph).toBeNull();
+
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [
+        { id: "a", definition_id: "d", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+        { id: "b", definition_id: "d", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().pinOutputs({ a: { x: 1 }, gone: { y: 2 } });
+
+    const nodes = store.getState().graph?.nodes ?? [];
+    expect(nodes.map((node) => node.pinned_output)).toEqual([{ x: 1 }, undefined]);
+    expect(store.getState().isDirty).toBe(true);
+    store.getState().teardown();
+  });
+});

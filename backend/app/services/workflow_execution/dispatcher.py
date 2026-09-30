@@ -483,15 +483,38 @@ async def _skip(config: BaseModel | None, node_input: BaseModel | None) -> NodeR
     return Completed[SkippedStep](output=SkippedStep())
 
 
-class PinnedOutput(RootModel[dict[str, Any]]):
-    """Data a test run hands on for a pinned step, as the step's output."""
+class KnownOutput(RootModel[dict[str, Any]]):
+    """Data handed on as a step's output without running it: pinned, or reused by a retry."""
 
 
-def _pinned(data: dict[str, Any]) -> NodeHandler:
+def _handing_on(data: dict[str, Any]) -> NodeHandler:
     async def hand_on(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
-        return Completed[PinnedOutput](output=PinnedOutput(data))
+        return Completed[KnownOutput](output=KnownOutput(data))
 
     return hand_on
+
+
+async def _reused_output(
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
+) -> dict[str, Any] | None:
+    """What this step handed on in the run `run` retries, if it succeeded there.
+
+    Matched by the step and its loop iteration, so a loop run again reuses each
+    item's steps that had succeeded.
+    """
+    if run.retry_of_run_id is None:
+        return None
+    original = await workflow_run_repo.get_node_run_by_identity(
+        db,
+        workflow_run_id=run.retry_of_run_id,
+        node_instance_id=node_run.node_instance_id,
+        scope_path=node_run.scope_path,
+    )
+    if original is None or original.status != NodeRunStatus.SUCCEEDED.value:
+        return None
+    latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=original.id)
+    output = latest.result.get("output") if latest is not None and latest.result else None
+    return output if isinstance(output, dict) else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -536,18 +559,21 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             input=None,
             arrived_output=None,
         )
-    if (
-        node.pinned_output is not None
-        and run.mode == WorkflowRunMode.TEST.value
-        and definition.kind != "control"
-    ):
-        # Pinned for testing: the data stands in for the step, which is not called.
-        # A step that decides the way still runs - its choice is not data to pin.
+    # Known data stands in for the step, which is not called: what it handed on in
+    # the run this one retries - so a side effect is not repeated - or, in a test
+    # run, what is pinned on it. A step that decides the way always runs: its choice
+    # is not data to hand on, and made again on the same data it is the same.
+    known: dict[str, Any] | None = None
+    if definition.kind != "control":
+        known = await _reused_output(db, run=run, node_run=node_run)
+        if known is None and run.mode == WorkflowRunMode.TEST.value:
+            known = node.pinned_output
+    if known is not None:
         return _ResolvedCall(
             graph=graph,
             node=node,
             definition=definition,
-            handler=_pinned(node.pinned_output),
+            handler=_handing_on(known),
             config=None,
             input=None,
             arrived_output=None,

@@ -26,6 +26,11 @@ import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 interface NodeEditorDialogProps {
   /** The workflow being edited: with it, the step's Input and Output show beside its settings. */
   workflowId?: string;
+  /**
+   * A run's view: the step's Input and Output show what this run's steps handed
+   * on - the store's step data - to read, with nothing to test or pin.
+   */
+  runData?: boolean;
   catalog: NodeDefinition[];
   /** A version or a workflow the caller may not edit: every field reads, none writes. */
   readOnly?: boolean;
@@ -44,7 +49,12 @@ interface NodeEditorDialogProps {
  * hands on, from the last test run or pinned: the data a field is set from is
  * in view while it is set, and **Test step** runs the step alone.
  */
-export function NodeEditorDialog({ workflowId, catalog, readOnly = false }: NodeEditorDialogProps) {
+export function NodeEditorDialog({
+  workflowId,
+  catalog,
+  readOnly = false,
+  runData = false,
+}: NodeEditorDialogProps) {
   const t = useTranslations("workflows");
   const store = usePanelStore();
   const graph = store.graph;
@@ -75,7 +85,7 @@ export function NodeEditorDialog({ workflowId, catalog, readOnly = false }: Node
   const Icon = visual.icon;
   const nodeProblems = nodeLevelProblems(problems, node.id);
   const names = nodeNames(graph, catalogIndex);
-  const withData = workflowId !== undefined && !readOnly && definition !== null;
+  const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
   const withInput = withData && node.id !== graph.entry_node_id;
 
   return (
@@ -118,7 +128,7 @@ export function NodeEditorDialog({ workflowId, catalog, readOnly = false }: Node
         >
           {withInput && (
             <div className="bg-muted/30 border-border lg:border-r">
-              <InputPane graph={graph} node={node} names={names} />
+              <InputPane graph={graph} node={node} names={names} readOnly={runData} />
             </div>
           )}
           <div className={cn("space-y-5", !withData && "h-full overflow-y-auto px-6 py-5")}>
@@ -187,6 +197,7 @@ export function NodeEditorDialog({ workflowId, catalog, readOnly = false }: Node
           {withData && (
             <div className="bg-muted/30 border-border lg:border-l">
               <OutputPane
+                readOnly={runData}
                 workflowId={workflowId}
                 catalog={catalog}
                 graph={graph}

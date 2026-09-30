@@ -1,7 +1,17 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef } from "react";
-import { AlertTriangle, CircleDollarSign, Clock, ListChecks, Square } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  Bug,
+  CircleDollarSign,
+  Clock,
+  ListChecks,
+  RotateCcw,
+  Square,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -23,12 +33,14 @@ import {
   summarizeNodeRuns,
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
+import { NodeEditorDialog } from "@/components/workflows/node-editor";
 import { RunFiles } from "@/components/workflows/runs/run-files";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import { useNodeCatalog, usePermissions, useWorkflow, useWorkflowRun } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, formatRunDuration } from "@/lib/utils";
-import { isRunTerminal, nodeDisplayName, shortNodeId } from "@/lib/workflows/types";
+import { stepDataOf } from "@/lib/workflows/step-data";
+import { isRunRetryable, isRunTerminal, nodeDisplayName, shortNodeId } from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
 import { useWorkflowEditorStore } from "@/stores";
 
@@ -51,11 +63,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const locale = useLocale();
   const { workflow } = useWorkflow(id);
   const { nodes: catalog } = useNodeCatalog();
-  const { run, isLoading, nodes, files, graph, cancel } = useWorkflowRun(runId);
+  const router = useRouter();
+  const { run, isLoading, nodes, files, graph, cancel, retry } = useWorkflowRun(runId);
   const { can } = usePermissions();
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
+  const mergeStepData = useWorkflowEditorStore((state) => state.mergeStepData);
   const seeded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -72,6 +86,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
     },
     [teardown],
   );
+  // What each step handed on in this run, for a step's Input and Output.
+  useEffect(() => {
+    if (graph !== null) mergeStepData(stepDataOf(runId, nodes));
+  }, [graph, runId, nodes, mergeStepData]);
 
   const summaries = useMemo(() => summarizeNodeRuns(nodes), [nodes]);
   const nameOf = (nodeId: string) => {
@@ -116,12 +134,35 @@ export default function WorkflowRunPage({ params }: PageProps) {
         ]}
         badges={<WorkflowRunStatusBadge status={run.status} />}
         actions={
-          live && can(Perm.workflowsRun) ? (
-            <Button variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
-              <Square className="h-4 w-4" />
-              {t("cancelRun")}
-            </Button>
-          ) : undefined
+          <>
+            {live && can(Perm.workflowsRun) && (
+              <Button variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+                <Square className="h-4 w-4" />
+                {t("cancelRun")}
+              </Button>
+            )}
+            {workflow.can_edit && nodes.some((node) => node.output !== null) && (
+              <Button variant="outline" asChild>
+                <Link href={`${ROUTES.WORKFLOW_DETAIL(id)}?debug=${runId}`}>
+                  <Bug className="h-4 w-4" />
+                  {t("runDebug")}
+                </Link>
+              </Button>
+            )}
+            {isRunRetryable(run.status) && can(Perm.workflowsRun) && (
+              <Button
+                disabled={retry.isPending}
+                onClick={() =>
+                  retry.mutate(undefined, {
+                    onSuccess: (started) => router.push(ROUTES.WORKFLOW_RUN_DETAIL(id, started.id)),
+                  })
+                }
+              >
+                <RotateCcw className="h-4 w-4" />
+                {t("runRetry")}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -148,6 +189,18 @@ export default function WorkflowRunPage({ params }: PageProps) {
         />
       </div>
 
+      {run.retry_of_run_id !== null && (
+        <p className="text-muted-foreground text-sm">
+          {t("runRetryOf")}{" "}
+          <Link
+            className="text-foreground underline underline-offset-4"
+            href={ROUTES.WORKFLOW_RUN_DETAIL(id, run.retry_of_run_id)}
+          >
+            {t("runTitle", { id: shortNodeId(run.retry_of_run_id) })}
+          </Link>
+        </p>
+      )}
+
       {problem && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -164,6 +217,9 @@ export default function WorkflowRunPage({ params }: PageProps) {
             <NodeRunOverlayProvider value={summaries}>
               <WorkflowCanvas workflow={workflow} catalog={catalog} readOnly />
             </NodeRunOverlayProvider>
+          )}
+          {graph !== null && (
+            <NodeEditorDialog workflowId={id} catalog={catalog} readOnly runData />
           )}
         </div>
         <div className="space-y-4">

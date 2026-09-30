@@ -46,6 +46,7 @@ from app.schemas.workflow_run import (
     WorkflowFileRead,
     WorkflowNodeRunList,
     WorkflowNodeRunRead,
+    WorkflowRunFilters,
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
@@ -55,11 +56,13 @@ from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import admission, delivery, dispatcher, events
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
+    WorkflowGraphUnresolvableError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
+    WorkflowRunNotRetryableError,
     WorkflowTriggerMismatchError,
 )
 from app.workflows.contracts.io import FileRef, TableIORef
@@ -119,6 +122,16 @@ def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None
         raise WorkflowRunInputInvalidError(problems=problems)
 
 
+# What a retry starts from: a run that ended without finishing its work.
+_RETRYABLE = frozenset(
+    {
+        WorkflowRunStatus.FAILED.value,
+        WorkflowRunStatus.CANCELLED.value,
+        WorkflowRunStatus.BUDGET_EXCEEDED.value,
+    }
+)
+
+
 def _read(run: WorkflowRun) -> WorkflowRunRead:
     return WorkflowRunRead(
         id=run.id,
@@ -136,6 +149,7 @@ def _read(run: WorkflowRun) -> WorkflowRunRead:
         output=run.output,
         root_run_id=run.root_run_id,
         causation_run_id=run.causation_run_id,
+        retry_of_run_id=run.retry_of_run_id,
         depth=run.depth,
         started_at=run.started_at,
         ended_at=run.ended_at,
@@ -320,6 +334,7 @@ class WorkflowExecutionService:
         deadline_seconds: int | None,
         reply_conversation_id: UUID | None,
         causation: Causation | None = None,
+        retry_of_run_id: UUID | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -361,6 +376,7 @@ class WorkflowExecutionService:
             started_at=now,
             run_input=payload,
             reply_conversation_id=reply_conversation_id,
+            retry_of_run_id=retry_of_run_id,
         )
         await self._record_resource_refs(run, graph)
         entry_node_run = await workflow_run_repo.create_node_run(
@@ -476,9 +492,16 @@ class WorkflowExecutionService:
         return _read(run)
 
     async def list(
-        self, ctx: AuthContext, *, workflow_id: UUID | None = None, skip: int = 0, limit: int = 50
+        self,
+        ctx: AuthContext,
+        *,
+        workflow_id: UUID | None = None,
+        filters: WorkflowRunFilters | None = None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> WorkflowRunList:
-        """Runs in this caller's organization, optionally narrowed to one workflow.
+        """Runs in this caller's organization, optionally narrowed to one workflow
+        and by `filters`, newest first.
 
         If `workflow_id` is given, it is checked the same way `get` checks a
         single run's - a 404 rather than an empty page for a workflow the
@@ -505,10 +528,66 @@ class WorkflowExecutionService:
             workflow_id=workflow_id,
             visible_to_user_id=visible_to_user_id,
             shared_workflow_ids=shared,
+            filters=filters,
             skip=skip,
             limit=limit,
         )
         return WorkflowRunList(items=[_read(item) for item in items], total=total)
+
+    async def retry(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
+        """Run again what `run_id` ran - the same version or draft snapshot, the same
+        input - with each step that succeeded there handing on the output it had.
+
+        Only the failed step and what it did not reach run, so a step with a side
+        effect is never repeated. A loop runs again, its items resolved from what
+        they handed on, and a deciding step decides again on the same data.
+
+        Raises:
+            WorkflowRunNotFoundError: No such run, or this caller may not see it.
+            WorkflowRunNotRetryableError: The run did not fail, was not
+                cancelled and did not run out of budget.
+            AuthorizationError: The caller may see the run but not run its
+                workflow - or, for a test run, not edit it.
+            WorkflowArchivedError: The workflow is archived.
+            WorkflowNotRunnableError: The version the run ran no longer resolves.
+            WorkflowAdmissionQuotaError: As `start`.
+        """
+        original = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        if original.status not in _RETRYABLE:
+            raise WorkflowRunNotRetryableError(run_id=original.id, status=original.status)
+        mode = WorkflowRunMode(original.mode)
+        workflow = await self._reachable(ctx, original.workflow_id, Perm.WORKFLOWS_RUN)
+        if workflow is None or (
+            mode is WorkflowRunMode.TEST
+            and not await resolve_access(
+                self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+            )
+        ):
+            raise AuthorizationError(message="You may not retry this run")
+        if workflow.status == WorkflowStatus.ARCHIVED.value:
+            raise WorkflowArchivedError(
+                workflow_id=workflow.id, message="This workflow is archived and cannot be run"
+            )
+        try:
+            graph = await dispatcher.resolve_graph(self.db, original)
+        except WorkflowGraphUnresolvableError as exc:
+            raise WorkflowNotRunnableError(workflow_id=workflow.id) from exc
+        run, entry_node_run_id = await self._admit(
+            ctx,
+            workflow,
+            graph=graph,
+            workflow_version_id=original.workflow_version_id,
+            draft_snapshot=original.draft_graph_snapshot,
+            budget_limit=original.budget_limit,
+            mode=mode,
+            triggered_by=WorkflowRunTrigger(original.triggered_by),
+            payload=original.input,
+            deadline_seconds=None,
+            reply_conversation_id=None,
+            retry_of_run_id=original.id,
+        )
+        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return _read(run)
 
     async def graph(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunGraph:
         """The graph this run executes, loop scopes derived, as a run view draws it.

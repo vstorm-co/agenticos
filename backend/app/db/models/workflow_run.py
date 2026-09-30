@@ -283,6 +283,13 @@ class WorkflowRun(Base, TimestampMixin):
         ForeignKey("workflow_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # The run this one retries: each step that succeeded there hands on the output
+    # it had instead of running again, so a side effect is never repeated.
+    retry_of_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workflow_runs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Where a chat-started run answers: the conversation the member typed in,
     # frozen at admission from their own session and never read from a payload.
     # The run's result is written there when it ends. Null for every other

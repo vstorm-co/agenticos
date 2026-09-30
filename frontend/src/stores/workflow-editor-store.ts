@@ -245,6 +245,8 @@ export interface WorkflowEditorState {
   mergeStepData: (data: Record<Uuid, StepData>) => void;
   /** The watched run ended. */
   finishTesting: () => void;
+  /** Pin each named step's data at once - one undoable edit. A step not in the graph is left out. */
+  pinOutputs: (outputs: Record<Uuid, Record<string, unknown>>) => void;
   /** Rename a step, note it, or switch it off - one undoable edit. */
   updateNodeDetails: (
     nodeId: Uuid,
@@ -656,6 +658,15 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         note.id === noteId ? { ...note, ...patch } : note,
       );
       commit({ ...graph, notes });
+    },
+
+    pinOutputs: (outputs) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) =>
+        outputs[node.id] === undefined ? node : { ...node, pinned_output: outputs[node.id] },
+      );
+      commit({ ...graph, nodes });
     },
 
     updateNodeDetails: (nodeId, details) => {

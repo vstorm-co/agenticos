@@ -354,6 +354,21 @@ The run's output
 and every step it took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
+
+**Status**, **Version** and **Started by** narrow the runs, and the list answers a
+page at a time; each filter is kept in the address, so a filtered list can be
+linked. **Runs** on the workflows list shows every workflow's runs together. On a
+run's page, clicking a step shows its **Input** and **Output** from that run.
+
+**Retry from failed step** starts a new run of the same version and input in which
+each step that succeeded hands on what it handed on before, so only the failed
+step and what it did not reach run, and a write is never made twice. A loop runs
+again and reuses each item's steps that had succeeded. **Debug in editor** pins
+what each step outside a loop handed on in that run onto the draft's steps, so a
+test run starts from where that run was. Over the API, `POST
+/api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes
+`status`, `mode`, `triggered_by`, `created_after` and `created_before`.
+
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
