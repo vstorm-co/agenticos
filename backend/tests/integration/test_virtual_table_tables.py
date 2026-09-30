@@ -514,13 +514,15 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
         # Asked on behalf of the caller, who is who a dependent must be visible to.
         assert caller is ctx
         seen.append(column_ids)
-        return [Dependent(kind="workflow", id=workflow)]
+        return [Dependent(kind="workflow", id=workflow, name="Sync people")]
 
     monkeypatch.setattr(dependency_hook, "_checkers", [checker])
 
     with pytest.raises(SchemaDependencyError) as raised:
         await service.archive_table(ctx, table.id)
-    assert raised.value.details == {"dependents": [{"kind": "workflow", "id": workflow}]}
+    assert raised.value.details == {
+        "dependents": [{"kind": "workflow", "id": workflow, "name": "Sync people"}]
+    }
     with pytest.raises(SchemaDependencyError):
         await service.update_schema(
             ctx,

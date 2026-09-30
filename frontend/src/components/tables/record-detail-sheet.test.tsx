@@ -14,6 +14,8 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), delete: vi.fn() } };
 });
+const deleteLater = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-deferred-delete", () => ({ useDeferredDelete: () => deleteLater }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const columns: ColumnDef[] = [
@@ -425,35 +427,9 @@ describe("RecordDetailSheet", () => {
       fireEvent.click(confirm());
 
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-      expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=1");
-      expect(toast.success).toHaveBeenCalledWith("Record deleted.");
-    });
-
-    it("keeps a record someone changed meanwhile, and says so", async () => {
-      vi.mocked(apiClient.delete).mockRejectedValueOnce(conflict409());
-      const onOpenChange = vi.fn();
-      renderSheet({ onOpenChange });
-
-      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
-      fireEvent.click(confirm());
-
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith(
-          "Someone changed this record since you opened it, so it was kept. Check it and try again.",
-        ),
-      );
-      expect(onOpenChange).not.toHaveBeenCalled();
-    });
-
-    it("leaves any other refusal to the hook's toast", async () => {
-      vi.mocked(apiClient.delete).mockRejectedValueOnce(new ApiError(500, "boom", null));
-      renderSheet();
-
-      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
-      fireEvent.click(confirm());
-
-      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-      expect(toast.success).not.toHaveBeenCalled();
+      expect(deleteLater).toHaveBeenCalledWith([
+        expect.objectContaining({ id: "r1", revision: 1 }),
+      ]);
     });
 
     it("offers no delete to a reader", () => {

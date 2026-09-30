@@ -84,10 +84,16 @@ lands in a table archived a moment earlier.
 
 Archiving a column, or the whole table, first asks every registered dependency
 checker whether something the caller can both see and change still uses it. Saved
-views are the one registered today (see [saved views](#saved-views)); workflows and
-triggers will register theirs in `app/services/virtual_tables/dependencies.py`. A
-refusal names the dependents in `SCHEMA_DEPENDENCY`. Any other dependent is never
-named and never blocks the caller: its feature copes with the change instead.
+views (see [saved views](#saved-views)) and the workflows that read or write the table
+register theirs in `app/services/virtual_tables/dependencies.py`, and so do table
+triggers, which block whoever archives: a trigger filtering on a column that is gone
+would come back broken.
+
+A refusal lists each dependent in `SCHEMA_DEPENDENCY` with its
+`kind`, `id` and `name`, and `name` is null for a trigger in a workflow the caller
+cannot open. The console lists them in the dialog that asked, a workflow as a link to
+it. Any other dependent is never named and never blocks the caller: its feature copes
+with the change instead.
 
 ## Records and revisions { #records-and-revisions }
 
@@ -127,8 +133,8 @@ A member who can edit the table adds, changes and deletes records from its page.
 is required and has no default is marked `*` and must be filled before the record is
 written; any other column left empty takes its default. Clicking a cell edits it in
 place: Enter or clicking away saves it, Escape leaves it unchanged, and a yes/no that
-cannot be empty flips with one click. The expand button at the end of a row opens the
-whole record.
+cannot be empty flips with one click. The arrow keys move between cells, and the
+expand button at the end of a row opens the whole record.
 
 The line under the grid adds records as you type: what you type goes into the first
 text column, and Enter creates the record and leaves the line ready for the next. A
@@ -140,15 +146,18 @@ newer change is refused rather than written over it. The record then opens with 
 refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
 all of them, each against its own revision: a record someone changed meanwhile is
 kept, and the console says how many were. The record panel deletes one record the same
-way. A member who can only view the table sees the same grid read-only, and clicking a
+way.
+
+A delete waits a few seconds with **Undo** in its notice before it is sent; the
+records leave every view at once, and Undo brings them back untouched. A member who can only view the table sees the same grid read-only, and clicking a
 row opens the record.
 
 For a member who can edit the table, a column's header opens a menu. **Sort ascending**
 and **Sort descending** order the grid by it, and **Hide in this view** takes it off the
 screen until the hidden-columns button shows it again; **Save view** keeps both.
 **Rename** and **Archive column** change the table for everyone, each as the same new
-schema version the Columns dialog would write, and an archive a view or trigger depends
-on is refused with its name. The **+** after the last column adds one, optional to begin
+schema version the Columns dialog would write, and an archive something still uses is
+refused, with the workflows, views and triggers listed in the dialog. The **+** after the last column adds one, optional to begin
 with. A column's type never changes.
 
 ### Import and export { #import-and-export }

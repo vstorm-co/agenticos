@@ -349,6 +349,31 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByText("The schema changed since you opened it.")).toBeInTheDocument();
   });
 
+  it("lists what still uses a removed column instead of a bare refusal", () => {
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={
+          new ApiError(409, "Other resources depend on this and must be changed first", {
+            error: {
+              code: "SCHEMA_DEPENDENCY",
+              message: "Other resources depend on this and must be changed first",
+              details: { dependents: [{ kind: "table_view", id: "v1", name: "Board" }] },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("Board")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Other resources depend on this and must be changed first"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows no dialog-level message when every problem already landed on a row", () => {
     render(
       <SchemaEditorDialog

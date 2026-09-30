@@ -1,5 +1,5 @@
 ---
-source_sha: "d41654f9946d"
+source_sha: "8989c4031891"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -98,13 +98,18 @@ landet, die einen Moment zuvor archiviert wurde.
 
 Beim Archivieren einer Spalte oder der ganzen Tabelle wird zuerst jeder registrierte
 Dependency-Checker gefragt, ob etwas, das der Aufrufer sowohl sehen als auch ändern
-kann, sie noch verwendet.
-Heute sind gespeicherte Ansichten registriert (siehe
-[Gespeicherte Ansichten](#saved-views)); Workflows und Trigger werden ihre in
-`app/services/virtual_tables/dependencies.py` registrieren. Eine Ablehnung nennt die
-Abhängigen in `SCHEMA_DEPENDENCY`. Jeder andere Abhängige wird nie genannt und
-blockiert den Aufrufer nie: sein Feature kommt stattdessen selbst mit der Änderung
-zurecht.
+kann, sie noch verwendet. Gespeicherte Ansichten (siehe
+[Gespeicherte Ansichten](#saved-views)) und die Workflows, die die Tabelle lesen oder
+schreiben, registrieren ihre in `app/services/virtual_tables/dependencies.py`, ebenso
+Tabellen-Trigger, die jeden blockieren, der archiviert: Ein Trigger, der nach einer
+nicht mehr vorhandenen Spalte filtert, käme kaputt zurück.
+
+Eine Ablehnung führt jeden
+Abhängigen in `SCHEMA_DEPENDENCY` mit `kind`, `id` und `name` auf, und `name` ist null
+für einen Trigger in einem Workflow, den der Aufrufer nicht öffnen kann. Die Konsole
+zeigt sie im Dialog, der gefragt hat, einen Workflow als Link darauf. Jeder andere
+Abhängige wird nie genannt und blockiert den Aufrufer nie: sein Feature kommt
+stattdessen selbst mit der Änderung zurecht.
 
 ## Datensätze und Revisions { #records-and-revisions }
 
@@ -147,7 +152,7 @@ der Spalte. Eine Pflichtspalte ohne Standardwert ist mit `*` markiert und muss
 ausgefüllt sein, bevor der Datensatz geschrieben wird; jede andere leere Spalte
 übernimmt ihren Standardwert. Ein Klick auf eine Zelle bearbeitet sie direkt: Enter
 oder ein Klick daneben speichert, Escape lässt sie unverändert, und ein Ja/Nein, das
-nicht leer sein darf, wechselt mit einem Klick. Die Schaltfläche zum Aufklappen am
+nicht leer sein darf, wechselt mit einem Klick. Die Pfeiltasten wechseln zwischen Zellen, und die Schaltfläche zum Aufklappen am
 Zeilenende öffnet den ganzen Datensatz.
 
 Die Zeile unter dem Raster fügt Datensätze beim Tippen hinzu: Was du tippst, landet
@@ -162,7 +167,11 @@ geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Re
 reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
 Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
 sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
-dieselbe Weise. Wer die Tabelle nur ansehen darf, sieht dasselbe Raster schreibgeschützt,
+dieselbe Weise.
+
+Ein Löschen wartet ein paar Sekunden mit **Undo** in seiner
+Meldung, bevor es gesendet wird; die Datensätze verschwinden sofort aus jeder Ansicht,
+und Undo bringt sie unverändert zurück. Wer die Tabelle nur ansehen darf, sieht dasselbe Raster schreibgeschützt,
 und ein Klick auf eine Zeile öffnet den Datensatz.
 
 Für ein Mitglied, das die Tabelle bearbeiten darf, öffnet der Kopf einer Spalte ein Menü.
@@ -170,8 +179,8 @@ Für ein Mitglied, das die Tabelle bearbeiten darf, öffnet der Kopf einer Spalt
 this view** nimmt sie vom Bildschirm, bis die Schaltfläche für ausgeblendete Spalten sie
 wieder zeigt; **Save view** speichert beides. **Rename** und **Archive column** ändern die
 Tabelle für alle, jeweils als dieselbe neue Schemaversion, die der Dialog Columns
-schreiben würde, und eine Archivierung, von der eine Ansicht oder ein Trigger abhängt,
-wird mit dessen Namen abgelehnt. Das **+** nach der letzten Spalte fügt eine hinzu,
+schreiben würde, und eine Archivierung von etwas, das noch verwendet wird,
+wird abgelehnt, mit den Workflows, Ansichten und Triggern im Dialog. Das **+** nach der letzten Spalte fügt eine hinzu,
 anfangs optional. Der Typ einer Spalte ändert sich nie.
 
 ### Import und Export { #import-and-export }

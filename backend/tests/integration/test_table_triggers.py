@@ -709,7 +709,10 @@ async def test_archiving_a_column_a_trigger_filters_on_is_refused(world: _World)
                     columns=_keeping(world.leads, "Email", "VIP"),
                 ),
             )
-    assert str(trigger_id) in json.dumps(refused.value.details, default=str)
+    # Named after its workflow, so the console can say which one to change.
+    assert {"kind": "table_trigger", "id": trigger_id, "name": "Follow up"} in (
+        refused.value.details["dependents"]
+    )
 
     async with world.factory() as db:
         updated = await VirtualTableService(db).update_schema(
@@ -722,6 +725,36 @@ async def test_archiving_a_column_a_trigger_filters_on_is_refused(world: _World)
         )
         await db.commit()
     assert updated.schema_version == world.leads.schema_version + 1
+
+
+@pytest.mark.security
+async def test_a_trigger_in_a_workflow_the_caller_cannot_open_blocks_without_a_name(
+    world: _World,
+):
+    trigger_id = await world.trigger(
+        filters=[RecordFilter(column_id=world.column("Score"), op="gt", value=1)]
+    )
+
+    async with world.factory() as db:
+        with (
+            patch(
+                "app.services.virtual_tables.trigger_dependents.resolve_access",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(SchemaDependencyError) as refused,
+        ):
+            await VirtualTableService(db).update_schema(
+                world.ctx,
+                world.leads.id,
+                SchemaUpdate(
+                    expected_version=world.leads.schema_version,
+                    columns=_keeping(world.leads, "Email", "VIP"),
+                ),
+            )
+    assert {"kind": "table_trigger", "id": trigger_id, "name": None} in (
+        refused.value.details["dependents"]
+    )
+    assert "Follow up" not in json.dumps(refused.value.details, default=str)
 
 
 @pytest.fixture

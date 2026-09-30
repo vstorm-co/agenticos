@@ -33,6 +33,13 @@ interface TableViewStoreState {
   conflicts: Record<string, Record<string, RecordConflict>>;
   setConflict: (conflict: RecordConflict) => void;
   clearConflict: (recordId: string, fieldId: string | null) => void;
+  /**
+   * Records deleted on screen whose delete is still waiting out its undo window:
+   * every view leaves them out until the delete is sent, or brings them back.
+   */
+  deleting: Record<string, true>;
+  hide: (recordIds: string[]) => void;
+  unhide: (recordIds: string[]) => void;
   reset: () => void;
 }
 
@@ -45,6 +52,17 @@ interface TableViewStoreState {
  */
 export const useTableViewStore = create<TableViewStoreState>((set) => ({
   conflicts: {},
+  deleting: {},
+  hide: (recordIds) =>
+    set((state) => ({
+      deleting: { ...state.deleting, ...Object.fromEntries(recordIds.map((id) => [id, true])) },
+    })),
+  unhide: (recordIds) =>
+    set((state) => {
+      const deleting = { ...state.deleting };
+      for (const id of recordIds) delete deleting[id];
+      return { deleting };
+    }),
   setConflict: (conflict) =>
     set((state) => {
       const forRecord = {
@@ -65,5 +83,5 @@ export const useTableViewStore = create<TableViewStoreState>((set) => ({
       else nextConflicts[recordId] = nextForRecord;
       return { conflicts: nextConflicts };
     }),
-  reset: () => set({ conflicts: {} }),
+  reset: () => set({ conflicts: {}, deleting: {} }),
 }));

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Maximize2, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { InlineCell } from "./inline-cell";
@@ -18,6 +17,7 @@ import {
   type TableSort,
 } from "@/components/ui";
 import { EmptyState } from "@/components/states";
+import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { formatCellValue } from "@/lib/format-cell-value";
 import { useTableViewStore } from "@/stores";
@@ -86,13 +86,13 @@ export function TableGridView({
   const tGrid = useTranslations("tables.grid");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
-  const { commit, remove } = useRecordMutation(tableId);
+  const { commit } = useRecordMutation(tableId);
+  const deleteLater = useDeferredDelete(tableId);
   const setConflict = useTableViewStore((state) => state.setConflict);
 
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Only the rows in view count: a selection made on another page, or of a
   // record since deleted, is not what the bar offers to delete.
@@ -115,29 +115,41 @@ export function TableGridView({
     });
   };
 
-  const deleteChosen = async () => {
-    setDeleting(true);
-    const results = await Promise.allSettled(
-      chosen.map((record) =>
-        remove.mutateAsync({ recordId: record.id, expectedRevision: record.revision }),
-      ),
-    );
-    setDeleting(false);
-    setConfirming(false);
-    const deleted = chosen.filter((_, index) => results[index]?.status === "fulfilled");
-    const conflicts = results.filter(
-      (result) => result.status === "rejected" && isRevisionConflict(result.reason),
-    ).length;
+  const deleteChosen = () => {
+    deleteLater(chosen);
     const next = new Set(selected);
-    for (const record of deleted) next.delete(record.id);
+    for (const record of chosen) next.delete(record.id);
     setSelected(next);
-    if (deleted.length > 0) toast.success(tGrid("deleted", { count: deleted.length }));
-    if (conflicts > 0) toast.error(tGrid("deleteConflict", { count: conflicts }));
+    setConfirming(false);
   };
 
   const display = (column: ColumnDef, record: RecordRead) => {
     const value = record.values[column.id] ?? null;
     return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel) || "—");
+  };
+
+  /**
+   * Arrow keys move between cells the way a spreadsheet's do: to the cell beside,
+   * above or below, found by its place in the grid. A row outside what the
+   * scroll has drawn yet is not there to move to, so the key does nothing.
+   */
+  const moveFrom = (event: KeyboardEvent<HTMLButtonElement>, row: number, col: number) => {
+    const step: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+    };
+    const move = step[event.key];
+    if (move === undefined) return;
+    const grid = event.currentTarget.closest("table");
+    const target = grid?.querySelector<HTMLButtonElement>(
+      `[data-cell="${row + move[0]}:${col + move[1]}"]`,
+    );
+    if (target) {
+      event.preventDefault();
+      target.focus();
+    }
   };
 
   const renderCell = (column: ColumnDef, record: RecordRead) => {
@@ -156,6 +168,8 @@ export function TableGridView({
     return (
       <button
         type="button"
+        data-cell={`${records.indexOf(record)}:${columns.indexOf(column)}`}
+        onKeyDown={(event) => moveFrom(event, records.indexOf(record), columns.indexOf(column))}
         aria-label={tGrid("editCell", { column: column.label })}
         className="hover:bg-accent/60 focus-visible:ring-ring -mx-4 -my-3 block min-h-11 w-[calc(100%+2rem)] px-4 py-3 text-left focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset"
         onClick={(event) => {
@@ -288,7 +302,6 @@ export function TableGridView({
         description={tGrid("deleteDescription")}
         confirmLabel={tGrid("delete")}
         destructive
-        loading={deleting}
         onConfirm={deleteChosen}
       />
     </>

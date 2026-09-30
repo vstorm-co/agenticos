@@ -1,5 +1,5 @@
 ---
-source_sha: "d41654f9946d"
+source_sha: "8989c4031891"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -91,12 +91,16 @@ confirmó, así que un registro nunca cae en una tabla archivada un momento ante
 
 Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
 dependencias registrado si algo que el llamante puede ver y también cambiar aún la usa.
-Hoy están
-registradas las vistas guardadas (ver [Vistas guardadas](#saved-views)); los workflows
-y los triggers registrarán los suyos en `app/services/virtual_tables/dependencies.py`.
-Un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`. Cualquier otro
-dependiente nunca se nombra y nunca bloquea al llamante: su función se adapta al
-cambio por sí misma.
+Las vistas guardadas (ver [Vistas guardadas](#saved-views)) y los workflows que leen o
+escriben la tabla registran los suyos en `app/services/virtual_tables/dependencies.py`,
+y también los disparadores de tabla, que bloquean a quien archive: un disparador que
+filtra por una columna que ya no existe volvería roto.
+
+Un rechazo enumera cada
+dependiente en `SCHEMA_DEPENDENCY` con su `kind`, `id` y `name`, y `name` es null para
+un disparador de un workflow que el llamante no puede abrir. La consola los muestra en
+el diálogo que preguntó, un workflow como enlace a él. Cualquier otro dependiente nunca
+se nombra y nunca bloquea al llamante: su función se adapta al cambio por sí misma.
 
 ## Registros y revisions { #records-and-revisions }
 
@@ -139,7 +143,8 @@ columna obligatoria sin valor predeterminado lleva la marca `*` y hay que rellen
 antes de escribir el registro; cualquier otra columna vacía toma su valor
 predeterminado. Al hacer clic en una celda se edita en su sitio: Enter o hacer clic
 fuera la guarda, Escape la deja sin cambios, y un sí/no que no puede quedar vacío
-cambia con un clic. El botón de expandir al final de una fila abre el registro entero.
+cambia con un clic. Las flechas mueven entre celdas, y el botón de expandir al final de
+una fila abre el registro entero.
 
 La línea bajo la cuadrícula añade registros mientras escribes: lo que escribes va a la
 primera columna de texto, y Enter crea el registro y deja la línea lista para el
@@ -152,7 +157,11 @@ edición que pierde frente a un cambio más reciente se rechaza en lugar de escr
 encima. El registro se abre entonces con el valor rechazado junto a **Reload and
 reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
 revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
-cuántos. El panel del registro elimina uno solo de la misma forma. Un miembro que solo
+cuántos. El panel del registro elimina uno solo de la misma forma.
+
+Un borrado espera unos
+segundos con **Undo** en su aviso antes de enviarse; los registros salen de todas las
+vistas a la vez, y Undo los devuelve intactos. Un miembro que solo
 puede ver la tabla ve la misma cuadrícula en modo lectura, y hacer clic en una fila abre
 el registro.
 
@@ -161,8 +170,8 @@ Para un miembro que puede editar la tabla, la cabecera de una columna abre un me
 view** la quita de la pantalla hasta que el botón de columnas ocultas la vuelve a mostrar;
 **Save view** guarda ambas cosas. **Rename** y **Archive column** cambian la tabla para
 todos, cada una como la misma nueva versión del esquema que escribiría el diálogo
-Columns, y un archivado del que depende una vista o un disparador se rechaza con su
-nombre. El **+** tras la última columna añade una, opcional al principio. El tipo de una
+Columns, y un archivado de algo que aún se usa se rechaza, con los workflows, vistas y
+disparadores enumerados en el diálogo. El **+** tras la última columna añade una, opcional al principio. El tipo de una
 columna nunca cambia.
 
 ### Importar y exportar { #import-and-export }

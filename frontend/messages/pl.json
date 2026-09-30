@@ -4124,7 +4124,7 @@
       "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić.",
       "delete": "Usuń rekord",
       "deleteTitle": "Usunąć ten rekord?",
-      "deleteDescription": "Zniknie ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla niego. Tego nie można cofnąć.",
+      "deleteDescription": "Zniknie ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla niego. Przez kilka sekund można to cofnąć.",
       "deleted": "Usunięto rekord.",
       "deleteConflict": "Ktoś zmienił ten rekord od jego otwarcia, więc został zachowany. Sprawdź go i spróbuj ponownie."
     },
@@ -4149,14 +4149,15 @@
       "clearSelection": "Wyczyść",
       "delete": "Usuń",
       "deleteTitle": "{count, plural, one {Usunąć # rekord?} few {Usunąć # rekordy?} many {Usunąć # rekordów?} other {Usunąć # rekordu?}}",
-      "deleteDescription": "Usunięte rekordy znikają ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla każdego z nich. Tego nie można cofnąć.",
+      "deleteDescription": "Usunięte rekordy znikają ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla każdego z nich. Przez kilka sekund można to cofnąć.",
       "deleted": "{count, plural, one {Usunięto # rekord.} few {Usunięto # rekordy.} many {Usunięto # rekordów.} other {Usunięto # rekordu.}}",
       "deleteConflict": "{count, plural, one {# rekord zmienił się od wczytania i został zachowany. Sprawdź go i spróbuj ponownie.} few {# rekordy zmieniły się od wczytania i zostały zachowane. Sprawdź je i spróbuj ponownie.} many {# rekordów zmieniło się od wczytania i zostało zachowanych. Sprawdź je i spróbuj ponownie.} other {# rekordu zmieniło się od wczytania i zostało zachowane. Sprawdź je i spróbuj ponownie.}}",
       "addColumn": "Dodaj kolumnę",
       "newRecord": "Nowy rekord",
       "newRecordLine": "Nowy rekord: {column}",
       "newRecordPlaceholder": "Wpisz {column} i naciśnij Enter, by dodać rekord",
-      "newRecordAdded": "Dodano {value}"
+      "newRecordAdded": "Dodano {value}",
+      "undo": "Cofnij"
     },
     "filters": {
       "button": "Filtr",
@@ -4198,7 +4199,7 @@
       "hide": "Ukryj w tym widoku",
       "archive": "Zarchiwizuj kolumnę",
       "archiveTitle": "Zarchiwizować {column}?",
-      "archiveDescription": "Zniknie z tabeli dla wszystkich. Rekordy zachowają jej wartości, można ją przywrócić w Kolumnach, a widok lub wyzwalacz, który od niej zależy, zatrzyma archiwizację i zostanie wskazany.",
+      "archiveDescription": "Zniknie z tabeli dla wszystkich. Rekordy zachowają jej wartości, można ją przywrócić w Kolumnach, a workflow, widok lub wyzwalacz, który nadal jej używa, zatrzyma archiwizację i pojawi się tutaj.",
       "renameTitle": "Zmień nazwę kolumny",
       "renameDescription": "Każdy rekord zachowa swoją wartość: kolumnę rozpoznaje się po identyfikatorze, nie po nazwie.",
       "label": "Nazwa",
@@ -4240,6 +4241,16 @@
         "date": "to nie data w formacie RRRR-MM-DD",
         "datetime": "to nie data i godzina",
         "option": "to nie jedna z opcji kolumny"
+      }
+    },
+    "dependents": {
+      "lead": "Nadal używają jej - najpierw je zmień:",
+      "hidden": "Taki, którego nie możesz otworzyć",
+      "kind": {
+        "workflow": "Workflow",
+        "view": "Zapisany widok",
+        "trigger": "Wyzwalacz w",
+        "other": "Inne"
       }
     }
   },

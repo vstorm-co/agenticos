@@ -294,7 +294,7 @@ async def workflow_table_dependents(
         if hit and await resolve_access(
             db, caller, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
         ):
-            dependents.append(Dependent(kind="workflow", id=workflow.id))
+            dependents.append(Dependent(kind="workflow", id=workflow.id, name=workflow.name))
     return dependents
 
 

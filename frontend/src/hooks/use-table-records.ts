@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { queryRecords } from "@/lib/tables-api";
+import { useTableViewStore } from "@/stores/table-view-store";
 import type { RecordQuery } from "@/types/tables";
 
 /**
@@ -18,8 +19,10 @@ export function useTableRecords(tableId: string | null, query: RecordQuery) {
     placeholderData: (previous) => previous,
   });
 
+  // A record waiting out its delete's undo window is already gone from view.
+  const deleting = useTableViewStore((state) => state.deleting);
   return {
-    records: data?.items ?? [],
+    records: (data?.items ?? []).filter((record) => !deleting[record.id]),
     hasMore: data?.has_more ?? false,
     isLoading,
     isFetching,

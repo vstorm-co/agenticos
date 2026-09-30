@@ -110,10 +110,10 @@ async def test_registered_checkers_are_all_asked_and_their_answers_joined(monkey
     first, second = uuid.uuid4(), uuid.uuid4()
 
     async def views(db, *, organization_id, table_id, column_ids, caller):
-        return [Dependent(kind="view", id=first)]
+        return [Dependent(kind="view", id=first, name="Mine")]
 
     async def flows(db, *, organization_id, table_id, column_ids, caller):
-        return [Dependent(kind="workflow", id=second)]
+        return [Dependent(kind="workflow", id=second, name="Sync")]
 
     assert (
         await find_dependents(
@@ -136,7 +136,7 @@ async def test_registered_checkers_are_all_asked_and_their_answers_joined(monkey
         caller=AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner"),
     )
 
-    assert found == [Dependent("view", first), Dependent("workflow", second)]
+    assert found == [Dependent("view", first, "Mine"), Dependent("workflow", second, "Sync")]
 
 
 def _built(**column) -> ColumnDef:

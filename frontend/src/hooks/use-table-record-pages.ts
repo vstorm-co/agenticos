@@ -3,6 +3,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { countRecords, queryRecords } from "@/lib/tables-api";
+import { useTableViewStore } from "@/stores/table-view-store";
 import type { RecordCountQuery, RecordQuery } from "@/types/tables";
 
 /** The most a query returns at once, and the furthest it may skip (`RecordQuery`'s bounds). */
@@ -33,8 +34,9 @@ export function useTableRecordPages(
   const pages = data?.pages ?? [];
   const last = pages.at(-1);
 
+  const deleting = useTableViewStore((state) => state.deleting);
   return {
-    records: pages.flatMap((page) => page.items),
+    records: pages.flatMap((page) => page.items).filter((record) => !deleting[record.id]),
     isLoading,
     isFetchingNextPage,
     truncated: last !== undefined && last.has_more && !hasNextPage,

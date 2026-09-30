@@ -6331,7 +6331,7 @@
       "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen.",
       "delete": "Datensatz löschen",
       "deleteTitle": "Diesen Datensatz löschen?",
-      "deleteDescription": "Er verschwindet aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für ihn ausgelöst. Das lässt sich nicht rückgängig machen.",
+      "deleteDescription": "Er verschwindet aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für ihn ausgelöst. Ein paar Sekunden lang lässt sich das rückgängig machen.",
       "deleted": "Datensatz gelöscht.",
       "deleteConflict": "Jemand hat diesen Datensatz seit dem Öffnen geändert, daher wurde er behalten. Prüfen Sie ihn und versuchen Sie es erneut."
     },
@@ -6356,14 +6356,15 @@
       "clearSelection": "Aufheben",
       "delete": "Löschen",
       "deleteTitle": "{count, plural, one {# Datensatz löschen?} other {# Datensätze löschen?}}",
-      "deleteDescription": "Gelöschte Datensätze verschwinden aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für jeden ausgelöst. Das lässt sich nicht rückgängig machen.",
+      "deleteDescription": "Gelöschte Datensätze verschwinden aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für jeden ausgelöst. Ein paar Sekunden lang lässt sich das rückgängig machen.",
       "deleted": "{count, plural, one {# Datensatz gelöscht.} other {# Datensätze gelöscht.}}",
       "deleteConflict": "{count, plural, one {# Datensatz wurde seit dem Laden geändert und behalten. Prüfen Sie ihn und versuchen Sie es erneut.} other {# Datensätze wurden seit dem Laden geändert und behalten. Prüfen Sie sie und versuchen Sie es erneut.}}",
       "addColumn": "Spalte hinzufügen",
       "newRecord": "Neuer Datensatz",
       "newRecordLine": "Neuer Datensatz: {column}",
       "newRecordPlaceholder": "Gib {column} ein und drücke Enter, um einen Datensatz hinzuzufügen",
-      "newRecordAdded": "{value} hinzugefügt"
+      "newRecordAdded": "{value} hinzugefügt",
+      "undo": "Rückgängig"
     },
     "filters": {
       "button": "Filter",
@@ -6405,7 +6406,7 @@
       "hide": "In dieser Ansicht ausblenden",
       "archive": "Spalte archivieren",
       "archiveTitle": "{column} archivieren?",
-      "archiveDescription": "Sie verschwindet für alle aus der Tabelle. Datensätze behalten ihre Werte, sie lässt sich unter Spalten wiederherstellen, und eine Ansicht oder ein Trigger, der von ihr abhängt, stoppt die Archivierung und wird genannt.",
+      "archiveDescription": "Sie verschwindet für alle aus der Tabelle. Datensätze behalten ihre Werte, sie lässt sich unter Spalten wiederherstellen, und ein Workflow, eine Ansicht oder ein Trigger, der sie noch verwendet, stoppt die Archivierung und wird hier aufgeführt.",
       "renameTitle": "Spalte umbenennen",
       "renameDescription": "Jeder Datensatz behält seinen Wert: Eine Spalte wird über ihre ID erkannt, nicht über ihren Namen.",
       "label": "Name",
@@ -6447,6 +6448,16 @@
         "date": "kein Datum im Format JJJJ-MM-TT",
         "datetime": "kein Datum mit Uhrzeit",
         "option": "keine der Optionen der Spalte"
+      }
+    },
+    "dependents": {
+      "lead": "Noch verwendet von - ändere diese zuerst:",
+      "hidden": "Eines, das du nicht öffnen kannst",
+      "kind": {
+        "workflow": "Workflow",
+        "view": "Gespeicherte Ansicht",
+        "trigger": "Trigger in",
+        "other": "Sonstiges"
       }
     }
   },

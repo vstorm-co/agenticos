@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Download, Plus, Save, Settings2, Share2, Upload, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { HasMorePager } from "@/components/tables/has-more-pager";
@@ -23,6 +23,7 @@ import { HiddenColumnsPopover } from "@/components/tables/hidden-columns-popover
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { isComplete } from "@/components/tables/record-filters";
 import { RecordFiltersPopover } from "@/components/tables/record-filters-popover";
+import { SchemaDependents } from "@/components/tables/schema-dependents";
 import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
 import { TableGridView } from "@/components/tables/table-grid-view";
 import { TableKanbanView } from "@/components/tables/table-kanban-view";
@@ -230,14 +231,22 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       { expected_version: table.schema_version, columns: next },
       {
         onSuccess: onSaved,
-        onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+        // Only archiving can be refused for what still uses a column, and the
+        // archive dialog lists that in place of a toast that names nothing.
+        onError: (failure) => {
+          if (schemaDependents(failure) === null) toast.error(getErrorMessage(failure, tErrors));
+        },
       },
     );
   const columnActions: ColumnActions = {
     onSort: setSort,
     onRename: setRenaming,
     onHide: (column) => setShown(column.id, false),
-    onArchive: setArchiving,
+    onArchive: (column) => {
+      // A refusal from the last archive belongs to that column, not this one.
+      changeSchema.reset();
+      setArchiving(column);
+    },
   };
 
   return (
@@ -497,7 +506,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 () => setArchiving(null),
               )
             }
-          />
+          >
+            <SchemaDependents error={changeSchema.error} />
+          </ConfirmDialog>
         </>
       )}
 

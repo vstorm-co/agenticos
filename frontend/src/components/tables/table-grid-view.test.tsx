@@ -14,6 +14,8 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { patch: vi.fn(), delete: vi.fn() } };
 });
+const deleteLater = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-deferred-delete", () => ({ useDeferredDelete: () => deleteLater }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const columns: ColumnDef[] = [
@@ -453,8 +455,26 @@ describe("TableGridView", () => {
       expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
     });
 
-    it("deletes the selected records against the revisions on screen", async () => {
-      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    it("moves between cells with the arrow keys, and stays put at an edge", async () => {
+      const user = userEvent.setup();
+      renderEditable({ records: [records[0] as RecordRead, second] });
+      const cells = screen.getAllByRole("button", { name: /^Edit / });
+      const perRow = cells.length / 2;
+
+      cells[0]!.focus();
+      await user.keyboard("{ArrowRight}");
+      expect(cells[1]).toHaveFocus();
+      await user.keyboard("{ArrowDown}");
+      expect(cells[perRow + 1]).toHaveFocus();
+      await user.keyboard("{ArrowLeft}{ArrowUp}");
+      expect(cells[0]).toHaveFocus();
+      await user.keyboard("{ArrowUp}{ArrowLeft}");
+      expect(cells[0]).toHaveFocus();
+      await user.keyboard("a");
+      expect(cells[0]).toHaveFocus();
+    });
+
+    it("hands the selected records to the undoable delete, and clears them", async () => {
       const user = userEvent.setup();
       renderEditable({ records: [records[0] as RecordRead, second] });
 
@@ -462,44 +482,9 @@ describe("TableGridView", () => {
       await user.click(screen.getByRole("button", { name: "Delete" }));
       await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
 
-      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 records deleted."));
-      expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=1");
-      expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r2?expected_revision=1");
+      expect(deleteLater).toHaveBeenCalledWith([records[0], second]);
       expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
-    });
-
-    it("keeps a record that changed meanwhile selected, and says so", async () => {
-      vi.mocked(apiClient.delete)
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(conflict409());
-      const user = userEvent.setup();
-      renderEditable({ records: [records[0] as RecordRead, second] });
-
-      await user.click(screen.getByRole("checkbox", { name: "Select every row on this page" }));
-      await user.click(screen.getByRole("button", { name: "Delete" }));
-      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
-
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith(
-          "1 record changed since you loaded it and was kept. Check it and try again.",
-        ),
-      );
-      expect(toast.success).toHaveBeenCalledWith("1 record deleted.");
-      expect(screen.getByText("1 selected")).toBeInTheDocument();
-    });
-
-    it("says nothing succeeded when every delete failed for another reason", async () => {
-      vi.mocked(apiClient.delete).mockRejectedValueOnce(new ApiError(500, "boom", null));
-      const user = userEvent.setup();
-      renderEditable();
-
-      await user.click(screen.getByRole("checkbox", { name: "Select row" }));
-      await user.click(screen.getByRole("button", { name: "Delete" }));
-      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
-
-      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-      expect(toast.success).not.toHaveBeenCalled();
-      expect(screen.getByText("1 selected")).toBeInTheDocument();
+      expect(apiClient.delete).not.toHaveBeenCalled();
     });
 
     it("puts a menu on each header in place of the sort button, and a + after the last", async () => {

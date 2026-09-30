@@ -97,7 +97,7 @@ async def table_view_dependents(
         db, organization_id=organization_id, table_id=table_id, user_id=caller.subject_id
     )
     return [
-        Dependent(kind="table_view", id=view.id)
+        Dependent(kind="table_view", id=view.id, name=view.name)
         for view in views
         if _may_manage(caller, view) and _referenced_column_ids(view.config) & column_ids
     ]

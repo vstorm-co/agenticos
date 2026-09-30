@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui";
+import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
@@ -82,7 +83,8 @@ export function RecordDetailSheet({
 }) {
   const t = useTranslations("tables.sheet");
   const tErrors = useTranslations("errors");
-  const { commit, fetchRecord, remove } = useRecordMutation(tableId);
+  const { commit, fetchRecord } = useRecordMutation(tableId);
+  const deleteLater = useDeferredDelete(tableId);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const conflicts = useTableViewStore((state) => state.conflicts);
   const setConflict = useTableViewStore((state) => state.setConflict);
@@ -198,23 +200,12 @@ export function RecordDetailSheet({
   }
 
   /**
-   * Delete the open record against the revision on screen, so a record someone
-   * changed meanwhile is refused rather than deleted unseen.
+   * Delete the open record, with a few seconds to undo: sent against the
+   * revision on screen, so a record someone changed meanwhile is kept.
    */
-  async function deleteRecord(targetRecord: RecordRead) {
-    try {
-      await remove.mutateAsync({
-        recordId: targetRecord.id,
-        expectedRevision: targetRecord.revision,
-      });
-    } catch (error) {
-      // Anything but a conflict was already toasted by `useRecordMutation`.
-      if (isRevisionConflict(error)) toast.error(t("deleteConflict"));
-      return;
-    } finally {
-      setConfirmingDelete(false);
-    }
-    toast.success(t("deleted"));
+  function deleteRecord(targetRecord: RecordRead) {
+    setConfirmingDelete(false);
+    deleteLater([targetRecord]);
     onOpenChange(false);
   }
 
@@ -302,7 +293,6 @@ export function RecordDetailSheet({
                 description={t("deleteDescription")}
                 confirmLabel={t("delete")}
                 destructive
-                loading={remove.isPending}
                 onConfirm={() => deleteRecord(record)}
               />
             </div>

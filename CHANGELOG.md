@@ -348,6 +348,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Archiving a column says what still uses it.** A refused archive, from the
+  header menu or the Columns dialog, lists the workflows (linked), saved views
+  and triggers that use the column instead of a notice naming nothing - #1963
+  asked for it. `SCHEMA_DEPENDENCY` now gives each dependent's `name`, null for
+  a trigger in a workflow the caller cannot open.
+- **Arrow keys move between a table's cells.** #1959 asked for it; the grid
+  edited a cell in place but only the mouse or Tab moved between them.
+- **A record delete can be undone.** Deleting from the grid or the record panel
+  waits a few seconds with Undo in its notice before it is sent, the records
+  leaving every view at once - #1960 asked for it and it was missing.
 - **A table's grid adds records as you type.** The new-record line under the
   rows, which #1958 asked for, was missing: what is typed goes into the first
   text column and Enter creates the record, or opens Add record with it when

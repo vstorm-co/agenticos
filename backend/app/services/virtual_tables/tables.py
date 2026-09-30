@@ -324,5 +324,8 @@ class TableOperations(Operations):
         )
         if dependents:
             raise SchemaDependencyError(
-                [{"kind": dependent.kind, "id": dependent.id} for dependent in dependents]
+                [
+                    {"kind": dependent.kind, "id": dependent.id, "name": dependent.name}
+                    for dependent in dependents
+                ]
             )

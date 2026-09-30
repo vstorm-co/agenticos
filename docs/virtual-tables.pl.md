@@ -1,5 +1,5 @@
 ---
-source_sha: "d41654f9946d"
+source_sha: "8989c4031891"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -90,11 +90,17 @@ więc rekord nigdy nie trafia do tabeli zarchiwizowanej chwilę wcześniej.
 
 Archiwizacja kolumny lub całej tabeli najpierw pyta każdy zarejestrowany checker
 zależności, czy coś, co wywołujący może zarówno zobaczyć, jak i zmienić, jeszcze z
-niej korzysta. Dziś
-zarejestrowane są zapisane widoki (zobacz [Zapisane widoki](#saved-views));
-workflow i triggery zarejestrują swoje w `app/services/virtual_tables/dependencies.py`.
-Odmowa wymienia zależności w `SCHEMA_DEPENDENCY`. Każda inna zależność nigdy nie jest
-wymieniana i nigdy nie blokuje wywołującego: jej funkcja sama radzi sobie ze zmianą.
+niej korzysta. Zapisane widoki (zobacz [Zapisane widoki](#saved-views)) i workflow,
+które czytają lub zapisują tabelę, rejestrują swoje w
+`app/services/virtual_tables/dependencies.py`, podobnie wyzwalacze tabeli, które
+blokują każdego, kto archiwizuje: wyzwalacz filtrujący po kolumnie, której już nie ma,
+wróciłby zepsuty.
+
+Odmowa wymienia każdą zależność w `SCHEMA_DEPENDENCY` z jej `kind`,
+`id` i `name`, a `name` jest null dla wyzwalacza w workflow, którego wywołujący nie
+może otworzyć. Konsola pokazuje je w dialogu, który pytał, workflow jako link do
+niego. Każda inna zależność nigdy nie jest wymieniana i nigdy nie blokuje
+wywołującego: jej funkcja sama radzi sobie ze zmianą.
 
 ## Rekordy i revisions { #records-and-revisions }
 
@@ -136,7 +142,8 @@ Kolumna wymagana i bez wartości domyślnej jest oznaczona `*` i trzeba ją wype
 zanim rekord zostanie zapisany; każda inna pusta kolumna przyjmuje wartość domyślną.
 Kliknięcie komórki edytuje ją w miejscu: Enter lub kliknięcie obok zapisuje, Escape
 zostawia ją bez zmian, a pole tak/nie, które nie może być puste, przełącza się jednym
-kliknięciem. Przycisk rozwinięcia na końcu wiersza otwiera cały rekord.
+kliknięciem. Strzałki przenoszą między komórkami, a przycisk rozwinięcia na końcu
+wiersza otwiera cały rekord.
 
 Linia pod siatką dodaje rekordy podczas pisania: to, co wpiszesz, trafia do pierwszej
 kolumny tekstowej, a Enter tworzy rekord i zostawia linię gotową na następny. Tabela z
@@ -148,15 +155,20 @@ przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord o
 wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
-rekordu usuwa pojedynczy rekord w ten sam sposób. Członek, który może tylko oglądać
+rekordu usuwa pojedynczy rekord w ten sam sposób.
+
+Usunięcie czeka kilka sekund z
+**Undo** w komunikacie, zanim zostanie wysłane; rekordy od razu znikają ze wszystkich
+widoków, a Undo przywraca je nietknięte. Członek, który może tylko oglądać
 tabelę, widzi tę samą siatkę tylko do odczytu, a kliknięcie wiersza otwiera rekord.
 
 Członkowi, który może edytować tabelę, nagłówek kolumny otwiera menu. **Sort ascending**
 i **Sort descending** sortują siatkę według niej, a **Hide in this view** zdejmuje ją z
 ekranu, dopóki przycisk ukrytych kolumn nie pokaże jej z powrotem; **Save view**
 zapisuje jedno i drugie. **Rename** i **Archive column** zmieniają tabelę dla wszystkich,
-każda jako ta sama nowa wersja schematu, którą zapisałby dialog Columns, a archiwizacja,
-od której zależy widok lub wyzwalacz, zostaje odrzucona z jego nazwą. **+** za ostatnią
+każda jako ta sama nowa wersja schematu, którą zapisałby dialog Columns, a archiwizacja
+czegoś, co jest jeszcze używane, zostaje odrzucona, a workflow, widoki i wyzwalacze
+pojawiają się w dialogu. **+** za ostatnią
 kolumną dodaje nową, na początek opcjonalną. Typ kolumny nigdy się nie zmienia.
 
 ### Import i eksport { #import-and-export }

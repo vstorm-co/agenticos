@@ -805,6 +805,43 @@ describe("the table detail page", () => {
       expect(screen.queryByText("Archive Customer?")).not.toBeInTheDocument();
     });
 
+    it("lists what still uses a column in the archive dialog, not in a toast", async () => {
+      serve();
+      vi.mocked(apiClient.put).mockRejectedValueOnce(
+        new ApiError(409, "Other resources depend on this and must be changed first", {
+          error: {
+            code: "SCHEMA_DEPENDENCY",
+            message: "Other resources depend on this and must be changed first",
+            details: {
+              dependents: [
+                { kind: "workflow", id: "w1", name: "Nightly sync" },
+                { kind: "table_view", id: "v1", name: "Open orders" },
+              ],
+            },
+          },
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "archive-c2" }));
+      await user.click(screen.getByRole("button", { name: "Archive column" }));
+
+      expect(await screen.findByRole("link", { name: "Nightly sync" })).toHaveAttribute(
+        "href",
+        "/workflows/w1",
+      );
+      expect(screen.getByText("Open orders")).toBeInTheDocument();
+      expect(toast.error).not.toHaveBeenCalled();
+
+      // Reopened on another column, the last column's refusal is gone.
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      await user.click(screen.getByRole("button", { name: "archive-c1" }));
+      expect(screen.getByText("Archive Customer?")).toBeInTheDocument();
+      expect(screen.queryByText("Nightly sync")).not.toBeInTheDocument();
+    });
+
     it("hides a column on this screen, shows it back, and adds one that shows", async () => {
       serve();
       const withRegion = table();

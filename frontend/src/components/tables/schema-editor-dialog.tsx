@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
-import { fieldProblems, getErrorMessage } from "@/lib/api-error";
+import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
+import { SchemaDependents } from "./schema-dependents";
 import { COLUMN_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 
@@ -116,12 +117,14 @@ export function SchemaEditorDialog({
   function problemFor(index: number, field: string): string | undefined {
     return problems.find((problem) => problem.field === `columns.${index}.${field}`)?.message;
   }
-  // A schema-version conflict or a dependency refusal names no field at all
-  // (`details.current_version`, `details.dependents`), so `problems` is empty
-  // for them even though the save failed - without this, Save would appear to
-  // do nothing for either.
+  // A schema-version conflict names no field at all (`details.current_version`),
+  // so `problems` is empty for it even though the save failed - without this,
+  // Save would appear to do nothing. A dependency refusal lists what to change
+  // instead (`SchemaDependents`).
   const generalError =
-    error != null && problems.length === 0 ? getErrorMessage(error, tErrors) : null;
+    error != null && problems.length === 0 && schemaDependents(error) === null
+      ? getErrorMessage(error, tErrors)
+      : null;
 
   function updateRow(key: string, patch: Partial<Row>) {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -316,6 +319,7 @@ export function SchemaEditorDialog({
           </Button>
         </div>
         {generalError && <p className="text-destructive text-sm">{generalError}</p>}
+        <SchemaDependents error={error} />
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

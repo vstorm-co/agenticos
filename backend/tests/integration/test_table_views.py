@@ -370,7 +370,7 @@ async def test_archiving_a_column_a_view_still_uses_is_refused(db):
             ),
         )
     dependents = raised.value.details["dependents"]
-    assert {item["kind"] for item in dependents} == {"table_view"}
+    assert [(item["kind"], item["name"]) for item in dependents] == [("table_view", "Board")]
 
 
 async def test_archiving_a_column_no_view_uses_is_not_refused(db):

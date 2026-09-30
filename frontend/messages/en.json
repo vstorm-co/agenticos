@@ -6472,7 +6472,7 @@
       "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it.",
       "delete": "Delete record",
       "deleteTitle": "Delete this record?",
-      "deleteDescription": "It leaves every view, and a table trigger watching deletions fires for it. This cannot be undone.",
+      "deleteDescription": "It leaves every view, and a table trigger watching deletions fires for it. You can undo it for a few seconds.",
       "deleted": "Record deleted.",
       "deleteConflict": "Someone changed this record since you opened it, so it was kept. Check it and try again."
     },
@@ -6497,14 +6497,15 @@
       "clearSelection": "Clear",
       "delete": "Delete",
       "deleteTitle": "{count, plural, one {Delete # record?} other {Delete # records?}}",
-      "deleteDescription": "Deleted records leave every view, and a table trigger watching deletions fires for each. This cannot be undone.",
+      "deleteDescription": "Deleted records leave every view, and a table trigger watching deletions fires for each. You can undo it for a few seconds.",
       "deleted": "{count, plural, one {# record deleted.} other {# records deleted.}}",
       "deleteConflict": "{count, plural, one {# record changed since you loaded it and was kept. Check it and try again.} other {# records changed since you loaded them and were kept. Check them and try again.}}",
       "addColumn": "Add column",
       "newRecord": "New record",
       "newRecordLine": "New record: {column}",
       "newRecordPlaceholder": "Type a {column} and press Enter to add a record",
-      "newRecordAdded": "Added {value}"
+      "newRecordAdded": "Added {value}",
+      "undo": "Undo"
     },
     "filters": {
       "button": "Filter",
@@ -6546,7 +6547,7 @@
       "hide": "Hide in this view",
       "archive": "Archive column",
       "archiveTitle": "Archive {column}?",
-      "archiveDescription": "It leaves the table for everyone. Records keep its values, it can be restored from Columns, and a view or trigger that depends on it stops the archive and is named.",
+      "archiveDescription": "It leaves the table for everyone. Records keep its values, it can be restored from Columns, and a workflow, view or trigger that still uses it stops the archive and is listed here.",
       "renameTitle": "Rename column",
       "renameDescription": "Every record keeps its value: a column is matched by its id, not its name.",
       "label": "Name",
@@ -6588,6 +6589,16 @@
         "date": "not a date written YYYY-MM-DD",
         "datetime": "not a date and time",
         "option": "not one of the column's options"
+      }
+    },
+    "dependents": {
+      "lead": "Still used by these - change them first:",
+      "hidden": "One you cannot open",
+      "kind": {
+        "workflow": "Workflow",
+        "view": "Saved view",
+        "trigger": "Trigger in",
+        "other": "Other"
       }
     }
   },

@@ -539,7 +539,9 @@ async def test_a_table_a_live_workflow_writes_to_cannot_be_archived(engine: Asyn
     with pytest.raises(SchemaDependencyError) as blocked:
         async with async_sessionmaker(engine)() as db:
             await VirtualTableService(db).archive_table(ctx, table.id)
-    assert str(workflow.id) in str(blocked.value.details)
+    assert blocked.value.details["dependents"] == [
+        {"kind": "workflow", "id": workflow.id, "name": workflow.name}
+    ]
 
     async with async_sessionmaker(engine)() as db:
         await db.execute(

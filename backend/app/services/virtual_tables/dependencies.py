@@ -7,7 +7,7 @@ reads is refused instead of silently breaking it:
 ```python
 async def workflow_dependents(db, *, organization_id, table_id, column_ids, caller):
     ...
-    return [Dependent(kind="workflow", id=workflow.id)]
+    return [Dependent(kind="workflow", id=workflow.id, name=workflow.name)]
 
 register_dependency_checker(workflow_dependents)
 ```
@@ -31,10 +31,16 @@ from app.core.permissions import AuthContext
 
 @dataclass(frozen=True)
 class Dependent:
-    """One thing that names the table or a column of it."""
+    """One thing that names the table or a column of it.
+
+    `name` is what the console shows so the caller knows what to change first;
+    `None` when the caller may not see the thing itself (a trigger in a workflow
+    they cannot open still blocks the change, but is not named to them).
+    """
 
     kind: str
     id: UUID
+    name: str | None
 
 
 class DependencyChecker(Protocol):

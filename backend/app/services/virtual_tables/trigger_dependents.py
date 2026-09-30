@@ -12,8 +12,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.repositories import virtual_table_trigger as trigger_repo
+from app.repositories import workflow as workflow_repo
+from app.services.access import WORKFLOW, resolve_access
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 
 
@@ -30,7 +32,8 @@ async def table_trigger_dependents(
 
     Archiving the whole table is not refused: its triggers fire on nothing once
     it takes no writes. A trigger is fixed in its workflow - the trigger node's
-    filters, then a publish - and is named here so the caller knows which.
+    filters, then a publish - and is named after that workflow, to a caller
+    who may open it, so they know which one to change.
     """
     if column_ids is None:
         return []
@@ -41,7 +44,15 @@ async def table_trigger_dependents(
     ):
         filtered = {str(item.get("column_id")) for item in trigger.filters}
         if named & filtered:
-            found.append(Dependent(kind="table_trigger", id=trigger.id))
+            workflow = await workflow_repo.get(
+                db, trigger.workflow_id, organization_id=organization_id
+            )
+            name = None
+            if workflow is not None and await resolve_access(
+                db, caller, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+            ):
+                name = workflow.name
+            found.append(Dependent(kind="table_trigger", id=trigger.id, name=name))
     return found
 
 
