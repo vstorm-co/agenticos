@@ -3922,7 +3922,26 @@
     "nodeFormMapValue": "Wartość {index}",
     "nodeFormMapNamePlaceholder": "Nazwa",
     "nodeFormMapValuePlaceholder": "Wartość",
-    "pickerSecretNew": "Nowy sekret"
+    "pickerSecretNew": "Nowy sekret",
+    "curlImport": "Importuj cURL",
+    "curlTitle": "Importuj polecenie cURL",
+    "curlDescription": "Wklej polecenie z dokumentacji API. Jego metoda, URL, nagłówki i treść JSON wypełnią ten krok.",
+    "curlCommand": "Polecenie cURL",
+    "curlImportAction": "Importuj",
+    "curlCancel": "Anuluj",
+    "curlNotNow": "Nie teraz",
+    "curlImported": "Polecenie zostało zaimportowane do tego kroku.",
+    "curlDroppedBody": "Treść polecenia nie jest JSON-em, więc została pominięta.",
+    "curlCredential": "Polecenie zawierało dane uwierzytelniające ({kind}). Nie zostały zapisane w kroku: zapisz je w vault, a krok wyśle je stamtąd.",
+    "curlCredentialNoRight": "Polecenie zawierało dane uwierzytelniające ({kind}). Nie zostały zapisane w kroku. Poproś osobę, która może zapisywać sekrety, o dodanie ich do vault.",
+    "curlStore": "Zapisz w vault",
+    "curlSecretName": "Token {host}",
+    "curlProblem": {
+      "notCurl": "To nie zaczyna się od curl.",
+      "noUrl": "Polecenie nie ma adresu http ani https.",
+      "badMethod": "Krok HTTP wysyła GET, POST, PUT, PATCH albo DELETE.",
+      "unclosedQuote": "Cudzysłów w poleceniu nie został zamknięty."
+    }
   },
   "artifacts": {
     "title": "Artefakty",

@@ -6270,7 +6270,26 @@
     "nodeFormMapValue": "Value {index}",
     "nodeFormMapNamePlaceholder": "Name",
     "nodeFormMapValuePlaceholder": "Value",
-    "pickerSecretNew": "New secret"
+    "pickerSecretNew": "New secret",
+    "curlImport": "Import cURL",
+    "curlTitle": "Import a cURL command",
+    "curlDescription": "Paste a command from an API's docs. Its method, URL, headers and JSON body fill this step.",
+    "curlCommand": "cURL command",
+    "curlImportAction": "Import",
+    "curlCancel": "Cancel",
+    "curlNotNow": "Not now",
+    "curlImported": "The command was imported into this step.",
+    "curlDroppedBody": "The command's body is not JSON, so it was left out.",
+    "curlCredential": "The command carried a credential ({kind}). It was not kept in the step: store it in the vault, and the step sends it from there.",
+    "curlCredentialNoRight": "The command carried a credential ({kind}). It was not kept in the step. Ask someone who may store secrets to add it to the vault.",
+    "curlStore": "Store in the vault",
+    "curlSecretName": "{host} token",
+    "curlProblem": {
+      "notCurl": "This does not start with curl.",
+      "noUrl": "The command has no http or https URL.",
+      "badMethod": "An HTTP step sends GET, POST, PUT, PATCH or DELETE.",
+      "unclosedQuote": "A quote in the command is never closed."
+    }
   },
   "artifacts": {
     "title": "Artifacts",

@@ -1,5 +1,5 @@
 ---
-source_sha: "69cfd78ba18c"
+source_sha: "cc0f1a92f341"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -368,6 +368,21 @@ aus dem Vault und wird nur an die Origins gesendet, die das Secret erlaubt. Die
 Antwort wird innerhalb von `max_response_bytes` gelesen und ohne `Set-Cookie`,
 die Authentifizierungs-Header und das Token zurückgegeben.
 
+Die Zugangsdaten gehen als Bearer-Token, Basic-Authentifizierung, ein Header mit
+einem Namen deiner Wahl oder, mit `query`, ein URL-Parameter mit einem Namen deiner
+Wahl. **Import cURL** im Editor liest einen aus der Doku einer API eingefügten
+Befehl in Methode, URL, Header und JSON-Body ein. Zugangsdaten im Befehl bleiben nie
+im Schritt: Der Schritt wird so eingestellt, dass er sie genauso sendet, und das
+Vault-Formular öffnet sich mit ihnen ausgefüllt.
+
+Ein `GET` kann mit `pagination` seitenweise durch eine Liste gehen: einer nächsten
+URL folgen, die die Antwort nennt, einen Cursor zurücksenden oder einen
+Seitenparameter hochzählen. Die `items_path`-Elemente jeder Seite werden der Reihe
+nach in `items` gesammelt. Das Blättern endet, wenn es keine nächste Seite gibt,
+wenn eine Seite keine Elemente hat, oder bei `max_pages`, wobei `complete` dann
+falsch ist. Alle Seiten zusammen lesen nicht mehr als `max_response_bytes`, und eine
+nächste Seite auf einem anderen Origin bekommt keine Zugangsdaten.
+
 | Was passiert ist | Ergebnis |
 |---|---|
 | Die URL ist privat, Loopback, Metadata oder nicht http(s) | `URL_REFUSED`, nichts gesendet |
@@ -377,12 +392,15 @@ die Authentifizierungs-Header und das Token zurückgegeben.
 | Gesendet, keine Antwort, jeder andere Schreibzugriff | Unsicher: Der Run hält für einen Menschen an |
 | Nicht 2xx | `HTTP_ERROR_STATUS` oder die Antwort als Ausgabe mit `on_error_status: complete` |
 | Größer als das Limit | `RESPONSE_TOO_LARGE` |
+| `items_path` einer Seite findet etwas, das keine Liste ist | `PAGE_ITEMS_NOT_A_LIST` |
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestConfig
 
 ::: app.workflows.nodes.http_request._handler.HttpAuth
 
-::: app.workflows.nodes.http_request._handler.HttpResponseOutput
+::: app.workflows.nodes.http_request._handler.HttpPagination
+
+::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
 ## notification.send { #notification-send }
 

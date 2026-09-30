@@ -1,5 +1,5 @@
 ---
-source_sha: "69cfd78ba18c"
+source_sha: "cc0f1a92f341"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -350,6 +350,21 @@ tylko do originów, na które pozwala sekret. Odpowiedź jest czytana w granicy
 `max_response_bytes` i oddawana bez `Set-Cookie`, nagłówków uwierzytelniania i
 samego tokena.
 
+Dane uwierzytelniające idą jako token bearer, uwierzytelnianie Basic, nagłówek o
+podanej nazwie albo, z `query`, parametr URL o podanej nazwie. **Import cURL** w
+edytorze wczytuje polecenie wklejone z dokumentacji API do metody, URL-a,
+nagłówków i treści JSON. Dane uwierzytelniające z polecenia nigdy nie zostają w
+kroku: krok zostaje ustawiony, by wysyłał je tak samo, a formularz vault otwiera
+się z nimi wypełniony.
+
+`GET` może przechodzić listę stronami dzięki `pagination`: idąc za następnym URL-em,
+który podaje odpowiedź, odsyłając kursor albo zwiększając parametr strony.
+Elementy `items_path` każdej strony zbierane są do `items`, po kolei.
+Stronicowanie kończy się, gdy nie ma następnej strony, gdy strona nie ma
+elementów, albo na `max_pages`, kiedy `complete` jest fałszem. Wszystkie strony
+razem czytają nie więcej niż `max_response_bytes`, a następna strona na innym
+originie nie dostaje danych uwierzytelniających.
+
 | Co się stało | Wynik |
 |---|---|
 | URL prywatny, loopback, metadata albo nie http(s) | `URL_REFUSED`, nic nie wysłano |
@@ -359,12 +374,15 @@ samego tokena.
 | Wysłane, brak odpowiedzi, inny zapis | Niepewne: run zatrzymuje się dla człowieka |
 | Status inny niż 2xx | `HTTP_ERROR_STATUS` albo odpowiedź jako wyjście przy `on_error_status: complete` |
 | Większa niż limit | `RESPONSE_TOO_LARGE` |
+| `items_path` strony znajduje coś, co nie jest listą | `PAGE_ITEMS_NOT_A_LIST` |
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestConfig
 
 ::: app.workflows.nodes.http_request._handler.HttpAuth
 
-::: app.workflows.nodes.http_request._handler.HttpResponseOutput
+::: app.workflows.nodes.http_request._handler.HttpPagination
+
+::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
 ## notification.send { #notification-send }
 

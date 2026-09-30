@@ -129,6 +129,22 @@ const STORED: Secret = {
 };
 
 describe("AddSecretDialog with the kind fixed", () => {
+  it("starts from what the caller hands it", () => {
+    render(
+      <AddSecretDialog
+        open
+        onOpenChange={vi.fn()}
+        kinds={KINDS}
+        kind="api_key"
+        initial={{ name: "CRM token", value: { api_key: "k-1" } }}
+        onSubmit={vi.fn()}
+        isPending={false}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("CRM token");
+    expect(screen.getByLabelText(/Api Key/, { selector: "input" })).toHaveValue("k-1");
+  });
+
   it("asks no service, and stores the field's kind as custom", async () => {
     const onSubmit = vi.fn().mockResolvedValue({});
     render(

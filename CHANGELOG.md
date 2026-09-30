@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Import cURL, query authentication and paging on the HTTP request step.**
+  A pasted cURL fills the method, URL, headers and JSON body; a credential in
+  it is lifted out and offered to the vault, never kept in the step. A token can
+  go in a URL parameter, on every HTTP step. A `GET` pages by next URL, cursor or
+  page number, collecting each page's items, and stops at `max_pages` (#1951).
 - **A new secret from a workflow step.** A step's secret field offers New
   secret: the vault's form fixed to the kind the field takes, choosing the new
   secret on save, so an HTTP credential or a decision key is added without

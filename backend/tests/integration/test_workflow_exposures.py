@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
@@ -992,9 +993,12 @@ class TestAnsweringTheSender:
         again = await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
 
         assert answer == again == WebhookAnswer(status_code=201, headers={}, body={"lead": 2})
+        # The sender is answered at the first step; the run goes on to the second.
         (run,) = await _runs(db)
-        await db.refresh(run)
-        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        with anyio.fail_after(30):
+            while run.status != WorkflowRunStatus.SUCCEEDED.value:
+                await anyio.sleep(0.1)
+                await db.refresh(run)
         assert run.webhook_response == {"status_code": 201, "headers": {}, "body": {"lead": 2}}
 
     async def test_a_run_that_fails_before_answering_says_so(

@@ -10,7 +10,7 @@ anything else comes back as text.
 | Port | Kind | Schema | What it carries |
 |---|---|---|---|
 | `in` | input | none | control flow; `body` (and, optionally, `url`) is bound |
-| `out` | output | `HttpResponseOutput` | `status_code`, `headers`, `body` |
+| `out` | output | `HttpRequestOutput` | `status_code`, `headers`, `body`; with paging, `items`, `pages`, `complete` |
 
 ## What it will not reach
 
@@ -25,8 +25,9 @@ redirects, at most five. Other methods return the `3xx` as their answer.
 A credential is an **HTTP credential** from the vault: a token sealed together
 with the origins it may be sent to, such as `https://api.example.com`. The
 config names the secret, never a value. `auth.kind` decides how the token is
-sent: `bearer`, `basic` (with the secret's username), or `header` (in
-`auth.header_name`).
+sent: `bearer`, `basic` (with the secret's username), `header` (in
+`auth.header_name`) or `query` (in the URL parameter `auth.query_name`, added
+only on a URL the secret allows).
 
 The origin is checked on the URL the step is about to call, after binding, so
 a URL taken from a run's input cannot aim the credential elsewhere. A URL
@@ -38,6 +39,18 @@ the graph's author cannot use, and each run checks it again.
 Nothing sent comes back out: `Set-Cookie` and the authentication headers are
 dropped from the output, and the token is replaced with `[redacted]` wherever
 the response echoes it.
+
+## Paging
+
+A `GET` with `pagination` fetches page after page: `next_url` follows the URL
+`next_path` finds in each body, `cursor` sends back what `next_path` finds in
+the `param` query parameter, and `page` counts `param` up from `first_page`.
+What `items_path` finds on each page is collected into `items`; a page with none
+ends it, and so does `max_pages` (at most 100), which leaves `complete` false.
+Each page is dialled like the first - the SSRF check, redirects, the credential
+only where its secret allows - and all of them together read at most
+`max_response_bytes`. `items_path` finding something that is not a list fails
+with `PAGE_ITEMS_NOT_A_LIST`.
 
 ## Limits
 

@@ -12,7 +12,7 @@ import base64
 import json
 import re
 from typing import Any, Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 import httpx2
@@ -36,6 +36,8 @@ REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 HEADER_NAME = r"^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$"
 
+QUERY_NAME = r"^[A-Za-z0-9_.~-]{1,64}$"
+
 # Headers the transport or the auth block owns. A configured one of these could
 # smuggle a second credential past the origin check, or corrupt the request.
 RESERVED_HEADERS = frozenset(
@@ -56,7 +58,7 @@ class HttpAuth(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Literal["none", "bearer", "header", "basic"] = "none"
+    kind: Literal["none", "bearer", "header", "basic", "query"] = "none"
     secret_id: UUID | None = Field(
         default=None,
         json_schema_extra={"x-resource": "secret", "x-secret-kind": "http_credential"},
@@ -67,9 +69,16 @@ class HttpAuth(BaseModel):
         pattern=HEADER_NAME,
         description="For `header`: the header the token is sent in, e.g. X-Api-Key.",
     )
+    query_name: str | None = Field(
+        default=None,
+        pattern=QUERY_NAME,
+        description="For `query`: the URL parameter the token is sent in, e.g. api_key.",
+    )
 
     @model_validator(mode="after")
     def _consistent(self) -> HttpAuth:
+        if self.query_name is not None and self.kind != "query":
+            raise ValueError("Only query authentication names a URL parameter")
         if self.kind == "none":
             if self.secret_id is not None or self.header_name is not None:
                 raise ValueError("Without authentication, name no secret and no header")
@@ -78,6 +87,8 @@ class HttpAuth(BaseModel):
             raise ValueError("Choose the credential to send")
         if self.kind == "header" and self.header_name is None:
             raise ValueError("Name the header the token is sent in")
+        if self.kind == "query" and self.query_name is None:
+            raise ValueError("Name the URL parameter the token is sent in")
         if self.header_name is not None and self.header_name.lower() in RESERVED_HEADERS:
             raise ValueError(f"{self.header_name} cannot carry a credential here")
         return self
@@ -146,12 +157,31 @@ async def auth_problems(
 
 def auth_headers(auth: HttpAuth, secret: HttpCredentialSecret) -> dict[str, str]:
     token = secret.token.get_secret_value()
+    if auth.kind == "query":
+        return {}
     if auth.kind == "bearer":
         return {"Authorization": f"Bearer {token}"}
     if auth.kind == "basic":
         pair = f"{secret.username or ''}:{token}".encode()
         return {"Authorization": f"Basic {base64.b64encode(pair).decode()}"}
     return {str(auth.header_name): token}
+
+
+def with_query(url: str, name: str, value: str) -> str:
+    """`url` with its `name` parameter set to `value`, replacing any it had."""
+    parts = urlsplit(url)
+    kept = [
+        (key, item) for key, item in parse_qsl(parts.query, keep_blank_values=True) if key != name
+    ]
+    return urlunsplit(parts._replace(query=urlencode([*kept, (name, value)])))
+
+
+def authorized_url(auth: HttpAuth, secret: HttpCredentialSecret | None, url: str) -> str:
+    """The URL to dial: with the token in its parameter for `query` authentication,
+    and only where the secret may go - a hop to any other origin goes without it."""
+    if secret is None or auth.kind != "query" or not secret.allows(url):
+        return url
+    return with_query(url, str(auth.query_name), secret.token.get_secret_value())
 
 
 async def credential(auth: HttpAuth, url: str) -> HttpCredentialSecret | Failed | None:
@@ -208,7 +238,8 @@ def _scrub(text: str, secret: HttpCredentialSecret | None) -> str:
         return text
     token = secret.token.get_secret_value()
     pair = base64.b64encode(f"{secret.username or ''}:{token}".encode()).decode()
-    for form in (pair, token):
+    # And as a URL parameter carries it, for a far side echoing the URL it was called at.
+    for form in (pair, quote(token, safe=""), token):
         text = text.replace(form, "[redacted]")
     return text
 

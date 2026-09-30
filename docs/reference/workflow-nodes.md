@@ -341,6 +341,19 @@ sent only to the origins the secret allows. The response is read under
 `max_response_bytes` and handed back without `Set-Cookie`, the authentication
 headers or the token.
 
+The credential goes as a bearer token, Basic authentication, a header you name
+or, with `query`, a URL parameter you name. **Import cURL** in the editor reads a
+command pasted from an API's docs into the method, URL, headers and JSON body. A
+credential in the command is never kept in the step: the step is set to send it
+the same way, and the vault form opens with it filled in.
+
+A `GET` can page through a list with `pagination`: following a next URL the
+response names, sending back a cursor, or counting a page parameter up. Each
+page's `items_path` items are collected into `items`, in order. Paging stops when
+there is no next page, when a page has no items, or at `max_pages`, when
+`complete` is false. Every page together reads no more than
+`max_response_bytes`, and a next page on another origin gets no credential.
+
 | What happened | Result |
 |---|---|
 | The URL is private, loopback, metadata or not http(s) | `URL_REFUSED`, nothing sent |
@@ -350,12 +363,15 @@ headers or the token.
 | Sent, no answer, any other write | Uncertain: the run stops for a person |
 | Non-2xx | `HTTP_ERROR_STATUS`, or the response as output with `on_error_status: complete` |
 | Larger than the limit | `RESPONSE_TOO_LARGE` |
+| A page's `items_path` finds something that is not a list | `PAGE_ITEMS_NOT_A_LIST` |
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestConfig
 
 ::: app.workflows.nodes.http_request._handler.HttpAuth
 
-::: app.workflows.nodes.http_request._handler.HttpResponseOutput
+::: app.workflows.nodes.http_request._handler.HttpPagination
+
+::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
 ## notification.send { #notification-send }
 

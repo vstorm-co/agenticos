@@ -6129,7 +6129,26 @@
     "nodeFormMapValue": "Wert {index}",
     "nodeFormMapNamePlaceholder": "Name",
     "nodeFormMapValuePlaceholder": "Wert",
-    "pickerSecretNew": "Neues Secret"
+    "pickerSecretNew": "Neues Secret",
+    "curlImport": "cURL importieren",
+    "curlTitle": "Einen cURL-Befehl importieren",
+    "curlDescription": "Füge einen Befehl aus der Doku einer API ein. Methode, URL, Header und JSON-Body füllen diesen Schritt.",
+    "curlCommand": "cURL-Befehl",
+    "curlImportAction": "Importieren",
+    "curlCancel": "Abbrechen",
+    "curlNotNow": "Nicht jetzt",
+    "curlImported": "Der Befehl wurde in diesen Schritt importiert.",
+    "curlDroppedBody": "Der Body des Befehls ist kein JSON und wurde weggelassen.",
+    "curlCredential": "Der Befehl enthielt Zugangsdaten ({kind}). Sie wurden nicht im Schritt gespeichert: Speichere sie im Vault, und der Schritt sendet sie von dort.",
+    "curlCredentialNoRight": "Der Befehl enthielt Zugangsdaten ({kind}). Sie wurden nicht im Schritt gespeichert. Bitte jemanden, der Secrets speichern darf, sie in den Vault aufzunehmen.",
+    "curlStore": "Im Vault speichern",
+    "curlSecretName": "{host}-Token",
+    "curlProblem": {
+      "notCurl": "Das beginnt nicht mit curl.",
+      "noUrl": "Der Befehl hat keine http- oder https-URL.",
+      "badMethod": "Ein HTTP-Schritt sendet GET, POST, PUT, PATCH oder DELETE.",
+      "unclosedQuote": "Ein Anführungszeichen im Befehl wird nie geschlossen."
+    }
   },
   "artifacts": {
     "title": "Artefakte",

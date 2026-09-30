@@ -218,6 +218,26 @@ class TestDownloading:
         assert first.headers["Authorization"] == f"Bearer {_TOKEN}"
         assert "Authorization" not in second.headers
 
+    async def test_a_query_credential_goes_only_where_it_may(self, engine, network):
+        member = await _member(engine)
+        secret_id = await _secret(engine, member)
+
+        def answer(request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/start":
+                return httpx2.Response(302, headers={"Location": "https://cdn.example.net/f"})
+            return httpx2.Response(200, content=b"%PDF-1.7 body")
+
+        wire = network(answer)
+        auth = {"kind": "query", "query_name": "key", "secret_id": secret_id}
+        step = _node(
+            "http.download",
+            {"url": "https://files.example.com/start", "auth": auth, "filename": "r.pdf"},
+        )
+        await drive(await seed_run(engine, _chain(step), member=member))
+        first, second = wire.sent
+        assert first.url.params["key"] == _TOKEN
+        assert "key" not in second.url.params
+
     @pytest.mark.parametrize(
         ("responder", "config", "code"),
         [
@@ -401,6 +421,15 @@ class TestUploading:
         (sent,) = wire.sent
         assert sent.headers["Authorization"] == f"Bearer {_TOKEN}"
         assert sent.headers["X-Trace"] == "t"
+
+    async def test_a_query_credential_goes_in_the_upload_url(self, engine, storage, network):
+        wire = network(lambda _r: httpx2.Response(200, json={}))
+        member = await _member(engine)
+        secret_id = await _secret(engine, member)
+        auth = {"kind": "query", "query_name": "key", "secret_id": secret_id}
+        await drive(await _upload_run(engine, storage, {"auth": auth}, member=member))
+        (sent,) = wire.sent
+        assert sent.url.params["key"] == _TOKEN
 
     async def test_a_file_whose_bytes_are_gone_is_not_sent(self, engine, storage, network):
         wire = network()

@@ -35,6 +35,7 @@ from app.workflows.nodes._http import (
     HttpResponseOutput,
     auth_headers,
     auth_problems,
+    authorized_url,
     check_headers,
     check_idempotency_header,
     credential,
@@ -130,7 +131,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     try:
         async with PinnedAsyncClient(timeout=httpx2.Timeout(config.timeout_seconds)) as client:
             request = client.build_request(
-                config.method, config.url, headers=headers, content=chunks
+                config.method,
+                authorized_url(config.auth, secret, config.url),
+                headers=headers,
+                content=chunks,
             )
             response = await client.send(request, stream=True)
             try:

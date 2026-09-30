@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
+import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import {
@@ -82,6 +83,7 @@ const TRIGGER_HINTS: Record<string, string> = {
 
 /** `agent.run`'s answer-shape override, edited as the Builder edits an agent's own. */
 const AGENT_RUN = "agent.run";
+const HTTP_REQUEST = "http.request";
 const STRUCTURED_OUTPUT = "structured_output_schema";
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
@@ -860,6 +862,14 @@ export function NodeForm({
 
   return (
     <div className="space-y-6">
+      {definition.id === HTTP_REQUEST && (
+        <CurlImport
+          node={node}
+          disabled={disabled ?? false}
+          updateNodeConfig={updateNodeConfig}
+          upsertBinding={upsertBinding}
+        />
+      )}
       {configShown.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xs font-semibold tracking-wide uppercase">

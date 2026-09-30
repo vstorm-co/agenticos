@@ -122,6 +122,9 @@ vi.mock("@/components/workflows/pickers", () => ({
   ),
 }));
 
+vi.mock("@/components/workflows/property-panel/curl-import", () => ({
+  CurlImport: () => <button type="button">Import cURL</button>,
+}));
 vi.mock("@/components/orgs/member-picker", () => ({
   MemberPicker: ({
     selected,
@@ -493,6 +496,20 @@ describe("config leaves", () => {
     const { updateNodeConfig } = renderForm();
     await userEvent.type(screen.getByLabelText("Inner"), "h");
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { nested: { inner: "h" } });
+  });
+});
+
+describe("an HTTP request", () => {
+  it("offers to import a cURL command, and no other step does", () => {
+    renderForm({
+      definition: makeDefinition({ id: "http.request", config_schema: CONFIG_SCHEMA }),
+    });
+    expect(screen.getByRole("button", { name: "Import cURL" })).toBeVisible();
+  });
+
+  it("is not offered on another step", () => {
+    renderForm();
+    expect(screen.queryByRole("button", { name: "Import cURL" })).toBeNull();
   });
 });
 

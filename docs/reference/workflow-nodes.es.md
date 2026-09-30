@@ -1,5 +1,5 @@
 ---
-source_sha: "69cfd78ba18c"
+source_sha: "cc0f1a92f341"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -355,6 +355,21 @@ envía a los orígenes que permite el secreto. La respuesta se lee dentro de
 `max_response_bytes` y se devuelve sin `Set-Cookie`, sin las cabeceras de
 autenticación y sin el token.
 
+La credencial va como token bearer, autenticación Basic, una cabecera con el
+nombre que indiques o, con `query`, un parámetro de URL con el nombre que indiques.
+**Import cURL** en el editor lee un comando pegado de la documentación de una API en
+el método, la URL, las cabeceras y el cuerpo JSON. Una credencial del comando nunca
+se queda en el paso: el paso queda configurado para enviarla igual, y el formulario
+del vault se abre con ella rellenada.
+
+Un `GET` puede recorrer una lista por páginas con `pagination`: siguiendo una URL
+siguiente que nombra la respuesta, devolviendo un cursor o contando un parámetro de
+página. Los elementos de `items_path` de cada página se reúnen en `items`, en orden.
+La paginación se detiene cuando no hay página siguiente, cuando una página no tiene
+elementos o en `max_pages`, con `complete` en falso. Todas las páginas juntas leen
+como mucho `max_response_bytes`, y una página siguiente en otro origen no recibe la
+credencial.
+
 | Qué pasó | Resultado |
 |---|---|
 | La URL es privada, loopback, metadata o no es http(s) | `URL_REFUSED`, no se envía nada |
@@ -364,12 +379,15 @@ autenticación y sin el token.
 | Enviada, sin respuesta, cualquier otra escritura | Incierto: el run se detiene para una persona |
 | Distinto de 2xx | `HTTP_ERROR_STATUS`, o la respuesta como salida con `on_error_status: complete` |
 | Mayor que el límite | `RESPONSE_TOO_LARGE` |
+| El `items_path` de una página encuentra algo que no es una lista | `PAGE_ITEMS_NOT_A_LIST` |
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestConfig
 
 ::: app.workflows.nodes.http_request._handler.HttpAuth
 
-::: app.workflows.nodes.http_request._handler.HttpResponseOutput
+::: app.workflows.nodes.http_request._handler.HttpPagination
+
+::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
 ## notification.send { #notification-send }
 

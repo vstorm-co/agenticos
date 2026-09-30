@@ -566,3 +566,194 @@ async def test_a_body_that_claims_json_and_is_not_comes_back_as_text(engine: Asy
     run = await drive(await seed_run(engine, graph))
 
     assert run.output is not None and run.output["structured"]["body"] == "{not json"
+
+
+@pytest.mark.security
+async def test_a_query_credential_goes_in_its_parameter_and_is_redacted_from_the_echo(
+    engine: AsyncEngine, network
+):
+    member = await _member(engine)
+    secret_id = await _secret(engine, member, _credential())
+    wire = network(lambda request: httpx2.Response(200, json={"called": str(request.url)}))
+    graph, _call = _graph(
+        {
+            "url": "https://api.example.com/x?api_key=typed&q=1",
+            "auth": {"kind": "query", "query_name": "api_key", "secret_id": str(secret_id)},
+        }
+    )
+
+    run = await drive(await seed_run(engine, graph, member=member))
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    (sent,) = wire.sent
+    assert sent.url.params["api_key"] == _TOKEN and sent.url.params["q"] == "1"
+    assert "Authorization" not in sent.headers
+    assert run.output is not None and _TOKEN not in str(run.output)
+
+
+def _pages(pages: dict[str, dict[str, Any]]) -> Callable[[httpx2.Request], httpx2.Response]:
+    """A server that answers each page by its query string, and 404s the rest."""
+
+    def responder(request: httpx2.Request) -> httpx2.Response:
+        key = request.url.query.decode()
+        return httpx2.Response(200, json=pages[key]) if key in pages else httpx2.Response(404)
+
+    return responder
+
+
+async def _paged(engine: AsyncEngine, pagination: dict[str, Any], url: str) -> dict[str, Any]:
+    graph, _call = _graph({"url": url, "pagination": pagination})
+    run = await drive(await seed_run(engine, graph))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output is not None
+    return run.output["structured"]
+
+
+class TestPaging:
+    async def test_a_next_url_is_followed_until_the_response_names_none(
+        self, engine: AsyncEngine, network
+    ):
+        network(
+            _pages(
+                {
+                    "": {"data": [1, 2], "links": {"next": "/items?after=2"}},
+                    "after=2": {"data": [3], "links": {"next": None}},
+                }
+            )
+        )
+        result = await _paged(
+            engine,
+            {"mode": "next_url", "items_path": "data", "next_path": "links.next"},
+            "https://api.example.com/items",
+        )
+        assert (result["items"], result["pages"], result["complete"]) == ([1, 2, 3], 2, True)
+        assert result["body"] == {"data": [3], "links": {"next": None}}
+
+    async def test_a_cursor_is_sent_back_in_its_parameter(self, engine: AsyncEngine, network):
+        wire = network(
+            _pages(
+                {
+                    "": {"results": ["a"], "meta": {"next": "c2"}},
+                    "cursor=c2": {"results": ["b"], "meta": {"next": ""}},
+                }
+            )
+        )
+        result = await _paged(
+            engine,
+            {
+                "mode": "cursor",
+                "items_path": "results",
+                "next_path": "meta.next",
+                "param": "cursor",
+            },
+            "https://api.example.com/items",
+        )
+        assert result["items"] == ["a", "b"] and len(wire.sent) == 2
+
+    async def test_pages_are_counted_until_one_is_empty(self, engine: AsyncEngine, network):
+        network(
+            _pages(
+                {
+                    "page=0": {"rows": [1]},
+                    "page=1": {"rows": [2]},
+                    "page=2": {"rows": []},
+                }
+            )
+        )
+        result = await _paged(
+            engine,
+            {"mode": "page", "items_path": "rows", "param": "page", "first_page": 0},
+            "https://api.example.com/items",
+        )
+        assert (result["items"], result["pages"]) == ([1, 2], 3)
+
+    async def test_paging_stops_at_its_maximum_and_says_there_was_more(
+        self, engine: AsyncEngine, network
+    ):
+        wire = network(lambda request: httpx2.Response(200, json={"rows": [1]}))
+        result = await _paged(
+            engine,
+            {"mode": "page", "items_path": "rows", "param": "page", "max_pages": 3},
+            "https://api.example.com/items",
+        )
+        assert (result["items"], result["pages"], result["complete"]) == ([1, 1, 1], 3, False)
+        assert len(wire.sent) == 3
+
+    async def test_a_page_without_a_list_of_items_fails(self, engine: AsyncEngine, network):
+        network(lambda _r: httpx2.Response(200, json={"rows": {"not": "a list"}}))
+        graph, _call = _graph(
+            {
+                "url": "https://api.example.com/items",
+                "pagination": {"mode": "page", "items_path": "rows", "param": "page"},
+            }
+        )
+        run = await drive(await seed_run(engine, graph))
+        assert run.error is not None and run.error["code"] == "PAGE_ITEMS_NOT_A_LIST"
+
+    @pytest.mark.parametrize(
+        "body", [{"rows": [1], "next": 7}, {"rows": [1], "next": "mailto:x@example.com"}]
+    )
+    async def test_a_next_page_that_is_not_an_http_url_ends_the_paging(
+        self, engine: AsyncEngine, network, body
+    ):
+        wire = network(lambda _r: httpx2.Response(200, json=body))
+        result = await _paged(
+            engine,
+            {"mode": "next_url", "items_path": "rows", "next_path": "next"},
+            "https://api.example.com/items",
+        )
+        assert result["pages"] == 1 and len(wire.sent) == 1
+
+    async def test_an_error_on_a_later_page_fails_the_step(self, engine: AsyncEngine, network):
+        network(_pages({"": {"rows": [1], "next": "/items?after=1"}}))
+        graph, _call = _graph(
+            {
+                "url": "https://api.example.com/items",
+                "pagination": {"mode": "next_url", "items_path": "rows", "next_path": "next"},
+            }
+        )
+        run = await drive(await seed_run(engine, graph))
+        assert run.error is not None and run.error["code"] == "HTTP_ERROR_STATUS"
+
+    async def test_every_page_together_stays_under_the_response_limit(
+        self, engine: AsyncEngine, network
+    ):
+        network(lambda _r: httpx2.Response(200, json={"rows": ["x" * 400]}))
+        graph, _call = _graph(
+            {
+                "url": "https://api.example.com/items",
+                "max_response_bytes": 1000,
+                "pagination": {"mode": "page", "items_path": "rows", "param": "page"},
+            }
+        )
+        run = await drive(await seed_run(engine, graph))
+        assert run.error is not None and run.error["code"] == "RESPONSE_TOO_LARGE"
+
+    @pytest.mark.security
+    async def test_a_next_page_on_another_origin_gets_no_credential(
+        self, engine: AsyncEngine, network
+    ):
+        member = await _member(engine)
+        secret_id = await _secret(engine, member, _credential())
+
+        def responder(request: httpx2.Request) -> httpx2.Response:
+            if request.headers["Host"] == "api.example.com":
+                return httpx2.Response(
+                    200, json={"rows": [1], "next": "https://cdn.example.org/p2"}
+                )
+            return httpx2.Response(200, json={"rows": [2]})
+
+        wire = network(responder)
+        graph, _call = _graph(
+            {
+                "url": "https://api.example.com/items",
+                "auth": {"kind": "bearer", "secret_id": str(secret_id)},
+                "pagination": {"mode": "next_url", "items_path": "rows", "next_path": "next"},
+            }
+        )
+        run = await drive(await seed_run(engine, graph, member=member))
+
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        first, second = wire.sent
+        assert first.headers["Authorization"] == f"Bearer {_TOKEN}"
+        assert "Authorization" not in second.headers

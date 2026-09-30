@@ -4,15 +4,22 @@ from app.workflows._registry import register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.nodes.http_request._handler import (
     HttpAuth,
+    HttpPagination,
     HttpRequestConfig,
     HttpRequestInput,
-    HttpResponseOutput,
+    HttpRequestOutput,
     check_resources,
     handle,
     retry_guarantee_for,
 )
 
-__all__ = ["HttpAuth", "HttpRequestConfig", "HttpRequestInput", "HttpResponseOutput"]
+__all__ = [
+    "HttpAuth",
+    "HttpPagination",
+    "HttpRequestConfig",
+    "HttpRequestInput",
+    "HttpRequestOutput",
+]
 
 register(
     NodeDefinition(
@@ -24,10 +31,10 @@ register(
         kind="action",
         config_schema=HttpRequestConfig,
         input_schema=HttpRequestInput,
-        output_schema=HttpResponseOutput,
+        output_schema=HttpRequestOutput,
         ports=(
             Port(id="in", label="In", kind="input", schema=None),
-            Port(id="out", label="Out", kind="output", schema=HttpResponseOutput),
+            Port(id="out", label="Out", kind="output", schema=HttpRequestOutput),
         ),
         effect_kind="write",
         retry_guarantee="at_least_once",

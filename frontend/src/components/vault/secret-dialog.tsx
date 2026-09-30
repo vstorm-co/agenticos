@@ -71,6 +71,12 @@ interface AddSecretDialogProps {
    * is for would offer answers the field would then refuse.
    */
   kind?: StorableSecretKind;
+  /**
+   * What the form starts with - a credential lifted out of a pasted cURL, on
+   * its way to the vault instead of the graph. Read once, when the dialog is
+   * made, and cleared with everything else once stored.
+   */
+  initial?: { name?: string; value?: Record<string, unknown> };
 }
 
 /**
@@ -110,6 +116,7 @@ export function AddSecretDialog({
   isPending,
   purposeId,
   kind: fixedKind,
+  initial,
 }: AddSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
@@ -128,10 +135,10 @@ export function AddSecretDialog({
   // `null` is "nobody has typed a name", which is not the same as an empty one:
   // it is what lets the field follow the chosen service until somebody makes it
   // theirs. Once typed, it stays typed - including when typed back to blank.
-  const [name, setName] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(initial?.name ?? null);
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
-  const [value, setValue] = useState<Record<string, unknown>>({});
+  const [value, setValue] = useState<Record<string, unknown>>(initial?.value ?? {});
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const inCategory = purposes.filter((entry) => entry.category === category);

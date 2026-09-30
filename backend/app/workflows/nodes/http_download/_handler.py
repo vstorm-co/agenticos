@@ -34,6 +34,7 @@ from app.workflows.nodes._http import (
     HttpAuth,
     auth_headers,
     auth_problems,
+    authorized_url,
     check_headers,
     credential,
     failed,
@@ -128,7 +129,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         async with PinnedAsyncClient(timeout=httpx2.Timeout(config.timeout_seconds)) as client:
             for _hop in range(MAX_REDIRECTS + 1):
                 response = await client.send(
-                    client.build_request("GET", url, headers=headers), stream=True
+                    client.build_request(
+                        "GET", authorized_url(config.auth, secret, url), headers=headers
+                    ),
+                    stream=True,
                 )
                 try:
                     location = response.headers.get("location")
