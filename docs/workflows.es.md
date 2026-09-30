@@ -1,5 +1,5 @@
 ---
-source_sha: "1b8783482019"
+source_sha: "18e2aae1cf37"
 ---
 
 # Workflows { #workflows }
@@ -108,6 +108,19 @@ view**. Con varios pasos seleccionados, una barra abajo los borra juntos.
     El selector se alimenta de los nodos registrados en el despliegue, no de una lista
     fija. Un tipo de nodo registrado más tarde aparece en él en cuanto se registra, sin
     cambiar un workflow que ya construiste.
+
+### Notas, orden y atajos { #notes-tidying-and-shortcuts }
+
+**Add a note here** en el menú contextual del lienzo pone una nota junto a los pasos:
+markdown, escrita con doble clic o con su lápiz, movida arrastrando y redimensionada
+desde sus esquinas. Una nota se guarda en el grafo, así que las versiones, las
+restauraciones y las copias del workflow la conservan, pero nada la ejecuta ni la
+comprueba. Seleccionar una conexión ofrece un **+** que pone el siguiente paso elegido
+en su mitad, conectado por ambos lados donde los puertos encajan. **Tidy up** en la
+barra de herramientas alinea los pasos visibles de izquierda a derecha como una sola
+edición que se puede deshacer, el botón del mapa muestra un minimapa, y el botón del
+teclado - o **?** - enumera todos los atajos; **Tab** abre el selector de pasos.
+Ninguno actúa mientras escribes en un campo.
 
 ## Configurar un nodo { #configuring-a-node }
 

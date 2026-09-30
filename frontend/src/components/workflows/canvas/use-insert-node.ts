@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import type { NodeDefinition, NodePosition } from "@/lib/workflows/types";
+import type { NodeDefinition, NodePosition, WorkflowEdge } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { buildCatalogMap, definitionsByNode } from "./graph-adapter";
@@ -10,6 +10,7 @@ import { type InsertFrom, planInsertion } from "./insertion";
 export interface InsertOptions {
   from?: InsertFrom;
   dropAt?: NodePosition;
+  between?: WorkflowEdge;
 }
 
 /** Add a step the way {@link planInsertion} places and wires it. */

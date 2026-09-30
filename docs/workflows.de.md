@@ -1,5 +1,5 @@
 ---
-source_sha: "1b8783482019"
+source_sha: "18e2aae1cf37"
 ---
 
 # Workflows { #workflows }
@@ -115,6 +115,19 @@ Leiste unten sie zusammen.
     Die Auswahl speist sich aus den registrierten Knoten der Bereitstellung, nicht
     aus einer festen Liste. Eine später registrierte Knotenart erscheint darin, sobald
     sie registriert ist, ohne Änderung an einem Workflow, den Sie schon gebaut haben.
+
+### Notizen, Aufräumen und Tastenkürzel { #notes-tidying-and-shortcuts }
+
+**Add a note here** im Kontextmenü der Zeichenfläche setzt eine Notiz neben die
+Schritte: Markdown, per Doppelklick oder Stift geschrieben, durch Ziehen verschoben und
+an den Ecken in der Größe geändert. Eine Notiz wird im Graphen gespeichert, sodass
+Versionen, Wiederherstellungen und Kopien des Workflows sie behalten, aber nichts führt
+sie aus oder prüft sie. Eine ausgewählte Verbindung bietet ein **+**, das den nächsten
+gewählten Schritt in ihre Mitte setzt, auf beiden Seiten verbunden, wo die Ports passen.
+**Tidy up** in der Werkzeugleiste ordnet die sichtbaren Schritte von links nach rechts
+als eine rückgängig machbare Bearbeitung, die Kartenschaltfläche zeigt eine Minikarte,
+und die Tastaturschaltfläche - oder **?** - listet jedes Kürzel; **Tab** öffnet die
+Schrittauswahl. Keines davon greift, während Sie in einem Feld schreiben.
 
 ## Einen Knoten konfigurieren { #configuring-a-node }
 

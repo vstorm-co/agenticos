@@ -1,6 +1,13 @@
 "use client";
 
-import { Background, type Connection, Controls, ReactFlow, useReactFlow } from "@xyflow/react";
+import {
+  Background,
+  type Connection,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  useReactFlow,
+} from "@xyflow/react";
 import {
   useCallback,
   useEffect,
@@ -37,6 +44,10 @@ import { useInsertNode } from "./use-insert-node";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 import { edgeTypes } from "./workflow-edge";
 import { nodeTypes } from "./workflow-node";
+import { ShortcutSheet } from "./canvas-toolbar";
+import { tidyLayout } from "./tidy";
+import { type CanvasNoteNode, NOTE_HEIGHT, NOTE_WIDTH } from "./canvas-note";
+import type { WorkflowFlowNode } from "./graph-adapter";
 
 interface WorkflowGraphViewProps {
   /** The node catalog, for resolving each instance's definition and connection rules. */
@@ -107,10 +118,28 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   );
   const selectedNodeIds = useMemo(() => new Set(selection.nodeIds), [selection.nodeIds]);
   const selectedEdgeIds = useMemo(() => new Set(selection.edgeIds), [selection.edgeIds]);
-  const nodes = useMemo(
-    () => toFlowNodes(activeGraph, definitions, readOnly, selectedNodeIds),
-    [activeGraph, definitions, readOnly, selectedNodeIds],
-  );
+  const nodes = useMemo(() => {
+    const steps: Array<WorkflowFlowNode | CanvasNoteNode> = toFlowNodes(
+      activeGraph,
+      definitions,
+      readOnly,
+      selectedNodeIds,
+    );
+    // Notes sit on the workflow's own canvas, never inside a loop body.
+    if (scopePath.length > 0) return steps;
+    const notes: CanvasNoteNode[] = (graph?.notes ?? []).map((note) => ({
+      id: note.id,
+      type: "note",
+      position: note.layout,
+      selected: selectedNodeIds.has(note.id),
+      // Behind the steps, so a note under a step never catches its clicks.
+      zIndex: -1,
+      width: note.width ?? NOTE_WIDTH,
+      height: note.height ?? NOTE_HEIGHT,
+      data: { note, readOnly },
+    }));
+    return [...notes, ...steps];
+  }, [activeGraph, definitions, readOnly, selectedNodeIds, scopePath, graph]);
   const edges = useMemo(
     () => toFlowEdges(activeGraph, definitions, selectedEdgeIds),
     [activeGraph, definitions, selectedEdgeIds],
@@ -240,6 +269,9 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     return counts;
   }, [problems]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const addNote = useWorkflowEditorStore((state) => state.addNote);
+  const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
+  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
   // What the last right click was on, and where - the menu acts on that step, or
@@ -306,8 +338,15 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
             problems={problems}
             readOnly={readOnly}
             empty={activeGraph.nodes.length === 0}
-            onAdd={(definition) => insert(definition)}
+            onAdd={(definition) => {
+              // The "+" on a connection opened the picker: the step goes into it.
+              const { splitEdgeId } = useWorkflowEditorStore.getState();
+              const between = graph?.edges.find((edge) => edge.id === splitEdgeId);
+              insert(definition, between === undefined ? {} : { between });
+            }}
+            onTidy={() => moveNodes(tidyLayout(activeGraph))}
           />
+          <ShortcutSheet />
           <CanvasInteractionProvider value={interaction}>
             <ReactFlow
               nodes={nodes}
@@ -318,7 +357,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               onEdgesChange={applyEdgeChanges}
               onConnect={connect}
               // A step's settings open over the canvas; a drag never counts as a click.
-              onNodeClick={(_event, node) => editNode(node.id)}
+              onNodeClick={(_event, node) => node.type !== "note" && editNode(node.id)}
               isValidConnection={isValid}
               nodesDraggable={!readOnly}
               nodesConnectable={!readOnly}
@@ -341,6 +380,18 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
             >
               <Background gap={20} size={1.5} />
               <Controls showInteractive={false} position="bottom-right" />
+              {minimapShown && (
+                <MiniMap
+                  pannable
+                  zoomable
+                  position="bottom-left"
+                  ariaLabel={t("minimapLabel")}
+                  nodeClassName="fill-muted-foreground/40"
+                  nodeBorderRadius={6}
+                  maskColor="rgb(0 0 0 / 0.06)"
+                  className="!bg-background !rounded-lg !border"
+                />
+              )}
             </ReactFlow>
           </CanvasInteractionProvider>
         </section>
@@ -351,6 +402,11 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           catalog={catalog}
           onAdd={(definition) =>
             insert(definition, { dropAt: screenToFlowPosition(menuPoint.current) })
+          }
+          onAddNote={
+            scopePath.length === 0
+              ? () => addNote(screenToFlowPosition(menuPoint.current))
+              : undefined
           }
           onFitView={() => void fitView({ ...FIT_VIEW, duration: 300 })}
         />

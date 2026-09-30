@@ -9,6 +9,7 @@ import {
   Maximize,
   Redo2,
   Settings2,
+  StickyNote,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -46,6 +47,8 @@ interface CanvasMenuProps {
   catalog: NodeDefinition[];
   /** Add a step where the canvas was right-clicked. */
   onAdd: (definition: NodeDefinition) => void;
+  /** Put a note where the canvas was right-clicked; absent inside a loop body. */
+  onAddNote?: () => void;
   onFitView: () => void;
 }
 
@@ -69,7 +72,13 @@ function Tile({ visual }: { visual: NodeVisual }) {
  * such as Slack, then a group's steps - so a builder finds one in the same
  * place whichever way they add it.
  */
-export function CanvasContextMenu({ target, catalog, onAdd, onFitView }: CanvasMenuProps) {
+export function CanvasContextMenu({
+  target,
+  catalog,
+  onAdd,
+  onAddNote,
+  onFitView,
+}: CanvasMenuProps) {
   const t = useTranslations("workflows");
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const clipboard = useWorkflowEditorStore((state) => state.clipboard);
@@ -168,6 +177,12 @@ export function CanvasContextMenu({ target, catalog, onAdd, onFitView }: CanvasM
           </ContextMenuSubContent>
         </ContextMenuSub>
       ))}
+      {onAddNote && (
+        <ContextMenuItem onSelect={onAddNote}>
+          <StickyNote />
+          {t("menuAddNote")}
+        </ContextMenuItem>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem
         disabled={clipboard === null}

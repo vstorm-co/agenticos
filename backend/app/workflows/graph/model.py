@@ -126,6 +126,26 @@ class ScopeBoundary(BaseModel):
         return self
 
 
+MAX_CANVAS_NOTES = 50
+
+
+class CanvasNote(BaseModel):
+    """A note on the canvas, beside the steps: text, where it sits and how big it is.
+
+    Not a step - nothing runs it, nothing validates it, and a run never reads it -
+    but kept in the graph, so versions, restores and copies keep it with the steps
+    it explains.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: UUID
+    text: str = Field(default="", max_length=4000, description="Markdown")
+    layout: NodePosition
+    width: float = Field(default=240, ge=120, le=1200)
+    height: float = Field(default=140, ge=60, le=1200)
+
+
 class WorkflowGraph(BaseModel):
     """One workflow graph: what a draft holds and what a published version freezes.
 
@@ -141,6 +161,7 @@ class WorkflowGraph(BaseModel):
     edges: tuple[Edge, ...] = ()
     bindings: tuple[Binding, ...] = ()
     scopes: tuple[ScopeBoundary, ...] = ()
+    notes: tuple[CanvasNote, ...] = Field(default=(), max_length=MAX_CANVAS_NOTES)
 
     @model_validator(mode="after")
     def _no_duplicate_node_ids(self) -> "WorkflowGraph":

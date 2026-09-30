@@ -297,3 +297,37 @@ describe("withLiveScopes", () => {
     expect(scope).toMatchObject({ scope_node_id: "f", body_node_ids: ["b"] });
   });
 });
+
+describe("a step put into a connection", () => {
+  const line = () =>
+    graph([node("a", INPUT, 0, 0), node("b", STEP, 640, 0)], [edge("a", "out", "b")]);
+
+  it("goes halfway along it, fed by its source and feeding where it led", () => {
+    const g = line();
+    const planned = plan(g, STEP, { between: g.edges[0] });
+
+    expect(planned.node.layout).toEqual({ x: 320, y: 0 });
+    expect(planned.edge).toMatchObject({ source_node_id: "a", target_node_id: "new" });
+    expect(planned.split?.edgeId).toBe("a-b");
+    expect(planned.split?.tail).toMatchObject({
+      source_node_id: "new",
+      source_port: "out",
+      target_node_id: "b",
+      target_port: "in",
+    });
+  });
+
+  it("ends the flow at a step with nowhere to go on to", () => {
+    const g = line();
+    const END = def("end", [port("in", "input")]);
+    expect(plan(g, END, { between: g.edges[0] }).split?.tail).toBeNull();
+  });
+
+  it("is added the ordinary way when the connection cannot feed it", () => {
+    const g = line();
+    expect(plan(g, SINK, { between: g.edges[0] }).split).toBeUndefined();
+    expect(
+      plan(g, STEP, { between: { ...g.edges[0]!, source_node_id: "gone" } }).split,
+    ).toBeUndefined();
+  });
+});

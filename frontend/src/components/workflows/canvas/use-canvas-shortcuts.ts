@@ -24,6 +24,11 @@ export function pasteFromClipboard(store: WorkflowEditorState): void {
   store.insertSubgraph(clipboard);
 }
 
+/** Whether a key went to a field someone is typing in, where it is text, not a shortcut. */
+function isTyping(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+}
+
 /**
  * The canvas-scoped keyboard handler: undo/redo and copy/cut/paste wired to the
  * already-built history and clipboard modules, plus Escape to leave connect mode.
@@ -43,10 +48,23 @@ export function useCanvasShortcuts(
         cancelConnect();
         return;
       }
+      // A note being written sits inside the canvas: its keys are its own.
+      if (isTyping(event.target)) return;
+      const store = useWorkflowEditorStore.getState();
+      if (event.key === "?") {
+        event.preventDefault();
+        store.setOverlay("shortcuts");
+        return;
+      }
+      if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+        if (readOnly) return;
+        event.preventDefault();
+        store.setOverlay("picker");
+        return;
+      }
       if (!event.metaKey && !event.ctrlKey) return;
       if (readOnly) return;
 
-      const store = useWorkflowEditorStore.getState();
       const key = event.key.toLowerCase();
 
       if (key === "z" && !event.shiftKey) {

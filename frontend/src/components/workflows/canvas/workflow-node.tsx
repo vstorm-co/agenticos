@@ -1,6 +1,7 @@
 "use client";
 
 import { Handle, type NodeProps, Position } from "@xyflow/react";
+import { CanvasNoteCard } from "./canvas-note";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -393,4 +394,5 @@ export const nodeTypes = {
   action: WorkflowNode,
   control: WorkflowNode,
   waiting: WorkflowNode,
+  note: CanvasNoteCard,
 };

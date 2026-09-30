@@ -100,6 +100,17 @@ view**. With several steps selected, a bar at the bottom deletes them together.
     node kind registered later appears in it the moment it is, with no change to a
     workflow you already built.
 
+### Notes, tidying and shortcuts { #notes-tidying-and-shortcuts }
+
+**Add a note here** in the canvas's right-click menu puts a note beside the steps:
+markdown, written on a double-click or with its pencil, moved by dragging and resized
+from its corners. A note is kept in the graph, so versions, restores and copies of the
+workflow keep it, but nothing runs or checks it. Selecting a connection offers a **+**
+that puts the next step picked into its middle, wired on both sides where the ports fit.
+The toolbar's **Tidy up** lines the steps in view up left to right as one undoable edit,
+the map button shows a minimap, and the keyboard button - or **?** - lists every
+shortcut; **Tab** opens the step picker. None of them fires while you type in a field.
+
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in

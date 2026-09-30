@@ -66,6 +66,8 @@ export interface InsertionRequest {
   from?: InsertFrom;
   /** Where it was dropped, when it was dragged onto the canvas. */
   dropAt?: NodePosition;
+  /** The connection it goes into the middle of, when one was chosen. */
+  between?: WorkflowEdge;
   /** The new node's id - a parameter so a plan is deterministic under test. */
   id?: Uuid;
 }
@@ -241,6 +243,11 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     };
   }
 
+  if (request.between !== undefined) {
+    const planned = splitting(request.between, graph, visible, definitions, definition, id);
+    if (planned !== null) return planned;
+  }
+
   // A drop at the top level is placed where it fell and left for the user to wire;
   // everywhere else the step attaches after its anchor.
   const anchor =
@@ -276,6 +283,61 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     bindings: link?.bindings ?? [],
     becomesEntry: graph.nodes.length === 0,
     replaces: null,
+  };
+}
+
+/**
+ * The step put into the middle of `edge`: halfway between its ends, the wire from
+ * the source now into it, and a wire from it on to where the old one led when
+ * their ports fit. `null` when the source cannot feed the new step at all - then
+ * the connection is left as it was and the step is added the ordinary way.
+ *
+ * The bindings the far end had keep reading what they read: the source still
+ * runs before it, now one step further back.
+ */
+function splitting(
+  edge: WorkflowEdge,
+  graph: WorkflowGraph,
+  visible: readonly NodeInstance[],
+  definitions: Map<string, NodeDefinition | null>,
+  definition: NodeDefinition,
+  id: Uuid,
+): NodeInsertion | null {
+  const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
+  const source = byId.get(edge.source_node_id);
+  const target = byId.get(edge.target_node_id);
+  const input = inputsOf(definition)[0];
+  if (source === undefined || target === undefined || input === undefined) return null;
+  // Judged as if the old wire were gone, since it is about to be: a port takes one.
+  const without = { ...graph, edges: graph.edges.filter((item) => item.id !== edge.id) };
+  const head = wire(
+    { nodeId: source.id, portId: edge.source_port },
+    { nodeId: id, portId: input.id },
+    without,
+    definitions,
+  );
+  if (head === null) return null;
+  const output = outputsOf(definition).find((port) => !isErrorPort(port));
+  const onward =
+    output === undefined
+      ? null
+      : wire(
+          { nodeId: id, portId: output.id },
+          { nodeId: target.id, portId: edge.target_port },
+          without,
+          definitions,
+        );
+  const middle = {
+    x: (source.layout.x + target.layout.x) / 2,
+    y: (source.layout.y + target.layout.y) / 2,
+  };
+  return {
+    node: { ...blank(definition, id), layout: clearOf(visible, middle) },
+    edge: head.edge,
+    bindings: head.bindings,
+    becomesEntry: false,
+    replaces: null,
+    split: { edgeId: edge.id, tail: onward?.edge ?? null },
   };
 }
 

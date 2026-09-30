@@ -1,7 +1,7 @@
 "use client";
 
 import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { KeyboardEvent, MouseEvent } from "react";
 
@@ -45,6 +45,7 @@ export function WorkflowEdge({
 }: EdgeProps<WorkflowFlowEdge>) {
   const t = useTranslations("workflows");
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
+  const beginSplit = useWorkflowEditorStore((state) => state.beginSplit);
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -104,6 +105,28 @@ export function WorkflowEdge({
         >
           <circle r={11} className="fill-background stroke-border" strokeWidth={1.5} />
           <X x={-5} y={-5} width={10} height={10} className="stroke-foreground" />
+        </g>
+      )}
+      {selected && (
+        <g
+          role="button"
+          tabIndex={0}
+          aria-label={t("insertOnConnection")}
+          transform={`translate(${labelX - 28}, ${buttonY})`}
+          className="pointer-events-auto cursor-pointer"
+          onClick={(event) => {
+            event.stopPropagation();
+            beginSplit(id);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            beginSplit(id);
+          }}
+        >
+          <circle r={11} className="fill-background stroke-border" strokeWidth={1.5} />
+          <Plus x={-5} y={-5} width={10} height={10} className="stroke-foreground" />
         </g>
       )}
     </>

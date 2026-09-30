@@ -164,3 +164,32 @@ describe("useCanvasShortcuts", () => {
     expect(store.getState().isDirty).toBe(false);
   });
 });
+
+describe("the picker and the sheet from the keyboard", () => {
+  beforeEach(() => store.getState().teardown());
+
+  it("opens the step picker on Tab and the shortcut sheet on ?", () => {
+    const { handle } = handlerFor(false);
+    handle(keyEvent({ key: "Tab" }));
+    expect(store.getState().overlay).toBe("picker");
+    handle(keyEvent({ key: "?" }));
+    expect(store.getState().overlay).toBe("shortcuts");
+  });
+
+  it("offers no picker on a read-only canvas, but still the sheet", () => {
+    const { handle } = handlerFor(true);
+    handle(keyEvent({ key: "Tab" }));
+    expect(store.getState().overlay).toBeNull();
+    handle(keyEvent({ key: "?" }));
+    expect(store.getState().overlay).toBe("shortcuts");
+  });
+
+  it("leaves every key to a field someone is typing in", () => {
+    const { handle } = handlerFor(false);
+    for (const target of [document.createElement("textarea"), document.createElement("input")]) {
+      handle(keyEvent({ key: "Tab", target } as Partial<KeyboardEvent>));
+      handle(keyEvent({ key: "z", ctrlKey: true, target } as Partial<KeyboardEvent>));
+    }
+    expect(store.getState().overlay).toBeNull();
+  });
+});

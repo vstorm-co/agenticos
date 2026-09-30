@@ -13,8 +13,10 @@ import { create } from "zustand";
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
 import type {
   Binding,
+  CanvasNote,
   NodeInstance,
   NodePolicy,
+  NodePosition,
   ScopeBoundary,
   Uuid,
   WorkflowEdge,
@@ -109,7 +111,15 @@ export interface NodeInsertion {
    * workflow starts keeps the flow they built after it.
    */
   replaces: Uuid | null;
+  /**
+   * The connection the step is put into the middle of: removed, and replaced by
+   * one from the new step to where it led, when their ports fit.
+   */
+  split?: { edgeId: Uuid; tail: WorkflowEdge | null };
 }
+
+/** What floats over the canvas on request: the step picker, or the shortcut sheet. */
+export type CanvasOverlay = "picker" | "shortcuts" | null;
 
 export interface HistoryFlags {
   canUndo: boolean;
@@ -164,6 +174,12 @@ export interface WorkflowEditorState {
    * was tried, so a step just added is not covered in red before anything is set.
    */
   problemsRevealed: boolean;
+  /** The step picker or the shortcut sheet, when one is open. */
+  overlay: CanvasOverlay;
+  /** The connection a step picked next goes into the middle of, when one was asked. */
+  splitEdgeId: Uuid | null;
+  /** Whether the canvas shows its minimap. */
+  minimapShown: boolean;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -197,6 +213,17 @@ export interface WorkflowEditorState {
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
   /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
   updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
+  /** Put an empty note on the canvas at `position`, selected, and return its id. */
+  addNote: (position: NodePosition) => Uuid;
+  /** Change one note's text or size - one undoable edit. */
+  updateNote: (noteId: Uuid, patch: Partial<Pick<CanvasNote, "text" | "width" | "height">>) => void;
+  /** Open the step picker or the shortcut sheet, or close whichever is open. */
+  setOverlay: (overlay: CanvasOverlay) => void;
+  /** Open the picker to put a step into the middle of `edgeId`. */
+  beginSplit: (edgeId: Uuid) => void;
+  toggleMinimap: () => void;
+  /** Move steps to new places at once - one undoable edit. */
+  moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
   /** A run or a publish was tried: say every problem from now on. */
   revealProblems: () => void;
   /** Rename a step, note it, or switch it off - one undoable edit. */
@@ -280,10 +307,36 @@ const CLEARED = {
   revealNodeId: null,
   editingNodeId: null,
   problemsRevealed: false,
+  overlay: null as CanvasOverlay,
+  splitEdgeId: null as Uuid | null,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
 } as const;
+
+/**
+ * `notes` after the moves, resizes and removals xyflow reports for them. The
+ * same array when nothing changed, so a selection change alone writes nothing.
+ */
+function applyNoteChanges(notes: CanvasNote[], changes: NodeChange[]): CanvasNote[] {
+  let changed = false;
+  const next: CanvasNote[] = [];
+  for (const note of notes) {
+    let current: CanvasNote | null = note;
+    for (const change of changes) {
+      if (current === null || !("id" in change) || change.id !== note.id) continue;
+      if (change.type === "remove") current = null;
+      else if (change.type === "position" && change.position) {
+        current = { ...current, layout: { x: change.position.x, y: change.position.y } };
+      } else if (change.type === "dimensions" && change.dimensions && change.resizing) {
+        current = { ...current, width: change.dimensions.width, height: change.dimensions.height };
+      }
+    }
+    if (current !== note) changed = true;
+    if (current !== null) next.push(current);
+  }
+  return changed ? next : notes;
+}
 
 /**
  * Drop everything the current node set no longer supports — an edge or binding
@@ -309,7 +362,8 @@ function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
   );
   const firstNode = graph.nodes[0];
   const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (firstNode?.id ?? "");
-  return { entry_node_id, nodes: graph.nodes, edges, bindings, scopes };
+  // Notes name no step, so nothing here prunes them.
+  return { ...graph, entry_node_id, edges, bindings, scopes };
 }
 
 /**
@@ -354,6 +408,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     workflowId: null,
     generation: 0,
     expectedRevision: null,
+    // The builder's own view preference: kept across workflows, not a draft's.
+    minimapShown: false,
     ...CLEARED,
 
     load: ({ workflowId, expectedRevision }) => {
@@ -391,6 +447,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       if (graph === null) return;
       const nodeIds = foldSelection(selection.nodeIds, changes);
       if (nodeIds !== selection.nodeIds) set({ selection: { ...selection, nodeIds } });
+      // A note is drawn among the steps but kept apart from them: its moves,
+      // resizes and removals change `notes`, never the steps.
+      const noteIds = new Set((graph.notes ?? []).map((note) => note.id));
+      if (changes.some((change) => "id" in change && noteIds.has(change.id))) {
+        const notes = applyNoteChanges(graph.notes ?? [], changes);
+        if (notes !== graph.notes) commit({ ...graph, notes });
+        return;
+      }
       const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
         id: node.id,
         position: node.layout,
@@ -426,8 +490,18 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
     },
 
-    insertNode: ({ node, edge, bindings, becomesEntry, replaces }) => {
-      const base = get().graph ?? EMPTY_GRAPH;
+    insertNode: ({ node, edge, bindings, becomesEntry, replaces, split }) => {
+      const graph = get().graph ?? EMPTY_GRAPH;
+      const base =
+        split === undefined
+          ? graph
+          : {
+              ...graph,
+              edges: [
+                ...graph.edges.filter((item) => item.id !== split.edgeId),
+                ...(split.tail === null ? [] : [split.tail]),
+              ],
+            };
       const kept =
         replaces === null
           ? base
@@ -454,7 +528,11 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         edges: edge === null ? kept.edges : [...kept.edges, edge],
         bindings: [...kept.bindings, ...bindings],
       });
-      set({ selection: { nodeIds: [node.id], edgeIds: [] }, revealNodeId: node.id });
+      set({
+        selection: { nodeIds: [node.id], edgeIds: [] },
+        revealNodeId: node.id,
+        splitEdgeId: null,
+      });
     },
 
     clearReveal: () => set({ revealNodeId: null }),
@@ -496,7 +574,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       if (nodeIds.size === 0 && edgeIds.size === 0) return;
       const nodes = graph.nodes.filter((node) => !nodeIds.has(node.id));
       const edges = graph.edges.filter((edge) => !edgeIds.has(edge.id));
-      commit(pruneToNodes({ ...graph, nodes, edges }));
+      const notes = graph.notes?.filter((note) => !nodeIds.has(note.id));
+      commit(pruneToNodes({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }));
       set({ selection: EMPTY_SELECTION });
     },
 
@@ -515,6 +594,40 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     revealProblems: () => set({ problemsRevealed: true }),
+
+    setOverlay: (overlay) =>
+      set(overlay === "picker" ? { overlay } : { overlay, splitEdgeId: null }),
+
+    beginSplit: (edgeId) => set({ overlay: "picker", splitEdgeId: edgeId }),
+
+    toggleMinimap: () => set({ minimapShown: !get().minimapShown }),
+
+    moveNodes: (layouts) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => {
+        const layout = layouts.get(node.id);
+        return layout === undefined ? node : { ...node, layout };
+      });
+      commit({ ...graph, nodes });
+    },
+
+    addNote: (position) => {
+      const base = get().graph ?? EMPTY_GRAPH;
+      const id = crypto.randomUUID();
+      commit({ ...base, notes: [...(base.notes ?? []), { id, text: "", layout: position }] });
+      set({ selection: { nodeIds: [id], edgeIds: [] } });
+      return id;
+    },
+
+    updateNote: (noteId, patch) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const notes = (graph.notes ?? []).map((note) =>
+        note.id === noteId ? { ...note, ...patch } : note,
+      );
+      commit({ ...graph, notes });
+    },
 
     updateNodeDetails: (nodeId, details) => {
       const { graph } = get();

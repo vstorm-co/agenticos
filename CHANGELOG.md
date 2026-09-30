@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Notes on the workflow canvas, and a canvas that is quicker to work.** A note
+  of markdown sits beside the steps, moved and resized freely and kept by versions
+  and copies. A selected connection's **+** puts a step into its middle, wired on
+  both sides; **Tidy up** arranges the steps left to right in one undoable edit; a
+  minimap, **Tab** for the step picker and a **?** shortcut sheet, none of which
+  fire while typing. The graph gains `notes` (#1940, #1941).
 - **Name a workflow step, note it and switch it off.** A step's own name shows on
   its card and in every binding list and problem, and must be unique in the graph; a
   note is marked on the card; a switched-off step stays on the canvas, dimmed, and is

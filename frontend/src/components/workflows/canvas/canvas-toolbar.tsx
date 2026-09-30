@@ -1,15 +1,33 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Keyboard,
+  LayoutGrid,
+  Map as MapIcon,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui";
 import { isAddableInScope } from "@/components/workflows/palette/scope";
 import { NodePicker } from "@/components/workflows/picker";
 import { ProblemsFooter, nodeNames } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
+import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { ScopeBreadcrumb } from "./scope-breadcrumb";
@@ -21,6 +39,8 @@ interface CanvasToolbarProps {
   /** Whether the graph in view has no steps - the picker then opens from its middle. */
   empty: boolean;
   onAdd: (definition: NodeDefinition) => void;
+  /** Arrange the steps in view left to right. */
+  onTidy: () => void;
 }
 
 /**
@@ -33,7 +53,14 @@ interface CanvasToolbarProps {
  * graph's way; the step picker and the problem list open from them rather than
  * sitting beside the graph.
  */
-export function CanvasToolbar({ catalog, problems, readOnly, empty, onAdd }: CanvasToolbarProps) {
+export function CanvasToolbar({
+  catalog,
+  problems,
+  readOnly,
+  empty,
+  onAdd,
+  onTidy,
+}: CanvasToolbarProps) {
   const t = useTranslations("workflows");
   const graph = useWorkflowEditorStore((state) => state.graph);
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
@@ -41,7 +68,13 @@ export function CanvasToolbar({ catalog, problems, readOnly, empty, onAdd }: Can
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
-  const [adding, setAdding] = useState(false);
+  const overlay = useWorkflowEditorStore((state) => state.overlay);
+  const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
+  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  // Opened from the "+", from Tab, or from the "+" on a connection.
+  const adding = overlay === "picker" && !empty;
+  const setAdding = (open: boolean) => setOverlay(open ? "picker" : null);
   const [listing, setListing] = useState(false);
 
   const offered = useMemo(
@@ -66,8 +99,9 @@ export function CanvasToolbar({ catalog, problems, readOnly, empty, onAdd }: Can
         offered={offered}
         draggable
         onPick={(definition) => {
-          close();
+          // Added before the picker closes: closing forgets the connection it was for.
           onAdd(definition);
+          close();
         }}
       />
     </PopoverContent>
@@ -94,6 +128,21 @@ export function CanvasToolbar({ catalog, problems, readOnly, empty, onAdd }: Can
               {picker}
             </Popover>
           )}
+          {!readOnly && !empty && (
+            <ToolbarIcon label={t("toolbarTidy")} onClick={onTidy}>
+              <LayoutGrid className="h-4 w-4" />
+            </ToolbarIcon>
+          )}
+          <ToolbarIcon
+            label={minimapShown ? t("toolbarHideMinimap") : t("toolbarShowMinimap")}
+            pressed={minimapShown}
+            onClick={toggleMinimap}
+          >
+            <MapIcon className="h-4 w-4" />
+          </ToolbarIcon>
+          <ToolbarIcon label={t("toolbarShortcuts")} onClick={() => setOverlay("shortcuts")}>
+            <Keyboard className="h-4 w-4" />
+          </ToolbarIcon>
           <ScopeBreadcrumb catalog={catalog} />
         </div>
         {!readOnly && graph !== null && graph.nodes.length > 0 && (
@@ -163,5 +212,71 @@ export function CanvasToolbar({ catalog, problems, readOnly, empty, onAdd }: Can
         </div>
       )}
     </>
+  );
+}
+
+function ToolbarIcon({
+  label,
+  pressed,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      size="icon"
+      variant="outline"
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur",
+        pressed && "bg-accent",
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+const SHORTCUTS = [
+  ["Tab", "shortcutAdd"],
+  ["⌘/Ctrl + Enter", "shortcutRun"],
+  ["⌘/Ctrl + Z", "shortcutUndo"],
+  ["⇧ + ⌘/Ctrl + Z", "shortcutRedo"],
+  ["⌘/Ctrl + C · V · X", "shortcutCopy"],
+  ["Backspace", "shortcutDelete"],
+  ["Esc", "shortcutCancel"],
+  ["?", "shortcutSheet"],
+] as const;
+
+/** Every keyboard shortcut the canvas answers, opened from its toolbar or with `?`. */
+export function ShortcutSheet() {
+  const t = useTranslations("workflows");
+  const overlay = useWorkflowEditorStore((state) => state.overlay);
+  const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
+  return (
+    <Dialog open={overlay === "shortcuts"} onOpenChange={(open) => !open && setOverlay(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("shortcutsTitle")}</DialogTitle>
+        </DialogHeader>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+          {SHORTCUTS.map(([keys, action]) => (
+            <div key={action} className="contents">
+              <dt>
+                <kbd className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{keys}</kbd>
+              </dt>
+              <dd className="text-muted-foreground">{t(action)}</dd>
+            </div>
+          ))}
+        </dl>
+      </DialogContent>
+    </Dialog>
   );
 }

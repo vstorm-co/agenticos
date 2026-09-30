@@ -198,12 +198,24 @@ export interface ScopeBoundary {
  * Mirrors `WorkflowGraph`. The lists are flat; nesting is expressed by `scopes`,
  * not by a recursive subgraph.
  */
+/** A note on the canvas beside the steps. Never run or validated. Mirrors `CanvasNote`. */
+export interface CanvasNote {
+  id: Uuid;
+  /** Markdown. */
+  text: string;
+  layout: NodePosition;
+  width?: number;
+  height?: number;
+}
+
 export interface WorkflowGraph {
   entry_node_id: Uuid;
   nodes: NodeInstance[];
   edges: WorkflowEdge[];
   bindings: Binding[];
   scopes: ScopeBoundary[];
+  /** Notes on the canvas; absent on a graph written before there were any. */
+  notes?: CanvasNote[];
 }
 
 // Registry resource — `app/schemas/workflow.py`

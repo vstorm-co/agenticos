@@ -847,3 +847,121 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().getSelectedNode()).toBeNull();
   });
 });
+
+describe("notes on the canvas", () => {
+  beforeEach(reset);
+
+  const notes = () => useWorkflowEditorStore.getState().graph?.notes ?? [];
+
+  it("adds a selected note where asked, writes it, sizes it, and undoes it", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph(seededGraph());
+
+    const id = state().addNote({ x: 10, y: 20 });
+    expect(notes()).toEqual([{ id, text: "", layout: { x: 10, y: 20 } }]);
+    expect(state().selection.nodeIds).toEqual([id]);
+
+    state().updateNote(id, { text: "**Why**" });
+    state().updateNote("elsewhere", { text: "nothing" });
+    expect(notes()[0]?.text).toBe("**Why**");
+
+    // Edits made in quick succession undo together, the way typing does.
+    state().undo();
+    expect(notes()).toEqual([]);
+  });
+
+  it("starts a first note on an empty canvas, and writes nothing before one exists", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().updateNote("n", { text: "x" });
+    expect(state().graph).toBeNull();
+    state().addNote({ x: 0, y: 0 });
+    expect(notes()).toHaveLength(1);
+  });
+
+  it("moves, resizes and removes a note apart from the steps", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [{ id: "n", text: "t", layout: { x: 0, y: 0 } }],
+    });
+    const steps = state().graph?.nodes;
+
+    state().applyNodeChanges([{ type: "position", id: "n", position: { x: 5, y: 6 } }]);
+    state().applyNodeChanges([
+      { type: "dimensions", id: "n", dimensions: { width: 300, height: 200 }, resizing: true },
+    ]);
+    // A measure without a resize, and a select, change nothing kept.
+    state().applyNodeChanges([
+      { type: "dimensions", id: "n", dimensions: { width: 1, height: 1 } },
+      { type: "select", id: "n", selected: true },
+    ]);
+    expect(notes()).toEqual([
+      { id: "n", text: "t", layout: { x: 5, y: 6 }, width: 300, height: 200 },
+    ]);
+    expect(state().graph?.nodes).toBe(steps);
+
+    state().applyNodeChanges([{ type: "remove", id: "n" }]);
+    expect(notes()).toEqual([]);
+  });
+
+  it("moves only the note a change names, and a removed one stays removed", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [
+        { id: "n", text: "t", layout: { x: 0, y: 0 } },
+        { id: "m", text: "u", layout: { x: 0, y: 0 } },
+      ],
+    });
+
+    state().applyNodeChanges([
+      { type: "remove", id: "n" },
+      { type: "position", id: "n", position: { x: 9, y: 9 } },
+    ]);
+
+    expect(notes()).toEqual([{ id: "m", text: "u", layout: { x: 0, y: 0 } }]);
+  });
+
+  it("deletes a selected note with the selection, and keeps notes when a step goes", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().seedGraph({
+      ...seededGraph(),
+      notes: [
+        { id: "n", text: "t", layout: { x: 0, y: 0 } },
+        { id: "m", text: "u", layout: { x: 0, y: 0 } },
+      ],
+    });
+
+    state().setSelection({ nodeIds: ["n", "b"], edgeIds: [] });
+    state().deleteSelection();
+
+    expect(notes().map((note) => note.id)).toEqual(["m"]);
+    expect(state().graph?.nodes.map((node) => node.id)).toEqual(["a"]);
+  });
+});
+
+describe("arranging the canvas", () => {
+  beforeEach(reset);
+
+  it("moves several steps as one edit, and nothing before a graph is seeded", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().moveNodes(new Map([["a", { x: 1, y: 1 }]]));
+    expect(state().graph).toBeNull();
+
+    state().seedGraph(seededGraph());
+    state().moveNodes(new Map([["b", { x: 9, y: 9 }]]));
+    expect(state().graph?.nodes.map((node) => node.layout)).toEqual([
+      { x: 0, y: 0 },
+      { x: 9, y: 9 },
+    ]);
+  });
+
+  it("keeps the connection a step is for while the picker stays open", () => {
+    const state = useWorkflowEditorStore.getState;
+    state().beginSplit("e1");
+    state().setOverlay("picker");
+    expect(state().splitEdgeId).toBe("e1");
+    state().setOverlay("shortcuts");
+    expect(state().splitEdgeId).toBeNull();
+  });
+});

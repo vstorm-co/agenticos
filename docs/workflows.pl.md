@@ -1,5 +1,5 @@
 ---
-source_sha: "1b8783482019"
+source_sha: "18e2aae1cf37"
 ---
 
 # Workflows { #workflows }
@@ -101,6 +101,18 @@ zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
     Wybór zasila lista węzłów zarejestrowanych we wdrożeniu, a nie stała lista.
     Rodzaj węzła zarejestrowany później pojawia się w nim od razu, bez zmiany
     workflow, który już zbudowałeś.
+
+### Notatki, porządkowanie i skróty { #notes-tidying-and-shortcuts }
+
+**Add a note here** w menu kontekstowym kanwy stawia notatkę obok kroków: markdown,
+pisany po dwukrotnym kliknięciu lub ołówkiem, przesuwany przeciąganiem i zmieniający
+rozmiar od rogów. Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
+workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
+pokazuje **+**, które wstawia następny wybrany krok w jego środek, połączony z obu stron,
+gdzie porty pasują. **Tidy up** na pasku narzędzi układa widoczne kroki od lewej do prawej
+jako jedną edycję do cofnięcia, przycisk mapy pokazuje minimapę, a przycisk klawiatury -
+albo **?** - wypisuje wszystkie skróty; **Tab** otwiera wybór kroku. Żaden nie działa,
+gdy piszesz w polu.
 
 ## Konfigurowanie węzła { #configuring-a-node }
 

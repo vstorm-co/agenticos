@@ -154,3 +154,46 @@ def test_a_literal_binding_round_trips():
     binding = Binding(target_node_id=uuid4(), target_field="x", source=LiteralValue(value={"a": 1}))
     restored = Binding.model_validate(binding.model_dump(mode="json"))
     assert restored == binding
+
+
+def test_canvas_notes_ride_along_with_the_graph_and_its_scopes():
+    """A note is not a step: derived scopes, a dump and a reload all keep it as it was."""
+    from app.workflows.graph.model import CanvasNote
+    from app.workflows.graph.validate import derive_scopes
+
+    note_id = uuid4()
+    entry = uuid4()
+    graph = WorkflowGraph.model_validate(
+        {
+            "entry_node_id": str(entry),
+            "nodes": [
+                {
+                    "id": str(entry),
+                    "definition_id": "core.input",
+                    "definition_version": 1,
+                    "layout": {"x": 0, "y": 0},
+                }
+            ],
+            "notes": [{"id": str(note_id), "text": "**Why** this", "layout": {"x": 5, "y": 6}}],
+        }
+    )
+
+    derived = derive_scopes(graph)
+    again = WorkflowGraph.model_validate(derived.model_dump(mode="json"))
+
+    assert again.notes == (
+        CanvasNote(id=note_id, text="**Why** this", layout=graph.notes[0].layout),
+    )
+    assert (again.notes[0].width, again.notes[0].height) == (240, 140)
+
+
+def test_a_graph_holds_a_bounded_number_of_canvas_notes():
+    entry = uuid4()
+    with pytest.raises(ValidationError):
+        WorkflowGraph.model_validate(
+            {
+                "entry_node_id": str(entry),
+                "nodes": [],
+                "notes": [{"id": str(uuid4()), "layout": {"x": 0, "y": 0}} for _ in range(51)],
+            }
+        )

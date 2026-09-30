@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -195,5 +195,71 @@ describe("the canvas menu", () => {
 
     fireEvent.contextMenu(pane);
     await userEvent.click(screen.getByRole("menuitem", { name: /Fit to view/ }));
+  });
+});
+
+describe("arranging and reading the canvas", () => {
+  it("tidies the steps in one edit, shows a minimap and the shortcut sheet", async () => {
+    seed(node("a", "act.one", 0), node("b", "act.one", 0));
+    store.getState().applyEdgeChanges([]);
+    store.setState({
+      graph: {
+        ...store.getState().graph!,
+        edges: [
+          {
+            id: "e",
+            source_node_id: "a",
+            source_port: "out",
+            target_node_id: "b",
+            target_port: "in",
+          },
+        ],
+      },
+    });
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Tidy up" }));
+    const [a, b] = store.getState().graph!.nodes;
+    expect(b!.layout.x).toBeGreaterThan(a!.layout.x);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show the minimap" }));
+    expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Hide the minimap" }));
+    expect(container.querySelector(".react-flow__minimap")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(screen.getByRole("heading", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(store.getState().overlay).toBeNull();
+  });
+
+  it("puts a step picked after a connection's + into that connection", async () => {
+    seed(node("a", "act.one", 0), node("b", "act.one", 600));
+    store.setState({
+      graph: {
+        ...store.getState().graph!,
+        edges: [
+          {
+            id: "e",
+            source_node_id: "a",
+            source_port: "out",
+            target_node_id: "b",
+            target_port: "in",
+          },
+        ],
+      },
+    });
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    act(() => store.getState().beginSplit("e"));
+    await userEvent.click(await screen.findByRole("option", { name: /Act/ }));
+
+    const edges = store.getState().graph!.edges;
+    expect(edges.some((item) => item.id === "e")).toBe(false);
+    expect(edges.map((item) => [item.source_node_id, item.target_node_id])).toContainEqual([
+      "a",
+      store.getState().graph!.nodes[2]!.id,
+    ]);
+    expect(store.getState().splitEdgeId).toBeNull();
   });
 });

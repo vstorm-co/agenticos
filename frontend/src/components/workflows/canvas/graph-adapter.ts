@@ -4,6 +4,8 @@ import { portSchema, portShapesCompatible, UNKNOWN } from "@/components/workflow
 import { ERROR_PORT, effectiveDefinition } from "@/lib/workflows/ports";
 import type { Binding, NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
+import { NODE_HEIGHT, NODE_WIDTH } from "./insertion";
+
 /**
  * The pure projection between the store's `WorkflowGraph` and the controlled
  * `@xyflow/react` node/edge props the canvas renders — plus the connection rule
@@ -109,6 +111,10 @@ export function toFlowNodes(
       id: instance.id,
       type: definition?.kind ?? "action",
       position: instance.layout,
+      // What the minimap and the first fit go by until the card is measured: a
+      // controlled node is handed over without the size xyflow measured for it.
+      initialWidth: NODE_WIDTH,
+      initialHeight: NODE_HEIGHT,
       selected: selectedIds.has(instance.id),
       data: { instance, definition, readOnly, bodySize: bodySizes.get(instance.id) ?? 0 },
     };

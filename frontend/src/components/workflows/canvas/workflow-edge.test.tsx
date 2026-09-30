@@ -143,10 +143,31 @@ describe("WorkflowEdge", () => {
 
     it("moves the button below a branch label so the two do not overlap", () => {
       const plain = renderEdge({ variant: "data", label: null }, true);
-      const plainAt = plain.getByRole("button").getAttribute("transform");
+      const plainAt = plain
+        .getByRole("button", { name: "Delete connection" })
+        .getAttribute("transform");
       plain.unmount();
       const branch = renderEdge({ variant: "branch", label: "Then" }, true);
-      expect(branch.getByRole("button").getAttribute("transform")).not.toBe(plainAt);
+      expect(
+        branch.getByRole("button", { name: "Delete connection" }).getAttribute("transform"),
+      ).not.toBe(plainAt);
+    });
+  });
+
+  it("opens the step picker to put a step into a selected connection", () => {
+    const edge = renderEdge({ variant: "data", label: null }, true);
+    fireEvent.keyDown(edge.getByRole("button", { name: "Add a step in this connection" }), {
+      key: "Enter",
+    });
+    expect(useWorkflowEditorStore.getState().splitEdgeId).not.toBeNull();
+    expect(useWorkflowEditorStore.getState().overlay).toBe("picker");
+    useWorkflowEditorStore.getState().setOverlay(null);
+    expect(useWorkflowEditorStore.getState().splitEdgeId).toBeNull();
+
+    fireEvent.click(edge.getByRole("button", { name: "Add a step in this connection" }));
+    expect(useWorkflowEditorStore.getState().overlay).toBe("picker");
+    fireEvent.keyDown(edge.getByRole("button", { name: "Add a step in this connection" }), {
+      key: "a",
     });
   });
 });
