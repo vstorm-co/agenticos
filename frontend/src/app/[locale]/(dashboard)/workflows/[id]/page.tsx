@@ -13,6 +13,7 @@ import {
   DebugRun,
   EditorActions,
   WorkflowSettingsForm,
+  ChatButton,
   RunButton,
   VersionHistory,
   useRestoreVersion,
@@ -217,6 +218,9 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             >
               <Settings2 className="h-4 w-4" />
             </Button>
+            {canEdit && (
+              <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
+            )}
             {canEdit && (
               <RunButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
             )}

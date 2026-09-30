@@ -136,6 +136,11 @@ vi.mock("@/components/workflows/editor", () => ({
     </button>
   ),
   EditorActions: () => <div data-testid="editor-actions" />,
+  ChatButton: ({ onStarted }: { onStarted: (runId: string) => void }) => (
+    <button type="button" data-testid="chat-button" onClick={() => onStarted("run-chat")}>
+      chat
+    </button>
+  ),
   RunButton: ({ onStarted }: { onStarted: (runId: string) => void }) => (
     <button type="button" data-testid="run-button" onClick={() => onStarted("run-1")}>
       run

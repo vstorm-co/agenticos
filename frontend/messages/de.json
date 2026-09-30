@@ -6196,7 +6196,19 @@
       "switchedOff": "Ausgeschaltet",
       "version": "Schrittversion",
       "whenItFails": "Wenn es langsam ist oder fehlschlägt"
-    }
+    },
+    "chatPanelOpen": "Chat öffnen",
+    "chatPanelTitle": "Mit dem Entwurf chatten",
+    "chatPanelHint": "Jede Nachricht führt den Entwurf als Test aus. Nichts hier erreicht einen echten Chat.",
+    "chatPanelNew": "Neuer Chat",
+    "chatPanelMessages": "Nachrichten",
+    "chatPanelEmpty": "Sende eine Nachricht, um den Entwurf damit auszuführen. Sein Run öffnet sich auf der Fläche.",
+    "chatPanelMessage": "Nachricht",
+    "chatPanelPlaceholder": "Schreibe eine Nachricht",
+    "chatPanelSend": "Senden",
+    "chatPanelRunning": "Läuft",
+    "chatPanelNoAnswer": "Der Run endete ohne Antwort: Binde den Text eines Output-Schritts, um zu antworten.",
+    "chatPanelClose": "Chat schließen"
   },
   "artifacts": {
     "title": "Artefakte",

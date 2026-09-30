@@ -1,5 +1,5 @@
 ---
-source_sha: "2b6d96cf27a3"
+source_sha: "55ba26e8d460"
 ---
 
 # Workflows { #workflows }
@@ -510,6 +510,14 @@ offen ist oder nicht, sodass ein erneutes Öffnen der Unterhaltung sie wieder li
 Ein Run schreibt in die Unterhaltung, aus der er gestartet wurde, und nirgendwo sonst:
 Wer jemand anderen erreichen will, braucht einen HTTP- oder Benachrichtigungsschritt
 im Graphen.
+
+**Open chat** im Kopf des Editors probiert einen Entwurf, der mit einer
+Chat-Nachricht beginnt, ohne ihn zu verlassen. Jede im Panel gesendete Nachricht
+startet einen Test-Run des Entwurfs mit dieser Nachricht, der Run öffnet sich auf
+der Fläche, und seine Antwort - der Text des Output-Schritts - erscheint unter der
+Nachricht. Es sind Test-Runs ohne Unterhaltung, in die sie antworten könnten, also
+erreicht nichts aus dem Panel einen echten Chat. **New chat** beginnt neu mit einer
+neuen Unterhaltungs-ID.
 
 ### Über einen WebSocket { #over-a-websocket }
 

@@ -6337,7 +6337,19 @@
       "switchedOff": "Switched off",
       "version": "Step version",
       "whenItFails": "When it is slow or fails"
-    }
+    },
+    "chatPanelOpen": "Open chat",
+    "chatPanelTitle": "Chat with the draft",
+    "chatPanelHint": "Each message runs the draft as a test. Nothing here reaches a real chat.",
+    "chatPanelNew": "New chat",
+    "chatPanelMessages": "Messages",
+    "chatPanelEmpty": "Send a message to run the draft with it. Its run opens on the canvas.",
+    "chatPanelMessage": "Message",
+    "chatPanelPlaceholder": "Write a message",
+    "chatPanelSend": "Send",
+    "chatPanelRunning": "Running",
+    "chatPanelNoAnswer": "The run ended without an answer: bind an Output step's text to answer.",
+    "chatPanelClose": "Close the chat"
   },
   "artifacts": {
     "title": "Artifacts",

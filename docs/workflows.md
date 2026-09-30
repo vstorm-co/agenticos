@@ -451,6 +451,13 @@ chat is still open, so reopening the conversation reads it back. A run writes to
 the conversation it was started from and nowhere else: reaching anyone else takes
 an HTTP or notification step in the graph.
 
+**Open chat** in the editor's header tries a draft that starts from a chat
+message without leaving it. Each message sent in the panel starts a test run of
+the draft with that message, the run opens on the canvas, and its answer - the
+Output step's text - shows under the message. The runs are test runs with no
+conversation to answer into, so nothing said in the panel reaches a real chat.
+**New chat** starts over with a new conversation id.
+
 ### Over a WebSocket { #over-a-websocket }
 
 `/api/v1/ws/workflow-runs` starts a run and streams its events, or follows one

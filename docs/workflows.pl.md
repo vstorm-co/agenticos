@@ -1,5 +1,5 @@
 ---
-source_sha: "2b6d96cf27a3"
+source_sha: "55ba26e8d460"
 ---
 
 # Workflows { #workflows }
@@ -459,6 +459,13 @@ Odpowiedź jest zapisywana w rozmowie, gdy run się kończy, niezależnie od teg
 czat jest jeszcze otwarty, więc ponowne otwarcie rozmowy ją odczytuje. Run pisze do
 rozmowy, z której został uruchomiony, i nigdzie indziej: dotarcie do kogokolwiek
 innego wymaga kroku HTTP albo powiadomienia w grafie.
+
+**Open chat** w nagłówku edytora pozwala wypróbować szkic zaczynający się od
+wiadomości czatu bez wychodzenia z niego. Każda wiadomość wysłana w panelu
+uruchamia testowy run szkicu z tą wiadomością, run otwiera się na płótnie, a jego
+odpowiedź - tekst kroku Output - pojawia się pod wiadomością. To testowe runy bez
+rozmowy, do której mogłyby odpowiedzieć, więc nic z panelu nie trafia do
+prawdziwego czatu. **New chat** zaczyna od nowa z nowym id rozmowy.
 
 ### Przez WebSocket { #over-a-websocket }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2b6d96cf27a3"
+source_sha: "55ba26e8d460"
 ---
 
 # Workflows { #workflows }
@@ -473,6 +473,13 @@ La respuesta se escribe en la conversación cuando el run termina, siga el chat 
 o no, así que al volver a abrir la conversación se lee de nuevo. Un run escribe en la
 conversación desde la que se inició y en ninguna otra parte: llegar a cualquier otra
 persona requiere un paso HTTP o de notificación en el grafo.
+
+**Open chat** en la cabecera del editor prueba un borrador que empieza con un
+mensaje de chat sin salir de él. Cada mensaje enviado en el panel inicia un run de
+prueba del borrador con ese mensaje, el run se abre en el lienzo y su respuesta - el
+texto del paso Output - aparece bajo el mensaje. Son runs de prueba sin
+conversación a la que responder, así que nada del panel llega a un chat real.
+**New chat** empieza de nuevo con un id de conversación nuevo.
 
 ### Por un WebSocket { #over-a-websocket }
 

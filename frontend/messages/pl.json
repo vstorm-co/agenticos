@@ -3989,7 +3989,19 @@
       "switchedOff": "Wyłączony",
       "version": "Wersja kroku",
       "whenItFails": "Gdy działa wolno lub zawodzi"
-    }
+    },
+    "chatPanelOpen": "Otwórz czat",
+    "chatPanelTitle": "Czat ze szkicem",
+    "chatPanelHint": "Każda wiadomość uruchamia szkic testowo. Nic stąd nie trafia do prawdziwego czatu.",
+    "chatPanelNew": "Nowy czat",
+    "chatPanelMessages": "Wiadomości",
+    "chatPanelEmpty": "Wyślij wiadomość, by uruchomić z nią szkic. Jej run otworzy się na płótnie.",
+    "chatPanelMessage": "Wiadomość",
+    "chatPanelPlaceholder": "Napisz wiadomość",
+    "chatPanelSend": "Wyślij",
+    "chatPanelRunning": "Trwa",
+    "chatPanelNoAnswer": "Run zakończył się bez odpowiedzi: powiąż tekst kroku Output, by odpowiadał.",
+    "chatPanelClose": "Zamknij czat"
   },
   "artifacts": {
     "title": "Artefakty",

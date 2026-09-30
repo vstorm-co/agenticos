@@ -19,6 +19,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Try a chat-triggered draft in a chat panel.** Open chat in the editor
+  runs the draft as a test with each message, opens the run on the canvas and
+  shows its answer; nothing said there reaches a real conversation (#1955).
 - **Compare a version with the draft.** A version's preview draws both on one
   canvas with every added, changed and removed step marked, and lists what
   changed in each changed step (#1954).
