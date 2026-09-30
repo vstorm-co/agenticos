@@ -19,6 +19,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities import _registry as registry
 from app.agents.capabilities.artifacts import Artifacts
 from app.agents.capabilities.artifacts._toolset import (
@@ -40,11 +41,13 @@ PUBLISH = "app.agents.capabilities.artifacts._toolset.artifacts.publish"
 
 
 def _deps(**overrides: Any) -> AgentDeps:
+    person = uuid.uuid4()
     values: dict[str, Any] = {
         "organization_id": uuid.uuid4(),
         "agent_id": uuid.uuid4(),
-        "user_id": str(uuid.uuid4()),
+        "user_id": str(person),
         "run_id": uuid.uuid4(),
+        "audience": RunAudience(user_id=person),
     }
     values.update(overrides)
     return AgentDeps(**values)
@@ -378,7 +381,7 @@ class TestReadingBack:
         text = "x" * (READ_LIMIT + 5)
         source = _source(text, media_type=ArtifactMediaType.MARKDOWN)
         with patch(READ_SOURCE, new=AsyncMock(return_value=source)):
-            result = await _reader()(_ctx(_deps(user_id=None)), name="r")
+            result = await _reader()(_ctx(_deps()), name="r")
         header, body = result.split("\n\n", 1)
         assert "Markdown" in header
         assert f"Showing the first {READ_LIMIT:,} of {READ_LIMIT + 5:,} characters." in header
@@ -390,6 +393,20 @@ class TestReadingBack:
         with patch(READ_SOURCE, new=AsyncMock(side_effect=missing)):
             result = await _reader()(_ctx(_deps()), name="r")
         assert result == "There is no artifact named 'r' that this run may open."
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "audience",
+        [RunAudience(), None],
+        ids=["anonymous-visitor", "no-audience"],
+    )
+    async def test_an_anonymous_surface_reads_nothing(self, audience: RunAudience | None) -> None:
+        """On a public widget `user_id` is the publisher standing in for a visitor,
+        who could otherwise have any page the publisher may open read out."""
+        with patch(READ_SOURCE, new=AsyncMock()) as read:
+            result = await _reader()(_ctx(_deps(audience=audience)), name="r")
+        assert "nobody is signed in" in result
+        read.assert_not_awaited()
 
     @pytest.mark.parametrize("missing", ["organization_id", "agent_id"])
     async def test_a_run_with_no_agent_has_nothing_to_read(self, missing: str) -> None:

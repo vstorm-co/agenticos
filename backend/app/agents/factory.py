@@ -34,6 +34,7 @@ from app.agents.capabilities.approval import (
     approval_required_tools,
     refuse_ungateable_approvals,
 )
+from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -73,6 +74,7 @@ logger = logging.getLogger(__name__)
 # `*_requested` helpers said the same thing three times.
 _AUDIENCE_AWARE = frozenset(
     {
+        ARTIFACTS_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,

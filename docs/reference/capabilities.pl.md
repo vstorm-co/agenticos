@@ -1,5 +1,5 @@
 ---
-source_sha: "ab4b40c81cb5"
+source_sha: "6093b312c6d2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1017,7 +1017,8 @@ a nie retry.
 
 **Odczyt.** `read_artifact` zwraca wiersz nagłówka (wersja, format, rozmiar) i
 źródło, ucięte na 100 000 znaków, co nagłówek mówi. Otwiera tylko to, co osoba
-runa może otworzyć w konsoli.
+runa może otworzyć w konsoli, i nic na publicznym widgecie ani w embedzie, gdzie
+run zastępuje gościa, którego nikt nie zidentyfikował.
 
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń

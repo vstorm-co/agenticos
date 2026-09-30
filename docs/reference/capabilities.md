@@ -968,7 +968,8 @@ and a page the run's person may not open, are results, not retries.
 
 **Reading back.** `read_artifact` returns a header line (version, format, size)
 and the source, cut at 100,000 characters with the header saying so. It opens
-only what the run's person may open in the console.
+only what the run's person may open in the console, and nothing on a public
+widget or an embed, where the run stands in for a visitor nobody identified.
 
 **Not side-effecting.** A first publication is private to the person the run was
 for, and only a person widens who reads it, so the approval gate would only

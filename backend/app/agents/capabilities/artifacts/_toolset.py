@@ -26,6 +26,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_backends import ensure_async
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.core.config import settings
@@ -53,6 +54,10 @@ _ONE_SOURCE = (
 _NO_AGENT = (
     "Publishing is not available here: this run has no saved agent to publish under. "
     "Tell the user the page could not be published, and give them the content instead."
+)
+_NO_READER = (
+    "Reading a published page is not available here: nobody is signed in on this "
+    "surface, so there is no one the page could be opened for."
 )
 
 READ_LIMIT = 100_000
@@ -318,11 +323,17 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_AGENT
+        # Read as the person listening, never as `user_id`: on a public widget or
+        # an embed that is the publisher standing in for an anonymous visitor, who
+        # could otherwise have any page the publisher may open read out to them.
+        reader = (deps.audience or RunAudience()).user_id
+        if reader is None:
+            return _NO_READER
         try:
             source = await artifacts.read_source(
                 organization_id=deps.organization_id,
                 agent_id=deps.agent_id,
-                reader_user_id=UUID(deps.user_id) if deps.user_id else None,
+                reader_user_id=reader,
                 run_id=deps.run_id,
                 name=name,
             )

@@ -115,7 +115,9 @@ Two things are versioned separately from this file and worth knowing about:
   third: removing an environment locks its row first, so a run cannot start in
   it between the check and the delete; the chat's socket recovery reads
   `/auth/me` under the cross-tab lock; and an embed origin's port must be in
-  range.
+  range. From the security review: `read_artifact` reads as the
+  person listening, so on a public widget or an embed, where the run stands in
+  for an anonymous visitor, it opens nothing.
 - **An artifact whose stored bytes are gone answers 404, not 500.** A version
   row whose file storage no longer has - a restored database beside an older
   volume - made the page, its thumbnail and `read_artifact` fail with a server

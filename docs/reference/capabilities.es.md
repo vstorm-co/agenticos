@@ -1,5 +1,5 @@
 ---
-source_sha: "ab4b40c81cb5"
+source_sha: "6093b312c6d2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1033,7 +1033,9 @@ resultados, no reintentos.
 
 **Leer de vuelta.** `read_artifact` devuelve una línea de cabecera (versión,
 formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que la
-cabecera dice. Solo abre lo que la persona del run puede abrir en la consola.
+cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y
+nada en un widget público o un embed, donde el run sustituye a un visitante que
+nadie ha identificado.
 
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la
