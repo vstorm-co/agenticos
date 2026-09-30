@@ -1,5 +1,5 @@
 ---
-source_sha: "6734f163bbd1"
+source_sha: "7ccc42c4fbd4"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -133,6 +133,20 @@ se puede convertir falla con `MAPPING_COERCION_FAILED` y nombra el campo.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.filter y data.combine { #data-filter-and-data-combine }
+
+**Filter a list** conserva los elementos de una lista vinculada para los que se
+cumple una condición JMESPath sobre `item` e `index`, y dice cuántos descartó.
+**Combine lists** hace una lista de `first` y `second`: `append` pone una tras otra,
+`by_position` une los objetos de la misma posición, y `by_key` une a cada objeto de
+la primera el objeto de la segunda con el mismo `key`. Si ambos tienen un campo,
+gana la segunda; unir elemento a elemento necesita objetos y, si no, falla con
+`COMBINE_NEEDS_OBJECTS`.
+
+::: app.workflows.nodes.data_filter._handler.DataFilterConfig
+
+::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
 ## logic.if y logic.merge { #logic-if-and-logic-merge }
 
 `logic.if` evalúa una condición JMESPath sobre su `value` enlazado y sigue por el
@@ -153,6 +167,19 @@ analizar, o que llama a otra cosa, no se puede publicar.
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.switch { #logic-switch }
+
+**Switch.** Envía la ejecución por la primera de muchas ramas cuya regla se cumple.
+Cada regla tiene un nombre, que es el puerto de su rama, y una condición JMESPath
+sobre el `value` vinculado, probadas en orden; `otherwise` se lleva la ejecución
+cuando ninguna se cumple. Las ramas se reúnen en un `logic.merge`, que las acepta
+porque siempre se toma exactamente una. Una regla que falla con sus datos hace fallar
+el paso con `CONDITION_FAILED` y nombra la regla.
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchOutput
 
 ## knowledge.search { #knowledge-search }
 
@@ -322,6 +349,19 @@ iteración de un bucle nunca preguntan dos veces lo mismo.
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
+## flow.wait { #flow-wait }
+
+**Wait.** Detiene la ejecución en el paso durante `seconds` desde que se alcanza, o
+hasta un `until` vinculado, y luego sigue; como mucho treinta días. El paso queda
+aparcado en un reloj cuya fila de despacho vence entonces, así que la espera
+sobrevive a un reinicio del worker y no ocupa ninguno, y las demás ramas siguen
+mientras tanto. Un momento ya pasado sigue enseguida, y el plazo de la ejecución
+sigue vigente.
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
 
 ## Gestión de errores { #error-handling }
 

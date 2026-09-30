@@ -8,6 +8,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NodeRunOverlayProvider, summarizeNodeRuns } from "./run-overlay";
 import { WorkflowCanvas } from "./workflow-canvas";
+import { nodeSummary } from "./workflow-node";
 
 /**
  * What a node card says about its step: a line of what it is set to do, its
@@ -124,6 +125,19 @@ describe("a node card", () => {
     expect(screen.getByText("1 branch and default")).toBeTruthy();
     expect(screen.getByText("Collects failed items and carries on")).toBeTruthy();
     expect(screen.getByText("2 fields")).toBeTruthy();
+  });
+
+  it("sums up a switch, a wait and a filter", () => {
+    const t = ((key: string, values?: Record<string, unknown>) =>
+      `${key}:${JSON.stringify(values ?? {})}`) as unknown as Parameters<typeof nodeSummary>[1];
+    const summary = (definitionId: string, config: Record<string, unknown>) =>
+      nodeSummary({ ...instance("x", definitionId), config }, t);
+    expect(summary("logic.switch", { rules: [{}, {}] })).toBe('nodeSummaryRules:{"count":2}');
+    expect(summary("logic.switch", {})).toBe('nodeSummaryRules:{"count":0}');
+    expect(summary("flow.wait", { seconds: 30 })).toBe('nodeSummaryWait:{"seconds":30}');
+    expect(summary("flow.wait", {})).toBeNull();
+    expect(summary("data.filter", { condition: "item.ok" })).toBe("item.ok");
+    expect(summary("data.filter", {})).toBeNull();
   });
 
   it("falls back to the step's group, keeping its description for a hover", () => {

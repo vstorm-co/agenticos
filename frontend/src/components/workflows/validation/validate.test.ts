@@ -124,7 +124,7 @@ const MERGE = makeDefinition({
   ports: [port("in", "input", null), port("out", "output", null)],
 });
 const SWITCH = makeDefinition({
-  id: "logic.switch",
+  id: "test.fanout",
   kind: "control",
   ports: [port("in", "input", null), port("a", "output", null), port("b", "output", null)],
 });
@@ -419,7 +419,8 @@ describe("drift parity — graphs the backend refuses", () => {
       entry: "entry",
       nodes: [
         echo("entry"),
-        node("s", "logic.switch"),
+        // Any step that is not one of the exclusive branching steps.
+        node("s", "test.fanout"),
         echo("ba"),
         echo("bb"),
         node("m", "logic.merge"),

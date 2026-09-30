@@ -1,5 +1,5 @@
 ---
-source_sha: "6734f163bbd1"
+source_sha: "7ccc42c4fbd4"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -140,6 +140,20 @@ nennt das Feld.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.filter und data.combine { #data-filter-and-data-combine }
+
+**Filter a list** behält die Elemente einer gebundenen Liste, für die eine
+JMESPath-Bedingung über `item` und `index` gilt, und sagt, wie viele es verworfen
+hat. **Combine lists** macht aus `first` und `second` eine Liste: `append` hängt die
+zweite an, `by_position` vereint die Objekte an derselben Position, und `by_key`
+vereint jedes Objekt der ersten mit dem Objekt der zweiten mit demselben `key`. Hat
+ein Feld beide, gewinnt die zweite; elementweises Vereinen braucht Objekte und
+scheitert sonst mit `COMBINE_NEEDS_OBJECTS`.
+
+::: app.workflows.nodes.data_filter._handler.DataFilterConfig
+
+::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
 ## logic.if und logic.merge { #logic-if-and-logic-merge }
 
 `logic.if` wertet eine JMESPath-Bedingung über seinem gebundenen `value` aus und
@@ -161,6 +175,19 @@ lässt oder etwas anderes aufruft, kann nicht veröffentlicht werden.
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.switch { #logic-switch }
+
+**Switch.** Schickt den Lauf in den ersten von vielen Zweigen, dessen Regel gilt.
+Jede Regel hat einen Namen, der Port ihres Zweigs ist, und eine JMESPath-Bedingung
+über den gebundenen `value`, der Reihe nach geprüft; `otherwise` übernimmt, wenn
+keine gilt. Die Zweige laufen in einem `logic.merge` zusammen, der sie annimmt, weil
+stets genau einer genommen wird. Eine Regel, die an ihren Daten scheitert, lässt
+den Schritt mit `CONDITION_FAILED` scheitern und nennt die Regel.
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchOutput
 
 ## knowledge.search { #knowledge-search }
 
@@ -335,6 +362,19 @@ Schleifeniteration nie zweimal nach demselben fragt.
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
+## flow.wait { #flow-wait }
+
+**Wait.** Hält den Lauf am Schritt für `seconds` nach dem Erreichen oder bis zu einem
+gebundenen `until` an und geht dann weiter; höchstens dreißig Tage. Der Schritt wird
+auf einer Uhr geparkt, deren Dispatch-Zeile dann fällig wird, sodass das Warten einen
+Worker-Neustart übersteht und keinen Worker belegt; andere Zweige laufen derweil
+weiter. Ein bereits vergangener Zeitpunkt geht sofort weiter, und die Frist des Laufs
+gilt weiterhin.
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
 
 ## Fehlerbehandlung { #error-handling }
 

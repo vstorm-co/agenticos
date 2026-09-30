@@ -10,6 +10,7 @@ durable-execution engine this package does not contain - this module only
 defines the vocabulary every node handler and every future consumer share.
 """
 
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,8 +56,10 @@ class Waiting(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     status: Literal["waiting"] = "waiting"
-    reason: Literal["approval", "external_event", "retry_backoff"]
+    reason: Literal["approval", "external_event", "retry_backoff", "timer"]
     resume_token: str
+    resume_at: datetime | None = None
+    """When a `timer` wait comes due; the dispatcher wakes the step then."""
 
 
 class Failed(BaseModel):

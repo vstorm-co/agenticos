@@ -8,6 +8,7 @@ import {
   effectiveDefinition,
   errorBranches,
   instancePorts,
+  switchRules,
   routesErrors,
 } from "./ports";
 import type { NodeInstance } from "./types";
@@ -48,6 +49,29 @@ describe("instancePorts", () => {
     const ports = instancePorts(handle, HANDLE);
     expect(ports.map((p) => p.id)).toEqual(["in", "default", "missing"]);
     expect(ports[2]?.schema).toBe(HANDLED);
+  });
+
+  it("gives a switch one output per rule, in order, before otherwise", () => {
+    const OUT = { type: "object", title: "LogicSwitchOutput" };
+    const SWITCH = makeDefinition({
+      id: "logic.switch",
+      ports: [port("in", "input", null), port("otherwise", "output", OUT)],
+    });
+    const configured = instance({
+      definition_id: "logic.switch",
+      config: { rules: [{ name: "poland" }, { name: "otherwise" }, { name: "germany" }] },
+    });
+    const ports = instancePorts(configured, SWITCH);
+    expect(ports.map((p) => p.id)).toEqual(["in", "poland", "germany", "otherwise"]);
+    expect(ports[1]?.schema).toBe(OUT);
+    expect(switchRules({ rules: "junk" })).toEqual([]);
+    const bare = makeDefinition({ id: "logic.switch", ports: [port("in", "input", null)] });
+    expect(instancePorts(configured, bare).map((p) => p.id)).toEqual([
+      "in",
+      "poland",
+      "otherwise",
+      "germany",
+    ]);
   });
 
   it("gives a step that routes its errors an error port carrying the WorkflowError", () => {

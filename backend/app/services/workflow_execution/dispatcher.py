@@ -1493,6 +1493,17 @@ async def _settle_waiting(
                 node_run_id=node_run.id,
             )
         return
+    if result.reason == WaitingReason.TIMER.value:
+        # The step's own clock: its dispatch row comes due when the wait does, so
+        # a worker restart loses nothing, and the run goes on running meanwhile.
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=run.organization_id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=result.resume_at or now,
+        )
+        return
     run_status = (
         WorkflowRunStatus.WAITING_APPROVAL
         if result.reason == WaitingReason.APPROVAL.value

@@ -6254,7 +6254,9 @@
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Choose a workflow",
     "pickerWorkflowNone": "No workflow is published starting from Called by a workflow yet.",
-    "pickerWorkflowGone": "The chosen workflow can no longer be called: publish it starting from Called by a workflow."
+    "pickerWorkflowGone": "The chosen workflow can no longer be called: publish it starting from Called by a workflow.",
+    "nodeSummaryRules": "{count, plural, one {# rule} other {# rules}}",
+    "nodeSummaryWait": "For {seconds, plural, one {# second} other {# seconds}}"
   },
   "artifacts": {
     "title": "Artifacts",

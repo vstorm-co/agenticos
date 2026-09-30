@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Switch, Wait, Filter a list and Combine lists steps.** **Switch** takes the first
+  of many named rules that holds, or `otherwise`, and rejoins at a Merge. **Wait**
+  holds a run for a number of seconds or until a bound time on a durable timer that
+  survives a restart. **Filter a list** keeps the items a condition holds for, and
+  **Combine lists** appends two lists or merges them by position or by a key. Waits
+  park with the new `timer` reason (#1947).
 - **Call another workflow as a step.** A **Called by a workflow** trigger with
   typed fields makes a workflow others run, and the **Run a workflow** step starts
   its published version with the bound input, waits for it and hands on its output

@@ -123,6 +123,20 @@ fails with `MAPPING_COERCION_FAILED` and names the field.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.filter and data.combine { #data-filter-and-data-combine }
+
+**Filter a list** keeps the items of a bound list for which a JMESPath condition
+over `item` and `index` holds, and says how many it dropped. **Combine lists**
+makes one list of `first` and `second`: `append` puts one after the other,
+`by_position` merges the objects at the same position, and `by_key` merges into
+each object of the first the second's object with the same `key`. Where both have
+a field, the second's wins; merging item by item needs objects, and fails with
+`COMBINE_NEEDS_OBJECTS` otherwise.
+
+::: app.workflows.nodes.data_filter._handler.DataFilterConfig
+
+::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
 ## logic.if and logic.merge { #logic-if-and-logic-merge }
 
 `logic.if` evaluates a JMESPath condition over its bound `value` and continues
@@ -143,6 +157,19 @@ calls anything else, cannot be published.
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.switch { #logic-switch }
+
+**Switch.** Sends the run down the first of many branches whose rule holds. Each
+rule has a name, which is its branch's port, and a JMESPath condition over the
+bound `value`, tried in order; `otherwise` takes the run when none holds. Its
+branches rejoin at a `logic.merge`, which accepts them because exactly one is ever
+taken. A rule that fails on its data fails the step with `CONDITION_FAILED` and
+names the rule.
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchOutput
 
 ## knowledge.search { #knowledge-search }
 
@@ -308,6 +335,18 @@ asks twice for the same thing.
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
+## flow.wait { #flow-wait }
+
+**Wait.** Holds the run at the step for `seconds` after it is reached, or until a
+bound `until`, then goes on; at most thirty days. The step is parked on a timer
+whose dispatch row comes due then, so the wait survives a worker restart and holds
+no worker, and other branches go on meanwhile. A moment already past goes on at
+once, and the run's deadline still applies.
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
 
 ## Error handling { #error-handling }
 

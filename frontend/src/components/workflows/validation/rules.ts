@@ -43,6 +43,7 @@ import type { RawProblem } from "./types";
  */
 const EXCLUSIVE_BRANCHING: ReadonlySet<string> = new Set([
   "logic.if",
+  "logic.switch",
   "decide.yes_no",
   "decide.choose",
   "decide.score",

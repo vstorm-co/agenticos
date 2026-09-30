@@ -52,6 +52,16 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       const branches = Array.isArray(config.branches) ? config.branches.length : 0;
       return t("nodeSummaryBranches", { count: branches });
     }
+    case "logic.switch": {
+      const rules = Array.isArray(config.rules) ? config.rules.length : 0;
+      return t("nodeSummaryRules", { count: rules });
+    }
+    case "flow.wait":
+      return typeof config.seconds === "number"
+        ? t("nodeSummaryWait", { seconds: config.seconds })
+        : null;
+    case "data.filter":
+      return typeof config.condition === "string" && config.condition ? config.condition : null;
     case "control.foreach":
       return config.item_error_policy === "collect"
         ? t("nodeSummaryCollect")

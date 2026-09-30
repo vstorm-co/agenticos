@@ -1,5 +1,5 @@
 ---
-source_sha: "6734f163bbd1"
+source_sha: "7ccc42c4fbd4"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -131,6 +131,19 @@ zamienić, kończy się błędem `MAPPING_COERCION_FAILED` z nazwą pola.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.filter i data.combine { #data-filter-and-data-combine }
+
+**Filter a list** zostawia te elementy powiązanej listy, dla których spełniony jest
+warunek JMESPath nad `item` i `index`, i mówi, ile odrzucił. **Combine lists** tworzy
+jedną listę z `first` i `second`: `append` stawia jedną po drugiej, `by_position`
+łączy obiekty na tej samej pozycji, a `by_key` dołącza do każdego obiektu pierwszej
+obiekt drugiej o tym samym `key`. Gdy oba mają pole, wygrywa druga; łączenie element
+po elemencie wymaga obiektów, inaczej kończy się `COMBINE_NEEDS_OBJECTS`.
+
+::: app.workflows.nodes.data_filter._handler.DataFilterConfig
+
+::: app.workflows.nodes.data_combine._handler.DataCombineConfig
+
 ## logic.if i logic.merge { #logic-if-and-logic-merge }
 
 `logic.if` wylicza warunek JMESPath na zbindowanej wartości `value` i prowadzi
@@ -151,6 +164,19 @@ innego, nie da się opublikować.
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.switch { #logic-switch }
+
+**Switch.** Kieruje przebieg pierwszą z wielu gałęzi, której reguła jest spełniona.
+Każda reguła ma nazwę, będącą portem jej gałęzi, i warunek JMESPath nad powiązaną
+`value`, sprawdzane po kolei; `otherwise` przejmuje przebieg, gdy żadna nie jest
+spełniona. Gałęzie łączą się w `logic.merge`, który je przyjmuje, bo zawsze biegnie
+dokładnie jedna. Reguła, która zawodzi na swoich danych, kończy krok błędem
+`CONDITION_FAILED` i wskazuje regułę.
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
+
+::: app.workflows.nodes.logic_switch._handler.LogicSwitchOutput
 
 ## knowledge.search { #knowledge-search }
 
@@ -318,6 +344,19 @@ pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to s
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
 
 ::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
+## flow.wait { #flow-wait }
+
+**Wait.** Zatrzymuje przebieg na kroku przez `seconds` od dotarcia do niego albo do
+powiązanego `until`, po czym idzie dalej; najwyżej trzydzieści dni. Krok jest
+zaparkowany na zegarze, którego wiersz dyspozycji przypada na ten moment, więc
+oczekiwanie przetrwa restart workera i nie zajmuje go, a inne gałęzie w tym czasie
+działają. Moment, który już minął, przechodzi od razu, a termin przebiegu nadal
+obowiązuje.
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
+
+::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
 
 ## Obsługa błędów { #error-handling }
 

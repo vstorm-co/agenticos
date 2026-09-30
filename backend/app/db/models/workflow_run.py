@@ -110,14 +110,14 @@ class WorkflowRunStatus(enum.StrEnum):
 class WaitingReason(enum.StrEnum):
     """Why a `NodeRun` (or, derived from it, a `WorkflowRun`) is parked.
 
-    Mirrors `app.workflows.contracts.results.Waiting.reason` - the same three
-    values, persisted rather than held only in the return value that produced
-    them.
+    Mirrors `app.workflows.contracts.results.Waiting.reason` - the same values,
+    persisted rather than held only in the return value that produced them.
     """
 
     APPROVAL = "approval"
     EXTERNAL_EVENT = "external_event"
     RETRY_BACKOFF = "retry_backoff"
+    TIMER = "timer"
 
 
 class NodeRunStatus(enum.StrEnum):
@@ -334,7 +334,7 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "paused_reason IS NULL OR paused_reason IN "
-            "('approval', 'external_event', 'retry_backoff')",
+            "('approval', 'external_event', 'retry_backoff', 'timer')",
             name="ck_workflow_run_paused_reason",
         ),
         CheckConstraint("spent_cost >= 0", name="ck_workflow_run_spent_cost"),
@@ -403,7 +403,7 @@ class NodeRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "waiting_reason IS NULL OR waiting_reason IN "
-            "('approval', 'external_event', 'retry_backoff')",
+            "('approval', 'external_event', 'retry_backoff', 'timer')",
             name="ck_node_run_waiting_reason",
         ),
     )

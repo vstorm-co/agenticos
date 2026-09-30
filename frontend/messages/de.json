@@ -6113,7 +6113,9 @@
     "pickerWorkflowLabel": "Workflow",
     "pickerWorkflowPlaceholder": "Workflow wählen",
     "pickerWorkflowNone": "Noch kein Workflow ist mit dem Auslöser Called by a workflow veröffentlicht.",
-    "pickerWorkflowGone": "Der gewählte Workflow kann nicht mehr aufgerufen werden: Veröffentlichen Sie ihn mit dem Auslöser Called by a workflow."
+    "pickerWorkflowGone": "Der gewählte Workflow kann nicht mehr aufgerufen werden: Veröffentlichen Sie ihn mit dem Auslöser Called by a workflow.",
+    "nodeSummaryRules": "{count, plural, one {# Regel} other {# Regeln}}",
+    "nodeSummaryWait": "{seconds, plural, one {# Sekunde} other {# Sekunden}} lang"
   },
   "artifacts": {
     "title": "Artefakte",

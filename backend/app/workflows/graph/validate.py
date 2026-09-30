@@ -1188,6 +1188,7 @@ def _rule_5_exclusive_merge(
 EXCLUSIVE_BRANCHING = frozenset(
     {
         "logic.if",
+        "logic.switch",
         ERROR_HANDLE,
         "decide.yes_no",
         "decide.choose",

@@ -674,7 +674,7 @@ async def test_a_merges_common_dominator_that_is_not_logic_if_is_refused(
     dominator" case), but it is some other control node, not `logic.if`."""
     switch = registered_node(
         NodeDefinition(
-            id="logic.switch",
+            id="test.fanout",
             version=1,
             name="Switch",
             category="logic",
