@@ -127,6 +127,28 @@ describe("sourceCandidates", () => {
     ).toEqual([["received_at"]]);
   });
 
+  it("offers a free-form value to any field, for a field inside it", () => {
+    const MAP = makeDefinition({
+      id: "data.map",
+      ports: [
+        port(
+          "out",
+          "output",
+          objectSchema("MapOutput", { values: { type: "object", additionalProperties: true } }, []),
+        ),
+      ],
+    });
+    const mapped = graph({
+      entry: "M",
+      nodes: [node("M", "data.map"), echo("B")],
+      edges: [edge("e", "M", "out", "B", "in")],
+    });
+    const offered = sourceCandidates(mapped, makeCatalog([DEBUG_ECHO, MAP]), "B", STRING);
+    expect(offered.map((candidate) => [candidate.fieldPath, candidate.dynamic])).toEqual([
+      [["values"], true],
+    ]);
+  });
+
   it("drops a port and fields whose types do not match the target", () => {
     expect(sourceCandidates(chain, catalog, "B", INTEGER)).toEqual([]);
   });

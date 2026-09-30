@@ -1,5 +1,5 @@
 ---
-source_sha: "077a1345027b"
+source_sha: "70489ea11349"
 ---
 
 # Workflows { #workflows }
@@ -163,6 +163,14 @@ sam krok. Oba pochodzą z ostatniego przebiegu testowego uruchomionego w edytorz
 otwarciu, z najnowszego. **Tabela** układa dane w wiersze, listę rekordów po jednym wierszu
 na rekord. **JSON** pokazuje je takimi, jakie są, a **Pola** wymienia każde pole po ścieżce
 z jego typem: ścieżki, które czyta późniejszy krok.
+
+Kolumnę albo pole z **Wejścia** można przeciągnąć na ustawienie, które wtedy czyta
+je z tamtego kroku, tak jakby wybrano je w **Z kroku**. Pole, które nie pasuje,
+zostaje odrzucone z podaniem powodu: typ, którego ustawienie nie przyjmuje, albo
+krok, który nie zawsze działa przed tym. Wewnątrz wartości o dowolnym kształcie,
+takiej jak `values` mapowania czy `payload` wyzwalacza, typem jest ten, który
+pokazał przebieg. Lista wyboru też oferuje takie wartości każdemu ustawieniu, a
+ścieżkę wpisuje się w **Pole w środku**.
 
 **Przypnij te dane** zachowuje wynik na kroku, a **Wpisz dane do przypięcia** pozwala
 wpisać własny jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy

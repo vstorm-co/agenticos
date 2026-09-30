@@ -70,15 +70,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export interface DataTable {
   columns: string[];
   rows: Record<string, unknown>[];
+  /**
+   * Where each column sits in the data, for a column a later step can read -
+   * null when the rows are a list's items, which no single path reaches.
+   */
+  paths: Record<string, string[]> | null;
 }
 
 /** A row with its nested objects spread into `parent.child` columns, two levels deep. */
-function flatRow(row: Record<string, unknown>, prefix = "", depth = 1): Record<string, unknown> {
+function flatRow(
+  row: Record<string, unknown>,
+  paths: Record<string, string[]>,
+  prefix: string[] = [],
+): Record<string, unknown> {
   const flat: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    const column = prefix === "" ? key : `${prefix}.${key}`;
-    if (isRecord(value) && depth < 2) Object.assign(flat, flatRow(value, column, depth + 1));
-    else flat[column] = value;
+    const path = [...prefix, key];
+    if (isRecord(value) && path.length < 2) Object.assign(flat, flatRow(value, paths, path));
+    else {
+      const column = path.join(".");
+      flat[column] = value;
+      paths[column] = path;
+    }
   }
   return flat;
 }
@@ -93,8 +106,10 @@ export function tableOf(value: Record<string, unknown>): DataTable {
     (field): field is Record<string, unknown>[] =>
       Array.isArray(field) && field.length > 0 && field.every(isRecord),
   );
-  const rows = (lists.length === 1 ? (lists[0] as Record<string, unknown>[]) : [value]).map((row) =>
-    flatRow(row),
+  const paths: Record<string, string[]> = {};
+  const listed = lists.length === 1;
+  const rows = (listed ? (lists[0] as Record<string, unknown>[]) : [value]).map((row) =>
+    flatRow(row, paths),
   );
   const columns: string[] = [];
   for (const row of rows.slice(0, SHOWN_ROWS)) {
@@ -102,15 +117,18 @@ export function tableOf(value: Record<string, unknown>): DataTable {
       if (!columns.includes(key) && columns.length < SHOWN_COLUMNS) columns.push(key);
     }
   }
-  return { columns, rows };
+  return { columns, rows, paths: listed ? null : paths };
 }
 
 export interface SchemaField {
   path: string;
   type: string;
+  /** The field's place in the data, for a later step to read; null inside a list's items. */
+  segments: string[] | null;
 }
 
-function typeOf(value: unknown): string {
+/** A value's JSON type: `string`, `number`, `boolean`, `null`, `array` or `object`. */
+export function typeOf(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   return typeof value;
@@ -119,17 +137,24 @@ function typeOf(value: unknown): string {
 /** Every field of the data, by path, with the type it holds - `items[].name` for a list's. */
 export function schemaOf(value: Record<string, unknown>): SchemaField[] {
   const fields: SchemaField[] = [];
-  const walk = (object: Record<string, unknown>, prefix: string, depth: number) => {
+  const walk = (
+    object: Record<string, unknown>,
+    prefix: string,
+    segments: string[] | null,
+    depth: number,
+  ) => {
     for (const [key, field] of Object.entries(object)) {
       if (fields.length >= SHOWN_FIELDS) return;
       const path = prefix === "" ? key : `${prefix}.${key}`;
-      fields.push({ path, type: typeOf(field) });
+      const here = segments === null ? null : [...segments, key];
+      fields.push({ path, type: typeOf(field), segments: here });
       if (depth >= SCHEMA_DEPTH) continue;
-      if (isRecord(field)) walk(field, path, depth + 1);
-      else if (Array.isArray(field) && isRecord(field[0])) walk(field[0], `${path}[]`, depth + 1);
+      if (isRecord(field)) walk(field, path, here, depth + 1);
+      else if (Array.isArray(field) && isRecord(field[0]))
+        walk(field[0], `${path}[]`, null, depth + 1);
     }
   };
-  walk(value, "", 1);
+  walk(value, "", [], 1);
   return fields;
 }
 

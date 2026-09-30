@@ -3845,7 +3845,10 @@
     "stepPinNotJson": "To nie jest poprawny JSON.",
     "stepPinNotObject": "Przypięte dane to obiekt JSON, w nawiasach klamrowych.",
     "stepPinTooLarge": "Przypięte dane mogą zająć najwyżej {limit} bajtów.",
-    "stepHasPinnedData": "Ma przypięte dane: przebiegi testowe używają ich zamiast uruchamiać krok"
+    "stepHasPinnedData": "Ma przypięte dane: przebiegi testowe używają ich zamiast uruchamiać krok",
+    "dataDragHint": "Przeciągnij pole na ustawienie, by czytało je z tego kroku.",
+    "bindingDropIncompatible": "„{field}” nie jest wartością, jaką może przyjąć {target}.",
+    "bindingDropUnreachable": "Ten krok nie może czytać tamtego: nie zawsze działa przed nim."
   },
   "artifacts": {
     "title": "Artefakty",

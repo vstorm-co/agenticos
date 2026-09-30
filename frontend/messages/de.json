@@ -6052,7 +6052,10 @@
     "stepPinNotJson": "Das ist kein gültiges JSON.",
     "stepPinNotObject": "Angeheftete Daten sind ein JSON-Objekt in geschweiften Klammern.",
     "stepPinTooLarge": "Angeheftete Daten dürfen höchstens {limit} Bytes groß sein.",
-    "stepHasPinnedData": "Hat angeheftete Daten: Testläufe verwenden sie, statt den Schritt auszuführen"
+    "stepHasPinnedData": "Hat angeheftete Daten: Testläufe verwenden sie, statt den Schritt auszuführen",
+    "dataDragHint": "Ziehen Sie ein Feld auf eine Einstellung, damit sie es aus diesem Schritt liest.",
+    "bindingDropIncompatible": "„{field}“ ist kein Wert, den {target} annehmen kann.",
+    "bindingDropUnreachable": "Dieser Schritt kann jenen nicht lesen: Er läuft nicht immer davor."
   },
   "artifacts": {
     "title": "Artefakte",

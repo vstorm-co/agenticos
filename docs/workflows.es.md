@@ -1,5 +1,5 @@
 ---
-source_sha: "077a1345027b"
+source_sha: "70489ea11349"
 ---
 
 # Workflows { #workflows }
@@ -173,6 +173,14 @@ propio paso, ambos de la última ejecución de prueba iniciada en el editor o, a
 la más reciente. **Tabla** dispone los datos en filas, una lista de registros con una fila
 por registro. **JSON** los muestra tal cual, y **Campos** lista cada campo por ruta con su
 tipo: las rutas que lee un paso posterior.
+
+Una columna o un campo de **Entrada** se puede arrastrar sobre un ajuste, que
+entonces lo lee de ese paso, como si se eligiera en **De un paso**. Un campo que no
+encaja se rechaza con el motivo: un tipo que el ajuste no admite, o un paso que no
+siempre se ejecuta antes que este. Dentro de un valor de forma libre, como `values`
+de un mapeo o `payload` de un disparador, el tipo es el que mostró la ejecución. El
+selector también ofrece esos valores a cualquier ajuste, con **Campo dentro** para
+la ruta.
 
 **Fijar estos datos** conserva la salida en el paso, y **Escribir datos para fijar** permite
 teclear una como objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega

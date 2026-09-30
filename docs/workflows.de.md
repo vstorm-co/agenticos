@@ -1,5 +1,5 @@
 ---
-source_sha: "077a1345027b"
+source_sha: "70489ea11349"
 ---
 
 # Workflows { #workflows }
@@ -185,6 +185,14 @@ gestarteten Testlauf oder beim Öffnen aus dem neuesten. **Tabelle** legt die Da
 Zeilen an, eine Liste von Datensätzen mit einer Zeile je Datensatz. **JSON** zeigt sie, wie
 sie sind, und **Felder** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
 Schritt liest.
+
+Eine Spalte oder ein Feld aus **Eingabe** lässt sich auf eine Einstellung ziehen,
+die es dann aus jenem Schritt liest, als wäre es unter **Aus einem Schritt**
+gewählt. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den die
+Einstellung nicht annimmt, oder ein Schritt, der nicht immer davor läuft. Innerhalb
+eines frei geformten Werts wie `values` einer Zuordnung oder `payload` eines
+Auslösers gilt der Typ, den der Lauf gezeigt hat. Die Auswahl bietet solche Werte
+ebenfalls jeder Einstellung an, mit **Feld darin** für den Pfad.
 
 **Diese Daten anheften** behält die Ausgabe am Schritt, und **Daten zum Anheften eingeben**
 tippt eine als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt angeheftete

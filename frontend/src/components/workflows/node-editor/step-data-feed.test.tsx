@@ -35,16 +35,22 @@ describe("StepDataFeed", () => {
     expect(read).not.toHaveBeenCalled();
   });
 
-  it("folds in the latest test run's steps on opening", () => {
+  it("folds in the recent test runs on opening, the newest winning", () => {
     runs.runs = [
-      { id: "real", mode: "real" },
       { id: "t1", mode: "test" },
+      { id: "real", mode: "real" },
+      { id: "t0", mode: "test" },
     ];
     runsById["t1"] = { run: { status: "running" }, nodes: [step("a", { n: 1 })] };
+    runsById["t0"] = { run: { status: "succeeded" }, nodes: [step("a", { n: 0 }), step("b", {})] };
+    store.getState().watchRun("t1", "a");
     render(<StepDataFeed workflowId="wf" />);
 
-    expect(read).toHaveBeenCalledWith("t1");
+    expect(read.mock.calls.map(([id]) => id)).toEqual(["t0", "t1"]);
     expect(store.getState().stepData["a"]).toEqual({ output: { n: 1 }, error: null, runId: "t1" });
+    expect(store.getState().stepData["b"]?.runId).toBe("t0");
+    // An older run having ended says nothing of the step test still running.
+    expect(store.getState().testingNodeId).toBe("a");
   });
 
   it("follows the run started from the editor, and ends the step test with it", () => {
@@ -53,8 +59,7 @@ describe("StepDataFeed", () => {
     store.getState().watchRun("t2", "b");
     render(<StepDataFeed workflowId="wf" />);
 
-    expect(read).toHaveBeenLastCalledWith("t2");
+    expect(read.mock.calls.map(([id]) => id)).toEqual(["t1", "t2"]);
     expect(store.getState().testingNodeId).toBeNull();
-    expect(store.getState().stepData).toEqual({});
   });
 });

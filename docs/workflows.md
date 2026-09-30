@@ -163,6 +163,13 @@ both from the last test run started in the editor, or the latest one when it ope
 it as it is, and **Fields** lists every field by path with its type: the paths a later
 step reads.
 
+A column or a field of **Input** can be dragged onto a setting, which then reads
+it from that step, as if it were picked from **From a step**. A field that does not
+fit is refused with the reason: a type the setting does not take, or a step that
+does not always run before this one. Inside a free-form value, such as a mapping's
+`values` or a trigger's `payload`, the type is the one the run showed. The picker
+offers free-form values to any setting too, with **Field inside it** for the path.
+
 **Pin this data** keeps the output on the step, and **Write data to pin** types one in
 as a JSON object of at most 64,000 bytes. A test run hands pinned data on instead of
 running the step, so a slow model call or a write to a live system is made once and

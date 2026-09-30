@@ -6193,7 +6193,10 @@
     "stepPinNotJson": "This is not valid JSON.",
     "stepPinNotObject": "Pinned data is a JSON object, in braces.",
     "stepPinTooLarge": "Pinned data may take at most {limit} bytes.",
-    "stepHasPinnedData": "Has pinned data: test runs use it instead of running the step"
+    "stepHasPinnedData": "Has pinned data: test runs use it instead of running the step",
+    "dataDragHint": "Drag a field onto a setting to read it from this step.",
+    "bindingDropIncompatible": "“{field}” is not a value {target} can take.",
+    "bindingDropUnreachable": "This step cannot read that one: it does not always run before it."
   },
   "artifacts": {
     "title": "Artifacts",

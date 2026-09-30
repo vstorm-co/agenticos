@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Map a workflow step's field by dragging it.** A column or a field of the step
+  dialog's Input pane dropped on a setting binds it to that field, and one that
+  does not fit is refused with the reason. Inside a free-form value the type the
+  run showed decides, and the source picker now offers free-form values to any
+  setting, with the path typed beneath (#1937).
 - **See a workflow step's data, pin it and test the step alone.** The step dialog
   shows what the step read and what it handed on in the last test run, as a table,
   as JSON or as its fields with their types. Pinned data, typed in or kept from a

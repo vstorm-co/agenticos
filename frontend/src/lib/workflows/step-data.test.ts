@@ -111,15 +111,20 @@ describe("the steps around a step", () => {
 });
 
 describe("data as a table", () => {
-  it("shows a list of records as its rows", () => {
+  it("shows a list of records as its rows, which no single path reaches", () => {
     const table = tableOf({ total: 2, records: [{ id: 1 }, { id: 2, name: "B" }] });
-    expect(table).toEqual({ columns: ["id", "name"], rows: [{ id: 1 }, { id: 2, name: "B" }] });
+    expect(table).toEqual({
+      columns: ["id", "name"],
+      rows: [{ id: 1 }, { id: 2, name: "B" }],
+      paths: null,
+    });
   });
 
-  it("shows anything else as one row, nested objects spread into columns", () => {
+  it("shows anything else as one row, nested objects spread into columns with their paths", () => {
     const table = tableOf({ payload: { name: "Ada", deep: { x: 1 } }, by: "api", tags: [] });
     expect(table.columns).toEqual(["payload.name", "payload.deep", "by", "tags"]);
     expect(table.rows[0]?.["payload.deep"]).toEqual({ x: 1 });
+    expect(table.paths?.["payload.name"]).toEqual(["payload", "name"]);
   });
 
   it("shows at most twelve columns", () => {
@@ -138,12 +143,12 @@ describe("data as a table", () => {
 describe("data as its fields", () => {
   it("lists each field by path with its type, into objects and lists of objects", () => {
     expect(schemaOf({ a: null, b: { c: "x" }, d: [{ e: 1 }], f: [1] })).toEqual([
-      { path: "a", type: "null" },
-      { path: "b", type: "object" },
-      { path: "b.c", type: "string" },
-      { path: "d", type: "array" },
-      { path: "d[].e", type: "number" },
-      { path: "f", type: "array" },
+      { path: "a", type: "null", segments: ["a"] },
+      { path: "b", type: "object", segments: ["b"] },
+      { path: "b.c", type: "string", segments: ["b", "c"] },
+      { path: "d", type: "array", segments: ["d"] },
+      { path: "d[].e", type: "number", segments: null },
+      { path: "f", type: "array", segments: ["f"] },
     ]);
   });
 

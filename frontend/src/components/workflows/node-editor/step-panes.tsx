@@ -72,6 +72,9 @@ export function InputPane({
   return (
     <Pane title={t("stepInput")}>
       {sources.length === 0 && <Empty>{t("stepInputNone")}</Empty>}
+      {sources.some((source) => stepData[source]?.output != null) && (
+        <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>
+      )}
       {sources.map((source) => {
         const pinned = graph.nodes.find((candidate) => candidate.id === source)?.pinned_output;
         const output = pinned ?? stepData[source]?.output ?? null;
@@ -81,7 +84,11 @@ export function InputPane({
               {names.get(source) ?? source}
               {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
             </p>
-            {output === null ? <Empty>{t("stepNoDataYet")}</Empty> : <DataView value={output} />}
+            {output === null ? (
+              <Empty>{t("stepNoDataYet")}</Empty>
+            ) : (
+              <DataView value={output} source={source} />
+            )}
           </div>
         );
       })}

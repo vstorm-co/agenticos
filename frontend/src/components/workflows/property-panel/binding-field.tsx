@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type DragEvent, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -16,12 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
-import { isDynamic } from "@/components/workflows/validation";
+import { availableSourceNodes, isDynamic } from "@/components/workflows/validation";
+import { carriesField, droppedField, observedFits } from "@/lib/workflows/field-drag";
 import type { Binding, NodeCatalog, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   bindingFor,
   candidateByKey,
+  candidateForField,
   candidateForBinding,
   isNodeOutput,
   literalBinding,
@@ -65,6 +67,9 @@ export interface BindingFieldProps {
  * type-compatible upstream output (rule 4 ∩ rule 3) and stores the chosen one as a
  * node-output binding. Toggling replaces the source wholesale rather than merging a
  * stale shape.
+ *
+ * A field dragged from the step dialog's Input pane binds it the same way, and is
+ * refused with the reason when it is none of the sources the picker would offer.
  */
 export function BindingField({
   targetNodeId,
@@ -133,10 +138,53 @@ export function BindingField({
 
   const literalValue = literalValueOf(binding);
 
+  const [dropping, setDropping] = useState(false);
+  const [dropProblem, setDropProblem] = useState<string | null>(null);
+  const drop = (event: DragEvent) => {
+    event.preventDefault();
+    setDropping(false);
+    const field = droppedField(event);
+    if (field === null) return;
+    const found = candidateForField(candidates, field.nodeId, field.path);
+    // A field inside a free-form value has no declared type: the run it came from
+    // says what it holds.
+    const fits =
+      found !== undefined &&
+      (found.extraPath.length === 0 || observedFits(unwrapOptional(schema)["type"], field.type));
+    if (found !== undefined && fits) {
+      setDropProblem(null);
+      setPendingBind(false);
+      bindTo(found.candidate, found.extraPath);
+      return;
+    }
+    const reachable =
+      found !== undefined || availableSourceNodes(graph, catalog, targetNodeId).has(field.nodeId);
+    setDropProblem(
+      reachable
+        ? t("bindingDropIncompatible", { field: field.path.join("."), target: label })
+        : t("bindingDropUnreachable"),
+    );
+  };
+  const over = (event: DragEvent) => {
+    if (disabled || !carriesField(event)) return;
+    event.preventDefault();
+    setDropping(true);
+  };
+
   return (
     // The mode sits in the label's row, at its right: whether the field holds a
-    // value typed here or one an earlier step hands on.
-    <div className="relative space-y-2">
+    // value typed here or one an earlier step hands on. Dropping a dragged field
+    // is the pointer's shortcut; the source picker is the way a keyboard gets there.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      className={cn(
+        "relative space-y-2 rounded-md",
+        dropping && "ring-ring ring-offset-background ring-2 ring-offset-4",
+      )}
+      onDragOver={over}
+      onDragLeave={() => setDropping(false)}
+      onDrop={drop}
+    >
       <div
         role="radiogroup"
         aria-label={t("bindingToggleLabel", { field: label })}
@@ -247,6 +295,7 @@ export function BindingField({
           onChange={changeLiteral}
         />
       )}
+      {dropProblem !== null && <p className="text-destructive text-xs">{dropProblem}</p>}
     </div>
   );
 }

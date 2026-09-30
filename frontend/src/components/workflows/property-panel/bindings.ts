@@ -147,7 +147,7 @@ function outputFieldPaths(
 /**
  * Every upstream output a field may bind to: the nodes that dominate the target
  * (rule 4), each output port - and each field inside one - whose declared type
- * matches the field's (rule 3). A port comes before its fields, and graph order is
+ * matches the field's (rule 3), or which is free-form, for a field inside it. A port comes before its fields, and graph order is
  * preserved so the list is stable across renders.
  *
  * Fields are offered because most ports carry an object while most inputs are
@@ -172,7 +172,9 @@ export function sourceCandidates(
       if (port.kind !== "output") continue;
       for (const fieldPath of [[], ...outputFieldPaths(definition, port.id)]) {
         const sourceType = resolveFieldType(definition, port.id, fieldPath);
-        if (!typesCompatible(sourceType, target)) continue;
+        // A free-form value is offered to any field: what fits is a field inside
+        // it, named by the path typed under the picker.
+        if (!typesCompatible(sourceType, target) && !isDynamic(sourceType)) continue;
         candidates.push({
           key: candidateKey(node.id, port.id, fieldPath),
           nodeId: node.id,
@@ -218,6 +220,26 @@ export function candidateForBinding(
   return through === undefined
     ? undefined
     : { candidate: through, extraPath: path.slice(through.fieldPath.length) };
+}
+
+/**
+ * The candidate a field of `nodeId`'s output reads through, by its path in the
+ * data the step handed on - on whichever output port offers it.
+ */
+export function candidateForField(
+  candidates: readonly SourceCandidate[],
+  nodeId: Uuid,
+  path: readonly string[],
+): { candidate: SourceCandidate; extraPath: string[] } | undefined {
+  for (const port of new Set(candidates.map((candidate) => candidate.port))) {
+    const found = candidateForBinding(candidates, {
+      target_node_id: "",
+      target_field: "",
+      source: { kind: "node_output", node_id: nodeId, port, field_path: [...path] },
+    });
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 /** A candidate resolved from a `Select` value, or undefined when none matches. */
