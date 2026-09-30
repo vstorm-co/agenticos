@@ -73,7 +73,8 @@ first publish of the node creates along with its signing secret.
 
 ### trigger.schedule { #trigger-schedule }
 
-**Schedule.** Started on a clock, in UTC and at most once a minute.
+**Schedule.** Started on a clock, in the workflow's timezone and at most once a
+minute.
 
 ::: app.workflows.nodes._triggers.ScheduleTriggerConfig
 
@@ -87,6 +88,14 @@ filter as it was added. Publishing it needs read access to the table.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_failed { #trigger-workflow-failed }
+
+**On failure of a workflow.** Started once for each real run that fails of a
+workflow whose settings name this one as its error workflow, as the member who
+chose it. A run this trigger started never starts an error workflow itself.
+
+::: app.workflows.nodes._triggers.WorkflowFailedTriggerOutput
 
 ## core.output { #core-output }
 

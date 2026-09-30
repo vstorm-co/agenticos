@@ -35,6 +35,7 @@ from app.schemas.workflow import (
     NodeCatalog,
     NodeCatalogEntry,
     NodeCatalogPort,
+    StoredWorkflowSettings,
     WorkflowCreate,
     WorkflowDetail,
     WorkflowDraftUpdate,
@@ -42,6 +43,7 @@ from app.schemas.workflow import (
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
+    WorkflowSettings,
     WorkflowUpdate,
     WorkflowVersionDetail,
     WorkflowVersionList,
@@ -57,6 +59,7 @@ from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
+from app.workflows.triggers import WORKFLOW_FAILED
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -124,6 +127,17 @@ class WorkflowInUseError(AppException):
     message = "This workflow is still in use"
     code = "WORKFLOW_IN_USE"
     status_code = 409
+
+
+class WorkflowSettingsInvalidError(AppException):
+    """A setting names something it cannot (422): `details["field"]` says which."""
+
+    message = "These settings cannot be saved"
+    code = "WORKFLOW_SETTINGS_INVALID"
+    status_code = 422
+
+    def __init__(self, *, field: str, message: str) -> None:
+        super().__init__(message=message, details={"field": field})
 
 
 def _read(workflow: Workflow, *, trigger_active: bool | None = None) -> WorkflowRead:
@@ -222,6 +236,7 @@ def _detail(
     return WorkflowDetail(
         **_read(workflow, trigger_active=trigger_active).model_dump(),
         draft_graph=_parse_draft_graph(workflow),
+        settings=StoredWorkflowSettings.model_validate(workflow.settings),
         can_edit=can_edit,
     )
 
@@ -457,6 +472,76 @@ class WorkflowRegistryService:
             details={"fields": sorted(changes)},
         )
         return await self._detail(updated, can_edit=True)
+
+    async def update_settings(
+        self, ctx: AuthContext, workflow_id: UUID, data: WorkflowSettings
+    ) -> WorkflowDetail:
+        """Replace what the workflow is run with. Its schedule keeps the new timezone
+        from its next tick; the other settings apply to the runs admitted after.
+
+        An error workflow runs as the member who chose it, who must be able to run
+        it, and must start from On failure of a workflow in its published version.
+
+        Raises:
+            NotFoundError: The workflow is out of reach, or this caller may not edit it.
+            WorkflowArchivedError: The workflow is archived.
+            WorkflowSettingsInvalidError: The error workflow is this one, one the
+                caller cannot run, or one that does not start from a failure.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        self._ensure_editable(workflow)
+        before = StoredWorkflowSettings.model_validate(workflow.settings)
+        run_as = before.error_workflow_run_as
+        if data.error_workflow_id is None:
+            run_as = None
+        elif data.error_workflow_id != before.error_workflow_id:
+            await self._check_error_workflow(ctx, workflow, data.error_workflow_id)
+            run_as = ctx.subject_id
+        stored = StoredWorkflowSettings(**data.model_dump(), error_workflow_run_as=run_as)
+        updated = await workflow_repo.update(
+            self.db, workflow=workflow, update_data={"settings": stored.model_dump(mode="json")}
+        )
+        if stored.timezone != before.timezone:
+            await WorkflowTriggerSync(self.db).retime(ctx, updated)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="workflow.settings_updated",
+            target_type="workflow",
+            target_id=str(workflow.id),
+            details={
+                "fields": sorted(
+                    name
+                    for name in WorkflowSettings.model_fields
+                    if getattr(stored, name) != getattr(before, name)
+                )
+            },
+        )
+        return await self._detail(updated, can_edit=True)
+
+    async def _check_error_workflow(
+        self, ctx: AuthContext, workflow: Workflow, error_workflow_id: UUID
+    ) -> None:
+        field = "error_workflow_id"
+        if error_workflow_id == workflow.id:
+            raise WorkflowSettingsInvalidError(
+                field=field, message="A workflow cannot be its own error workflow"
+            )
+        target = await workflow_repo.get(
+            self.db, error_workflow_id, organization_id=ctx.organization_id
+        )
+        if target is None or not await resolve_access(
+            self.db, ctx, target, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        ):
+            raise WorkflowSettingsInvalidError(
+                field=field, message="No workflow you can run has that id"
+            )
+        if target.live_trigger != WORKFLOW_FAILED:
+            raise WorkflowSettingsInvalidError(
+                field=field,
+                message="Publish that workflow starting from On failure of a workflow first",
+            )
 
     async def set_active(self, ctx: AuthContext, workflow_id: UUID, active: bool) -> WorkflowDetail:
         """Switch the published version's unattended trigger on, or pause it.

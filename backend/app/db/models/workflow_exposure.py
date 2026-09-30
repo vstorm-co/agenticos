@@ -115,6 +115,11 @@ class WorkflowExposure(Base, TimestampMixin):
     interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cron_expression: Mapped[str | None] = mapped_column(String(255), nullable=True)
     next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The workflow's timezone, copied here when the schedule is published and when
+    # the setting changes: a cron expression is read in it.
+    timezone: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="UTC", server_default="UTC"
+    )
 
     last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The run the last fire admitted. A schedule skips a tick while it is still

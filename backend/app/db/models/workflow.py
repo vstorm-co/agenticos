@@ -25,6 +25,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -82,6 +83,14 @@ class Workflow(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=WorkflowStatus.DRAFT.value, index=True
+    )
+
+    # What the workflow is run with rather than what it does - a timezone, a
+    # default deadline, an error workflow, how long runs are kept -
+    # `WorkflowSettings`' shape, validated by the registry on the way in. The
+    # workflow's, not a version's: a change applies to every later run.
+    settings: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
 
     # The graph being edited. Always present; equals the published version's

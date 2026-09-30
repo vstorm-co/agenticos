@@ -39,6 +39,7 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.workflow import StoredWorkflowSettings
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowEventRead,
@@ -287,9 +288,12 @@ class WorkflowExecutionService:
         triggered_by: WorkflowRunTrigger,
         run_input: dict[str, Any],
         causation: Causation | None = None,
+        submitted: bool = True,
     ) -> tuple[WorkflowRun, UUID]:
-        """Admit a run of one pinned version as `ctx` - a webhook's, a schedule's or
-        a table trigger's fire. `causation` places it in a chain of runs.
+        """Admit a run of one pinned version as `ctx` - a webhook's, a schedule's, a
+        table trigger's or a failure's fire. `causation` places it in a chain of runs.
+        `submitted=False` leaves the first dispatch to the poll, for a caller that
+        cannot submit it itself once its transaction commits.
 
         The exposure layer has already decided `ctx` may run `workflow` and that
         it is not archived; this is the rest of `start`, on the version the
@@ -317,6 +321,7 @@ class WorkflowExecutionService:
             deadline_seconds=None,
             reply_conversation_id=None,
             causation=causation,
+            submitted=submitted,
         )
 
     async def _admit(
@@ -335,6 +340,7 @@ class WorkflowExecutionService:
         reply_conversation_id: UUID | None,
         causation: Causation | None = None,
         retry_of_run_id: UUID | None = None,
+        submitted: bool = True,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -354,6 +360,11 @@ class WorkflowExecutionService:
         )
 
         now = datetime.now(UTC)
+        if deadline_seconds is None:
+            # Nothing that started the run named a deadline: the workflow's own.
+            deadline_seconds = StoredWorkflowSettings.model_validate(
+                workflow.settings
+            ).default_deadline_seconds
         deadline_at = (
             now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
         )
@@ -386,14 +397,14 @@ class WorkflowExecutionService:
             node_instance_id=graph.entry_node_id,
             scope_path=[],
         )
-        # Stamped submitted: the caller submits it once its transaction commits,
-        # so the poll leaves it alone unless that submission is lost.
+        # Stamped submitted when the caller submits it once its transaction
+        # commits, so the poll leaves it alone unless that submission is lost.
         await workflow_run_repo.create_outbox(
             self.db,
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=entry_node_run.id,
-            submitted=True,
+            submitted=submitted,
         )
         run = await workflow_run_repo.update_run(
             self.db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}

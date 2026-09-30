@@ -511,7 +511,11 @@ def repo():
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
-    with patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked):
+    # A failed run's error workflow is `failure`'s, proven against a database.
+    with (
+        patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),
+        patch(f"{DISPATCHER_PATH}.failure.start_error_workflow", new=AsyncMock()),
+    ):
         yield mocked
 
 

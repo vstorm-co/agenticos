@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow settings and error workflows.** A workflow's **Settings** name the
+  timezone its schedule's cron expression is read in, a default run deadline, an
+  error workflow, and how long runs and their files are kept, swept daily. A new
+  **On failure of a workflow** trigger makes an error workflow, started once for
+  each failed real run with the run, the failing step and the error, as the member
+  who chose it; its own failures start nothing. `PUT /workflows/{id}/settings` is
+  new, workflows gain `settings`, and runs can be `triggered_by`
+  `workflow_failed` (#1944, #1945).
 - **A run history you can debug.** Runs filter by status, draft or published
   version and what started them, a page at a time on the server, and a new
   **Runs** page lists every workflow's. A run's page shows each step's Input and

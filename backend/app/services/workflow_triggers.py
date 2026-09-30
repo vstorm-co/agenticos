@@ -147,6 +147,10 @@ class WorkflowTriggerSync:
                 details={"workflow_id": str(workflow.id)},
             )
 
+    async def retime(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Keep the workflow's schedule in the timezone its settings now name."""
+        await self.exposures.retime(ctx, workflow)
+
     async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
         """Pause whatever trigger the workflow has - what archiving it does."""
         await self.exposures.pause(ctx, workflow)

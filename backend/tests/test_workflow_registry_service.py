@@ -78,6 +78,7 @@ def _workflow(ctx: AuthContext, **overrides):
     workflow.draft_graph = _empty_graph().model_dump(mode="json")
     workflow.current_version_id = None
     workflow.live_trigger = None
+    workflow.settings = {}
     workflow.created_at = None
     workflow.updated_at = None
     for field, value in overrides.items():

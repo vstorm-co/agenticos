@@ -924,6 +924,10 @@
         "api": {
           "name": "API request",
           "description": "Uruchamiany żądaniem HTTP albo przez WebSocket, z wejściem, które zadeklarujesz."
+        },
+        "workflowFailed": {
+          "name": "Po nieudanym przebiegu workflow",
+          "description": "Nieudany przebieg innego workflow uruchamia go, z informacją, co zawiodło."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -987,7 +991,25 @@
       "runRetried": "Ponowienie uruchomione",
       "runRetryOf": "Ponawia",
       "runDebug": "Debuguj w edytorze",
-      "runDebugPinned": "{count, plural, =0 {Z tego przebiegu nie ma czego przypiąć} one {Przypięto dane # kroku z przebiegu} few {Przypięto dane # kroków z przebiegu} many {Przypięto dane # kroków z przebiegu} other {Przypięto dane # kroku z przebiegu}}"
+      "runDebugPinned": "{count, plural, =0 {Z tego przebiegu nie ma czego przypiąć} one {Przypięto dane # kroku z przebiegu} few {Przypięto dane # kroków z przebiegu} many {Przypięto dane # kroków z przebiegu} other {Przypięto dane # kroku z przebiegu}}",
+      "settings": "Ustawienia",
+      "settingsIntro": "Z czym ten workflow jest uruchamiany. Należą do workflow, nie do wersji: każdy przebieg rozpoczęty po zmianie ją przyjmuje.",
+      "settingsTimezone": "Strefa czasowa",
+      "settingsTimezoneHint": "W niej czytane jest wyrażenie cron harmonogramu. Bez ustawienia UTC.",
+      "settingsDeadline": "Domyślny termin (minuty)",
+      "settingsDeadlineNone": "Bez terminu",
+      "settingsDeadlineHint": "Przebieg, któremu nic nie nadało terminu, przestaje uruchamiać kroki po tym czasie od startu.",
+      "settingsErrorWorkflow": "Workflow błędów",
+      "settingsErrorWorkflowNone": "Brak",
+      "settingsErrorWorkflowGone": "Workflow, którego nie można już wybrać",
+      "settingsErrorWorkflowHint": "Uruchamiany raz, gdy przebieg tego workflow się nie powiedzie, jako ty. Opublikuj go z wyzwalaczem On failure of a workflow, by móc go tu wybrać.",
+      "settingsRetention": "Przechowuj przebiegi (dni)",
+      "settingsRetentionForever": "Na zawsze",
+      "settingsKeepSucceeded": "Przechowuj udane przebiegi",
+      "settingsRetentionHint": "Przebieg i zapisane przez niego pliki są usuwane po tym czasie od końca. Udane przebiegi, których nie przechowujesz, znikają następnego dnia.",
+      "settingsSave": "Zapisz ustawienia",
+      "settingsSaved": "Ustawienia zapisane",
+      "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło."
     }
   },
   "rag": {

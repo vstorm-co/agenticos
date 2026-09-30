@@ -259,3 +259,28 @@ class TestWorkflowTableTriggers:
             assert await workflow_tasks.workflow_table_triggers_flow() == 0
 
         submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+
+
+class TestWorkflowRunRetention:
+    async def test_it_removes_batches_until_none_is_left_then_unlinks_their_files(self):
+        first = uuid.uuid4()
+        taken = AsyncMock(side_effect=[[(first, ["a", "b"])], [(uuid.uuid4(), [])], []])
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch("app.repositories.workflow_run.take_expired_runs", new=taken),
+            patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as unlink,
+        ):
+            assert await workflow_tasks.workflow_run_retention_sweep_flow() == 2
+
+        assert [call.args[0] for call in unlink.await_args_list] == [["a", "b"], []]
+
+    async def test_a_sweep_with_nothing_to_remove_removes_nothing(self):
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.repositories.workflow_run.take_expired_runs", new=AsyncMock(return_value=[])
+            ),
+            patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as unlink,
+        ):
+            assert await workflow_tasks.workflow_run_retention_sweep_flow() == 0
+        unlink.assert_not_awaited()

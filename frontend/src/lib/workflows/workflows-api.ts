@@ -16,6 +16,7 @@ import type {
   WorkflowPublish,
   WorkflowPublished,
   WorkflowRead,
+  WorkflowSettings,
   WorkflowUpdate,
   WorkflowVersionDetail,
   WorkflowVersionList,
@@ -65,6 +66,14 @@ export async function updateWorkflow(
 }
 
 /** Switch on or pause the trigger the published version starts from on its own. */
+/** Replace what a workflow is run with - the workflow's, so every later run takes it. */
+export async function updateWorkflowSettings(
+  workflowId: string,
+  settings: WorkflowSettings,
+): Promise<WorkflowDetail> {
+  return apiClient.put<WorkflowDetail>(`${ROOT}/${workflowId}/settings`, settings);
+}
+
 export async function setWorkflowActive(
   workflowId: string,
   active: boolean,

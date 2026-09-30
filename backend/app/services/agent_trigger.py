@@ -41,6 +41,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
 from fastapi.encoders import jsonable_encoder
@@ -166,20 +167,27 @@ class EventFireDecision:
     event_context: str
 
 
-def _cron_next(expression: str, *, now: datetime) -> datetime:
-    """The first instant a cron expression matches strictly after `now`.
+def _cron_next(expression: str, *, now: datetime, timezone: str = "UTC") -> datetime:
+    """The first instant a cron expression matches strictly after `now`, in UTC.
 
-    Evaluated in UTC: `now` is tz-aware UTC and croniter carries that tzinfo
-    through, so `0 9 * * *` fires at 09:00 UTC. The expression is validated when
-    the trigger is created (:class:`app.schemas.agent_trigger.TriggerCreate`), so
-    one read back off a row parses here.
+    Read in `timezone`: croniter carries the tzinfo of the time it starts from,
+    so `0 9 * * *` fires at 09:00 there - across a daylight-saving change too -
+    and the answer is brought back to UTC. The expression is validated when the
+    trigger is created (:class:`app.schemas.agent_trigger.TriggerCreate`), so one
+    read back off a row parses here.
     """
+    local = now.astimezone(ZoneInfo(timezone))
     # croniter ships no type information; the cast is what annotates the result.
-    return cast(datetime, croniter(expression, now).get_next(datetime))
+    return cast(datetime, croniter(expression, local).get_next(datetime)).astimezone(UTC)
 
 
 def _next_fire(
-    *, schedule_kind: str, interval_seconds: int | None, cron_expression: str | None, now: datetime
+    *,
+    schedule_kind: str,
+    interval_seconds: int | None,
+    cron_expression: str | None,
+    now: datetime,
+    timezone: str = "UTC",
 ) -> datetime:
     """When a schedule with these fields should next fire, measured from `now`.
 
@@ -192,7 +200,7 @@ def _next_fire(
     guard here would be an untestable branch under the 100% gate.
     """
     if schedule_kind == ScheduleKind.CRON.value:
-        return _cron_next(cast(str, cron_expression), now=now)
+        return _cron_next(cast(str, cron_expression), now=now, timezone=timezone)
     return now + timedelta(seconds=cast(int, interval_seconds))
 
 

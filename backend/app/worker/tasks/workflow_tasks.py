@@ -297,3 +297,36 @@ async def workflow_table_triggers_flow() -> int:
     if pairs:
         logger.info("workflow_table_triggers: admitted %d run(s)", len(pairs))
     return submitted
+
+
+# Runs removed per transaction, and transactions per sweep: a workflow whose
+# retention was just shortened clears over a few days rather than in one hold.
+RETENTION_BATCH = 200
+RETENTION_BATCHES = 50
+
+
+@flow(name="workflow-run-retention-sweep", log_prints=True)
+async def workflow_run_retention_sweep_flow() -> int:
+    """Daily: remove the runs their workflow's settings no longer keep (#1944).
+
+    Each batch's rows go in one committed transaction; only then are the bytes
+    of the files those runs made unlinked, so a rollback never leaves a row
+    naming a file already gone. An unlink that fails is logged, not retried: the
+    row is gone and the warning is the one trace of the path.
+    """
+    from app.repositories import workflow_run as workflow_run_repo
+    from app.services.file_storage import delete_files_best_effort
+
+    removed = 0
+    for _ in range(RETENTION_BATCHES):
+        async with get_worker_db_context() as db:
+            taken = await workflow_run_repo.take_expired_runs(
+                db, now=datetime.now(UTC), limit=RETENTION_BATCH
+            )
+        if not taken:
+            break
+        await delete_files_best_effort([path for _run_id, paths in taken for path in paths])
+        removed += len(taken)
+    if removed:
+        logger.info("workflow_run_retention_sweep: removed %d run(s)", removed)
+    return removed

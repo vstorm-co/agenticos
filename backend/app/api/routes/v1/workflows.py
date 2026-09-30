@@ -25,6 +25,7 @@ from app.schemas.workflow import (
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
+    WorkflowSettings,
     WorkflowUpdate,
     WorkflowVersionDetail,
     WorkflowVersionList,
@@ -91,6 +92,21 @@ async def set_workflow_active(
     has none, and is refused with `BAD_REQUEST`.
     """
     return await service.set_active(ctx, workflow_id, data.is_active)
+
+
+@router.put("/{workflow_id}/settings", response_model=WorkflowDetail)
+async def update_workflow_settings(
+    workflow_id: UUID, data: WorkflowSettings, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """Replace what the workflow is run with: its timezone, a default run deadline,
+    the error workflow started when a run fails, and how long runs are kept.
+
+    The workflow's settings, not a version's: they apply to every later run. An
+    error workflow must be one the caller can run that starts from
+    `trigger.workflow_failed`; otherwise 422 `WORKFLOW_SETTINGS_INVALID` names the
+    field.
+    """
+    return await service.update_settings(ctx, workflow_id, data)
 
 
 @router.post("/{workflow_id}/archive", response_model=WorkflowDetail)

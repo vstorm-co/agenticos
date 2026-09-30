@@ -100,6 +100,23 @@ def _parse_body(body: bytes) -> dict[str, Any]:
     return payload
 
 
+def workflow_timezone(workflow: Workflow) -> str:
+    """The timezone a workflow's schedule keeps: its setting, UTC when it has none."""
+    timezone = workflow.settings.get("timezone")
+    return timezone if isinstance(timezone, str) else "UTC"
+
+
+def _next_tick(exposure: WorkflowExposure, *, now: datetime) -> datetime:
+    """When a schedule exposure next fires after `now`, in its own timezone."""
+    return _next_fire(
+        schedule_kind=cast(str, exposure.schedule_kind),
+        interval_seconds=exposure.interval_seconds,
+        cron_expression=exposure.cron_expression,
+        now=now,
+        timezone=exposure.timezone,
+    )
+
+
 class WorkflowExposureService:
     """Create, change, remove and fire a workflow's webhooks and schedules."""
 
@@ -178,7 +195,9 @@ class WorkflowExposureService:
         now = datetime.now(UTC)
         interval = config.interval_seconds if config.schedule_kind == "interval" else None
         cron = config.cron_expression if config.schedule_kind == "cron" else None
+        timezone = workflow_timezone(workflow)
         fields: dict[str, Any] = {
+            "timezone": timezone,
             "workflow_version_id": version.id,
             "execution_principal_user_id": ctx.subject_id,
             "is_active": True,
@@ -190,14 +209,20 @@ class WorkflowExposureService:
         if (
             exposure is None
             or not exposure.is_active
-            or (exposure.schedule_kind, exposure.interval_seconds, exposure.cron_expression)
-            != (config.schedule_kind, interval, cron)
+            or (
+                exposure.schedule_kind,
+                exposure.interval_seconds,
+                exposure.cron_expression,
+                exposure.timezone,
+            )
+            != (config.schedule_kind, interval, cron, timezone)
         ):
             fields["next_fire_at"] = _next_fire(
                 schedule_kind=config.schedule_kind,
                 interval_seconds=interval,
                 cron_expression=cron,
                 now=now,
+                timezone=timezone,
             )
         if exposure is not None:
             exposure = await workflow_exposure_repo.update(
@@ -245,12 +270,7 @@ class WorkflowExposureService:
             and not exposure.is_active
             and exposure.adapter == ExposureAdapter.SCHEDULE.value
         ):
-            changes["next_fire_at"] = _next_fire(
-                schedule_kind=cast(str, exposure.schedule_kind),
-                interval_seconds=exposure.interval_seconds,
-                cron_expression=exposure.cron_expression,
-                now=datetime.now(UTC),
-            )
+            changes["next_fire_at"] = _next_tick(exposure, now=datetime.now(UTC))
         exposure = await workflow_exposure_repo.update(
             self.db, exposure=exposure, update_data=changes
         )
@@ -260,6 +280,30 @@ class WorkflowExposureService:
             "workflow.exposure_resumed" if data.is_active else "workflow.exposure_paused",
         )
         return _read(exposure, await self._version_number(exposure))
+
+    async def retime(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Keep the workflow's schedule in its timezone, just changed: a cron schedule
+        that is on counts to its next tick there from now. An interval keeps its count."""
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        timezone = workflow_timezone(workflow)
+        if (
+            exposure is None
+            or exposure.adapter != ExposureAdapter.SCHEDULE.value
+            or exposure.timezone == timezone
+        ):
+            return
+        changes: dict[str, Any] = {"timezone": timezone}
+        if exposure.is_active and exposure.schedule_kind == "cron":
+            changes["next_fire_at"] = _next_fire(
+                schedule_kind=cast(str, exposure.schedule_kind),
+                interval_seconds=exposure.interval_seconds,
+                cron_expression=exposure.cron_expression,
+                now=datetime.now(UTC),
+                timezone=timezone,
+            )
+        await workflow_exposure_repo.update(self.db, exposure=exposure, update_data=changes)
 
     async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
         """Pause the workflow's webhook or schedule, if it has one that is on.
@@ -423,14 +467,7 @@ class WorkflowExposureService:
             await workflow_exposure_repo.update(
                 self.db,
                 exposure=exposure,
-                update_data={
-                    "next_fire_at": _next_fire(
-                        schedule_kind=cast(str, exposure.schedule_kind),
-                        interval_seconds=exposure.interval_seconds,
-                        cron_expression=exposure.cron_expression,
-                        now=now,
-                    )
-                },
+                update_data={"next_fire_at": _next_tick(exposure, now=now)},
             )
             if await self._last_run_live(exposure):
                 continue

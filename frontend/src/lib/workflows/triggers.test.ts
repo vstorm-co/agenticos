@@ -73,6 +73,10 @@ describe("triggers", () => {
       sampleRunInput(graph("trigger.table_record", { table: { table_id: "tbl" } })),
     ).toMatchObject({ table_id: "tbl", values: {}, fields: {} });
     expect(sampleRunInput(graph("trigger.table_record")).table_id).toMatch(/^0{8}-/);
+    expect(sampleRunInput(graph("trigger.workflow_failed"))).toMatchObject({
+      workflow_name: "sample",
+      error: { code: "SAMPLE_FAILURE" },
+    });
     vi.useRealTimers();
   });
 });

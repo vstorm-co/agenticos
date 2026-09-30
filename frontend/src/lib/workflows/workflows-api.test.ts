@@ -6,6 +6,7 @@ import {
   createWorkflow,
   deleteWorkflow,
   setWorkflowActive,
+  updateWorkflowSettings,
   unarchiveWorkflow,
   updateWorkflow,
   getNodeCatalog,
@@ -120,16 +121,26 @@ describe("workflows-api", () => {
   });
 });
 
+const SETTINGS = {
+  timezone: "Europe/Warsaw",
+  default_deadline_seconds: 600,
+  error_workflow_id: null,
+  run_retention_days: 30,
+  keep_succeeded_runs: false,
+};
+
 describe("managing a workflow", () => {
   it("renames, switches, archives, restores and deletes one", async () => {
     await updateWorkflow("wf", { tags: ["a"] });
     await setWorkflowActive("wf", false);
+    await updateWorkflowSettings("wf", SETTINGS);
     await archiveWorkflow("wf");
     await unarchiveWorkflow("wf");
     await deleteWorkflow("wf");
 
     expect(apiClient.patch).toHaveBeenCalledWith("/workflows/wf", { tags: ["a"] });
     expect(apiClient.put).toHaveBeenCalledWith("/workflows/wf/active", { is_active: false });
+    expect(apiClient.put).toHaveBeenCalledWith("/workflows/wf/settings", SETTINGS);
     expect(vi.mocked(apiClient.post).mock.calls).toEqual([
       ["/workflows/wf/archive"],
       ["/workflows/wf/unarchive"],

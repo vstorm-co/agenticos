@@ -66,6 +66,7 @@ def _workflow(**overrides: object) -> MagicMock:
     workflow.status = WorkflowStatus.PUBLISHED.value
     workflow.current_version_id = uuid.uuid4()
     workflow.live_trigger = "core.input"
+    workflow.settings = {}
     workflow.draft_graph = _graph().model_dump(mode="json")
     for field, value in overrides.items():
         setattr(workflow, field, value)

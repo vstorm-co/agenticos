@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Activity, History, Workflow, Zap } from "lucide-react";
+import { Activity, History, Settings2, Workflow, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -12,6 +12,7 @@ import {
   ConflictBanner,
   DebugRun,
   EditorActions,
+  WorkflowSettingsForm,
   RunButton,
   VersionHistory,
   useRestoreVersion,
@@ -92,6 +93,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const seededId = useRef<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // The test run started from Run, shown on the canvas until the next edit.
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
   // A past run whose data "Debug in editor" brings into the draft.
@@ -189,6 +191,15 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               <History className="h-4 w-4" />
               {t("history")}
             </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={t("settings")}
+              title={t("settings")}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
             {canEdit && (
               <RunButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
             )}
@@ -232,6 +243,29 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             {/* Mounted with the sheet, so its state is read only when someone looks. */}
             {triggersOpen && (
               <TriggerPanel workflow={workflow} draft={draft} catalog={nodes} canEdit={canEdit} />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t("settings")}</SheetTitle>
+            <SheetClose onClick={() => setSettingsOpen(false)} />
+          </SheetHeader>
+          <div className="p-4">
+            {settingsOpen && (
+              <WorkflowSettingsForm
+                workflow={workflow}
+                disabled={!canEdit}
+                saving={actions.saveSettings.isPending}
+                onSave={(settings) =>
+                  actions.saveSettings.mutate(
+                    { id: workflow.id, settings },
+                    { onSuccess: () => setSettingsOpen(false) },
+                  )
+                }
+              />
             )}
           </div>
         </SheetContent>

@@ -1,5 +1,5 @@
 ---
-source_sha: "122bfbfc193a"
+source_sha: "97fb1d6717a2"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -82,7 +82,8 @@ la primera publicación del nodo crea junto con su secreto de firma.
 
 ### trigger.schedule { #trigger-schedule }
 
-**Schedule.** Se inicia según un reloj, en UTC y como mucho una vez por minuto.
+**Schedule.** Se inicia según un reloj, en la zona horaria del workflow y como mucho una
+vez por minuto.
 
 ::: app.workflows.nodes._triggers.ScheduleTriggerConfig
 
@@ -96,6 +97,15 @@ filtro tal como se añadió. Publicarlo requiere acceso de lectura a la tabla.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_failed { #trigger-workflow-failed }
+
+**On failure of a workflow.** Se inicia una vez por cada ejecución real fallida de
+un workflow cuyos ajustes nombran este como su workflow de errores, como el miembro
+que lo eligió. Una ejecución iniciada por este disparador nunca inicia a su vez un
+workflow de errores.
+
+::: app.workflows.nodes._triggers.WorkflowFailedTriggerOutput
 
 ## core.output { #core-output }
 

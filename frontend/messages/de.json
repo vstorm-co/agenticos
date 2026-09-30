@@ -4666,6 +4666,10 @@
         "api": {
           "name": "API request",
           "description": "Gestartet über eine HTTP-Anfrage oder einen WebSocket, mit der Eingabe, die Sie deklarieren."
+        },
+        "workflowFailed": {
+          "name": "Bei Fehlschlag eines Workflows",
+          "description": "Der fehlgeschlagene Lauf eines anderen Workflows startet ihn, mit dem, was fehlschlug."
         }
       },
       "startRunOptional": "optional",
@@ -4729,7 +4733,25 @@
       "runRetried": "Wiederholung gestartet",
       "runRetryOf": "Wiederholt",
       "runDebug": "Im Editor debuggen",
-      "runDebugPinned": "{count, plural, =0 {Aus diesem Lauf gibt es nichts anzuheften} one {Daten von # Schritt aus dem Lauf angeheftet} other {Daten von # Schritten aus dem Lauf angeheftet}}"
+      "runDebugPinned": "{count, plural, =0 {Aus diesem Lauf gibt es nichts anzuheften} one {Daten von # Schritt aus dem Lauf angeheftet} other {Daten von # Schritten aus dem Lauf angeheftet}}",
+      "settings": "Einstellungen",
+      "settingsIntro": "Womit dieser Workflow ausgeführt wird. Sie gehören dem Workflow, nicht einer Version: Jeder nach einer Änderung gestartete Lauf übernimmt sie.",
+      "settingsTimezone": "Zeitzone",
+      "settingsTimezoneHint": "Darin wird der Cron-Ausdruck eines Zeitplans gelesen. Ohne Angabe UTC.",
+      "settingsDeadline": "Standardfrist (Minuten)",
+      "settingsDeadlineNone": "Keine Frist",
+      "settingsDeadlineHint": "Ein Lauf, dem nichts eine Frist gab, startet nach dieser Zeit keine Schritte mehr.",
+      "settingsErrorWorkflow": "Fehler-Workflow",
+      "settingsErrorWorkflowNone": "Keiner",
+      "settingsErrorWorkflowGone": "Ein Workflow, der nicht mehr gewählt werden kann",
+      "settingsErrorWorkflowHint": "Wird einmal gestartet, wenn ein Lauf dieses Workflows fehlschlägt, als Sie. Veröffentlichen Sie ihn mit dem Auslöser On failure of a workflow, um ihn hier zu wählen.",
+      "settingsRetention": "Läufe behalten (Tage)",
+      "settingsRetentionForever": "Dauerhaft",
+      "settingsKeepSucceeded": "Erfolgreiche Läufe behalten",
+      "settingsRetentionHint": "Ein Lauf und die von ihm gespeicherten Dateien werden so lange nach seinem Ende entfernt. Nicht behaltene erfolgreiche Läufe verschwinden am nächsten Tag.",
+      "settingsSave": "Einstellungen speichern",
+      "settingsSaved": "Einstellungen gespeichert",
+      "triggerWorkflowFailedLive": "Wird einmal für jeden fehlgeschlagenen Lauf eines Workflows gestartet, dessen Einstellungen diesen als Fehler-Workflow nennen, mit dem, was fehlschlug."
     }
   },
   "profile": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "04e54f702a93"
+source_sha: "6f84663c8d61"
 ---
 
 # Workflows { #workflows }
@@ -331,6 +331,26 @@ zamiast nadpisać jego zmianę. Przywrócenie wymaga `workflows:edit` na tym wor
 a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafia do
 [dziennika audytu](governance.md) jako `workflow.version_restored`.
 
+## Ustawienia workflow { #workflow-settings }
+
+**Settings** w nagłówku edytora zawierają to, z czym workflow jest uruchamiany, a nie
+to, co robi. Należą do workflow, nie do wersji: zmiana dotyczy każdego przebiegu
+rozpoczętego po niej, a publikacja je zachowuje.
+
+- **Timezone** - w niej czytane jest wyrażenie cron harmonogramu, także przy zmianie
+  czasu. Bez ustawienia UTC.
+- **Default deadline** - termin, który dostaje przebieg, gdy to, co go uruchamia, nie
+  podaje żadnego.
+- **Error workflow** - opublikowany workflow zaczynający się od **On failure of a
+  workflow**, uruchamiany raz, gdy przebieg zawiedzie. Zobacz
+  [Gdy inny workflow zawiedzie](#when-another-workflow-fails).
+- **Keep runs for** i **Keep runs that succeeded** - codzienne sprzątanie usuwa
+  przebieg i zapisane przez niego pliki po tylu dniach od jego końca, a udany przebieg
+  następnego dnia, gdy udanych się nie przechowuje. Bez ustawienia przebiegi zostają
+  na zawsze.
+
+Przez API zastępuje je `PUT /api/v1/workflows/{id}/settings`.
+
 ## Uruchamianie workflow { #running-a-workflow }
 
 **Run** w nagłówku edytora od razu testuje szkic - `Ctrl`/`Cmd` + `Enter` też -
@@ -436,7 +456,8 @@ runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuś
 w jednej transakcji.
 
 Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
-albo według wyrażenia cron, wszystko w UTC i najczęściej raz na minutę. Jego
+albo według wyrażenia cron, w strefie czasowej workflow (UTC, chyba że jego **Settings** wskazują inną) i
+najczęściej raz na minutę. Jego
 **Input** to to, od czego zaczyna każdy run, przekazywane jako `input` obok
 `fired_at` danego tyknięcia. Tyknięcie, które zastaje poprzedni run wciąż trwający,
 jest pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
@@ -464,6 +485,16 @@ blokowany zamiast się zapętlić.
 wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
 
+### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
+
+Wyzwalacz **On failure of a workflow** tworzy workflow błędów. Wybrany jako workflow
+błędów innego workflow w jego **Settings**, uruchamia się raz dla każdego prawdziwego
+przebiegu tamtego workflow, który zakończy się niepowodzeniem, z `run_id` przebiegu,
+jego `workflow_id` i `workflow_name`, `step_id` i `step_name` kroku, który zawiódł,
+oraz `error`, którym się zakończył. Działa jako członek, który go wybrał i który
+nadal musi móc go uruchomić. Przebieg testowy niczego nie uruchamia, podobnie jak
+porażka przebiegu, który sam jest workflow błędów, więc zawodzący workflow błędów
+nigdy nie uruchamia się ponownie.
 ## Gdy coś pójdzie nie tak { #when-something-goes-wrong }
 
 **Co obiecuje run.** Wynik kroku i wysłanie kroków po nim zapisują się razem, więc

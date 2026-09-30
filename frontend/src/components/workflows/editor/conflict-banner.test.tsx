@@ -63,6 +63,14 @@ function serverDetail(): WorkflowDetail {
     updated_at: null,
     draft_graph: SERVER_GRAPH,
     can_edit: true,
+    settings: {
+      timezone: "UTC",
+      default_deadline_seconds: null,
+      error_workflow_id: null,
+      run_retention_days: null,
+      keep_succeeded_runs: true,
+      error_workflow_run_as: null,
+    },
   };
 }
 

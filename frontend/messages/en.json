@@ -3625,6 +3625,10 @@
         "api": {
           "name": "API request",
           "description": "Start it from an HTTP request or over a WebSocket, with the input you declare."
+        },
+        "workflowFailed": {
+          "name": "On failure of a workflow",
+          "description": "Another workflow's failed run starts it, with what failed."
         }
       },
       "startRunOptional": "optional",
@@ -3688,7 +3692,25 @@
       "runRetried": "Retry started",
       "runRetryOf": "Retries",
       "runDebug": "Debug in editor",
-      "runDebugPinned": "{count, plural, =0 {Nothing to pin from this run} one {Pinned # step's data from the run} other {Pinned # steps' data from the run}}"
+      "runDebugPinned": "{count, plural, =0 {Nothing to pin from this run} one {Pinned # step's data from the run} other {Pinned # steps' data from the run}}",
+      "settings": "Settings",
+      "settingsIntro": "What this workflow is run with. These are the workflow's, not a version's: every run started after a change takes it.",
+      "settingsTimezone": "Timezone",
+      "settingsTimezoneHint": "A schedule's cron expression is read in it. UTC when unset.",
+      "settingsDeadline": "Default deadline (minutes)",
+      "settingsDeadlineNone": "No deadline",
+      "settingsDeadlineHint": "A run nothing gave a deadline stops dispatching steps this long after it starts.",
+      "settingsErrorWorkflow": "Error workflow",
+      "settingsErrorWorkflowNone": "None",
+      "settingsErrorWorkflowGone": "A workflow that can no longer be picked",
+      "settingsErrorWorkflowHint": "Started once when a run of this workflow fails, as you. Publish it starting from On failure of a workflow to pick it here.",
+      "settingsRetention": "Keep runs for (days)",
+      "settingsRetentionForever": "Kept for good",
+      "settingsKeepSucceeded": "Keep runs that succeeded",
+      "settingsRetentionHint": "A run and the files it stored are removed this long after it ends. Succeeded runs that are not kept go the day after.",
+      "settingsSave": "Save settings",
+      "settingsSaved": "Settings saved",
+      "triggerWorkflowFailedLive": "Started once for each failed run of a workflow whose settings name this one as its error workflow, with what failed."
     },
     "retention": {
       "title": "Data retention",

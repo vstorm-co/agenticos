@@ -329,6 +329,25 @@ edit. Restoring needs `workflows:edit` on the workflow, and an archived workflow
 cannot be restored. Each restore is recorded in the [audit log](governance.md) as
 `workflow.version_restored`.
 
+## Workflow settings { #workflow-settings }
+
+**Settings** in the editor's header holds what a workflow is run with rather than
+what it does. The settings are the workflow's, not a version's: a change applies
+to every run started after it, and publishing keeps them.
+
+- **Timezone** - a schedule's cron expression is read in it, across daylight
+  saving too. UTC when unset.
+- **Default deadline** - the deadline a run gets when whatever starts it names
+  none.
+- **Error workflow** - a published workflow starting from **On failure of a
+  workflow**, started once when a run fails. See
+  [When another workflow fails](#when-another-workflow-fails).
+- **Keep runs for** and **Keep runs that succeeded** - a daily sweep removes a run
+  and the files it stored that many days after it ends, and a succeeded run the day
+  after when succeeded runs are not kept. Unset, runs are kept for good.
+
+Over the API, `PUT /api/v1/workflows/{id}/settings` replaces them.
+
 ## Running a workflow { #running-a-workflow }
 
 **Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does
@@ -428,7 +447,8 @@ headers work as well. The trigger hands on the delivery's JSON as `body`, with i
 nothing, because the id is recorded with the run it admitted, in one transaction.
 
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
-expression, all in UTC and at most once a minute. Its **Input** is what every run
+expression, in the workflow's timezone (UTC unless its **Settings** name another)
+and at most once a minute. Its **Input** is what every run
 starts with, handed on as `input` beside the `fired_at` of the tick. A tick that
 finds the last run still going is skipped rather than stacking a second run behind
 it, and a tick the admission quota refuses waits for the next one.
@@ -454,6 +474,15 @@ The table's own **Triggers** lists the workflows that start from it, pauses and
 resumes them, and shows what each decided about every record. See
 [Virtual Tables](virtual-tables.md#triggers).
 
+### When another workflow fails { #when-another-workflow-fails }
+
+An **On failure of a workflow** trigger makes an error workflow. Picked as another
+workflow's error workflow in its **Settings**, it is started once for each real run
+of that workflow that ends failed, with the run's `run_id`, its `workflow_id` and
+`workflow_name`, the `step_id` and `step_name` of the step that failed, and the
+`error` it ended with. It runs as the member who picked it, who must still be able
+to run it. A test run starts nothing, and neither does the failure of a run an
+error workflow is, so a failing error workflow never starts itself again.
 ## When something goes wrong { #when-something-goes-wrong }
 
 **What a run promises.** A step's result and the dispatch of the steps after it

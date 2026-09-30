@@ -6,18 +6,20 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { WorkflowDetail, WorkflowUpdate } from "@/lib/workflows/types";
+import type { WorkflowDetail, WorkflowSettings, WorkflowUpdate } from "@/lib/workflows/types";
 import {
   archiveWorkflow,
   deleteWorkflow,
   setWorkflowActive,
   unarchiveWorkflow,
   updateWorkflow,
+  updateWorkflowSettings,
 } from "@/lib/workflows/workflows-api";
 
 /**
- * What can be done to a workflow as a whole - rename or tag it, switch its
- * trigger, archive, restore or delete it - from its editor or its card.
+ * What can be done to a workflow as a whole - rename or tag it, change its
+ * settings, switch its trigger, archive, restore or delete it - from its editor
+ * or its card.
  *
  * Each answer that carries the workflow is written into its detail, so the
  * header shows the change without a refetch, and the list is refreshed. A
@@ -40,6 +42,16 @@ export function useWorkflowActions() {
     mutationFn: ({ id, update }: { id: string; update: WorkflowUpdate }) =>
       updateWorkflow(id, update),
     onSuccess: settle,
+    onError: fail,
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: ({ id, settings }: { id: string; settings: WorkflowSettings }) =>
+      updateWorkflowSettings(id, settings),
+    onSuccess: async (detail) => {
+      await settle(detail);
+      toast.success(t("settingsSaved"));
+    },
     onError: fail,
   });
 
@@ -80,5 +92,5 @@ export function useWorkflowActions() {
     onError: fail,
   });
 
-  return { update, setActive, archive, unarchive, remove };
+  return { update, saveSettings, setActive, archive, unarchive, remove };
 }

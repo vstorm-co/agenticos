@@ -1,5 +1,5 @@
 ---
-source_sha: "04e54f702a93"
+source_sha: "6f84663c8d61"
 ---
 
 # Workflows { #workflows }
@@ -372,6 +372,26 @@ und ein archivierter Workflow kann nicht wiederhergestellt werden. Jede
 Wiederherstellung wird im [Audit-Log](governance.md) als `workflow.version_restored`
 festgehalten.
 
+## Workflow-Einstellungen { #workflow-settings }
+
+**Settings** in der Kopfzeile des Editors enthalten, womit ein Workflow ausgeführt
+wird, nicht was er tut. Sie gehören dem Workflow, nicht einer Version: Eine Änderung
+gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
+
+- **Timezone** - darin wird der Cron-Ausdruck eines Zeitplans gelesen, auch über die
+  Zeitumstellung hinweg. Ohne Angabe UTC.
+- **Default deadline** - die Frist, die ein Lauf bekommt, wenn das, was ihn startet,
+  keine nennt.
+- **Error workflow** - ein veröffentlichter Workflow, der mit **On failure of a
+  workflow** beginnt und einmal gestartet wird, wenn ein Lauf fehlschlägt. Siehe
+  [Wenn ein anderer Workflow fehlschlägt](#when-another-workflow-fails).
+- **Keep runs for** und **Keep runs that succeeded** - ein täglicher Durchlauf
+  entfernt einen Lauf und die von ihm gespeicherten Dateien so viele Tage nach seinem
+  Ende, und einen erfolgreichen Lauf am nächsten Tag, wenn erfolgreiche nicht behalten
+  werden. Ohne Angabe bleiben Läufe dauerhaft.
+
+Über die API ersetzt sie `PUT /api/v1/workflows/{id}/settings`.
+
 ## Einen Workflow ausführen { #running-a-workflow }
 
 **Run** in der Kopfzeile des Editors testet den Draft sofort - `Strg`/`Cmd` +
@@ -487,7 +507,8 @@ ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den
 zugelassen hat, in einer Transaktion gespeichert wird.
 
 Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
-Uhrzeit oder nach einem Cron-Ausdruck, alles in UTC und höchstens einmal pro Minute.
+Uhrzeit oder nach einem Cron-Ausdruck, in der Zeitzone des Workflows (UTC, sofern seine **Settings** keine andere nennen)
+und höchstens einmal pro Minute.
 Sein **Input** ist das, womit jeder Run beginnt, weitergegeben als `input` neben dem
 `fired_at` des Takts. Ein Takt, der den letzten Run noch laufend vorfindet, wird
 übersprungen, statt einen zweiten Run dahinter zu stapeln, und ein Takt, den die
@@ -516,6 +537,16 @@ startete, blockiert wird statt im Kreis zu laufen.
 und setzt sie fort und zeigt, was jeder über jeden Datensatz entschieden hat. Siehe
 [Virtual Tables](virtual-tables.md#triggers).
 
+### Wenn ein anderer Workflow fehlschlägt { #when-another-workflow-fails }
+
+Ein Auslöser **On failure of a workflow** macht einen Fehler-Workflow. In den
+**Settings** eines anderen Workflows als dessen Fehler-Workflow gewählt, startet er
+einmal für jeden echten Lauf jenes Workflows, der fehlschlägt, mit der `run_id` des
+Laufs, seiner `workflow_id` und `workflow_name`, der `step_id` und `step_name` des
+fehlgeschlagenen Schritts und dem `error`, mit dem er endete. Er läuft als das
+Mitglied, das ihn gewählt hat und ihn weiterhin ausführen können muss. Ein Testlauf
+startet nichts, ebenso wenig das Scheitern eines Laufs, der selbst ein Fehler-Workflow
+ist, sodass ein scheiternder Fehler-Workflow sich nie erneut startet.
 ## Wenn etwas schiefgeht { #when-something-goes-wrong }
 
 **Was ein Run verspricht.** Das Ergebnis eines Schritts und das Versenden der Schritte

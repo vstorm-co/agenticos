@@ -1,5 +1,5 @@
 ---
-source_sha: "04e54f702a93"
+source_sha: "6f84663c8d61"
 ---
 
 # Workflows { #workflows }
@@ -342,6 +342,26 @@ descartar su cambio. Restaurar requiere `workflows:edit` sobre el workflow, y un
 workflow archivado no se puede restaurar. Cada restauración queda en el
 [registro de auditoría](governance.md) como `workflow.version_restored`.
 
+## Ajustes del workflow { #workflow-settings }
+
+**Settings** en la cabecera del editor guarda con qué se ejecuta un workflow, no lo
+que hace. Los ajustes son del workflow, no de una versión: un cambio vale para cada
+ejecución iniciada después, y publicar los conserva.
+
+- **Timezone** - en ella se lee la expresión cron de una programación, también con
+  el cambio de hora. UTC si no se indica.
+- **Default deadline** - el plazo que recibe una ejecución cuando lo que la inicia no
+  indica ninguno.
+- **Error workflow** - un workflow publicado que empieza por **On failure of a
+  workflow**, iniciado una vez cuando una ejecución falla. Consulta
+  [Cuando otro workflow falla](#when-another-workflow-fails).
+- **Keep runs for** y **Keep runs that succeeded** - un barrido diario elimina una
+  ejecución y los archivos que guardó tantos días después de que termine, y una
+  ejecución con éxito al día siguiente cuando no se conservan las exitosas. Sin
+  indicarlo, las ejecuciones se conservan siempre.
+
+Por la API, `PUT /api/v1/workflows/{id}/settings` los reemplaza.
+
 ## Ejecutar un workflow { #running-a-workflow }
 
 **Run**, en la cabecera del editor, prueba el draft al momento - `Ctrl`/`Cmd` +
@@ -451,7 +471,8 @@ recibe como respuesta el primer run y no inicia nada, porque el id se guarda jun
 el run que admitió, en una sola transacción.
 
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
-según una expresión cron, todo en UTC y como mucho una vez por minuto. Su **Input** es
+según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
+y como mucho una vez por minuto. Su **Input** es
 aquello con lo que empieza cada run, pasado como `input` junto al `fired_at` del tic.
 Un tic que encuentra el último run aún en marcha se omite en lugar de apilar un
 segundo run detrás, y un tic que la cuota de admisión rechaza espera al siguiente.
@@ -478,6 +499,16 @@ en bucle.
 pausa y reanuda, y muestra lo que cada uno decidió sobre cada registro. Consulta
 [Virtual Tables](virtual-tables.md#triggers).
 
+### Cuando otro workflow falla { #when-another-workflow-fails }
+
+Un disparador **On failure of a workflow** crea un workflow de errores. Elegido como
+workflow de errores de otro en sus **Settings**, se inicia una vez por cada ejecución
+real de ese workflow que termina en fallo, con el `run_id` de la ejecución, su
+`workflow_id` y `workflow_name`, el `step_id` y `step_name` del paso que falló y el
+`error` con que terminó. Se ejecuta como el miembro que lo eligió, que aún debe poder
+ejecutarlo. Una ejecución de prueba no inicia nada, ni tampoco el fallo de una
+ejecución que ya es un workflow de errores, así que un workflow de errores que falla
+nunca vuelve a iniciarse.
 ## Cuando algo sale mal { #when-something-goes-wrong }
 
 **Lo que promete un run.** El resultado de un paso y el envío de los pasos siguientes se

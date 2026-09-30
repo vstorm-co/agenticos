@@ -60,6 +60,7 @@ from app.worker.tasks.workflow_tasks import (
     workflow_dispatch_node_flow,
     workflow_dispatch_poll_flow,
     workflow_reconcile_flow,
+    workflow_run_retention_sweep_flow,
     workflow_schedules_check_flow,
     workflow_table_triggers_flow,
 )
@@ -226,6 +227,14 @@ async def main() -> None:
     deployments.append(
         await notification_retention_sweep_flow.ato_deployment(
             name="notification-retention-sweep",
+            schedules=[_every(86400)],
+        )
+    )
+    # Daily, like the other retention sweeps: the runs each workflow's settings
+    # no longer keep, and the files they made.
+    deployments.append(
+        await workflow_run_retention_sweep_flow.ato_deployment(
+            name="workflow-run-retention-sweep",
             schedules=[_every(86400)],
         )
     )

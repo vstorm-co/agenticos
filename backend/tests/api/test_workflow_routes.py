@@ -76,6 +76,7 @@ def _workflow(**overrides: object):
     workflow.draft_graph = _graph().model_dump(mode="json")
     workflow.current_version_id = None
     workflow.live_trigger = None
+    workflow.settings = {}
     workflow.created_at = None
     workflow.updated_at = None
     for field, value in overrides.items():
@@ -567,7 +568,7 @@ def stubbed() -> Iterator[tuple[MagicMock, OpenClient]]:
         draft_graph=None,
     )
     service = MagicMock()
-    for method in ("update", "set_active", "archive", "unarchive"):
+    for method in ("update", "update_settings", "set_active", "archive", "unarchive"):
         setattr(service, method, AsyncMock(return_value=detail))
     service.delete = AsyncMock(return_value=None)
     context = AuthContext(user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role="owner")
@@ -600,3 +601,23 @@ async def test_managing_a_workflow_hands_the_service_each_change(stubbed):
     assert unknown.status_code == 422
     assert service.update.await_args.args[2].tags == ["a"]
     assert service.set_active.await_args.args[1:] == (workflow_id, True)
+
+
+async def test_the_settings_are_handed_to_the_service_whole(stubbed):
+    service, client = stubbed
+    workflow_id = uuid.uuid4()
+    async with client() as http:
+        saved = await http.put(
+            _url(f"/{workflow_id}/settings"),
+            json={"timezone": "Europe/Warsaw", "run_retention_days": 30},
+        )
+        unknown = await http.put(
+            _url(f"/{workflow_id}/settings"), json={"error_workflow_run_as": None}
+        )
+        nowhere = await http.put(_url(f"/{workflow_id}/settings"), json={"timezone": "Nowhere"})
+
+    assert saved.status_code == 200
+    assert saved.json()["settings"]["timezone"] == "UTC"
+    assert (unknown.status_code, nowhere.status_code) == (422, 422)
+    settings = service.update_settings.await_args.args[2]
+    assert (settings.timezone, settings.run_retention_days) == ("Europe/Warsaw", 30)

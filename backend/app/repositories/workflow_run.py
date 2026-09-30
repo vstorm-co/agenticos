@@ -16,12 +16,15 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Interval, Select, case, func, literal, or_, select
+from sqlalchemy import Interval, Select, and_, case, exists, func, literal, or_, select
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.workflow import Workflow
+from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -1086,3 +1089,57 @@ async def create_resource_ref(
     await db.flush()
     await db.refresh(resource_ref)
     return resource_ref
+
+
+async def take_expired_runs(
+    db: AsyncSession, *, now: datetime, limit: int
+) -> list[tuple[UUID, list[str]]]:
+    """Remove up to `limit` ended runs their workflow's settings no longer keep, and
+    answer each one's id with the storage paths of the files it made.
+
+    A run past `run_retention_days` since it ended, or one that succeeded more
+    than a day ago in a workflow that does not keep succeeded runs. A run another
+    run's chain starts from is left until that chain has gone, because the chain
+    names it as its root. The files' rows go with the run; the stored bytes are
+    the caller's to unlink once this commits.
+    """
+    days = Workflow.settings["run_retention_days"].as_integer()
+    keeps_succeeded = Workflow.settings["keep_succeeded_runs"].as_boolean()
+    descendant = aliased(WorkflowRun)
+    expired = (
+        select(WorkflowRun.id)
+        .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
+        .where(
+            WorkflowRun.ended_at.is_not(None),
+            or_(
+                and_(
+                    days.is_not(None),
+                    WorkflowRun.ended_at < literal(now) - func.make_interval(0, 0, 0, days),
+                ),
+                and_(
+                    keeps_succeeded.is_(False),
+                    WorkflowRun.status == WorkflowRunStatus.SUCCEEDED.value,
+                    WorkflowRun.ended_at < now - timedelta(days=1),
+                ),
+            ),
+            ~exists().where(
+                descendant.root_run_id == WorkflowRun.id, descendant.id != WorkflowRun.id
+            ),
+        )
+        .order_by(WorkflowRun.ended_at)
+        .limit(limit)
+    )
+    run_ids = list((await db.execute(expired)).scalars().all())
+    if not run_ids:
+        return []
+    files = await db.execute(
+        select(WorkflowFile.workflow_run_id, WorkflowFile.storage_path).where(
+            WorkflowFile.workflow_run_id.in_(run_ids)
+        )
+    )
+    paths: dict[UUID, list[str]] = {run_id: [] for run_id in run_ids}
+    for run_id, storage_path in files.all():
+        paths[run_id].append(storage_path)
+    await db.execute(sql_delete(WorkflowRun).where(WorkflowRun.id.in_(run_ids)))
+    await db.flush()
+    return list(paths.items())

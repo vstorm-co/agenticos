@@ -13,6 +13,7 @@ import { useWorkflowActions } from "./use-workflow-actions";
 vi.mock("@/lib/workflows/workflows-api", () => ({
   updateWorkflow: vi.fn(),
   setWorkflowActive: vi.fn(),
+  updateWorkflowSettings: vi.fn(),
   archiveWorkflow: vi.fn(),
   unarchiveWorkflow: vi.fn(),
   deleteWorkflow: vi.fn(),
@@ -46,12 +47,26 @@ describe("useWorkflowActions", () => {
     expect(client.getQueryData<WorkflowDetail>(["workflows", "wf"])?.name).toBe("Leads 2");
     await act(() => result.current.setActive.mutateAsync({ id: "wf", active: true }));
     await act(() => result.current.setActive.mutateAsync({ id: "wf", active: false }));
+    vi.mocked(api.updateWorkflowSettings).mockResolvedValue(detail());
+    await act(() =>
+      result.current.saveSettings.mutateAsync({
+        id: "wf",
+        settings: {
+          timezone: "UTC",
+          default_deadline_seconds: null,
+          error_workflow_id: null,
+          run_retention_days: null,
+          keep_succeeded_runs: true,
+        },
+      }),
+    );
     await act(() => result.current.archive.mutateAsync("wf"));
     await act(() => result.current.unarchive.mutateAsync("wf"));
 
     expect(vi.mocked(toast.success).mock.calls.map(([text]) => text)).toEqual([
       "Workflow switched on.",
       "Workflow paused.",
+      "Settings saved",
       "Workflow archived. Its trigger is paused.",
       "Workflow restored.",
     ]);

@@ -69,6 +69,7 @@ class WorkflowRunTrigger(enum.StrEnum):
     CHAT = "chat"
     SCHEDULE = "schedule"
     TABLE_CREATED = "table_created"
+    WORKFLOW_FAILED = "workflow_failed"
 
 
 class WorkflowRunStatus(enum.StrEnum):
@@ -316,7 +317,8 @@ class WorkflowRun(Base, TimestampMixin):
             name="ck_workflow_run_status",
         ),
         CheckConstraint(
-            "triggered_by IN ('api', 'websocket', 'webhook', 'chat', 'schedule', 'table_created')",
+            "triggered_by IN ('api', 'websocket', 'webhook', 'chat', 'schedule', 'table_created', "
+            "'workflow_failed')",
             name="ck_workflow_run_triggered_by",
         ),
         CheckConstraint(

@@ -18,6 +18,8 @@ export const CHAT_TRIGGER = "trigger.chat";
 export const WEBHOOK_TRIGGER = "trigger.webhook";
 export const SCHEDULE_TRIGGER = "trigger.schedule";
 export const TABLE_RECORD_TRIGGER = "trigger.table_record";
+/** An error workflow's trigger: a run of a workflow that names this one fails. */
+export const WORKFLOW_FAILED_TRIGGER = "trigger.workflow_failed";
 
 /** The triggers a person or a caller starts, and the ones that may declare input fields. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
@@ -70,6 +72,15 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
           : SAMPLE_ID;
       return { table_id: tableId, record_id: SAMPLE_ID, values: {}, fields: {}, author_id: null };
     }
+    case WORKFLOW_FAILED_TRIGGER:
+      return {
+        run_id: SAMPLE_ID,
+        workflow_id: SAMPLE_ID,
+        workflow_name: "sample", // i18n-exempt: sample run data, not console copy
+        step_id: SAMPLE_ID,
+        step_name: "sample", // i18n-exempt: sample run data, not console copy
+        error: { code: "SAMPLE_FAILURE", message: "sample" },
+      };
     default:
       return {};
   }

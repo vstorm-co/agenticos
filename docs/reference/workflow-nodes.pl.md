@@ -1,5 +1,5 @@
 ---
-source_sha: "122bfbfc193a"
+source_sha: "97fb1d6717a2"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -80,7 +80,8 @@ pierwsza publikacja węzła tworzy razem z sekretem do podpisu.
 
 ### trigger.schedule { #trigger-schedule }
 
-**Schedule.** Uruchamiany według zegara, w UTC i najczęściej raz na minutę.
+**Schedule.** Uruchamiany według zegara, w strefie czasowej workflow i najczęściej raz na
+minutę.
 
 ::: app.workflows.nodes._triggers.ScheduleTriggerConfig
 
@@ -94,6 +95,15 @@ każdego filtra w chwili dodania. Publikacja wymaga dostępu do odczytu tabeli.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_failed { #trigger-workflow-failed }
+
+**On failure of a workflow.** Uruchamiany raz dla każdego nieudanego prawdziwego
+przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, jako
+członek, który go wybrał. Przebieg uruchomiony tym wyzwalaczem sam nigdy nie
+uruchamia workflow błędów.
+
+::: app.workflows.nodes._triggers.WorkflowFailedTriggerOutput
 
 ## core.output { #core-output }
 

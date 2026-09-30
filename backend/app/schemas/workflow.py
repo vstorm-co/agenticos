@@ -9,13 +9,70 @@ and `NodeCatalog`/`NodeCatalogEntry` for the editor palette - the same shape
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import ConfigDict, Field, StringConstraints
+from pydantic import ConfigDict, Field, StringConstraints, field_validator
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 from app.schemas.workflow_exposure import WorkflowExposureRead
 from app.workflows.graph.model import WorkflowGraph
+
+MAX_RETENTION_DAYS = 3650
+MAX_DEFAULT_DEADLINE_SECONDS = 30 * 24 * 3600
+
+
+class WorkflowSettings(BaseSchema):
+    """What a workflow is run with rather than what it does - the workflow's, not a
+    version's, so a change applies to every later run and publishing keeps it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str = Field(
+        default="UTC",
+        max_length=64,
+        description="An IANA timezone, such as Europe/Warsaw: the one a schedule's cron "
+        "expression is read in",
+    )
+    default_deadline_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_DEFAULT_DEADLINE_SECONDS,
+        description="The deadline a run gets when whatever starts it names none",
+    )
+    error_workflow_id: UUID | None = Field(
+        default=None,
+        description="A published workflow that starts from On failure of a workflow, "
+        "started once when a run of this one fails",
+    )
+    run_retention_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_RETENTION_DAYS,
+        description="Remove a run, and the files it stored, this many days after it "
+        "ended; kept for good when unset",
+    )
+    keep_succeeded_runs: bool = Field(
+        default=True,
+        description="Keep runs that succeeded; when false, they are removed the day "
+        "after they end, and only the ones that did not are kept",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def _a_timezone_that_exists(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"{value} is not a timezone") from exc
+        return value
+
+
+class StoredWorkflowSettings(WorkflowSettings):
+    """The settings as the workflow holds them: with the member an error workflow
+    runs as, the one who chose it, set by the service and never by a caller."""
+
+    error_workflow_run_as: UUID | None = None
 
 
 class WorkflowRead(BaseSchema):
@@ -57,6 +114,7 @@ class WorkflowDetail(WorkflowRead):
     """
 
     draft_graph: WorkflowGraph | None
+    settings: StoredWorkflowSettings = Field(default_factory=StoredWorkflowSettings)
     can_edit: bool = Field(
         default=False,
         description="Whether this caller may edit this workflow: role scope or an explicit "

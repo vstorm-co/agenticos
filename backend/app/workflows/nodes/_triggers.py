@@ -57,7 +57,10 @@ class ScheduleTriggerConfig(_Frozen):
         description="Seconds between runs, at least a minute",
     )
     cron_expression: str | None = Field(
-        default=None, max_length=255, description="Five fields, in UTC, such as 0 9 * * 1-5"
+        default=None,
+        max_length=255,
+        description="Five fields, in the workflow's timezone (UTC unless its settings "
+        "name another), such as 0 9 * * 1-5",
     )
     input: dict[str, Any] = Field(
         default_factory=dict, description="What every run starts with, as JSON"
@@ -100,6 +103,24 @@ class TableRecordTriggerOutput(_Frozen):
     values: dict[str, Any] = Field(default_factory=dict)
     fields: dict[str, Any] = Field(default_factory=dict)
     author_id: UUID | None = None
+
+
+class FailedRunError(_Frozen):
+    """What the failed run ended with: the typed error its failing step recorded."""
+
+    code: str
+    message: str
+
+
+class WorkflowFailedTriggerOutput(_Frozen):
+    """The run that failed: which workflow, which step, and with what error."""
+
+    run_id: UUID
+    workflow_id: UUID
+    workflow_name: str
+    step_id: UUID | None = None
+    step_name: str | None = None
+    error: FailedRunError
 
 
 def run_input_as[Output: BaseModel](output: type[Output]) -> Output | Failed:

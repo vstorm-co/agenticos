@@ -78,7 +78,7 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
-from app.services.workflow_execution import budget, context, delivery, events
+from app.services.workflow_execution import budget, context, delivery, events, failure
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
     NodeDefinitionMissingError,
@@ -1002,6 +1002,10 @@ async def _end_run(
     )
     await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
     await delivery.deliver_result(db, run=run)
+    if run_status is WorkflowRunStatus.FAILED:
+        await failure.start_error_workflow(
+            db, run=run, step_id=node_run.node_instance_id, error=error
+        )
 
 
 async def _end_run_before_dispatch(

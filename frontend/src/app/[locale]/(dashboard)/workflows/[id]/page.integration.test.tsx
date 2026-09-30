@@ -31,6 +31,12 @@ const state = vi.hoisted(() => ({
 const actions = vi.hoisted(() => ({
   update: { mutate: vi.fn() },
   setActive: { mutate: vi.fn(), isPending: false },
+  saveSettings: {
+    mutate: vi.fn((_input: unknown, options?: { onSuccess?: () => void }) =>
+      options?.onSuccess?.(),
+    ),
+    isPending: false,
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -56,6 +62,14 @@ const WORKFLOW: WorkflowDetail = {
   updated_at: null,
   draft_graph: null,
   can_edit: true,
+  settings: {
+    timezone: "UTC",
+    default_deadline_seconds: null,
+    error_workflow_id: null,
+    run_retention_days: null,
+    keep_succeeded_runs: true,
+    error_workflow_run_as: null,
+  },
 };
 
 vi.mock("@/hooks", () => ({
@@ -109,6 +123,11 @@ vi.mock("@/components/workflows/node-editor", () => ({
 }));
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,
+  WorkflowSettingsForm: ({ onSave }: { onSave: (settings: unknown) => void }) => (
+    <button type="button" onClick={() => onSave({ timezone: "Asia/Tokyo" })}>
+      save settings
+    </button>
+  ),
   DebugRun: ({ runId, onDone }: { runId: string; onDone: () => void }) => (
     <button type="button" data-testid="debug-run" data-run={runId} onClick={onDone}>
       debug
@@ -295,5 +314,20 @@ describe("debugging a past run in the editor", () => {
     await renderPage();
 
     expect(screen.queryByTestId("debug-run")).toBeNull();
+  });
+});
+
+describe("a workflow's settings", () => {
+  it("opens from the header and saves what the form hands over, then closes", async () => {
+    await renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "save settings" }));
+
+    expect(actions.saveSettings.mutate).toHaveBeenCalledWith(
+      { id: "w1", settings: { timezone: "Asia/Tokyo" } },
+      expect.anything(),
+    );
+    expect(screen.queryByRole("button", { name: "save settings" })).toBeNull();
   });
 });

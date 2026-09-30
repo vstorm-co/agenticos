@@ -294,8 +294,28 @@ export interface WorkflowRead {
  * `draft_graph` is null for a workflow nobody has ever edited — there is no
  * meaningful empty graph to report, only the absence of one.
  */
+/** What a workflow is run with rather than what it does. Mirrors `WorkflowSettings`. */
+export interface WorkflowSettings {
+  /** An IANA timezone: the one a schedule's cron expression is read in. */
+  timezone: string;
+  /** The deadline a run gets when whatever starts it names none. */
+  default_deadline_seconds: number | null;
+  /** A published workflow starting from On failure of a workflow, started when a run fails. */
+  error_workflow_id: Uuid | null;
+  /** Days a run is kept after it ends; kept for good when null. */
+  run_retention_days: number | null;
+  keep_succeeded_runs: boolean;
+}
+
+/** The settings as the workflow holds them. Mirrors `StoredWorkflowSettings`. */
+export interface StoredWorkflowSettings extends WorkflowSettings {
+  /** The member the error workflow runs as: whoever chose it. */
+  error_workflow_run_as: Uuid | null;
+}
+
 export interface WorkflowDetail extends WorkflowRead {
   draft_graph: WorkflowGraph | null;
+  settings: StoredWorkflowSettings;
   /** Whether this caller may edit this workflow, resolved server-side; false once archived. */
   can_edit: boolean;
 }

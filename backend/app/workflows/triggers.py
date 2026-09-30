@@ -14,6 +14,7 @@ CHAT = "trigger.chat"
 WEBHOOK = "trigger.webhook"
 SCHEDULE = "trigger.schedule"
 TABLE_RECORD = "trigger.table_record"
+WORKFLOW_FAILED = "trigger.workflow_failed"
 
 BY_HAND = frozenset({API, MANUAL})
 """The triggers a person or a caller starts - from the editor, the runs page, the

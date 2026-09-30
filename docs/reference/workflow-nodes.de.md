@@ -1,5 +1,5 @@
 ---
-source_sha: "122bfbfc193a"
+source_sha: "97fb1d6717a2"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -86,7 +86,8 @@ Signatur-Secret anlegt.
 
 ### trigger.schedule { #trigger-schedule }
 
-**Schedule.** Nach der Uhr gestartet, in UTC und höchstens einmal pro Minute.
+**Schedule.** Nach der Uhr gestartet, in der Zeitzone des Workflows und höchstens einmal
+pro Minute.
 
 ::: app.workflows.nodes._triggers.ScheduleTriggerConfig
 
@@ -101,6 +102,15 @@ Lesezugriff auf die Tabelle.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_failed { #trigger-workflow-failed }
+
+**On failure of a workflow.** Einmal für jeden fehlgeschlagenen echten Lauf eines
+Workflows gestartet, dessen Einstellungen diesen als Fehler-Workflow nennen, als das
+Mitglied, das ihn gewählt hat. Ein von diesem Auslöser gestarteter Lauf startet selbst
+nie einen Fehler-Workflow.
+
+::: app.workflows.nodes._triggers.WorkflowFailedTriggerOutput
 
 ## core.output { #core-output }
 
