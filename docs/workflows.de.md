@@ -1,5 +1,5 @@
 ---
-source_sha: "6f84663c8d61"
+source_sha: "1b89520244ae"
 ---
 
 # Workflows { #workflows }
@@ -536,6 +536,21 @@ startete, blockiert wird statt im Kreis zu laufen.
 **Triggers** der Tabelle selbst listet die Workflows, die mit ihr starten, pausiert
 und setzt sie fort und zeigt, was jeder über jeden Datensatz entschieden hat. Siehe
 [Virtual Tables](virtual-tables.md#triggers).
+
+### Wenn ein anderer Workflow ihn aufruft { #when-another-workflow-calls-it }
+
+Ein Auslöser **Called by a workflow** macht einen Workflow, den andere als Schritt
+ausführen: gemeinsame Logik - einen Lead anreichern, ein Ticket anlegen - an einem
+Ort. Er deklariert seine Felder wie **Manual**, und der Schritt **Run a workflow**
+eines anderen Workflows, der nur so veröffentlichte Workflows anbietet, startet ihn
+mit der gebundenen Eingabe, die zuerst gegen diese Felder geprüft wird.
+
+Der Schritt
+wartet auf den aufgerufenen Lauf und gibt dessen `output` weiter, oder geht sofort
+weiter, wenn **Wait for it to finish** aus ist. Der aufgerufene Lauf ist mit dem
+aufrufenden verknüpft und erscheint auf den Laufseiten wie jeder andere. Ein Aufruf
+zurück in einen Workflow, der in der Kette schon läuft, oder tiefer als fünf Aufrufe,
+wird abgelehnt.
 
 ### Wenn ein anderer Workflow fehlschlägt { #when-another-workflow-fails }
 

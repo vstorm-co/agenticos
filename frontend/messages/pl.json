@@ -928,6 +928,10 @@
         "workflowFailed": {
           "name": "Po nieudanym przebiegu workflow",
           "description": "Nieudany przebieg innego workflow uruchamia go, z informacją, co zawiodło."
+        },
+        "workflowCall": {
+          "name": "Wywołany przez workflow",
+          "description": "Krok Run a workflow innego workflow uruchamia go z polami, które deklaruje."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -1009,7 +1013,8 @@
       "settingsRetentionHint": "Przebieg i zapisane przez niego pliki są usuwane po tym czasie od końca. Udane przebiegi, których nie przechowujesz, znikają następnego dnia.",
       "settingsSave": "Zapisz ustawienia",
       "settingsSaved": "Ustawienia zapisane",
-      "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło."
+      "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło.",
+      "triggerWorkflowCallLive": "Uruchamiany przez krok Run a workflow innego workflow, z polami zadeklarowanymi poniżej. Nie da się go uruchomić ręcznie ani przez API."
     }
   },
   "rag": {
@@ -3896,7 +3901,12 @@
     "templateInsert": "Wstaw wartość do {field}",
     "templateInsertPlaceholder": "Wstaw wartość…",
     "templateUnknown": "{placeholder} nie wskazuje niczego, co ten krok może czytać.",
-    "templatePreview": "Podgląd:"
+    "templatePreview": "Podgląd:",
+    "triggerHintCall": "Krok Run a workflow innego workflow uruchamia ten z danymi wejściowymi sprawdzanymi względem tych pól. Kroki po nim czytają je jako payload.",
+    "pickerWorkflowLabel": "Workflow",
+    "pickerWorkflowPlaceholder": "Wybierz workflow",
+    "pickerWorkflowNone": "Żaden workflow nie jest jeszcze opublikowany z wyzwalaczem Called by a workflow.",
+    "pickerWorkflowGone": "Wybranego workflow nie da się już wywołać: opublikuj go z wyzwalaczem Called by a workflow."
   },
   "artifacts": {
     "title": "Artefakty",

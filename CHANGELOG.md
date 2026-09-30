@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Call another workflow as a step.** A **Called by a workflow** trigger with
+  typed fields makes a workflow others run, and the **Run a workflow** step starts
+  its published version with the bound input, waits for it and hands on its output
+  or error - or goes on at once. The called run is linked to the step; a call that
+  loops back into the chain or goes more than five deep is refused. Runs gain
+  `parent_node_run_id` and can be `triggered_by` `workflow_call` (#1946).
 - **Workflow settings and error workflows.** A workflow's **Settings** name the
   timezone its schedule's cron expression is read in, a default run deadline, an
   error workflow, and how long runs and their files are kept, swept daily. A new

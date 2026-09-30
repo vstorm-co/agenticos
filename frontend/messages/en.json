@@ -3629,6 +3629,10 @@
         "workflowFailed": {
           "name": "On failure of a workflow",
           "description": "Another workflow's failed run starts it, with what failed."
+        },
+        "workflowCall": {
+          "name": "Called by a workflow",
+          "description": "Another workflow's Run a workflow step starts it with the fields it declares."
         }
       },
       "startRunOptional": "optional",
@@ -3710,7 +3714,8 @@
       "settingsRetentionHint": "A run and the files it stored are removed this long after it ends. Succeeded runs that are not kept go the day after.",
       "settingsSave": "Save settings",
       "settingsSaved": "Settings saved",
-      "triggerWorkflowFailedLive": "Started once for each failed run of a workflow whose settings name this one as its error workflow, with what failed."
+      "triggerWorkflowFailedLive": "Started once for each failed run of a workflow whose settings name this one as its error workflow, with what failed.",
+      "triggerWorkflowCallLive": "Started by another workflow's Run a workflow step, with the fields declared below. It cannot be started by hand or over the API."
     },
     "retention": {
       "title": "Data retention",
@@ -6244,7 +6249,12 @@
     "templateInsert": "Insert a value into {field}",
     "templateInsertPlaceholder": "Insert a value…",
     "templateUnknown": "{placeholder} names nothing this step can read.",
-    "templatePreview": "Preview:"
+    "templatePreview": "Preview:",
+    "triggerHintCall": "Another workflow's Run a workflow step starts this one with its input, checked against these fields. The steps after it read them as payload.",
+    "pickerWorkflowLabel": "Workflow",
+    "pickerWorkflowPlaceholder": "Choose a workflow",
+    "pickerWorkflowNone": "No workflow is published starting from Called by a workflow yet.",
+    "pickerWorkflowGone": "The chosen workflow can no longer be called: publish it starting from Called by a workflow."
   },
   "artifacts": {
     "title": "Artifacts",

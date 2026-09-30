@@ -229,7 +229,14 @@ export function objectFields(schema: Schema, defs: Defs): FieldEntry[] {
 
 /** Which resource picker a config leaf pins, from its `x-resource` keyword, or null. */
 export type ResourceKind =
-  "agent" | "table" | "secret" | "collection" | "member" | "channel_bot" | "sandbox_connection";
+  | "agent"
+  | "table"
+  | "secret"
+  | "collection"
+  | "member"
+  | "channel_bot"
+  | "sandbox_connection"
+  | "workflow";
 
 const RESOURCE_KINDS: readonly ResourceKind[] = [
   "agent",
@@ -239,6 +246,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   "member",
   "channel_bot",
   "sandbox_connection",
+  "workflow",
 ];
 
 /** The resource a leaf pins through a picker, or null for an ordinary literal leaf. */

@@ -1,5 +1,5 @@
 ---
-source_sha: "97fb1d6717a2"
+source_sha: "6734f163bbd1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -95,6 +95,12 @@ każdego filtra w chwili dodania. Publikacja wymaga dostępu do odczytu tabeli.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_call { #trigger-workflow-call }
+
+**Called by a workflow.** Uruchamiany przez krok `workflow.run` innego workflow, z
+polami, które deklaruje - tymi samymi co **Manual** - i nigdy ręcznie ani przez API.
+Dane wejściowe wywołującego są sprawdzane względem nich, zanim przebieg się zacznie.
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
@@ -554,6 +560,22 @@ to `JAVASCRIPT_OUTPUT_NOT_JSON`, a limit czasu i limity wyjścia to
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
 
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
+## workflow.run { #workflow-run }
+
+**Run a workflow.** Uruchamia opublikowaną wersję innego workflow, zaczynającą się od
+**Called by a workflow**, z powiązanym `input`, tak jak działa ten przebieg. Krok
+czeka, aż wywołany przebieg się skończy, i przekazuje jego `output` albo kończy się
+błędem `CALLED_WORKFLOW_FAILED` z błędem wywołanego przebiegu; przy wyłączonym **Wait
+for it to finish** od razu przekazuje uruchomiony przebieg. Wywołany przebieg jest
+powiązany z krokiem i z łańcuchem tego przebiegu. Wywołanie workflow, który już działa
+wyżej w łańcuchu, kończy się `WORKFLOW_CALL_LOOP`, a głębsze niż pięć wywołań -
+`WORKFLOW_CALL_TOO_DEEP`. Przebieg testowy wersji roboczej naprawdę wywołuje
+opublikowany workflow.
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunConfig
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunOutput
 
 ## Dodawanie węzła { #adding-a-node }
 

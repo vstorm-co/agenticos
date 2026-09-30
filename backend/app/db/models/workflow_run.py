@@ -70,6 +70,7 @@ class WorkflowRunTrigger(enum.StrEnum):
     SCHEDULE = "schedule"
     TABLE_CREATED = "table_created"
     WORKFLOW_FAILED = "workflow_failed"
+    WORKFLOW_CALL = "workflow_call"
 
 
 class WorkflowRunStatus(enum.StrEnum):
@@ -291,6 +292,16 @@ class WorkflowRun(Base, TimestampMixin):
         ForeignKey("workflow_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # The `workflow.run` step this run was called by, woken when this run ends to
+    # hand on its output or its error. Null for a run nothing called.
+    parent_node_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        # Runs and their node runs point at each other; added after both tables
+        # exist, so creating and dropping the schema has an order to follow.
+        ForeignKey("node_runs.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        index=True,
+    )
     # Where a chat-started run answers: the conversation the member typed in,
     # frozen at admission from their own session and never read from a payload.
     # The run's result is written there when it ends. Null for every other
@@ -318,7 +329,7 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "triggered_by IN ('api', 'websocket', 'webhook', 'chat', 'schedule', 'table_created', "
-            "'workflow_failed')",
+            "'workflow_failed', 'workflow_call')",
             name="ck_workflow_run_triggered_by",
         ),
         CheckConstraint(

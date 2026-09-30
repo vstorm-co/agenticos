@@ -15,10 +15,14 @@ WEBHOOK = "trigger.webhook"
 SCHEDULE = "trigger.schedule"
 TABLE_RECORD = "trigger.table_record"
 WORKFLOW_FAILED = "trigger.workflow_failed"
+WORKFLOW_CALL = "trigger.workflow_call"
 
 BY_HAND = frozenset({API, MANUAL})
 """The triggers a person or a caller starts - from the editor, the runs page, the
-API or a WebSocket - and the ones that may declare typed input fields."""
+API or a WebSocket."""
+
+DECLARES_FIELDS = frozenset({*BY_HAND, WORKFLOW_CALL})
+"""The triggers that may declare typed input fields, checked when a run starts."""
 
 
 def live_trigger(graph: WorkflowGraph) -> str | None:

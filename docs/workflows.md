@@ -474,6 +474,19 @@ The table's own **Triggers** lists the workflows that start from it, pauses and
 resumes them, and shows what each decided about every record. See
 [Virtual Tables](virtual-tables.md#triggers).
 
+### When another workflow calls it { #when-another-workflow-calls-it }
+
+A **Called by a workflow** trigger makes a workflow others run as a step: shared
+logic - enrich a lead, file a ticket - kept in one place. It declares its fields as
+**Manual** does, and another workflow's **Run a workflow** step, which offers only
+workflows published this way, starts it with the input it binds, checked against
+those fields first.
+
+The step waits for the called run and hands on its `output`, or
+goes on at once with **Wait for it to finish** off. The called run is linked to the
+calling run and shows on the runs pages like any other. A call back into a workflow
+already running in the chain, or more than five calls deep, is refused.
+
 ### When another workflow fails { #when-another-workflow-fails }
 
 An **On failure of a workflow** trigger makes an error workflow. Picked as another

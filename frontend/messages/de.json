@@ -4670,6 +4670,10 @@
         "workflowFailed": {
           "name": "Bei Fehlschlag eines Workflows",
           "description": "Der fehlgeschlagene Lauf eines anderen Workflows startet ihn, mit dem, was fehlschlug."
+        },
+        "workflowCall": {
+          "name": "Von einem Workflow aufgerufen",
+          "description": "Der Schritt Run a workflow eines anderen Workflows startet ihn mit den Feldern, die er deklariert."
         }
       },
       "startRunOptional": "optional",
@@ -4751,7 +4755,8 @@
       "settingsRetentionHint": "Ein Lauf und die von ihm gespeicherten Dateien werden so lange nach seinem Ende entfernt. Nicht behaltene erfolgreiche Läufe verschwinden am nächsten Tag.",
       "settingsSave": "Einstellungen speichern",
       "settingsSaved": "Einstellungen gespeichert",
-      "triggerWorkflowFailedLive": "Wird einmal für jeden fehlgeschlagenen Lauf eines Workflows gestartet, dessen Einstellungen diesen als Fehler-Workflow nennen, mit dem, was fehlschlug."
+      "triggerWorkflowFailedLive": "Wird einmal für jeden fehlgeschlagenen Lauf eines Workflows gestartet, dessen Einstellungen diesen als Fehler-Workflow nennen, mit dem, was fehlschlug.",
+      "triggerWorkflowCallLive": "Gestartet vom Schritt Run a workflow eines anderen Workflows, mit den unten deklarierten Feldern. Er lässt sich weder von Hand noch über die API starten."
     }
   },
   "profile": {
@@ -6103,7 +6108,12 @@
     "templateInsert": "Einen Wert in {field} einfügen",
     "templateInsertPlaceholder": "Wert einfügen…",
     "templateUnknown": "{placeholder} bezeichnet nichts, was dieser Schritt lesen kann.",
-    "templatePreview": "Vorschau:"
+    "templatePreview": "Vorschau:",
+    "triggerHintCall": "Der Schritt Run a workflow eines anderen Workflows startet diesen mit seiner Eingabe, geprüft gegen diese Felder. Die Schritte danach lesen sie als payload.",
+    "pickerWorkflowLabel": "Workflow",
+    "pickerWorkflowPlaceholder": "Workflow wählen",
+    "pickerWorkflowNone": "Noch kein Workflow ist mit dem Auslöser Called by a workflow veröffentlicht.",
+    "pickerWorkflowGone": "Der gewählte Workflow kann nicht mehr aufgerufen werden: Veröffentlichen Sie ihn mit dem Auslöser Called by a workflow."
   },
   "artifacts": {
     "title": "Artefakte",

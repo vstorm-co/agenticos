@@ -511,6 +511,8 @@ def repo():
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
+    # No step waits on a run it called unless a test says so.
+    mocked.get_run_called_by.return_value = None
     # A failed run's error workflow is `failure`'s, proven against a database.
     with (
         patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),

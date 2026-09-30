@@ -71,7 +71,7 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.step import step_subgraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
-from app.workflows.triggers import BY_HAND, CHAT
+from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS
 
 logger = logging.getLogger(__name__)
 
@@ -107,14 +107,15 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
-    """Refuse `payload` when the graph's Manual or API entry declares fields it does not fit.
+    """Refuse `payload` when the graph's entry declares fields it does not fit: a Manual,
+    API or Called by a workflow trigger.
 
     Raises:
         WorkflowRunInputInvalidError: A declared field is missing or of the
             wrong type, or the payload has one that is not declared.
     """
     entry = graph.node_by_id[graph.entry_node_id]
-    if entry.definition_id not in BY_HAND:
+    if entry.definition_id not in DECLARES_FIELDS:
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
@@ -324,6 +325,47 @@ class WorkflowExecutionService:
             submitted=submitted,
         )
 
+    async def admit_call(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        *,
+        run_input: dict[str, Any],
+        causation: Causation,
+        parent_node_run_id: UUID,
+    ) -> WorkflowRun:
+        """Admit a run of `version` that a `workflow.run` step calls, as `ctx` - the
+        calling run's principal - and submit its first dispatch once the step's
+        own transaction commits. The step is woken when the run ends.
+
+        Raises:
+            WorkflowRunInputTooLargeError: `run_input` is over the size limit.
+            WorkflowRunInputInvalidError: The called workflow declares fields
+                `run_input` does not fit.
+            WorkflowAdmissionQuotaError: As `start`.
+        """
+        graph = WorkflowGraph.model_validate(version.graph)
+        payload = _checked_input(run_input)
+        _check_declared_input(graph, payload)
+        run, entry_node_run_id = await self._admit(
+            ctx,
+            workflow,
+            graph=graph,
+            workflow_version_id=version.id,
+            draft_snapshot=None,
+            budget_limit=version.budget_limit,
+            mode=WorkflowRunMode.REAL,
+            triggered_by=WorkflowRunTrigger.WORKFLOW_CALL,
+            payload=payload,
+            deadline_seconds=None,
+            reply_conversation_id=None,
+            causation=causation,
+            parent_node_run_id=parent_node_run_id,
+        )
+        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return run
+
     async def _admit(
         self,
         ctx: AuthContext,
@@ -341,6 +383,7 @@ class WorkflowExecutionService:
         causation: Causation | None = None,
         retry_of_run_id: UUID | None = None,
         submitted: bool = True,
+        parent_node_run_id: UUID | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -388,6 +431,7 @@ class WorkflowExecutionService:
             run_input=payload,
             reply_conversation_id=reply_conversation_id,
             retry_of_run_id=retry_of_run_id,
+            parent_node_run_id=parent_node_run_id,
         )
         await self._record_resource_refs(run, graph)
         entry_node_run = await workflow_run_repo.create_node_run(

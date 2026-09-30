@@ -40,7 +40,7 @@ describe("triggers", () => {
     expect(triggerNodeOf(g, new Map([["n1", null]]))).toBeNull();
   });
 
-  it("reads the fields a run starts with from a Manual or API entry only", () => {
+  it("reads the fields a run starts with from a Manual, API or called entry only", () => {
     expect(declaredFields(null)).toEqual([]);
     expect(
       declaredFields(graph("trigger.webhook", { fields: [{ name: "a", type: "text" }] })),
@@ -50,12 +50,16 @@ describe("triggers", () => {
         (field) => field.name,
       ),
     ).toEqual(["a"]);
+    expect(
+      declaredFields(graph("trigger.workflow_call", { fields: [{ name: "b", type: "text" }] })),
+    ).toHaveLength(1);
   });
 
   it("starts by hand only a version from Manual or API, or from no trigger", () => {
     expect(startsByHand(null)).toBe(true);
     expect(startsByHand("core.input")).toBe(true);
     expect(startsByHand("trigger.webhook")).toBe(false);
+    expect(startsByHand("trigger.workflow_call")).toBe(false);
   });
 
   it("samples a test run's input in the shape the draft's trigger hands on", () => {

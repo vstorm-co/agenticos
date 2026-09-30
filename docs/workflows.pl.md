@@ -1,5 +1,5 @@
 ---
-source_sha: "6f84663c8d61"
+source_sha: "1b89520244ae"
 ---
 
 # Workflows { #workflows }
@@ -484,6 +484,20 @@ blokowany zamiast się zapętlić.
 **Triggers** samej tabeli wymienia workflow, które od niej startują, wstrzymuje je i
 wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
+
+### Gdy wywołuje go inny workflow { #when-another-workflow-calls-it }
+
+Wyzwalacz **Called by a workflow** tworzy workflow, który inne uruchamiają jako krok:
+wspólna logika - wzbogacenie leada, założenie zgłoszenia - trzymana w jednym miejscu.
+Deklaruje pola tak jak **Manual**, a krok **Run a workflow** innego workflow, który
+oferuje tylko tak opublikowane workflow, uruchamia go z powiązanym wejściem,
+sprawdzonym najpierw względem tych pól.
+
+Krok czeka na wywołany przebieg i przekazuje
+jego `output` albo od razu idzie dalej, gdy **Wait for it to finish** jest wyłączone.
+Wywołany przebieg jest powiązany z wywołującym i widać go na stronach przebiegów jak
+każdy inny. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
+niż pięć wywołań, zostaje odrzucone.
 
 ### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
 

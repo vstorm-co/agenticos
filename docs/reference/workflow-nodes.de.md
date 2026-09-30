@@ -1,5 +1,5 @@
 ---
-source_sha: "97fb1d6717a2"
+source_sha: "6734f163bbd1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -102,6 +102,13 @@ Lesezugriff auf die Tabelle.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_call { #trigger-workflow-call }
+
+**Called by a workflow.** Vom Schritt `workflow.run` eines anderen Workflows
+gestartet, mit den Feldern, die er deklariert - denselben wie bei **Manual** - und nie
+von Hand oder über die API. Die Eingabe des Aufrufers wird vor dem Start dagegen
+geprüft.
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
@@ -583,6 +590,22 @@ Ausgabegrenzen sind `JAVASCRIPT_SANDBOX_TIMEOUT` und `JAVASCRIPT_OUTPUT_TOO_LARG
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
 
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
+## workflow.run { #workflow-run }
+
+**Run a workflow.** Führt die veröffentlichte Version eines anderen Workflows aus, die
+mit **Called by a workflow** beginnt, mit dem gebundenen `input`, so wie dieser Lauf
+handelt. Der Schritt wartet, bis der aufgerufene Lauf endet, und gibt dessen `output`
+weiter oder scheitert mit `CALLED_WORKFLOW_FAILED` und dem Fehler des aufgerufenen
+Laufs; ist **Wait for it to finish** aus, gibt er den gestarteten Lauf sofort weiter.
+Der aufgerufene Lauf ist mit dem Schritt und der Kette dieses Laufs verknüpft. Ein
+Aufruf eines Workflows, der weiter oben in der Kette schon läuft, scheitert mit
+`WORKFLOW_CALL_LOOP`, einer tiefer als fünf Aufrufe mit `WORKFLOW_CALL_TOO_DEEP`. Ein
+Testlauf des Entwurfs ruft den veröffentlichten Workflow wirklich auf.
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunConfig
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunOutput
 
 ## Einen Knoten hinzufügen { #adding-a-node }
 

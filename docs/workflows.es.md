@@ -1,5 +1,5 @@
 ---
-source_sha: "6f84663c8d61"
+source_sha: "1b89520244ae"
 ---
 
 # Workflows { #workflows }
@@ -498,6 +498,20 @@ en bucle.
 **Triggers**, en la propia tabla, enumera los workflows que empiezan por ella, los
 pausa y reanuda, y muestra lo que cada uno decidió sobre cada registro. Consulta
 [Virtual Tables](virtual-tables.md#triggers).
+
+### Cuando otro workflow lo llama { #when-another-workflow-calls-it }
+
+Un disparador **Called by a workflow** crea un workflow que otros ejecutan como paso:
+lógica compartida - enriquecer un lead, abrir un ticket - en un solo lugar. Declara sus
+campos como **Manual**, y el paso **Run a workflow** de otro workflow, que solo ofrece
+workflows publicados así, lo inicia con la entrada que vincula, comprobada antes contra
+esos campos.
+
+El paso espera a la ejecución llamada y entrega su `output`, o sigue
+enseguida con **Wait for it to finish** desactivado. La ejecución llamada queda
+vinculada a la que llama y aparece en las páginas de ejecuciones como cualquier otra.
+Una llamada de vuelta a un workflow que ya se ejecuta en la cadena, o con más de cinco
+niveles, se rechaza.
 
 ### Cuando otro workflow falla { #when-another-workflow-fails }
 

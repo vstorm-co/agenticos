@@ -20,6 +20,7 @@ import {
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
   WEBHOOK_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
   WORKFLOW_FAILED_TRIGGER,
   isTrigger,
 } from "@/lib/workflows/triggers";
@@ -153,6 +154,9 @@ function LiveTrigger({
       )}
       {(trigger === WEBHOOK_TRIGGER || trigger === SCHEDULE_TRIGGER) && (
         <ExposureStatus workflow={workflow} canEdit={canEdit} />
+      )}
+      {trigger === WORKFLOW_CALL_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("triggerWorkflowCallLive")}</p>
       )}
       {trigger === WORKFLOW_FAILED_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerWorkflowFailedLive")}</p>

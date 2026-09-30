@@ -57,6 +57,7 @@ async def test_a_chat_run_with_a_text_answer_says_it_in_the_message():
         id=uuid.uuid4(),
         workflow_id=uuid.uuid4(),
         reply_conversation_id=uuid.uuid4(),
+        parent_node_run_id=None,
         status="failed",
         output={"text": "Three leads are ready."},
         error={"code": "X", "message": "The last step failed"},

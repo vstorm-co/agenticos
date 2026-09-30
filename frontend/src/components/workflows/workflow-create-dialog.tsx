@@ -23,6 +23,7 @@ import {
   TABLE_RECORD_TRIGGER,
   TRIGGER_CATEGORY,
   WEBHOOK_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
   WORKFLOW_FAILED_TRIGGER,
 } from "@/lib/workflows/triggers";
 import type { WorkflowGraph } from "@/lib/workflows/types";
@@ -35,6 +36,7 @@ const STARTS = [
   { id: WEBHOOK_TRIGGER, key: "webhook" },
   { id: SCHEDULE_TRIGGER, key: "schedule" },
   { id: TABLE_RECORD_TRIGGER, key: "tableRecord" },
+  { id: WORKFLOW_CALL_TRIGGER, key: "workflowCall" },
   { id: WORKFLOW_FAILED_TRIGGER, key: "workflowFailed" },
 ] as const;
 

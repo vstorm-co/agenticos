@@ -84,6 +84,7 @@ def _run_row(**overrides: object):
     run.output = None
     run.root_run_id = run.id
     run.causation_run_id = None
+    run.parent_node_run_id = None
     run.retry_of_run_id = None
     run.depth = 0
     run.started_at = datetime.now(UTC)

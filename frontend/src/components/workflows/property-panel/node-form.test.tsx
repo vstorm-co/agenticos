@@ -30,6 +30,19 @@ vi.mock("@/components/workflows/pickers", () => ({
       <span>{value ?? "bot-none"}</span>
     </div>
   ),
+  WorkflowPicker: ({
+    value,
+    onChange,
+  }: {
+    value: string | null;
+    onChange: (v: unknown) => void;
+  }) => (
+    <div>
+      <button type="button" aria-label="set-workflow" onClick={() => onChange("wf-1")} />
+      <button type="button" aria-label="clear-workflow" onClick={() => onChange(null)} />
+      <span>{value ?? "workflow-none"}</span>
+    </div>
+  ),
   SandboxConnectionPicker: ({
     value,
     onChange,
@@ -338,6 +351,22 @@ describe("NodeForm sections", () => {
     await userEvent.click(screen.getByRole("button", { name: "set-bot" }));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { bot_id: "bot-1" });
     await userEvent.click(screen.getByRole("button", { name: "clear-bot" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("names the workflow a Run a workflow step runs through the workflow picker", async () => {
+    const callStep = makeDefinition({
+      id: "workflow.run",
+      config_schema: {
+        type: "object",
+        properties: { workflow_id: { "x-resource": "workflow", title: "Workflow" } },
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({ definition: callStep });
+    expect(screen.getByText("workflow-none")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "set-workflow" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { workflow_id: "wf-1" });
+    await userEvent.click(screen.getByRole("button", { name: "clear-workflow" }));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
   });
 

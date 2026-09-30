@@ -1425,17 +1425,21 @@ async def _settle_waiting(
     waiting_agent_run_id: UUID | None,
     now: datetime,
 ) -> None:
+    called: WorkflowRun | None = None
     if result.reason == WaitingReason.EXTERNAL_EVENT.value:
-        # Nothing delivers an external event to a parked workflow node yet, so
-        # parking it would strand the run for ever; a person looks at
+        # The one external event a workflow run delivers is the end of a run a
+        # `workflow.run` step called (`delivery.wake_caller`). A step waiting on
+        # anything else would be stranded for ever; a person looks at
         # `needs_attention`.
-        await _escalate(
-            db,
-            run=run,
-            node_run=node_run,
-            detail="Node waited for an external event, which workflow runs cannot deliver yet",
-        )
-        return
+        called = await workflow_run_repo.get_run_called_by(db, node_run_id=node_run.id)
+        if called is None:
+            await _escalate(
+                db,
+                run=run,
+                node_run=node_run,
+                detail="Node waited for an external event, which workflow runs cannot deliver yet",
+            )
+            return
     if (
         result.reason == WaitingReason.APPROVAL.value
         and waiting_agent_run_id is None
@@ -1477,6 +1481,18 @@ async def _settle_waiting(
         node_run_id=node_run.id,
         payload={"reason": result.reason},
     )
+    if called is not None:
+        # Waiting on a run of its own making: this run goes on running. The
+        # called run may have ended before this step parked, when its wake found
+        # nothing waiting - so the step is woken now instead of never.
+        if WorkflowRunStatus(called.status).is_terminal:
+            await workflow_run_repo.create_outbox(
+                db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                node_run_id=node_run.id,
+            )
+        return
     run_status = (
         WorkflowRunStatus.WAITING_APPROVAL
         if result.reason == WaitingReason.APPROVAL.value

@@ -19,6 +19,7 @@ import { MemberPicker } from "@/components/orgs/member-picker";
 import {
   AgentVersionPicker,
   ChannelBotPicker,
+  WorkflowPicker,
   SandboxConnectionPicker,
   CollectionPicker,
   SecretPicker,
@@ -41,10 +42,11 @@ import {
 
 import {
   CHAT_TRIGGER,
-  BY_HAND_TRIGGERS,
+  FIELD_TRIGGERS,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   WEBHOOK_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
 } from "@/lib/workflows/triggers";
 
 import { BindingField } from "./binding-field";
@@ -259,6 +261,17 @@ function ResourcePin({
       <ChannelBotPicker
         label={label}
         platform={typeof schema["x-platform"] === "string" ? schema["x-platform"] : undefined}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "workflow") {
+    return (
+      <WorkflowPicker
+        label={label}
         value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}
@@ -715,11 +728,17 @@ export function NodeForm({
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
     );
   }
-  if (BY_HAND_TRIGGERS.has(definition.id)) {
+  if (FIELD_TRIGGERS.has(definition.id)) {
     return (
       <div className="space-y-4">
         <p className="text-muted-foreground text-xs">
-          {t(definition.id === MANUAL_TRIGGER ? "triggerHintManual" : "triggerHintApi")}
+          {t(
+            definition.id === MANUAL_TRIGGER
+              ? "triggerHintManual"
+              : definition.id === WORKFLOW_CALL_TRIGGER
+                ? "triggerHintCall"
+                : "triggerHintApi",
+          )}
         </p>
         <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
       </div>

@@ -15,6 +15,7 @@
  * - `SecretPicker` (a vault secret id, never a value).
  * - `ChannelBotPicker` (one of the organization's channel bots, by id).
  * - `SandboxConnectionPicker` (a `sandboxd` host by id, or the default).
+ * - `WorkflowPicker` (a workflow published to be called, by id).
  */
 
 export { CollectionPicker } from "@/components/agents/collection-picker";
@@ -30,3 +31,4 @@ export {
   SandboxConnectionPicker,
   type SandboxConnectionPickerProps,
 } from "./sandbox-connection-picker";
+export { WorkflowPicker, type WorkflowPickerProps } from "./workflow-picker";

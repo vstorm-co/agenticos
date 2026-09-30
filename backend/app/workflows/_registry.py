@@ -152,7 +152,9 @@ def load_builtins() -> None:
         trigger_schedule,
         trigger_table_record,
         trigger_webhook,
+        trigger_workflow_call,
         trigger_workflow_failed,
+        workflow_run,
     )
 
     _builtins_loaded = True

@@ -89,6 +89,12 @@ filter as it was added. Publishing it needs read access to the table.
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
 
+### trigger.workflow_call { #trigger-workflow-call }
+
+**Called by a workflow.** Started by another workflow's `workflow.run` step, with
+the fields it declares - the same fields as **Manual** - and never by hand or over
+the API. The caller's input is checked against them before the run starts.
+
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
 **On failure of a workflow.** Started once for each real run that fails of a
@@ -536,6 +542,22 @@ is `JAVASCRIPT_OUTPUT_NOT_JSON`, and the timeout and the output bounds are
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
 
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
+## workflow.run { #workflow-run }
+
+**Run a workflow.** Runs another workflow's published version, one that starts
+from **Called by a workflow**, with the bound `input`, as this run acts. The step
+waits for the called run to end and hands on its `output`, or fails with
+`CALLED_WORKFLOW_FAILED` and the called run's error; with **Wait for it to finish**
+off, it hands on the started run at once. The called run is linked to the step and
+to this run's chain. A call into a workflow already running further up the chain
+fails with `WORKFLOW_CALL_LOOP`, and one deeper than five calls with
+`WORKFLOW_CALL_TOO_DEEP`. A test run of the draft calls the published workflow for
+real.
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunConfig
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunOutput
 
 ## Adding a node { #adding-a-node }
 

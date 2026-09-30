@@ -20,9 +20,17 @@ export const SCHEDULE_TRIGGER = "trigger.schedule";
 export const TABLE_RECORD_TRIGGER = "trigger.table_record";
 /** An error workflow's trigger: a run of a workflow that names this one fails. */
 export const WORKFLOW_FAILED_TRIGGER = "trigger.workflow_failed";
+/** A workflow another one's Run a workflow step calls, with the fields it declares. */
+export const WORKFLOW_CALL_TRIGGER = "trigger.workflow_call";
 
-/** The triggers a person or a caller starts, and the ones that may declare input fields. */
+/** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
+
+/** The triggers that may declare typed input fields: those, and a called workflow's. */
+export const FIELD_TRIGGERS: ReadonlySet<string> = new Set([
+  ...BY_HAND_TRIGGERS,
+  WORKFLOW_CALL_TRIGGER,
+]);
 
 /** Whether a catalog entry is a trigger - a way a run of the workflow begins. */
 export function isTrigger(definition: Pick<NodeDefinition, "category"> | null): boolean {
@@ -92,7 +100,7 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
  */
 export function declaredFields(graph: WorkflowGraph | null | undefined): InputField[] {
   const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
-  return entry !== undefined && BY_HAND_TRIGGERS.has(entry.definition_id)
+  return entry !== undefined && FIELD_TRIGGERS.has(entry.definition_id)
     ? inputFieldsOf(entry.config)
     : [];
 }

@@ -1,5 +1,5 @@
 import { inputFieldsOf, typedPayloadPort } from "./input-fields";
-import { BY_HAND_TRIGGERS } from "./triggers";
+import { FIELD_TRIGGERS } from "./triggers";
 import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
 
 /**
@@ -63,7 +63,7 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
       }));
     ports = [...ports, ...branches];
   }
-  if (BY_HAND_TRIGGERS.has(definition.id)) {
+  if (FIELD_TRIGGERS.has(definition.id)) {
     const fields = inputFieldsOf(instance.config);
     if (fields.length > 0) ports = ports.map((port) => typedPayloadPort(port, fields));
   }

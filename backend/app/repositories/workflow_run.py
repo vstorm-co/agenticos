@@ -63,6 +63,7 @@ async def create_run(
     run_input: dict[str, Any] | None = None,
     reply_conversation_id: UUID | None = None,
     retry_of_run_id: UUID | None = None,
+    parent_node_run_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -89,6 +90,7 @@ async def create_run(
         input=run_input or {},
         reply_conversation_id=reply_conversation_id,
         retry_of_run_id=retry_of_run_id,
+        parent_node_run_id=parent_node_run_id,
         depth=depth,
         started_at=started_at,
     )
@@ -1143,3 +1145,11 @@ async def take_expired_runs(
     await db.execute(sql_delete(WorkflowRun).where(WorkflowRun.id.in_(run_ids)))
     await db.flush()
     return list(paths.items())
+
+
+async def get_run_called_by(db: AsyncSession, *, node_run_id: UUID) -> WorkflowRun | None:
+    """The run a `workflow.run` step started, if it has started one."""
+    result = await db.execute(
+        select(WorkflowRun).where(WorkflowRun.parent_node_run_id == node_run_id).limit(1)
+    )
+    return result.scalar_one_or_none()

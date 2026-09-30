@@ -1,5 +1,5 @@
 ---
-source_sha: "97fb1d6717a2"
+source_sha: "6734f163bbd1"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -97,6 +97,12 @@ filtro tal como se añadió. Publicarlo requiere acceso de lectura a la tabla.
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerOutput
+
+### trigger.workflow_call { #trigger-workflow-call }
+
+**Called by a workflow.** Lo inicia el paso `workflow.run` de otro workflow, con los
+campos que declara - los mismos que **Manual** - y nunca a mano ni por la API. La
+entrada de quien llama se comprueba contra ellos antes de que empiece la ejecución.
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
@@ -562,6 +568,22 @@ los límites de salida son `JAVASCRIPT_SANDBOX_TIMEOUT` y
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
 
 ::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
+## workflow.run { #workflow-run }
+
+**Run a workflow.** Ejecuta la versión publicada de otro workflow, una que empieza por
+**Called by a workflow**, con el `input` vinculado, como actúa esta ejecución. El paso
+espera a que termine la ejecución llamada y entrega su `output`, o falla con
+`CALLED_WORKFLOW_FAILED` y el error de esa ejecución; con **Wait for it to finish**
+desactivado, entrega enseguida la ejecución iniciada. La ejecución llamada queda
+vinculada al paso y a la cadena de esta ejecución. Llamar a un workflow que ya se
+ejecuta más arriba en la cadena falla con `WORKFLOW_CALL_LOOP`, y una llamada con más
+de cinco niveles con `WORKFLOW_CALL_TOO_DEEP`. Una ejecución de prueba del borrador
+llama de verdad al workflow publicado.
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunConfig
+
+::: app.workflows.nodes.workflow_run._handler.WorkflowRunOutput
 
 ## Añadir un nodo { #adding-a-node }
 
