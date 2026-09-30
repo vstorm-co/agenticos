@@ -41,8 +41,8 @@ class DataCombineInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    first: list[Any] = Field(default_factory=list, max_length=MAX_ITEMS)
-    second: list[Any] = Field(default_factory=list, max_length=MAX_ITEMS)
+    first: list[Any] = Field(max_length=MAX_ITEMS)
+    second: list[Any] = Field(max_length=MAX_ITEMS)
 
 
 class DataCombineOutput(BaseModel):

@@ -31,7 +31,7 @@ class ItemsInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    items: list[dict[str, Any]] = Field(default_factory=list, max_length=MAX_ITEMS)
+    items: list[dict[str, Any]] = Field(max_length=MAX_ITEMS)
 
 
 class ItemsOutput(BaseModel):

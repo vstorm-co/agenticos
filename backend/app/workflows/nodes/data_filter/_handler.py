@@ -37,7 +37,7 @@ class DataFilterInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    items: list[Any] = Field(default_factory=list, max_length=MAX_ITEMS)
+    items: list[Any] = Field(max_length=MAX_ITEMS)
 
 
 class DataFilterOutput(BaseModel):
