@@ -517,6 +517,27 @@ class TestContent:
             await _service().content(token)
         lookup.assert_not_awaited()
 
+    async def test_an_address_whose_bytes_are_gone_is_not_found(self) -> None:
+        """A row whose bytes storage no longer has - a restored database beside an
+        older volume - answered 500, and a thumbnail showed a server error."""
+        artifact = _artifact(_ctx())
+        version = _version(artifact)
+        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        storage = MagicMock()
+        storage.load = AsyncMock(side_effect=FileNotFoundError(version.storage_path))
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+            patch(f"{PATH}.logger") as log,
+            pytest.raises(NotFoundError, match="Artifact not found"),
+        ):
+            await _service().content(token)
+        # Said out loud, because it is storage and the database disagreeing.
+        assert log.warning.call_args.args[0] == "artifact_bytes_missing"
+
     async def test_an_address_to_a_pruned_version_is_not_found(self) -> None:
         token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(minutes=5))
         with (

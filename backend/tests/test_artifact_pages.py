@@ -281,10 +281,17 @@ def _opened(db: MagicMock) -> MagicMock:
 
 class TestReadingAPageBack:
     async def _read(
-        self, artifact: Artifact | None, *, may: bool = True, version: ArtifactVersion | None = None
+        self,
+        artifact: Artifact | None,
+        *,
+        may: bool = True,
+        version: ArtifactVersion | None = None,
+        stored: bytes | Exception = "<h1>Café</h1>".encode(),
     ) -> artifacts.ArtifactSource:
         storage = MagicMock()
-        storage.load = AsyncMock(return_value="<h1>Café</h1>".encode())
+        storage.load = AsyncMock(
+            side_effect=stored if isinstance(stored, Exception) else None, return_value=stored
+        )
         with (
             patch(f"{PATH}.get_db_context", return_value=_opened(MagicMock())),
             patch(f"{PATH}._environment_of_run", new=AsyncMock(return_value=None)),
@@ -310,6 +317,13 @@ class TestReadingAPageBack:
         source = await self._read(artifact, version=_version(artifact, number=5))
         assert (source.version_number, source.text) == (5, "<h1>Café</h1>")
         assert source.media_type is ArtifactMediaType.HTML
+
+    async def test_a_page_whose_bytes_are_gone_says_so_instead_of_crashing_the_tool(
+        self,
+    ) -> None:
+        artifact = _artifact(_ctx())
+        with pytest.raises(NotFoundError, match="lost its content; publish it again"):
+            await self._read(artifact, version=_version(artifact), stored=FileNotFoundError("gone"))
 
     async def test_a_page_that_does_not_exist_is_not_found(self) -> None:
         with pytest.raises(NotFoundError, match="weekly-report"):

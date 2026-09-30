@@ -366,6 +366,27 @@ class EmbedDocument:
     available: bool
 
 
+async def _load_version(version: ArtifactVersion, *, missing: str) -> bytes:
+    """A version's bytes, or `NotFoundError` when storage no longer has them.
+
+    A row and its bytes can part company - a restored database beside an older
+    volume, an object store emptied by hand - and a page whose bytes are gone is a
+    page that is not there, not a server error. Logged, because unlike a stale
+    link it means storage and the database disagree.
+
+    Raises:
+        NotFoundError: With `missing` as its message.
+    """
+    try:
+        return await get_file_storage().load(version.storage_path)
+    except FileNotFoundError:
+        logger.warning(
+            "artifact_bytes_missing",
+            extra={"version_id": str(version.id), "storage_path": version.storage_path},
+        )
+        raise NotFoundError(message=missing, details={"version_id": str(version.id)}) from None
+
+
 def _storage_path(artifact: Artifact, sha256: str, media_type: ArtifactMediaType) -> str:
     """Content-addressed under the artifact, so deleting the artifact is one prefix."""
     return f"{_prefix(artifact.organization_id, artifact.id)}{sha256}.{_EXTENSIONS[media_type]}"
@@ -624,7 +645,9 @@ async def read_source(
                 message=f"There is no artifact named {name!r} that this run may open.",
                 details={"name": name},
             )
-        data = await get_file_storage().load(version.storage_path)
+        data = await _load_version(
+            version, missing=f"The artifact {name!r} has lost its content; publish it again."
+        )
     return ArtifactSource(
         name=artifact.name,
         title=artifact.title,
@@ -1330,9 +1353,9 @@ class ArtifactService:
         """The document behind a signed address, ready to serve, and who may frame it.
 
         Raises:
-            NotFoundError: The token is invalid or expired, or its version is gone.
-                One answer for all three, so the route gives an attacker nothing to
-                distinguish.
+            NotFoundError: The token is invalid or expired, its version is gone,
+                or storage no longer has the version's bytes. One answer for all
+                four, so the route gives an attacker nothing to distinguish.
         """
         payload = verify_special_token(token, "artifact_view")
         version_id = read_uuid_claim(payload, "sub") if payload is not None else None
@@ -1344,7 +1367,7 @@ class ArtifactService:
         if found is None:
             raise NotFoundError(message="Artifact not found")
         version, artifact = found
-        data = await get_file_storage().load(version.storage_path)
+        data = await _load_version(version, missing="Artifact not found")
         embeddable = artifact.public_key is not None and artifact.public_password_hash is None
         return ServedArtifact(
             document=render(version, data, title=artifact.title),
