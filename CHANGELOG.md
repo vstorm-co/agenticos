@@ -101,7 +101,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **oauthlib 4.0.0**, for CVE-2026-49265 (GHSA-xpv3-w29h-x7cv). It arrives
   through Prefect's notification library and nothing here calls it; the lock
-  is the only change.
+  is the only change. virtualenv 21.14.1 in the development tools, for four
+  advisories published against 21.7.9 (CVE-2026-102925, -102930, -102937,
+  -102938).
 - **Review fixes on artifacts and environments.** A password-protected embed no
   longer carries the page's title; a link confirmation keeps the address it is
   asking about while the page posts another, in the console and in the embed; a
