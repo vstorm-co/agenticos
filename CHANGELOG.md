@@ -104,6 +104,10 @@ Two things are versioned separately from this file and worth knowing about:
   is the only change. virtualenv 21.14.1 in the development tools, for four
   advisories published against 21.7.9 (CVE-2026-102925, -102930, -102937,
   -102938).
+- **Next.js 16.3.8**, for the remote code execution in `next/og` `ImageResponse`
+  (GHSA-vcvr-r3jv-pc5j, affecting 16.2.0 to 16.3.5). With it, jsdom 30.1.1 for
+  three undici advisories in the test environment and brace-expansion 1.1.21 and
+  5.0.12 for two advisories in the lint tooling.
 - **Review fixes on artifacts and environments.** A password-protected embed no
   longer carries the page's title; a link confirmation keeps the address it is
   asking about while the page posts another, in the console and in the embed; a

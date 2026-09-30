@@ -323,9 +323,9 @@ names no author is in the evidence column below.
 | @img/sharp-libvips-linux-x64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
-| @next/swc-linux-arm64-gnu | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
-| @next/swc-linux-x64-gnu | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/env | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
+| @next/swc-linux-arm64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/swc-linux-x64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/api-logs | 0.221.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/core | 2.10.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -534,7 +534,7 @@ names no author is in the evidence column below.
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
 | nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
-| next | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
+| next | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
 | next-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |
