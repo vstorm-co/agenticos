@@ -1,5 +1,5 @@
 ---
-source_sha: "a4813da7926f"
+source_sha: "2b6d96cf27a3"
 ---
 
 # Workflows { #workflows }
@@ -391,6 +391,14 @@ mit demselben Konflikt-Banner abgelehnt, das ein Speichern auslöst, statt seine
 und ein archivierter Workflow kann nicht wiederhergestellt werden. Jede
 Wiederherstellung wird im [Audit-Log](governance.md) als `workflow.version_restored`
 festgehalten.
+
+**Compare with draft** in der Vorschau einer Version zeichnet Version und Entwurf
+auf einer Fläche: Jeder Schritt, den der Entwurf hinzugefügt, geändert oder entfernt
+hat, ist auf seiner Karte markiert, und die Liste daneben nennt jeden geänderten
+Schritt mit dem, was sich in ihm geändert hat - eine Einstellung, eine Eingabe,
+Name, Notiz oder Version, ob er ausgeschaltet ist und was er tut, wenn er langsam ist
+oder fehlschlägt. Einen Schritt verschieben und angeheftete Testdaten sind keine
+Änderungen. **Show this version** kehrt zur Version allein zurück.
 
 ## Workflow-Einstellungen { #workflow-settings }
 

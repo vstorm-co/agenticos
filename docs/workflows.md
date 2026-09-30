@@ -347,6 +347,13 @@ edit. Restoring needs `workflows:edit` on the workflow, and an archived workflow
 cannot be restored. Each restore is recorded in the [audit log](governance.md) as
 `workflow.version_restored`.
 
+**Compare with draft** in a version's preview draws the version and the draft on
+one canvas: each step the draft added, changed or removed is marked on its card,
+and the list beside it names every changed step with what changed in it - a
+setting, an input, its name, note or version, whether it is switched off, and
+what it does when it is slow or fails. Moving a step and pinned test data are not
+changes. **Show this version** goes back to the version alone.
+
 ## Workflow settings { #workflow-settings }
 
 **Settings** in the editor's header holds what a workflow is run with rather than

@@ -17,6 +17,7 @@ import {
 import { edgeTypes } from "@/components/workflows/canvas/workflow-edge";
 import { nodeTypes } from "@/components/workflows/canvas/workflow-node";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import type { StepChange } from "@/lib/workflows/graph-diff";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 
 import "@xyflow/react/dist/style.css";
@@ -48,6 +49,8 @@ interface VersionPreviewProps {
   graph: WorkflowGraph;
   /** The node catalog, for resolving each instance's definition. */
   catalog: NodeDefinition[];
+  /** When comparing: how each step differs, marked on its card. */
+  changes?: ReadonlyMap<string, StepChange>;
 }
 
 /**
@@ -58,7 +61,7 @@ interface VersionPreviewProps {
  * graph directly rather than the editor store — so opening a past version never
  * disturbs the draft being edited.
  */
-export function VersionPreview({ graph, catalog }: VersionPreviewProps) {
+export function VersionPreview({ graph, catalog, changes }: VersionPreviewProps) {
   const t = useTranslations("workflows");
   const colorMode = useResolvedTheme();
 
@@ -66,6 +69,7 @@ export function VersionPreview({ graph, catalog }: VersionPreviewProps) {
   const definitions = useMemo(() => definitionsByNode(graph, catalogMap), [graph, catalogMap]);
   const nodes = useMemo(() => toFlowNodes(graph, definitions, true), [graph, definitions]);
   const edges = useMemo(() => toFlowEdges(graph, definitions), [graph, definitions]);
+  const interaction = useMemo(() => ({ ...READ_ONLY_INTERACTION, changes }), [changes]);
 
   return (
     <div
@@ -73,7 +77,7 @@ export function VersionPreview({ graph, catalog }: VersionPreviewProps) {
       className="border-border relative h-full min-h-[24rem] overflow-hidden rounded-lg border"
     >
       <ReactFlowProvider>
-        <CanvasInteractionProvider value={READ_ONLY_INTERACTION}>
+        <CanvasInteractionProvider value={interaction}>
           <ReactFlow
             nodes={nodes}
             edges={edges}

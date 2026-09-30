@@ -1,5 +1,5 @@
 ---
-source_sha: "a4813da7926f"
+source_sha: "2b6d96cf27a3"
 ---
 
 # Workflows { #workflows }
@@ -349,6 +349,13 @@ przywrócenie zostaje odrzucone z tym samym bannerem konfliktu, który zgłasza 
 zamiast nadpisać jego zmianę. Przywrócenie wymaga `workflows:edit` na tym workflow,
 a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafia do
 [dziennika audytu](governance.md) jako `workflow.version_restored`.
+
+**Compare with draft** w podglądzie wersji rysuje wersję i szkic na jednym
+płótnie: każdy krok, który szkic dodał, zmienił albo usunął, jest oznaczony na swojej
+karcie, a lista obok wymienia każdy zmieniony krok z tym, co się w nim zmieniło -
+ustawienie, wejście, nazwę, notatkę lub wersję, czy jest wyłączony i co robi, gdy
+działa wolno albo zawodzi. Przesunięcie kroku i przypięte dane testowe nie są
+zmianami. **Show this version** wraca do samej wersji.
 
 ## Ustawienia workflow { #workflow-settings }
 

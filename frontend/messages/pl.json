@@ -3970,7 +3970,26 @@
     },
     "codeArgKeys": "Klucze args",
     "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor.",
-    "validationConfigNotSet": "To wymagane ustawienie nie jest jeszcze wybrane."
+    "validationConfigNotSet": "To wymagane ustawienie nie jest jeszcze wybrane.",
+    "versionCompare": "Porównaj ze szkicem",
+    "versionShow": "Pokaż tę wersję",
+    "diffListLabel": "Co się zmieniło",
+    "diffSummary": "{steps, plural, =0 {Żaden krok się nie różni} one {# krok się różni} few {# kroki się różnią} many {# kroków się różni} other {# kroku się różni}}; {added, plural, one {# połączenie dodane} few {# połączenia dodane} many {# połączeń dodanych} other {# połączenia dodanego}}, {removed, plural, one {# usunięte} few {# usunięte} many {# usuniętych} other {# usuniętego}}.",
+    "diffNone": "Szkic jest taki sam jak ta wersja.",
+    "diff": {
+      "added": "Dodany",
+      "removed": "Usunięty",
+      "changed": "Zmieniony"
+    },
+    "diffField": {
+      "setting": "Ustawienie {name}",
+      "input": "Wejście {name}",
+      "name": "Nazwa",
+      "note": "Notatka",
+      "switchedOff": "Wyłączony",
+      "version": "Wersja kroku",
+      "whenItFails": "Gdy działa wolno lub zawodzi"
+    }
   },
   "artifacts": {
     "title": "Artefakty",

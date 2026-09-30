@@ -6177,7 +6177,26 @@
     },
     "codeArgKeys": "Schlüssel von args",
     "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen.",
-    "validationConfigNotSet": "Diese erforderliche Einstellung ist noch nicht gewählt."
+    "validationConfigNotSet": "Diese erforderliche Einstellung ist noch nicht gewählt.",
+    "versionCompare": "Mit Entwurf vergleichen",
+    "versionShow": "Diese Version zeigen",
+    "diffListLabel": "Was sich geändert hat",
+    "diffSummary": "{steps, plural, =0 {Kein Schritt unterscheidet sich} one {# Schritt unterscheidet sich} other {# Schritte unterscheiden sich}}; {added, plural, one {# Verbindung hinzugefügt} other {# Verbindungen hinzugefügt}}, {removed, plural, one {# entfernt} other {# entfernt}}.",
+    "diffNone": "Der Entwurf ist derselbe wie diese Version.",
+    "diff": {
+      "added": "Neu",
+      "removed": "Entfernt",
+      "changed": "Geändert"
+    },
+    "diffField": {
+      "setting": "Einstellung {name}",
+      "input": "Eingabe {name}",
+      "name": "Name",
+      "note": "Notiz",
+      "switchedOff": "Ausgeschaltet",
+      "version": "Schrittversion",
+      "whenItFails": "Wenn es langsam ist oder fehlschlägt"
+    }
   },
   "artifacts": {
     "title": "Artefakte",

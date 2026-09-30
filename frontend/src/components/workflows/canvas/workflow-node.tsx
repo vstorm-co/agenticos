@@ -96,8 +96,15 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
 export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
   const { instance, definition, readOnly, bodySize } = data;
-  const { connectSource, beginConnect, completeConnect, catalog, insertAfter, problemCounts } =
-    useCanvasInteraction();
+  const {
+    connectSource,
+    beginConnect,
+    completeConnect,
+    catalog,
+    insertAfter,
+    problemCounts,
+    changes,
+  } = useCanvasInteraction();
   const enterScope = useWorkflowEditorStore((state) => state.enterScope);
   const graph = useWorkflowEditorStore((state) => state.graph);
 
@@ -132,6 +139,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const run = useNodeRunSummary(instance.id);
   const runView = useIsRunView();
   const problems = runView ? 0 : (problemCounts.get(instance.id) ?? 0);
+  const change = changes?.get(instance.id) ?? null;
 
   const connectButton = (port: Port) =>
     !readOnly &&
@@ -186,6 +194,9 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         runView && run === null && "opacity-50",
         // Switched off: still on the canvas, visibly out of the run.
         instance.disabled && "border-dashed opacity-60",
+        change === "added" && "border-emerald-500/60 ring-2 ring-emerald-500/25",
+        change === "removed" && "border-destructive/50 border-dashed opacity-70",
+        change === "changed" && "border-foreground/40 ring-foreground/15 ring-2",
       )}
     >
       {inputs.map((port) => (
@@ -245,6 +256,19 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                   className="text-muted-foreground"
                 >
                   <StickyNote aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
+              {change !== null && (
+                <span
+                  className={cn(
+                    "rounded px-1.5 text-[10px] font-medium tracking-wide uppercase",
+                    change === "added" &&
+                      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                    change === "removed" && "bg-destructive/10 text-destructive",
+                    change === "changed" && "bg-muted text-foreground",
+                  )}
+                >
+                  {t(`diff.${change}`)}
                 </span>
               )}
               {problems > 0 && (

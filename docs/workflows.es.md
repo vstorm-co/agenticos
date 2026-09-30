@@ -1,5 +1,5 @@
 ---
-source_sha: "a4813da7926f"
+source_sha: "2b6d96cf27a3"
 ---
 
 # Workflows { #workflows }
@@ -361,6 +361,13 @@ rechaza con el mismo banner de conflicto que muestra un guardado, en vez de
 descartar su cambio. Restaurar requiere `workflows:edit` sobre el workflow, y un
 workflow archivado no se puede restaurar. Cada restauración queda en el
 [registro de auditoría](governance.md) como `workflow.version_restored`.
+
+**Compare with draft** en la vista previa de una versión dibuja la versión y el
+borrador en un mismo lienzo: cada paso que el borrador añadió, cambió o quitó queda
+marcado en su tarjeta, y la lista al lado nombra cada paso cambiado con lo que cambió
+en él - un ajuste, una entrada, su nombre, nota o versión, si está apagado y qué hace
+cuando va lento o falla. Mover un paso y los datos de prueba fijados no son cambios.
+**Show this version** vuelve a la versión sola.
 
 ## Ajustes del workflow { #workflow-settings }
 

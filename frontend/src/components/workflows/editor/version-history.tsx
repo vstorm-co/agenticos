@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { History, RotateCcw } from "lucide-react";
+import { GitCompare, History, RotateCcw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 import type { NodeDefinition, WorkflowVersionRead } from "@/lib/workflows/types";
 import { useWorkflowVersion, useWorkflowVersions } from "@/hooks";
 
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+import { VersionComparison } from "./version-compare";
 import { VersionPreview } from "./version-preview";
 
 /** One published version's row, with a control to open it read-only. */
@@ -89,6 +92,8 @@ function VersionPreviewDialog({
   const { version: detail, error } = useWorkflowVersion(workflowId, version.id);
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const draft = useWorkflowEditorStore((state) => state.graph);
 
   const restore = async (restoreVersion: (version: WorkflowVersionRead) => Promise<boolean>) => {
     setRestoring(true);
@@ -107,6 +112,18 @@ function VersionPreviewDialog({
         <DialogDescription>
           {onRestore === undefined ? t("versionPreviewHint") : t("versionPreviewRestoreHint")}
         </DialogDescription>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={comparing}
+            disabled={detail === undefined}
+            onClick={() => setComparing(!comparing)}
+          >
+            <GitCompare className="h-4 w-4" aria-hidden />
+            {comparing ? t("versionShow") : t("versionCompare")}
+          </Button>
+        </div>
       </DialogHeader>
       <div className="min-h-0 flex-1">
         {error ? (
@@ -117,6 +134,12 @@ function VersionPreviewDialog({
           <div className="flex h-full items-center justify-center p-6">
             <Spinner />
           </div>
+        ) : comparing ? (
+          <VersionComparison
+            version={detail.graph}
+            draft={draft ?? { ...detail.graph, nodes: [], edges: [], bindings: [], scopes: [] }}
+            catalog={catalog}
+          />
         ) : (
           <VersionPreview graph={detail.graph} catalog={catalog} />
         )}

@@ -19,6 +19,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Compare a version with the draft.** A version's preview draws both on one
+  canvas with every added, changed and removed step marked, and lists what
+  changed in each changed step (#1954).
 - **Export and import a workflow, and automation templates.** The editor
   downloads a draft as a `.workflow.json` file with no ids of the deployment and
   no secret values; Import on the list makes a new draft from one and lists

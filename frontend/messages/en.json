@@ -6318,7 +6318,26 @@
     },
     "codeArgKeys": "Keys of args",
     "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor.",
-    "validationConfigNotSet": "This required setting is not chosen yet."
+    "validationConfigNotSet": "This required setting is not chosen yet.",
+    "versionCompare": "Compare with draft",
+    "versionShow": "Show this version",
+    "diffListLabel": "What changed",
+    "diffSummary": "{steps, plural, =0 {No step differs} one {# step differs} other {# steps differ}}; {added, plural, one {# connection added} other {# connections added}}, {removed, plural, one {# removed} other {# removed}}.",
+    "diffNone": "The draft is the same as this version.",
+    "diff": {
+      "added": "Added",
+      "removed": "Removed",
+      "changed": "Changed"
+    },
+    "diffField": {
+      "setting": "Setting {name}",
+      "input": "Input {name}",
+      "name": "Name",
+      "note": "Note",
+      "switchedOff": "Switched off",
+      "version": "Step version",
+      "whenItFails": "When it is slow or fails"
+    }
   },
   "artifacts": {
     "title": "Artifacts",

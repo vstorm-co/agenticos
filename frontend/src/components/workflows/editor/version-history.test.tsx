@@ -24,6 +24,16 @@ vi.mock("@/hooks", () => ({
   useWorkflowVersion: () => detailState.current,
 }));
 
+const store = vi.hoisted(() => ({ graph: null as WorkflowGraph | null }));
+vi.mock("@/stores/workflow-editor-store", () => ({
+  useWorkflowEditorStore: (pick: (state: typeof store) => unknown) => pick(store),
+}));
+vi.mock("./version-compare", () => ({
+  VersionComparison: ({ draft }: { draft: WorkflowGraph }) => (
+    <div data-testid="comparison">{draft.nodes.length} steps in the draft</div>
+  ),
+}));
+
 vi.mock("./version-preview", () => ({
   VersionPreview: ({ graph }: { graph: WorkflowGraph }) => (
     <div data-testid="preview">{graph.entry_node_id}</div>
@@ -104,6 +114,34 @@ describe("VersionHistory", () => {
     // Dismissing closes the preview.
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("compares the version with the draft, and back", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    store.graph = {
+      ...GRAPH,
+      nodes: [
+        { id: "n", definition_id: "x", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+      ],
+    };
+    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Compare with draft" }));
+    expect(screen.getByTestId("comparison")).toHaveTextContent("1 steps in the draft");
+    await userEvent.click(screen.getByRole("button", { name: "Show this version" }));
+    expect(screen.getByTestId("preview")).toBeInTheDocument();
+  });
+
+  it("compares with an empty draft as one with no steps", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    store.graph = null;
+    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Compare with draft" }));
+    expect(screen.getByTestId("comparison")).toHaveTextContent("0 steps in the draft");
   });
 
   it("shows a spinner while the version graph is still loading", async () => {

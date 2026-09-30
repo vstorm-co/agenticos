@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 
+import type { StepChange } from "@/lib/workflows/graph-diff";
 import type { NodeDefinition } from "@/lib/workflows/types";
 
 /** One end of a keyboard-driven connection: a node and one of its ports. */
@@ -33,6 +34,8 @@ export interface CanvasInteraction {
   insertAfter: (nodeId: string, portId: string, definition: NodeDefinition) => void;
   /** How many problems each node has that stop publishing - a node with none is absent. */
   problemCounts: ReadonlyMap<string, number>;
+  /** When two versions are compared: how each step differs - one the same is absent. */
+  changes?: ReadonlyMap<string, StepChange>;
 }
 
 const CanvasInteractionContext = createContext<CanvasInteraction | null>(null);
