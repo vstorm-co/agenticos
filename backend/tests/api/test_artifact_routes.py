@@ -321,6 +321,10 @@ class TestWhatAPageGained:
                 f"{PATH}._append_version", new=AsyncMock(return_value=_version(row, number=3))
             ) as append,
             patch(f"{PATH}.record_audit", new=AsyncMock()),
+            patch(
+                f"{PATH}.get_file_storage",
+                return_value=MagicMock(exists=AsyncMock(return_value=True)),
+            ),
         ):
             async with client() as http:
                 response = await http.post(_url(f"/{row.id}/versions/{kept.id}/restore"))
