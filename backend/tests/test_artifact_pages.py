@@ -554,6 +554,7 @@ class TestEmbedOrigins:
             ("  HTTPS://Docs.Example.com/ ", "https://docs.example.com"),
             ("https://*.example.com", "https://*.example.com"),
             ("https://example.com:8443", "https://example.com:8443"),
+            ("https://example.com:65535", "https://example.com:65535"),
             ("http://localhost:3000", "http://localhost:3000"),
         ],
     )
@@ -572,6 +573,9 @@ class TestEmbedOrigins:
             "javascript:alert(1)",
             "https://exa mple.com",
             "'self'",
+            "https://example.com:99999",
+            "https://example.com:0",
+            "http://localhost:70000",
         ],
     )
     def test_anything_else_is_refused_naming_the_field(self, given: str) -> None:

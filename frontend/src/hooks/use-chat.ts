@@ -794,16 +794,16 @@ export function useChat(options: UseChatOptions = {}) {
     // auto-reconnect (and the token-gated connect effect) uses a fresh one.
     // The hook only calls this on genuine drops (not deliberate disconnects),
     // and the ref keeps concurrent reconnect attempts from stampeding /me.
+    // Through `apiClient`, whose /auth/me runs under the cross-tab auth lock:
+    // this read can spend the refresh cookie too, and several tabs' sockets
+    // dropping together would otherwise rotate it more than once.
     onClose: () => {
       if (refreshingRef.current) return;
       refreshingRef.current = true;
       void (async () => {
         try {
-          const res = await fetch("/api/auth/me");
-          if (res.ok) {
-            const data = (await res.json()) as { access_token?: string };
-            if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
-          }
+          const data = await apiClient.get<{ access_token?: string }>("/auth/me");
+          if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
         } catch {
           // ignore - backoff reconnect will retry
         } finally {

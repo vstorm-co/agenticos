@@ -111,7 +111,11 @@ Two things are versioned separately from this file and worth knowing about:
   file description written on a copy as an edit and decides under a row lock on
   the row as it is now; a template no longer binds a bundled skill the installer
   may not read; restoring a version whose bytes are gone is refused; and a
-  cross-tab refresh stamp from ahead of the clock no longer suppresses refreshes.
+  cross-tab refresh stamp from ahead of the clock no longer suppresses refreshes. From the
+  third: removing an environment locks its row first, so a run cannot start in
+  it between the check and the delete; the chat's socket recovery reads
+  `/auth/me` under the cross-tab lock; and an embed origin's port must be in
+  range.
 - **An artifact whose stored bytes are gone answers 404, not 500.** A version
   row whose file storage no longer has - a restored database beside an older
   volume - made the page, its thumbnail and `read_artifact` fail with a server

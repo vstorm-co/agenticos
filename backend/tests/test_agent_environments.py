@@ -476,20 +476,24 @@ class TestDelete:
         agent = _agent()
         environment = _environment(agent_id=agent.id, name="staging")
         service = _service(agent)
+        order: list[str] = []
 
         with (
             patch(_REPO) as environments,
             patch(
                 "app.services.agent_environment.agent_run_repo.count_running_in_environment",
-                new=AsyncMock(return_value=2),
+                new=AsyncMock(side_effect=lambda *_a, **_k: order.append("count") or 2),
             ),
         ):
             environments.get = AsyncMock(return_value=environment)
+            environments.lock = AsyncMock(side_effect=lambda *_a, **_k: order.append("lock"))
             environments.delete = AsyncMock()
             with pytest.raises(ConcurrentChangeError, match="2 run"):
                 await service.delete(_ctx(), agent.id, environment.id)
 
         environments.delete.assert_not_awaited()
+        # Locked before counting, so no run can start in it between the two.
+        assert order == ["lock", "count"]
 
     async def test_a_named_environment_is_removed_and_audited(self):
         agent = _agent()
@@ -510,6 +514,7 @@ class TestDelete:
             ),
         ):
             environments.get = AsyncMock(return_value=environment)
+            environments.lock = AsyncMock()
             environments.delete = AsyncMock(side_effect=lambda *_a, **_k: order.append("delete"))
             await service.delete(_ctx(), agent.id, environment.id)
 

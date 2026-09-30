@@ -2483,14 +2483,13 @@ describe("useChat - the socket it opens", () => {
     expect(socket.url).toContain("organization_id=org%207");
   });
 
-  it("refreshes the token when the socket drops, once", async () => {
+  it("refreshes the token when the socket drops, once, through the locked client", async () => {
     // A dropped socket is usually a stale token; one in-flight `/auth/me` is
-    // enough, and one per backoff attempt would stampede it.
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ access_token: "t-2" }) });
-    vi.stubGlobal("fetch", fetchMock);
+    // enough, and one per backoff attempt would stampede it. Through `apiClient`,
+    // because its /auth/me runs under the cross-tab lock and a bare fetch did not.
+    get.mockResolvedValue({ access_token: "t-2" });
     renderHook(() => useChat(), { wrapper });
+    get.mockClear();
 
     await act(async () => {
       socket.onClose?.();
@@ -2498,14 +2497,13 @@ describe("useChat - the socket it opens", () => {
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([path]) => path === "/auth/me")).toHaveLength(1);
     expect(useAuthStore.getState().accessToken).toBe("t-2");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token it has when the refresh is refused", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     renderHook(() => useChat(), { wrapper });
+    get.mockRejectedValue(new ApiError(401, "Not authenticated"));
 
     await act(async () => {
       socket.onClose?.();
@@ -2513,15 +2511,11 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token when the refresh answers without one", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
-    );
     renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue({});
 
     await act(async () => {
       socket.onClose?.();
@@ -2529,20 +2523,6 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
-  });
-
-  it("survives a refresh that could not be made at all", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-    renderHook(() => useChat(), { wrapper });
-
-    await act(async () => {
-      socket.onClose?.();
-      await Promise.resolve();
-    });
-
-    expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("closes the socket when the chat goes away", () => {

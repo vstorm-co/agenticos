@@ -284,7 +284,11 @@ def normalise_embed_origins(origins: Sequence[str]) -> list[str]:
     kept: list[str] = []
     for raw in origins:
         origin = raw.strip().rstrip("/").lower()
-        if not (_EMBED_ORIGIN.fullmatch(origin) or _LOCAL_EMBED_ORIGIN.fullmatch(origin)):
+        shaped = _EMBED_ORIGIN.fullmatch(origin) or _LOCAL_EMBED_ORIGIN.fullmatch(origin)
+        # The patterns take up to five digits; a port past 65535 is not one a
+        # browser will navigate to, so the embed it names could never load.
+        port = origin.rsplit(":", 1)[1] if shaped and origin.count(":") == 2 else None
+        if not shaped or (port is not None and not 0 < int(port) <= 65535):
             raise refused_field(
                 "embed_origins",
                 f"{raw!r} is not a site origin. Give the scheme and host only, as "

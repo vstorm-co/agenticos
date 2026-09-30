@@ -9,6 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.agent_environment import AgentEnvironment
 
 
+async def lock(db: AsyncSession, environment_id: UUID) -> None:
+    """Hold the environment's row until the transaction ends.
+
+    `FOR UPDATE` conflicts with the key-share lock a new row's foreign key takes
+    on the row it references, so a run naming this environment cannot be
+    written while the lock is held - it waits, and fails on the foreign key if
+    the environment is gone by then.
+    """
+    await db.execute(
+        select(AgentEnvironment.id).where(AgentEnvironment.id == environment_id).with_for_update()
+    )
+
+
 async def get(
     db: AsyncSession, environment_id: UUID, *, organization_id: UUID
 ) -> AgentEnvironment | None:

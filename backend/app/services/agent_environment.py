@@ -264,6 +264,10 @@ class AgentEnvironmentService:
                 "every surface that names no environment gets.",
                 details={"environment_id": str(environment.id)},
             )
+        # Locked first, so no run can start in it between the count and the
+        # delete: the count would miss it, and the delete would null its
+        # environment while it still runs.
+        await agent_environment_repo.lock(self.db, environment.id)
         running = await agent_run_repo.count_running_in_environment(
             self.db, environment_id=environment.id, organization_id=ctx.organization_id
         )
