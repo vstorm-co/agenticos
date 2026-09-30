@@ -53,6 +53,10 @@ Two things are versioned separately from this file and worth knowing about:
   has no `allow-popups`; a platform script turns the click into a request, and
   the console, the public page and the embed show the full address and open it in
   a new tab only when the person agrees (#1969).
+- **An environment's release switch is now "Pinned".** It is on for an environment
+  that waits to be promoted onto - every new production - and off for one that
+  follows every publish. The behaviour is unchanged; the switch used to be
+  "follows latest", so the safe default read as a switch left off.
 - **The artifact list's thumbnails run the page's script**, so a chart a library
   draws is on the card, and each one is unmounted when its card scrolls away
   (#1968).

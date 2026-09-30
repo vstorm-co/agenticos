@@ -255,7 +255,7 @@
     "followCapabilityAlwaysAsk": "Der Capability folgen – immer fragen",
     "followCapabilityNeverAsk": "Der Capability folgen – nie fragen",
     "followsLatest": "Folgt der neuesten",
-    "followsLatestFor": "{name} folgt jeder Veröffentlichung",
+    "pinnedFor": "{name} ist angeheftet",
     "gatewayLitellmProxyModel": "Ein Gateway, ein LiteLLM-Proxy oder ein Modellserver in diesem Netz. Geben Sie eines an, und der Schlüssel wird optional — auf Ihrer eigenen Hardware gibt es nichts, wogegen man sich authentifizieren müsste.",
     "giveSpecialistCapability": "Diesem Spezialisten {name} geben",
     "giveThisAgent": "Diesem Agent {name} geben",

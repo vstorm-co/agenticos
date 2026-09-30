@@ -2602,7 +2602,7 @@
     "followCapabilityAlwaysAsk": "Zgodnie z capability - zawsze pytaj",
     "followCapabilityNeverAsk": "Zgodnie z capability - nigdy nie pytaj",
     "followsLatest": "Podąża za najnowszą",
-    "followsLatestFor": "{name} podąża za każdą publikacją",
+    "pinnedFor": "{name} jest przypięte",
     "gatewayLitellmProxyModel": "Bramka, proxy LiteLLM lub serwer modeli w tej sieci. Podaj jeden, a klucz stanie się opcjonalny — na własnym sprzęcie nie ma się wobec czego uwierzytelniać.",
     "giveSpecialistCapability": "Daj temu specjaliście {name}",
     "giveThisAgent": "Daj temu agentowi {name}",
