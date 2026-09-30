@@ -3731,6 +3731,45 @@ class TestAgentTemplates:
         skills.return_value.install_gallery.assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):
+        """`artifact-pages` ships with every organization; there is nothing to install.
+
+        It used to be passed to the gallery with the rest, reported unknown there,
+        and silently left off the agent - so the general-purpose template built
+        pages without the skill written to style them.
+        """
+        template = MagicMock()
+        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.description, template.instructions = "d", "You work..."
+        template.capabilities = ({"id": "artifacts"},)
+        template.skills = ("artifact-pages",)
+        template.mcp, template.attach, template.budget_usd = (), (), None
+
+        row = MagicMock()
+        row.id, row.name = uuid4(), "artifact-pages"
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.SkillService") as skills,
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)
+            ) as by_name,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "general/claude-code-like"
+            )
+
+        skills.return_value.install_gallery.assert_not_called()
+        assert by_name.await_args.args[1] == "artifact-pages"
+        assert create.await_args.args[1].skill_ids == [row.id]
+        assert result.skills_installed == ["artifact-pages"]
+
+    @pytest.mark.anyio
     async def test_a_template_with_no_skills_installs_nothing(self):
         """No gallery call at all, rather than one with an empty list."""
         template = MagicMock()
@@ -3793,6 +3832,7 @@ class TestTheShippedTemplatesOnDisk:
         from app.services import agent_templates, skill_library
 
         gallery = {s.key for i in skill_library.gallery() for s in i.skills}
+        gallery |= {s.key for s in skill_library.library()}
         servers = json.loads(
             (skill_library.GALLERY_ROOT.parent / "mcp_servers.json").read_text(encoding="utf-8")
         )

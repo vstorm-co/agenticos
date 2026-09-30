@@ -9,8 +9,9 @@ thing is stored in should be the format somebody reads it in.
 **What a template cannot carry is the whole difficulty.** An `AgentSpec` names
 its skills, collections, context files and MCP servers by UUID, and a folder
 shipped in an image knows none of them. So a template names skills by their
-*gallery key*, MCP servers by their *catalog key*, and says which things a person
-has to attach themselves. Installing resolves what it can and leaves the rest
+*gallery key* - or, for one bundled with every organization, by its library
+folder - MCP servers by their *catalog key*, and says which things a person has
+to attach themselves. Installing resolves what it can and leaves the rest
 visible rather than guessing.
 
 Which is also why an installed template is a **draft**. An agent whose knowledge

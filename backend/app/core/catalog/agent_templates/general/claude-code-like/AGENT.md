@@ -96,6 +96,8 @@ capabilities:
 - tool_search
 - media
 - clock
+skills:
+- artifact-pages
 attach:
 - sandbox
 budget_usd: 100

@@ -986,7 +986,8 @@ class AgentRegistryService:
         missing either would produce answers from nowhere, confidently.
 
         The skills it expects are installed first, from the gallery, and skipped
-        where the organization already has them. Its MCP suggestions are returned
+        where the organization already has them. A bundled skill is bound where
+        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
         rather than bound: a connection needs somebody to authorise it.
 
         Raises:
@@ -999,15 +1000,26 @@ class AgentRegistryService:
         if template is None:
             raise NotFoundError(message="No such agent template", details={"key": key})
 
-        skill_service = SkillService(self.db)
-        if template.skills:
-            await skill_service.install_gallery(ctx, list(template.skills))
+        # A bundled skill is seeded into every organization when it is created,
+        # so there is nothing to install - only a row to find by its name.
+        # Everything else is a gallery key and is installed first.
+        bundled = {
+            key: entry.name
+            for key in template.skills
+            if (entry := skill_library.get(key)) is not None
+        }
+        gallery_keys = [key for key in template.skills if key not in bundled]
+        if gallery_keys:
+            await SkillService(self.db).install_gallery(ctx, gallery_keys)
 
         wanted = sorted(
             {
-                entry.name
-                for gallery_key in template.skills
-                if (entry := skill_library.gallery_get(gallery_key)) is not None
+                *bundled.values(),
+                *(
+                    entry.name
+                    for gallery_key in gallery_keys
+                    if (entry := skill_library.gallery_get(gallery_key)) is not None
+                ),
             }
         )
         rows = [
