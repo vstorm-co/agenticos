@@ -167,6 +167,9 @@ img {{ max-width: 100%; }}
 
 _HEAD_OPEN = re.compile(rb"<head\b[^>]*>", re.IGNORECASE)
 _HTML_OPEN = re.compile(rb"<html\b[^>]*>", re.IGNORECASE)
+# Only at the very start, after an optional byte-order mark and whitespace: that
+# is the one place a browser honours a doctype.
+_DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype\b[^>]*>", re.IGNORECASE)
 
 _LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "artifact_lib"
 
@@ -810,9 +813,15 @@ def _view(version: ArtifactVersion) -> ArtifactView:
 
 
 def with_platform_script(document: bytes) -> bytes:
-    """The document with :data:`PLATFORM_SCRIPT` first in it - after `<head>`, else `<html>`."""
+    """The document with :data:`PLATFORM_SCRIPT` first in it.
+
+    After `<head>`, else after `<html>`, else after the doctype - never before
+    it: a doctype that is not the first thing in the document is ignored, and a
+    page written with one but without `<html>` and `<head>` (both optional in
+    HTML) would render in quirks mode.
+    """
     script = PLATFORM_SCRIPT.encode("utf-8")
-    for opening in (_HEAD_OPEN, _HTML_OPEN):
+    for opening in (_HEAD_OPEN, _HTML_OPEN, _DOCTYPE):
         found = opening.search(document)
         if found is not None:
             return document[: found.end()] + script + document[found.end() :]
@@ -847,9 +856,11 @@ def _embed_document(*, nonce: str, title: str, frame_url: str | None, public_url
     """The embed page: the artifact in a sandboxed frame, and a bar for its links.
 
     Without a frame URL it says the page opens on its own address instead - a link
-    behind a password cannot be typed into somebody else's site.
+    behind a password cannot be typed into somebody else's site. Nor does it carry
+    the page's title then: the embed address answers anyone who has the key, and a
+    title is often exactly what the password was meant to keep - a client's name.
     """
-    safe_title = escape(title)
+    safe_title = escape(title) if frame_url is not None else "Protected page"
     if frame_url is None:
         body = (
             f'<p class="note">This page is protected. <a href="{escape(public_url)}" '
@@ -888,6 +899,9 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
   var open = document.getElementById("open");
   window.addEventListener("message", function (event) {{
     if (event.source !== frame.contentWindow) return;
+    // One address at a time: while the bar asks about one, a page posting another
+    // would swap what the reader is reading for what they then click.
+    if (!bar.hidden) return;
     var data = event.data;
     if (!data || data.type !== "agenticos:open-link" || typeof data.href !== "string") return;
     var url;
@@ -1158,6 +1172,9 @@ class ArtifactService:
                 raise refused_field("expires_at", "The link's expiry has to be in the future.")
             update["public_expires_at"] = expires_at
         if "pinned_version_id" in changes:
+            # Under the lock a publish takes before it prunes, so the version
+            # checked here cannot be pruned between the check and the write.
+            await artifact_repo.lock(self.db, artifact.id)
             update["public_version_number"] = await self._pinned_number(
                 artifact, changes["pinned_version_id"]
             )

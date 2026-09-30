@@ -143,6 +143,27 @@ describe("a link inside the page", () => {
     );
   });
 
+  it("keeps the address the person is reading while the page posts another", async () => {
+    // A page may keep posting; taking the newest would swap the address being
+    // checked for one the reader never saw, just before the click.
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<ArtifactFrameView url="https://api/c/t" title="Report" />);
+    const frame = screen.getByTitle("Report") as HTMLIFrameElement;
+
+    postFromFrame(frame, { type: "agenticos:open-link", href: "https://docs.example.com/q3" });
+    const dialog = await screen.findByRole("dialog");
+    postFromFrame(frame, { type: "agenticos:open-link", href: "https://evil.example/leak" });
+
+    expect(within(dialog).getByText("https://docs.example.com/q3")).toBeInTheDocument();
+    expect(within(dialog).queryByText("https://evil.example/leak")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Open link" }));
+    expect(open).toHaveBeenCalledWith(
+      "https://docs.example.com/q3",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
   it("opens nothing when the person cancels", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(<ArtifactFrameView url="https://api/c/t" title="Report" />);

@@ -44,6 +44,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -4661,6 +4662,38 @@ class TestPublishingIsNotDeploying:
         # version, not the newest publish.
         assert agent.current_version_id == first.id
         assert production.behind_by == 1
+
+    async def test_an_environment_is_not_removed_while_a_run_of_it_is_working(self, db) -> None:
+        """Deleting it nulls the run's environment, which reads as the default, so
+        a staging run still working would publish over production's pages."""
+        tenant = await _tenant(db, name="Staged")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        version = await registry.publish(tenant.ctx, agent.id)
+        staging = await environments.create(tenant.ctx, agent.id, EnvironmentCreate(name="staging"))
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            agent_version_id=version.id,
+            environment_id=staging.id,
+            status=RunStatus.RUNNING.value,
+        )
+        db.add(run)
+        await db.flush()
+
+        with pytest.raises(ConcurrentChangeError, match="staging"):
+            await environments.delete(tenant.ctx, agent.id, staging.id)
+
+        run.status = RunStatus.COMPLETED.value
+        await db.flush()
+        await environments.delete(tenant.ctx, agent.id, staging.id)
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        assert [row.name for row in listed] == ["production"]
 
     async def test_an_environment_that_follows_latest_moves_with_every_publish(self, db) -> None:
         tenant = await _tenant(db, name="Iterating")

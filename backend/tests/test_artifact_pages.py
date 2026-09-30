@@ -416,10 +416,13 @@ class TestAppendingAVersion:
 
 
 class TestPublicLinkSettings:
-    async def _update(self, artifact: Artifact, data: ArtifactPublicLinkUpdate) -> AsyncMock:
+    async def _update(
+        self, artifact: Artifact, data: ArtifactPublicLinkUpdate, *, lock: AsyncMock | None = None
+    ) -> AsyncMock:
         audit = AsyncMock()
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.lock", new=lock or AsyncMock()),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.artifact_repo.update", new=_apply),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
@@ -493,6 +496,30 @@ class TestPublicLinkSettings:
                 ArtifactPublicLinkUpdate(expires_at=datetime.now(UTC) - timedelta(minutes=1)),
             )
         assert refused.value.details["fields"][0]["field"] == "expires_at"
+
+    async def test_an_expiry_without_an_offset_is_refused_at_the_door(self) -> None:
+        """Naive, it failed the comparison with now() as a 500."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ArtifactPublicLinkUpdate.model_validate({"expires_at": "2030-01-01T00:00:00"})
+
+    async def test_a_pin_is_checked_under_the_lock_a_publish_prunes_under(self) -> None:
+        """A publish pruning the version between the check and the write would
+        leave the link pinned to one that is gone."""
+        artifact = _artifact(_ctx(), public_key="k" * 32)
+        order: list[str] = []
+        with patch.object(
+            artifacts.ArtifactService,
+            "_pinned_number",
+            new=AsyncMock(side_effect=lambda *_a, **_k: order.append("check") or 4),
+        ):
+            await self._update(
+                artifact,
+                ArtifactPublicLinkUpdate(pinned_version_id=uuid.uuid4()),
+                lock=AsyncMock(side_effect=lambda *_a, **_k: order.append("lock")),
+            )
+        assert order == ["lock", "check"]
 
     async def test_a_pin_to_a_version_that_is_not_kept_is_refused(self) -> None:
         artifact = _artifact(_ctx())
@@ -645,12 +672,26 @@ class TestTheEmbed:
             public_password_hash="hash",
             embed_origins=["https://a.example.com"],
         )
+        artifact.title = "Acme acquisition - board pack"
         embed, counted = await self._embed(artifact)
         document = embed.document.decode()
         assert "<iframe" not in document
         assert "/artifact-content/" not in document
         assert "/a/k" in document
         counted.assert_not_awaited()
+        # The embed address answers anyone holding the key, so a title the
+        # password was meant to keep must not be in it either.
+        assert "Acme" not in document
+        assert "<title>Protected page</title>" in document
+
+    @pytest.mark.security
+    async def test_the_link_bar_keeps_the_address_it_is_asking_about(self) -> None:
+        """While the bar asks about one address, a page posting another must not
+        swap what the reader is checking for what they then click."""
+        artifact = _artifact(_ctx(), public_key="k", embed_origins=["https://a.example.com"])
+        embed, _ = await self._embed(artifact)
+        script = embed.document.decode()
+        assert script.index("if (!bar.hidden) return;") < script.index("open.href = url.href;")
 
 
 class TestContentFraming:
@@ -715,6 +756,17 @@ class TestThePlatformScript:
     def test_without_a_head_it_goes_after_the_html_tag(self) -> None:
         document = artifacts.with_platform_script(b"<html lang=en><body>")
         assert document.startswith(b"<html lang=en><script data-agenticos")
+
+    def test_without_either_it_goes_after_the_doctype_and_never_before_it(self) -> None:
+        # Both tags are optional in HTML; a doctype that is not first is ignored,
+        # and the page would render in quirks mode.
+        document = artifacts.with_platform_script(b"\xef\xbb\xbf\n<!DOCTYPE html><p>x</p>")
+        assert document.startswith(b"\xef\xbb\xbf\n<!DOCTYPE html><script data-agenticos")
+        assert document.endswith(b"</script><p>x</p>")
+
+    def test_a_doctype_later_in_the_page_is_not_the_one_it_looks_for(self) -> None:
+        document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>")
+        assert document.startswith(b"<script data-agenticos")
 
     def test_a_fragment_gets_it_first(self) -> None:
         assert artifacts.with_platform_script(b"<p>x</p>").endswith(b"</script><p>x</p>")

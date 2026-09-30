@@ -146,6 +146,10 @@ export function CapabilityResources({
     // from this page of the organization's skills - deleted, renamed, or past
     // the first page - it is simply not offered.
     const pages = resources.skills.filter((skill) => skill.name === ARTIFACT_PAGES_SKILL);
+    // Only this skill's own binding: the gallery reads any selected id it does not
+    // list as a skill that no longer exists, and every other bound skill would
+    // be reported as one - they are the Skills tab's to show.
+    const pageIds = new Set(pages.map((skill) => skill.id));
     return (
       <ResourceGroup detail={t("artifactPagesDetail")} warning={null}>
         {pages.length === 0 ? (
@@ -154,7 +158,7 @@ export function CapabilityResources({
           <SkillGallery
             skills={pages}
             total={pages.length}
-            selectedIds={resources.skillIds}
+            selectedIds={resources.skillIds.filter((id) => pageIds.has(id))}
             onToggle={resources.onSkillToggle}
             disabled={disabled}
           />

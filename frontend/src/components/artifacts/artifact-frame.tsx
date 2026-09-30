@@ -47,13 +47,19 @@ export function requestedLink(event: MessageEvent, frame: HTMLIFrameElement | nu
   }
 }
 
-/** The link the framed page last asked to open, until somebody decides about it. */
+/**
+ * The first link the framed page asked to open, until somebody decides about it.
+ *
+ * The first, not the latest: the page may post again while the confirmation is
+ * open, and taking the newer address would swap the one the reader is checking
+ * for one they never saw, just before they click.
+ */
 function useLinkRequests(frame: React.RefObject<HTMLIFrameElement | null>) {
   const [pending, setPending] = useState<string | null>(null);
   useEffect(() => {
     const listen = (event: MessageEvent) => {
       const href = requestedLink(event, frame.current);
-      if (href !== null) setPending(href);
+      if (href !== null) setPending((current) => current ?? href);
     };
     window.addEventListener("message", listen);
     return () => window.removeEventListener("message", listen);

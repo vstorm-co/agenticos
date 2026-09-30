@@ -1,5 +1,5 @@
 ---
-source_sha: "f89c2d2bad65"
+source_sha: "e47c65e68d46"
 ---
 
 # Entornos { #environments }
@@ -64,6 +64,10 @@ decidir dónde se ejecuta esa versión es un acto aparte. Acoplarlos significa q
 una edición sin terminar llega a un cliente porque alguien pulsó Publish para
 guardar su trabajo.
 
+La única excepción es el `production` que crea la primera publicación. Mientras es
+el único entorno del agent no hay desde dónde ascender, así que sigue las
+publicaciones; fíjalo cuando haya un `dev` o un `staging` a su lado.
+
 ## Ligar una superficie a uno { #binding-a-surface-to-one }
 
 Una [exposición](concepts.md#exposure) — un bot de Slack, un widget, una página
@@ -78,7 +82,9 @@ contabilidad.
 Una página que el agent publica sigue la misma separación. Un run en un entorno
 con nombre publica un [artefacto](artifacts.md#one-name-one-link) propio, así que
 probar `dev` con el informe semanal nunca vuelve a publicar la página que abren
-los lectores de producción.
+los lectores de producción. Un entorno con un run todavía en marcha no se puede
+eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
+defecto, y sus páginas a las de producción.
 
 ## Trazas por entorno { #tracing-per-environment }
 
@@ -112,7 +118,8 @@ encuentra con una versión que nadie lanzó.
 - Un entorno es un **nombre fijado a una versión**; todos los agents tienen uno
   por defecto.
 - Publicar acuña una versión. **Ponerla en algún sitio es una decisión aparte** —
-  por eso `tracks_latest` está desactivado por defecto.
+  por eso `tracks_latest` está desactivado en un entorno que añades; el `production`
+  que crea la primera publicación lo sigue hasta que lo fijas.
 - Una **superficie puede nombrar su entorno**, así que un bot de desarrollo y un
   widget público pueden servir versiones distintas de un mismo agent.
 - **Volver atrás es reapuntar**, porque las versiones antiguas siguen siendo

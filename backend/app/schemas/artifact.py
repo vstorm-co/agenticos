@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from app.schemas.base import BaseSchema
 
@@ -117,8 +117,11 @@ class ArtifactPublicLinkUpdate(BaseSchema):
     `null` clears `expires_at`, `pinned_version_id` and `password`.
     """
 
-    expires_at: datetime | None = Field(
-        default=None, description="When the link stops opening anything; in the future"
+    # Aware, so a datetime sent without an offset is refused at the door instead
+    # of failing the comparison with now() as a 500.
+    expires_at: AwareDatetime | None = Field(
+        default=None,
+        description="When the link stops opening anything; in the future, with a UTC offset",
     )
     pinned_version_id: UUID | None = Field(
         default=None, description="A kept version the link shows instead of the newest one"

@@ -121,6 +121,16 @@ describe("what a capability reads of the organization's", () => {
     expect(resources.onSkillToggle).toHaveBeenCalledWith("s2");
   });
 
+  it("does not call the agent's other skills missing from the page-style tab", () => {
+    // The tab lists one skill; handed every bound id, the gallery read each of
+    // the others as a skill that no longer exists.
+    const pages = { ...SKILL, id: "s2", name: "artifact-pages", description: "Build pages." };
+    mount("artifacts", { skills: [SKILL, pages], skillTotal: 2, skillIds: ["s1", "s2"] });
+
+    expect(screen.queryByText(/no longer/i)).toBeNull();
+    expect(screen.queryByText("s1")).toBeNull();
+  });
+
   it("says where the skill comes from when this organization has none", () => {
     mount("artifacts");
 

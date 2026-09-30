@@ -99,6 +99,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Review fixes on artifacts and environments.** A password-protected embed no
+  longer carries the page's title; a link confirmation keeps the address it is
+  asking about while the page posts another, in the console and in the embed; a
+  public link's expiry without a UTC offset is refused instead of failing as a
+  500; pinning a version takes the lock a publish prunes under; the platform
+  script goes after a leading doctype rather than before it; the Page style tab
+  no longer calls the agent's other skills missing; and an environment with a
+  run still working cannot be removed, since its pages would land on
+  production's.
 - **An artifact whose stored bytes are gone answers 404, not 500.** A version
   row whose file storage no longer has - a restored database beside an older
   volume - made the page, its thumbnail and `read_artifact` fail with a server

@@ -24,7 +24,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -32,6 +37,7 @@ from app.db.updates import cleared, writable
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    agent_run_repo,
     artifact_repo,
     organization_secret_repo,
 )
@@ -246,6 +252,10 @@ class AgentEnvironmentService:
             NotFoundError: If the environment is not this agent's.
             BadRequestError: If it is the default - an agent without a default
                 is an agent plain surfaces cannot run.
+            ConcurrentChangeError: If a run of it is still executing. Deleting
+                the row sets that run's `environment_id` to null, which reads as
+                the default - so a staging run still working would publish its
+                pages over production's. It is refused until the run ends.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
         if environment.is_default:
@@ -253,6 +263,17 @@ class AgentEnvironmentService:
                 message="The default environment cannot be removed - it is what "
                 "every surface that names no environment gets.",
                 details={"environment_id": str(environment.id)},
+            )
+        running = await agent_run_repo.count_running_in_environment(
+            self.db, environment_id=environment.id, organization_id=ctx.organization_id
+        )
+        if running:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{running} run(s) are still answering from {environment.name!r}. "
+                    "Remove it once they finish, or stop them first."
+                ),
+                details={"environment_id": str(environment.id), "running": running},
             )
         name = environment.name
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)

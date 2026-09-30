@@ -1,5 +1,5 @@
 ---
-source_sha: "f89c2d2bad65"
+source_sha: "e47c65e68d46"
 ---
 
 # Środowiska { #environments }
@@ -63,6 +63,10 @@ Domyślne wyłączenie jest celowe: publikacja wybija wersję, a decyzja o tym, 
 ta wersja działa, jest osobnym aktem. Sprzęgnięcie ich oznacza, że niedokończona
 edycja dociera do klienta, bo ktoś kliknął Publish, żeby zapisać swoją pracę.
 
+Jedynym wyjątkiem jest `production`, które tworzy pierwsza publikacja. Dopóki jest
+jedynym środowiskiem agenta, nie ma skąd promować, więc podąża za publikacjami;
+przypnij je, gdy obok pojawi się `dev` albo `staging`.
+
 ## Podpinanie powierzchni do środowiska { #binding-a-surface-to-one }
 
 [Ekspozycja](concepts.md#exposure) — bot Slacka, widget, hostowana strona,
@@ -77,7 +81,9 @@ wersje, jeden komplet ksiąg.
 Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisku
 publikuje własny [artefakt](artifacts.md#one-name-one-link), więc próba `dev` na
 cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
-czytelnicy produkcji.
+czytelnicy produkcji. Środowiska z wciąż pracującym runem nie da się usunąć, dopóki
+run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
+strony — produkcji.
 
 ## Ślady per środowisko { #tracing-per-environment }
 
@@ -111,7 +117,8 @@ spotykający wersję, której nikt nie wydał.
 
 - Środowisko to **nazwa przypięta do wersji**; każdy agent ma domyślne.
 - Publikacja wybija wersję. **Umieszczenie jej gdzieś to osobna decyzja** —
-  dlatego `tracks_latest` jest domyślnie wyłączone.
+  dlatego `tracks_latest` jest wyłączone w środowisku, które dodajesz; `production`
+  utworzone przez pierwszą publikację podąża za nimi, dopóki go nie przypniesz.
 - **Powierzchnia może nazwać swoje środowisko**, więc bot deweloperski i
   publiczny widget mogą serwować różne wersje jednego agenta.
 - **Rollback to przekierowanie**, bo stare wersje pozostają czytelne i

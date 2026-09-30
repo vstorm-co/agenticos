@@ -13,7 +13,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
@@ -465,6 +470,27 @@ class TestDelete:
             with pytest.raises(BadRequestError, match="default"):
                 await service.delete(_ctx(), agent.id, environment.id)
 
+    async def test_an_environment_with_a_run_still_working_is_not_removed(self):
+        """The run's environment would become null, which reads as the default, and
+        a staging run still working would then publish its pages over production's."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="staging")
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_running_in_environment",
+                new=AsyncMock(return_value=2),
+            ),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.delete = AsyncMock()
+            with pytest.raises(ConcurrentChangeError, match="2 run"):
+                await service.delete(_ctx(), agent.id, environment.id)
+
+        environments.delete.assert_not_awaited()
+
     async def test_a_named_environment_is_removed_and_audited(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id, name="dev")
@@ -478,6 +504,10 @@ class TestDelete:
                 "app.services.agent_environment.artifact_repo.detach_environment",
                 new=AsyncMock(side_effect=lambda *_a, **_k: order.append("detach")),
             ) as detach,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_running_in_environment",
+                new=AsyncMock(return_value=0),
+            ),
         ):
             environments.get = AsyncMock(return_value=environment)
             environments.delete = AsyncMock(side_effect=lambda *_a, **_k: order.append("delete"))
