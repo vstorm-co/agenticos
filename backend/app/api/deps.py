@@ -746,6 +746,15 @@ def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
 
 WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
 
+from app.services.workflow_execution.resume import WorkflowResumeService
+
+
+def get_workflow_resume_service(db: DBSession) -> WorkflowResumeService:
+    return WorkflowResumeService(db)
+
+
+WorkflowResumeSvc = Annotated[WorkflowResumeService, Depends(get_workflow_resume_service)]
+
 from app.services.workflow_webhook_test import WorkflowWebhookTestService
 
 

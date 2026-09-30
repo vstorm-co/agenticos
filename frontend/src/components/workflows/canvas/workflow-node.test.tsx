@@ -136,6 +136,9 @@ describe("a node card", () => {
     expect(summary("logic.switch", {})).toBe('nodeSummaryRules:{"count":0}');
     expect(summary("flow.wait", { seconds: 30 })).toBe('nodeSummaryWait:{"seconds":30}');
     expect(summary("flow.wait", {})).toBeNull();
+    expect(summary("flow.wait", { until_called: true, seconds: 60 })).toBe(
+      "nodeSummaryWaitCall:{}",
+    );
     expect(summary("data.filter", { condition: "item.ok" })).toBe("item.ok");
     expect(summary("data.filter", {})).toBeNull();
   });

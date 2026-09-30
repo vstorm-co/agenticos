@@ -348,6 +348,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A Wait can wait for a call.** #1947 proposed a Wait until a resume
+  webhook, and only waits for a time shipped. With **Wait for a call to the
+  run's resume link**, the step goes on when the address a new **Resume
+  link** step hands on is called, taking the JSON sent as `body`, or when
+  its time runs out. `POST /api/v1/workflow-resume/{run_id}/{token}` needs
+  no sign-in - the link, a MAC of the run under `SECRET_KEY`, is the
+  credential - and answers `404` for a link that is not the run's and
+  `WORKFLOW_NOT_WAITING` (409) when nothing waits. Migration
+  `0122_node_run_resume_payload.py`.
 - **A test run on the canvas, and a step switched off, as proposed.** A
   connection says how many items went along it when the step before handed
   on a list, and an edit that ends the run's overlay leaves a bar with

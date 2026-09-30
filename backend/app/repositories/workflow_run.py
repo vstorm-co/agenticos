@@ -763,6 +763,23 @@ async def list_orphaned_in_flight(
     return list(result.scalars().all())
 
 
+async def bring_forward_outbox(db: AsyncSession, *, node_run_id: UUID) -> None:
+    """Make a node run's pending dispatch row due now, by the database's clock.
+
+    For a step parked on a timer that something else wakes early - a Wait step
+    waiting for a call, once the call comes. A row already claimed or done is
+    left alone: that dispatch is under way.
+    """
+    await db.execute(
+        sql_update(DispatchOutbox)
+        .where(
+            DispatchOutbox.node_run_id == node_run_id,
+            DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
+        )
+        .values(available_at=func.now())
+    )
+
+
 async def create_outbox(
     db: AsyncSession,
     *,

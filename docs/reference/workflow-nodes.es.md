@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5133da4c49"
+source_sha: "c43c27daa5da"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -441,9 +441,28 @@ sobrevive a un reinicio del worker y no ocupa ninguno, y las demás ramas siguen
 mientras tanto. Un momento ya pasado sigue enseguida, y el plazo de la ejecución
 sigue vigente.
 
+Con **Wait for a call to the run's resume link**, el paso espera en cambio hasta que
+se llama la dirección que dio un paso **Resume link**, como mucho `seconds` (treinta
+días si no se indica). Envía a esa dirección un `POST` con un objeto JSON o sin
+contenido: el paso entrega el contenido como `body`, con `called` a true, y la
+ejecución sigue. Si nadie llama a tiempo, sigue con `called` a false. Una llamada
+cuando nada espera - antes de llegar al paso, después de que siguiera o cuando la
+ejecución terminó - se rechaza con `WORKFLOW_NOT_WAITING` (409), y un enlace que no es
+de la ejecución responde `404`.
+
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.resume_link { #flow-resume-link }
+
+**Resume link.** Entrega `url`, la dirección que reanuda los pasos Wait de esta
+ejecución que esperan una llamada - para un mensaje o una petición antes del Wait, de
+modo que quien responda pueda seguir con la ejecución. Cada ejecución tiene la suya,
+hecha con su id bajo el secreto del despliegue y no mostrada a nadie más: tenerla es lo
+que permite reanudar la ejecución, así que se envía solo adonde debe llegar la respuesta.
+
+::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Gestión de errores { #error-handling }
 

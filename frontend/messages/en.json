@@ -6372,7 +6372,8 @@
     "chatPanelClose": "Close the chat",
     "dataDeclared": "No run yet. It declares:",
     "dataFewerRows": "Show the first 50 only",
-    "edgeItems": "{count, plural, one {# item} other {# items}}"
+    "edgeItems": "{count, plural, one {# item} other {# items}}",
+    "nodeSummaryWaitCall": "Until its resume link is called"
   },
   "artifacts": {
     "title": "Artifacts",

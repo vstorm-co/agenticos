@@ -395,6 +395,9 @@ class NodeRun(Base, TimestampMixin):
     # waiting `NodeRun` names the token it was issued with even before
     # anything reads it back.
     resume_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What a call to the run's resume link sent a Wait step waiting for one: set
+    # once, by the call, and read by the step when it is woken (#1947).
+    resume_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     waiting_agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),

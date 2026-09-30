@@ -7,15 +7,24 @@ reports a refusal as "not found", so no `require(...)` gate belongs here -
 see the `permissions-rbac` skill. `GET /workflow-runs` is the one true
 collection route (it can list across every workflow the caller may see) and
 carries the collection gate to match.
+
+`resume_router` is the one door here with no sign-in: a run's resume link,
+which a Resume link step hands on, is its own credential.
 """
 
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
-from app.api.deps import Auth, WorkflowExecutionSvc, limit_workflow_run, require
+from app.api.deps import (
+    Auth,
+    WorkflowExecutionSvc,
+    WorkflowResumeSvc,
+    limit_workflow_run,
+    require,
+)
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -24,6 +33,7 @@ from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowFileList,
     WorkflowNodeRunList,
+    WorkflowResumed,
     WorkflowRunFilters,
     WorkflowRunGraph,
     WorkflowRunList,
@@ -32,6 +42,7 @@ from app.schemas.workflow_run import (
 )
 
 router = APIRouter()
+resume_router = APIRouter()
 
 
 @router.post(
@@ -177,3 +188,15 @@ async def list_workflow_run_events(
     """This run's event stream, from `after` onward - backfill and live
     tailing through the same call."""
     return await service.events_since(ctx, run_id, after=after, limit=limit)
+
+
+@resume_router.post(
+    "/{run_id}/{token}", response_model=WorkflowResumed, status_code=status.HTTP_202_ACCEPTED
+)
+async def resume_workflow_run(
+    run_id: UUID, token: str, request: Request, service: WorkflowResumeSvc
+) -> Any:
+    """Wake the run's Wait steps waiting for a call, each taking the JSON object sent,
+    or `{}` for no body, as its `body`. No sign-in: the link is the credential, and
+    one that is not the run's answers `404` as if there were no run."""
+    return await service.resume(run_id, token, body=await request.body())

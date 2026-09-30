@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5133da4c49"
+source_sha: "c43c27daa5da"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -455,9 +455,29 @@ Worker-Neustart übersteht und keinen Worker belegt; andere Zweige laufen derwei
 weiter. Ein bereits vergangener Zeitpunkt geht sofort weiter, und die Frist des Laufs
 gilt weiterhin.
 
+Mit **Wait for a call to the run's resume link** wartet der Schritt stattdessen, bis
+die Adresse aufgerufen wird, die ein **Resume link**-Schritt gab, höchstens `seconds`
+(dreißig Tage ohne Angabe). Sende an diese Adresse `POST` mit einem JSON-Objekt oder
+ohne Inhalt: Der Schritt gibt den Inhalt als `body` weiter, mit `called` true, und der
+Lauf geht weiter. Ruft niemand rechtzeitig auf, geht er mit `called` false weiter. Ein
+Aufruf, während nichts wartet - bevor der Schritt erreicht ist, nachdem er
+weiterging oder wenn der Lauf endete -, wird mit `WORKFLOW_NOT_WAITING` (409)
+abgelehnt, und ein Link, der nicht zum Lauf gehört, antwortet `404`.
+
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.resume_link { #flow-resume-link }
+
+**Resume link.** Gibt `url` weiter, die Adresse, die die Wait-Schritte dieses Laufs
+fortsetzt, die auf einen Aufruf warten - für eine Nachricht oder eine Anfrage vor dem
+Wait, damit wer antwortet den Lauf fortsetzen kann. Jeder Lauf hat seine eigene, aus
+seiner Id unter dem Geheimnis des Deployments gebildet und niemandem sonst gezeigt: Wer
+sie hat, kann den Lauf fortsetzen, daher wird sie nur dorthin geschickt, woher die
+Antwort kommen soll.
+
+::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Fehlerbehandlung { #error-handling }
 

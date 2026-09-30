@@ -4024,7 +4024,8 @@
     "chatPanelClose": "Zamknij czat",
     "dataDeclared": "Jeszcze bez uruchomienia. Deklaruje:",
     "dataFewerRows": "Pokaż tylko pierwsze 50",
-    "edgeItems": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}"
+    "edgeItems": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}",
+    "nodeSummaryWaitCall": "Aż zostanie wywołany link wznowienia"
   },
   "artifacts": {
     "title": "Artefakty",

@@ -1603,6 +1603,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # an editor, open for one call for two minutes, and the call is only kept
         # for that editor to read - it never starts a run.
         ("POST", f"{V1}/workflow-webhook-tests/{{token}}"),
+        # A run's resume link (#1947). The link a Resume link step hands on is the
+        # credential: the run's id and a MAC of it under the deployment's secret,
+        # compared in constant time, and a wrong one answers as if no run existed.
+        ("POST", f"{V1}/workflow-resume/{{run_id}}/{{token}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

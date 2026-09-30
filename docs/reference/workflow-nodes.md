@@ -423,9 +423,27 @@ whose dispatch row comes due then, so the wait survives a worker restart and hol
 no worker, and other branches go on meanwhile. A moment already past goes on at
 once, and the run's deadline still applies.
 
+With **Wait for a call to the run's resume link**, the step waits instead until the
+address a **Resume link** step gave is called, at most `seconds` (thirty days when
+unset). `POST` that address with a JSON object, or nothing: the step hands the body on
+as `body`, with `called` true, and the run goes on. Nobody calling in time, it goes on
+with `called` false. A call while nothing waits - before the step is reached, after
+it went on, or once the run ended - is refused with `WORKFLOW_NOT_WAITING` (409), and a
+link that is not the run's answers `404`.
+
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.resume_link { #flow-resume-link }
+
+**Resume link.** Hands on `url`, the address that resumes this run's Wait steps
+waiting for a call - for a message or a request before the Wait, so whoever answers
+can go on with the run. Every run has its own, made from its id under the
+deployment's secret and shown to nobody else: holding it is what lets a caller
+resume the run, so it is sent only where the answer should come from.
+
+::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Error handling { #error-handling }
 

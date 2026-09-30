@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5133da4c49"
+source_sha: "c43c27daa5da"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -436,9 +436,28 @@ oczekiwanie przetrwa restart workera i nie zajmuje go, a inne gałęzie w tym cz
 działają. Moment, który już minął, przechodzi od razu, a termin przebiegu nadal
 obowiązuje.
 
+Z **Wait for a call to the run's resume link** krok czeka zamiast tego, aż zostanie
+wywołany adres, który dał krok **Resume link**, najwyżej `seconds` (trzydzieści dni bez
+ustawienia). Wyślij na ten adres `POST` z obiektem JSON albo bez treści: krok przekazuje
+treść dalej jako `body`, z `called` równym true, i przebieg idzie dalej. Gdy nikt nie
+wywoła go na czas, idzie dalej z `called` równym false. Wywołanie, gdy nic nie czeka -
+przed dotarciem do kroku, po tym, jak poszedł dalej, albo po zakończeniu przebiegu -
+jest odrzucane z `WORKFLOW_NOT_WAITING` (409), a link, który nie należy do przebiegu,
+odpowiada `404`.
+
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitConfig
 
 ::: app.workflows.nodes.flow_wait._handler.FlowWaitOutput
+
+## flow.resume_link { #flow-resume-link }
+
+**Resume link.** Przekazuje `url`, adres, który wznawia kroki Wait tego przebiegu
+czekające na wywołanie - dla wiadomości albo żądania przed Wait, aby ten, kto
+odpowiada, mógł kontynuować przebieg. Każdy przebieg ma własny, zrobiony z jego id pod
+sekretem wdrożenia i nikomu innemu niepokazywany: to jego posiadanie pozwala wznowić
+przebieg, więc wysyła się go tylko tam, skąd ma przyjść odpowiedź.
+
+::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Obsługa błędów { #error-handling }
 

@@ -57,6 +57,7 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       return t("nodeSummaryRules", { count: rules });
     }
     case "flow.wait":
+      if (config.until_called === true) return t("nodeSummaryWaitCall");
       return typeof config.seconds === "number"
         ? t("nodeSummaryWait", { seconds: config.seconds })
         : null;

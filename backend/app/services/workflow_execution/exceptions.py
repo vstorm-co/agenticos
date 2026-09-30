@@ -206,6 +206,22 @@ class WorkflowRunInputTooLargeError(AppException):
         super().__init__(details={"limit_bytes": limit, "size_bytes": size})
 
 
+class WorkflowNotWaitingError(AppException):
+    """Nothing in the run waits for a call to its resume link now (409).
+
+    Before a Wait step waiting for one is reached, after it went on - an earlier
+    call woke it, or its time ran out - or once the run has ended. The caller may
+    try again later only in the first case, which it can tell from its own flow.
+    """
+
+    message = "Nothing in this workflow run is waiting for a call"
+    code = "WORKFLOW_NOT_WAITING"
+    status_code = 409
+
+    def __init__(self, *, run_id: UUID) -> None:
+        super().__init__(details={"run_id": run_id})
+
+
 class WorkflowWebhookUnansweredError(AppException):
     """A webhook's run ended badly before any step answered its sender (500).
 

@@ -6231,7 +6231,8 @@
     "chatPanelClose": "Chat schließen",
     "dataDeclared": "Noch kein Run. Deklariert:",
     "dataFewerRows": "Nur die ersten 50 zeigen",
-    "edgeItems": "{count, plural, one {# Element} other {# Elemente}}"
+    "edgeItems": "{count, plural, one {# Element} other {# Elemente}}",
+    "nodeSummaryWaitCall": "Bis sein Fortsetzungslink aufgerufen wird"
   },
   "artifacts": {
     "title": "Artefakte",

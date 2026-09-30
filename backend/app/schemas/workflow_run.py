@@ -100,6 +100,13 @@ class WorkflowRunFilters(BaseSchema):
     created_before: datetime | None = None
 
 
+class WorkflowResumed(BaseSchema):
+    """What a call to a run's resume link did."""
+
+    run_id: UUID
+    resumed: int = Field(description="How many Wait steps waiting for a call it woke")
+
+
 class WorkflowRunRead(BaseSchema, TimestampSchema):
     id: UUID
     workflow_id: UUID
