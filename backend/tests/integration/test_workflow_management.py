@@ -13,16 +13,19 @@ from sqlalchemy.exc import IntegrityError
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
-from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure
-from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunStatus
 from app.repositories import resource_grant_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish, WorkflowUpdate
+from app.schemas.workflow_run import WorkflowStepTest
 from app.services.access import WORKFLOW
+from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_registry import WorkflowInUseError, WorkflowRegistryService
-from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.contracts.io import Binding, NodeOutputRef
+from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import seed_member
 
 pytestmark = pytest.mark.anyio
@@ -266,3 +269,87 @@ class TestDeleting:
             pytest.raises(WorkflowInUseError),
         ):
             await WorkflowRegistryService(db).delete(ctx, workflow.id)
+
+
+def _pinned_line() -> tuple[WorkflowGraph, NodeInstance, NodeInstance]:
+    """input -> map (with data pinned) -> output."""
+    entry, step, out = (
+        NodeInstance(
+            id=uuid.uuid4(),
+            definition_id=definition_id,
+            definition_version=1,
+            config=config,
+            layout=NodePosition(x=0, y=0),
+            pinned_output=pinned,
+        )
+        for definition_id, config, pinned in (
+            ("core.input", {}, None),
+            (
+                "data.map",
+                {"mappings": [{"target_field": "a", "source_path": "'b'", "coerce_to": "string"}]},
+                {"values": {"a": "pinned"}},
+            ),
+            ("core.output", {}, None),
+        )
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, step, out),
+        edges=tuple(
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=source.id,
+                source_port="out",
+                target_node_id=target.id,
+                target_port="in",
+            )
+            for source, target in ((entry, step), (step, out))
+        ),
+        bindings=(
+            Binding(
+                target_node_id=step.id,
+                target_field="source",
+                source=NodeOutputRef(node_id=entry.id, port="out", field_path=("payload",)),
+            ),
+            Binding(
+                target_node_id=out.id,
+                target_field="text",
+                source=NodeOutputRef(node_id=step.id, port="out", field_path=("values", "a")),
+            ),
+        ),
+    )
+    return graph, entry, step
+
+
+class TestPinnedDataAndAStepTest:
+    async def test_publishing_leaves_the_pins_on_the_draft_and_out_of_the_version(self, db, tenant):
+        ctx, workflow = tenant
+        graph, _entry, step = _pinned_line()
+
+        await _publish(db, ctx, workflow, graph)
+
+        version = await db.get(WorkflowVersion, workflow.current_version_id)
+        assert version is not None
+        assert all(node["pinned_output"] is None for node in version.graph["nodes"])
+        pinned = WorkflowGraph.model_validate(workflow.draft_graph).node_by_id[step.id]
+        assert pinned.pinned_output == {"values": {"a": "pinned"}}
+
+    async def test_a_step_test_runs_the_step_and_what_leads_to_it(self, db, tenant):
+        ctx, workflow = tenant
+        graph, entry, step = _pinned_line()
+        workflow.draft_graph = graph.model_dump(mode="json")
+        await db.flush()
+
+        started = await WorkflowExecutionService(db).start(
+            ctx,
+            workflow.id,
+            mode=WorkflowRunMode.TEST,
+            step=WorkflowStepTest(node_id=step.id, outputs={entry.id: {"payload": {}}}),
+        )
+
+        run = await db.get(WorkflowRun, started.id)
+        assert run is not None and run.node_count == 2
+        snapshot = WorkflowGraph.model_validate(run.draft_graph_snapshot)
+        assert [node.id for node in snapshot.nodes] == [entry.id, step.id]
+        assert snapshot.node_by_id[entry.id].pinned_output == {"payload": {}}
+        assert snapshot.node_by_id[step.id].pinned_output is None

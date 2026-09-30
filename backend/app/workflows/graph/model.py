@@ -12,10 +12,11 @@ computed set, overwriting whatever a client claimed. See its docstring for
 why a plain forward walk is not enough.
 """
 
+import json
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.workflows.contracts.io import Binding
 from app.workflows.contracts.policy import NodePolicy
@@ -36,6 +37,25 @@ class NodePosition(BaseModel):
 
     x: float = Field(allow_inf_nan=False)
     y: float = Field(allow_inf_nan=False)
+
+
+MAX_PINNED_BYTES = 64_000
+"""How much data one step may have pinned: enough to stand in for a real output."""
+
+
+def pinned_output_fits(value: dict[str, Any]) -> dict[str, Any]:
+    """`value`, when it is small enough to stand in for a step's output.
+
+    Raises:
+        ValueError: It is over `MAX_PINNED_BYTES` as compact UTF-8 JSON - the
+            measure the editor checks before it saves one.
+    """
+    if (
+        len(json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode())
+        > MAX_PINNED_BYTES
+    ):
+        raise ValueError(f"Pinned data may take at most {MAX_PINNED_BYTES} bytes")
+    return value
 
 
 class NodeInstance(BaseModel):
@@ -63,6 +83,16 @@ class NodeInstance(BaseModel):
         description="Switched off: the step is skipped when the run reaches it and "
         "passes on to the next, without doing anything",
     )
+    pinned_output: dict[str, Any] | None = Field(
+        default=None,
+        description="Data a test run hands on as this step's output instead of running "
+        "it. A published version never carries it, so a real run always runs the step",
+    )
+
+    @field_validator("pinned_output")
+    @classmethod
+    def _pinned_output_fits(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        return value if value is None else pinned_output_fits(value)
 
     @property
     def routes_errors(self) -> bool:

@@ -49,6 +49,7 @@ from app.schemas.workflow_run import (
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
+    WorkflowStepTest,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import admission, delivery, dispatcher, events
@@ -63,6 +64,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.graph.step import step_subgraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
 from app.workflows.triggers import BY_HAND, CHAT
@@ -168,9 +170,14 @@ class WorkflowExecutionService:
         run_input: dict[str, Any] | None = None,
         deadline_seconds: int | None = None,
         reply_conversation_id: UUID | None = None,
+        step: WorkflowStepTest | None = None,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
+
+        `step` narrows a test run to one step of the draft: the snapshot keeps
+        the step and what leads to it, with the known outputs pinned
+        (`app.workflows.graph.step.step_subgraph`), so nothing after it runs.
 
         `run_input` is what `core.input` hands the graph, frozen on the run
         row; it is refused before anything else is checked when it is over
@@ -194,6 +201,8 @@ class WorkflowExecutionService:
                 ones, in both `real` and `test` mode.
             WorkflowNotRunnableError: `real` mode with no published version,
                 or `test` mode with no valid, structurally sound draft graph.
+            StepNotTestableError: `step` names a step the draft does not have,
+                or one inside a loop.
             WorkflowTriggerMismatchError: `real` mode through a door the live
                 version's trigger is not - the API or a WebSocket for a workflow
                 that starts from anything but Manual or API, the chat for one
@@ -235,6 +244,9 @@ class WorkflowExecutionService:
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
             ctx, workflow, mode=mode
         )
+        if step is not None:
+            graph = step_subgraph(graph, step.node_id, step.outputs)
+            draft_snapshot = graph.model_dump(mode="json")
         _check_declared_input(graph, payload)
         run, entry_node_run_id = await self._admit(
             ctx,
@@ -702,6 +714,12 @@ def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRun
     tries = [attempt for attempt in attempts if attempt.retry_guarantee is not None]
     failed = [attempt for attempt in tries if attempt.status == NodeAttemptStatus.FAILED.value]
     latest_error = failed[-1].result.get("error") if failed and failed[-1].result else None
+    completed = [
+        attempt.result
+        for attempt in attempts
+        if attempt.status == NodeAttemptStatus.COMPLETED.value and attempt.result is not None
+    ]
+    output = completed[-1].get("output") if completed else None
     return WorkflowNodeRunRead(
         id=row.id,
         node_instance_id=row.node_instance_id,
@@ -711,6 +729,7 @@ def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRun
         attempts=len(tries),
         cost=float(sum((attempt.cost for attempt in attempts), Decimal(0))),
         error=latest_error,
+        output=output if isinstance(output, dict) else None,
         started_at=row.started_at,
         ended_at=row.ended_at,
     )

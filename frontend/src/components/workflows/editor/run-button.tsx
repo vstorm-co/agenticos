@@ -34,6 +34,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const graph = useWorkflowEditorStore((state) => state.graph);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
+  const watchRun = useWorkflowEditorStore((state) => state.watchRun);
   const { start } = useWorkflowRuns(workflowId);
   const [asking, setAsking] = useState(false);
 
@@ -52,6 +53,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
       {
         onSuccess: (run) => {
           setAsking(false);
+          watchRun(run.id);
           onStarted(run.id);
         },
       },

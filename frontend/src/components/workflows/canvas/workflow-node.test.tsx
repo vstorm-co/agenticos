@@ -135,13 +135,14 @@ describe("a node card", () => {
     expect(screen.getByText("Default branch only")).toBeTruthy();
   });
 
-  it("goes by the name the builder gave, and marks a note and a step that is off", () => {
+  it("goes by the name the builder gave, and marks a note, pinned data and a step that is off", () => {
     seed([
       instance("i", "logic.if", { config: { condition: "value.ok" } }),
       instance("m", "data.map", {
         label: "Tidy the lead",
         notes: "For the EU team",
         disabled: true,
+        pinned_output: { values: {} },
       }),
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
@@ -149,6 +150,7 @@ describe("a node card", () => {
     expect(screen.getByText("Tidy the lead")).toBeInTheDocument();
     expect(screen.getByTitle("For the EU team")).toHaveAttribute("aria-label", "Has a note");
     expect(screen.getByLabelText(/Switched off/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Has pinned data/)).toBeInTheDocument();
   });
 
   it("shows a policy and the error port it gives the step", () => {
@@ -254,6 +256,7 @@ describe("a node card on a run's canvas", () => {
         attempts: 2,
         cost: 0,
         error: { code: "BAD", message: "It broke" },
+        output: null,
         started_at: null,
         ended_at: null,
       },
@@ -266,6 +269,7 @@ describe("a node card on a run's canvas", () => {
         attempts: 1,
         cost: 0,
         error: null,
+        output: null,
         started_at: null,
         ended_at: null,
       },
@@ -278,6 +282,7 @@ describe("a node card on a run's canvas", () => {
         attempts: 1,
         cost: 0,
         error: null,
+        output: null,
         started_at: null,
         ended_at: null,
       },

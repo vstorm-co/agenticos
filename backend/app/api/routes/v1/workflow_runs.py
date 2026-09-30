@@ -43,6 +43,10 @@ async def start_workflow_run(
     """Start a run of `data.workflow_id`'s current published version (or, in
     `test` mode, a snapshot of its current draft graph).
 
+    With `step`, a test run keeps only that step and the steps leading to it,
+    and the known outputs it names stand in for those steps; a step inside a
+    loop, or one the draft does not have, answers 409 `STEP_NOT_TESTABLE`.
+
     Rate-limited per caller like `POST /agents/{id}/run`; over the allowance
     answers 429 with `Retry-After`."""
     return await service.start(
@@ -51,6 +55,7 @@ async def start_workflow_run(
         mode=data.mode,
         run_input=data.input,
         deadline_seconds=data.deadline_seconds,
+        step=data.step,
     )
 
 

@@ -147,6 +147,8 @@ export interface NodeInstance {
   notes?: string | null;
   /** Switched off: skipped when the run reaches it, handing the run on. */
   disabled?: boolean;
+  /** Data a test run hands on as this step's output instead of running it. */
+  pinned_output?: Record<string, unknown> | null;
 }
 
 /** How many tries a failing step gets, and the wait between them. Mirrors `RetryPolicy`. */
@@ -456,6 +458,8 @@ export interface WorkflowNodeRunRead {
   attempts: number;
   cost: number;
   error: { code: string; message: string; details?: Record<string, unknown> } | null;
+  /** What the step handed on, once it succeeded; null before, and when it failed. */
+  output: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
 }
@@ -484,6 +488,8 @@ export interface WorkflowRunStart {
   workflow_id: Uuid;
   mode?: "real" | "test";
   input?: Record<string, unknown>;
+  /** Test only this step of the draft, with what earlier steps are known to hand on. */
+  step?: { node_id: Uuid; outputs: Record<Uuid, Record<string, unknown>> };
 }
 
 /** Whether a run has ended for good. */

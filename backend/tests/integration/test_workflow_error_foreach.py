@@ -941,6 +941,10 @@ async def test_a_run_lists_every_step_it_took_with_each_iterations_error(engine:
     failed = next(row for row in refused if row.status == NodeRunStatus.FAILED)
     assert failed.error is not None and failed.error["code"] == "BAD_ITEM"
     assert failed.attempts == 1 and failed.scope_path[0]["index"] == 1
+    # What a step produced is there to read back; a failed try produced nothing.
+    assert failed.output is None
+    passed = next(row for row in items if row.status == NodeRunStatus.SUCCEEDED)
+    assert isinstance(passed.output, dict)
 
 
 async def test_a_run_answers_with_the_graph_it_executes_its_loops_derived(engine: AsyncEngine):

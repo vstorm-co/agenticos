@@ -16,7 +16,7 @@ import {
   useRestoreVersion,
 } from "@/components/workflows/editor";
 import { TriggerPanel } from "@/components/workflows/triggers";
-import { NodeEditorDialog } from "@/components/workflows/node-editor";
+import { NodeEditorDialog, StepDataFeed } from "@/components/workflows/node-editor";
 import {
   Button,
   ListCard,
@@ -214,7 +214,8 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           )}
         </div>
       </div>
-      <NodeEditorDialog catalog={nodes} readOnly={!canEdit} />
+      <NodeEditorDialog workflowId={workflow.id} catalog={nodes} readOnly={!canEdit} />
+      {canEdit && <StepDataFeed workflowId={workflow.id} />}
       <Sheet open={triggersOpen} onOpenChange={setTriggersOpen}>
         <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
           <SheetHeader>

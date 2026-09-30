@@ -1,5 +1,5 @@
 ---
-source_sha: "18e2aae1cf37"
+source_sha: "077a1345027b"
 ---
 
 # Workflows { #workflows }
@@ -164,6 +164,29 @@ lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y p
 ejecución al siguiente. Publicar rechaza el disparador o un paso que decide el camino
 apagados, y cualquier paso que lea la salida de uno apagado. Los tres se guardan en el
 grafo, así que las versiones los conservan.
+
+### Los datos de un paso, fijarlos y probar un solo paso { #a-steps-data-pinning-and-testing-one-step }
+
+Al editar un workflow, el diálogo coloca los ajustes de un paso entre dos paneles.
+**Entrada** muestra lo que entregó cada paso del que lee, y **Salida** lo que entregó el
+propio paso, ambos de la última ejecución de prueba iniciada en el editor o, al abrirlo, de
+la más reciente. **Tabla** dispone los datos en filas, una lista de registros con una fila
+por registro. **JSON** los muestra tal cual, y **Campos** lista cada campo por ruta con su
+tipo: las rutas que lee un paso posterior.
+
+**Fijar estos datos** conserva la salida en el paso, y **Escribir datos para fijar** permite
+teclear una como objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega
+los datos fijados en lugar de ejecutar el paso, así que una llamada lenta a un modelo o una
+escritura en un sistema real se hace una vez y se reutiliza. Un paso que decide el camino
+nunca se fija, y publicar elimina todo lo fijado: una versión publicada siempre ejecuta sus
+pasos. Un icono de chincheta marca la tarjeta, y **Soltar** lo quita.
+
+**Probar paso** ejecuta el paso solo. La ejecución conserva únicamente el paso y los pasos
+que llevan a él, y cada uno de ellos con salida conocida, fijada o de la última ejecución de
+prueba, la entrega en lugar de ejecutarse. Los demás se ejecutan, y nada después del paso lo
+hace. Un paso que escribe pregunta antes, porque la prueba escribe de verdad. Un paso dentro
+de un bucle no se puede probar solo, porque se ejecuta una vez por elemento, así que prueba
+el bucle. Por la API, `step` en `POST /api/v1/workflow-runs` hace lo mismo.
 
 ### Selectores de recursos { #resource-pickers }
 

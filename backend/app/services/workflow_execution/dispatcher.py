@@ -51,7 +51,7 @@ from decimal import Decimal
 from typing import Any, Literal, TypeGuard
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, RootModel
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -427,6 +427,17 @@ async def _skip(config: BaseModel | None, node_input: BaseModel | None) -> NodeR
     return Completed[SkippedStep](output=SkippedStep())
 
 
+class PinnedOutput(RootModel[dict[str, Any]]):
+    """Data a test run hands on for a pinned step, as the step's output."""
+
+
+def _pinned(data: dict[str, Any]) -> NodeHandler:
+    async def hand_on(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+        return Completed[PinnedOutput](output=PinnedOutput(data))
+
+    return hand_on
+
+
 @dataclass(frozen=True, slots=True)
 class _ResolvedCall:
     """Everything a node's call needs that the run's own rows decide."""
@@ -465,6 +476,22 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             node=node,
             definition=definition,
             handler=_skip,
+            config=None,
+            input=None,
+            arrived_output=None,
+        )
+    if (
+        node.pinned_output is not None
+        and run.mode == WorkflowRunMode.TEST.value
+        and definition.kind != "control"
+    ):
+        # Pinned for testing: the data stands in for the step, which is not called.
+        # A step that decides the way still runs - its choice is not data to pin.
+        return _ResolvedCall(
+            graph=graph,
+            node=node,
+            definition=definition,
+            handler=_pinned(node.pinned_output),
             config=None,
             input=None,
             arrived_output=None,

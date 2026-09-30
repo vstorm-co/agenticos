@@ -102,6 +102,7 @@ vi.mock("@/components/workflows/node-editor", () => ({
   NodeEditorDialog: ({ readOnly = false }: { readOnly?: boolean }) => (
     <div data-testid="node-editor" data-readonly={String(readOnly)} />
   ),
+  StepDataFeed: () => <div data-testid="step-data-feed" />,
 }));
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,

@@ -1,5 +1,5 @@
 ---
-source_sha: "18e2aae1cf37"
+source_sha: "077a1345027b"
 ---
 
 # Workflows { #workflows }
@@ -175,6 +175,31 @@ Zeichenfläche und überspringt ihn, wenn ein Lauf ihn erreicht: Er tut nichts u
 den Lauf weiter. Das Veröffentlichen lehnt einen ausgeschalteten Trigger oder
 entscheidenden Schritt ab, ebenso jeden Schritt, der die Ausgabe eines ausgeschalteten
 liest. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
+
+### Die Daten eines Schritts, Anheften und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
+
+Beim Bearbeiten eines Workflows stellt der Dialog die Einstellungen eines Schritts zwischen
+zwei Bereiche. **Eingabe** zeigt, was jeder Schritt weitergegeben hat, aus dem er liest, und
+**Ausgabe**, was der Schritt selbst weitergegeben hat, beides aus dem letzten im Editor
+gestarteten Testlauf oder beim Öffnen aus dem neuesten. **Tabelle** legt die Daten als
+Zeilen an, eine Liste von Datensätzen mit einer Zeile je Datensatz. **JSON** zeigt sie, wie
+sie sind, und **Felder** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
+Schritt liest.
+
+**Diese Daten anheften** behält die Ausgabe am Schritt, und **Daten zum Anheften eingeben**
+tippt eine als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt angeheftete
+Daten weiter, statt den Schritt auszuführen, sodass ein langsamer Modellaufruf oder ein
+Schreibzugriff auf ein Live-System einmal erfolgt und wiederverwendet wird. Ein Schritt, der
+den Weg entscheidet, wird nie angeheftet, und das Veröffentlichen entfernt jede Anheftung:
+Eine veröffentlichte Version führt ihre Schritte immer aus. Ein Stecknadelsymbol markiert
+die Karte, und **Lösen** entfernt sie.
+
+**Schritt testen** führt den Schritt allein aus. Der Lauf behält nur den Schritt und die
+Schritte, die zu ihm führen, und jeder davon mit bekannter Ausgabe, angeheftet oder aus dem
+letzten Testlauf, gibt sie weiter, statt zu laufen. Die übrigen laufen, und nichts nach dem
+Schritt läuft. Ein schreibender Schritt fragt zuerst, denn der Test schreibt wirklich. Ein
+Schritt in einer Schleife lässt sich nicht allein testen, da er einmal pro Element läuft;
+testen Sie die Schleife. Über die API tut `step` bei `POST /api/v1/workflow-runs` dasselbe.
 
 ### Ressourcen-Auswahlfelder { #resource-pickers }
 

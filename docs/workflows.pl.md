@@ -1,5 +1,5 @@
 ---
-source_sha: "18e2aae1cf37"
+source_sha: "077a1345027b"
 ---
 
 # Workflows { #workflows }
@@ -154,6 +154,29 @@ kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie robi i p
 przebieg dalej. Publikacja odrzuca wyłączony wyzwalacz lub krok decydujący o drodze oraz
 każdy krok, który czyta wynik wyłączonego. Wszystkie trzy są zapisane w grafie, więc
 wersje je zachowują.
+
+### Dane kroku, przypinanie i test jednego kroku { #a-steps-data-pinning-and-testing-one-step }
+
+Podczas edycji workflow okno umieszcza ustawienia kroku między dwoma panelami. **Wejście**
+pokazuje, co przekazał każdy krok, z którego ten krok czyta, a **Wyjście** – co przekazał
+sam krok. Oba pochodzą z ostatniego przebiegu testowego uruchomionego w edytorze albo, po
+otwarciu, z najnowszego. **Tabela** układa dane w wiersze, listę rekordów po jednym wierszu
+na rekord. **JSON** pokazuje je takimi, jakie są, a **Pola** wymienia każde pole po ścieżce
+z jego typem: ścieżki, które czyta późniejszy krok.
+
+**Przypnij te dane** zachowuje wynik na kroku, a **Wpisz dane do przypięcia** pozwala
+wpisać własny jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy
+przekazuje przypięte dane zamiast uruchamiać krok, więc wolne wywołanie modelu albo zapis
+do działającego systemu wykonuje się raz i jest używany ponownie. Krok, który decyduje o
+drodze, nigdy nie jest przypinany, a publikacja usuwa każde przypięcie: opublikowana wersja
+zawsze uruchamia swoje kroki. Ikona pinezki oznacza kartę, a **Odepnij** ją usuwa.
+
+**Testuj krok** uruchamia sam krok. Przebieg zachowuje tylko ten krok i kroki, które do
+niego prowadzą, a każdy z nich o znanym wyniku, przypiętym albo z ostatniego przebiegu
+testowego, przekazuje go zamiast się uruchamiać. Pozostałe działają, a nic po kroku nie
+rusza. Krok, który zapisuje, najpierw pyta, bo test naprawdę zapisuje. Kroku w pętli nie da
+się przetestować osobno, bo działa raz na element, więc przetestuj pętlę. Przez API to samo
+robi `step` w `POST /api/v1/workflow-runs`.
 
 ### Wybór zasobów { #resource-pickers }
 

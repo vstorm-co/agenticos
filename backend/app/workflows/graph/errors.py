@@ -1,4 +1,5 @@
-"""`GraphValidationError`: the one refusal shape `validate_graph` raises.
+"""`GraphValidationError`: the one refusal shape `validate_graph` raises, and
+`StepNotTestableError`, a step test's.
 
 Built the same way `InvalidRecordError` is
 (`app.services.virtual_tables.exceptions`): a list of `(field, message)`
@@ -7,7 +8,9 @@ graph one error per round trip in the editor is the difference between a
 Builder people use and one they avoid.
 """
 
-from app.core.exceptions import BadRequestError
+from uuid import UUID
+
+from app.core.exceptions import AppException, BadRequestError
 
 
 class GraphValidationError(BadRequestError):
@@ -30,3 +33,19 @@ class GraphValidationError(BadRequestError):
             message="; ".join(f"{field}: {message}" for field, message in problems),
             details={"fields": fields},
         )
+
+
+class StepNotTestableError(AppException):
+    """A step cannot be tested on its own (409).
+
+    `details["reason"]` says why: `unknown_step` when the draft has no step with
+    that id, `inside_a_loop` when the step runs once per item of a loop and only
+    the loop as a whole can be tested.
+    """
+
+    message = "This step cannot be tested on its own"
+    code = "STEP_NOT_TESTABLE"
+    status_code = 409
+
+    def __init__(self, *, node_id: UUID, reason: str, message: str) -> None:
+        super().__init__(message=message, details={"node_id": node_id, "reason": reason})

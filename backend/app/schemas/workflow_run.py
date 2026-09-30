@@ -1,16 +1,48 @@
 """Workflow run schemas - the wire shapes `workflow_runs.py` serializes."""
 
+import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
+from app.core.config import settings
 from app.db.models.workflow_run import NodeRunStatus, WorkflowRunMode, WorkflowRunStatus
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.workflows.graph.model import pinned_output_fits
 
 MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
 """The longest deadline a run may be started with: thirty days."""
+
+
+class WorkflowStepTest(BaseSchema):
+    """Test one step of the draft rather than the whole of it.
+
+    The run keeps only the step and the steps leading to it. Each of those with
+    an entry in `outputs` - what it handed on in the last test run - hands that on
+    again instead of running; the rest run, and nothing after the step does.
+    """
+
+    node_id: UUID
+    outputs: dict[UUID, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Known output of steps before this one, by step id: each at most "
+        "the size a step's pinned data may be, and all of them together at most "
+        "`WORKFLOW_RUN_MAX_INPUT_BYTES` as JSON",
+    )
+
+    @field_validator("outputs")
+    @classmethod
+    def _outputs_fit(cls, value: dict[UUID, dict[str, Any]]) -> dict[UUID, dict[str, Any]]:
+        for output in value.values():
+            pinned_output_fits(output)
+        known = json.dumps(list(value.values()), separators=(",", ":"), ensure_ascii=False)
+        if len(known.encode()) > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
+            raise ValueError(
+                f"Known outputs may take at most {settings.WORKFLOW_RUN_MAX_INPUT_BYTES} bytes"
+            )
+        return value
 
 
 class WorkflowRunStart(BaseSchema):
@@ -42,6 +74,15 @@ class WorkflowRunStart(BaseSchema):
             "already running, or waiting on an approval, is not interrupted."
         ),
     )
+    step: WorkflowStepTest | None = Field(
+        default=None, description="Test only this step of the draft; `test` mode only"
+    )
+
+    @model_validator(mode="after")
+    def _a_step_is_tested_on_the_draft(self) -> "WorkflowRunStart":
+        if self.step is not None and self.mode is not WorkflowRunMode.TEST:
+            raise ValueError("Only a test run can test a single step")
+        return self
 
 
 class WorkflowRunRead(BaseSchema, TimestampSchema):
@@ -89,6 +130,11 @@ class WorkflowNodeRunRead(BaseSchema):
     attempts: int
     cost: float
     error: dict[str, Any] | None
+    output: dict[str, Any] | None = Field(
+        default=None,
+        description="What the step's last completed try produced - its typed output, as a "
+        "later step reads it. Null until one completes",
+    )
     started_at: datetime | None
     ended_at: datetime | None
 

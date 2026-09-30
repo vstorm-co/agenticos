@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DEBUG_ECHO,
@@ -11,6 +11,8 @@ import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NodeEditorDialog } from "./node-editor-dialog";
+
+vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start: { mutate: vi.fn() } }) }));
 
 const store = useWorkflowEditorStore;
 
@@ -69,6 +71,29 @@ describe("NodeEditorDialog", () => {
     expect(screen.getByText("This node's type is not in the catalog.")).toBeTruthy();
     // Its problem - a type nobody can publish - is said above everything else.
     expect(screen.getByLabelText(/problem/)).toBeTruthy();
+  });
+});
+
+describe("a step's data", () => {
+  it("sits between what the step reads and what it hands on, while editing a workflow", () => {
+    seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} />);
+
+    expect(screen.getByRole("region", { name: "Input" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Output" })).toBeTruthy();
+  });
+
+  it("has no Input for the step a workflow starts from, and no data on a read-only editor", () => {
+    seed(node("a", "debug.echo", { message: "hi" }));
+    store.getState().editNode("a");
+    const { unmount } = render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} />);
+    expect(screen.queryByRole("region", { name: "Input" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Output" })).toBeTruthy();
+    unmount();
+
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly />);
+    expect(screen.queryByRole("region", { name: "Output" })).toBeNull();
   });
 });
 

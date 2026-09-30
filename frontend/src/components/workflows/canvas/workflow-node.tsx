@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Cable,
   CirclePause,
+  Pin,
   RotateCw,
   ShieldAlert,
   StickyNote,
@@ -214,6 +215,16 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                   className="text-muted-foreground"
                 >
                   <CirclePause aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
+              {instance.pinned_output != null && (
+                <span
+                  role="img"
+                  aria-label={t("stepHasPinnedData")}
+                  title={t("stepHasPinnedData")}
+                  className="text-muted-foreground"
+                >
+                  <Pin aria-hidden="true" className="size-3.5" />
                 </span>
               )}
               {instance.notes && (

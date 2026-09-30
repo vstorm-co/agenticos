@@ -154,6 +154,29 @@ when a run reaches it: it does nothing and hands the run on. Publishing refuses 
 trigger or a step that decides the way switched off, and any step that reads the
 output of one that is off. All three are saved in the graph, so versions keep them.
 
+### A step's data, pinning and testing one step { #a-steps-data-pinning-and-testing-one-step }
+
+Editing a workflow, the dialog puts a step's settings between two panes. **Input** shows
+what each step it reads from handed on, and **Output** what the step itself handed on,
+both from the last test run started in the editor, or the latest one when it opens.
+**Table** lays the data out as rows, a list of records as one row each. **JSON** shows
+it as it is, and **Fields** lists every field by path with its type: the paths a later
+step reads.
+
+**Pin this data** keeps the output on the step, and **Write data to pin** types one in
+as a JSON object of at most 64,000 bytes. A test run hands pinned data on instead of
+running the step, so a slow model call or a write to a live system is made once and
+reused. A step that decides the route is never pinned, and publishing strips every
+pin: a published version always runs its steps. A pin icon marks the card, and
+**Unpin** takes it away.
+
+**Test step** runs the step alone. The run keeps only the step and the steps leading
+to it, and each of those with known output, pinned or from the last test run, hands
+that on instead of running. The rest run, and nothing after the step does. A step
+that writes asks first, since the test really writes. A step inside a loop cannot be
+tested alone, because it runs once per item, so test the loop. Over the API, `step`
+on `POST /api/v1/workflow-runs` does the same.
+
 ### Resource pickers { #resource-pickers }
 
 A setting that pins a resource opens a picker rather than a free-text field, so a

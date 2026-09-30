@@ -207,6 +207,15 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     return derive_scopes(graph)
 
 
+def _without_pins(graph: WorkflowGraph) -> WorkflowGraph:
+    """The graph as a version freezes it: data pinned for testing stays in the draft."""
+    return graph.model_copy(
+        update={
+            "nodes": tuple(node.model_copy(update={"pinned_output": None}) for node in graph.nodes)
+        }
+    )
+
+
 def _detail(
     workflow: Workflow, *, can_edit: bool, trigger_active: bool | None = None
 ) -> WorkflowDetail:
@@ -738,7 +747,7 @@ class WorkflowRegistryService:
             raise GraphValidationError(
                 [("draft_graph", "This workflow has no graph yet - add at least one node")]
             )
-        graph = await validate_graph(self.db, ctx, draft_graph)
+        graph = _without_pins(await validate_graph(self.db, ctx, draft_graph))
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(
             self.db,

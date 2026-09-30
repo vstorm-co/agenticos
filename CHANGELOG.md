@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **See a workflow step's data, pin it and test the step alone.** The step dialog
+  shows what the step read and what it handed on in the last test run, as a table,
+  as JSON or as its fields with their types. Pinned data, typed in or kept from a
+  run, stands in for the step in test runs and is stripped at publish. **Test step**
+  runs only the step and what leads to it, the steps with known output handing it on
+  instead of running, and asks first for a step that writes. A node run read gains
+  `output`, `NodeInstance` gains `pinned_output`, and `POST /workflow-runs` takes
+  `step` (#1934, #1935, #1936).
 - **Notes on the workflow canvas, and a canvas that is quicker to work.** A note
   of markdown sits beside the steps, moved and resized freely and kept by versions
   and copies. A selected connection's **+** puts a step into its middle, wired on

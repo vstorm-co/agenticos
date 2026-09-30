@@ -11,6 +11,7 @@ import {
 import { create } from "zustand";
 
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
+import type { StepData } from "@/lib/workflows/step-data";
 import type {
   Binding,
   CanvasNote,
@@ -180,6 +181,16 @@ export interface WorkflowEditorState {
   splitEdgeId: Uuid | null;
   /** Whether the canvas shows its minimap. */
   minimapShown: boolean;
+  /**
+   * What each step handed on in the test runs watched since the editor opened,
+   * the latest winning - what a step's Input and Output show, and what a step
+   * test pins for the steps before it.
+   */
+  stepData: Record<Uuid, StepData>;
+  /** The test run whose steps feed `stepData`: the last one started, or found on opening. */
+  watchedRunId: string | null;
+  /** The step a step test is running for, until its run ends. */
+  testingNodeId: Uuid | null;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -226,10 +237,16 @@ export interface WorkflowEditorState {
   moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
   /** A run or a publish was tried: say every problem from now on. */
   revealProblems: () => void;
+  /** Follow a test run's steps into `stepData`; `testing` names the step a step test is for. */
+  watchRun: (runId: string, testing?: Uuid) => void;
+  /** Fold what a watched run's steps did into `stepData`. */
+  mergeStepData: (data: Record<Uuid, StepData>) => void;
+  /** The watched run ended. */
+  finishTesting: () => void;
   /** Rename a step, note it, or switch it off - one undoable edit. */
   updateNodeDetails: (
     nodeId: Uuid,
-    details: Partial<Pick<NodeInstance, "label" | "notes" | "disabled">>,
+    details: Partial<Pick<NodeInstance, "label" | "notes" | "disabled" | "pinned_output">>,
   ) => void;
   /** Set (or replace) the binding on one node field. */
   upsertBinding: (binding: Binding) => void;
@@ -309,6 +326,9 @@ const CLEARED = {
   problemsRevealed: false,
   overlay: null as CanvasOverlay,
   splitEdgeId: null as Uuid | null,
+  stepData: {} as Record<Uuid, StepData>,
+  watchedRunId: null as string | null,
+  testingNodeId: null as Uuid | null,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
@@ -594,6 +614,12 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     revealProblems: () => set({ problemsRevealed: true }),
+
+    watchRun: (runId, testing) => set({ watchedRunId: runId, testingNodeId: testing ?? null }),
+
+    mergeStepData: (data) => set({ stepData: { ...get().stepData, ...data } }),
+
+    finishTesting: () => set({ testingNodeId: null }),
 
     setOverlay: (overlay) =>
       set(overlay === "picker" ? { overlay } : { overlay, splitEdgeId: null }),

@@ -9,6 +9,7 @@ import { nodeVisual } from "@/components/workflows/node-visuals";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { StepDetails } from "./step-details";
+import { InputPane, OutputPane } from "./step-panes";
 import {
   WarningBadge,
   fieldErrors,
@@ -23,6 +24,8 @@ import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 
 interface NodeEditorDialogProps {
+  /** The workflow being edited: with it, the step's Input and Output show beside its settings. */
+  workflowId?: string;
   catalog: NodeDefinition[];
   /** A version or a workflow the caller may not edit: every field reads, none writes. */
   readOnly?: boolean;
@@ -36,8 +39,12 @@ interface NodeEditorDialogProps {
  * steps, and what happens when it is slow or fails, with each problem that stops
  * a publish beside the field it is about. Every edit is written to the draft as
  * it is made, so there is nothing to save - **Done** only closes.
+ *
+ * Editing a workflow, the settings sit between what the step reads and what it
+ * hands on, from the last test run or pinned: the data a field is set from is
+ * in view while it is set, and **Test step** runs the step alone.
  */
-export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialogProps) {
+export function NodeEditorDialog({ workflowId, catalog, readOnly = false }: NodeEditorDialogProps) {
   const t = useTranslations("workflows");
   const store = usePanelStore();
   const graph = store.graph;
@@ -67,10 +74,18 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
   const visual = nodeVisual(node.definition_id, definition?.category ?? "");
   const Icon = visual.icon;
   const nodeProblems = nodeLevelProblems(problems, node.id);
+  const names = nodeNames(graph, catalogIndex);
+  const withData = workflowId !== undefined && !readOnly && definition !== null;
+  const withInput = withData && node.id !== graph.entry_node_id;
 
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className="flex max-h-[88vh] max-w-2xl flex-col gap-0 p-0">
+      <DialogContent
+        className={cn(
+          "flex max-h-[88vh] flex-col gap-0 p-0",
+          withData ? "h-[88vh] max-w-[min(94vw,1320px)] sm:max-w-[min(94vw,1320px)]" : "max-w-2xl",
+        )}
+      >
         <header className="border-border flex items-start gap-3 border-b px-6 pt-6 pr-14 pb-4">
           <span
             className={cn(
@@ -83,7 +98,7 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <DialogTitle className="truncate text-base">
-                {nodeNames(graph, catalogIndex).get(node.id) ?? node.definition_id}
+                {names.get(node.id) ?? node.definition_id}
               </DialogTitle>
               <WarningBadge count={nodeProblemCount(problems, node.id)} />
             </div>
@@ -92,67 +107,93 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
             </DialogDescription>
           </div>
         </header>
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
-          {nodeProblems.length > 0 && (
-            <ul className="bg-destructive/5 border-destructive/20 space-y-1 rounded-lg border px-3 py-2">
-              {nodeProblems.map((problem, index) => (
-                <li key={index} className="text-destructive text-sm">
-                  {problem.message}
-                </li>
-              ))}
-            </ul>
+        <div
+          className={cn(
+            "min-h-0 flex-1",
+            withData &&
+              "grid grid-cols-1 overflow-y-auto lg:overflow-hidden [&>*]:px-6 [&>*]:py-5 lg:[&>*]:overflow-y-auto",
+            withInput && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)]",
+            withData && !withInput && "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]",
           )}
-          {definition !== null && (
-            <>
-              <StepDetails
-                node={node}
-                catalogName={definition.name}
-                canSwitchOff={node.id !== graph.entry_node_id && definition.kind !== "control"}
-                disabled={readOnly}
-                onChange={store.updateNodeDetails}
-              />
-              <NodeForm
-                definition={definition}
-                node={node}
-                graph={graph}
-                catalog={catalogIndex}
-                bindings={graph.bindings}
-                errors={fieldErrors(
-                  // A value not given yet is said once a run or a publish was
-                  // tried; the canvas already marks the step.
-                  store.problemsRevealed
-                    ? problems
-                    : problems.filter((problem) => problem.code !== "input-not-bound"),
-                  node.id,
-                )}
-                disabled={readOnly}
-                updateNodeConfig={store.updateNodeConfig}
-                upsertBinding={store.upsertBinding}
-                removeBinding={store.removeBinding}
-              />
-              {node.definition_id !== "loop.item" && !isTrigger(definition) && (
-                <div className="border-border border-t pt-5">
-                  {/* Retries, a time limit and error routing are for later: shown
-                      once asked for, or once the step has any of them. */}
-                  {policyShown || node.policy ? (
-                    <PolicySection
-                      definition={definition}
-                      node={node}
-                      disabled={readOnly}
-                      updateNodePolicy={store.updateNodePolicy}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-foreground text-sm"
-                      onClick={() => setPolicyShown(true)}
-                    >
-                      {t("nodeEditorShowPolicy")}
-                    </button>
+        >
+          {withInput && (
+            <div className="bg-muted/30 border-border lg:border-r">
+              <InputPane graph={graph} node={node} names={names} />
+            </div>
+          )}
+          <div className={cn("space-y-5", !withData && "h-full overflow-y-auto px-6 py-5")}>
+            {nodeProblems.length > 0 && (
+              <ul className="bg-destructive/5 border-destructive/20 space-y-1 rounded-lg border px-3 py-2">
+                {nodeProblems.map((problem, index) => (
+                  <li key={index} className="text-destructive text-sm">
+                    {problem.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {definition !== null && (
+              <>
+                <StepDetails
+                  node={node}
+                  catalogName={definition.name}
+                  canSwitchOff={node.id !== graph.entry_node_id && definition.kind !== "control"}
+                  disabled={readOnly}
+                  onChange={store.updateNodeDetails}
+                />
+                <NodeForm
+                  definition={definition}
+                  node={node}
+                  graph={graph}
+                  catalog={catalogIndex}
+                  bindings={graph.bindings}
+                  errors={fieldErrors(
+                    // A value not given yet is said once a run or a publish was
+                    // tried; the canvas already marks the step.
+                    store.problemsRevealed
+                      ? problems
+                      : problems.filter((problem) => problem.code !== "input-not-bound"),
+                    node.id,
                   )}
-                </div>
-              )}
-            </>
+                  disabled={readOnly}
+                  updateNodeConfig={store.updateNodeConfig}
+                  upsertBinding={store.upsertBinding}
+                  removeBinding={store.removeBinding}
+                />
+                {node.definition_id !== "loop.item" && !isTrigger(definition) && (
+                  <div className="border-border border-t pt-5">
+                    {/* Retries, a time limit and error routing are for later: shown
+                      once asked for, or once the step has any of them. */}
+                    {policyShown || node.policy ? (
+                      <PolicySection
+                        definition={definition}
+                        node={node}
+                        disabled={readOnly}
+                        updateNodePolicy={store.updateNodePolicy}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground text-sm"
+                        onClick={() => setPolicyShown(true)}
+                      >
+                        {t("nodeEditorShowPolicy")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          {withData && (
+            <div className="bg-muted/30 border-border lg:border-l">
+              <OutputPane
+                workflowId={workflowId}
+                catalog={catalog}
+                graph={graph}
+                node={node}
+                definition={definition}
+              />
+            </div>
           )}
         </div>
         <footer className="border-border flex items-center justify-between gap-2 border-t px-6 py-4">

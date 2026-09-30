@@ -20,6 +20,7 @@ function row(overrides: Partial<WorkflowNodeRunRead>): WorkflowNodeRunRead {
     attempts: 1,
     cost: 0,
     error: null,
+    output: null,
     started_at: null,
     ended_at: null,
     ...overrides,

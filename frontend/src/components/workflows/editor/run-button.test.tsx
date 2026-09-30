@@ -51,6 +51,7 @@ describe("RunButton", () => {
       expect.anything(),
     );
     expect(onStarted).toHaveBeenCalledWith("run-1");
+    expect(store.getState().watchedRunId).toBe("run-1");
 
     fireEvent.keyDown(window, { key: "Enter", metaKey: true });
     expect(mutate).toHaveBeenCalledTimes(2);
