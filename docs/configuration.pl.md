@@ -1,5 +1,5 @@
 ---
-source_sha: "5aba2e88c4bf"
+source_sha: "0c537f0b37b2"
 ---
 
 # Konfiguracja { #configuration }
@@ -105,6 +105,7 @@ limitu.
 | `SECRET_KEY` | (insecure default) | Klucz podpisujący JWT. **Musi** zostać zmieniony w produkcji. Wygeneruj: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Czas życia access tokena |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Czas życia refresh tokena (7 dni) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | Jak długo po rotacji zużyty refresh token może jeszcze raz odświeżyć, żeby utracona odpowiedź albo druga karta nie kończyły sesji; `0` to wyłącza |
 | `ALGORITHM` | `HS256` | Algorytm podpisu JWT |
 
 Walidacja produkcyjna: `SECRET_KEY` musi mieć co najmniej 32 znaki i nie może

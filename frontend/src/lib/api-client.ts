@@ -5,6 +5,7 @@
  */
 
 import { ApiError, parseErrorMessage } from "@/lib/api-error";
+import { markRefreshed, refreshedRecently, withAuthLock } from "@/lib/auth-lock";
 import { useAuthStore, useOrgStore } from "@/stores";
 
 // Re-exported because this module was where `ApiError` lived and where the rest
@@ -26,6 +27,12 @@ const REFRESH_ENDPOINT = "/auth/refresh";
 // password change, whose 401 means the current password was wrong - retrying
 // resubmits it and burns the rate limit twice (#1517).
 const NO_REFRESH_RETRY: ReadonlySet<string> = new Set([REFRESH_ENDPOINT, "/auth/password/change"]);
+
+// Endpoints whose proxy route refreshes on the server when the access cookie has
+// expired, and so spends the refresh cookie like a refresh does. Sent under the
+// cross-tab auth lock; their own 401 recovery runs outside it, because the lock
+// is not reentrant.
+const SERVER_REFRESHING: ReadonlySet<string> = new Set(["/auth/me"]);
 
 // Shared in-flight refresh promise so a burst of concurrent 401s triggers only
 // ONE refresh round-trip. Reset once the refresh settles.
@@ -54,20 +61,26 @@ async function refusedAsEndedImpersonation(res: Response): Promise<boolean> {
  * Attempt a single token refresh, de-duplicating concurrent callers.
  * Resolves true on success (cookies + in-memory access token updated), false
  * if the refresh itself failed (caller should surface the original 401).
+ *
+ * Serialized across tabs by `withAuthLock`. A tab that waited behind another's
+ * refresh finds the cookies already rotated and retries with them instead of
+ * spending the refresh token a second time.
  */
 function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
-    refreshPromise = fetch(`/api${REFRESH_ENDPOINT}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
-      .then(async (res) => {
+    refreshPromise = withAuthLock(() => {
+      if (refreshedRecently()) return Promise.resolve(true);
+      return fetch(`/api${REFRESH_ENDPOINT}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).then(async (res) => {
         if (!res.ok) {
           if (await refusedAsEndedImpersonation(res)) {
             useAuthStore.getState().setImpersonationRevoked(true);
           }
           return false;
         }
+        markRefreshed();
         try {
           const data = (await res.json()) as { access_token?: string };
           if (data?.access_token) {
@@ -78,7 +91,8 @@ function refreshAccessToken(): Promise<boolean> {
           // Body wasn't JSON - cookies were still rotated, treat as success.
         }
         return true;
-      })
+      });
+    })
       .catch(() => false)
       .finally(() => {
         refreshPromise = null;
@@ -119,7 +133,7 @@ class ApiClient {
         body: isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined,
       });
 
-    let response = await doFetch();
+    let response = await (SERVER_REFRESHING.has(endpoint) ? withAuthLock(doFetch) : doFetch());
 
     // Transparent 401 recovery: refresh once, then retry the request once.
     // Never on an endpoint whose 401 is the answer rather than an expired token,

@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 
 from app.api import deps
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, create_refresh_token
 from app.db.models.audit_log import AppAdminAuditLog
 from app.main import app
 from app.repositories import session_repo, user_repo
@@ -302,6 +302,9 @@ class TestReusingASpentRefreshToken:
             db, user_id=user.id, refresh_token_hash=hash_token("first"), expires_at=_in_a_day()
         )
         await service.rotate_session(session, "second")
+        # A replay, not a lost response: well past the grace window.
+        session.rotated_at = datetime.now(UTC) - timedelta(hours=1)
+        await db.flush()
         db.expire_all()
 
         response = await api.post(
@@ -311,3 +314,71 @@ class TestReusingASpentRefreshToken:
         assert response.status_code == 401
         db.expire_all()
         assert await service.validate_refresh_token("second") is None
+
+
+class TestTheReuseGraceWindow:
+    """A spent refresh token presented seconds after its rotation is a lost
+    response or a second tab, not a thief. Ending the session for it signed people
+    out several times a day, so inside `REFRESH_REUSE_GRACE_SECONDS` it refreshes
+    once more through the real route."""
+
+    async def _rotated(self, db, email: str) -> tuple[UUID, UUID, str, str]:
+        user = await _user(db, email)
+        spent = create_refresh_token(subject=str(user.id), credential_version=0)
+        current = create_refresh_token(subject=str(user.id), credential_version=0)
+        session = await session_repo.create(
+            db, user_id=user.id, refresh_token_hash=hash_token(spent), expires_at=_in_a_day()
+        )
+        await SessionService(db).rotate_session(session, current)
+        return user.id, session.id, spent, current
+
+    async def test_a_lost_response_does_not_sign_the_person_out(self, db, api: AsyncClient):
+        user_id, session_id, spent, _ = await self._rotated(db, "grace-http@example.com")
+        db.expire_all()
+
+        response = await api.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent}
+        )
+
+        assert response.status_code == 200
+        db.expire_all()
+        reread = await session_repo.get_by_id(db, session_id)
+        assert reread is not None
+        assert reread.is_active is True
+        # The token it answered with is the live one now.
+        service = SessionService(db)
+        assert await service.validate_refresh_token(response.json()["refresh_token"]) is not None
+        assert await session_repo.count_user_sessions(db, user_id, open_only=True) == 1
+        recorded = (
+            await db.execute(
+                select(func.count())
+                .select_from(AppAdminAuditLog)
+                .where(AppAdminAuditLog.action == "session.refresh_token_reused")
+            )
+        ).scalar_one()
+        assert recorded == 0
+
+    async def test_the_spent_token_refreshes_only_once(self, db, api: AsyncClient):
+        """The grace rotation moves the previous hash on, so the same spent token
+        a second time matches nothing: a plain 401, and nothing to revoke."""
+        _, session_id, spent, _ = await self._rotated(db, "grace-once@example.com")
+        db.expire_all()
+
+        first = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+        again = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+
+        assert first.status_code == 200
+        assert again.status_code == 401
+        db.expire_all()
+        reread = await session_repo.get_by_id(db, session_id)
+        assert reread is not None
+        assert reread.is_active is True
+
+    async def test_rotation_records_when_it_happened(self, db):
+        _, session_id, _, _ = await self._rotated(db, "grace-stamp@example.com")
+        db.expire_all()
+
+        reread = await session_repo.get_by_id(db, session_id)
+        assert reread is not None
+        assert reread.rotated_at is not None
+        assert datetime.now(UTC) - reread.rotated_at < timedelta(minutes=1)

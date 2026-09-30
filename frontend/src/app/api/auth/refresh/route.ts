@@ -74,6 +74,11 @@ export async function POST(request: NextRequest) {
       // Retry-After and leave the cookies alone, so exhausting the refresh
       // bucket does not sign the caller out (#1047).
       if (error.status === 429) return forwardRateLimit(error);
+      // Only a refusal of the token ends the session. A 502 while the backend
+      // redeploys says nothing about it - the rotation may even have gone
+      // through with the answer lost, and the backend's reuse grace accepts the
+      // cookie still held here, so clearing it is what would sign them out.
+      if (error.status !== 401) return bffRefusal("INTERNAL_SERVER_ERROR", error.status);
 
       const response = bffRefusal("SESSION_EXPIRED", 401);
 

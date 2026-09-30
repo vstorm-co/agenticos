@@ -89,6 +89,14 @@ class Session(Base):
 
     Null on a session that has never rotated, and on every impersonation row.
     """
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """When `previous_refresh_token_hash` was spent.
+
+    Bounds the grace window in which the spent token may still refresh
+    (`REFRESH_REUSE_GRACE_SECONDS`): a client whose refresh response was lost, or
+    a second tab that raced the first, presents it seconds after the rotation, a
+    replay minutes or days later. Null wherever `previous_refresh_token_hash` is.
+    """
     device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)

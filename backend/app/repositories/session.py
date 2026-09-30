@@ -209,10 +209,12 @@ async def rotate(
     what makes a later presentation of the spent token recognisable as a replay
     rather than as any other invalid token (#1519).
     """
+    now = datetime.now(UTC)
     session.previous_refresh_token_hash = session.refresh_token_hash
+    session.rotated_at = now
     session.refresh_token_hash = refresh_token_hash
     session.expires_at = expires_at
-    session.last_used_at = datetime.now(UTC)
+    session.last_used_at = now
     session.device_name = device_name
     session.device_type = device_type
     session.ip_address = ip_address

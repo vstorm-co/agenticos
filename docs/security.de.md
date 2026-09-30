@@ -1,5 +1,5 @@
 ---
-source_sha: "4e34e260b2ba"
+source_sha: "832b2ea60503"
 ---
 
 # Sicherheit { #security }
@@ -206,7 +206,7 @@ SOC 2 CC6–CC8.
 | SAML, SCIM, eine erneute Prüfung des Verzeichnisses zwischen Anmeldungen | **Noch nicht** — die offene Session eines im Verzeichnis deaktivierten Kontos hält, bis ihr Refresh Token abläuft, sofern ein Administrator das Konto nicht deaktiviert. Siehe [Was dies noch nicht tut](directory.md#what-this-does-not-do-yet) | — |
 | Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
 | Eine geänderte E-Mail-Adresse wird nachgewiesen, bevor Post ihr folgt | `PATCH /users/me` legt die Adresse in `users.pending_email` ab und schickt einen einmaligen Link mit einer Stunde Gültigkeit dorthin; bis der Link zurückkommt, erhält das Konto alles weiter unter seiner bisherigen Adresse, und diese wird darüber informiert, dass eine Änderung verlangt wurde. Der Link trägt die Credential-Version des Kontos, sodass ein Ändern oder Zurücksetzen des Passworts — wozu genau dieser Hinweis auffordert — ihn entwertet, und eine von einer Administratorin reparierte Adresse löscht die Vormerkung. Eine erneute Anfrage nach der bereits vorgemerkten Adresse verschickt nichts, und die Zahl unterschiedlicher Adressen pro Konto und Stunde ist begrenzt. Anfrage und Bestätigung werden beide auditiert (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
-| Ein wiedergespielter Refresh-Token beendet seine Kette und wird protokolliert | Die Rotation behält den ersetzten Hash; ein Refresh, der dazu passt, ist der Reuse-Fall aus RFC 6819 §5.2.2.3 und schließt diese Session mit einem Audit-Eintrag (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
+| Ein wiedergespielter Refresh-Token beendet seine Kette und wird protokolliert | Die Rotation behält den ersetzten Hash; ein Refresh, der dazu passt, ist der Reuse-Fall aus RFC 6819 §5.2.2.3 und schließt diese Session mit einem Audit-Eintrag (`SessionService.detect_refresh_reuse`). Ein Token, der innerhalb von `REFRESH_REUSE_GRACE_SECONDS` (standardmäßig 60) nach seiner Rotation vorgelegt wird, ist eine verlorene Antwort oder ein zweiter Tab und kein Replay, und er refresht stattdessen noch einmal (`SessionService.claim_refresh_grace`); dieses Fenster ist der bewusst in Kauf genommene Preis | `test_session_revocation.py::TestReusingASpentRefreshToken`, `TestTheReuseGraceWindow` |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

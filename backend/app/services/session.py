@@ -197,6 +197,47 @@ class SessionService:
 
         return None
 
+    async def claim_refresh_grace(self, refresh_token: str) -> Session | None:
+        """The session a just-spent refresh token may still refresh, inside the grace window.
+
+        Called only where `validate_refresh_token` has already declined, and
+        before `detect_refresh_reuse`. The token the last rotation spent is, for
+        `REFRESH_REUSE_GRACE_SECONDS` after that rotation, what an honest client
+        holds when its refresh response never arrived - a VPN reconnecting, a lid
+        closed mid-request - or when a second tab refreshed on the same cookie a
+        moment after the first. Treating that as a replay ended the session and
+        signed the person out several times a day. So inside the window the spent
+        token refreshes once more, and the route rotates the row again; the next
+        presentation of it finds a different previous hash and is refused.
+
+        The window is the cost: a stolen refresh token replayed within seconds of
+        the victim's own refresh is accepted rather than detected. Outside it,
+        `detect_refresh_reuse` ends the chain exactly as before.
+
+        Returns:
+            The session to rotate, or `None` when the token is not the one the
+            last rotation of a live, ordinary session spent within the window.
+        """
+        grace = settings.REFRESH_REUSE_GRACE_SECONDS
+        if grace <= 0:
+            return None
+        # Locked like the ordinary lookup, so two grace refreshes on the same
+        # spent token serialize: the second finds the previous hash moved on.
+        session = await session_repo.get_by_previous_refresh_token_hash(
+            self.db, hash_token(refresh_token), for_update=True
+        )
+        now = datetime.now(UTC)
+        if (
+            session is None
+            or session.impersonator_user_id is not None
+            or session.expires_at <= now
+            or session.rotated_at is None
+            or now - session.rotated_at > timedelta(seconds=grace)
+        ):
+            return None
+        logger.info("refresh_token_grace_reuse", extra={"session_id": str(session.id)})
+        return session
+
     async def detect_refresh_reuse(
         self, refresh_token: str, *, ip_address: str | None = None
     ) -> Session | None:

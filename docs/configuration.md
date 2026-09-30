@@ -100,6 +100,7 @@ with no such limit of its own.
 | `SECRET_KEY` | (insecure default) | JWT signing key. **Must** be changed in production. Generate with: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Refresh token lifetime (7 days) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | How long after a rotation the spent refresh token may still refresh once, so a lost response or a second tab does not end the session; `0` turns it off |
 | `ALGORITHM` | `HS256` | JWT signing algorithm |
 
 Production validation: `SECRET_KEY` must be at least 32 characters and cannot

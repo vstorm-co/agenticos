@@ -103,7 +103,9 @@ async def refresh_token(
     """Exchange a refresh token for a new access token."""
     await enforce_auth_limit(request, surface="auth_refresh")
 
-    session = await session_service.validate_refresh_token(body.refresh_token)
+    session = await session_service.validate_refresh_token(
+        body.refresh_token
+    ) or await session_service.claim_refresh_grace(body.refresh_token)
     if not session:
         # Before the refusal, and only on the path where one is already certain:
         # a token that validated no live session may be a typo, an expired one, a

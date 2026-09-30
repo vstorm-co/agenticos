@@ -1,5 +1,5 @@
 ---
-source_sha: "5aba2e88c4bf"
+source_sha: "0c537f0b37b2"
 ---
 
 # Configuración { #configuration }
@@ -107,6 +107,7 @@ sin un límite propio.
 | `SECRET_KEY` | (insecure default) | Clave de firma de los JWT. **Tiene que** cambiarse en producción. Genérala con: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Vida del access token |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Vida del refresh token (7 días) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | Cuánto tiempo tras una rotación el refresh token gastado puede refrescar una vez más, para que una respuesta perdida o una segunda pestaña no terminen la sesión; `0` lo desactiva |
 | `ALGORITHM` | `HS256` | Algoritmo de firma de los JWT |
 
 Validación en producción: `SECRET_KEY` tiene que tener al menos 32 caracteres y no
