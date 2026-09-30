@@ -257,6 +257,7 @@ class TestMay:
                 MagicMock(), _artifact(_ctx()), uuid.uuid4(), Perm.ARTIFACTS_VIEW
             )
 
+    @pytest.mark.security
     async def test_a_member_is_decided_by_resolve_access_with_the_permission_asked(self) -> None:
         with (
             patch(
