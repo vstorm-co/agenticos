@@ -513,6 +513,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow's card on the list says what starts it and how it last ran.**
+  Beside the trigger's icon: "Schedule · 4 steps", one **Live** or **Draft**
+  status, and the last run's status and when - "Not run yet" until then, with
+  who may reach it as an icon beside it. The slug, the "No description yet." line and the edit button are gone, and
+  the status filter reads **Any status** and **Live**.
 - **The workflow editor's header says where the workflow stands.** Under the
   name: **Draft, not published**, or **Live · version 3** with **Unpublished
   changes** once the draft differs from it the way a publish would carry.

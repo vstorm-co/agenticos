@@ -27,6 +27,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
 from app.repositories import resource_grant_repo
 from app.repositories import workflow as workflow_repo
@@ -39,6 +40,7 @@ from app.schemas.workflow import (
     WorkflowCreate,
     WorkflowDetail,
     WorkflowDraftUpdate,
+    WorkflowLastRun,
     WorkflowList,
     WorkflowPublish,
     WorkflowPublished,
@@ -140,7 +142,32 @@ class WorkflowSettingsInvalidError(AppException):
         super().__init__(message=message, details={"field": field})
 
 
-def _read(workflow: Workflow, *, trigger_active: bool | None = None) -> WorkflowRead:
+def _entry_and_size(draft: dict[str, Any]) -> tuple[str | None, int]:
+    """The node type a stored draft starts from, and how many steps it has.
+
+    Read off the stored dict rather than a parsed graph: a list of workflows
+    should not validate every draft to say what each starts from.
+    """
+    nodes = draft.get("nodes")
+    nodes = nodes if isinstance(nodes, list) else []
+    entry = next(
+        (
+            node.get("definition_id")
+            for node in nodes
+            if isinstance(node, dict) and node.get("id") == draft.get("entry_node_id")
+        ),
+        None,
+    )
+    return (entry if isinstance(entry, str) else None), len(nodes)
+
+
+def _read(
+    workflow: Workflow,
+    *,
+    trigger_active: bool | None = None,
+    last_run: WorkflowRun | None = None,
+) -> WorkflowRead:
+    entry_node, step_count = _entry_and_size(workflow.draft_graph or {})
     return WorkflowRead(
         id=workflow.id,
         slug=workflow.slug,
@@ -154,6 +181,16 @@ def _read(workflow: Workflow, *, trigger_active: bool | None = None) -> Workflow
         tags=list(workflow.tags),
         trigger_active=trigger_active,
         draft_revision=workflow.draft_revision,
+        entry_node=entry_node,
+        step_count=step_count,
+        last_run=None
+        if last_run is None
+        else WorkflowLastRun(
+            id=last_run.id,
+            status=last_run.status,
+            mode=last_run.mode,
+            created_at=last_run.created_at,
+        ),
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
     )
@@ -428,11 +465,16 @@ class WorkflowRegistryService:
             skip=skip,
             limit=limit,
         )
-        states = await WorkflowTriggerSync(self.db).states(
-            ctx.organization_id, [item.id for item in items]
+        ids = [item.id for item in items]
+        states = await WorkflowTriggerSync(self.db).states(ctx.organization_id, ids)
+        last_runs = await workflow_run_repo.last_run_of_each(
+            self.db, organization_id=ctx.organization_id, workflow_ids=ids
         )
         return WorkflowList(
-            items=[_read(item, trigger_active=states.get(item.id)) for item in items],
+            items=[
+                _read(item, trigger_active=states.get(item.id), last_run=last_runs.get(item.id))
+                for item in items
+            ],
             total=total,
         )
 

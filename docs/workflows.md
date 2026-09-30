@@ -56,6 +56,9 @@ refused, and nothing is made.
 
 ### Finding, naming and retiring a workflow { #finding-naming-and-retiring-a-workflow }
 
+Each card says what starts the workflow and how many steps it has, whether it is live
+or a draft, and how its last run went and when - its edit date until it has run.
+
 Above the cards, a search finds a workflow by its name, description or tags, a tag
 filter narrows the list to one tag, and the order is the last edit, the name or the
 newest first. All of it is kept in the address, so a reload or a shared link shows

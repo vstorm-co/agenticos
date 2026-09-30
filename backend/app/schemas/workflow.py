@@ -75,6 +75,15 @@ class StoredWorkflowSettings(WorkflowSettings):
     error_workflow_run_as: UUID | None = None
 
 
+class WorkflowLastRun(BaseSchema):
+    """A workflow's most recent run, as its card in the list says it."""
+
+    id: UUID
+    status: str
+    mode: str
+    created_at: datetime | None = None
+
+
 class WorkflowRead(BaseSchema):
     """A workflow as the Builder lists it."""
 
@@ -100,6 +109,17 @@ class WorkflowRead(BaseSchema):
         "starts by hand, from an API call or from chat, or was never published",
     )
     draft_revision: int
+    entry_node: str | None = Field(
+        default=None,
+        description="The node type the draft starts from - its trigger, such as "
+        "`trigger.webhook` - or null for a draft with no steps yet",
+    )
+    step_count: int = Field(default=0, description="How many steps the draft has")
+    last_run: WorkflowLastRun | None = Field(
+        default=None,
+        description="Its most recent run, test runs included; null in a single "
+        "workflow's read and for one that never ran",
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

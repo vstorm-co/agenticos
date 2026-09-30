@@ -284,8 +284,22 @@ export interface WorkflowRead {
    */
   trigger_active: boolean | null;
   draft_revision: number;
+  /** The node type the draft starts from - its trigger - or null for a draft with no steps. */
+  entry_node: string | null;
+  /** How many steps the draft has. */
+  step_count: number;
+  /** Its most recent run, test runs included; null in a single workflow's read and for one never run. */
+  last_run: WorkflowLastRun | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+/** A workflow's most recent run, as its card says it. Mirrors `WorkflowLastRun`. */
+export interface WorkflowLastRun {
+  id: Uuid;
+  status: WorkflowRunStatus;
+  mode: "real" | "test";
+  created_at: string | null;
 }
 
 /**

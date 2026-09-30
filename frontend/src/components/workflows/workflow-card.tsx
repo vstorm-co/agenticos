@@ -10,14 +10,14 @@ import {
   Copy,
   Lock,
   MoreHorizontal,
-  Pencil,
   Trash2,
   Users,
   Workflow,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
+import { nodeVisual } from "@/components/workflows/node-visuals";
 import {
   Badge,
   ConfirmDialog,
@@ -28,9 +28,8 @@ import {
 } from "@/components/ui";
 import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import type { WorkflowRead } from "@/lib/workflows/types";
-import type { AgentStatus } from "@/types/agents";
 
 const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
 
@@ -43,6 +42,7 @@ const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
  */
 export function WorkflowCard({
   workflow,
+  startsFrom,
   canCreate,
   canEdit,
   busy,
@@ -52,6 +52,8 @@ export function WorkflowCard({
   onDelete,
 }: {
   workflow: WorkflowRead;
+  /** What the draft's first step is called in the catalog - "Webhook" - once it is known. */
+  startsFrom: string | null;
   canCreate: boolean;
   /** Whether the member's role edits workflows: the menu to archive, restore or delete. */
   canEdit: boolean;
@@ -64,15 +66,20 @@ export function WorkflowCard({
 }) {
   const t = useTranslations("pages.workflows");
   const tc = useTranslations("common");
+  const tt = useTranslations("time");
   const locale = useLocale();
   const [hovered, setHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const archived = workflow.status === "archived";
-  const status = workflow.status as AgentStatus;
+  const live = workflow.current_version_id !== null;
+  // The trigger's own icon: what starts a workflow tells it apart at a glance.
+  const Icon =
+    workflow.entry_node === null ? Workflow : nodeVisual(workflow.entry_node, "triggers").icon;
   const visibility = (
     workflow.visibility in VISIBILITY_ICON ? workflow.visibility : "private"
   ) as keyof typeof VISIBILITY_ICON;
   const VisibilityIcon = VISIBILITY_ICON[visibility];
+  const showsTrigger = workflow.trigger_active !== null && !archived;
 
   return (
     <Beam
@@ -80,13 +87,13 @@ export function WorkflowCard({
       borderRadius={12}
       active={hovered}
       onHoverChange={setHovered}
-      className="rounded-xl"
+      className="h-full rounded-xl"
     >
       <div
         className={cn(
-          "border-border bg-card relative rounded-xl border p-4 transition-colors",
+          "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
           "hover:border-foreground/25",
-          status === "archived" && "opacity-70",
+          archived && "opacity-70",
           busy && "pointer-events-none opacity-50",
         )}
       >
@@ -95,55 +102,88 @@ export function WorkflowCard({
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: workflow.name })}
         />
-        <div className="pointer-events-none relative flex items-start gap-3">
+        <div className="pointer-events-none relative flex flex-1 items-start gap-3">
           <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Workflow aria-hidden="true" className="size-5" />
+            <Icon aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-foreground truncate font-medium">{workflow.name}</p>
-                <p className="text-muted-foreground truncate font-mono text-xs">{workflow.slug}</p>
+                <p className="text-muted-foreground truncate text-xs">
+                  {startsFrom === null
+                    ? t("cardSteps", { count: workflow.step_count })
+                    : t("cardStartsFrom", { trigger: startsFrom, count: workflow.step_count })}
+                </p>
               </div>
-              <AgentStatusBadge status={status} />
-            </div>
-            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
-              {workflow.description || t("noDescription")}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
-                <VisibilityIcon className="h-3 w-3" aria-hidden />
-                {t(`visibility.${visibility}`)}
+              <Badge
+                variant="outline"
+                className="text-muted-foreground shrink-0 gap-1.5 font-normal"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    archived ? "bg-muted-foreground/50" : live ? "bg-success" : "bg-warning",
+                  )}
+                />
+                {archived ? t("statusArchived") : live ? t("statusLive") : t("statusDraft")}
               </Badge>
-              <Badge variant="outline" className="text-muted-foreground font-normal">
-                {workflow.current_version_id ? t("hasLiveVersion") : t("neverPublished")}
-              </Badge>
-              {workflow.trigger_active !== null && !archived && (
-                <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      workflow.trigger_active ? "bg-emerald-500" : "bg-muted-foreground/40",
-                    )}
-                  />
-                  {workflow.trigger_active ? t("activeOn") : t("activeOff")}
-                </Badge>
-              )}
-              {workflow.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="font-normal">
-                  {tag}
-                </Badge>
-              ))}
             </div>
+            {workflow.description && (
+              <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">
+                {workflow.description}
+              </p>
+            )}
+            {(showsTrigger || workflow.tags.length > 0) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {showsTrigger && (
+                  <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        workflow.trigger_active ? "bg-emerald-500" : "bg-muted-foreground/40",
+                      )}
+                    />
+                    {workflow.trigger_active ? t("activeOn") : t("activeOff")}
+                  </Badge>
+                )}
+                {workflow.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="font-normal">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
         <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
-          <span className="text-muted-foreground pointer-events-none text-xs">
-            {workflow.updated_at
-              ? t("editedWhen", { when: formatDate(workflow.updated_at, locale) })
-              : t("draftRevision", { revision: workflow.draft_revision })}
+          <span className="text-muted-foreground pointer-events-none flex min-w-0 items-center gap-2 text-xs">
+            <span
+              role="img"
+              aria-label={t(`visibility.${visibility}`)}
+              title={t(`visibility.${visibility}`)}
+              className="pointer-events-auto shrink-0"
+            >
+              <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
+            </span>
+            {workflow.last_run !== null ? (
+              <>
+                <WorkflowRunStatusBadge status={workflow.last_run.status} />
+                {workflow.last_run.created_at !== null && (
+                  <span className="truncate">
+                    {timeAgo(workflow.last_run.created_at, tt, locale)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="truncate">
+                {workflow.updated_at
+                  ? t("cardNotRunEdited", { when: timeAgo(workflow.updated_at, tt, locale) })
+                  : t("cardNotRun")}
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-1">
             <CardAction
@@ -151,11 +191,7 @@ export function WorkflowCard({
               label={t("runsFor", { name: workflow.name })}
               icon={Activity}
             />
-            <CardAction
-              href={ROUTES.WORKFLOW_DETAIL(workflow.id)}
-              label={tc("editNamed", { name: workflow.name })}
-              icon={Pencil}
-            />
+
             {canCreate && (
               <button
                 type="button"
@@ -224,7 +260,7 @@ function CardAction({
 }: {
   href: string;
   label: string;
-  icon: typeof Pencil;
+  icon: typeof Activity;
 }) {
   return (
     <Link

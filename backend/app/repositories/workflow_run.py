@@ -1177,6 +1177,28 @@ async def take_expired_runs(
     return list(paths.items())
 
 
+async def last_run_of_each(
+    db: AsyncSession, *, organization_id: UUID, workflow_ids: Sequence[UUID]
+) -> dict[UUID, WorkflowRun]:
+    """Each workflow's most recent run, by workflow; one with none is absent.
+
+    One query for a page of workflows: `DISTINCT ON` keeps the newest row of
+    each, the id breaking a tie between runs created in the same instant.
+    """
+    if not workflow_ids:
+        return {}
+    result = await db.execute(
+        select(WorkflowRun)
+        .where(
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.workflow_id.in_(workflow_ids),
+        )
+        .order_by(WorkflowRun.workflow_id, WorkflowRun.created_at.desc(), WorkflowRun.id.desc())
+        .distinct(WorkflowRun.workflow_id)
+    )
+    return {run.workflow_id: run for run in result.scalars().all()}
+
+
 async def get_run_called_by(db: AsyncSession, *, node_run_id: UUID) -> WorkflowRun | None:
     """The run a `workflow.run` step started, if it has started one."""
     result = await db.execute(

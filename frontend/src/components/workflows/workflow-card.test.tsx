@@ -21,6 +21,9 @@ function workflow(overrides: Partial<WorkflowRead> = {}): WorkflowRead {
     tags: [],
     trigger_active: null,
     draft_revision: 3,
+    entry_node: "trigger.webhook",
+    step_count: 3,
+    last_run: null,
     created_at: null,
     updated_at: "2026-09-01T10:00:00Z",
     ...overrides,
@@ -32,6 +35,7 @@ type CardProps = ComponentProps<typeof WorkflowCard>;
 function card(overrides: Partial<CardProps> = {}) {
   const props: CardProps = {
     workflow: workflow(),
+    startsFrom: "Webhook",
     canCreate: true,
     canEdit: false,
     onDuplicate: vi.fn(),
@@ -45,16 +49,49 @@ function card(overrides: Partial<CardProps> = {}) {
 }
 
 describe("WorkflowCard", () => {
-  it("shows a published workflow, who may reach it and that it has a live version", () => {
+  it("shows a live workflow, what starts it, its size and who may reach it", () => {
     card();
     expect(screen.getByText("Lead follow-up")).toBeTruthy();
-    expect(screen.getByText("Organization")).toBeTruthy();
-    expect(screen.getByText("Live version")).toBeTruthy();
-    expect(screen.getByText(/edited/)).toBeTruthy();
+    expect(screen.getByText("Webhook · 3 steps")).toBeTruthy();
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Organization" })).toBeTruthy();
+    expect(screen.getByText("Scores new leads")).toBeTruthy();
+    expect(screen.getByText(/^Not run yet · edited/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Runs of Lead follow-up" })).toHaveAttribute(
       "href",
       "/workflows/wf/runs",
     );
+  });
+
+  it("says how its last run went instead of when it was edited", () => {
+    card({
+      workflow: workflow({
+        last_run: {
+          id: "r1",
+          status: "failed",
+          mode: "real",
+          created_at: new Date().toISOString(),
+        },
+      }),
+    });
+    expect(screen.getByText("Failed")).toBeTruthy();
+    expect(screen.getByText("just now")).toBeTruthy();
+    expect(screen.queryByText(/edited/)).toBeNull();
+  });
+
+  it("counts the steps of a draft whose first step is not yet known", () => {
+    card({
+      startsFrom: null,
+      workflow: workflow({
+        entry_node: null,
+        step_count: 0,
+        current_version_id: null,
+        last_run: { id: "r1", status: "queued", mode: "test", created_at: null },
+      }),
+    });
+    expect(screen.getByText("No steps yet")).toBeTruthy();
+    expect(screen.getByText("Draft")).toBeTruthy();
+    expect(screen.getByText("Queued")).toBeTruthy();
   });
 
   it("duplicates on request", async () => {
@@ -75,10 +112,11 @@ describe("WorkflowCard", () => {
       canCreate: false,
       busy: true,
     });
-    expect(screen.getByText("Private")).toBeTruthy();
-    expect(screen.getByText("Not published")).toBeTruthy();
-    expect(screen.getByText("No description yet.")).toBeTruthy();
-    expect(screen.getByText("Draft revision 3")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Private" })).toBeTruthy();
+    expect(screen.getByText("Archived")).toBeTruthy();
+    // No description, and none said to be missing.
+    expect(screen.queryByText("No description yet.")).toBeNull();
+    expect(screen.getByText("Not run yet")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Duplicate/ })).toBeNull();
   });
 

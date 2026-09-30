@@ -742,20 +742,17 @@
           "description": "W każdy dzień roboczy o 8 agent pisze podsumowanie, a zespół je dostaje."
         }
       },
-      "draftRevision": "Rewizja wersji roboczej {revision}",
       "notFound": "Nie znaleziono workflow",
       "notFoundDetail": "Ten workflow nie istnieje albo nie jest Ci udostępniony.",
       "runsTitle": "Uruchomienia",
       "runsDescription": "Każde uruchomienie tego workflow, od najnowszego: co je rozpoczęło, jak poszło i ile kosztowało.",
       "runTitle": "Uruchomienie {id}",
       "history": "Wersje",
-      "noDescription": "Brak opisu.",
       "visibility": {
         "org": "Organizacja",
         "team": "Zespół",
         "private": "Prywatny"
       },
-      "hasLiveVersion": "Aktywna wersja",
       "neverPublished": "Nieopublikowany",
       "editedWhen": "edytowano {when}",
       "runsFor": "Uruchomienia {name}",
@@ -882,9 +879,9 @@
       "clearFilter": "Wyczyść filtr",
       "filterByStatus": "Filtruj według statusu",
       "filter": {
-        "all": "Wszystkie",
+        "all": "Dowolny status",
         "draft": "Robocze",
-        "published": "Opublikowane",
+        "published": "Aktywne",
         "archived": "Zarchiwizowane"
       },
       "status": {
@@ -1066,7 +1063,12 @@
       "statusNeverPublished": "Szkic, nieopublikowany",
       "statusLive": "Aktywny",
       "statusLiveVersion": "Aktywny · wersja {version}",
-      "statusUnpublishedChanges": "Nieopublikowane zmiany"
+      "statusUnpublishedChanges": "Nieopublikowane zmiany",
+      "cardStartsFrom": "{trigger} · {count, plural, one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
+      "cardNotRun": "Jeszcze nie uruchomiony",
+      "cardNotRunEdited": "Jeszcze nie uruchomiony · edytowany {when}",
+      "cardSteps": "{count, plural, =0 {Jeszcze bez kroków} one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
+      "statusDraft": "Szkic"
     }
   },
   "rag": {

@@ -4484,20 +4484,17 @@
           "description": "An jedem Werktag um 8 schreibt ein Agent eine Zusammenfassung, und das Team wird benachrichtigt."
         }
       },
-      "draftRevision": "Entwurfsrevision {revision}",
       "notFound": "Workflow nicht gefunden",
       "notFoundDetail": "Dieser Workflow existiert nicht, oder er ist nicht mit Ihnen geteilt.",
       "runsTitle": "Runs",
       "runsDescription": "Jeder Run dieses Workflows, der neueste zuerst: was ihn gestartet hat, wie er lief und was er kostete.",
       "runTitle": "Run {id}",
       "history": "Versionen",
-      "noDescription": "Noch keine Beschreibung.",
       "visibility": {
         "org": "Organisation",
         "team": "Team",
         "private": "Privat"
       },
-      "hasLiveVersion": "Live-Version",
       "neverPublished": "Nicht veröffentlicht",
       "editedWhen": "bearbeitet {when}",
       "runsFor": "Runs von {name}",
@@ -4624,9 +4621,9 @@
       "clearFilter": "Filter zurücksetzen",
       "filterByStatus": "Nach Status filtern",
       "filter": {
-        "all": "Alle",
+        "all": "Jeder Status",
         "draft": "Entwürfe",
-        "published": "Veröffentlicht",
+        "published": "Live",
         "archived": "Archiviert"
       },
       "status": {
@@ -4808,7 +4805,12 @@
       "statusNeverPublished": "Entwurf, nicht veröffentlicht",
       "statusLive": "Live",
       "statusLiveVersion": "Live · Version {version}",
-      "statusUnpublishedChanges": "Unveröffentlichte Änderungen"
+      "statusUnpublishedChanges": "Unveröffentlichte Änderungen",
+      "cardStartsFrom": "{trigger} · {count, plural, one {# Schritt} other {# Schritte}}",
+      "cardNotRun": "Noch nicht gelaufen",
+      "cardNotRunEdited": "Noch nicht gelaufen · bearbeitet {when}",
+      "cardSteps": "{count, plural, =0 {Noch keine Schritte} one {# Schritt} other {# Schritte}}",
+      "statusDraft": "Entwurf"
     }
   },
   "profile": {

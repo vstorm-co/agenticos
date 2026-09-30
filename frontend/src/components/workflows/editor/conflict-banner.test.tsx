@@ -59,6 +59,9 @@ function serverDetail(): WorkflowDetail {
     tags: [],
     trigger_active: null,
     draft_revision: 12,
+    entry_node: null,
+    step_count: 0,
+    last_run: null,
     created_at: null,
     updated_at: null,
     draft_graph: SERVER_GRAPH,
@@ -146,6 +149,9 @@ describe("ConflictBanner", () => {
       ...serverDetail(),
       draft_graph: LOCAL_GRAPH,
       draft_revision: 4,
+      entry_node: null,
+      step_count: 0,
+      last_run: null,
     };
     client.setQueryData(qk.workflows.detail("w1"), staleDetail);
     vi.mocked(getWorkflow).mockResolvedValue(serverDetail());

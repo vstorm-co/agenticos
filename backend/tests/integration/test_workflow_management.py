@@ -109,6 +109,52 @@ async def test_an_organization_with_no_workflows_lists_none(db):
     assert (await WorkflowRegistryService(db).list(ctx)).items == []
 
 
+class TestWhatTheListSays:
+    async def test_each_workflow_says_what_it_starts_from_its_size_and_its_last_run(
+        self, db, tenant
+    ):
+        ctx, workflow = tenant
+        await _publish(db, ctx, workflow, _graph("trigger.manual"))
+        service = WorkflowRegistryService(db)
+        before = (await service.list(ctx)).items[0]
+        assert (before.entry_node, before.step_count, before.last_run) == (
+            "trigger.manual",
+            1,
+            None,
+        )
+
+        first = await WorkflowExecutionService(db).start(ctx, workflow.id)
+        second = await WorkflowExecutionService(db).start(ctx, workflow.id)
+
+        listed = (await service.list(ctx)).items[0]
+        assert listed.last_run is not None
+        assert listed.last_run.id in {first.id, second.id}
+        assert (
+            listed.last_run.id == max((first, second), key=lambda run: (run.created_at, run.id)).id
+        )
+        # A single workflow's read does not look its runs up.
+        assert (await service.get(ctx, workflow.id)).last_run is None
+
+    async def test_a_draft_nobody_has_edited_starts_from_nothing(self, db):
+        owner, org = await seed_member(db)
+        ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+        db.add(
+            Workflow(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                owner_user_id=owner.id,
+                slug="empty",
+                name="Empty",
+                status=WorkflowStatus.DRAFT.value,
+                visibility=Visibility.ORG.value,
+            )
+        )
+        await db.flush()
+
+        (empty,) = (await WorkflowRegistryService(db).list(ctx)).items
+        assert (empty.entry_node, empty.step_count) == (None, 0)
+
+
 class TestNamingAndTags:
     async def test_a_rename_keeps_the_handle_and_tags_are_kept_once_each(self, db, tenant):
         ctx, workflow = tenant

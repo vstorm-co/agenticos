@@ -3434,9 +3434,9 @@
       "clearFilter": "Clear filter",
       "filterByStatus": "Filter by status",
       "filter": {
-        "all": "All",
+        "all": "Any status",
         "draft": "Drafts",
-        "published": "Published",
+        "published": "Live",
         "archived": "Archived"
       },
       "status": {
@@ -3472,20 +3472,17 @@
           "description": "Every weekday at 8, an agent writes a summary and the team is told."
         }
       },
-      "draftRevision": "Draft revision {revision}",
       "notFound": "Workflow not found",
       "notFoundDetail": "This workflow does not exist, or it is not shared with you.",
       "runsTitle": "Runs",
       "runsDescription": "Every run of this workflow, newest first: what started it, how it went and what it cost.",
       "runTitle": "Run {id}",
       "history": "Versions",
-      "noDescription": "No description yet.",
       "visibility": {
         "org": "Organization",
         "team": "Team",
         "private": "Private"
       },
-      "hasLiveVersion": "Live version",
       "neverPublished": "Not published",
       "editedWhen": "edited {when}",
       "runsFor": "Runs of {name}",
@@ -3767,7 +3764,12 @@
       "statusNeverPublished": "Draft, not published",
       "statusLive": "Live",
       "statusLiveVersion": "Live · version {version}",
-      "statusUnpublishedChanges": "Unpublished changes"
+      "statusUnpublishedChanges": "Unpublished changes",
+      "cardStartsFrom": "{trigger} · {count, plural, one {# step} other {# steps}}",
+      "cardNotRun": "Not run yet",
+      "cardNotRunEdited": "Not run yet · edited {when}",
+      "cardSteps": "{count, plural, =0 {No steps yet} one {# step} other {# steps}}",
+      "statusDraft": "Draft"
     },
     "retention": {
       "title": "Data retention",

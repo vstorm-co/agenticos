@@ -24,7 +24,7 @@ import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { ImportWorkflowDialog } from "@/components/workflows/import-dialog";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
-import { usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
+import { useNodeCatalog, usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -67,6 +67,7 @@ export default function WorkflowsPage() {
   const canCreate = can(Perm.workflowsCreate);
   // Gate the list query so a caller without workflows:view never hits the network
   // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
+  const { nodes: catalog } = useNodeCatalog();
   const { workflows, isLoading, create, duplicate } = useWorkflows({
     enabled: can(Perm.workflowsView),
   });
@@ -264,6 +265,9 @@ export default function WorkflowsPage() {
                 <WorkflowCard
                   key={workflow.id}
                   workflow={workflow}
+                  startsFrom={
+                    catalog.find((entry) => entry.id === workflow.entry_node)?.name ?? null
+                  }
                   canCreate={canCreate}
                   canEdit={canEdit}
                   busy={duplicate.isPending && duplicate.variables?.sourceId === workflow.id}

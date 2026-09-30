@@ -1,5 +1,5 @@
 ---
-source_sha: "c7c87c67fc3a"
+source_sha: "f28fad52f4d0"
 ---
 
 # Workflows { #workflows }
@@ -59,6 +59,10 @@ każdy krok i pole do ponownego wybrania przed publikacją. Plik z krokiem, któ
 to wdrożenie nie ma, zostaje odrzucony i nic nie powstaje.
 
 ### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
+
+Każda karta mówi, co uruchamia workflow i ile ma kroków, czy jest aktywny, czy to
+szkic, oraz jak i kiedy poszedł jego ostatni przebieg - do pierwszego przebiegu datę
+edycji.
 
 Nad kartami wyszukiwanie znajduje workflow po nazwie, opisie lub tagach, filtr tagów
 zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo najnowsze

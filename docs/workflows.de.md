@@ -1,5 +1,5 @@
 ---
-source_sha: "c7c87c67fc3a"
+source_sha: "f28fad52f4d0"
 ---
 
 # Workflows { #workflows }
@@ -65,6 +65,10 @@ jedes Feld auf, das vor dem Veröffentlichen neu zu wählen ist. Eine Datei mit
 einem Schritt, den dieses Deployment nicht hat, wird abgelehnt, und nichts entsteht.
 
 ### Workflows finden, benennen und stilllegen { #finding-naming-and-retiring-a-workflow }
+
+Jede Karte sagt, was den Workflow startet und wie viele Schritte er hat, ob er live
+oder ein Entwurf ist und wie und wann sein letzter Lauf ausging - bis zum ersten Lauf
+das Datum der Bearbeitung.
 
 Über den Karten findet eine Suche einen Workflow nach Name, Beschreibung oder Tags,
 ein Tag-Filter grenzt die Liste auf einen Tag ein, und sortiert wird nach letzter

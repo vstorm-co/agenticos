@@ -1,5 +1,5 @@
 ---
-source_sha: "c7c87c67fc3a"
+source_sha: "f28fad52f4d0"
 ---
 
 # Workflows { #workflows }
@@ -64,6 +64,10 @@ lista cada paso y campo que hay que volver a elegir antes de publicar. Un archiv
 con un paso que este despliegue no tiene se rechaza, y no se crea nada.
 
 ### Encontrar, nombrar y retirar un workflow { #finding-naming-and-retiring-a-workflow }
+
+Cada tarjeta dice qué inicia el workflow y cuántos pasos tiene, si está en vivo o es
+un borrador, y cómo y cuándo fue su última ejecución - la fecha de edición hasta que
+se ejecute.
 
 Sobre las tarjetas, una búsqueda encuentra un workflow por su nombre, descripción o
 etiquetas, un filtro de etiquetas acota la lista a una, y el orden es la última edición,

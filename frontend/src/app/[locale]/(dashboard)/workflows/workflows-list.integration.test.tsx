@@ -67,6 +67,9 @@ function workflow(name: string, status: WorkflowRead["status"]): WorkflowRead {
     tags: [],
     trigger_active: null,
     draft_revision: 0,
+    entry_node: null,
+    step_count: 0,
+    last_run: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-01T00:00:00Z",
   };
@@ -123,7 +126,7 @@ describe("the workflows list", () => {
 
   it("offers create and duplicate to a caller who may create", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByText("Live");
+    await screen.findByRole("link", { name: "Open Live" });
 
     expect(screen.getByRole("button", { name: "New workflow" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^Duplicate / })).toHaveLength(WORKFLOWS.length);
@@ -131,7 +134,7 @@ describe("the workflows list", () => {
 
   it("opens the import dialog from Import", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByText("Live");
+    await screen.findByRole("link", { name: "Open Live" });
 
     await userEvent.click(screen.getByRole("button", { name: "Import" }));
 
@@ -142,7 +145,7 @@ describe("the workflows list", () => {
     // Grants view (so the list still loads) but not create.
     perms.can = (permission: string) => permission === "workflows:view";
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByText("Live");
+    await screen.findByRole("link", { name: "Open Live" });
 
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
@@ -162,7 +165,7 @@ describe("the workflows list", () => {
 
   it("opens the start/template dialog from New workflow", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByText("Live");
+    await screen.findByRole("link", { name: "Open Live" });
 
     await userEvent.click(screen.getByRole("button", { name: "New workflow" }));
 
@@ -203,7 +206,7 @@ describe("the workflows list past one page", () => {
     // first page — the false negative Codex flagged, now fixed by filtering the
     // whole walked registry rather than one page of it.
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
-    await userEvent.click(screen.getByRole("option", { name: "Published" }));
+    await userEvent.click(screen.getByRole("option", { name: "Live" }));
 
     expect(await screen.findByRole("link", { name: "Open FindMe" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open Draft 1" })).toBeNull();
