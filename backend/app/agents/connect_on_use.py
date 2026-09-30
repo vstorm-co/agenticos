@@ -16,6 +16,7 @@ the model that the service is unavailable.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -30,6 +31,7 @@ from pydantic_ai.toolsets import (
     ToolsetFunc,
 )
 
+from app.agents.approval import ASKS_THE_PERSON
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.agents.mcp import tool_prefix
@@ -100,6 +102,9 @@ class ConnectOnUse(AbstractCapability[AgentDeps]):
     # Skipped once, not asked again this run: a model that retries the call
     # would otherwise put the same card up after every "no".
     _declined: set[str] = field(default_factory=set, init=False, repr=False, compare=False)
+    _locks: dict[str, asyncio.Lock] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     def get_instructions(self) -> str:
         """One paragraph per service, telling the model to connect it when needed."""
@@ -121,7 +126,12 @@ class ConnectOnUse(AbstractCapability[AgentDeps]):
         holds lives on this instance, so building the set again changes nothing.
         """
         connect: FunctionToolset[AgentDeps] = FunctionToolset()
-        connect.add_function(self._connect_account, name="connect_account", takes_ctx=True)
+        connect.add_function(
+            self._connect_account,
+            name="connect_account",
+            takes_ctx=True,
+            metadata={ASKS_THE_PERSON: True},
+        )
         parts: list[AbstractToolset[AgentDeps]] = [connect]
         parts.extend(
             DynamicToolset(self._slot(service.request.catalog_key), per_run_step=True)
@@ -148,7 +158,14 @@ class ConnectOnUse(AbstractCapability[AgentDeps]):
         if pending is None:
             keys = ", ".join(f'"{one.request.catalog_key}"' for one in self.services)
             return steer(ctx, f"There is no service {service!r} to connect. Use one of: {keys}.")
-        name = pending.request.name
+        # One call per service at a time, and the state read once it is this
+        # call's turn: a model that sends the same call twice in one response
+        # would otherwise put a second card up after the first was answered.
+        async with self._locks.setdefault(service, asyncio.Lock()):
+            return await self._connect(pending)
+
+    async def _connect(self, pending: PendingService) -> str:
+        service, name = pending.request.catalog_key, pending.request.name
         if service in self._attached:
             return f"{name} is already connected; its tools are available."
         if service in self._declined:

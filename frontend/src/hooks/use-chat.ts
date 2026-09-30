@@ -172,6 +172,10 @@ export function useChat(options: UseChatOptions = {}) {
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // A run paused until the person connects one of their own services, or `null`.
   const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
+  // Whether a run on the server is still waiting on that card. Beside the state
+  // because leaving the conversation takes the card down, and a run nobody
+  // answers waits for as long as the socket stays open.
+  const awaitingConnectionRef = useRef(false);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
   //
@@ -659,6 +663,7 @@ export function useChat(options: UseChatOptions = {}) {
           // The agent reached for a service this person has not connected, and
           // the run is waiting on them - the only moment the card is worth its space.
           setPendingConnection(wsEvent.data as ConnectionRequest);
+          awaitingConnectionRef.current = true;
           break;
         }
 
@@ -1031,11 +1036,18 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingApproval(null);
     setPendingQuestions(null);
     setPendingConnection(null);
+    // The card goes with the conversation it was in, and the run waiting on it
+    // is told to carry on without - or it holds the turn open behind a card
+    // nobody can see any more.
+    if (awaitingConnectionRef.current) {
+      awaitingConnectionRef.current = false;
+      sendMessage({ type: "connect_account_response", connected: false });
+    }
     setCompacting(null);
     setCompactionImpossible(null);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
-  }, [activeConversationId, closeBrowserPanel]);
+  }, [activeConversationId, closeBrowserPanel, sendMessage]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
@@ -1333,6 +1345,7 @@ export function useChat(options: UseChatOptions = {}) {
     (connected: boolean) => {
       if (!isConnected) return;
       setPendingConnection(null);
+      awaitingConnectionRef.current = false;
       sendMessage({ type: "connect_account_response", connected });
     },
     [isConnected, sendMessage],
@@ -1358,6 +1371,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingApproval(null);
     setPendingQuestions(null);
     setPendingConnection(null);
+    awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
   }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
 

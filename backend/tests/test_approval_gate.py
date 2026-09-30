@@ -36,6 +36,7 @@ from pydantic_ai.tools import (
 )
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
+from app.agents.approval import ASKS_THE_PERSON
 from app.agents.capabilities import (
     REGISTRY,
     CapabilityBuildContext,
@@ -285,6 +286,31 @@ class TestAskingAboutEverything:
 
         assert tool.calls == []
         assert "not that repository" in result
+
+    @pytest.mark.anyio
+    async def test_a_tool_that_only_asks_the_person_is_not_asked_about(self):
+        """`connect_account` acts on nothing - it waits for the person. Gated, it
+        would ask them to approve being asked, and a parked call resumes where
+        nobody can be asked at all."""
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=frozenset(), gate_every_tool=True)
+        ctx = _ctx(ApprovalRejected(note="never asked"))
+
+        result = await gate.wrap_tool_execute(
+            ctx,
+            call=_call({"service": "notion"}),
+            tool_def=ToolDefinition(
+                name="connect_account",
+                parameters_json_schema={"type": "object", "properties": {}},
+                metadata={ASKS_THE_PERSON: True},
+            ),
+            args={"service": "notion"},
+            handler=tool,
+        )
+
+        assert tool.calls == [{"service": "notion"}]
+        assert result == "sent"
+        ctx.deps.request_approval.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_it_still_refuses_where_nobody_can_be_asked(self):

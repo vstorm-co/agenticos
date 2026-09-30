@@ -25,10 +25,13 @@ import type { McpCatalogEntry } from "@/types/mcp";
  * the servers page, for an account that needs marking as default or authorizing
  * again.
  *
- * The run carries on by itself the moment the connections list says the service
- * is connected - the dialog writes that list's cache, and a consent finished in
- * the other tab is read when this one regains focus. "Continue" is for anything
- * the list cannot see; the server reads the connection again either way.
+ * The run carries on by itself once the connections list *changes* to say the
+ * service is connected - the dialog writes that list's cache, and a consent
+ * finished in the other tab is read when this one regains focus. A change, not
+ * the value: a token that expired still reads as authorized in the list, so a
+ * list that already said "connected" when the card went up is no evidence the
+ * gap was fixed. "Continue" is for everything the list cannot see; the server
+ * reads the connection again either way.
  */
 export function ConnectAccountPrompt({
   request,
@@ -42,14 +45,18 @@ export function ConnectAccountPrompt({
   const t = useTranslations("chat.connectAccount");
   const locale = useLocale();
   const { servers } = useMcpCatalog();
-  const { connections } = useMcpConnections();
+  const { connections, isLoading } = useMcpConnections();
   const [connecting, setConnecting] = useState<McpCatalogEntry | null>(null);
   const entry = servers.find((one) => one.key === request.catalog_key) ?? null;
-  const connected = ownAccountStatus(request.catalog_key, connections) === "connected";
+  const status = ownAccountStatus(request.catalog_key, connections);
+  // What the list said once it had loaded, which is what a fix is a change from.
+  const [before, setBefore] = useState<string | null>(null);
+  if (!isLoading && before === null) setBefore(status);
+  const repaired = before !== null && before !== "connected" && status === "connected";
 
   useEffect(() => {
-    if (connected && !disabled) onRespond(true);
-  }, [connected, disabled, onRespond]);
+    if (repaired && !disabled) onRespond(true);
+  }, [repaired, disabled, onRespond]);
 
   return (
     <div role="status" className="border-border bg-card rounded-2xl border p-3 shadow-sm">
@@ -99,7 +106,7 @@ export function ConnectAccountPrompt({
           </Button>
         )}
       </div>
-      <ConnectOwnServerDialog entry={connecting} onClose={() => setConnecting(null)} />
+      <ConnectOwnServerDialog entry={connecting} onClose={() => setConnecting(null)} keepThisTab />
     </div>
   );
 }

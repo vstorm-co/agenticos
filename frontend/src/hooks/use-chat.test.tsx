@@ -2604,7 +2604,8 @@ describe("a run waiting for a service to be connected", () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
-  it("takes the card down when another conversation is opened", () => {
+  it("releases the run as a skip when another conversation is opened", () => {
+    // Taken down without an answer, the run would wait behind a card nobody can see.
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("connect_account", REQUEST);
@@ -2614,6 +2615,20 @@ describe("a run waiting for a service to be connected", () => {
     });
 
     expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: false });
+  });
+
+  it("does not answer twice for a card already answered", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+    act(() => result.current.sendConnectionResponse(true));
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(sent).toHaveBeenCalledTimes(1);
   });
 });
 

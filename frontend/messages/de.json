@@ -2514,6 +2514,7 @@
     "failedLoadConnections": "Verbindungen konnten nicht geladen werden",
     "failedLoadOrgServers": "Die MCP-Server der Organisation konnten nicht geladen werden",
     "finishConsentThenReturn": "Schließen Sie es im geöffneten Tab ab und kommen Sie zurück — der Server erscheint hier, sobald er autorisiert ist.",
+    "consentTabBlocked": "Ihr Browser hat den Anmelde-Tab blockiert. Erlauben Sie Pop-ups für diese Seite und versuchen Sie es erneut.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Aus der öffentlichen MCP-Registry. Niemand hier hat ihn geprüft: Die Beschreibung stammt vom Herausgeber, und es gibt keinen Hinweis darauf, welches Credential er verlangt.",
     "manageConnectionsOn": "Verbindungen auf {name} verwalten",

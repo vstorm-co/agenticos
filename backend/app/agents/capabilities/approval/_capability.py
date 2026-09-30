@@ -34,6 +34,7 @@ from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
 from app.agents.approval import (
+    ASKS_THE_PERSON,
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
@@ -90,9 +91,12 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         # gate: `load_capability` is how a skill is opened, so a spec that asked
         # for approval before a skill is loaded has nowhere else to put it
         # (#1704 review).
-        gated = self.gate_every_tool or (
-            tool_def.name in self.required_tool_names
-            and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+        gated = not (tool_def.metadata or {}).get(ASKS_THE_PERSON) and (
+            self.gate_every_tool
+            or (
+                tool_def.name in self.required_tool_names
+                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+            )
         )
         if not gated:
             return await handler(args)

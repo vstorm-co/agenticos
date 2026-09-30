@@ -54,6 +54,15 @@ class ApprovalMode(StrEnum):
     ASK_ALL = "ask_all"
 
 
+ASKS_THE_PERSON = "asks_the_person"
+"""Tool metadata marking a call that is itself a question to the person there.
+
+`connect_account` is one: it acts on nothing and only waits for them. Gated as
+well - under `ASK_ALL` - it would ask them to approve being asked, and a parked
+call resumes on a surface that can no longer ask it at all.
+"""
+
+
 @dataclass(frozen=True)
 class ApprovalRequest:
     """One tool call put to a human.

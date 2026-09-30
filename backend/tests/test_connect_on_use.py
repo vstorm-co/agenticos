@@ -7,6 +7,8 @@ after the call and be callable there, not on the next message.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
@@ -79,6 +81,9 @@ def _capability(
 
     async def request_connection(request: ConnectionRequest) -> bool:
         asked.append(request)
+        # A real prompt waits for the person; yielding is what lets a second
+        # call in the same response reach this point while the first waits.
+        await asyncio.sleep(0)
         return connected
 
     async def resolve() -> ServiceOutcome:
@@ -145,6 +150,35 @@ async def test_a_skipped_service_is_not_asked_for_again_in_the_run():
         if isinstance(part, ToolReturnPart)
     ]
     assert "chose not to connect Notion earlier" in returns[1]
+
+
+async def test_two_calls_in_one_response_put_up_one_card():
+    """Tool calls in one response run concurrently; the second waits for the
+    first and then reads what it decided."""
+    capability, asked = _capability(False)
+
+    def both(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if any(isinstance(part, ToolReturnPart) for message in messages for part in message.parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart("connect_account", {"service": "notion"}, tool_call_id="a"),
+                ToolCallPart("connect_account", {"service": "notion"}, tool_call_id="b"),
+            ]
+        )
+
+    agent = Agent(FunctionModel(both), deps_type=AgentDeps, capabilities=[capability])
+    result = await agent.run("roadmap?", deps=AgentDeps())
+
+    assert asked == [_NOTION]
+    returns = sorted(
+        str(part.content)
+        for message in result.all_messages()
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+    )
+    assert "chose not to connect Notion earlier" in returns[0]
+    assert "did not connect Notion" in returns[1]
 
 
 async def test_a_service_already_connected_is_not_asked_for_again():

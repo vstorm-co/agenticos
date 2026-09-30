@@ -9,12 +9,13 @@ import type { McpCatalogEntry } from "@/types/mcp";
 
 const state = vi.hoisted(() => ({
   connections: [] as McpConnectionRecord[],
+  loading: false,
   servers: [] as McpCatalogEntry[],
-  returnTo: [] as (string | undefined)[],
+  opened: [] as { returnTo?: string; keepThisTab?: boolean }[],
 }));
 
 vi.mock("@/hooks/use-mcp-connections", () => ({
-  useMcpConnections: () => ({ connections: state.connections }),
+  useMcpConnections: () => ({ connections: state.connections, isLoading: state.loading }),
 }));
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: state.servers, isLoading: false }),
@@ -23,19 +24,22 @@ vi.mock("@/lib/locale-navigation", () => ({
   getPathname: ({ href, locale }: { href: string; locale: string }) => `/${locale}${href}`,
 }));
 // The dialog is tested on its own; here it only has to be opened for the right
-// entry, and without a `returnTo` - which is what keeps the consent in a new tab.
+// entry, with no `returnTo` and `keepThisTab` - the consent in a new tab, and
+// never this one, which holds the paused run.
 vi.mock("@/components/agents/connect-server-dialog", () => ({
   ConnectOwnServerDialog: ({
     entry,
     onClose,
     returnTo,
+    keepThisTab,
   }: {
     entry: McpCatalogEntry | null;
     onClose: () => void;
     returnTo?: string;
+    keepThisTab?: boolean;
   }) => {
     if (entry === null) return null;
-    state.returnTo.push(returnTo);
+    state.opened.push({ returnTo, keepThisTab });
     return (
       <div role="dialog">
         connecting {entry.name}
@@ -90,8 +94,9 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
 describe("ConnectAccountPrompt", () => {
   beforeEach(() => {
     state.connections = [];
+    state.loading = false;
     state.servers = [NOTION];
-    state.returnTo = [];
+    state.opened = [];
   });
 
   it("names the service and connects it without leaving the page", async () => {
@@ -102,7 +107,7 @@ describe("ConnectAccountPrompt", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect" }));
 
     expect(screen.getByRole("dialog")).toHaveTextContent("connecting Notion");
-    expect(state.returnTo).toEqual([undefined]);
+    expect(state.opened.at(-1)).toEqual({ returnTo: undefined, keepThisTab: true });
     await userEvent.click(screen.getByRole("button", { name: "close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(onRespond).not.toHaveBeenCalled();
@@ -122,13 +127,52 @@ describe("ConnectAccountPrompt", () => {
   });
 
   it("waits for the socket before carrying on", () => {
-    state.connections = [own()];
     const onRespond = vi.fn();
+    const { rerender } = render(
+      <ConnectAccountPrompt request={request()} disabled onRespond={onRespond} />,
+    );
 
-    render(<ConnectAccountPrompt request={request()} disabled onRespond={onRespond} />);
+    state.connections = [own()];
+    rerender(<ConnectAccountPrompt request={request()} disabled onRespond={onRespond} />);
 
     expect(onRespond).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+  });
+
+  it("does not take a list that already said connected as the fix", () => {
+    // An expired token still reads as authorized; the server said it is not.
+    state.connections = [own()];
+    const onRespond = vi.fn();
+    const { rerender } = render(
+      <ConnectAccountPrompt
+        request={request({ gap: "unauthorized" })}
+        disabled={false}
+        onRespond={onRespond}
+      />,
+    );
+    rerender(
+      <ConnectAccountPrompt
+        request={request({ gap: "unauthorized" })}
+        disabled={false}
+        onRespond={onRespond}
+      />,
+    );
+
+    expect(onRespond).not.toHaveBeenCalled();
+  });
+
+  it("reads what the list said once it has loaded, not while it loads", () => {
+    state.loading = true;
+    const onRespond = vi.fn();
+    const { rerender } = render(
+      <ConnectAccountPrompt request={request()} disabled={false} onRespond={onRespond} />,
+    );
+
+    state.loading = false;
+    state.connections = [own()];
+    rerender(<ConnectAccountPrompt request={request()} disabled={false} onRespond={onRespond} />);
+
+    expect(onRespond).not.toHaveBeenCalled();
   });
 
   it("goes on without the service when skipped", async () => {

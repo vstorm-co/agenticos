@@ -2650,6 +2650,7 @@
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
     "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
+    "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
     "manageConnectionsOn": "Manage connections on {name}",

@@ -46,6 +46,12 @@ interface ConnectDialogProps {
    * the Builder wants for a draft it must not lose.
    */
   returnTo?: string;
+  /**
+   * Never navigate this tab, even when the consent tab is blocked: say so
+   * instead. For a caller whose tab holds something navigating would end - a
+   * chat run paused until the connection is made.
+   */
+  keepThisTab?: boolean;
 }
 
 /**
@@ -92,10 +98,17 @@ export function ConnectOwnServerDialog({
   onClose,
   onConnected,
   returnTo,
+  keepThisTab,
 }: ConnectDialogProps) {
   if (entry === null) return null;
   return (
-    <OwnConnectForm entry={entry} onClose={onClose} onConnected={onConnected} returnTo={returnTo} />
+    <OwnConnectForm
+      entry={entry}
+      onClose={onClose}
+      onConnected={onConnected}
+      returnTo={returnTo}
+      keepThisTab={keepThisTab}
+    />
   );
 }
 
@@ -111,6 +124,7 @@ function ConnectForm({
   onClose,
   onConnected,
   returnTo,
+  keepThisTab,
 }: {
   entry: McpCatalogEntry;
   scope: Scope;
@@ -118,6 +132,7 @@ function ConnectForm({
   onClose: () => void;
   onConnected?: (connectionId: string) => void;
   returnTo?: string;
+  keepThisTab?: boolean;
 }) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
@@ -153,6 +168,10 @@ function ConnectForm({
       // consent screen, discarded the unsaved draft this dialog exists to
       // preserve, and left a blank tab behind.
       const tab = returnTo === undefined ? window.open("", "_blank") : null;
+      if (tab === null && keepThisTab) {
+        toast.error(t("consentTabBlocked"));
+        return;
+      }
       if (tab) tab.opener = null;
       setSubmitting(true);
       try {
