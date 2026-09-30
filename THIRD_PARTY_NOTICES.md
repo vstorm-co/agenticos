@@ -181,7 +181,7 @@ names no author is in the evidence column below.
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
 | multidict | 6.8.0 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
-| oauthlib | 3.3.1 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
+| oauthlib | 4.0.0 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
 | odfpy | 1.4.1 | LGPL-2.1-or-later | https://github.com/eea/odfpy | override: odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later.; review accepted; no licence file, attributed to Soren Roug |
 | olefile | 0.47 | BSD-2-Clause | https://www.decalage.info/python/olefileio | licence file text |
 | openai | 3.14.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |

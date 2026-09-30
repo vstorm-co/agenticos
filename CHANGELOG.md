@@ -99,6 +99,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **oauthlib 4.0.0**, for CVE-2026-49265 (GHSA-xpv3-w29h-x7cv). It arrives
+  through Prefect's notification library and nothing here calls it; the lock
+  is the only change.
 - **Review fixes on artifacts and environments.** A password-protected embed no
   longer carries the page's title; a link confirmation keeps the address it is
   asking about while the page posts another, in the console and in the embed; a
