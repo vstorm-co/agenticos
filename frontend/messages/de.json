@@ -5228,7 +5228,8 @@
       "software": "Software-Teams",
       "public-sector": "Öffentlicher Sektor und Versorger",
       "legal": "Recht und freie Berufe",
-      "manufacturing": "Produktion und Logistik"
+      "manufacturing": "Produktion und Logistik",
+      "general": "Allgemeiner Einsatz"
     }
   },
   "notifications": {

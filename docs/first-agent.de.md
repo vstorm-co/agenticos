@@ -1,5 +1,5 @@
 ---
-source_sha: "b0d255e47822"
+source_sha: "3b3318780aed"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -61,9 +61,12 @@ ein neues Model umstellen, ohne einen einzigen Agent anzufassen.
 
 !!! tip "Oder von einem Template ausgehen"
 
-    **Agents → Agent templates** liefert achtundzwanzig fertige Agents, nach
-    Branche gruppiert, jeder mit geschriebenen Instructions, eingeschalteten
-    Capabilities und den nötigen Skills daneben installiert.
+    **Agents → Agent templates** liefert neunundzwanzig fertige Agents:
+    achtundzwanzig nach Branche gruppiert und **Claude Code like** unter
+    *Allgemeiner Einsatz* - ein Agent für jede Aufgabe, der in einem Workspace
+    arbeitet, plant, an Spezialisten delegiert und im Web recherchiert. Jeder
+    kommt mit geschriebenen Instructions, eingeschalteten Capabilities und den
+    nötigen Skills daneben installiert.
 
     Einer kommt als **Draft** an statt veröffentlicht, und das mit Absicht: ein
     Template kann Ihr Model nicht wählen, und es hat Ihre Knowledge-Collection nie

@@ -1,5 +1,5 @@
 ---
-source_sha: "b0d255e47822"
+source_sha: "3b3318780aed"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -61,9 +61,12 @@ los agents a un modelo nuevo, sin tocar ni un solo agent.
 
 !!! tip "O parte de una plantilla"
 
-    **Agents → Agent templates** trae veintiocho agents listos agrupados por
-    sector, cada uno con sus instrucciones escritas, sus capabilities activadas
-    y los skills que necesita instalados a su lado.
+    **Agents → Agent templates** trae veintinueve agents listos: veintiocho
+    agrupados por sector y **Claude Code like** en *Uso general*, un agent para
+    cualquier tarea que trabaja en un workspace, planifica, delega en
+    especialistas e investiga en la web. Cada uno llega con sus instrucciones
+    escritas, sus capabilities activadas y los skills que necesita instalados a
+    su lado.
 
     Llega como **borrador** y no publicado, y es deliberado: una plantilla no
     puede elegir tu modelo, y nunca ha visto tu colección de conocimiento. El

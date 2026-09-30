@@ -5369,7 +5369,8 @@
       "software": "Software teams",
       "public-sector": "Public sector and utilities",
       "legal": "Legal and professional services",
-      "manufacturing": "Manufacturing and logistics"
+      "manufacturing": "Manufacturing and logistics",
+      "general": "General purpose"
     }
   },
   "notifications": {

@@ -38,6 +38,14 @@ Two things are versioned separately from this file and worth knowing about:
 - **A public page can be embedded** on the sites listed for it, through an
   embed document whose policy lets only those sites frame it (#1973).
 - **The artifact list filters by the agent that published** (#1967).
+- **A "Claude Code like" agent template**, under a new *General purpose*
+  category: an agent for any task that reads before it acts, plans with a task
+  list, edits files and runs commands in its workspace, delegates to three
+  specialists sharing that workspace (`explore`, `research`, `review`), researches
+  the web, and publishes pages people open later. It switches on every
+  capability that works without a key or a vetted endpoint; attach a sandbox
+  connection for a real shell. A new check holds every shipped template to the
+  validation publish runs.
 
 ### Changed
 
