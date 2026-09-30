@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { StepDetails } from "./step-details";
+import { StepName, StepNote, StepSwitch } from "./step-details";
 import type { NodeInstance } from "@/lib/workflows/types";
 
 const step: NodeInstance = {
@@ -13,82 +13,114 @@ const step: NodeInstance = {
   layout: { x: 0, y: 0 },
 };
 
-function renderDetails(overrides: Partial<Parameters<typeof StepDetails>[0]> = {}) {
+function renderName(node: NodeInstance = step, disabled = false) {
   const onChange = vi.fn();
-  const utils = render(
-    <StepDetails
-      node={step}
+  render(
+    <StepName
+      node={node}
+      name={node.label ?? "Send a message"}
       catalogName="Send a message"
-      canSwitchOff
-      disabled={false}
+      disabled={disabled}
       onChange={onChange}
-      {...overrides}
     />,
   );
-  return { onChange, ...utils };
+  return onChange;
 }
 
-describe("StepDetails", () => {
-  it("names a step and notes it when each field is left, and clears an emptied one", () => {
-    const { onChange, rerender } = renderDetails();
-    const name = screen.getByLabelText("Step name");
-    expect(name).toHaveAttribute("placeholder", "Send a message");
+describe("StepName", () => {
+  it("renames the step where its name stands, trimmed, on Enter", async () => {
+    const onChange = renderName();
 
-    fireEvent.change(name, { target: { value: " Tell sales " } });
-    fireEvent.blur(name);
+    await userEvent.click(screen.getByRole("button", { name: "Send a message" }));
+    const field = screen.getByRole("textbox", { name: "Step name" });
+    expect(field).toHaveAttribute("placeholder", "Send a message");
+    await userEvent.type(field, " Tell sales {Enter}");
+
     expect(onChange).toHaveBeenCalledWith("n1", { label: "Tell sales" });
+    expect(screen.getByRole("button", { name: "Send a message" })).toBeInTheDocument();
+  });
 
-    fireEvent.blur(name);
+  it("falls back to the catalog's name when emptied, and writes nothing unchanged", async () => {
+    const onChange = renderName({ ...step, label: "Tell sales" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Tell sales" }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Step name" }));
+    await userEvent.tab();
+    expect(onChange).toHaveBeenCalledWith("n1", { label: null });
+
+    onChange.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "Tell sales" }));
+    await userEvent.tab();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the old name on Escape without closing what holds it", async () => {
+    const onChange = renderName();
+    const outer = vi.fn();
+    document.addEventListener("keydown", outer);
+
+    await userEvent.click(screen.getByRole("button", { name: "Send a message" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Step name" }), "x{Escape}");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(outer).not.toHaveBeenCalledWith(expect.objectContaining({ key: "Escape" }));
+    expect(screen.getByRole("button", { name: "Send a message" })).toBeInTheDocument();
+    document.removeEventListener("keydown", outer);
+  });
+
+  it("is plain text on a step that cannot be edited", () => {
+    renderName(step, true);
+    expect(screen.getByText("Send a message")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("StepSwitch", () => {
+  it("says whether the run carries the step out, and switches it off and on", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<StepSwitch node={step} onChange={onChange} />);
+
+    const toggle = screen.getByRole("switch", { name: "Run this step" });
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith("n1", { disabled: true });
+
+    rerender(<StepSwitch node={{ ...step, disabled: true }} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Run this step" }));
+    expect(onChange).toHaveBeenLastCalledWith("n1", { disabled: false });
+  });
+});
+
+describe("StepNote", () => {
+  it("notes a step when the field is left, and clears an emptied note", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<StepNote node={step} disabled={false} onChange={onChange} />);
+
     fireEvent.click(screen.getByRole("button", { name: "+ Add a note" }));
+    fireEvent.blur(screen.getByLabelText("Note"));
+    expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: "For the EU team" } });
     fireEvent.blur(screen.getByLabelText("Note"));
     expect(onChange).toHaveBeenLastCalledWith("n1", { notes: "For the EU team" });
 
     rerender(
-      <StepDetails
-        node={{ ...step, label: "Tell sales", notes: "For the EU team" }}
-        catalogName="Send a message"
-        canSwitchOff
+      <StepNote
+        node={{ ...step, notes: "For the EU team" }}
         disabled={false}
         onChange={onChange}
       />,
     );
-    expect(screen.getByLabelText("Step name")).toHaveValue("Tell sales");
-    fireEvent.change(screen.getByLabelText("Step name"), { target: { value: "" } });
-    fireEvent.blur(screen.getByLabelText("Step name"));
+    expect(screen.getByLabelText("Note")).toHaveValue("For the EU team");
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: " " } });
     fireEvent.blur(screen.getByLabelText("Note"));
-    expect(onChange.mock.calls.slice(-2)).toEqual([
-      ["n1", { label: null }],
-      ["n1", { notes: null }],
-    ]);
+    expect(onChange).toHaveBeenLastCalledWith("n1", { notes: null });
   });
 
-  it("writes nothing for a field left as it was", () => {
-    const { onChange } = renderDetails();
-    fireEvent.blur(screen.getByLabelText("Step name"));
-    fireEvent.click(screen.getByRole("button", { name: "+ Add a note" }));
-    fireEvent.blur(screen.getByLabelText("Note"));
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("switches a step off, and offers no switch where there is nothing to skip", async () => {
-    const { onChange, unmount } = renderDetails();
-    await userEvent.click(screen.getByRole("switch", { name: "Switched off" }));
-    expect(onChange).toHaveBeenCalledWith("n1", { disabled: true });
-    unmount();
-
-    renderDetails({ canSwitchOff: false });
-    expect(screen.queryByRole("switch")).toBeNull();
-  });
-});
-
-describe("StepDetails on a read-only step", () => {
-  it("offers no note to add, and shows one already there", () => {
-    const { unmount } = renderDetails({ disabled: true });
+  it("offers no note to add on a read-only step, and shows one already there", () => {
+    const { unmount } = render(<StepNote node={step} disabled onChange={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "+ Add a note" })).toBeNull();
     unmount();
-    renderDetails({ disabled: true, node: { ...step, notes: "Kept" } });
+    render(<StepNote node={{ ...step, notes: "Kept" }} disabled onChange={vi.fn()} />);
     expect(screen.getByLabelText("Note")).toHaveValue("Kept");
   });
 });

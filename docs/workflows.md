@@ -138,9 +138,9 @@ the [node reference](reference/workflow-nodes.md).
 Click a step and its settings open in a dialog over the canvas: its name, what it
 does, and any problem that stops a publish, above its fields. Every edit is saved to
 the draft as you make it, so **Done** only closes the dialog, and **Delete step**
-removes the step. The fields fall into two sections. **Configuration** holds static
+removes the step. The fields fall into two sections. **Settings** holds static
 settings — the fixed choices that do not change from one run to the next, including
-the resources a step is pinned to. **Inputs** holds the values a step reads when it
+the resources a step is pinned to. **What it works on** holds the values a step reads when it
 runs.
 
 An input is filled one of two ways, and **Value** and **From a step** beside its
@@ -173,11 +173,13 @@ a separate screen.
 
 ### Naming a step, noting it and switching it off { #naming-noting-and-switching-off-a-step }
 
-**Step name** gives a step a name of its own, shown on its card and wherever a later step
+Clicking the step's name in the top of its settings gives it a name of its own, shown on its card and wherever a later step
 picks what to read - two **Send a message** steps become *Tell sales* and *Tell
-support*. No two steps may share a name, ignoring case. **Note** keeps a line for
-whoever edits the workflow next, marked on the card. **Switched off**, or **Switch
-off** in the step's right-click menu, keeps a step on the canvas, dimmed, and skips it
+support*. No two steps may share a name, ignoring case.
+
+**Note** keeps a line for
+whoever edits the workflow next, marked on the card. Turning off **Run this step**
+at the bottom of its settings, or **Switch off** in its right-click menu, keeps a step on the canvas, dimmed, and skips it
 when a run reaches it: it does nothing and hands on what came into it. Publishing
 refuses the trigger or a step that decides the way switched off, and a step that
 reads one that is off, unless what comes into it - along its one incoming connection,

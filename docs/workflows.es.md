@@ -1,5 +1,5 @@
 ---
-source_sha: "1537be2c7346"
+source_sha: "2aff151bf238"
 ---
 
 # Workflows { #workflows }
@@ -152,8 +152,8 @@ Haz clic en un paso y sus ajustes se abren en un diálogo sobre el lienzo: su no
 qué hace y cualquier problema que bloquee la publicación, encima de sus campos. Cada
 cambio se guarda en el draft al hacerlo, así que **Done** solo cierra el diálogo y
 **Delete step** quita el paso. Los campos se dividen en dos secciones.
-**Configuration** guarda los ajustes estáticos — las elecciones fijas que no cambian de
-una ejecución a otra, incluidos los recursos a los que está fijado un paso. **Inputs**
+**Settings** guarda los ajustes estáticos — las elecciones fijas que no cambian de
+una ejecución a otra, incluidos los recursos a los que está fijado un paso. **What it works on**
 guarda los valores que un paso lee al ejecutarse.
 
 Un input se rellena de una de dos maneras, y **Value** y **From a step** junto a su
@@ -185,11 +185,13 @@ entra en ellos en lugar de mandarte a otra pantalla.
 
 ### Nombrar un paso, anotarlo y apagarlo { #naming-noting-and-switching-off-a-step }
 
-**Step name** da a un paso un nombre propio, que se muestra en su tarjeta y allí donde un
+Hacer clic en el nombre del paso arriba de sus ajustes le da un nombre propio, que se muestra en su tarjeta y allí donde un
 paso posterior elige qué leer - dos pasos **Send a message** pasan a ser *Tell sales* y
 *Tell support*. Dos pasos no pueden compartir nombre, sin distinguir mayúsculas.
+
 **Note** guarda una línea para quien edite el workflow después, marcada en la tarjeta.
-**Switched off**, o **Switch off** en el menú contextual del paso, deja el paso en el
+Apagar **Run this step** abajo de sus ajustes, o **Switch off** en el menú contextual del
+paso, deja el paso en el
 lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y entrega
 lo que le llegó. Publicar rechaza el disparador o un paso que decide el camino
 apagados, y un paso que lea uno apagado, salvo que lo que le llega - por su única

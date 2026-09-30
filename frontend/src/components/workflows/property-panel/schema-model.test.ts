@@ -15,6 +15,7 @@ import {
   resolveRef,
   resourceKind,
   singleFieldSchema,
+  takesJson,
   unwrapOptional,
 } from "./schema-model";
 
@@ -305,5 +306,21 @@ describe("repeatsLabel", () => {
       false,
     );
     expect(repeatsLabel("Bot", "Which integration sends it")).toBe(false);
+  });
+});
+
+describe("takesJson", () => {
+  it("is true for an object or a list of anything but text, optional or not", () => {
+    expect(takesJson({ type: "object" })).toBe(true);
+    expect(takesJson({ type: "array", items: { type: "object" } })).toBe(true);
+    expect(
+      takesJson({ anyOf: [{ type: "array", items: { type: "integer" } }, { type: "null" }] }),
+    ).toBe(true);
+    expect(takesJson({ type: "array" })).toBe(true);
+  });
+
+  it("is false for a scalar or a list of text, which the form edits itself", () => {
+    expect(takesJson({ type: "string" })).toBe(false);
+    expect(takesJson({ type: "array", items: { type: "string" } })).toBe(false);
   });
 });

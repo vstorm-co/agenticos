@@ -143,6 +143,85 @@ describe("a node card", () => {
     expect(summary("data.filter", {})).toBeNull();
   });
 
+  it("says what a Transform step and a schedule are set to do", () => {
+    const t = ((key: string, values?: Record<string, unknown>) =>
+      `${key}:${JSON.stringify(values ?? {})}`) as unknown as Parameters<typeof nodeSummary>[1];
+    const summary = (definitionId: string, config: Record<string, unknown>) =>
+      nodeSummary({ ...instance("x", definitionId), config }, t);
+
+    expect(summary("transform.limit", { count: 3 })).toBe('nodeSummaryFirst:{"count":3}');
+    expect(summary("transform.limit", { count: 2, from_end: true })).toBe(
+      'nodeSummaryLast:{"count":2}',
+    );
+    expect(summary("transform.limit", {})).toBeNull();
+    expect(
+      summary("transform.sort", {
+        by: [{ field: "score", descending: true }, { field: "name" }, "junk"],
+      }),
+    ).toBe('nodeSummarySort:{"fields":"score ↓, name ↑"}');
+    expect(summary("transform.sort", {})).toBeNull();
+    expect(summary("transform.remove_duplicates", { fields: ["email"] })).toBe(
+      'nodeSummaryUniqueBy:{"fields":"email"}',
+    );
+    expect(summary("transform.remove_duplicates", { fields: [] })).toBe("nodeSummaryUnique:{}");
+    expect(summary("transform.aggregate", { fields: ["email", ""] })).toBe(
+      'nodeSummaryAggregate:{"fields":"email"}',
+    );
+    expect(summary("transform.aggregate", { fields: "email" })).toBeNull();
+    expect(summary("transform.split_out", { field: "lines" })).toBe(
+      'nodeSummarySplitOut:{"field":"lines"}',
+    );
+    expect(summary("transform.split_out", {})).toBeNull();
+    expect(
+      summary("transform.summarize", {
+        summaries: [{ operation: "sum", field: "amount" }],
+        group_by: ["region"],
+      }),
+    ).toBe(
+      'nodeSummaryGrouped:{"what":"nodeSummaryOperation.sum:{\\"field\\":\\"amount\\"}","groups":"region"}',
+    );
+    expect(summary("transform.summarize", { summaries: [{ operation: "count" }] })).toBe(
+      'nodeSummaryOperation.count:{"field":""}',
+    );
+    expect(summary("transform.summarize", { summaries: [] })).toBeNull();
+    expect(summary("transform.edit_fields", { set: [{}, {}] })).toBe('nodeSummarySets:{"count":2}');
+    expect(summary("transform.edit_fields", {})).toBeNull();
+    expect(summary("transform.date_time", { operation: "add", amount: 2, unit: "hours" })).toBe(
+      'nodeSummaryAdds:{"span":"nodeSummaryUnit.hours:{\\"count\\":2}"}',
+    );
+    expect(summary("transform.date_time", { operation: "subtract" })).toBe(
+      'nodeSummarySubtracts:{"span":"nodeSummaryUnit.days:{\\"count\\":0}"}',
+    );
+    expect(summary("transform.date_time", { operation: "format" })).toBe("nodeSummaryFormats:{}");
+    expect(summary("transform.date_time", {})).toBe("nodeSummaryNow:{}");
+    expect(summary("transform.crypto", { operation: "uuid" })).toBe("nodeSummaryCrypto.uuid:{}");
+    expect(summary("transform.crypto", {})).toBeNull();
+
+    expect(summary("trigger.schedule", { schedule_kind: "interval", interval_seconds: 7200 })).toBe(
+      'nodeSummaryEvery.hours:{"count":2}',
+    );
+    expect(
+      summary("trigger.schedule", { schedule_kind: "cron", cron_expression: "30 9 * * *" }),
+    ).toBe('nodeSummaryDaily:{"time":"09:30"}');
+    expect(
+      summary("trigger.schedule", { schedule_kind: "cron", cron_expression: "0 9 * * 1-5" }),
+    ).toBe("0 9 * * 1-5");
+  });
+
+  it("sets a crontab in monospace, and names a renamed step's kind under it", () => {
+    seed([
+      instance("s", "trigger.schedule", {
+        config: { schedule_kind: "cron", cron_expression: "0 9 * * 1-5" },
+      }),
+      instance("m", "data.map", { label: "Tidy the lead" }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    expect(screen.getByText("0 9 * * 1-5")).toHaveClass("font-mono");
+    expect(screen.getByText("Tidy the lead")).toBeInTheDocument();
+    // Its own name on top, the kind of step it is under it.
+    expect(screen.getByText("Map")).toBeInTheDocument();
+  });
+
   it("falls back to the step's group, keeping its description for a hover", () => {
     seed([
       instance("m", "data.map"),

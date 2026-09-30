@@ -1,5 +1,5 @@
 ---
-source_sha: "1537be2c7346"
+source_sha: "2aff151bf238"
 ---
 
 # Workflows { #workflows }
@@ -142,8 +142,8 @@ Co robi każdy węzeł, z czym się go konfiguruje i co znaczą jego błędy, op
 Kliknij krok, a jego ustawienia otworzą się w oknie nad kanwą: nazwa, co robi i każdy
 problem blokujący publikację, nad polami. Każda zmiana zapisuje się w drafcie od razu,
 więc **Done** tylko zamyka okno, a **Delete step** usuwa krok. Pola dzielą się na dwie
-sekcje. **Configuration** trzyma ustawienia statyczne — stałe wybory, które nie
-zmieniają się między runami, w tym zasoby przypięte do kroku. **Inputs** trzyma
+sekcje. **Settings** trzyma ustawienia statyczne — stałe wybory, które nie
+zmieniają się między runami, w tym zasoby przypięte do kroku. **What it works on** trzyma
 wartości, które krok czyta w trakcie działania.
 
 Input wypełnia się na jeden z dwóch sposobów, a **Value** i **From a step** obok jego
@@ -175,11 +175,14 @@ zamiast odsyłać do osobnego ekranu.
 
 ### Nazywanie kroku, notatka i wyłączanie { #naming-noting-and-switching-off-a-step }
 
-**Step name** nadaje krokowi własną nazwę, pokazywaną na jego karcie i wszędzie, gdzie
+Kliknięcie nazwy kroku u góry jego ustawień nadaje mu własną nazwę, pokazywaną na jego karcie i wszędzie, gdzie
 późniejszy krok wybiera, co czytać - dwa kroki **Send a message** stają się *Tell sales*
 i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez względu na wielkość
-liter. **Note** zachowuje zdanie dla tego, kto edytuje workflow następny, oznaczone na
-karcie. **Switched off** albo **Switch off** w menu kontekstowym kroku zostawia krok na
+liter.
+
+**Note** zachowuje zdanie dla tego, kto edytuje workflow następny, oznaczone na
+karcie. Wyłączenie **Run this step** na dole jego ustawień albo **Switch off** w menu kontekstowym
+kroku zostawia krok na
 kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie robi i przekazuje
 dalej to, co do niego dotarło. Publikacja odrzuca wyłączony wyzwalacz lub krok
 decydujący o drodze oraz krok, który czyta wyłączony, chyba że to, co do niego

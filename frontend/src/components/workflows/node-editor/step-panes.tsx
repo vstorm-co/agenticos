@@ -90,7 +90,8 @@ export function InputPane({
   return (
     <Pane title={t("stepInput")}>
       {sources.length === 0 && <Empty>{t("stepInputNone")}</Empty>}
-      {sources.some((source) => stepData[source]?.output != null) && (
+      {/* A run's view has no settings to drag onto. */}
+      {!readOnly && sources.some((source) => stepData[source]?.output != null) && (
         <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>
       )}
       {sources.map((source) => {

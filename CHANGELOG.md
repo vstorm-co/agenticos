@@ -513,6 +513,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow's steps say what they do.** A card now reads "First 3",
+  "By score ↓", "Sum of amount by region" or "Every day at 09:00" for the
+  Transform steps and a schedule, and a step with its own name shows what kind
+  of step it is under it. Its dialog is renamed in its header, switched off
+  with **Run this step** beside **Delete step**, and names its sections
+  **Settings** and **What it works on**. A list of records typed in as a value
+  shows as JSON instead of an empty box. On a run's page a step opens on its
+  Input and Output, with the settings it ran with folded underneath.
 - **A workflow step's settings stay short, and quiet until you act.** Optional
   settings at their defaults fold under **More options**; the failure policy and the
   note open on request or once set; a missing required value is flagged beside its

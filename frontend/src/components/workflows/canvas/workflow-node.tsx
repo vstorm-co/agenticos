@@ -16,6 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { nodeVisual } from "@/components/workflows/node-visuals";
+import { cadenceDraftOf } from "@/components/workflows/property-panel/cadence";
 import { ownsAScope } from "@/components/workflows/palette";
 import { routesErrors } from "@/lib/workflows/ports";
 import { nodeDisplayName, type NodeInstance, type Port } from "@/lib/workflows/types";
@@ -30,6 +31,92 @@ import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { QuickAdd } from "./quick-add";
 
 type Translate = ReturnType<typeof useTranslations<"workflows">>;
+
+/** A config value that is a list of strings, joined for a card; null when it is not one. */
+function names(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const strings = value.filter((entry): entry is string => typeof entry === "string" && !!entry);
+  return strings.length > 0 ? strings.join(", ") : null;
+}
+
+/** What a Transform step does, from its config. */
+function transformSummary(instance: NodeInstance, t: Translate): string | null {
+  const config = instance.config;
+  switch (instance.definition_id) {
+    case "transform.limit":
+      if (typeof config.count !== "number") return null;
+      return t(config.from_end === true ? "nodeSummaryLast" : "nodeSummaryFirst", {
+        count: config.count,
+      });
+    case "transform.sort": {
+      const keys = Array.isArray(config.by) ? config.by : [];
+      const fields = keys
+        .filter(
+          (key): key is { field: string; descending?: boolean } =>
+            typeof key === "object" && key !== null && typeof key.field === "string",
+        )
+        .map((key) => (key.descending === true ? `${key.field} ↓` : `${key.field} ↑`));
+      return fields.length > 0 ? t("nodeSummarySort", { fields: fields.join(", ") }) : null;
+    }
+    case "transform.remove_duplicates": {
+      const fields = names(config.fields);
+      return fields === null ? t("nodeSummaryUnique") : t("nodeSummaryUniqueBy", { fields });
+    }
+    case "transform.aggregate": {
+      const fields = names(config.fields);
+      return fields === null ? null : t("nodeSummaryAggregate", { fields });
+    }
+    case "transform.split_out":
+      return typeof config.field === "string" && config.field
+        ? t("nodeSummarySplitOut", { field: config.field })
+        : null;
+    case "transform.summarize": {
+      const [first] = Array.isArray(config.summaries) ? config.summaries : [];
+      if (typeof first !== "object" || first === null || typeof first.operation !== "string") {
+        return null;
+      }
+      const what = t(`nodeSummaryOperation.${first.operation}`, { field: first.field ?? "" });
+      const groups = names(config.group_by);
+      return groups === null ? what : t("nodeSummaryGrouped", { what, groups });
+    }
+    case "transform.edit_fields": {
+      const set = Array.isArray(config.set) ? config.set.length : 0;
+      return set > 0 ? t("nodeSummarySets", { count: set }) : null;
+    }
+    case "transform.date_time": {
+      const operation = typeof config.operation === "string" ? config.operation : "now";
+      if (operation === "add" || operation === "subtract") {
+        const amount = typeof config.amount === "number" ? config.amount : 0;
+        const unit = typeof config.unit === "string" ? config.unit : "days";
+        const span = t(`nodeSummaryUnit.${unit}`, { count: amount });
+        return t(operation === "add" ? "nodeSummaryAdds" : "nodeSummarySubtracts", { span });
+      }
+      return t(operation === "format" ? "nodeSummaryFormats" : "nodeSummaryNow");
+    }
+    case "transform.crypto":
+      return typeof config.operation === "string"
+        ? t(`nodeSummaryCrypto.${config.operation}`)
+        : null;
+    default:
+      return null;
+  }
+}
+
+/** Whether a card's summary is an expression - a condition, a crontab - set in monospace. */
+function summaryIsCode(instance: NodeInstance): boolean {
+  if (instance.definition_id === "logic.if") return true;
+  return (
+    instance.definition_id === "trigger.schedule" && cadenceDraftOf(instance.config).mode === "cron"
+  );
+}
+
+/** When a Schedule trigger fires, from its cadence. */
+function scheduleSummary(config: Record<string, unknown>, t: Translate): string {
+  const draft = cadenceDraftOf(config);
+  if (draft.mode === "daily") return t("nodeSummaryDaily", { time: draft.time });
+  if (draft.mode === "cron") return draft.cron;
+  return t(`nodeSummaryEvery.${draft.unit}`, { count: Number(draft.count) });
+}
 
 /** One line saying what this step is set up to do, where its config says it plainly. */
 export function nodeSummary(instance: NodeInstance, t: Translate): string | null {
@@ -71,8 +158,10 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       const mappings = Array.isArray(config.mappings) ? config.mappings.length : 0;
       return mappings > 0 ? t("nodeSummaryMappings", { count: mappings }) : null;
     }
+    case "trigger.schedule":
+      return scheduleSummary(config, t);
     default:
-      return null;
+      return transformSummary(instance, t);
   }
 }
 
@@ -123,17 +212,20 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
   const summary = nodeSummary(instance, t);
-  // Under the name, what the step is set to do - or else which group it belongs
-  // to ("Slack", "Tables"), which a long description would only truncate.
+  // Under the name, what the step is set to do - or else, for a step given a
+  // name of its own, what kind of step it is ("Limit"), or which group it
+  // belongs to ("Slack", "Tables"), which a long description would only truncate.
   const category = definition?.category ?? null;
   const group =
-    category === null
-      ? null
-      : category === "triggers"
-        ? t("cardTrigger")
-        : t.has(`category.${category}`)
-          ? t(`category.${category}`)
-          : null;
+    instance.label && definition !== null
+      ? definition.name
+      : category === null
+        ? null
+        : category === "triggers"
+          ? t("cardTrigger")
+          : t.has(`category.${category}`)
+            ? t(`category.${category}`)
+            : null;
   // A single ordinary output needs no label: the wire leaving the card says it all.
   const labelledOutputs = outputs.length > 1 || outputs.some(isErrorPort);
   const policy = instance.policy ?? null;
@@ -291,7 +383,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
               title={definition?.description}
               className={cn(
                 "text-muted-foreground truncate text-xs",
-                instance.definition_id === "logic.if" && summary !== null && "font-mono",
+                summary !== null && summaryIsCode(instance) && "font-mono",
               )}
             >
               {summary ?? group}

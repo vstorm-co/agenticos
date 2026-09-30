@@ -8,7 +8,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from "@
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
-import { StepDetails } from "./step-details";
+import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
 import {
   WarningBadge,
@@ -92,6 +92,71 @@ export function NodeEditorDialog({
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
   const withInput = withData && node.id !== graph.entry_node_id;
 
+  const settings = definition !== null && (
+    <>
+      <StepNote node={node} disabled={readOnly} onChange={store.updateNodeDetails} />
+      {/* Listens for focus leaving a field inside it; the fields are the
+          controls, this is only where their blur is heard. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
+        onBlur={(event) => {
+          const field = (event.target as HTMLElement)
+            .closest("[data-field]")
+            ?.getAttribute("data-field");
+          if (field != null && !left.has(field)) setLeft(new Set([...left, field]));
+        }}
+      >
+        <NodeForm
+          definition={definition}
+          node={node}
+          graph={graph}
+          catalog={catalogIndex}
+          bindings={graph.bindings}
+          errors={fieldErrors(
+            // A value not given yet is said once its field was left, or a
+            // run or a publish was tried; the canvas already marks the step.
+            store.problemsRevealed
+              ? problems
+              : problems.filter(
+                  (problem) =>
+                    problem.code !== "input-not-bound" ||
+                    (problem.field !== null && left.has(problem.field)),
+                ),
+            node.id,
+          )}
+          disabled={readOnly}
+          updateNodeConfig={store.updateNodeConfig}
+          upsertBinding={store.upsertBinding}
+          removeBinding={store.removeBinding}
+        />
+      </div>
+      {node.definition_id !== "loop.item" &&
+        !isTrigger(definition) &&
+        (!readOnly || node.policy) && (
+          <div className="border-border border-t pt-5">
+            {/* Retries, a time limit and error routing are for later: shown
+                once asked for, or once the step has any of them. */}
+            {policyShown || node.policy ? (
+              <PolicySection
+                definition={definition}
+                node={node}
+                disabled={readOnly}
+                updateNodePolicy={store.updateNodePolicy}
+              />
+            ) : (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground text-sm"
+                onClick={() => setPolicyShown(true)}
+              >
+                {t("nodeEditorShowPolicy")}
+              </button>
+            )}
+          </div>
+        )}
+    </>
+  );
+
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
@@ -112,12 +177,27 @@ export function NodeEditorDialog({
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <DialogTitle className="truncate text-base">
-                {names.get(node.id) ?? node.definition_id}
+                {definition === null ? (
+                  (names.get(node.id) ?? node.definition_id)
+                ) : (
+                  <StepName
+                    node={node}
+                    name={names.get(node.id) ?? definition.name}
+                    catalogName={definition.name}
+                    disabled={readOnly}
+                    onChange={store.updateNodeDetails}
+                  />
+                )}
               </DialogTitle>
               <WarningBadge count={nodeProblemCount(problems, node.id)} />
             </div>
             <DialogDescription className="text-sm">
-              {definition?.description ?? t("panelUnknownDefinition")}
+              {definition === null
+                ? t("panelUnknownDefinition")
+                : // A step with a name of its own still says what kind of step it is.
+                  node.label
+                  ? `${definition.name} · ${definition.description}`
+                  : definition.description}
             </DialogDescription>
           </div>
         </header>
@@ -126,8 +206,12 @@ export function NodeEditorDialog({
             "min-h-0 flex-1",
             withData &&
               "grid grid-cols-1 overflow-y-auto lg:overflow-hidden [&>*]:px-6 [&>*]:py-5 lg:[&>*]:overflow-y-auto",
-            withInput && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)]",
-            withData && !withInput && "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]",
+            withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)]",
+            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]",
+            // A run's step is read for its data: Input and Output side by side,
+            // the settings it ran with folded underneath.
+            runData && withInput && "lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto]",
+            runData && !withInput && "lg:grid-rows-[minmax(0,1fr)_auto]",
           )}
         >
           {withInput && (
@@ -141,7 +225,13 @@ export function NodeEditorDialog({
               />
             </div>
           )}
-          <div className={cn("space-y-5", !withData && "h-full overflow-y-auto px-6 py-5")}>
+          <div
+            className={cn(
+              "space-y-5",
+              !withData && "h-full overflow-y-auto px-6 py-5",
+              runData && "border-border lg:order-last lg:col-span-2 lg:border-t",
+            )}
+          >
             {nodeProblems.length > 0 && (
               <ul className="bg-destructive/5 border-destructive/20 space-y-1 rounded-lg border px-3 py-2">
                 {nodeProblems.map((problem, index) => (
@@ -153,69 +243,17 @@ export function NodeEditorDialog({
             )}
             {definition !== null && (
               <>
-                <StepDetails
-                  node={node}
-                  catalogName={definition.name}
-                  canSwitchOff={node.id !== graph.entry_node_id && definition.kind !== "control"}
-                  disabled={readOnly}
-                  onChange={store.updateNodeDetails}
-                />
-                {/* Listens for focus leaving a field inside it; the fields are the
-                    controls, this is only where their blur is heard. */}
-                {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-                <div
-                  onBlur={(event) => {
-                    const field = (event.target as HTMLElement)
-                      .closest("[data-field]")
-                      ?.getAttribute("data-field");
-                    if (field != null && !left.has(field)) setLeft(new Set([...left, field]));
-                  }}
-                >
-                  <NodeForm
-                    definition={definition}
-                    node={node}
-                    graph={graph}
-                    catalog={catalogIndex}
-                    bindings={graph.bindings}
-                    errors={fieldErrors(
-                      // A value not given yet is said once its field was left, or a
-                      // run or a publish was tried; the canvas already marks the step.
-                      store.problemsRevealed
-                        ? problems
-                        : problems.filter(
-                            (problem) =>
-                              problem.code !== "input-not-bound" ||
-                              (problem.field !== null && left.has(problem.field)),
-                          ),
-                      node.id,
-                    )}
-                    disabled={readOnly}
-                    updateNodeConfig={store.updateNodeConfig}
-                    upsertBinding={store.upsertBinding}
-                    removeBinding={store.removeBinding}
-                  />
-                </div>
-                {node.definition_id !== "loop.item" && !isTrigger(definition) && (
-                  <div className="border-border border-t pt-5">
-                    {/* Retries, a time limit and error routing are for later: shown
-                      once asked for, or once the step has any of them. */}
-                    {policyShown || node.policy ? (
-                      <PolicySection
-                        definition={definition}
-                        node={node}
-                        disabled={readOnly}
-                        updateNodePolicy={store.updateNodePolicy}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-foreground text-sm"
-                        onClick={() => setPolicyShown(true)}
-                      >
-                        {t("nodeEditorShowPolicy")}
-                      </button>
-                    )}
-                  </div>
+                {runData ? (
+                  // A run's step is looked at for what it did: its settings are
+                  // there to check, not the first thing in the way.
+                  <details className="group">
+                    <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm select-none">
+                      {t("nodeEditorRanWith")}
+                    </summary>
+                    <div className="mt-4 space-y-5">{settings}</div>
+                  </details>
+                ) : (
+                  settings
                 )}
               </>
             )}
@@ -237,17 +275,24 @@ export function NodeEditorDialog({
           {readOnly ? (
             <span />
           ) : (
-            <Button
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => {
-                store.applyNodeChanges([{ type: "remove", id: node.id }]);
-                close();
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              {t("nodeEditorDelete")}
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  store.applyNodeChanges([{ type: "remove", id: node.id }]);
+                  close();
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("nodeEditorDelete")}
+              </Button>
+              {definition !== null &&
+                node.id !== graph.entry_node_id &&
+                definition.kind !== "control" && (
+                  <StepSwitch node={node} onChange={store.updateNodeDetails} />
+                )}
+            </div>
           )}
           <Button onClick={close}>{t("nodeEditorDone")}</Button>
         </footer>

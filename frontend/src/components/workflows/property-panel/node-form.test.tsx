@@ -253,8 +253,8 @@ function renderForm(
 describe("NodeForm sections", () => {
   it("renders a config section and an input section", () => {
     renderForm();
-    expect(screen.getByText("Configuration")).toBeVisible();
-    expect(screen.getByText("Inputs")).toBeVisible();
+    expect(screen.getByText("Settings")).toBeVisible();
+    expect(screen.getByText("What it works on")).toBeVisible();
   });
 
   it("shows an empty message when a node has no fields", () => {
@@ -376,7 +376,7 @@ describe("NodeForm sections", () => {
   it("sets a Schedule trigger up in its own words rather than as raw fields", () => {
     renderForm({ definition: makeDefinition({ id: "trigger.schedule", category: "triggers" }) });
     expect(screen.getByLabelText("Every")).toBeVisible();
-    expect(screen.queryByText("Configuration")).toBeNull();
+    expect(screen.queryByText("Settings")).toBeNull();
   });
 
   it.each([
@@ -386,7 +386,7 @@ describe("NodeForm sections", () => {
     renderForm({ definition: makeDefinition({ id, category: "triggers" }) });
     expect(screen.getByText(hint)).toBeVisible();
     expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
-    expect(screen.queryByText("Configuration")).toBeNull();
+    expect(screen.queryByText("Settings")).toBeNull();
   });
 });
 

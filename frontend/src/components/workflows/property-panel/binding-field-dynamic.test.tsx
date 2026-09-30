@@ -153,3 +153,46 @@ describe("a free-form value typed as a literal", () => {
     expect(screen.queryByText("This is not valid JSON, so it was not saved.")).toBeNull();
   });
 });
+
+describe("a list of records typed in as a value", () => {
+  const ITEMS = {
+    type: "array",
+    title: "Items",
+    items: { type: "object", additionalProperties: true },
+  };
+
+  it("shows the list it holds as JSON, and writes back what is typed", () => {
+    const onUpsert = vi.fn();
+    render(
+      <BindingField
+        targetNodeId="B"
+        targetField="items"
+        name="items"
+        schema={ITEMS}
+        required
+        bindings={[
+          {
+            target_node_id: "B",
+            target_field: "items",
+            source: { kind: "literal", value: [{ name: "Ada" }] },
+          },
+        ]}
+        graph={chain}
+        catalog={catalog}
+        onUpsert={onUpsert}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByLabelText("Items");
+    expect(box).toHaveValue(JSON.stringify([{ name: "Ada" }], null, 2));
+    expect(box).toHaveAttribute("placeholder", '[{"name": "Ada", "score": 90}]');
+    fireEvent.change(box, { target: { value: '[{"name": "Grace"}]' } });
+    fireEvent.blur(box);
+    expect(onUpsert).toHaveBeenCalledWith({
+      target_node_id: "B",
+      target_field: "items",
+      source: { kind: "literal", value: [{ name: "Grace" }] },
+    });
+  });
+});

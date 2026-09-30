@@ -33,7 +33,7 @@ import {
 } from "./bindings";
 import type { SourceCandidate } from "./bindings";
 import { TemplateField } from "./template-field";
-import { labelOf, singleFieldSchema, unwrapOptional, type Schema } from "./schema-model";
+import { labelOf, singleFieldSchema, takesJson, unwrapOptional, type Schema } from "./schema-model";
 
 /** A value typed here, one an earlier step hands on, or text with such values in it. */
 type Mode = "value" | "step" | "template";
@@ -299,11 +299,12 @@ export function BindingField({
           )}
           {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
         </div>
-      ) : isDynamic(unwrapOptional(schema)) ? (
+      ) : isDynamic(unwrapOptional(schema)) || takesJson(schema) ? (
         <JsonLiteral
           key={`${targetNodeId}:${targetField}`}
           id={`${idPrefix}-json`}
           label={label}
+          list={unwrapOptional(schema)["type"] === "array"}
           value={literalValue}
           error={error}
           disabled={disabled}
@@ -329,13 +330,15 @@ export function BindingField({
 }
 
 /**
- * A free-form value typed as JSON - a record's `values`, an error's `details` -
- * which no generated control can edit. Parsed when the box loses focus; a value
- * that does not parse is reported and not written.
+ * A value typed as JSON - a free-form one, a record's `values` or an error's
+ * `details`, or a list of records - which no generated control can edit. Parsed
+ * when the box loses focus; a value that does not parse is reported and not
+ * written.
  */
 function JsonLiteral({
   id,
   label,
+  list,
   value,
   error,
   disabled,
@@ -343,6 +346,8 @@ function JsonLiteral({
 }: {
   id: string;
   label: string;
+  /** A list is asked for, so the example is one. */
+  list: boolean;
   value: unknown;
   error?: string;
   disabled?: boolean;
@@ -359,7 +364,7 @@ function JsonLiteral({
         rows={4}
         disabled={disabled}
         // i18n-exempt: JSON syntax shown as an example, and braces are ICU syntax in the catalog.
-        placeholder='{"Score": 100}'
+        placeholder={list ? '[{"name": "Ada", "score": 90}]' : '{"Score": 100}'}
         defaultValue={value === undefined ? "" : JSON.stringify(value, null, 2)}
         onBlur={(event) => {
           const text = event.target.value.trim();

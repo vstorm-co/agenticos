@@ -131,6 +131,29 @@ const ROUTER = makeDefinition({
   ports: [port("in", "input", null), port("hot", "output", LEAD), port("cold", "output", LEAD)],
 });
 
+describe("the Input pane's hint", () => {
+  it("says fields can be dragged while editing, and not on a run's view", () => {
+    const graph = line();
+    seed(graph);
+    store.getState().mergeStepData({ a: { output: { echoed: "hi" }, error: null, runId: "r" } });
+    const pane = (readOnly: boolean) =>
+      render(
+        <InputPane
+          graph={graph}
+          catalog={[STEP]}
+          node={graph.nodes[1] as NodeInstance}
+          names={new Map()}
+          readOnly={readOnly}
+        />,
+      );
+    const { unmount } = pane(false);
+    expect(screen.getByText(/Drag a field onto a setting/)).toBeTruthy();
+    unmount();
+    pane(true);
+    expect(screen.queryByText(/Drag a field onto a setting/)).toBeNull();
+  });
+});
+
 describe("the fields a step declares, before any run", () => {
   it("lists what a step before this one hands on, to drag onto a setting", () => {
     const graph = line({}, node("a", "test.scorer"));

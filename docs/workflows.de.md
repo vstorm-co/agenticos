@@ -1,5 +1,5 @@
 ---
-source_sha: "1537be2c7346"
+source_sha: "2aff151bf238"
 ---
 
 # Workflows { #workflows }
@@ -159,10 +159,10 @@ Klicken Sie auf einen Schritt, und seine Einstellungen öffnen sich in einem Dia
 über der Zeichenfläche: sein Name, was er tut, und jedes Problem, das das
 Veröffentlichen blockiert, über seinen Feldern. Jede Änderung wird sofort im Draft
 gespeichert, daher schließt **Done** nur den Dialog, und **Delete step** entfernt den
-Schritt. Die Felder teilen sich in zwei Abschnitte. **Configuration** enthält
+Schritt. Die Felder teilen sich in zwei Abschnitte. **Settings** enthält
 statische Einstellungen — feste Entscheidungen, die sich von einem Lauf zum nächsten
 nicht ändern, einschließlich der Ressourcen, an die ein Schritt gebunden ist.
-**Inputs** enthält die Werte, die ein Schritt liest, wenn er läuft.
+**What it works on** enthält die Werte, die ein Schritt liest, wenn er läuft.
 
 Ein Input wird auf eine von zwei Arten gefüllt, und **Value** und **From a step** neben
 seiner Beschriftung schalten zwischen ihnen um:
@@ -196,12 +196,14 @@ Bildschirm zu schicken.
 
 ### Einen Schritt benennen, notieren und ausschalten { #naming-noting-and-switching-off-a-step }
 
-**Step name** gibt einem Schritt einen eigenen Namen, der auf seiner Karte steht und
+Ein Klick auf den Namen des Schritts oben in seinen Einstellungen gibt ihm einen eigenen Namen, der auf seiner Karte steht und
 überall dort, wo ein späterer Schritt wählt, was er liest - zwei Schritte **Send a
 message** werden zu *Tell sales* und *Tell support*. Zwei Schritte dürfen nicht
-denselben Namen tragen, ohne Beachtung der Groß- und Kleinschreibung. **Note** hält eine
-Zeile für den nächsten Bearbeiter fest, auf der Karte markiert. **Switched off** oder
-**Switch off** im Kontextmenü des Schritts lässt einen Schritt gedimmt auf der
+denselben Namen tragen, ohne Beachtung der Groß- und Kleinschreibung.
+
+**Note** hält eine
+Zeile für den nächsten Bearbeiter fest, auf der Karte markiert. **Run this step** unten in
+seinen Einstellungen auszuschalten, oder **Switch off** im Kontextmenü des Schritts, lässt einen Schritt gedimmt auf der
 Zeichenfläche und überspringt ihn, wenn ein Lauf ihn erreicht: Er tut nichts und gibt
 weiter, was bei ihm ankam. Das Veröffentlichen lehnt einen ausgeschalteten Trigger
 oder entscheidenden Schritt ab, ebenso einen Schritt, der einen ausgeschalteten liest,

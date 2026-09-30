@@ -74,6 +74,50 @@ describe("NodeEditorDialog", () => {
   });
 });
 
+describe("a step's own name and whether it runs", () => {
+  it("renames the step in the header, and says what kind of step a renamed one is", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+
+    // Two Echo steps: the header tells this one apart the way the canvas does.
+    await userEvent.click(screen.getByRole("button", { name: /^Echo/ }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Step name" }), "Say hi{Enter}");
+
+    expect(store.getState().graph?.nodes[1]?.label).toBe("Say hi");
+    expect(screen.getByRole("heading", { name: "Say hi" })).toBeTruthy();
+    expect(screen.getByText(`Echo · ${DEBUG_ECHO.description}`)).toBeTruthy();
+  });
+
+  it("switches a step off from the footer, but not the step the workflow starts from", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    const { unmount } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Run this step" }));
+    expect(store.getState().graph?.nodes[1]?.disabled).toBe(true);
+    unmount();
+
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    expect(screen.queryByRole("switch", { name: "Run this step" })).toBeNull();
+  });
+});
+
+describe("a step looked at in a run", () => {
+  it("folds its settings away and offers nothing about slowness or failure it did not have", async () => {
+    seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly runData />);
+
+    const fold = screen.getByText("Settings this step ran with");
+    expect(fold.closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByRole("button", { name: /When it is slow or fails/ })).toBeNull();
+    await userEvent.click(fold);
+    expect(fold.closest("details")).toHaveAttribute("open");
+    expect(screen.getByDisplayValue("yo")).toBeDisabled();
+  });
+});
+
 describe("a step's data", () => {
   it("sits between what the step reads and what it hands on, while editing a workflow", () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));

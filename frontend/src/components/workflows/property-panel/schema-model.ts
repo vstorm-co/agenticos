@@ -63,6 +63,20 @@ export function unwrapOptional(schema: Schema): Schema {
   return branches.length === 1 ? (branches[0] as Schema) : schema;
 }
 
+/**
+ * Whether a leaf's value is a structure the generated controls cannot edit - a
+ * list of anything but text, or an object - and so is typed as JSON. Without
+ * this, `SchemaForm` falls back to a one-line text box that shows a bound list
+ * as empty and would write back a string.
+ */
+export function takesJson(schema: Schema): boolean {
+  const leaf = unwrapOptional(schema);
+  if (leaf["type"] === "object") return true;
+  if (leaf["type"] !== "array") return false;
+  const items = leaf["items"];
+  return !(isRecord(items) && items["type"] === "string");
+}
+
 /** One property of an object schema — its name, its schema, and whether it is required. */
 export interface FieldEntry {
   name: string;
