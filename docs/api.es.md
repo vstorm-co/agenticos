@@ -1,5 +1,5 @@
 ---
-source_sha: "8e14a6b7c535"
+source_sha: "8c159d3186cc"
 ---
 
 # La API HTTP { #the-http-api }
@@ -141,6 +141,16 @@ iteraciones de bucle incluidas, cada uno con su `scope_path`, estado, intentos,
 coste y el error tipado con el que falló por última vez, y `GET
 /api/v1/workflow-runs/{id}/graph` devuelve el grafo que ejecuta el run: el de su
 versión o la instantánea del draft de un run de prueba.
+
+### Exportar e importar un workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) devuelve el borrador como un
+archivo portable: `name`, `description`, `tags`, `settings`, `graph` y
+`unresolved`, el paso y el campo de cada recurso fijado que dejó fuera. No lleva
+ningún id de este despliegue ni ningún valor de secreto.
+`POST /api/v1/workflows/import` (`workflows:create`) toma ese archivo y responde
+`201` con el borrador nuevo `workflow` y sus `unresolved`; un grafo que no se puede
+leer, o que nombra un paso que este despliegue no tiene, es un `400` y no crea nada.
 
 ### Seguir un run por un WebSocket { #following-a-run-over-a-websocket }
 

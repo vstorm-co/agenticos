@@ -15,7 +15,9 @@ import type {
 } from "@/lib/workflows/types";
 import {
   createWorkflow,
+  exportWorkflow,
   getNodeCatalog,
+  importWorkflow,
   getWorkflow,
   getWorkflowVersion,
   listWorkflowVersions,
@@ -130,7 +132,18 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
   });
 
+  // An import makes its own row and writes its own draft server-side, stripped
+  // of every id the file named, so it is one request rather than create-then-seed.
+  const importFile = useMutation({
+    mutationFn: (file: unknown) => importWorkflow(file),
+    onSuccess: async (imported) => {
+      await invalidateWorkflow(imported.workflow.id);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, tErrors)),
+  });
+
   return {
+    importFile,
     workflows: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
@@ -246,4 +259,26 @@ export function useNodeCatalog() {
     staleTime: Infinity,
   });
   return { nodes: data?.items ?? [], isLoading };
+}
+
+/**
+ * Download a workflow's draft as a `.workflow.json` file - the export the
+ * server builds, with no ids of this deployment in it.
+ */
+export function useWorkflowExport() {
+  const tErrors = useTranslations("errors");
+  return useMutation({
+    mutationFn: async ({ id, slug }: { id: string; slug: string }) => {
+      const file = await exportWorkflow(id);
+      const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${slug}.workflow.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      return file;
+    },
+    onError: (err) => toast.error(getErrorMessage(err, tErrors)),
+  });
 }

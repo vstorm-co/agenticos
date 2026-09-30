@@ -331,6 +331,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/workflows/node-catalog", Perm.WORKFLOWS_VIEW),
     Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
     Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
+    Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -907,6 +908,9 @@ RESOURCE_AWARE_SERVICES = (
     # draft or publish it is its grants' answer, resolved inside the service.
     # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.
     deps.get_workflow_registry_service,
+    # Exporting a workflow reads it through the same registry, so the file is
+    # `workflows:view` on that workflow, resolved against its grants (#1953).
+    deps.get_workflow_portable_service,
     # A workflow run has no grants of its own: `WorkflowExecutionService`
     # resolves access against the *workflow* it belongs to, the same
     # indirection `get_agent_exposure_service` uses for a binding and its

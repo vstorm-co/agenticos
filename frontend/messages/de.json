@@ -4470,6 +4470,18 @@
         "starter": {
           "description": "Ein einzelner Schritt zum Umbenennen und Verdrahten - der kleinste sinnvolle Ausgangspunkt.",
           "name": "Starter"
+        },
+        "leadIntake": {
+          "name": "Lead-Eingang",
+          "description": "Leads eines Webhooks werden in einer Tabelle gespeichert, und der Aufrufer bekommt den neuen Datensatz als Antwort."
+        },
+        "failureAlert": {
+          "name": "Slack-Alarm bei Fehler",
+          "description": "Eine Slack-Nachricht mit Workflow, Schritt und Fehler, sobald ein anderer Workflow fehlschlägt."
+        },
+        "dailySummary": {
+          "name": "Tägliche Zusammenfassung",
+          "description": "An jedem Werktag um 8 schreibt ein Agent eine Zusammenfassung, und das Team wird benachrichtigt."
         }
       },
       "draftRevision": "Entwurfsrevision {revision}",
@@ -4756,7 +4768,21 @@
       "settingsSave": "Einstellungen speichern",
       "settingsSaved": "Einstellungen gespeichert",
       "triggerWorkflowFailedLive": "Wird einmal für jeden fehlgeschlagenen Lauf eines Workflows gestartet, dessen Einstellungen diesen als Fehler-Workflow nennen, mit dem, was fehlschlug.",
-      "triggerWorkflowCallLive": "Gestartet vom Schritt Run a workflow eines anderen Workflows, mit den unten deklarierten Feldern. Er lässt sich weder von Hand noch über die API starten."
+      "triggerWorkflowCallLive": "Gestartet vom Schritt Run a workflow eines anderen Workflows, mit den unten deklarierten Feldern. Er lässt sich weder von Hand noch über die API starten.",
+      "exportWorkflow": "Workflow exportieren",
+      "importWorkflow": "Importieren",
+      "importTitle": "Einen Workflow importieren",
+      "importDescription": "Wähle eine .workflow.json-Datei oder füge eine ein. Sie wird ein neuer Entwurf; nichts wird veröffentlicht.",
+      "importFile": "Workflow-Datei",
+      "importPaste": "Oder füge hier das JSON der Datei ein",
+      "importAction": "Importieren",
+      "importClose": "Schließen",
+      "importOpen": "Workflow öffnen",
+      "importNotJson": "Das ist keine JSON-Datei.",
+      "importDone": "Als Entwurf importiert.",
+      "importUnresolved": "Die Datei enthält keine Agents, Tabellen, Secrets oder Mitglieder eines anderen Deployments. Wähle diese im Editor, bevor du veröffentlichst:",
+      "importNothingToChoose": "Die Datei hat nichts weggelassen. Der Editor markiert alles, was ein Schritt vor dem Veröffentlichen noch braucht.",
+      "automationsHeading": "Automatisierungen"
     }
   },
   "profile": {
@@ -6150,7 +6176,8 @@
       "unclosedQuote": "Ein Anführungszeichen im Befehl wird nie geschlossen."
     },
     "codeArgKeys": "Schlüssel von args",
-    "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen."
+    "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen.",
+    "validationConfigNotSet": "Diese erforderliche Einstellung ist noch nicht gewählt."
   },
   "artifacts": {
     "title": "Artefakte",

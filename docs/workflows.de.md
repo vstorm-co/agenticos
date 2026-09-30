@@ -1,5 +1,5 @@
 ---
-source_sha: "1b89520244ae"
+source_sha: "a4813da7926f"
 ---
 
 # Workflows { #workflows }
@@ -43,6 +43,26 @@ Kopie einer veröffentlichten Version.
     unter den keine Zeile fällt. **Clear filter** bringt die volle Liste zurück.
     Ein mit Ihnen geteilter Workflow erscheint in derselben Liste, sobald Sie
     `workflows:view` haben.
+
+### Vorlagen, Export und Import { #templates-exporting-and-importing }
+
+Unter **Automations** bietet der Dialog auch gängige Workflows aus echten
+Schritten an: **Lead intake** speichert die Leads eines Webhooks in einer Tabelle
+und antwortet dem Aufrufer, **Slack alert on failure** meldet sich, wenn ein
+anderer Workflow fehlschlägt, und **Daily summary** lässt einen Agent an Werktagen
+eine Zusammenfassung für das Team schreiben. Jede öffnet sich mit Tabelle, Bot,
+Agent oder Personen, die noch zu wählen sind; der Editor markiert sie, und sie
+lässt sich veröffentlichen, sobald sie gewählt sind.
+
+Der Download-Button im Kopf des Editors exportiert den Entwurf als
+`.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder
+Agent, jede Tabelle, jedes Secret, Mitglied, jeder Bot oder Workflow, den ein
+Schritt gewählt hat, wird weggelassen und aufgeführt, angeheftete Testdaten werden
+weggelassen und ebenso der Fehler-Workflow. Sie enthält nie den Wert eines Secrets.
+**Import** in der Liste macht aus einer solchen Datei einen neuen Entwurf, nimmt
+jede ID heraus, die eine von Hand erstellte noch nennt, und führt jeden Schritt und
+jedes Feld auf, das vor dem Veröffentlichen neu zu wählen ist. Eine Datei mit
+einem Schritt, den dieses Deployment nicht hat, wird abgelehnt, und nichts entsteht.
 
 ### Workflows finden, benennen und stilllegen { #finding-naming-and-retiring-a-workflow }
 

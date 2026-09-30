@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, Plus, Workflow } from "lucide-react";
+import { Activity, Plus, Upload, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -21,6 +21,7 @@ import {
   useListControls,
 } from "@/components/ui";
 import { WorkflowCard } from "@/components/workflows/workflow-card";
+import { ImportWorkflowDialog } from "@/components/workflows/import-dialog";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
 import { usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
@@ -81,6 +82,7 @@ export default function WorkflowsPage() {
   const filter = parseFilter(filterParam);
   const sort = parseSort(sortParam);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const tags = useMemo(
     () => [...new Set(workflows.flatMap((workflow) => workflow.tags))].sort(),
@@ -212,6 +214,12 @@ export default function WorkflowsPage() {
               </Link>
             </Button>
             {canCreate && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" />
+                {t("importWorkflow")}
+              </Button>
+            )}
+            {canCreate && (
               <Button
                 onClick={() => setCreateOpen(true)}
                 disabled={create.isPending}
@@ -278,6 +286,7 @@ export default function WorkflowsPage() {
         )}
       </ListCard>
 
+      <ImportWorkflowDialog open={importOpen} onOpenChange={setImportOpen} />
       <WorkflowCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

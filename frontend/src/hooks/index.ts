@@ -125,6 +125,7 @@ export {
   useNodeCatalog,
   useWorkflow,
   useWorkflowVersion,
+  useWorkflowExport,
   useWorkflowVersions,
   useWorkflows,
 } from "./use-workflows";

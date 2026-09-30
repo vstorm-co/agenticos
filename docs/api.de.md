@@ -1,5 +1,5 @@
 ---
-source_sha: "8e14a6b7c535"
+source_sha: "8c159d3186cc"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -141,6 +141,17 @@ hat, Schleifeniterationen eingeschlossen, jeden mit seinem `scope_path`, Status,
 seinen Versuchen, Kosten und dem typisierten Fehler, mit dem er zuletzt
 fehlschlug, und `GET /api/v1/workflow-runs/{id}/graph` liefert den Graphen, den der
 Run ausführt: den seiner Version oder den Draft-Snapshot eines Test-Runs.
+
+### Einen Workflow exportieren und importieren { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) gibt den Entwurf als
+portable Datei zurück: `name`, `description`, `tags`, `settings`, `graph` und
+`unresolved`, Schritt und Feld jeder weggelassenen Ressourcenbindung. Sie enthält
+keine ID dieses Deployments und keinen Secret-Wert. `POST /api/v1/workflows/import`
+(`workflows:create`) nimmt diese Datei und antwortet mit `201`, dem neuen Entwurf
+`workflow` und seinen `unresolved`-Bindungen; ein Graph, der sich nicht parsen
+lässt oder einen Schritt nennt, den dieses Deployment nicht hat, ist ein `400`, und
+nichts entsteht.
 
 ### Einem Run über einen WebSocket folgen { #following-a-run-over-a-websocket }
 

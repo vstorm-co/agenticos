@@ -8,8 +8,10 @@
  * publishes from here — so they only have to parse as a `WorkflowGraph`, not pass
  * the publish-time validator.
  *
- * Everything is built on the two debug nodes #1786 ships, `debug.echo` and
- * `debug.relay`; richer templates arrive as #1789–#1792 populate the catalog. Two
+ * `starter` and `sequence` are built on the two debug nodes #1786 ships,
+ * `debug.echo` and `debug.relay`; the automations after them (#1953) on the real
+ * catalog, with every resource a step pins - a table, a bot, an agent, the
+ * people to tell - left for the builder to choose. Two
  * echoes cannot be joined - an edge needs both ports to carry the same shape and
  * Echo's output is not Echo's input - so a chain goes Echo → Relay. Each
  * template's node ids are fixed
@@ -22,7 +24,13 @@
  * because a module constant has no translator to reach (see `.claude/rules/frontend.md`).
  */
 
-import type { Binding, Uuid, WorkflowGraph } from "@/lib/workflows/types";
+import type {
+  Binding,
+  NodeOutputRef,
+  Uuid,
+  WorkflowEdge,
+  WorkflowGraph,
+} from "@/lib/workflows/types";
 
 /** A debug node instance at a fixed canvas position; both are version 1. */
 function debugNode(id: Uuid, definitionId: string, x: number, config: Record<string, unknown>) {
@@ -101,6 +109,130 @@ export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
       bindings: [
         relayInput(SEQUENCE_NODE_B, SEQUENCE_NODE_A, "echoed"),
         relayInput(SEQUENCE_NODE_B, SEQUENCE_NODE_A, "received_at"),
+      ],
+      scopes: [],
+    },
+  },
+];
+
+/** A step of the real catalog, at a fixed position, with nothing pinned yet. */
+function step(id: Uuid, definitionId: string, x: number, config: Record<string, unknown> = {}) {
+  return { id, definition_id: definitionId, definition_version: 1, config, layout: { x, y: 0 } };
+}
+
+function wire(id: Uuid, source: Uuid, target: Uuid): WorkflowEdge {
+  return {
+    id,
+    source_node_id: source,
+    source_port: "out",
+    target_node_id: target,
+    target_port: "in",
+  };
+}
+
+function read(node: Uuid, ...path: string[]): NodeOutputRef {
+  return { kind: "node_output", node_id: node, port: "out", field_path: path };
+}
+
+const LEAD = {
+  hook: "e5555555-5555-4555-8555-555555555501",
+  save: "e5555555-5555-4555-8555-555555555502",
+  answer: "e5555555-5555-4555-8555-555555555503",
+};
+const ALERT = {
+  failed: "f6666666-6666-4666-8666-666666666601",
+  post: "f6666666-6666-4666-8666-666666666602",
+};
+const DAILY = {
+  clock: "a7777777-7777-4777-8777-777777777701",
+  write: "a7777777-7777-4777-8777-777777777702",
+  tell: "a7777777-7777-4777-8777-777777777703",
+};
+
+/**
+ * Common automations: a webhook's leads saved to a table and answered, a
+ * Slack message when another workflow fails, and a weekday summary an agent
+ * writes and the team is told. Each opens with its pins to choose, which the
+ * editor marks, and publishes once they are.
+ */
+export const AUTOMATION_TEMPLATES: readonly WorkflowTemplate[] = [
+  {
+    id: "leadIntake",
+    graph: {
+      entry_node_id: LEAD.hook,
+      nodes: [
+        step(LEAD.hook, "trigger.webhook", 0),
+        step(LEAD.save, "table.record.create", 300),
+        step(LEAD.answer, "webhook.respond", 600, { status_code: 201 }),
+      ],
+      edges: [
+        wire("e5555555-5555-4555-8555-555555555511", LEAD.hook, LEAD.save),
+        wire("e5555555-5555-4555-8555-555555555512", LEAD.save, LEAD.answer),
+      ],
+      bindings: [
+        { target_node_id: LEAD.save, target_field: "values", source: read(LEAD.hook, "body") },
+        { target_node_id: LEAD.answer, target_field: "body", source: read(LEAD.save, "record_id") },
+      ],
+      scopes: [],
+    },
+  },
+  {
+    id: "failureAlert",
+    graph: {
+      entry_node_id: ALERT.failed,
+      nodes: [
+        step(ALERT.failed, "trigger.workflow_failed", 0),
+        step(ALERT.post, "slack.message.send", 300),
+      ],
+      edges: [wire("f6666666-6666-4666-8666-666666666611", ALERT.failed, ALERT.post)],
+      bindings: [
+        {
+          target_node_id: ALERT.post,
+          target_field: "text",
+          source: {
+            kind: "template",
+            parts: [
+              read(ALERT.failed, "workflow_name"),
+              " failed at ", // i18n-exempt: message text the template sends, edited in the step
+              read(ALERT.failed, "step_name"),
+              ": ",
+              read(ALERT.failed, "error", "message"),
+            ],
+          },
+        },
+      ],
+      scopes: [],
+    },
+  },
+  {
+    id: "dailySummary",
+    graph: {
+      entry_node_id: DAILY.clock,
+      nodes: [
+        step(DAILY.clock, "trigger.schedule", 0, {
+          schedule_kind: "cron",
+          cron_expression: "0 8 * * 1-5",
+          interval_seconds: null,
+        }),
+        step(DAILY.write, "agent.run", 300),
+        // i18n-exempt: the subject the template sends, edited in the step
+        step(DAILY.tell, "notification.send", 600, { subject: "Daily summary" }),
+      ],
+      edges: [
+        wire("a7777777-7777-4777-8777-777777777711", DAILY.clock, DAILY.write),
+        wire("a7777777-7777-4777-8777-777777777712", DAILY.write, DAILY.tell),
+      ],
+      bindings: [
+        {
+          target_node_id: DAILY.write,
+          target_field: "prompt",
+          source: {
+            kind: "literal",
+            // i18n-exempt: the prompt the template sends, edited in the step
+            value: "Summarise yesterday's activity in five short bullet points.",
+          },
+        },
+        { target_node_id: DAILY.tell, target_field: "message", source: read(DAILY.write, "text") },
       ],
       scopes: [],
     },

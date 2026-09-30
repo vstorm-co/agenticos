@@ -129,6 +129,15 @@ describe("the workflows list", () => {
     expect(screen.getAllByRole("button", { name: /^Duplicate / })).toHaveLength(WORKFLOWS.length);
   });
 
+  it("opens the import dialog from Import", async () => {
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(await screen.findByText("Import a workflow")).toBeInTheDocument();
+  });
+
   it("hides both creation controls from a caller who may only view", async () => {
     // Grants view (so the list still loads) but not create.
     perms.can = (permission: string) => permission === "workflows:view";
@@ -136,6 +145,7 @@ describe("the workflows list", () => {
     await screen.findByText("Live");
 
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Duplicate / })).toBeNull();
   });
 

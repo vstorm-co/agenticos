@@ -8,6 +8,8 @@
 
 import { apiClient } from "@/lib/api-client";
 import type {
+  WorkflowExport,
+  WorkflowImported,
   NodeCatalog,
   WorkflowCreate,
   WorkflowDetail,
@@ -148,4 +150,14 @@ export async function restoreWorkflowVersion(
     `${ROOT}/${workflowId}/versions/${versionId}/restore`,
     restore,
   );
+}
+
+/** The workflow's draft as a file: no ids of this deployment, no secret values. */
+export async function exportWorkflow(workflowId: string): Promise<WorkflowExport> {
+  return apiClient.get<WorkflowExport>(`/workflows/${workflowId}/export`);
+}
+
+/** A new draft workflow from an exported file, and every pin it could not carry. */
+export async function importWorkflow(file: unknown): Promise<WorkflowImported> {
+  return apiClient.post<WorkflowImported>("/workflows/import", file);
 }

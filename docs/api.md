@@ -130,6 +130,16 @@ iterations included, each with its `scope_path`, status, tries, cost and the typ
 error it last failed with, and `GET /api/v1/workflow-runs/{id}/graph` returns the
 graph the run executes: its version's, or a test run's draft snapshot.
 
+### Exporting and importing a workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) returns the draft as a
+portable file: `name`, `description`, `tags`, `settings`, `graph` and
+`unresolved`, the step and field of every resource pin it left out. It carries no
+id of this deployment and no secret value. `POST /api/v1/workflows/import`
+(`workflows:create`) takes that file and answers `201` with the new draft
+`workflow` and its `unresolved` pins; a graph that does not parse, or names a step
+this deployment does not have, is a `400` and makes nothing.
+
 ### Following a run over a WebSocket { #following-a-run-over-a-websocket }
 
 `/api/v1/ws/workflow-runs?organization_id=<org>` authenticates like the chat's

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   useNodeCatalog,
   useWorkflow,
+  useWorkflowExport,
   useWorkflowVersion,
   useWorkflowVersions,
   useWorkflows,
@@ -25,6 +26,8 @@ vi.mock("@/lib/workflows/workflows-api", () => ({
   publishWorkflow: vi.fn(),
   restoreWorkflowVersion: vi.fn(),
   getNodeCatalog: vi.fn(),
+  exportWorkflow: vi.fn(),
+  importWorkflow: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -443,5 +446,57 @@ describe("useNodeCatalog", () => {
     const { result } = renderHook(() => useNodeCatalog(), { wrapper });
     expect(result.current.nodes).toEqual([]);
     expect(result.current.isLoading).toBe(true);
+  });
+});
+
+describe("importing and exporting", () => {
+  it("imports a file and refreshes the list and the new row", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.importWorkflow).mockResolvedValue({
+      workflow: { id: "wf-9" },
+      unresolved: [],
+    } as never);
+    const { wrap, invalidateQueries } = spyWrapper();
+    const { result } = renderHook(() => useWorkflows(), { wrapper: wrap });
+
+    await act(() => result.current.importFile.mutateAsync({ name: "Leads" }));
+
+    expect(api.importWorkflow).toHaveBeenCalledWith({ name: "Leads" });
+    expect(invalidatedKeys(invalidateQueries)).toContainEqual(["workflows", "wf-9"]);
+  });
+
+  it("says why an import failed", async () => {
+    vi.mocked(api.importWorkflow).mockRejectedValue(new Error("bad"));
+    const { result } = renderHook(() => useWorkflows({ enabled: false }), { wrapper });
+    await act(async () => {
+      await result.current.importFile.mutateAsync({}).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("downloads the export as a file named by the handle", async () => {
+    vi.mocked(api.exportWorkflow).mockResolvedValue({ name: "Leads" } as never);
+    const created = vi.fn(() => "blob:x");
+    const revoked = vi.fn();
+    Object.assign(URL, { createObjectURL: created, revokeObjectURL: revoked });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const { result } = renderHook(() => useWorkflowExport(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ id: "wf-1", slug: "leads" }));
+
+    expect(api.exportWorkflow).toHaveBeenCalledWith("wf-1");
+    const link = click.mock.instances[0] as HTMLAnchorElement;
+    expect(link.download).toBe("leads.workflow.json");
+    expect(revoked).toHaveBeenCalledWith("blob:x");
+    click.mockRestore();
+  });
+
+  it("says why an export failed", async () => {
+    vi.mocked(api.exportWorkflow).mockRejectedValue(new Error("gone"));
+    const { result } = renderHook(() => useWorkflowExport(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ id: "wf-1", slug: "x" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalled();
   });
 });

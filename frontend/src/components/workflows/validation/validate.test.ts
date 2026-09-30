@@ -151,7 +151,19 @@ const SCHEDULE = makeDefinition({
   output_schema: PLAIN_OUTPUT,
 });
 
+const PICKS_AGENT = makeDefinition({
+  id: "test.picks_agent",
+  config_schema: {
+    type: "object",
+    properties: { agent: { type: "string" }, note: { type: "string" } },
+    required: ["agent"],
+  },
+  input_schema: null,
+  ports: [port("in", "input", null), port("out", "output", PLAIN_OUTPUT)],
+});
+
 const CATALOG = makeCatalog([
+  PICKS_AGENT,
   WEBHOOK,
   SCHEDULE,
   YES_NO,
@@ -615,6 +627,23 @@ describe("drift parity — graphs the backend refuses", () => {
       edges: [edge("e1", "a", "out", "b", "in")],
     });
     expect(codesOf(run(g))).toEqual(["input-not-bound"]);
+  });
+
+  it("rule 9 — a required setting left empty, unless it is set or bound", () => {
+    const withConfig = (
+      config: Record<string, unknown>,
+      bindings: ReturnType<typeof literalBinding>[] = [],
+    ) =>
+      graph({
+        entry: "a",
+        nodes: [echo("a"), node("b", "test.picks_agent", config)],
+        edges: [edge("e1", "a", "out", "b", "in")],
+        bindings,
+      });
+    expect(codesOf(run(withConfig({ note: "x" })))).toEqual(["config-not-set"]);
+    expect(run(withConfig({}))[0]?.field).toBe("agent");
+    expect(codesOf(run(withConfig({ agent: "ag" })))).toEqual([]);
+    expect(codesOf(run(withConfig({}, [literalBinding("b", "agent", "ag")])))).toEqual([]);
   });
 
   it("rule 9 — a required input bound twice", () => {

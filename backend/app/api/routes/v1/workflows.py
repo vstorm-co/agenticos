@@ -13,7 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, WorkflowRegistrySvc, require
+from app.api.deps import Auth, WorkflowPortableSvc, WorkflowRegistrySvc, require
 from app.core.permissions import Perm
 from app.schemas.workflow import (
     NodeCatalog,
@@ -31,6 +31,7 @@ from app.schemas.workflow import (
     WorkflowVersionList,
     WorkflowVersionRestore,
 )
+from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
 
 router = APIRouter()
 
@@ -65,6 +66,26 @@ async def list_workflows(
 async def create_workflow(data: WorkflowCreate, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
     """Create a workflow in draft, with an empty graph. It cannot run until published."""
     return await service.create(ctx, data)
+
+
+@router.post(
+    "/import",
+    response_model=WorkflowImported,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.WORKFLOWS_CREATE))],
+)
+async def import_workflow(data: WorkflowExport, service: WorkflowPortableSvc, ctx: Auth) -> Any:
+    """A new draft workflow from an exported file. Every resource the file could not
+    carry - an agent, a table, a secret, a member - is listed in `unresolved`, to
+    be chosen before the draft publishes."""
+    return await service.import_(ctx, data)
+
+
+@router.get("/{workflow_id}/export", response_model=WorkflowExport)
+async def export_workflow(workflow_id: UUID, service: WorkflowPortableSvc, ctx: Auth) -> Any:
+    """The workflow's draft as a file another deployment can import: no ids of this
+    one, no pinned data and no secret values, with what it left out listed."""
+    return await service.export(ctx, workflow_id)
 
 
 @router.get("/{workflow_id}", response_model=WorkflowDetail)

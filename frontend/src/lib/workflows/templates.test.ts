@@ -8,7 +8,8 @@ import {
   testTranslator,
 } from "@/components/workflows/validation/fixtures";
 
-import { WORKFLOW_TEMPLATES } from "./templates";
+import { outputRefs } from "./types";
+import { AUTOMATION_TEMPLATES, WORKFLOW_TEMPLATES } from "./templates";
 
 describe("WORKFLOW_TEMPLATES", () => {
   it("ships at least one starter template", () => {
@@ -62,5 +63,41 @@ describe("WORKFLOW_TEMPLATES", () => {
       "echoed",
       "received_at",
     ]);
+  });
+});
+
+describe("AUTOMATION_TEMPLATES", () => {
+  it("offers the common automations, each with an id of its own", () => {
+    const ids = [...WORKFLOW_TEMPLATES, ...AUTOMATION_TEMPLATES].map((template) => template.id);
+    expect(AUTOMATION_TEMPLATES.map((template) => template.id)).toEqual([
+      "leadIntake",
+      "failureAlert",
+      "dailySummary",
+    ]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("wires and binds only steps its own graph has, starting from a trigger", () => {
+    for (const { graph } of AUTOMATION_TEMPLATES) {
+      const nodeIds = graph.nodes.map((node) => node.id);
+      expect(new Set(nodeIds).size).toBe(nodeIds.length);
+      const entry = graph.nodes.find((node) => node.id === graph.entry_node_id);
+      expect(entry?.definition_id.startsWith("trigger.")).toBe(true);
+      for (const edge of graph.edges) {
+        expect(nodeIds).toContain(edge.source_node_id);
+        expect(nodeIds).toContain(edge.target_node_id);
+      }
+      for (const binding of graph.bindings) {
+        expect(nodeIds).toContain(binding.target_node_id);
+        for (const ref of outputRefs(binding.source)) expect(nodeIds).toContain(ref.node_id);
+      }
+    }
+  });
+
+  it("pins no resource of any deployment - those are the builder's to choose", () => {
+    const text = JSON.stringify(AUTOMATION_TEMPLATES);
+    for (const pin of ["agent_id", "table_id", "secret_id", "bot_id", "recipients"]) {
+      expect(text).not.toContain(pin);
+    }
   });
 });

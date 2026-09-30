@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "@/../messages/en.json";
-import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
+import { AUTOMATION_TEMPLATES, WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import { WorkflowCreateDialog } from "./workflow-create-dialog";
 
 function wrap(node: ReactNode) {
@@ -32,7 +32,12 @@ describe("WorkflowCreateDialog", () => {
       expect(screen.getByText(start)).toBeInTheDocument();
     }
     // "Use" appears once per template.
-    expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(WORKFLOW_TEMPLATES.length);
+    expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(
+      WORKFLOW_TEMPLATES.length + AUTOMATION_TEMPLATES.length,
+    );
+    for (const automation of ["Lead intake", "Slack alert on failure", "Daily summary"]) {
+      expect(screen.getByText(automation)).toBeInTheDocument();
+    }
   });
 
   it("starts a new workflow from the trigger chosen, as its entry and only node", async () => {

@@ -36,6 +36,24 @@ of a published version.
     it. **Clear filter** returns the full list. A workflow shared with you shows
     under the same list once you have `workflows:view`.
 
+### Templates, exporting and importing { #templates-exporting-and-importing }
+
+Under **Automations** the dialog also offers common workflows built on real
+steps: **Lead intake** saves a webhook's leads to a table and answers the caller,
+**Slack alert on failure** posts when another workflow fails, and **Daily
+summary** has an agent write a weekday summary for the team. Each opens with its
+table, bot, agent or people still to choose; the editor marks them, and it
+publishes once they are chosen.
+
+The download button in the editor's header exports the draft as a
+`.workflow.json` file. The file carries no ids of this deployment: every agent,
+table, secret, member, bot or workflow a step picked is left out and listed,
+pinned test data is left out, and so is the error workflow. It never holds a
+secret's value. **Import** on the list makes a new draft from such a file, takes
+out any id a hand-made one still names, and lists every step and field to choose
+again before you publish. A file with a step this deployment does not have is
+refused, and nothing is made.
+
 ### Finding, naming and retiring a workflow { #finding-naming-and-retiring-a-workflow }
 
 Above the cards, a search finds a workflow by its name, description or tags, a tag

@@ -1,5 +1,5 @@
 ---
-source_sha: "8e14a6b7c535"
+source_sha: "8c159d3186cc"
 ---
 
 # API HTTP { #the-http-api }
@@ -132,6 +132,16 @@ robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workfl
 typowanym błędem, którym ostatnio się zakończył, a `GET
 /api/v1/workflow-runs/{id}/graph` zwraca graf, który run wykonuje: graf jego wersji
 albo snapshot draftu runa testowego.
+
+### Eksport i import workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) zwraca szkic jako przenośny
+plik: `name`, `description`, `tags`, `settings`, `graph` i `unresolved`, czyli krok
+i pole każdego pominiętego przypięcia zasobu. Nie zawiera identyfikatorów tego
+wdrożenia ani wartości sekretów. `POST /api/v1/workflows/import`
+(`workflows:create`) przyjmuje taki plik i odpowiada `201` z nowym szkicem
+`workflow` i jego przypięciami `unresolved`; graf, który się nie parsuje albo
+zawiera krok, którego to wdrożenie nie ma, to `400` i nic nie powstaje.
 
 ### Śledzenie runa przez WebSocket { #following-a-run-over-a-websocket }
 

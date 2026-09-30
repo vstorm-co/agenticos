@@ -3458,6 +3458,18 @@
         "sequence": {
           "name": "Two-step sequence",
           "description": "Two steps already connected, a starting point for a linear flow."
+        },
+        "leadIntake": {
+          "name": "Lead intake",
+          "description": "A webhook's leads saved to a table, and the caller answered with the new record."
+        },
+        "failureAlert": {
+          "name": "Slack alert on failure",
+          "description": "A Slack message naming the workflow, the step and the error whenever another workflow fails."
+        },
+        "dailySummary": {
+          "name": "Daily summary",
+          "description": "Every weekday at 8, an agent writes a summary and the team is told."
         }
       },
       "draftRevision": "Draft revision {revision}",
@@ -3715,7 +3727,21 @@
       "settingsSave": "Save settings",
       "settingsSaved": "Settings saved",
       "triggerWorkflowFailedLive": "Started once for each failed run of a workflow whose settings name this one as its error workflow, with what failed.",
-      "triggerWorkflowCallLive": "Started by another workflow's Run a workflow step, with the fields declared below. It cannot be started by hand or over the API."
+      "triggerWorkflowCallLive": "Started by another workflow's Run a workflow step, with the fields declared below. It cannot be started by hand or over the API.",
+      "exportWorkflow": "Export workflow",
+      "importWorkflow": "Import",
+      "importTitle": "Import a workflow",
+      "importDescription": "Choose a .workflow.json file, or paste one. It becomes a new draft; nothing is published.",
+      "importFile": "Workflow file",
+      "importPaste": "Or paste the file's JSON here",
+      "importAction": "Import",
+      "importClose": "Close",
+      "importOpen": "Open workflow",
+      "importNotJson": "This is not a JSON file.",
+      "importDone": "Imported as a draft.",
+      "importUnresolved": "The file carries no agents, tables, secrets or members of another deployment. Choose these in the editor before you publish:",
+      "importNothingToChoose": "The file left nothing out. The editor marks anything a step still needs before it publishes.",
+      "automationsHeading": "Automations"
     },
     "retention": {
       "title": "Data retention",
@@ -6291,7 +6317,8 @@
       "unclosedQuote": "A quote in the command is never closed."
     },
     "codeArgKeys": "Keys of args",
-    "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor."
+    "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor.",
+    "validationConfigNotSet": "This required setting is not chosen yet."
   },
   "artifacts": {
     "title": "Artifacts",

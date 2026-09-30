@@ -1,6 +1,6 @@
 /**
  * The eight structural rules (plus the required-inputs rule the property panel
- * mirrors), each a pure function over the in-memory graph and the resolved catalog
+ * mirrors, and required settings left empty), each a pure function over the in-memory graph and the resolved catalog
  * — the client mirror of `validate.py`'s Pass 1. Every rule returns
  * {@link RawProblem}s and never translates; `validateGraph` renders them.
  *
@@ -472,11 +472,20 @@ export function rule9RequiredInputsBound(
 
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
-    if (definition === null || definition.input_schema === null) continue;
+    if (definition === null) continue;
     for (const fieldName of requiredFields(definition.input_schema)) {
       const key = `${n.id}\u0000${fieldName}`;
       if ((boundCounts.get(key) ?? 0) === 0) {
         problems.push(nodeField(n.id, fieldName, "input-not-bound"));
+      }
+    }
+    // A required setting - an agent, a table, the people to tell - left empty is
+    // what the server's config check refuses first; a bindable one set by a
+    // binding counts as set.
+    for (const fieldName of requiredFields(definition.config_schema)) {
+      const bound = (boundCounts.get(`${n.id}\u0000${fieldName}`) ?? 0) > 0;
+      if (n.config[fieldName] === undefined && !bound) {
+        problems.push(nodeField(n.id, fieldName, "config-not-set"));
       }
     }
   }
@@ -488,8 +497,8 @@ export function rule9RequiredInputsBound(
  * analog of a Pydantic field with no default reporting `is_required()`. An
  * all-optional model has no `required` key, which reads as no required fields.
  */
-function requiredFields(schema: JsonSchema): string[] {
-  const required = schema["required"];
+function requiredFields(schema: JsonSchema | null): string[] {
+  const required = schema?.["required"];
   return Array.isArray(required)
     ? required.filter((name): name is string => typeof name === "string")
     : [];

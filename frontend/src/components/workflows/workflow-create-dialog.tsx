@@ -14,7 +14,11 @@ import {
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
+import {
+  AUTOMATION_TEMPLATES,
+  WORKFLOW_TEMPLATES,
+  type WorkflowTemplate,
+} from "@/lib/workflows/templates";
 import {
   API_TRIGGER,
   CHAT_TRIGGER,
@@ -139,35 +143,58 @@ export function WorkflowCreateDialog({
             {t("templatesHeading")}
           </p>
 
-          {WORKFLOW_TEMPLATES.map((template) => (
-            <div
-              key={template.id}
-              className="flex items-start justify-between gap-4 rounded-lg border p-4"
-            >
-              <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2">
-                  <Workflow className="text-muted-foreground size-4 shrink-0" />
-                  <span className="font-medium">{t(`templates.${template.id}.name`)}</span>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {t(`templates.${template.id}.description`)}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                disabled={busy}
-                onClick={() =>
-                  onChoose({ name: t(`templates.${template.id}.name`), graph: template.graph })
-                }
-              >
-                {t("useTemplate")}
-              </Button>
-            </div>
-          ))}
+          <TemplateList templates={WORKFLOW_TEMPLATES} busy={busy} onChoose={onChoose} />
+
+          <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
+            {t("automationsHeading")}
+          </p>
+          <TemplateList templates={AUTOMATION_TEMPLATES} busy={busy} onChoose={onChoose} />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One group of templates, each with its copy and a Use button. */
+function TemplateList({
+  templates,
+  busy,
+  onChoose,
+}: {
+  templates: readonly WorkflowTemplate[];
+  busy: boolean;
+  onChoose: (choice: WorkflowCreateChoice) => void;
+}) {
+  const t = useTranslations("pages.workflows");
+  return (
+    <>
+      {templates.map((template) => (
+        <div
+          key={template.id}
+          className="flex items-start justify-between gap-4 rounded-lg border p-4"
+        >
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <Workflow className="text-muted-foreground size-4 shrink-0" />
+              <span className="font-medium">{t(`templates.${template.id}.name`)}</span>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {t(`templates.${template.id}.description`)}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            disabled={busy}
+            onClick={() =>
+              onChoose({ name: t(`templates.${template.id}.name`), graph: template.graph })
+            }
+          >
+            {t("useTemplate")}
+          </Button>
+        </div>
+      ))}
+    </>
   );
 }

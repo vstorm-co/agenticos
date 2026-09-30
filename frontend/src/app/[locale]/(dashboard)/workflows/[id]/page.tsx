@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Activity, History, Settings2, Workflow, Zap } from "lucide-react";
+import { Activity, Download, History, Settings2, Workflow, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -30,7 +30,13 @@ import {
   SheetTitle,
   Skeleton,
 } from "@/components/ui";
-import { useNodeCatalog, useUrlState, useWorkflow, useWorkflowActions } from "@/hooks";
+import {
+  useNodeCatalog,
+  useUrlState,
+  useWorkflow,
+  useWorkflowActions,
+  useWorkflowExport,
+} from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
 import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
@@ -83,6 +89,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const t = useTranslations("pages.workflows");
   const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
   const actions = useWorkflowActions();
+  const exporting = useWorkflowExport();
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const { nodes } = useNodeCatalog();
   const canEdit = workflow?.can_edit === true;
@@ -190,6 +197,16 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               <History className="h-4 w-4" />
               {t("history")}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={t("exportWorkflow")}
+              title={t("exportWorkflow")}
+              disabled={exporting.isPending}
+              onClick={() => exporting.mutate({ id: workflow.id, slug: workflow.slug })}
+            >
+              <Download className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"

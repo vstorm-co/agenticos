@@ -1,5 +1,5 @@
 ---
-source_sha: "1b89520244ae"
+source_sha: "a4813da7926f"
 ---
 
 # Workflows { #workflows }
@@ -42,6 +42,26 @@ versión publicada.
     una organización sin ninguno, el segundo un filtro de estado bajo el que no cae
     ninguna fila. **Clear filter** devuelve la lista completa. Un workflow compartido
     contigo aparece en la misma lista en cuanto tienes `workflows:view`.
+
+### Plantillas, exportar e importar { #templates-exporting-and-importing }
+
+En **Automations** el diálogo ofrece también workflows habituales hechos con pasos
+reales: **Lead intake** guarda los leads de un webhook en una tabla y responde a
+quien llama, **Slack alert on failure** avisa cuando falla otro workflow, y **Daily
+summary** hace que un agent escriba un resumen para el equipo los días laborables.
+Cada una se abre con la tabla, el bot, el agent o las personas aún por elegir; el
+editor los marca, y se publica cuando están elegidos.
+
+El botón de descarga en la cabecera del editor exporta el borrador como un
+archivo `.workflow.json`. El archivo no lleva ningún id de este despliegue: cada
+agent, tabla, secreto, miembro, bot o workflow que eligió un paso queda fuera y
+listado, los datos de prueba fijados quedan fuera y también el workflow de errores.
+Nunca contiene el valor de un secreto.
+
+**Import** en la lista crea un borrador nuevo
+a partir de ese archivo, quita cualquier id que uno hecho a mano todavía nombre, y
+lista cada paso y campo que hay que volver a elegir antes de publicar. Un archivo
+con un paso que este despliegue no tiene se rechaza, y no se crea nada.
 
 ### Encontrar, nombrar y retirar un workflow { #finding-naming-and-retiring-a-workflow }
 

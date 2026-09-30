@@ -28,6 +28,7 @@ const state = vi.hoisted(() => ({
   debug: null as string | null,
   clearDebug: vi.fn(),
 }));
+const exporting = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 const actions = vi.hoisted(() => ({
   update: { mutate: vi.fn() },
   setActive: { mutate: vi.fn(), isPending: false },
@@ -91,6 +92,7 @@ vi.mock("@/hooks", () => ({
   }),
   useNodeCatalog: () => ({ nodes: [] }),
   useWorkflowActions: () => actions,
+  useWorkflowExport: () => exporting,
   useUrlState: () => [state.debug, state.clearDebug],
 }));
 
@@ -242,6 +244,12 @@ describe("the workflow editor page permission gate", () => {
 });
 
 describe("the workflow editor page header", () => {
+  it("exports the workflow as a file named by its handle", async () => {
+    await renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Export workflow" }));
+    expect(exporting.mutate).toHaveBeenCalledWith({ id: "w1", slug: "w" });
+  });
+
   it("renames the workflow where its name stands, keeping the old one on Escape", async () => {
     await renderPage();
 

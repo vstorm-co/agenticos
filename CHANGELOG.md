@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Export and import a workflow, and automation templates.** The editor
+  downloads a draft as a `.workflow.json` file with no ids of the deployment and
+  no secret values; Import on the list makes a new draft from one and lists
+  every step and field to choose again. New workflows can start from Lead
+  intake, Slack alert on failure or Daily summary (#1953).
 - **A code editor for the Python and JavaScript steps.** Highlighting in both
   themes, Tab indentation, Enter that keeps the indentation, closing brackets
   and quotes, and the keys of the bound `args` offered as they are typed; Esc
@@ -337,6 +342,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A required setting left empty stops "Ready to publish".** An agent, a
+  table or the people to tell that a step still needs is now marked in the
+  editor, as publishing would refuse it, instead of the badge saying the draft
+  is ready.
 - **A secret for "Something else" can take any shape.** The vault form offers
   every kind for it, but the server stored only an API key that way and refused
   the rest - which left an HTTP step's credential, a kind no listed service

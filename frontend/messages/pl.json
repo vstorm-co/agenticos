@@ -728,6 +728,18 @@
         "starter": {
           "description": "Jeden krok do przemianowania i podłączenia - najmniejszy przydatny punkt wyjścia.",
           "name": "Na start"
+        },
+        "leadIntake": {
+          "name": "Przyjmowanie leadów",
+          "description": "Leady z webhooka zapisywane w tabeli, a wywołujący dostaje nowy rekord w odpowiedzi."
+        },
+        "failureAlert": {
+          "name": "Alert na Slacku przy błędzie",
+          "description": "Wiadomość na Slacku z nazwą workflow, kroku i błędem, gdy inny workflow się nie powiedzie."
+        },
+        "dailySummary": {
+          "name": "Dzienne podsumowanie",
+          "description": "W każdy dzień roboczy o 8 agent pisze podsumowanie, a zespół je dostaje."
         }
       },
       "draftRevision": "Rewizja wersji roboczej {revision}",
@@ -1014,7 +1026,21 @@
       "settingsSave": "Zapisz ustawienia",
       "settingsSaved": "Ustawienia zapisane",
       "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło.",
-      "triggerWorkflowCallLive": "Uruchamiany przez krok Run a workflow innego workflow, z polami zadeklarowanymi poniżej. Nie da się go uruchomić ręcznie ani przez API."
+      "triggerWorkflowCallLive": "Uruchamiany przez krok Run a workflow innego workflow, z polami zadeklarowanymi poniżej. Nie da się go uruchomić ręcznie ani przez API.",
+      "exportWorkflow": "Eksportuj workflow",
+      "importWorkflow": "Importuj",
+      "importTitle": "Importuj workflow",
+      "importDescription": "Wybierz plik .workflow.json albo go wklej. Stanie się nowym szkicem; nic nie zostanie opublikowane.",
+      "importFile": "Plik workflow",
+      "importPaste": "Albo wklej tutaj JSON pliku",
+      "importAction": "Importuj",
+      "importClose": "Zamknij",
+      "importOpen": "Otwórz workflow",
+      "importNotJson": "To nie jest plik JSON.",
+      "importDone": "Zaimportowano jako szkic.",
+      "importUnresolved": "Plik nie zawiera agentów, tabel, sekretów ani członków innego wdrożenia. Wybierz je w edytorze przed publikacją:",
+      "importNothingToChoose": "Plik niczego nie pominął. Edytor oznaczy wszystko, czego krok jeszcze potrzebuje przed publikacją.",
+      "automationsHeading": "Automatyzacje"
     }
   },
   "rag": {
@@ -3943,7 +3969,8 @@
       "unclosedQuote": "Cudzysłów w poleceniu nie został zamknięty."
     },
     "codeArgKeys": "Klucze args",
-    "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor."
+    "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor.",
+    "validationConfigNotSet": "To wymagane ustawienie nie jest jeszcze wybrane."
   },
   "artifacts": {
     "title": "Artefakty",

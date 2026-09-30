@@ -1,5 +1,5 @@
 ---
-source_sha: "1b89520244ae"
+source_sha: "a4813da7926f"
 ---
 
 # Workflows { #workflows }
@@ -38,6 +38,25 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
     organizacja bez żadnego workflow, drugi to filtr statusu, pod który nie
     wpada żaden wiersz. **Clear filter** przywraca pełną listę. Workflow
     udostępniony Tobie pojawia się na tej samej liście, gdy masz `workflows:view`.
+
+### Szablony, eksport i import { #templates-exporting-and-importing }
+
+W sekcji **Automations** dialog oferuje też typowe workflow zbudowane na
+prawdziwych krokach: **Lead intake** zapisuje leady z webhooka w tabeli i
+odpowiada wywołującemu, **Slack alert on failure** wysyła wiadomość, gdy inny
+workflow się nie powiedzie, a **Daily summary** zleca agentowi dzienne
+podsumowanie dla zespołu w dni robocze. Każdy otwiera się z tabelą, botem,
+agentem albo osobami do wybrania; edytor je oznacza, a workflow da się opublikować,
+gdy zostaną wybrane.
+
+Przycisk pobierania w nagłówku edytora eksportuje szkic jako plik
+`.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
+agent, tabela, sekret, członek, bot czy workflow wybrany w kroku zostaje pominięty
+i wymieniony, przypięte dane testowe też, podobnie jak workflow błędów. Nigdy nie
+zawiera wartości sekretu. **Import** na liście tworzy z takiego pliku nowy szkic,
+usuwa identyfikatory, które plik zrobiony ręcznie jeszcze zawiera, i wymienia
+każdy krok i pole do ponownego wybrania przed publikacją. Plik z krokiem, którego
+to wdrożenie nie ma, zostaje odrzucony i nic nie powstaje.
 
 ### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
 

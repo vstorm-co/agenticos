@@ -295,6 +295,33 @@ export interface WorkflowRead {
  * meaningful empty graph to report, only the absence of one.
  */
 /** What a workflow is run with rather than what it does. Mirrors `WorkflowSettings`. */
+/** A pin a workflow file does not carry. Mirrors `UnresolvedResource`. */
+export interface UnresolvedResource {
+  node_id: Uuid;
+  /** The step's name, as the editor shows it. */
+  step: string;
+  field: string;
+  kind: string;
+}
+
+/** A workflow as a file another deployment can import. Mirrors `WorkflowExport`. */
+export interface WorkflowExport {
+  format: "agenticos.workflow";
+  format_version: 1;
+  name: string;
+  description: string | null;
+  tags: string[];
+  settings: WorkflowSettings;
+  graph: WorkflowGraph | null;
+  unresolved: UnresolvedResource[];
+}
+
+/** What an import made. Mirrors `WorkflowImported`. */
+export interface WorkflowImported {
+  workflow: WorkflowRead;
+  unresolved: UnresolvedResource[];
+}
+
 export interface WorkflowSettings {
   /** An IANA timezone: the one a schedule's cron expression is read in. */
   timezone: string;

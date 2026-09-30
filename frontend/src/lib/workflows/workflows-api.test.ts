@@ -4,6 +4,8 @@ import { apiClient } from "@/lib/api-client";
 import {
   archiveWorkflow,
   createWorkflow,
+  exportWorkflow,
+  importWorkflow,
   deleteWorkflow,
   setWorkflowActive,
   updateWorkflowSettings,
@@ -73,6 +75,13 @@ describe("workflows-api", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "wf-1" });
     await createWorkflow({ name: "Nightly report" });
     expect(apiClient.post).toHaveBeenCalledWith("/workflows", { name: "Nightly report" });
+  });
+
+  it("exports a workflow and imports a file", async () => {
+    await exportWorkflow("wf-1");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/export");
+    await importWorkflow({ name: "Leads" });
+    expect(apiClient.post).toHaveBeenCalledWith("/workflows/import", { name: "Leads" });
   });
 
   it("gets one workflow with its draft graph", async () => {
