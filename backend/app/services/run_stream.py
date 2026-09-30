@@ -36,7 +36,13 @@ from pydantic_ai import (
     PartStartEvent,
     TextPartDelta,
 )
-from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart, ThinkingPartDelta
+from pydantic_ai.messages import (
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    ThinkingPartDelta,
+    ToolCallPart,
+)
 
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
@@ -123,9 +129,17 @@ class RunFrames:
         """
         async for event in request_stream:
             if isinstance(event, PartStartEvent):
-                await self.emit(
-                    "part_start", {"index": event.index, "part_type": type(event.part).__name__}
-                )
+                start: dict[str, Any] = {
+                    "index": event.index,
+                    "part_type": type(event.part).__name__,
+                }
+                if isinstance(event.part, ToolCallPart):
+                    # The name and id let a client show the call while its
+                    # arguments stream - which, for a `write_file` carrying a
+                    # whole report, can take minutes before `tool_call` exists.
+                    start["tool_name"] = event.part.tool_name
+                    start["tool_call_id"] = event.part.tool_call_id
+                await self.emit("part_start", start)
                 if isinstance(event.part, TextPart) and event.part.content:
                     self.timeline.add_text(event.part.content)
                     await self.emit(

@@ -1,5 +1,5 @@
 ---
-source_sha: "789bc9fe4b45"
+source_sha: "570a2d302580"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -297,7 +297,7 @@ Jeder Frame trägt `{ "type": …, "data": { … } }`.
 | `ready` | `visitor` | Verbunden. `visitor: true`, wenn ein Token die Person identifiziert hat. |
 | `history` | `messages` | Was in dem Thread gesagt wurde, den dieser Besucher wieder aufnimmt — **eine gehostete Seite mit anonymem Besucher**, die einzige Verbindung, die einen Kontinuitätsschlüssel trägt: das Gespräch eines Widgets lebt so lange wie sein Socket, und ein `jwt`-Besucher wird bereits von seinem Token benannt. Jeder Eintrag ist `role`, `text` und `at`, sodass eine wiedergegebene Runde die Zeit darunter behält. |
 | `model_request_start` | — | Der Agent ist zum Modell gegangen. Zeigen Sie einen Indikator. |
-| `part_start` | `index`, `part_type` | Ein Block der Antwort beginnt. Wird nur für einen Block gesendet, den diese Oberfläche auch wirklich trägt — eine Seite, die kein Reasoning zeigt, kündigt keinen `ThinkingPart` an, denn schon die Ankündigung sagt, dass der Agent nachgedacht hat. |
+| `part_start` | `index`, `part_type`; `tool_name`, `tool_call_id` bei einem `ToolCallPart` | Ein Block der Antwort beginnt. Ein Tool-Aufruf nennt sich hier schon, damit ein Client ihn zeigen kann, während seine Argumente streamen. Wird nur für einen Block gesendet, den diese Oberfläche auch wirklich trägt — eine Seite, die kein Reasoning zeigt, kündigt keinen `ThinkingPart` an, denn schon die Ankündigung sagt, dass der Agent nachgedacht hat. |
 | `text_delta` | `index`, `content` | Wörter der Antwort. Hängen Sie sie an. |
 | `thinking_delta` | `index`, `content` | Das Reasoning des Modells. **Nur, wenn der Betreiber es eingeschaltet hat.** |
 | `call_tools_start` | — | Der Agent ist im Begriff, Tools zu benutzen. |

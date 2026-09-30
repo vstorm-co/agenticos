@@ -1567,10 +1567,10 @@ class TestStreamingAModelResponse:
 
         assert _frame_types(session) == ["part_start"]
 
-    async def test_a_tool_call_starting_says_only_that_a_part_started(self):
-        """A tool call's name and arguments arrive on `tool_call`, from the
-        handle-response stream. Drawing anything from this one would draw a card
-        twice."""
+    async def test_a_tool_call_starting_names_the_tool_it_will_call(self):
+        """The parsed arguments arrive on `tool_call`, once the model has finished
+        writing them. A large argument streams for minutes before that, and
+        without the name here a client has nothing to show in the meantime."""
         session = _session()
 
         await self._stream(
@@ -1580,7 +1580,17 @@ class TestStreamingAModelResponse:
             ),
         )
 
-        assert _sent_events(session) == [("part_start", {"index": 1, "part_type": "ToolCallPart"})]
+        assert _sent_events(session) == [
+            (
+                "part_start",
+                {
+                    "index": 1,
+                    "part_type": "ToolCallPart",
+                    "tool_name": "count_open",
+                    "tool_call_id": "c1",
+                },
+            )
+        ]
 
     async def test_reasoning_reaches_both_the_client_and_the_transcript(self):
         """The pane is drawn from the frame; the persisted `thinking` is drawn from

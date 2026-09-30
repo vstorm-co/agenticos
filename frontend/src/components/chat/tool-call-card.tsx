@@ -2,7 +2,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
 import { AgentStep } from "./agent-step";
@@ -168,10 +168,17 @@ export function ToolCallCard({
     }
   }
 
+  // While the model is still writing the arguments, how far it has got is the only
+  // sign the step is moving - a report handed to `write_file` streams for minutes.
+  const streamed =
+    toolCall.status === "pending" && toolCall.argsChars
+      ? t("argumentsStreamed", { size: formatBytes(toolCall.argsChars) })
+      : null;
+
   return (
     <AgentStep
       label={step.label}
-      detail={isRunning ? null : step.detail}
+      detail={isRunning ? streamed : step.detail}
       kind={step.kind}
       logoDomain={step.logoDomain}
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}

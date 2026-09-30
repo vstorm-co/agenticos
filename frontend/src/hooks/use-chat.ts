@@ -132,6 +132,11 @@ export function useChat(options: UseChatOptions = {}) {
     currentMessageIdRef.current = id;
   }, []);
   const currentGroupIdRef = useRef<string | null>(null);
+  // The tool calls whose arguments are still streaming, by the part index their
+  // `tool_call_delta` frames carry - which is all those frames carry. The count is
+  // kept here rather than read back from the store so a delta is one write, not a
+  // lookup and a write, on a stream that can be tens of thousands of frames long.
+  const streamingCallsRef = useRef<Map<number, { id: string; chars: number }>>(new Map());
   // Outbound queue: messages typed while agent is busy / socket offline. Held
   // here (not in the chat history) so the UI can surface them as cancellable
   // "pending" entries above the input. The ref is the source of truth for the
@@ -276,6 +281,23 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [activeConversationId, setCurrentCost]);
 
+  // A call whose arguments were still streaming when the turn ended never became a
+  // call: the model was stopped or failed mid-way. `unfinished` rather than left
+  // `pending`, which animates under a turn that is over.
+  const abandonStreamingCalls = useCallback(
+    (messageId: string) => {
+      const message = useChatStore.getState().messages.find((m) => m.id === messageId);
+      for (const { id } of streamingCallsRef.current.values()) {
+        const call = message?.toolCalls?.find((c) => c.id === id);
+        if (call?.status === "pending") {
+          updateToolCallPart(messageId, id, { status: "unfinished", argsChars: undefined });
+        }
+      }
+      streamingCallsRef.current.clear();
+    },
+    [updateToolCallPart],
+  );
+
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
@@ -378,6 +400,51 @@ export function useChat(options: UseChatOptions = {}) {
           if (!currentMessageIdRef.current) {
             createNewMessage("");
           }
+          // Part indices restart with every model response.
+          streamingCallsRef.current.clear();
+          break;
+        }
+
+        case "part_start": {
+          // A tool call opening. Its arguments stream before `tool_call` exists, and
+          // a `write_file` carrying a whole report can take minutes to write them -
+          // time the chat used to spend showing nothing but a cursor. So the step is
+          // drawn now, as `pending`, and `tool_call` fills it in.
+          const { index, tool_name, tool_call_id } = wsEvent.data as {
+            index: number;
+            tool_name?: string;
+            tool_call_id?: string;
+          };
+          if (currentMessageIdRef.current && tool_name && tool_call_id) {
+            streamingCallsRef.current.set(index, { id: tool_call_id, chars: 0 });
+            addToolCallPart(currentMessageIdRef.current, {
+              id: tool_call_id,
+              name: tool_name,
+              args: {},
+              status: "pending",
+              argsChars: 0,
+            });
+          }
+          break;
+        }
+
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as {
+            index: number;
+            args_delta: string | Record<string, unknown> | null;
+          };
+          const streaming = streamingCallsRef.current.get(index);
+          if (currentMessageIdRef.current && streaming && args_delta) {
+            // The length and not the text: the arguments can run to megabytes, and
+            // `tool_call` delivers them parsed once they are complete.
+            streaming.chars +=
+              typeof args_delta === "string"
+                ? args_delta.length
+                : JSON.stringify(args_delta).length;
+            updateToolCallPart(currentMessageIdRef.current, streaming.id, {
+              argsChars: streaming.chars,
+            });
+          }
           break;
         }
 
@@ -417,7 +484,20 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
-            addToolCallPart(currentMessageIdRef.current, toolCall);
+            const drawn = useChatStore
+              .getState()
+              .messages.find((m) => m.id === currentMessageIdRef.current)
+              ?.toolCalls?.some((call) => call.id === tool_call_id);
+            // The step `part_start` drew while the arguments streamed, when there
+            // was one. Adding a second would draw the call twice.
+            if (drawn) {
+              updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+                ...toolCall,
+                argsChars: undefined,
+              });
+            } else {
+              addToolCallPart(currentMessageIdRef.current, toolCall);
+            }
           }
           break;
         }
@@ -527,6 +607,7 @@ export function useChat(options: UseChatOptions = {}) {
               `\n\n${t("streamError", { message: message || t("unknownError") })}`,
             );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            abandonStreamingCalls(id);
           }
           setIsProcessing(false);
           // The turn is over and no `subagent_complete` is coming for whatever was
@@ -606,6 +687,7 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            if (currentMessageIdRef.current) abandonStreamingCalls(currentMessageIdRef.current);
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
             if (usage) {
@@ -650,6 +732,7 @@ export function useChat(options: UseChatOptions = {}) {
       appendThinkingDelta,
       addToolCallPart,
       updateToolCallPart,
+      abandonStreamingCalls,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -1245,6 +1328,7 @@ export function useChat(options: UseChatOptions = {}) {
   const endTurnLocally = useCallback(() => {
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+      abandonStreamingCalls(currentMessageIdRef.current);
     }
     setCurrentMessageId(null);
     currentGroupIdRef.current = null;
@@ -1252,7 +1336,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingApproval(null);
     setPendingQuestions(null);
     setDelegations(closeOpenDelegations);
-  }, [updateMessage, setCurrentMessageId]);
+  }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
     sendMessage({ type: "stop" });

@@ -272,7 +272,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
 | `history` | `messages` | What was said in the thread this visitor is resuming — **a hosted page whose visitor is anonymous**, which is the only connection that carries a continuity key: a widget's conversation lasts as long as its socket, and a `jwt` visitor is named by their token. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
-| `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
+| `part_start` | `index`, `part_type`; `tool_name`, `tool_call_id` for a `ToolCallPart` | A block of the answer is starting. A tool call names itself here, so a client can show it while its arguments stream. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
 | `thinking_delta` | `index`, `content` | The model's reasoning. **Only if the operator turned it on.** |
 | `call_tools_start` | — | The agent is about to use tools. |

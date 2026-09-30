@@ -378,9 +378,86 @@ describe("useChat - the streamed answer", () => {
     expect(result.current.isProcessing).toBe(false);
   });
 
+  it("draws a tool call while its arguments are still streaming", () => {
+    // A `write_file` carrying a whole report streams its arguments for minutes
+    // before `tool_call` exists. Without this the chat showed only a cursor.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    expect(streaming()?.toolCalls).toEqual([
+      { id: "tc-1", name: "write_file", args: {}, status: "pending", argsChars: 0 },
+    ]);
+
+    receive("tool_call_delta", { index: 1, args_delta: '{"path": ' });
+    receive("tool_call_delta", { index: 1, args_delta: { content: "ab" } });
+    receive("tool_call_delta", { index: 1, args_delta: null });
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBe(
+      9 + JSON.stringify({ content: "ab" }).length,
+    );
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: { path: "a.md" } });
+    expect(streaming()?.toolCalls).toEqual([
+      {
+        id: "tc-1",
+        name: "write_file",
+        args: { path: "a.md" },
+        status: "running",
+        argsChars: undefined,
+      },
+    ]);
+    expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("ignores a delta for a part that is not a tool call it drew", () => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", { index: 0, part_type: "TextPart" });
+
+    receive("tool_call_delta", { index: 0, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls).toEqual([]);
+  });
+
+  it("does not draw a tool call with no message open", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("forgets the previous response's parts when the next request starts", () => {
+    // Part indices restart per model response, so index 1 is somebody else now.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: {} });
+
+    receive("model_request_start", {});
+    receive("tool_call_delta", { index: 1, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBeUndefined();
+  });
+
   it("ignores the narration frames the server sends around every turn", () => {
-    // The six frames `agent_session.py` sends that this hook deliberately does not
-    // read. They must pass through without opening a message, because a turn that
+    // The frames `agent_session.py` sends that this hook deliberately does not
+    // read, and the two it reads only for a tool call. They must pass through without opening a message, because a turn that
     // began with one of these would show an empty assistant bubble before the model
     // said anything.
     //
@@ -419,6 +496,52 @@ describe("useChat - failures and interruptions", () => {
     receive("error", { message: "" });
 
     expect(streaming()?.content).toContain("Unknown error");
+  });
+
+  it.each([
+    ["the turn failed", () => receive("error", { message: "Timed out" })],
+    ["the run was cancelled", () => receive("complete", { stopped: true })],
+  ])("marks a call still being written unfinished when %s", (_, end) => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "read_file",
+      tool_call_id: "tc-0",
+    });
+    receive("tool_call", { tool_call_id: "tc-0", tool_name: "read_file", args: {} });
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call_delta", { index: 1, args_delta: '{"content": "' });
+    const id = streaming()?.id as string;
+
+    end();
+
+    const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
+    expect(calls?.map((call) => [call.id, call.status, call.argsChars])).toEqual([
+      ["tc-0", "running", undefined],
+      ["tc-1", "unfinished", undefined],
+    ]);
+  });
+
+  it("marks a call still being written unfinished when the person presses stop", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("unfinished");
   });
 
   it("stops processing on an error with nothing open", () => {

@@ -92,6 +92,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Web chat no longer looks frozen while the model writes a large tool call. A
+  `write_file` carrying a whole report could stream its arguments for many minutes,
+  and the step only appeared once they were complete, so all that showed was a
+  blinking cursor. `part_start` now names the tool and its call id, and the chat
+  draws the step straight away with how much of the arguments has arrived
+  ("42.0 KB so far"). A call cut off mid-way by an error or a stop is marked
+  unfinished instead of spinning.
 - **The "Claude Code like" template binds the `artifact-pages` skill.** A
   template can now name a skill bundled with every organization; installing
   used to hand that name to the gallery, which did not know it, so the agent

@@ -79,6 +79,20 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
+  it("says how much of the arguments has arrived while the model is still writing them", () => {
+    // A report handed to `write_file` streams for minutes; the size is what moves.
+    card({ name: "write_file", status: "pending", result: undefined, argsChars: 43_008 });
+
+    expect(screen.getByText("42.0 KB so far")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("says nothing about size once the call is running", () => {
+    card({ name: "write_file", status: "running", result: undefined, argsChars: 43_008 });
+
+    expect(screen.queryByText(/so far/)).toBeNull();
+  });
+
   it("says what happened once the call has finished, rather than narrating it", () => {
     card({ name: "search_documents", result: "[1] Source: a.md (score: 0.5)\nBody." });
 

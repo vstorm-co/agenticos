@@ -97,6 +97,12 @@ export interface ToolCall {
   result?: unknown;
   status: "pending" | "running" | "completed" | "error" | "awaiting_approval" | "unfinished";
   /**
+   * How much of the arguments has streamed, in characters, while the model is
+   * still writing them - the `pending` state. A large argument (a whole report
+   * handed to `write_file`) takes minutes, and this is what shows it is moving.
+   */
+  argsChars?: number;
+  /**
    * `awaiting_approval` is its own state, not a kind of running. A parked call
    * produces no result *ever* until somebody decides, so a spinner is a lie that
    * never resolves — which is what the card did before.
@@ -183,6 +189,8 @@ export type WSEventType =
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
+  | "part_start"
+  | "tool_call_delta"
   | "tool_call"
   | "tool_result"
   | "final_result"
@@ -196,16 +204,16 @@ export type WSEventType =
   | "personal_services_unavailable"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
-  // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
-  // left to do, and `text_delta`/`tool_call` carry the content that `tool_call_delta`,
-  // `call_tools_start` and `final_result_start` merely precede. Named anyway - they
-  // are on the wire, and a union that omitted them would be as misleading in the
-  // other direction. A run timeline is the surface that would read them.
+  // message, so `user_prompt` and `user_prompt_processed` have nothing left to do,
+  // and `text_delta`/`tool_call` carry the content that `call_tools_start` and
+  // `final_result_start` merely precede. Named anyway - they are on the wire, and a
+  // union that omitted them would be as misleading in the other direction. A run
+  // timeline is the surface that would read them. `part_start` and
+  // `tool_call_delta` left this group once a tool call whose arguments took minutes
+  // to stream showed that `tool_call` arrives too late to be the first sign of it.
   | "user_prompt"
   | "user_prompt_processed"
-  | "part_start"
   | "call_tools_start"
-  | "tool_call_delta"
   | "final_result_start"
   // One per literal in `app/agents/subagent_events.py`. They replace
   // `subagent_status` / `subagent_message`, which nothing ever emitted and

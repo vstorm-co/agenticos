@@ -1,5 +1,5 @@
 ---
-source_sha: "789bc9fe4b45"
+source_sha: "570a2d302580"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -280,7 +280,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `ready` | `visitor` | Conectado. `visitor: true` cuando un token identificó a la persona. |
 | `history` | `messages` | Lo que se dijo en el hilo que este visitante retoma — **una página alojada con visitante anónimo**, la única conexión que lleva una clave de continuidad: la conversación de un widget dura lo que su socket, y a un visitante `jwt` ya lo nombra su token. Cada entrada es `role`, `text` y `at`, así que un turno reproducido conserva la hora debajo. |
 | `model_request_start` | — | El agent ha ido al modelo. Muestra un indicador. |
-| `part_start` | `index`, `part_type` | Empieza un bloque de la respuesta. Se envía solo para un bloque que esta superficie vaya a llevar de verdad — una página que no muestra razonamiento no anuncia un `ThinkingPart`, porque el anuncio por sí solo ya dice que el agent razonó. |
+| `part_start` | `index`, `part_type`; `tool_name`, `tool_call_id` en un `ToolCallPart` | Empieza un bloque de la respuesta. Una llamada a una herramienta se nombra aquí, para que un cliente pueda mostrarla mientras llegan sus argumentos. Se envía solo para un bloque que esta superficie vaya a llevar de verdad — una página que no muestra razonamiento no anuncia un `ThinkingPart`, porque el anuncio por sí solo ya dice que el agent razonó. |
 | `text_delta` | `index`, `content` | Palabras de la respuesta. Añádelas. |
 | `thinking_delta` | `index`, `content` | El razonamiento del modelo. **Solo si el operador lo activó.** |
 | `call_tools_start` | — | El agent va a usar herramientas. |
