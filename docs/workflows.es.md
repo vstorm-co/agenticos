@@ -1,5 +1,5 @@
 ---
-source_sha: "2aff151bf238"
+source_sha: "c7c87c67fc3a"
 ---
 
 # Workflows { #workflows }
@@ -52,7 +52,7 @@ summary** hace que un agent escriba un resumen para el equipo los días laborabl
 Cada una se abre con la tabla, el bot, el agent o las personas aún por elegir; el
 editor los marca, y se publica cuando están elegidos.
 
-El botón de descarga en la cabecera del editor exporta el borrador como un
+**Export workflow**, en **More** en la cabecera del editor, exporta el borrador como un
 archivo `.workflow.json`. El archivo no lleva ningún id de este despliegue: cada
 agent, tabla, secreto, miembro, bot o workflow que eligió un paso queda fuera y
 listado, los datos de prueba fijados quedan fuera y también el workflow de errores.
@@ -72,6 +72,11 @@ un enlace compartido muestran la misma lista. En el editor, haz clic en el nombr
 cambiarlo - su identificador, el que usan quienes llaman a la API, se mantiene -, haz
 clic en la descripción debajo, o en **Add a description**, para cambiarla, y
 **+ Tag** le asigna una etiqueta.
+
+Bajo su nombre el editor dice dónde está el workflow: **Draft, not published**, o
+**Live · version 3**, con **Unpublished changes** al lado cuando el borrador difiere
+de esa versión en algo que publicar llevaría. Mover un paso o fijar datos de prueba
+no cuenta.
 
 Un workflow publicado cuyo disparador funciona solo - un webhook, una programación o un
 nuevo registro de tabla - tiene un interruptor **Active** en la cabecera del editor, y
@@ -308,7 +313,7 @@ cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 
 ## Retroalimentación de validación { #validation-feedback }
 
-El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y un recuento en sus ajustes, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **Ready to publish** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
+El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y un recuento en sus ajustes, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **No problems** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
 
 Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
 estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores
@@ -354,14 +359,16 @@ the latest saved draft.* Eliges:
 ## Publicar una versión y el historial de versiones { #publishing-a-version-and-version-history }
 
 **Publish** congela el draft actual como una versión inmutable que se ejecuta — una
-versión nunca se cambia después de crearse. El diálogo de publicación toma una
-**Release note** opcional que describe qué cambió. Si el grafo aún tiene problemas, la
+versión nunca se cambia después de crearse. El diálogo de publicación nombra la versión que crea y toma una
+**Release note** opcional que describe qué cambió; si el draft no cambió desde la
+versión en vivo, lo dice primero. Si el grafo aún tiene problemas, la
 publicación se bloquea con **Fix the problems below before publishing**, así que una
 versión que no validaría nunca se crea.
 
 Publicar no termina tu edición. El draft sigue existiendo con independencia de
-cualquier versión publicada, así que lo sigues editando enseguida. **History** en la
-cabecera del editor abre cada versión publicada con su release note. **View** abre
+cualquier versión publicada, así que lo sigues editando enseguida. **Versions** en la
+cabecera del editor abre cada versión publicada con su release note, la que está en
+vivo marcada **Live**. **View** abre
 una versión anterior en solo lectura - una versión publicada es de solo lectura, y
 para hacer cambios sigues editando el draft.
 
@@ -384,7 +391,7 @@ cuando va lento o falla. Mover un paso y los datos de prueba fijados no son camb
 
 ## Ajustes del workflow { #workflow-settings }
 
-**Settings** en la cabecera del editor guarda con qué se ejecuta un workflow, no lo
+**Settings**, en **More** en la cabecera del editor, guarda con qué se ejecuta un workflow, no lo
 que hace. Los ajustes son del workflow, no de una versión: un cambio vale para cada
 ejecución iniciada después, y publicar los conserva.
 
@@ -463,7 +470,7 @@ workflow por el trigger que elijas ahí.
 Publicar una versión es lo que enciende su trigger. Un webhook, una programación y un
 trigger de tabla ejecutan entonces esa versión como el miembro que la publicó, y la
 siguiente publicación los pasa a la nueva versión. Una publicación que empieza por
-otro trigger apaga el anterior. **Trigger**, en la cabecera del editor, muestra el
+otro trigger apaga el anterior. **Trigger**, en **More** en la cabecera del editor, muestra el
 trigger en vivo y su estado, y avisa cuando el draft empieza de otra forma.
 
 Una versión que empieza por **Manual** o **API request**, o sin ningún trigger, la inicia quien

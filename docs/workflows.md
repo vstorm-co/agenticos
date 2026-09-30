@@ -45,7 +45,7 @@ summary** has an agent write a weekday summary for the team. Each opens with its
 table, bot, agent or people still to choose; the editor marks them, and it
 publishes once they are chosen.
 
-The download button in the editor's header exports the draft as a
+**Export workflow**, under **More** in the editor's header, exports the draft as a
 `.workflow.json` file. The file carries no ids of this deployment: every agent,
 table, secret, member, bot or workflow a step picked is left out and listed,
 pinned test data is left out, and so is the error workflow. It never holds a
@@ -62,6 +62,11 @@ newest first. All of it is kept in the address, so a reload or a shared link sho
 the same list. In the editor, click the name to rename the workflow - its handle, the
 part API callers use, stays - click the description under it, or **Add a
 description**, to change it, and **+ Tag** files it under a tag.
+
+Under its name the editor says where the workflow stands: **Draft, not published**,
+or **Live · version 3**, with **Unpublished changes** beside it once the draft
+differs from that version in a way publishing would carry. Moving a step or pinning
+test data does not count.
 
 A published workflow whose trigger runs on its own - a webhook, a schedule or a new
 table record - has an **Active** switch in the editor's header, and its card says
@@ -292,7 +297,7 @@ anything that ran before the loop. What the loop does is in the
 ## Validation feedback { #validation-feedback }
 
 The editor checks the graph as you edit and shows what is wrong where it is
-wrong. Every step with a problem carries a red mark on the canvas and a count in its settings, and a field with a problem shows its message inline. The status at the canvas's top right reads **Ready to publish**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
+wrong. Every step with a problem carries a red mark on the canvas and a count in its settings, and a field with a problem shows its message inline. The status at the canvas's top right reads **No problems**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
 
 A step's settings stay short. What the step needs, and whatever you already set, show
 at once; optional settings still at their defaults wait under **More options**, and
@@ -335,14 +340,16 @@ latest saved draft.* You choose:
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
 **Publish** freezes the current draft as an immutable version that runs — a
-version is never changed after it is created. The publish dialog takes an
-optional **Release note** describing what changed. If the graph still has
+version is never changed after it is created. The publish dialog names the version it makes and takes an optional
+**Release note** describing what changed; when the draft has not changed since the live
+version, it says so first. If the graph still has
 problems, publishing is blocked with **Fix the problems below before
 publishing**, so a version that would not validate is never created.
 
 Publishing does not end your editing. The draft goes on existing independently of
-any published version, so you keep editing it straight away. **History** in the
-editor's header opens every published version with its release note. **View**
+any published version, so you keep editing it straight away. **Versions** in the
+editor's header opens every published version with its release note, the live one
+marked **Live**. **View**
 opens a past version read-only - a published version is read-only, and to make
 changes you go on editing the draft.
 
@@ -365,7 +372,7 @@ changes. **Show this version** goes back to the version alone.
 
 ## Workflow settings { #workflow-settings }
 
-**Settings** in the editor's header holds what a workflow is run with rather than
+**Settings**, under **More** in the editor's header, holds what a workflow is run with rather than
 what it does. The settings are the workflow's, not a version's: a change applies
 to every run started after it, and publishing keeps them.
 
@@ -437,7 +444,7 @@ workflow from the trigger you pick there.
 Publishing a version is what switches its trigger on. A webhook, a schedule and a
 table trigger then run that version as the member who published it, and the next
 publish moves them to the new version. A publish that starts from a different
-trigger switches the old one off. **Trigger** in the editor's header shows the live
+trigger switches the old one off. **Trigger**, under **More** in the editor's header, shows the live
 trigger and its state, and says when the draft starts differently.
 
 A version that starts from **Manual** or **API request**, or from no trigger at all, is started by whoever may run it, as themselves: **Start a run** under Runs, the

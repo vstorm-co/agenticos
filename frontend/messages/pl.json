@@ -1060,7 +1060,13 @@
       },
       "runCausedByHidden": "uruchomienie, którego nie możesz otworzyć",
       "runOpenCalled": "Otwórz uruchomienie {id}",
-      "liveRunStale": "Graf zmienił się od ostatniego przebiegu testowego."
+      "liveRunStale": "Graf zmienił się od ostatniego przebiegu testowego.",
+      "moreActions": "Więcej",
+      "statusArchived": "Zarchiwizowany",
+      "statusNeverPublished": "Szkic, nieopublikowany",
+      "statusLive": "Aktywny",
+      "statusLiveVersion": "Aktywny · wersja {version}",
+      "statusUnpublishedChanges": "Nieopublikowane zmiany"
     }
   },
   "rag": {
@@ -3610,7 +3616,6 @@
     "conflictOverwrite": "Nadpisz",
     "conflictReload": "Wczytaj ponownie",
     "publish": "Opublikuj",
-    "publishTitle": "Opublikuj ten workflow",
     "publishDescription": "Zamroź bieżącą wersję roboczą jako niezmienną wersję, która się uruchamia.",
     "publishNoteLabel": "Opis wersji",
     "publishNotePlaceholder": "Co się zmieniło w tej wersji?",
@@ -3860,7 +3865,7 @@
     "pickerSearch": "Szukaj kroków",
     "pickerBack": "Wszystkie kroki",
     "toolbarAddStep": "Dodaj krok",
-    "toolbarReady": "Gotowe do publikacji",
+    "toolbarReady": "Bez problemów",
     "toolbarProblemsHint": "Wybierz problem, żeby otworzyć krok, którego dotyczy.",
     "nodeEditorDelete": "Usuń krok",
     "nodeEditorDone": "Gotowe",
@@ -4072,7 +4077,10 @@
     "stepRenameHint": "Kliknij, aby zmienić nazwę",
     "stepRuns": "Wykonuj ten krok",
     "stepRunsHint": "Wyłączony: przebieg go pomija i przekazuje dalej to, co do niego dotarło",
-    "nodeEditorRanWith": "Ustawienia, z którymi krok działał"
+    "nodeEditorRanWith": "Ustawienia, z którymi krok działał",
+    "versionLive": "Aktywna",
+    "publishTitleVersion": "Opublikuj wersję {version}",
+    "publishNothingChanged": "Nic się nie zmieniło od wersji {version}, która jest aktywna: powstanie identyczna wersja."
   },
   "artifacts": {
     "title": "Artefakty",

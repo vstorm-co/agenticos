@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   triggerActive: null as boolean | null,
   debug: null as string | null,
   clearDebug: vi.fn(),
+  catalogLoading: false,
 }));
 const exporting = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 const actions = vi.hoisted(() => ({
@@ -90,8 +91,9 @@ vi.mock("@/hooks", () => ({
     publish: { mutateAsync: vi.fn() },
     restore: { mutateAsync: vi.fn() },
   }),
-  useNodeCatalog: () => ({ nodes: [] }),
+  useNodeCatalog: () => ({ nodes: [], isLoading: state.catalogLoading }),
   useWorkflowActions: () => actions,
+  useWorkflowVersion: () => ({ version: undefined }),
   useWorkflowExport: () => exporting,
   useUrlState: () => [state.debug, state.clearDebug],
 }));
@@ -188,6 +190,7 @@ beforeEach(() => {
   state.clearDebug.mockReset();
   state.live = false;
   state.triggerActive = null;
+  state.catalogLoading = false;
   vi.clearAllMocks();
 });
 
@@ -196,6 +199,12 @@ afterEach(() => {
 });
 
 describe("the workflow editor page permission gate", () => {
+  it("draws no canvas until the step catalog it is drawn from has loaded", async () => {
+    state.catalogLoading = true;
+    await renderPage();
+    expect(screen.queryByTestId("canvas")).toBeNull();
+  });
+
   it("gives an editor the full editor", async () => {
     state.canEdit = true;
     await renderPage();
@@ -280,8 +289,16 @@ describe("the workflow editor page permission gate", () => {
 describe("the workflow editor page header", () => {
   it("exports the workflow as a file named by its handle", async () => {
     await renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: "Export workflow" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Export workflow" }));
     expect(exporting.mutate).toHaveBeenCalledWith({ id: "w1", slug: "w" });
+  });
+
+  it("keeps how it starts one click away, in More", async () => {
+    await renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Trigger" }));
+    expect(await screen.findByRole("heading", { name: "Trigger" })).toBeInTheDocument();
   });
 
   it("renames the workflow where its name stands, keeping the old one on Escape", async () => {
@@ -384,7 +401,8 @@ describe("a workflow's settings", () => {
   it("opens from the header and saves what the form hands over, then closes", async () => {
     await renderPage();
 
-    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
     await userEvent.click(screen.getByRole("button", { name: "save settings" }));
 
     expect(actions.saveSettings.mutate).toHaveBeenCalledWith(

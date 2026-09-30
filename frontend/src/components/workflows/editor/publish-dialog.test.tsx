@@ -4,10 +4,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEBUG_ECHO, echo, graph } from "@/components/workflows/validation/fixtures";
 import { ApiError } from "@/lib/api-error";
-import type { NodeDefinition, WorkflowGraph, WorkflowPublished } from "@/lib/workflows/types";
+import type {
+  NodeDefinition,
+  WorkflowDetail,
+  WorkflowGraph,
+  WorkflowPublished,
+} from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { PublishDialog } from "./publish-dialog";
+
+const hooks = vi.hoisted(() => ({
+  version: undefined as unknown,
+  versions: [] as { version: number }[],
+}));
+vi.mock("@/hooks", () => ({
+  useWorkflowVersion: () => ({ version: hooks.version }),
+  useWorkflowVersions: () => ({ versions: hooks.versions, isLoading: false }),
+}));
+
+const WORKFLOW = { id: "w1", status: "draft", current_version_id: null } as WorkflowDetail;
 
 const EMPTY_GRAPH: WorkflowGraph = {
   entry_node_id: "",
@@ -61,13 +77,15 @@ function graphError(field: string, message: string): ApiError {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  hooks.version = undefined;
+  hooks.versions = [];
 });
 
 describe("PublishDialog", () => {
   it("blocks the confirm while the client validation finds a problem", async () => {
     seed(EMPTY_GRAPH, 0);
     const publish = vi.fn();
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
 
@@ -81,7 +99,7 @@ describe("PublishDialog", () => {
   it("publishes a valid draft with the note against the current revision", async () => {
     seed(VALID_GRAPH, 2);
     const publish = vi.fn().mockResolvedValue(publishedVersion());
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.type(screen.getByLabelText("Release note"), "Ship it");
@@ -104,7 +122,7 @@ describe("PublishDialog", () => {
         webhook_secret: "s3cret",
       }),
     );
-    render(<PublishDialog catalog={[WEBHOOK]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[WEBHOOK]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     expect(screen.getByText(/It starts from Webhook/)).toBeVisible();
@@ -122,7 +140,7 @@ describe("PublishDialog", () => {
         exposure: { webhook_url: "https://x" } as WorkflowPublished["exposure"],
       }),
     );
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     expect(screen.getByText(/It has no trigger/)).toBeVisible();
@@ -136,7 +154,7 @@ describe("PublishDialog", () => {
     const publish = vi
       .fn()
       .mockRejectedValue(graphError("nodes.a.config.table", "This node lost its resource"));
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
@@ -168,7 +186,13 @@ describe("PublishDialog", () => {
         },
       },
     });
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn().mockRejectedValue(error)} />);
+    render(
+      <PublishDialog
+        workflow={WORKFLOW}
+        catalog={[DEBUG_ECHO]}
+        publish={vi.fn().mockRejectedValue(error)}
+      />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
@@ -191,7 +215,7 @@ describe("PublishDialog", () => {
       },
     });
     const publish = vi.fn().mockRejectedValue(conflict);
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
@@ -211,7 +235,13 @@ describe("PublishDialog", () => {
     const conflict = new ApiError(409, "conflict", {
       error: { code: "REVISION_CONFLICT", message: "conflict", details: {} },
     });
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn().mockRejectedValue(conflict)} />);
+    render(
+      <PublishDialog
+        workflow={WORKFLOW}
+        catalog={[DEBUG_ECHO]}
+        publish={vi.fn().mockRejectedValue(conflict)}
+      />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
@@ -223,7 +253,7 @@ describe("PublishDialog", () => {
   it("does nothing when a revision is not yet known", async () => {
     seed(VALID_GRAPH, null);
     const publish = vi.fn();
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
@@ -233,7 +263,7 @@ describe("PublishDialog", () => {
 
   it("runs no client validation before a graph is seeded", async () => {
     seed(null, 0);
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     expect(screen.queryByText("Fix the problems below before publishing.")).not.toBeInTheDocument();
@@ -246,7 +276,7 @@ describe("PublishDialog", () => {
     // is disabled until the save lands, so the dialog cannot even be opened.
     seed(VALID_GRAPH, 2);
     act(() => useWorkflowEditorStore.getState().markDirty());
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: /Publish/ })).toBeDisabled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -258,7 +288,7 @@ describe("PublishDialog", () => {
     // block and a hint must appear rather than freezing the stale server draft.
     seed(VALID_GRAPH, 2);
     const publish = vi.fn();
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     expect(screen.getByRole("button", { name: "Publish version" })).toBeEnabled();
@@ -276,7 +306,7 @@ describe("PublishDialog", () => {
     seed(VALID_GRAPH, 2);
     act(() => useWorkflowEditorStore.getState().markDirty());
     const publish = vi.fn().mockResolvedValue(publishedVersion());
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     expect(screen.getByRole("button", { name: /Publish/ })).toBeDisabled();
 
@@ -292,7 +322,7 @@ describe("PublishDialog", () => {
     // stays blocked whether or not it is persisted.
     seed(EMPTY_GRAPH, 0);
     const publish = vi.fn();
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
 
@@ -303,11 +333,35 @@ describe("PublishDialog", () => {
 
   it("can be dismissed with Cancel", async () => {
     seed(VALID_GRAPH, 0);
-    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+});
+
+describe("the version a publish makes", () => {
+  it("names the next version, and says when nothing changed since the live one", async () => {
+    seed(VALID_GRAPH, 0);
+    hooks.versions = [{ version: 2 }, { version: 1 }];
+    hooks.version = { version: 2, graph: VALID_GRAPH };
+    const live = { ...WORKFLOW, status: "published", current_version_id: "v2" } as WorkflowDetail;
+    const { unmount } = render(
+      <PublishDialog workflow={live} catalog={[DEBUG_ECHO]} publish={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    expect(screen.getByRole("heading", { name: "Publish version 3" })).toBeInTheDocument();
+    expect(screen.getByText(/Nothing has changed since version 2/)).toBeInTheDocument();
+    unmount();
+
+    // A first publish makes version 1 and has nothing to compare against.
+    hooks.versions = [];
+    hooks.version = undefined;
+    render(<PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    expect(screen.getByRole("heading", { name: "Publish version 1" })).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing has changed/)).toBeNull();
   });
 });

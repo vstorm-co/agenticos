@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEBUG_ECHO, echo, graph } from "@/components/workflows/validation/fixtures";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import type { WorkflowDetail } from "@/lib/workflows/types";
+
 import { EditorActions } from "./editor-actions";
+
+vi.mock("@/hooks", () => ({
+  useWorkflowVersion: () => ({ version: undefined }),
+  useWorkflowVersions: () => ({ versions: [], isLoading: false }),
+}));
+
+const WORKFLOW = { id: "w1", status: "draft", current_version_id: null } as WorkflowDetail;
 
 beforeEach(() => {
   act(() => {
@@ -22,7 +31,14 @@ afterEach(() => {
 describe("EditorActions", () => {
   it("renders the save status and the publish control, and drives autosave", () => {
     const saveDraft = vi.fn();
-    render(<EditorActions catalog={[DEBUG_ECHO]} saveDraft={saveDraft} publish={vi.fn()} />);
+    render(
+      <EditorActions
+        workflow={WORKFLOW}
+        catalog={[DEBUG_ECHO]}
+        saveDraft={saveDraft}
+        publish={vi.fn()}
+      />,
+    );
 
     // A freshly loaded, clean draft shows no save chatter and offers publish.
     expect(screen.getByRole("status")).toHaveAttribute("data-autosave-status", "idle");

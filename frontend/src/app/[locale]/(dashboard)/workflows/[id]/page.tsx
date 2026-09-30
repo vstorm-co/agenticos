@@ -2,10 +2,17 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Activity, Download, History, Settings2, Workflow, Zap } from "lucide-react";
+import {
+  Activity,
+  Download,
+  History,
+  MoreHorizontal,
+  Settings2,
+  Workflow,
+  Zap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LiveRun, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
@@ -22,6 +29,10 @@ import { TriggerPanel } from "@/components/workflows/triggers";
 import { NodeEditorDialog, StepDataFeed } from "@/components/workflows/node-editor";
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   ListCard,
   ListCardEmpty,
   Sheet,
@@ -41,10 +52,10 @@ import {
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
 import { WorkflowDescription } from "@/components/workflows/editor/workflow-description";
+import { WorkflowStatus } from "@/components/workflows/editor/workflow-status";
 import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
-import type { AgentStatus } from "@/types/agents";
 import { useWorkflowEditorStore } from "@/stores";
 
 interface PageProps {
@@ -93,7 +104,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const actions = useWorkflowActions();
   const exporting = useWorkflowExport();
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
-  const { nodes } = useNodeCatalog();
+  const { nodes, isLoading: catalogLoading } = useNodeCatalog();
   const canEdit = workflow?.can_edit === true;
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
@@ -132,7 +143,9 @@ export default function WorkflowEditorPage({ params }: PageProps) {
     [teardown],
   );
 
-  if (isLoading) {
+  // The canvas waits for the catalog too: a card drawn without its definition
+  // has no ports, and its connections cannot find where to attach (xyflow 008).
+  if (isLoading || catalogLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
@@ -157,7 +170,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
 
   const statusBadge = (
     <div className="flex flex-wrap items-center gap-2">
-      <AgentStatusBadge status={workflow.status as AgentStatus} />
+      <WorkflowStatus workflow={workflow} draft={draft} />
       <TagsEditor
         tags={workflow.tags}
         canEdit={canEdit}
@@ -209,33 +222,35 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 {t("runsTitle")}
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => setTriggersOpen(true)}>
-              <Zap className="h-4 w-4" />
-              {t("triggers")}
-            </Button>
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               <History className="h-4 w-4" />
               {t("history")}
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={t("exportWorkflow")}
-              title={t("exportWorkflow")}
-              disabled={exporting.isPending}
-              onClick={() => exporting.mutate({ id: workflow.id, slug: workflow.slug })}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={t("settings")}
-              title={t("settings")}
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
+            {/* Looked at now and then, not on every visit: kept one click away. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label={t("moreActions")}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setTriggersOpen(true)}>
+                  <Zap className="h-4 w-4" />
+                  {t("triggers")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                  <Settings2 className="h-4 w-4" />
+                  {t("settings")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={exporting.isPending}
+                  onSelect={() => exporting.mutate({ id: workflow.id, slug: workflow.slug })}
+                >
+                  <Download className="h-4 w-4" />
+                  {t("exportWorkflow")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
@@ -244,6 +259,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             )}
             {canEdit && (
               <EditorActions
+                workflow={workflow}
                 catalog={nodes}
                 saveDraft={saveDraft.mutateAsync}
                 publish={publish.mutateAsync}
@@ -333,6 +349,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           <div className="p-4">
             <VersionHistory
               workflowId={workflow.id}
+              liveVersionId={workflow.current_version_id}
               catalog={nodes}
               onRestore={canEdit ? restoreVersion : undefined}
             />

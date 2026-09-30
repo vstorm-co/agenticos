@@ -76,13 +76,13 @@ afterEach(() => {
 describe("VersionHistory", () => {
   it("shows nothing published yet while loading, without the empty state", () => {
     versionsState.current = { versions: [], isLoading: true };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
     expect(screen.getByText("Version history")).toBeVisible();
     expect(screen.queryByText("No versions yet")).not.toBeInTheDocument();
   });
 
   it("shows the empty state once loaded with no versions", () => {
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
     expect(screen.getByText("No versions yet")).toBeVisible();
   });
 
@@ -94,8 +94,10 @@ describe("VersionHistory", () => {
       ],
       isLoading: false,
     };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId="a" catalog={[]} />);
     expect(screen.getByText("Version 2")).toBeVisible();
+    // The version runs start from is the one marked.
+    expect(screen.getAllByText("Live")).toHaveLength(1);
     expect(screen.getByText("Second")).toBeVisible();
     expect(screen.getByText("No release note")).toBeVisible();
     expect(screen.getByText("2 versions")).toBeVisible();
@@ -104,7 +106,7 @@ describe("VersionHistory", () => {
   it("opens a version read-only, fetching and drawing its frozen graph", async () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
@@ -125,7 +127,7 @@ describe("VersionHistory", () => {
         { id: "n", definition_id: "x", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
       ],
     };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
     await userEvent.click(await screen.findByRole("button", { name: "Compare with draft" }));
@@ -138,7 +140,7 @@ describe("VersionHistory", () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
     store.graph = null;
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     await userEvent.click(await screen.findByRole("button", { name: "Compare with draft" }));
     expect(screen.getByTestId("comparison")).toHaveTextContent("0 steps in the draft");
@@ -147,7 +149,7 @@ describe("VersionHistory", () => {
   it("shows a spinner while the version graph is still loading", async () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: undefined, isLoading: true, error: null };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
@@ -159,7 +161,7 @@ describe("VersionHistory", () => {
   it("shows an error when the version cannot be loaded", async () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: undefined, isLoading: false, error: new Error("boom") };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
@@ -170,7 +172,7 @@ describe("VersionHistory", () => {
   it("offers no restore to a member who cannot edit the workflow", async () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
-    render(<VersionHistory workflowId="w1" catalog={[]} />);
+    render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
@@ -182,7 +184,9 @@ describe("VersionHistory", () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
     const onRestore = vi.fn().mockResolvedValue(true);
-    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+    render(
+      <VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} onRestore={onRestore} />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));
@@ -203,7 +207,9 @@ describe("VersionHistory", () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
     const onRestore = vi.fn().mockResolvedValue(false);
-    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+    render(
+      <VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} onRestore={onRestore} />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));
@@ -221,7 +227,9 @@ describe("VersionHistory", () => {
     versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
     detailState.current = { version: detail(), isLoading: false, error: null };
     const onRestore = vi.fn();
-    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+    render(
+      <VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} onRestore={onRestore} />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));

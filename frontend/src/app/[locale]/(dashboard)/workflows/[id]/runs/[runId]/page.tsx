@@ -74,7 +74,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
   const { workflow } = useWorkflow(id);
-  const { nodes: catalog } = useNodeCatalog();
+  const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
   const router = useRouter();
   const { run, isLoading, nodes, files, graph, cancel, retry } = useWorkflowRun(runId);
   const { can } = usePermissions();
@@ -118,7 +118,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
     );
   };
 
-  if (isLoading || run === null || !workflow) {
+  // As the editor does, the canvas waits for the catalog its cards are drawn from.
+  if (isLoading || catalogLoading || run === null || !workflow) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />

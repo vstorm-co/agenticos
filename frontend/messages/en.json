@@ -3761,7 +3761,13 @@
       },
       "runCausedByHidden": "a run you cannot open",
       "runOpenCalled": "Open run {id}",
-      "liveRunStale": "The graph changed since the last test run."
+      "liveRunStale": "The graph changed since the last test run.",
+      "moreActions": "More",
+      "statusArchived": "Archived",
+      "statusNeverPublished": "Draft, not published",
+      "statusLive": "Live",
+      "statusLiveVersion": "Live · version {version}",
+      "statusUnpublishedChanges": "Unpublished changes"
     },
     "retention": {
       "title": "Data retention",
@@ -5964,7 +5970,6 @@
     "conflictOverwrite": "Overwrite",
     "conflictReload": "Reload",
     "publish": "Publish",
-    "publishTitle": "Publish this workflow",
     "publishDescription": "Freeze the current draft as an immutable version that runs.",
     "publishNoteLabel": "Release note",
     "publishNotePlaceholder": "What changed in this version?",
@@ -6208,7 +6213,7 @@
     "pickerSearch": "Search steps",
     "pickerBack": "All steps",
     "toolbarAddStep": "Add step",
-    "toolbarReady": "Ready to publish",
+    "toolbarReady": "No problems",
     "toolbarProblemsHint": "Choose one to open the step it is about.",
     "nodeEditorDelete": "Delete step",
     "nodeEditorDone": "Done",
@@ -6420,7 +6425,10 @@
     "stepRenameHint": "Click to rename",
     "stepRuns": "Run this step",
     "stepRunsHint": "Off, the run skips it and hands on what came into it",
-    "nodeEditorRanWith": "Settings this step ran with"
+    "nodeEditorRanWith": "Settings this step ran with",
+    "versionLive": "Live",
+    "publishTitleVersion": "Publish version {version}",
+    "publishNothingChanged": "Nothing has changed since version {version}, which is live: this makes an identical version."
   },
   "artifacts": {
     "title": "Artifacts",

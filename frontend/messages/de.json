@@ -4802,7 +4802,13 @@
       },
       "runCausedByHidden": "einem Run, den du nicht öffnen kannst",
       "runOpenCalled": "Run {id} öffnen",
-      "liveRunStale": "Der Graph hat sich seit dem letzten Testlauf geändert."
+      "liveRunStale": "Der Graph hat sich seit dem letzten Testlauf geändert.",
+      "moreActions": "Mehr",
+      "statusArchived": "Archiviert",
+      "statusNeverPublished": "Entwurf, nicht veröffentlicht",
+      "statusLive": "Live",
+      "statusLiveVersion": "Live · Version {version}",
+      "statusUnpublishedChanges": "Unveröffentlichte Änderungen"
     }
   },
   "profile": {
@@ -5817,7 +5823,6 @@
     "conflictOverwrite": "Überschreiben",
     "conflictReload": "Neu laden",
     "publish": "Veröffentlichen",
-    "publishTitle": "Diesen Workflow veröffentlichen",
     "publishDescription": "Den aktuellen Entwurf als unveränderliche Version einfrieren, die ausgeführt wird.",
     "publishNoteLabel": "Versionshinweis",
     "publishNotePlaceholder": "Was hat sich in dieser Version geändert?",
@@ -6067,7 +6072,7 @@
     "pickerSearch": "Schritte suchen",
     "pickerBack": "Alle Schritte",
     "toolbarAddStep": "Schritt hinzufügen",
-    "toolbarReady": "Bereit zum Veröffentlichen",
+    "toolbarReady": "Keine Probleme",
     "toolbarProblemsHint": "Wähle eins, um den Schritt zu öffnen, um den es geht.",
     "nodeEditorDelete": "Schritt löschen",
     "nodeEditorDone": "Fertig",
@@ -6279,7 +6284,10 @@
     "stepRenameHint": "Zum Umbenennen klicken",
     "stepRuns": "Diesen Schritt ausführen",
     "stepRunsHint": "Aus: Der Lauf überspringt ihn und gibt weiter, was bei ihm ankam",
-    "nodeEditorRanWith": "Einstellungen, mit denen der Schritt lief"
+    "nodeEditorRanWith": "Einstellungen, mit denen der Schritt lief",
+    "versionLive": "Live",
+    "publishTitleVersion": "Version {version} veröffentlichen",
+    "publishNothingChanged": "Seit Version {version}, die live ist, hat sich nichts geändert: Es entsteht eine identische Version."
   },
   "artifacts": {
     "title": "Artefakte",

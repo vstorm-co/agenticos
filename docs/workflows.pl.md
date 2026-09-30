@@ -1,5 +1,5 @@
 ---
-source_sha: "2aff151bf238"
+source_sha: "c7c87c67fc3a"
 ---
 
 # Workflows { #workflows }
@@ -49,7 +49,7 @@ podsumowanie dla zespołu w dni robocze. Każdy otwiera się z tabelą, botem,
 agentem albo osobami do wybrania; edytor je oznacza, a workflow da się opublikować,
 gdy zostaną wybrane.
 
-Przycisk pobierania w nagłówku edytora eksportuje szkic jako plik
+**Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
 `.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
 agent, tabela, sekret, członek, bot czy workflow wybrany w kroku zostaje pominięty
 i wymieniony, przypięte dane testowe też, podobnie jak workflow błędów. Nigdy nie
@@ -66,6 +66,11 @@ najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony lin
 pokazują tę samą listę. W edytorze kliknij nazwę, aby zmienić nazwę workflow - jego
 identyfikator, którego używają wywołujący API, zostaje - kliknij opis pod nią albo
 **Add a description**, aby go zmienić, a **+ Tag** przypisuje tag.
+
+Pod nazwą edytor mówi, na czym stoi workflow: **Draft, not published** albo
+**Live · version 3**, z **Unpublished changes** obok, gdy szkic różni się od tej
+wersji w sposób, który przeniosłaby publikacja. Przesunięcie kroku ani przypięcie
+danych testowych się nie liczy.
 
 Opublikowany workflow, którego wyzwalacz działa sam - webhook, harmonogram lub nowy
 rekord tabeli - ma przełącznik **Active** w nagłówku edytora, a jego karta mówi
@@ -298,7 +303,7 @@ działało przed pętlą. Co robi pętla, opisuje
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
-Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i licznik w swoich ustawieniach, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **Ready to publish** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
+Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i licznik w swoich ustawieniach, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **No problems** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
 
 Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już ustawiłeś,
 widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają pod **More
@@ -341,14 +346,15 @@ latest saved draft.* Wybierasz:
 ## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
 
 **Publish** zamraża bieżący draft jako niezmienną wersję, która działa — wersja nigdy
-nie jest zmieniana po utworzeniu. Okno publikowania przyjmuje opcjonalną **Release
-note** opisującą, co się zmieniło. Jeśli graf wciąż ma problemy, publikowanie jest
+nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utworzy, i przyjmuje opcjonalną
+**Release note** opisującą, co się zmieniło; gdy draft nie zmienił się od aktywnej
+wersji, mówi to najpierw. Jeśli graf wciąż ma problemy, publikowanie jest
 zablokowane z **Fix the problems below before publishing**, więc wersja, która by nie
 przeszła walidacji, nigdy nie powstaje.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
-opublikowanej wersji, więc edytujesz go od razu dalej. **History** w nagłówku edytora
-otwiera każdą opublikowaną wersję wraz z jej release note. **View** otwiera
+opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** w nagłówku edytora
+otwiera każdą opublikowaną wersję wraz z jej release note, a aktywną oznacza **Live**. **View** otwiera
 wcześniejszą wersję tylko do odczytu - opublikowana wersja jest tylko do odczytu, a
 aby wprowadzić zmiany, edytujesz draft dalej.
 
@@ -371,7 +377,7 @@ zmianami. **Show this version** wraca do samej wersji.
 
 ## Ustawienia workflow { #workflow-settings }
 
-**Settings** w nagłówku edytora zawierają to, z czym workflow jest uruchamiany, a nie
+**Settings** w menu **More** w nagłówku edytora zawierają to, z czym workflow jest uruchamiany, a nie
 to, co robi. Należą do workflow, nie do wersji: zmiana dotyczy każdego przebiegu
 rozpoczętego po niej, a publikacja je zachowuje.
 
@@ -448,7 +454,7 @@ wyzwalacza, który tam wybierzesz.
 To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram i wyzwalacz tabeli
 uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
 publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
-wyzwalacza, wyłącza stary. **Trigger** w nagłówku edytora pokazuje żywy wyzwalacz i
+wyzwalacza, wyłącza stary. **Trigger** w menu **More** w nagłówku edytora pokazuje żywy wyzwalacz i
 jego stan oraz mówi, kiedy szkic startuje inaczej.
 
 Wersję, która startuje od **Manual** albo **API request** albo w ogóle bez wyzwalacza, uruchamia

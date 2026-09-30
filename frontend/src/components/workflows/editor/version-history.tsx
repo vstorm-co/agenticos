@@ -5,6 +5,7 @@ import { GitCompare, History, RotateCcw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
+  Badge,
   Button,
   ConfirmDialog,
   Dialog,
@@ -31,9 +32,12 @@ import { VersionPreview } from "./version-preview";
 /** One published version's row, with a control to open it read-only. */
 function VersionRow({
   version,
+  live,
   onView,
 }: {
   version: WorkflowVersionRead;
+  /** The version runs start from now. */
+  live: boolean;
   onView: (version: WorkflowVersionRead) => void;
 }) {
   const t = useTranslations("workflows");
@@ -42,9 +46,15 @@ function VersionRow({
   return (
     <li className="flex items-center justify-between gap-3 py-3">
       <div className="min-w-0">
-        <p className="text-foreground text-sm font-medium">
+        <div className="text-foreground flex items-center gap-2 text-sm font-medium">
           {t("versionLabel", { version: version.version })}
-        </p>
+          {live && (
+            <Badge variant="outline" className="text-muted-foreground font-normal">
+              <span aria-hidden className="bg-success h-1.5 w-1.5 rounded-full" />
+              {t("versionLive")}
+            </Badge>
+          )}
+        </div>
         <p className="text-muted-foreground truncate text-xs">
           {version.note ?? t("versionNoNote")}
           {version.created_at !== null && (
@@ -178,10 +188,13 @@ function VersionPreviewDialog({
  */
 export function VersionHistory({
   workflowId,
+  liveVersionId,
   catalog,
   onRestore,
 }: {
   workflowId: string;
+  /** The version runs start from now, marked Live in the list. */
+  liveVersionId: string | null;
   catalog: NodeDefinition[];
   onRestore?: (version: WorkflowVersionRead) => Promise<boolean>;
 }) {
@@ -209,7 +222,12 @@ export function VersionHistory({
       ) : (
         <ul className="divide-border divide-y px-5">
           {versions.map((version) => (
-            <VersionRow key={version.id} version={version} onView={setSelected} />
+            <VersionRow
+              key={version.id}
+              version={version}
+              live={version.id === liveVersionId}
+              onView={setSelected}
+            />
           ))}
         </ul>
       )}

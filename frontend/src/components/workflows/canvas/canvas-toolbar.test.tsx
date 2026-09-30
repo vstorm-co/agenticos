@@ -55,7 +55,7 @@ describe("the canvas toolbar", () => {
   it("adds a step from Add step, and opens the settings of one that has any", async () => {
     seed(node("a"));
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
-    expect(screen.getByText("Ready to publish")).toBeTruthy();
+    expect(screen.getByText("No problems")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Add step" }));
     await userEvent.click(await screen.findByRole("option", { name: /Merge/ }));
@@ -95,7 +95,7 @@ describe("the canvas toolbar", () => {
     seed(node("a"));
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />);
     expect(screen.queryByRole("button", { name: "Add step" })).toBeNull();
-    expect(screen.queryByText("Ready to publish")).toBeNull();
+    expect(screen.queryByText("No problems")).toBeNull();
   });
 });
 

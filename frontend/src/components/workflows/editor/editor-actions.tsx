@@ -13,6 +13,8 @@ import { PublishDialog } from "./publish-dialog";
 import { useWorkflowAutosave } from "./use-workflow-autosave";
 
 interface EditorActionsProps {
+  /** The workflow being edited, for the version a publish makes. */
+  workflow: WorkflowDetail;
   /** The node catalog, for the publish-time client validation. */
   catalog: NodeDefinition[];
   /** `useWorkflow(id).saveDraft.mutateAsync`, owned here by the autosave loop. */
@@ -28,12 +30,12 @@ interface EditorActionsProps {
  * fires wherever the header is on screen) and reflects its status beside the
  * publish control.
  */
-export function EditorActions({ catalog, saveDraft, publish }: EditorActionsProps) {
+export function EditorActions({ workflow, catalog, saveDraft, publish }: EditorActionsProps) {
   const status = useWorkflowAutosave({ saveDraft });
   return (
     <div className="flex items-center gap-3">
       <AutosaveStatusIndicator status={status} />
-      <PublishDialog catalog={catalog} publish={publish} />
+      <PublishDialog workflow={workflow} catalog={catalog} publish={publish} />
     </div>
   );
 }

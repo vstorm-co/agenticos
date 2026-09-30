@@ -513,6 +513,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The workflow editor's header says where the workflow stands.** Under the
+  name: **Draft, not published**, or **Live · version 3** with **Unpublished
+  changes** once the draft differs from it the way a publish would carry.
+  Runs, Versions, Run and Publish stay in the header; Trigger, Settings and
+  Export workflow moved under **More**. The canvas says **No problems** rather
+  than "Ready to publish", the version list marks the live one, and publishing
+  names the version it makes and says when nothing changed since the live one.
+  The editor and a run's page wait for the step catalog before drawing, so a
+  connection is not drawn before the card it attaches to.
 - **A workflow's steps say what they do.** A card now reads "First 3",
   "By score ↓", "Sum of amount by region" or "Every day at 09:00" for the
   Transform steps and a schedule, and a step with its own name shows what kind

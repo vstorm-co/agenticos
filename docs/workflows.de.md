@@ -1,5 +1,5 @@
 ---
-source_sha: "2aff151bf238"
+source_sha: "c7c87c67fc3a"
 ---
 
 # Workflows { #workflows }
@@ -54,7 +54,7 @@ eine Zusammenfassung für das Team schreiben. Jede öffnet sich mit Tabelle, Bot
 Agent oder Personen, die noch zu wählen sind; der Editor markiert sie, und sie
 lässt sich veröffentlichen, sobald sie gewählt sind.
 
-Der Download-Button im Kopf des Editors exportiert den Entwurf als
+**Export workflow** unter **More** in der Kopfzeile des Editors exportiert den Entwurf als
 `.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder
 Agent, jede Tabelle, jedes Secret, Mitglied, jeder Bot oder Workflow, den ein
 Schritt gewählt hat, wird weggelassen und aufgeführt, angeheftete Testdaten werden
@@ -73,6 +73,11 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt. Im Editor benennt ein Kli
 den Namen den Workflow um - sein Kennzeichen, das API-Aufrufer verwenden, bleibt -, ein
 Klick auf die Beschreibung darunter oder **Add a description** ändert sie, und
 **+ Tag** ordnet ihn einem Tag zu.
+
+Unter dem Namen sagt der Editor, wo der Workflow steht: **Draft, not published**
+oder **Live · version 3**, mit **Unpublished changes** daneben, sobald der Entwurf
+sich von dieser Version so unterscheidet, wie es eine Veröffentlichung übernähme.
+Einen Schritt zu verschieben oder Testdaten anzuheften, zählt nicht.
 
 Ein veröffentlichter Workflow, dessen Trigger von selbst läuft - ein Webhook, ein
 Zeitplan oder ein neuer Tabellendatensatz -, hat einen Schalter **Active** im Kopf des
@@ -329,7 +334,7 @@ lief. Was die Schleife tut, steht in der
 ## Validierungs-Rückmeldung { #validation-feedback }
 
 Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
-es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und eine Zahl in seinen Einstellungen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **Ready to publish** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
+es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und eine Zahl in seinen Einstellungen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **No problems** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
 
 Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was Sie
 bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten
@@ -377,16 +382,17 @@ changes; reload replaces them with the latest saved draft.* Sie wählen:
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
 
 **Publish** friert den aktuellen Draft als unveränderliche Version ein, die läuft —
-eine Version wird nach ihrer Erstellung nie geändert. Der Publish-Dialog nimmt eine
-optionale **Release note** entgegen, die beschreibt, was sich geändert hat. Hat der
+eine Version wird nach ihrer Erstellung nie geändert. Der Publish-Dialog nennt die Version, die er erzeugt, und nimmt
+eine optionale **Release note** entgegen, die beschreibt, was sich geändert hat; hat
+sich der Draft seit der Live-Version nicht geändert, sagt er das zuerst. Hat der
 Graph noch Probleme, wird das Veröffentlichen mit **Fix the problems below before
 publishing** blockiert, sodass eine Version, die nicht validieren würde, nie
 entsteht.
 
 Das Veröffentlichen beendet Ihr Bearbeiten nicht. Der Draft existiert weiter
 unabhängig von jeder veröffentlichten Version, sodass Sie ihn sofort weiter
-bearbeiten. **History** in der Kopfzeile des Editors öffnet jede veröffentlichte
-Version mit ihrer Release note. **View** öffnet eine frühere Version schreibgeschützt
+bearbeiten. **Versions** in der Kopfzeile des Editors öffnet jede veröffentlichte
+Version mit ihrer Release note, die Live-Version mit **Live** markiert. **View** öffnet eine frühere Version schreibgeschützt
 - eine veröffentlichte Version ist schreibgeschützt, und um Änderungen zu machen,
 bearbeiten Sie den Draft weiter.
 
@@ -412,7 +418,7 @@ oder fehlschlägt. Einen Schritt verschieben und angeheftete Testdaten sind kein
 
 ## Workflow-Einstellungen { #workflow-settings }
 
-**Settings** in der Kopfzeile des Editors enthalten, womit ein Workflow ausgeführt
+**Settings** unter **More** in der Kopfzeile des Editors enthalten, womit ein Workflow ausgeführt
 wird, nicht was er tut. Sie gehören dem Workflow, nicht einer Version: Eine Änderung
 gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
 
@@ -495,7 +501,7 @@ Erst das Veröffentlichen einer Version schaltet ihren Trigger ein. Ein Webhook,
 Zeitplan und ein Tabellen-Trigger führen dann diese Version als das Mitglied aus, das
 sie veröffentlicht hat, und die nächste Veröffentlichung verschiebt sie auf die neue
 Version. Eine Veröffentlichung, die mit einem anderen Trigger startet, schaltet den
-alten ab. **Trigger** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
+alten ab. **Trigger** unter **More** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
 Zustand und sagt, wann der Draft anders startet.
 
 Eine Version, die mit **Manual** oder **API request** oder ganz ohne Trigger startet, startet jeder,

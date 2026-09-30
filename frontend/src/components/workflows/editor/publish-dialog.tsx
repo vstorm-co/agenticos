@@ -26,13 +26,17 @@ import type {
   NodeCatalog,
   NodeDefinition,
   Uuid,
+  WorkflowDetail,
   WorkflowPublish,
   WorkflowPublished,
 } from "@/lib/workflows/types";
+import { useWorkflowVersions } from "@/hooks";
 import { WebhookSecretDialog } from "@/components/workflows/triggers";
 import { triggerNodeOf } from "@/lib/workflows/triggers";
 import { resolveDefinitions } from "@/components/workflows/validation/topology";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+import { useLiveChanges } from "./workflow-status";
 
 /**
  * Turn a server field problem into the panel's problem shape.
@@ -50,6 +54,8 @@ function toValidationProblem(field: string, message: string): ValidationProblem 
 }
 
 interface PublishDialogProps {
+  /** The workflow being published: which version it makes, and what it changes. */
+  workflow: WorkflowDetail;
   /** The node catalog, for the client-side validation mirror. */
   catalog: NodeDefinition[];
   /** `useWorkflow(id).publish.mutateAsync`. */
@@ -70,9 +76,13 @@ interface PublishDialogProps {
  * it; a webhook switched on for the first time comes back with its signing
  * secret, shown here once in the dialog the Trigger sheet's rotate uses.
  */
-export function PublishDialog({ catalog, publish }: PublishDialogProps) {
+export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps) {
   const t = useTranslations("workflows");
   const graph = useWorkflowEditorStore((state) => state.graph);
+  const { live, changed } = useLiveChanges(workflow, graph);
+  // Newest first: a publish makes the one after it, whichever version is live.
+  const { versions } = useWorkflowVersions(workflow.id);
+  const next = (versions[0]?.version ?? 0) + 1;
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
@@ -168,7 +178,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
         </DialogTrigger>
         <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
           <DialogHeader>
-            <DialogTitle>{t("publishTitle")}</DialogTitle>
+            <DialogTitle>{t("publishTitleVersion", { version: next })}</DialogTitle>
             <DialogDescription>{t("publishDescription")}</DialogDescription>
           </DialogHeader>
 
@@ -186,6 +196,11 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
           <p className="text-muted-foreground text-xs">
             {trigger === null ? t("publishStartsByHand") : t("publishTrigger", { trigger })}
           </p>
+          {live !== null && !changed && (
+            <p className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-xs">
+              {t("publishNothingChanged", { version: live })}
+            </p>
+          )}
           {clientProblems.length > 0 && (
             <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
           )}
