@@ -41,7 +41,11 @@ export function markRefreshed(): void {
 export function refreshedRecently(): boolean {
   try {
     const at = Number(localStorage.getItem(REFRESHED_AT_KEY));
-    return Number.isFinite(at) && at > 0 && Date.now() - at < RECENT_REFRESH_MS;
+    // Not ahead of the clock either: a stamp from the future - a clock set back,
+    // another tab's clock ahead - reads as recent until time catches up, and
+    // every 401 in between would retry the expired cookies instead of refreshing.
+    const age = Date.now() - at;
+    return Number.isFinite(at) && at > 0 && age >= 0 && age < RECENT_REFRESH_MS;
   } catch {
     return false;
   }

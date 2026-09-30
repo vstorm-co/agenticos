@@ -851,20 +851,25 @@ class TestSkillLibrary:
         from app.services.skill_library import fingerprint
 
         base = {"description": "d", "category": None, "content": "Body."}
-        files = [("a.md", "one"), ("b.md", "two")]
+        files = [("a.md", "one", None), ("b.md", "two", None)]
 
         assert fingerprint(**base, resources=files) == fingerprint(
             **base, resources=reversed(files)
         )
         assert fingerprint(**base, resources=files) != fingerprint(
-            **base, resources=[("a.md", "one"), ("b.md", "changed")]
+            **base, resources=[("a.md", "one", None), ("b.md", "changed", None)]
         )
         assert fingerprint(**base, resources=files) != fingerprint(
             **{**base, "category": "design"}, resources=files
         )
         # Saving through the API trims a final newline; that is not an edit.
         assert fingerprint(**base, resources=files) == fingerprint(
-            **{**base, "content": "Body.\n"}, resources=[("a.md", "one\n"), ("b.md", "two")]
+            **{**base, "content": "Body.\n"},
+            resources=[("a.md", "one\n", None), ("b.md", "two", "")],
+        )
+        # A description written on a copy's file is an edit; the shipped files have none.
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **base, resources=[("a.md", "one", "Ours"), ("b.md", "two", None)]
         )
 
     @pytest.mark.anyio

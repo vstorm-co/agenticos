@@ -189,3 +189,43 @@ async def test_a_copy_from_before_fingerprints_is_untracked_unless_it_matches(db
     assert await service.plan_library_refresh(ctx, KEY) is LibraryRefresh.UNTRACKED
     assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.UNTRACKED
     assert (await _copy(db, ctx)).content == "Older body."
+
+
+async def test_a_file_description_written_here_counts_as_an_edit(db) -> None:
+    """The shipped files carry no description, so one written on the copy is the
+    organization's - replacing the file would drop it without `--replace`."""
+    ctx = await _owner_ctx(db)
+    await _as_an_earlier_release(db, ctx)
+    row = await _copy(db, ctx)
+    await skill_repo.update_resource(
+        db, resource=row.resources[0], update_data={"description": "Our note on this file"}
+    )
+
+    assert await SkillService(db).refresh_from_library(ctx, KEY) is LibraryRefresh.EDITED
+    row = await _copy(db, ctx)
+    assert "Our note on this file" in [resource.description for resource in row.resources]
+
+
+async def test_the_decision_is_made_on_the_row_as_it_is_now(db, monkeypatch) -> None:
+    """A copy edited after the lookup must not be judged on the copy as it was."""
+    ctx = await _owner_ctx(db)
+    await _as_an_earlier_release(db, ctx)
+    service = SkillService(db)
+    looked_up = service._library_pair
+
+    async def lookup_then_somebody_edits(context: AuthContext, key: str):
+        bundled, existing = await looked_up(context, key)
+        assert existing is not None
+        # A member's edit, committed through its own statement between the lookup
+        # and the overwrite; the loaded object still says the old thing.
+        await db.execute(
+            Skill.__table__.update()
+            .where(Skill.id == existing.id)
+            .values(content="Edited just now.")
+        )
+        return bundled, existing
+
+    monkeypatch.setattr(service, "_library_pair", lookup_then_somebody_edits)
+
+    assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.EDITED
+    assert (await _copy(db, ctx)).content == "Edited just now."

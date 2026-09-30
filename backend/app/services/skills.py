@@ -151,7 +151,9 @@ def _fingerprint_of(skill: Skill) -> str:
         description=skill.description,
         category=skill.category,
         content=skill.content,
-        resources=((resource.name, resource.content) for resource in skill.resources),
+        resources=(
+            (resource.name, resource.content, resource.description) for resource in skill.resources
+        ),
     )
 
 
@@ -470,6 +472,12 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
+        if existing is not None:
+            # Locked and re-read before deciding: an edit a member commits between
+            # the lookup and the overwrite would otherwise be judged on the copy as
+            # it was, found unedited, and replaced. Every edit writes the skill row
+            # (a file edit bumps its version), so the lock serializes with each.
+            existing = await skill_repo.lock(self.db, existing.id)
         plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
         if existing is None:
             await self._copy_library_skill(ctx, bundled, seeded=True)

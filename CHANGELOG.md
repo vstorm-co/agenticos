@@ -107,7 +107,11 @@ Two things are versioned separately from this file and worth knowing about:
   script goes after a leading doctype rather than before it; the Page style tab
   no longer calls the agent's other skills missing; and an environment with a
   run still working cannot be removed, since its pages would land on
-  production's.
+  production's. From the second review: `seed-skills` counts a
+  file description written on a copy as an edit and decides under a row lock on
+  the row as it is now; a template no longer binds a bundled skill the installer
+  may not read; restoring a version whose bytes are gone is refused; and a
+  cross-tab refresh stamp from ahead of the clock no longer suppresses refreshes.
 - **An artifact whose stored bytes are gone answers 404, not 500.** A version
   row whose file storage no longer has - a restored database beside an older
   volume - made the page, its thumbnail and `read_artifact` fail with a server

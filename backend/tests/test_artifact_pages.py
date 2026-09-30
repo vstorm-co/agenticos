@@ -338,11 +338,19 @@ class TestReadingAPageBack:
 
 class TestRestore:
     async def _restore(
-        self, artifact: Artifact, source: ArtifactVersion | None, latest: ArtifactVersion | None
+        self,
+        artifact: Artifact,
+        source: ArtifactVersion | None,
+        latest: ArtifactVersion | None,
+        *,
+        stored: bool = True,
     ) -> tuple[AsyncMock, AsyncMock]:
         ctx = _ctx()
         audit = AsyncMock()
+        storage = MagicMock()
+        storage.exists = AsyncMock(return_value=stored)
         with (
+            patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)) as access,
             patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=artifact)),
@@ -374,6 +382,13 @@ class TestRestore:
         append, audit = await self._restore(artifact, current, current)
         append.assert_not_awaited()
         audit.assert_not_awaited()
+
+    async def test_a_version_whose_bytes_are_gone_is_not_restored(self) -> None:
+        """Restored, it would be a current version that 404s the moment it is opened."""
+        artifact = _artifact(_ctx())
+        source = _version(artifact, number=2)
+        with pytest.raises(NotFoundError, match="gone from storage"):
+            await self._restore(artifact, source, _version(artifact, number=8), stored=False)
 
     async def test_a_version_that_is_not_kept_is_not_found(self) -> None:
         artifact = _artifact(_ctx())

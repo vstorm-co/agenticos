@@ -1022,6 +1022,10 @@ class AgentRegistryService:
                 ),
             }
         )
+        # Only rows the installer may read: a copy its owner made private since
+        # it was seeded would otherwise be bound, reported as installed, and then
+        # refused at publish as a skill that does not exist - the check publish
+        # makes, made here first.
         rows = [
             row
             for name in wanted
@@ -1031,6 +1035,7 @@ class AgentRegistryService:
                 )
             )
             is not None
+            and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
         spec = AgentSpec(

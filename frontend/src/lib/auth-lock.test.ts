@@ -50,6 +50,14 @@ describe("the recent-refresh marker", () => {
     expect(refreshedRecently()).toBe(false);
   });
 
+  it("does not count a refresh stamped ahead of the clock", () => {
+    // A clock set back, or another tab's clock ahead: read as recent, every 401
+    // until time caught up would retry the expired cookies instead of refreshing.
+    localStorage.setItem("agenticos:auth-refreshed-at", String(Date.now() + 60_000));
+
+    expect(refreshedRecently()).toBe(false);
+  });
+
   it("ignores a value that is not a time", () => {
     localStorage.setItem("agenticos:auth-refreshed-at", "garbage");
 

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
@@ -30,6 +31,18 @@ async def get(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Ski
 async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> Skill | None:
     result = await db.execute(
         select(Skill).where(Skill.name == name, Skill.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock(db: AsyncSession, skill_id: UUID) -> Skill | None:
+    """The skill locked until the transaction ends, read afresh with its files."""
+    result = await db.execute(
+        select(Skill)
+        .where(Skill.id == skill_id)
+        .options(selectinload(Skill.resources))
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

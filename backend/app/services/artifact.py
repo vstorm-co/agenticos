@@ -1091,8 +1091,9 @@ class ArtifactService:
         new is stored. Restoring the current version changes nothing.
 
         Raises:
-            NotFoundError: The artifact is not the caller's to change, or the
-                version is not one of its kept versions.
+            NotFoundError: The artifact is not the caller's to change, the version
+                is not one of its kept versions, or storage no longer has its
+                bytes - restored, it would be a current version that 404s.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
         locked = await artifact_repo.lock(self.db, artifact.id)
@@ -1105,6 +1106,15 @@ class ArtifactService:
         latest = await artifact_repo.latest_version(self.db, locked.id)
         if latest is not None and latest.id == source.id:
             return await self._detail(locked, can_edit=True)
+        if not await get_file_storage().exists(source.storage_path):
+            logger.warning(
+                "artifact_bytes_missing",
+                extra={"version_id": str(source.id), "storage_path": source.storage_path},
+            )
+            raise NotFoundError(
+                message="That version's content is gone from storage, so it cannot be restored",
+                details={"artifact_id": artifact_id, "version_id": version_id},
+            )
         version = await _append_version(
             self.db,
             locked,

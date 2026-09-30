@@ -38,7 +38,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
@@ -3712,6 +3712,7 @@ class TestAgentTemplates:
             patch(f"{REGISTRY_PATH}.skill_library.gallery_get", return_value=entry),
             patch(f"{REGISTRY_PATH}.SkillService") as skills,
             patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch.object(
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
@@ -3758,6 +3759,7 @@ class TestAgentTemplates:
             patch(
                 f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)
             ) as by_name,
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch.object(
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
@@ -3770,6 +3772,39 @@ class TestAgentTemplates:
         assert by_name.await_args.args[1] == "artifact-pages"
         assert create.await_args.args[1].skill_ids == [row.id]
         assert result.skills_installed == ["artifact-pages"]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_skill_the_installer_may_not_read_is_not_bound(self):
+        """A bundled copy its owner made private would otherwise be bound, reported
+        as installed, and refused at publish as a skill that does not exist."""
+        template = MagicMock()
+        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.description, template.instructions = "d", "You work..."
+        template.capabilities = ({"id": "artifacts"},)
+        template.skills = ("artifact-pages",)
+        template.mcp, template.attach, template.budget_usd = (), (), None
+        row = MagicMock()
+        row.id, row.name = uuid4(), "artifact-pages"
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.SkillService"),
+            patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=False)) as access,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "general/claude-code-like"
+            )
+
+        assert access.await_args.args[3] is Perm.SKILLS_VIEW
+        assert create.await_args.args[1].skill_ids == []
+        assert result.skills_installed == []
 
     @pytest.mark.anyio
     async def test_a_template_with_no_skills_installs_nothing(self):
