@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A webhook's test URL, and a Respond to webhook step.** Listen for test event
+  on a draft's webhook trigger opens a test URL for two minutes; the one call to
+  it is pinned as the trigger's output and never starts a run. A graph holding
+  Respond to webhook answers its sender with that step's status, headers and
+  JSON body, waited for up to `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`; a
+  graph without one answers `202` as before (#1949).
 - **Transform steps for lists of objects.** Edit fields, Sort, Limit, Remove
   duplicates, Aggregate, Split out, Summarize, Date & time and Crypto reshape data
   without a code step. Each is pure and typed, most take and hand on `items`, and
@@ -317,6 +323,12 @@ Two things are versioned separately from this file and worth knowing about:
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
 
 ### Fixed
+
+- **Headers can be edited on a step.** A step's headers - an HTTP request's,
+  a download's, an upload's, a webhook answer's - showed as an empty text box
+  that could not hold them; each is now a row of a name and its value. The list
+  a Filter, Combine or Transform step works on is also a required input, shown
+  at once rather than folded under More options.
 
 - **Deleting every step of a workflow no longer fails its autosave.** A draft
   with no steps is stored as no graph, the draft a new workflow starts with,

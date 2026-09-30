@@ -1,5 +1,5 @@
 ---
-source_sha: "eb16e8f9c260"
+source_sha: "69cfd78ba18c"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -78,6 +78,12 @@ responder. El texto de su `core.output` se escribe de vuelta en esa conversació
 **Webhook.** Se inicia con una entrega firmada a la dirección propia del workflow, que
 la primera publicación del nodo crea junto con su secreto de firma.
 
+Antes de publicarlo, **Listen for test event** en el panel Output del disparador
+abre una URL de prueba para el borrador durante dos minutos. La única llamada que
+se le envía, un objeto JSON, queda fijada como salida del disparador, así que cada
+paso posterior se puede probar con una entrega real. La URL de prueba no comprueba
+ninguna firma y nunca inicia un run.
+
 ::: app.workflows.nodes._triggers.WebhookTriggerOutput
 
 ### trigger.schedule { #trigger-schedule }
@@ -121,6 +127,20 @@ campos que la salida de `agent.run`, así que la respuesta de un agent se enlaza
 directamente. Una salida sin nada enlazado es una respuesta vacía.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
+
+## webhook.respond { #webhook-respond }
+
+**Respond to webhook.** Responde a la entrega que inició el run con un estado (de
+200 a 599), cabeceras y un `body` JSON vinculado desde un paso anterior. Una
+entrega a un grafo con este paso lo espera en lugar de recibir `202`, como mucho
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. La respuesta es el primer paso respond
+que termina, un reintento de la misma entrega la recibe de nuevo y el run sigue
+después. Un run que termina sin llegar al paso responde `202` si tuvo éxito y
+`500` si no. Las cabeceras que pertenecen a la propia respuesta de la API se
+rechazan al publicar: el encuadre, `Content-Type`, `Set-Cookie` y las cabeceras
+CORS y de políticas del navegador.
+
+::: app.workflows.nodes.webhook_respond.WebhookRespondConfig
 
 ## data.map { #data-map }
 

@@ -11,6 +11,14 @@ import { InputPane, OutputPane } from "./step-panes";
 const mutate = vi.fn();
 const start = { mutate, isPending: false };
 vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start }) }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("./webhook-listener", () => ({
+  WebhookListener: ({ onCaught }: { onCaught: (delivery: Record<string, unknown>) => void }) => (
+    <button type="button" onClick={() => onCaught({ body: { lead: 1 }, delivery_id: "t-1" })}>
+      catch a call
+    </button>
+  ),
+}));
 
 const store = useWorkflowEditorStore;
 const STEP = makeDefinition({
@@ -103,6 +111,29 @@ describe("InputPane", () => {
 });
 
 describe("OutputPane", () => {
+  it("pins the call a webhook trigger's test URL caught", async () => {
+    const webhook = makeDefinition({
+      id: "trigger.webhook",
+      category: "triggers",
+      ports: [port("out", "output", null)],
+    });
+    seed(line());
+    renderOutput(webhook);
+
+    await userEvent.click(screen.getByRole("button", { name: "catch a call" }));
+
+    expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({
+      body: { lead: 1 },
+      delivery_id: "t-1",
+    });
+  });
+
+  it("offers a test URL only on a webhook trigger", () => {
+    seed(line());
+    renderOutput();
+    expect(screen.queryByRole("button", { name: "catch a call" })).toBeNull();
+  });
+
   it("says there is no output yet, and writes data to pin", async () => {
     seed(line());
     renderOutput();

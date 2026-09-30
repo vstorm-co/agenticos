@@ -69,6 +69,11 @@ answer. Its `core.output` text is written back into that conversation.
 **Webhook.** Started by a signed delivery to the workflow's own address, which the
 first publish of the node creates along with its signing secret.
 
+Before it is published, **Listen for test event** in the trigger's Output pane
+opens a test URL for the draft for two minutes. The one call sent to it, a JSON
+object, is pinned as the trigger's output, so each step after it can be tested
+on a real delivery. The test URL checks no signature and never starts a run.
+
 ::: app.workflows.nodes._triggers.WebhookTriggerOutput
 
 ### trigger.schedule { #trigger-schedule }
@@ -111,6 +116,20 @@ the API returns and the invoking surface delivers. It has the same fields as
 with nothing bound is an empty answer.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
+
+## webhook.respond { #webhook-respond }
+
+**Respond to webhook.** Answers the delivery that started the run with a status
+(200 to 599), headers and a JSON `body` bound from an earlier step. A delivery to
+a graph holding this step waits for it instead of taking `202`, for at most
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. The first respond step to complete
+is the answer, a retry of the same delivery gets it again, and the run goes on
+after it. A run that ends without reaching the step answers `202` if it
+succeeded and `500` if it did not. Headers the API's own response owns are
+refused at publish: framing, `Content-Type`, `Set-Cookie`, and the CORS and
+browser-policy headers.
+
+::: app.workflows.nodes.webhook_respond.WebhookRespondConfig
 
 ## data.map { #data-map }
 

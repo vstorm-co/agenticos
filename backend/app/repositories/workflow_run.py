@@ -117,6 +117,17 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> W
     return result.scalar_one_or_none()
 
 
+async def get_run_answer(db: AsyncSession, run_id: UUID) -> tuple[str, dict[str, Any] | None]:
+    """A run's status and its webhook answer, read as columns rather than the
+    row, so a caller polling in one session sees each commit rather than the
+    row its identity map already holds."""
+    result = await db.execute(
+        select(WorkflowRun.status, WorkflowRun.webhook_response).where(WorkflowRun.id == run_id)
+    )
+    row = result.one()
+    return row.status, row.webhook_response
+
+
 async def get_run_for_update(
     db: AsyncSession, run_id: UUID, *, organization_id: UUID
 ) -> WorkflowRun | None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a100423c33e"
+source_sha: "8e14a6b7c535"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -186,6 +186,20 @@ Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs. Ein
 Signatur, die sich nicht verifizieren lässt, ist ein `403`, eine Zustellung ohne ID
 oder mit einem Body, der kein JSON-Objekt ist, ein `400`, und ein pausierter oder
 unbekannter Webhook ein `404`.
+
+Ein Graph mit einem Schritt [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+antwortet stattdessen mit dessen Status, Headern und JSON-Body, und eine
+Wiederholung der Zustellung bekommt dieselbe Antwort. Die Anfrage wartet höchstens
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` darauf und antwortet dann wie oben mit
+`202`; ein Run, der vor der Antwort fehlschlägt, abgebrochen wird oder sein Budget
+aufbraucht, ist ein `500` `WORKFLOW_WEBHOOK_UNANSWERED` mit dem Run.
+
+Vor der Veröffentlichung öffnet `POST /api/v1/workflows/{id}/webhook-test`
+(`workflows:edit`) eine Test-URL für den Entwurf, zurückgegeben als `url` mit dem
+`test_token` darin und für zwei Minuten für einen Aufruf offen. Der Aufruf braucht keine
+Signatur, wird mit `{"captured": true}` beantwortet und startet keinen Run.
+`GET .../webhook-test/{token}` liest `state` (`listening`, `caught` oder `expired`)
+und die empfangene `delivery` zurück.
 
 ## Mit Tabellen arbeiten { #working-with-tables }
 

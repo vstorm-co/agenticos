@@ -6,6 +6,7 @@ import {
   File,
   FingerprintPattern,
   GitBranch,
+  Reply,
   Search,
   Send,
   Table2,
@@ -35,6 +36,7 @@ describe("nodeVisual", () => {
 
   it("draws each Transform step by what it does to the list", () => {
     expect(nodeVisual("transform.sort", "transform").icon).toBe(ArrowUpDown);
+    expect(nodeVisual("webhook.respond", "core").icon).toBe(Reply);
     expect(nodeVisual("transform.crypto", "transform").icon).toBe(FingerprintPattern);
     expect(groupVisual("transform").icon).toBe(WandSparkles);
   });

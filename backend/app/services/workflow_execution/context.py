@@ -19,8 +19,9 @@ Two directions, both scoped to one dispatch call by `dispatching_as`:
 - **Out** - `report_waiting_agent_run` is how a handler that parks on
   `ApprovalGate` tells the dispatcher which `agent_runs` row `NodeRun.
   waiting_agent_run_id` must point at, `report_cost` is how a handler
-  that spends money says how much, and `report_run_output` is how
-  `core.output` names the run's answer. `NodeResult` (#1786's frozen contract)
+  that spends money says how much, `report_run_output` is how
+  `core.output` names the run's answer, and `report_webhook_response` is how
+  `webhook.respond` names what its delivery is answered with. `NodeResult` (#1786's frozen contract)
   carries none of them, so they travel beside the return value rather than in it.
 """
 
@@ -91,6 +92,7 @@ class _Outbox:
     cost: Decimal = Decimal(0)
     cost_is_partial: bool = False
     run_output: dict[str, Any] | None = None
+    webhook_response: dict[str, Any] | None = None
 
 
 _current: ContextVar[DispatchContext | None] = ContextVar("workflow_dispatch_context", default=None)
@@ -140,6 +142,10 @@ class DispatchScope:
     @property
     def run_output(self) -> dict[str, Any] | None:
         return self._outbox.run_output
+
+    @property
+    def webhook_response(self) -> dict[str, Any] | None:
+        return self._outbox.webhook_response
 
 
 def dispatching_as(context: DispatchContext) -> DispatchScope:
@@ -228,3 +234,15 @@ def report_run_output(output: dict[str, Any]) -> None:
     outbox = _outbox.get()
     if outbox is not None:
         outbox.run_output = output
+
+
+def report_webhook_response(response: dict[str, Any]) -> None:
+    """Name `response` as what the delivery that started the run is answered with.
+
+    Recorded on the run as `report_run_output` records an output - only if this
+    attempt completes and is accepted - and only if the run has not answered
+    already: the first respond step to complete is the one the sender gets.
+    """
+    outbox = _outbox.get()
+    if outbox is not None:
+        outbox.webhook_response = response

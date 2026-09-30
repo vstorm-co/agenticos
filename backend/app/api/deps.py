@@ -737,6 +737,17 @@ def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
 
 WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
 
+from app.services.workflow_webhook_test import WorkflowWebhookTestService
+
+
+def get_workflow_webhook_test_service(db: DBSession, redis: Redis) -> WorkflowWebhookTestService:
+    return WorkflowWebhookTestService(db, redis)
+
+
+WorkflowWebhookTestSvc = Annotated[
+    WorkflowWebhookTestService, Depends(get_workflow_webhook_test_service)
+]
+
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
 

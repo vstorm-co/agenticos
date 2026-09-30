@@ -1,5 +1,5 @@
 ---
-source_sha: "eb16e8f9c260"
+source_sha: "69cfd78ba18c"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -76,6 +76,12 @@ odpowiedzi. Tekst jego `core.output` trafia z powrotem do tej rozmowy.
 **Webhook.** Uruchamiany podpisanym dostarczeniem na własny adres workflow, który
 pierwsza publikacja węzła tworzy razem z sekretem do podpisu.
 
+Przed publikacją **Listen for test event** w panelu Output wyzwalacza otwiera
+testowy URL dla szkicu na dwie minuty. Jedno wysłane na niego wywołanie, obiekt
+JSON, zostaje przypięte jako wynik wyzwalacza, więc każdy kolejny krok da się
+przetestować na prawdziwym dostarczeniu. Testowy URL nie sprawdza podpisu i nigdy
+nie uruchamia runu.
+
 ::: app.workflows.nodes._triggers.WebhookTriggerOutput
 
 ### trigger.schedule { #trigger-schedule }
@@ -119,6 +125,20 @@ zwraca API i dostarcza wywołująca powierzchnia. Ma te same pola co wyjście
 bindingu to pusta odpowiedź.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
+
+## webhook.respond { #webhook-respond }
+
+**Respond to webhook.** Odpowiada na dostarczenie, które uruchomiło run, statusem
+(od 200 do 599), nagłówkami i JSON-owym `body` powiązanym z wcześniejszego kroku.
+Dostarczenie do grafu z tym krokiem czeka na niego zamiast dostać `202`, najwyżej
+przez `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. Odpowiedzią jest pierwszy
+ukończony krok respond, ponowienie tego samego dostarczenia dostaje ją jeszcze
+raz, a run toczy się dalej. Run, który kończy się bez dojścia do kroku, odpowiada
+`202`, jeśli się powiódł, i `500`, jeśli nie. Nagłówki należące do własnej
+odpowiedzi API są odrzucane przy publikacji: ramkowanie, `Content-Type`,
+`Set-Cookie` oraz nagłówki CORS i polityk przeglądarki.
+
+::: app.workflows.nodes.webhook_respond.WebhookRespondConfig
 
 ## data.map { #data-map }
 

@@ -159,6 +159,7 @@ def load_builtins() -> None:
         trigger_webhook,
         trigger_workflow_call,
         trigger_workflow_failed,
+        webhook_respond,
         workflow_run,
     )
 

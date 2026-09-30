@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FlaskConical, Pencil, Pin, PinOff } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import { Badge, Button, ConfirmDialog, Spinner, Textarea } from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
@@ -16,11 +17,12 @@ import {
   knownOutputs,
   sourcesOf,
 } from "@/lib/workflows/step-data";
-import { declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
+import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { DataView } from "./data-view";
+import { WebhookListener } from "./webhook-listener";
 
 function Pane({
   title,
@@ -85,10 +87,10 @@ export function InputPane({
         const output = pinned ?? stepData[source]?.output ?? null;
         return (
           <div key={source} className="space-y-1.5">
-            <p className="flex items-center gap-1.5 text-sm font-medium">
+            <div className="flex items-center gap-1.5 text-sm font-medium">
               {names.get(source) ?? source}
               {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
-            </p>
+            </div>
             {output === null ? (
               <Empty>{t("stepNoDataYet")}</Empty>
             ) : (
@@ -240,6 +242,15 @@ export function OutputPane({
         </div>
       ) : (
         <>
+          {!readOnly && definition.id === WEBHOOK_TRIGGER && (
+            <WebhookListener
+              workflowId={workflowId}
+              onCaught={(delivery) => {
+                updateNodeDetails(node.id, { pinned_output: delivery });
+                toast.success(t("webhookTestCaught"));
+              }}
+            />
+          )}
           {pinned !== null && (
             <p className="bg-muted text-muted-foreground rounded-md px-2.5 py-1.5 text-xs">
               {t("stepPinnedHint")}

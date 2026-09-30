@@ -133,5 +133,6 @@ export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
+export { useWebhookTest } from "./use-webhook-test";
 export { useWorkflowChat } from "./use-workflow-chat";
 export { useTableTriggerAdmissions, useTableTriggers } from "./use-table-triggers";

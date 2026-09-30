@@ -6258,7 +6258,18 @@
     "pickerWorkflowNone": "No workflow is published starting from Called by a workflow yet.",
     "pickerWorkflowGone": "The chosen workflow can no longer be called: publish it starting from Called by a workflow.",
     "nodeSummaryRules": "{count, plural, one {# rule} other {# rules}}",
-    "nodeSummaryWait": "For {seconds, plural, one {# second} other {# seconds}}"
+    "nodeSummaryWait": "For {seconds, plural, one {# second} other {# seconds}}",
+    "webhookTestListen": "Listen for test event",
+    "webhookTestWaiting": "Waiting for a call",
+    "webhookTestUrl": "Test URL",
+    "webhookTestHint": "Send one POST with a JSON object body within two minutes. It is kept here and pinned as this trigger's output, and no run starts.",
+    "webhookTestStop": "Stop listening",
+    "webhookTestExpired": "No call arrived in time.",
+    "webhookTestCaught": "Test call caught and pinned",
+    "nodeFormMapName": "Name {index}",
+    "nodeFormMapValue": "Value {index}",
+    "nodeFormMapNamePlaceholder": "Name",
+    "nodeFormMapValuePlaceholder": "Value"
   },
   "artifacts": {
     "title": "Artifacts",

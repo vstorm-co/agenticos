@@ -1,5 +1,5 @@
 ---
-source_sha: "275f1a82981f"
+source_sha: "cb5cd8136482"
 ---
 
 # Architektura { #architecture }
@@ -235,7 +235,7 @@ odpowiada.
 Obie granice są dowodzone na prawdziwej bazie danych w
 `tests/integration/test_run_commit_boundary.py`.
 
-### Jedyny inny wczesny commit { #the-one-other-early-commit }
+### Drugi wczesny commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` jest drugim, i to z odwrotnego powodu: nie
 dlatego, że transakcja byłaby trzymana zbyt długo, ale dlatego, że zaraz zostanie
@@ -248,6 +248,17 @@ Bez commitu jest to 401, wciąż żywy skompromitowany łańcuch i żaden ślad,
 cokolwiek się wydarzyło. `test_the_response_survives_the_refusal_that_follows_it`
 wycofuje transakcję po wywołaniu i sprawdza, co zostało
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### Webhook, który czeka na swoją odpowiedź { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` jest trzeci. Webhook, którego graf zawiera krok
+Respond to webhook, odpowiada nadawcy tym, co ten krok zapisze, więc żądanie musi
+czekać na run, który jeszcze nie wystartował - a nie wystartuje, dopóki przyjęcie
+nie będzie widoczne dla workera. Serwis zatwierdza run i rekord dostarczenia,
+uruchamia dispatch odłożony przez `spawn_after_commit` (inaczej uruchomiłby go
+dopiero zamykający commit sesji), a potem odpytuje odpowiedź runa. Po commicie nic
+nie jest zapisywane, więc zamykający commit nie ma już nic do zrobienia.
+`TestAnsweringTheSender` prowadzi run z tego dispatchu.
 
 Widoczność tnie w obie strony. Cokolwiek rozumowało wcześniej „wiersza
 wykonującego się runa nie da się zobaczyć”, rozumuje teraz o wierszu, który
@@ -981,6 +992,9 @@ opracowany przykład.
   `SessionService.detect_refresh_reuse` commituje sesję, którą właśnie unieważnił,
   i wpis mówiący dlaczego — bo jego wywołujący natychmiast podnosi 401, a wycofanie
   cofnęłoby oba.
+- Webhook, którego graf odpowiada na dostarczenia, zatwierdza przyjęcie w
+  `WorkflowExposureService._answer`, żeby run mógł wystartować, gdy żądanie czeka
+  na krok Respond to webhook.
 - Praca w tle, która czyta wiersz zapisany przez to żądanie, jest przekazywana
   przez **`spawn_after_commit`**, nigdy przez `spawn`.
 - Cienka domena to moduł; gruba to podpakiet z fasadą, a nic spoza niego nie

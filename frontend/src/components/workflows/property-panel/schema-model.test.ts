@@ -79,6 +79,16 @@ describe("classify", () => {
     });
   });
 
+  it("classifies names mapped to text as a map, and any other open object as a leaf", () => {
+    expect(classify({ type: "object", additionalProperties: { type: "string" } }, {})).toEqual({
+      kind: "map",
+    });
+    const open = { type: "object", additionalProperties: { type: "integer" } };
+    expect(classify(open, {})).toEqual({ kind: "leaf", schema: open });
+    const loose = { type: "object", additionalProperties: true };
+    expect(classify(loose, {})).toEqual({ kind: "leaf", schema: loose });
+  });
+
   it("classifies an object as a fieldset, dropping const-only and non-record fields", () => {
     const shape = classify(
       {

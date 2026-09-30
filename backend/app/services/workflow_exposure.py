@@ -21,9 +21,12 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.background import start_deferred
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
@@ -33,13 +36,14 @@ from app.db.models.workflow_exposure import (
     ExposureScheduleKind,
     WorkflowExposure,
 )
-from app.db.models.workflow_run import WorkflowRunTrigger
+from app.db.models.workflow_run import WorkflowRunStatus, WorkflowRunTrigger
 from app.repositories import member_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_exposure as workflow_exposure_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
+    WebhookAnswer,
     WorkflowExposureRead,
     WorkflowExposureUpdate,
     WorkflowExposureWithSecret,
@@ -51,9 +55,12 @@ from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
     WorkflowRunInputTooLargeError,
+    WorkflowWebhookUnansweredError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig
+from app.workflows.triggers import answers_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +70,9 @@ _SIGNED_SOURCES = ("webhook", "github")
 
 # The run states a schedule waits behind rather than fire on top of.
 _TERMINAL = {"succeeded", "failed", "cancelled", "budget_exceeded"}
+
+# How often a delivery waiting on its graph's answer looks for it.
+_ANSWER_POLL_SECONDS = 0.2
 
 
 def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
@@ -89,7 +99,7 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
     )
 
 
-def _parse_body(body: bytes) -> dict[str, Any]:
+def parse_webhook_body(body: bytes) -> dict[str, Any]:
     """A delivery's body as the JSON object its run starts with, or a 400."""
     try:
         payload = json.loads(body)
@@ -357,7 +367,7 @@ class WorkflowExposureService:
 
     async def receive_webhook(
         self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]
-    ) -> WebhookAdmitted:
+    ) -> WebhookAdmitted | WebhookAnswer:
         """Admit one signed delivery as one run, or answer with the run it already admitted.
 
         Called with no auth context: the delivery is authenticated by its HMAC
@@ -366,11 +376,19 @@ class WorkflowExposureService:
         `X-GitHub-Delivery`); the id is recorded in the transaction that admits
         the run, so a retry of it - however late - returns the first run.
 
+        A version whose graph holds a Respond to webhook step is answered by it:
+        the admission is committed here, so the run can start, and the delivery
+        waits up to `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` for the answer
+        (see `_answer`). A retry of a delivery that was answered gets the same
+        answer.
+
         Raises:
             NotFoundError: No active webhook has this id.
             AuthorizationError: The signature did not verify, or the member it
                 runs as can no longer run the workflow.
             BadRequestError: No delivery id, or a body that is not a JSON object.
+            WorkflowWebhookUnansweredError: The graph answers its deliveries, and
+                this run failed, was cancelled or ran out of budget first.
         """
         exposure = await workflow_exposure_repo.get_by_id(self.db, exposure_id)
         if (
@@ -405,7 +423,7 @@ class WorkflowExposureService:
                 message="A delivery needs an X-Delivery-Id header of at most 255 characters",
                 details={"exposure_id": str(exposure_id)},
             )
-        payload = _parse_body(body)
+        payload = parse_webhook_body(body)
 
         await workflow_exposure_repo.lock_delivery(
             self.db, exposure_id=exposure.id, delivery_id=delivery_id
@@ -414,6 +432,11 @@ class WorkflowExposureService:
             self.db, exposure_id=exposure.id, delivery_id=delivery_id
         )
         if seen is not None:
+            _status, answered = await workflow_run_repo.get_run_answer(
+                self.db, seen.workflow_run_id
+            )
+            if answered is not None:
+                return WebhookAnswer.model_validate(answered)
             return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
 
         fire = await self._fire_context(exposure)
@@ -445,7 +468,42 @@ class WorkflowExposureService:
         from app.worker.tasks.workflow_tasks import trigger_dispatch
 
         trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        if answers_webhook(WorkflowGraph.model_validate(version.graph)):
+            answer = await self._answer(run.id)
+            if answer is not None:
+                return answer
         return WebhookAdmitted(run_id=run.id, duplicate=False)
+
+    async def _answer(self, run_id: UUID) -> WebhookAnswer | None:
+        """Wait for a run's Respond to webhook step, and return what it answered.
+
+        Commits the request's transaction first - the one route that does: the
+        run and its delivery record must be visible to the worker before there
+        is anything to wait for, and the request's own commit comes only once
+        the route returns. The dispatch `spawn_after_commit` queued is started
+        here too, since only the session's own closing commit starts it.
+        Nothing is written after, so the `DBSession` commit that follows has
+        nothing left to do.
+
+        Returns None when the time runs out, or when the run succeeded without
+        answering - the sender then gets the `202` any delivery gets.
+
+        Raises:
+            WorkflowWebhookUnansweredError: The run ended badly before answering.
+        """
+        await self.db.commit()
+        start_deferred(self.db)
+        with anyio.move_on_after(settings.WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS):
+            while True:
+                status, answer = await workflow_run_repo.get_run_answer(self.db, run_id)
+                if answer is not None:
+                    return WebhookAnswer.model_validate(answer)
+                if status == WorkflowRunStatus.SUCCEEDED.value:
+                    return None
+                if status in _TERMINAL:
+                    raise WorkflowWebhookUnansweredError(run_id=run_id, status=status)
+                await anyio.sleep(_ANSWER_POLL_SECONDS)
+        return None
 
     async def fire_due(self, *, now: datetime, limit: int = 100) -> list[tuple[UUID, UUID]]:
         """Fire every schedule due by `now`, and return what to dispatch.

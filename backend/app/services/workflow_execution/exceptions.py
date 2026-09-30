@@ -204,3 +204,20 @@ class WorkflowRunInputTooLargeError(AppException):
 
     def __init__(self, *, limit: int, size: int) -> None:
         super().__init__(details={"limit_bytes": limit, "size_bytes": size})
+
+
+class WorkflowWebhookUnansweredError(AppException):
+    """A webhook's run ended badly before any step answered its sender (500).
+
+    Only for a graph that answers its deliveries (`webhook.respond`): the sender
+    is waiting for that answer, and a run that failed, was cancelled or ran out of
+    budget first will never give one. A run that succeeded without reaching the
+    step answers `202`, as a delivery to a graph without one does.
+    """
+
+    message = "The workflow run ended before it answered this webhook"
+    code = "WORKFLOW_WEBHOOK_UNANSWERED"
+    status_code = 500
+
+    def __init__(self, *, run_id: UUID, status: str) -> None:
+        super().__init__(details={"run_id": run_id, "status": status})

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a100423c33e"
+source_sha: "8e14a6b7c535"
 ---
 
 # API HTTP { #the-http-api }
@@ -174,6 +174,19 @@ przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęt
 odpowiada `"duplicate": true` z id pierwszego runa. Podpis, który się nie weryfikuje,
 to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
 a wstrzymany albo nieznany webhook to `404`.
+
+Graf z krokiem [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+odpowiada zamiast tego statusem, nagłówkami i treścią JSON tego kroku, a
+ponowienie dostarczenia dostaje tę samą odpowiedź. Żądanie czeka na nią najwyżej
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`, potem odpowiada `202` jak wyżej; run,
+który przed odpowiedzią się nie powiedzie, zostanie anulowany albo wyczerpie
+budżet, to `500` `WORKFLOW_WEBHOOK_UNANSWERED` z nazwą runa.
+
+Przed publikacją `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+otwiera testowy URL dla szkicu, zwracany jako `url` z `test_token` w środku i otwarty na
+jedno wywołanie przez dwie minuty. Wywołanie nie potrzebuje podpisu, dostaje
+odpowiedź `{"captured": true}` i nie uruchamia runa. `GET .../webhook-test/{token}`
+odczytuje `state` (`listening`, `caught` albo `expired`) i odebrane `delivery`.
 
 ## Praca z tabelami { #working-with-tables }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "eb16e8f9c260"
+source_sha: "69cfd78ba18c"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -82,6 +82,12 @@ zurückgeschrieben.
 gestartet, die die erste Veröffentlichung des Knotens zusammen mit seinem
 Signatur-Secret anlegt.
 
+Vor der Veröffentlichung öffnet **Listen for test event** im Output-Bereich des
+Triggers für zwei Minuten eine Test-URL für den Entwurf. Der eine Aufruf an sie,
+ein JSON-Objekt, wird als Ausgabe des Triggers angeheftet, sodass jeder Schritt
+danach mit einer echten Zustellung getestet werden kann. Die Test-URL prüft keine
+Signatur und startet nie einen Run.
+
 ::: app.workflows.nodes._triggers.WebhookTriggerOutput
 
 ### trigger.schedule { #trigger-schedule }
@@ -127,6 +133,21 @@ dieselben Felder wie die Ausgabe von `agent.run`, sodass die Antwort eines Agent
 direkt gebunden werden kann. Eine Ausgabe ohne Bindings ist eine leere Antwort.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
+
+## webhook.respond { #webhook-respond }
+
+**Respond to webhook.** Beantwortet die Zustellung, die den Run gestartet hat, mit
+einem Status (200 bis 599), Headern und einem JSON-`body`, der aus einem früheren
+Schritt gebunden ist. Eine Zustellung an einen Graphen mit diesem Schritt wartet
+auf ihn, statt `202` zu bekommen, höchstens
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` lang. Der erste abgeschlossene
+Respond-Schritt ist die Antwort, eine Wiederholung derselben Zustellung bekommt
+sie erneut, und der Run läuft danach weiter. Ein Run, der endet, ohne den Schritt
+zu erreichen, antwortet `202`, wenn er erfolgreich war, und sonst `500`. Header,
+die der eigenen Antwort der API gehören, werden beim Veröffentlichen abgelehnt:
+Framing, `Content-Type`, `Set-Cookie` sowie die CORS- und Browser-Policy-Header.
+
+::: app.workflows.nodes.webhook_respond.WebhookRespondConfig
 
 ## data.map { #data-map }
 

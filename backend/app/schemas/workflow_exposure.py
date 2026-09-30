@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import computed_field
@@ -74,3 +74,53 @@ class WebhookAdmitted(BaseSchema):
 
     run_id: UUID
     duplicate: bool
+
+
+class WebhookAnswer(BaseSchema):
+    """What a graph's Respond to webhook step answered the delivery with.
+
+    Not a response model: the door sends `status_code`, `headers` and `body` as
+    the HTTP response itself.
+    """
+
+    status_code: int
+    headers: dict[str, str]
+    body: Any
+
+
+class WebhookTestListening(BaseSchema):
+    """A webhook's test URL, open for one call until `expires_at`.
+
+    `test_token` is the URL's only credential, so it is returned to the editor
+    who asked and never listed again.
+    """
+
+    test_token: str
+    expires_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
+    @property
+    def url(self) -> str:
+        """Where to send the test call, on the deployment's public address."""
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        return f"{base}/api/v1/workflow-webhook-tests/{self.test_token}"
+
+
+class WebhookTestCaptured(BaseSchema):
+    """What a test call is answered with: that it was kept. No run starts."""
+
+    captured: bool
+
+
+class WebhookTestDelivery(BaseSchema):
+    """The call a test URL caught, shaped as the Webhook trigger hands one on."""
+
+    body: dict[str, Any]
+    delivery_id: str
+
+
+class WebhookTestCapture(BaseSchema):
+    """Where a test URL stands: waiting, holding its call, or closed without one."""
+
+    state: Literal["listening", "caught", "expired"]
+    delivery: WebhookTestDelivery | None

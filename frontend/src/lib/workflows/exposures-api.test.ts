@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 
 import {
+  getWebhookTest,
   getWorkflowExposure,
+  listenForWebhookTest,
   rotateWorkflowExposureSecret,
   updateWorkflowExposure,
 } from "./exposures-api";
@@ -30,5 +32,10 @@ describe("exposures-api", () => {
 
     await rotateWorkflowExposureSecret("wf", "e1");
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/exposures/e1/rotate-secret");
+
+    await listenForWebhookTest("wf");
+    expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/webhook-test");
+    await getWebhookTest("wf", "tok");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/webhook-test/tok");
   });
 });

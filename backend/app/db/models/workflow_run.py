@@ -268,6 +268,12 @@ class WorkflowRun(Base, TimestampMixin):
     # shape. SQL NULL, not JSON `null`, for a run that has not answered (or never
     # does: a graph with no output node), for the same reason `error` needs it.
     output: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    # What the webhook delivery that started this run is answered with, as the
+    # first `webhook.respond` step to complete recorded it - status, headers and
+    # body. Written once: a second respond step in the same run answers nobody.
+    webhook_response: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # This run's own id if it is the root of its causal chain, else the
     # originating run's `root_run_id`. Always set - a root run points at
     # itself - which is what lets every consumer that needs "the run this

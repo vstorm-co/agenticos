@@ -1,5 +1,5 @@
 ---
-source_sha: "0a100423c33e"
+source_sha: "8e14a6b7c535"
 ---
 
 # La API HTTP { #the-http-api }
@@ -182,6 +182,19 @@ admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
 `"duplicate": true` con el id del primer run. Una firma que no se verifica es un
 `403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
 webhook pausado o desconocido un `404`.
+
+Un grafo con un paso [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+responde en cambio con el estado, las cabeceras y el cuerpo JSON de ese paso, y un
+reintento de la entrega recibe la misma respuesta. La petición la espera como mucho
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` y luego responde `202` como arriba; un
+run que falla, se cancela o agota su presupuesto antes de responder es un `500`
+`WORKFLOW_WEBHOOK_UNANSWERED` que nombra el run.
+
+Antes de publicar, `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+abre una URL de prueba para el borrador, devuelta como `url` con el `test_token` dentro y
+abierta para una llamada durante dos minutos. La llamada no necesita firma, recibe
+`{"captured": true}` y no inicia ningún run. `GET .../webhook-test/{token}` lee
+`state` (`listening`, `caught` o `expired`) y la `delivery` recibida.
 
 ## Trabajar con tablas { #working-with-tables }
 

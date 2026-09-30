@@ -171,6 +171,19 @@ admitted, never waiting for the run itself. A delivery id already admitted answe
 `403`, a delivery with no id or with a body that is not a JSON object a `400`, and
 a paused or unknown webhook a `404`.
 
+A graph with a [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+step answers with that step's status, headers and JSON body instead, and a retry
+of the delivery gets the same answer. The request waits for it for up to
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`, then answers `202` as above; a run
+that fails, is cancelled or runs out of budget before answering is a `500`
+`WORKFLOW_WEBHOOK_UNANSWERED` naming the run.
+
+Before publishing, `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+opens a test URL for the draft, returned as `url` with the `test_token` in it and open
+for one call for two minutes. The call needs no signature, is answered
+`{"captured": true}` and starts no run. `GET .../webhook-test/{token}` reads back
+`state` (`listening`, `caught` or `expired`) and the `delivery` it caught.
+
 ## Working with tables { #working-with-tables }
 
 A record's `values` are keyed by column id; `GET /api/v1/tables/{id}` lists the

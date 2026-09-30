@@ -23,6 +23,7 @@ from app.core.permissions import AuthContext
 from app.main import app
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
+    WebhookAnswer,
     WorkflowExposureRead,
     WorkflowExposureWithSecret,
 )
@@ -121,6 +122,20 @@ class TestExposureRoutes:
         assert args.args == (exposure_id,)
         assert args.kwargs["body"] == b'{"a": 1}'
         assert args.kwargs["headers"]["x-delivery-id"] == "d-1"
+
+    async def test_a_graphs_own_answer_is_the_response_itself(self, wired):
+        client, service = wired
+        service.receive_webhook = AsyncMock(
+            return_value=WebhookAnswer(
+                status_code=201, headers={"X-Lead": "accepted"}, body={"lead": 1}
+            )
+        )
+        answered = await client.post(
+            f"{settings.API_V1_STR}/workflow-webhooks/{uuid.uuid4()}", content=b"{}"
+        )
+        assert answered.status_code == 201
+        assert answered.headers["x-lead"] == "accepted"
+        assert answered.json() == {"lead": 1}
 
 
 class TestTheSocketRoute:

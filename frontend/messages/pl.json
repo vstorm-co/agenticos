@@ -3910,7 +3910,18 @@
     "pickerWorkflowNone": "Żaden workflow nie jest jeszcze opublikowany z wyzwalaczem Called by a workflow.",
     "pickerWorkflowGone": "Wybranego workflow nie da się już wywołać: opublikuj go z wyzwalaczem Called by a workflow.",
     "nodeSummaryRules": "{count, plural, one {# reguła} few {# reguły} many {# reguł} other {# reguły}}",
-    "nodeSummaryWait": "Przez {seconds, plural, one {# sekundę} few {# sekundy} many {# sekund} other {# sekundy}}"
+    "nodeSummaryWait": "Przez {seconds, plural, one {# sekundę} few {# sekundy} many {# sekund} other {# sekundy}}",
+    "webhookTestListen": "Nasłuchuj testowego wywołania",
+    "webhookTestWaiting": "Czekam na wywołanie",
+    "webhookTestUrl": "Testowy URL",
+    "webhookTestHint": "Wyślij jeden POST z obiektem JSON w treści w ciągu dwóch minut. Zostanie zapisany tutaj i przypięty jako wynik tego wyzwalacza, a żaden run nie wystartuje.",
+    "webhookTestStop": "Przestań nasłuchiwać",
+    "webhookTestExpired": "Nie przyszło żadne wywołanie na czas.",
+    "webhookTestCaught": "Testowe wywołanie odebrane i przypięte",
+    "nodeFormMapName": "Nazwa {index}",
+    "nodeFormMapValue": "Wartość {index}",
+    "nodeFormMapNamePlaceholder": "Nazwa",
+    "nodeFormMapValuePlaceholder": "Wartość"
   },
   "artifacts": {
     "title": "Artefakty",

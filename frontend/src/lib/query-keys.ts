@@ -113,6 +113,7 @@ export const qk = {
     approvals: () => ["workflows", "approvals"] as const,
     // The webhooks and schedules that run a workflow unattended.
     exposure: (id: string) => ["workflows", id, "exposure"] as const,
+    webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,

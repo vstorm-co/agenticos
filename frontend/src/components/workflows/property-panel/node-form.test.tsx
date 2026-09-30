@@ -496,6 +496,48 @@ describe("config leaves", () => {
   });
 });
 
+describe("names mapped to text", () => {
+  const headers = makeDefinition({
+    id: "test.headers",
+    config_schema: {
+      type: "object",
+      properties: {
+        headers: {
+          type: "object",
+          title: "Headers",
+          additionalProperties: { type: "string" },
+        },
+      },
+    },
+    input_schema: null,
+  });
+
+  it("shows each entry as a row, and saves what is typed", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: headers,
+      config: { headers: { "X-Lead": "yes" } },
+    });
+    expect(screen.getByLabelText("Name 1")).toHaveValue("X-Lead");
+    expect(screen.getByLabelText("Value 1")).toHaveValue("yes");
+
+    await userEvent.type(screen.getByLabelText("Value 1"), "!");
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { headers: { "X-Lead": "yes!" } });
+  });
+
+  it("adds a row that is saved once it has a name, and removes one", async () => {
+    const { updateNodeConfig } = renderForm({ definition: headers });
+    await userEvent.click(screen.getByRole("button", { name: "Add row" }));
+    await userEvent.type(screen.getByLabelText("Value 1"), "v");
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+    await userEvent.type(screen.getByLabelText("Name 1"), "X");
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { headers: { X: "v" } });
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove row 1" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+    expect(screen.queryByLabelText("Name 1")).toBeNull();
+  });
+});
+
 describe("array of objects", () => {
   const twoRows = {
     config: {

@@ -607,6 +607,19 @@ export interface WorkflowExposureWithSecret extends WorkflowExposureRead {
   reveal_secret: string;
 }
 
+/** A webhook's test URL for the draft, open for one call. Mirrors `WebhookTestListening`. */
+export interface WebhookTestListening {
+  test_token: string;
+  url: string;
+  expires_at: string;
+}
+
+/** Where a test URL stands, and the call it caught. Mirrors `WebhookTestCapture`. */
+export interface WebhookTestCapture {
+  state: "listening" | "caught" | "expired";
+  delivery: { body: Record<string, unknown>; delivery_id: string } | null;
+}
+
 /** Pause or resume it. Mirrors `WorkflowExposureUpdate`. */
 export interface WorkflowExposureUpdate {
   is_active: boolean;

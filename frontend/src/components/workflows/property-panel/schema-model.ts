@@ -96,6 +96,11 @@ export interface UnionShape {
   branches: UnionBranch[];
 }
 
+/** Names mapped to text, like a request's headers: rows of a name and its value. */
+export interface MapShape {
+  kind: "map";
+}
+
 /** A scalar (or wholesale-bound) leaf — `schema-form.tsx`'s territory, or a picker. */
 export interface LeafShape {
   kind: "leaf";
@@ -103,7 +108,7 @@ export interface LeafShape {
 }
 
 /** What a schema renders as, once its `$ref` and optional wrapping are resolved. */
-export type Shape = ObjectShape | ArrayShape | UnionShape | LeafShape;
+export type Shape = ObjectShape | ArrayShape | UnionShape | MapShape | LeafShape;
 
 /** The property names an object schema marks required. */
 function requiredNames(schema: Schema): Set<string> {
@@ -133,6 +138,17 @@ function objectEntries(schema: Schema): FieldEntry[] {
 /** Whether a schema is an object with rendered properties. */
 function isObjectSchema(schema: Schema): boolean {
   return schema["type"] === "object" && isRecord(schema["properties"]);
+}
+
+/** Whether a schema is `dict[str, str]`: an object of any names, each holding text. */
+function isStringMap(schema: Schema): boolean {
+  const values = schema["additionalProperties"];
+  return (
+    schema["type"] === "object" &&
+    !isRecord(schema["properties"]) &&
+    isRecord(values) &&
+    values["type"] === "string"
+  );
 }
 
 /** The `items` schema of an array, or null when it declares none. */
@@ -218,6 +234,7 @@ export function classify(raw: Schema, defs: Defs): Shape {
     }
   }
   if (isObjectSchema(schema)) return { kind: "object", entries: objectEntries(schema) };
+  if (isStringMap(schema)) return { kind: "map" };
   return { kind: "leaf", schema };
 }
 

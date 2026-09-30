@@ -693,6 +693,11 @@ class Settings(BaseSettings):
     # that supply it are open to API keys and webhooks (#1792), so an unbounded one
     # is a row anyone who may start a run can grow without limit.
     WORKFLOW_RUN_MAX_INPUT_BYTES: int = Field(default=262_144, gt=0)
+    # How long a webhook delivery whose graph answers it (`webhook.respond`) holds
+    # its request open for that answer. Past it the sender gets the `202` a
+    # delivery without one gets, and the run goes on; a proxy in front with a
+    # shorter read timeout cuts the wait first.
+    WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=300)
 
     # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
     # before `workflow-reconcile` treats it as abandoned and reclaims it. Long

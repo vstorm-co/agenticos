@@ -24,6 +24,15 @@ API or a WebSocket."""
 DECLARES_FIELDS = frozenset({*BY_HAND, WORKFLOW_CALL})
 """The triggers that may declare typed input fields, checked when a run starts."""
 
+WEBHOOK_RESPOND = "webhook.respond"
+"""Not a trigger but the webhook's other half: the step that answers its sender.
+A delivery to a graph holding one waits for its answer rather than taking `202`."""
+
+
+def answers_webhook(graph: WorkflowGraph) -> bool:
+    """Whether a delivery that starts `graph` is answered by one of its steps."""
+    return any(node.definition_id == WEBHOOK_RESPOND for node in graph.nodes)
+
 
 def live_trigger(graph: WorkflowGraph) -> str | None:
     """The `definition_id` of the trigger `graph` starts from, or None when its

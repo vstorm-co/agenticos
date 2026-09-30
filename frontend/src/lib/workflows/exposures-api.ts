@@ -3,13 +3,16 @@
  * `backend/app/api/routes/v1/workflow_exposures.py`.
  *
  * Publishing a version whose trigger node is one of them is what makes it; here
- * it is read, paused and resumed, and a webhook's secret rotated. Thin wrappers
+ * it is read, paused and resumed, and a webhook's secret rotated - and, before
+ * any of that, a draft's test URL opened and read. Thin wrappers
  * over `apiClient`, one per route; `use-workflow-exposure.ts` calls these,
  * components never do.
  */
 
 import { apiClient } from "@/lib/api-client";
 import type {
+  WebhookTestCapture,
+  WebhookTestListening,
   WorkflowExposureRead,
   WorkflowExposureUpdate,
   WorkflowExposureWithSecret,
@@ -40,4 +43,17 @@ export async function rotateWorkflowExposureSecret(
   return apiClient.post<WorkflowExposureWithSecret>(
     `${root(workflowId)}/exposures/${exposureId}/rotate-secret`,
   );
+}
+
+/** A test URL for the draft's webhook: the next call to it is kept, never run. */
+export async function listenForWebhookTest(workflowId: string): Promise<WebhookTestListening> {
+  return apiClient.post<WebhookTestListening>(`${root(workflowId)}/webhook-test`);
+}
+
+/** Whether a test URL still waits, and the call it caught. */
+export async function getWebhookTest(
+  workflowId: string,
+  token: string,
+): Promise<WebhookTestCapture> {
+  return apiClient.get<WebhookTestCapture>(`${root(workflowId)}/webhook-test/${token}`);
 }

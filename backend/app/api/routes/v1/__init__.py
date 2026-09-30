@@ -111,6 +111,11 @@ v1_router.include_router(
 v1_router.include_router(
     workflow_exposures.webhook_router, prefix="/workflow-webhooks", tags=["workflows:webhooks"]
 )
+v1_router.include_router(
+    workflow_exposures.webhook_test_router,
+    prefix="/workflow-webhook-tests",
+    tags=["workflows:webhooks"],
+)
 v1_router.include_router(table_views.router, prefix="/tables", tags=["tables:views"])
 v1_router.include_router(virtual_table_triggers.router, prefix="/tables", tags=["tables:triggers"])
 v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])

@@ -17,6 +17,7 @@ import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -44,15 +45,21 @@ from app.db.models.workflow_run import (
 from app.main import app
 from app.schemas.conversation import MessageRead
 from app.schemas.workflow import WorkflowPublish, WorkflowPublished
-from app.schemas.workflow_exposure import WorkflowExposureUpdate
+from app.schemas.workflow_exposure import WebhookAdmitted, WebhookAnswer, WorkflowExposureUpdate
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowTriggerMismatchError,
+    WorkflowWebhookUnansweredError,
 )
 from app.services.workflow_exposure import WorkflowExposureService
 from app.services.workflow_registry import WorkflowRegistryService
-from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.services.workflow_webhook_test import (
+    WebhookTestTooLargeError,
+    WorkflowWebhookTestService,
+)
+from app.workflows.contracts.io import Binding, NodeOutputRef
+from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import SeededRun, drive
 
 pytestmark = pytest.mark.anyio
@@ -881,3 +888,332 @@ class TestOverHttp:
         assert refused.status_code == 403
         async with factory() as fresh:
             assert (await fresh.execute(select(WorkflowRun))).scalars().all() == []
+
+
+def _step(definition_id: str, config: dict | None = None) -> NodeInstance:
+    return NodeInstance(
+        id=uuid.uuid4(),
+        definition_id=definition_id,
+        definition_version=1,
+        config=config or {},
+        layout=NodePosition(x=0, y=0),
+    )
+
+
+def _answering(*steps: tuple[NodeInstance, str]) -> WorkflowGraph:
+    """A webhook, then `steps` in a line - each paired with the port it leaves by -
+    with every Respond to webhook step answering with the delivery's body."""
+    trigger = _step("trigger.webhook")
+    line = [(trigger, "out"), *steps]
+    edges = tuple(
+        Edge(
+            id=uuid.uuid4(),
+            source_node_id=source.id,
+            source_port=port,
+            target_node_id=target.id,
+            target_port="in",
+        )
+        for (source, port), (target, _port) in pairwise(line)
+    )
+    bindings = tuple(
+        Binding(
+            target_node_id=node.id,
+            target_field="body",
+            source=NodeOutputRef(node_id=trigger.id, port="out", field_path=("body",)),
+        )
+        for node, _port in steps
+        if node.definition_id == "webhook.respond"
+    )
+    return WorkflowGraph(
+        entry_node_id=trigger.id,
+        nodes=tuple(node for node, _port in line),
+        edges=edges,
+        bindings=bindings,
+    )
+
+
+def _respond(status_code: int = 201, **headers: str) -> tuple[NodeInstance, str]:
+    return _step("webhook.respond", {"status_code": status_code, "headers": headers}), "out"
+
+
+def _runs_each_dispatch(submitted: AsyncMock, factory, graph: WorkflowGraph) -> None:
+    """Stand the worker in for Prefect: each submitted dispatch drives its run."""
+
+    async def run_it(*, name: str, parameters: dict[str, str], timeout: int) -> None:
+        async with factory() as fresh:
+            run = await fresh.get(WorkflowRun, uuid.UUID(parameters["workflow_run_id"]))
+            assert run is not None
+            principal = await fresh.get(User, run.execution_principal_user_id)
+            org = await fresh.get(Organization, run.organization_id)
+        assert principal is not None and org is not None
+        await drive(SeededRun(run=run, graph=graph, principal=principal, org=org, factory=factory))
+
+    submitted.side_effect = run_it
+
+
+class TestAnsweringTheSender:
+    async def test_the_sender_gets_the_respond_steps_status_headers_and_body(
+        self, http, _no_prefect_submission
+    ):
+        client, workflow_id, factory = http
+        graph = _answering(_respond(201, **{"X-Lead": "accepted"}))
+        _runs_each_dispatch(_no_prefect_submission, factory, graph)
+        published = await _publish_over_http(client, workflow_id, graph)
+        exposure, secret = published["exposure"], published["webhook_secret"]
+        body = b'{"lead": 1}'
+        url = f"{settings.API_V1_STR}/workflow-webhooks/{exposure['id']}"
+
+        first = await client.post(url, content=body, headers=_signed(secret, body))
+        again = await client.post(url, content=body, headers=_signed(secret, body))
+
+        for answered in (first, again):
+            assert answered.status_code == 201, answered.text
+            assert answered.headers["x-lead"] == "accepted"
+            assert answered.json() == {"lead": 1}
+        async with factory() as fresh:
+            (run,) = (await fresh.execute(select(WorkflowRun))).scalars().all()
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_only_the_first_respond_step_answers(
+        self, engine, db, tenant, _no_prefect_submission
+    ):
+        owner, org, workflow = tenant
+        graph = _answering(_respond(201), _respond(202))
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
+        _runs_each_dispatch(
+            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
+        )
+        body = b'{"lead": 2}'
+
+        service = WorkflowExposureService(db)
+        answer = await service.receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body)
+        )
+        again = await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
+
+        assert answer == again == WebhookAnswer(status_code=201, headers={}, body={"lead": 2})
+        (run,) = await _runs(db)
+        await db.refresh(run)
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        assert run.webhook_response == {"status_code": 201, "headers": {}, "body": {"lead": 2}}
+
+    async def test_a_run_that_fails_before_answering_says_so(
+        self, engine, db, tenant, _no_prefect_submission
+    ):
+        owner, org, workflow = tenant
+        # The condition is false: the run fails on that branch, and never reaches
+        # the respond step on the other.
+        decides = _step("logic.if", {"condition": "value.missing"})
+        waits = _answering((decides, "true"), _respond())
+        raises = _step("error.raise", {"code": "NO_LEAD", "message": "No lead"})
+        graph = waits.model_copy(
+            update={
+                "nodes": (*waits.nodes, raises),
+                "edges": (
+                    *waits.edges,
+                    Edge(
+                        id=uuid.uuid4(),
+                        source_node_id=decides.id,
+                        source_port="false",
+                        target_node_id=raises.id,
+                        target_port="in",
+                    ),
+                ),
+            }
+        )
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
+        _runs_each_dispatch(
+            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
+        )
+        body = b"{}"
+
+        with pytest.raises(WorkflowWebhookUnansweredError) as refused:
+            await WorkflowExposureService(db).receive_webhook(
+                exposure_id, body=body, headers=_signed(secret, body)
+            )
+        assert refused.value.details["status"] == WorkflowRunStatus.FAILED.value
+
+    async def test_a_run_that_never_reaches_the_step_is_admitted_as_usual(
+        self, engine, db, tenant, _no_prefect_submission
+    ):
+        owner, org, workflow = tenant
+        graph = _answering((_step("logic.if", {"condition": "value.missing"}), "true"), _respond())
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
+        _runs_each_dispatch(
+            _no_prefect_submission, async_sessionmaker(engine, expire_on_commit=False), graph
+        )
+        body = b"{}"
+
+        admitted = await WorkflowExposureService(db).receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body)
+        )
+
+        assert isinstance(admitted, WebhookAdmitted) and admitted.duplicate is False
+        (run,) = await _runs(db)
+        await db.refresh(run)
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_an_answer_that_takes_too_long_is_admitted_and_the_run_goes_on(
+        self, db, tenant, monkeypatch
+    ):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, _answering(_respond()))
+        monkeypatch.setattr(settings, "WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS", 0.3)
+        body = b"{}"
+
+        admitted = await WorkflowExposureService(db).receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body)
+        )
+
+        assert isinstance(admitted, WebhookAdmitted) and admitted.duplicate is False
+        (run,) = await _runs(db)
+        assert run.status != WorkflowRunStatus.SUCCEEDED.value
+
+
+class _Redis:
+    """An in-memory stand-in for the four calls a test URL makes."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
+        self.store[key] = value
+        return True
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def getdel(self, key: str) -> str | None:
+        return self.store.pop(key, None)
+
+    async def exists(self, key: str) -> bool:
+        return key in self.store
+
+
+async def _listening(
+    db: AsyncSession, ctx: AuthContext, workflow: Workflow, graph: WorkflowGraph | None = None
+) -> tuple[WorkflowWebhookTestService, str, _Redis]:
+    workflow.draft_graph = (graph or _graph("trigger.webhook")).model_dump(mode="json")
+    await db.flush()
+    redis = _Redis()
+    service = WorkflowWebhookTestService(db, redis)  # ty: ignore[invalid-argument-type]
+    listening = await service.listen(ctx, workflow.id)
+    return service, listening.test_token, redis
+
+
+class TestTheTestUrl:
+    async def test_it_keeps_one_call_for_the_editor_and_starts_no_run(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, _redis = await _listening(db, ctx, workflow)
+        assert (await service.caught(ctx, workflow.id, token)).state == "listening"
+
+        caught = await service.catch(token, body=b'{"lead": 3}', headers={"x-delivery-id": "t-1"})
+
+        assert caught.captured is True
+        capture = await service.caught(ctx, workflow.id, token)
+        assert capture.state == "caught"
+        assert capture.delivery is not None
+        assert capture.delivery.model_dump() == {"body": {"lead": 3}, "delivery_id": "t-1"}
+        with pytest.raises(NotFoundError):
+            await service.catch(token, body=b"{}", headers={})
+        assert await _runs(db) == []
+
+    async def test_a_call_that_names_no_delivery_gets_an_id_of_its_own(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, _redis = await _listening(db, ctx, workflow)
+        await service.catch(token, body=b"{}", headers={})
+        capture = await service.caught(ctx, workflow.id, token)
+        assert capture.delivery is not None and capture.delivery.delivery_id.startswith("test-")
+
+    async def test_a_url_that_closed_without_a_call_says_so(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, redis = await _listening(db, ctx, workflow)
+        redis.store.pop(f"workflow:webhook-test:{token}:open")
+        assert (await service.caught(ctx, workflow.id, token)).state == "expired"
+        with pytest.raises(NotFoundError):
+            await service.catch(token, body=b"{}", headers={})
+
+    async def test_a_call_it_cannot_keep_leaves_it_listening(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, _redis = await _listening(db, ctx, workflow)
+        with pytest.raises(BadRequestError):
+            await service.catch(token, body=b"[1]", headers={})
+        huge = json.dumps({"text": "x" * 70_000}).encode()
+        with pytest.raises(WebhookTestTooLargeError):
+            await service.catch(token, body=huge, headers={})
+        assert (await service.caught(ctx, workflow.id, token)).state == "listening"
+
+    async def test_a_url_that_went_between_the_check_and_the_catch_keeps_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, redis = await _listening(db, ctx, workflow)
+        # Another call caught it after this one found it open.
+        redis.getdel = AsyncMock(return_value=None)  # ty: ignore[invalid-assignment]
+        with pytest.raises(NotFoundError):
+            await service.catch(token, body=b"{}", headers={})
+        assert f"workflow:webhook-test:{token}:caught" not in redis.store
+
+    async def test_only_a_draft_that_starts_from_a_webhook_has_one(self, db, tenant):
+        owner, org, workflow = tenant
+        with pytest.raises(BadRequestError):
+            await _listening(db, _ctx(owner, org), workflow, _graph())
+
+    async def test_an_archived_workflow_has_none(self, db, tenant):
+        owner, org, workflow = tenant
+        workflow.status = WorkflowStatus.ARCHIVED.value
+        with pytest.raises(WorkflowArchivedError):
+            await _listening(db, _ctx(owner, org), workflow)
+
+    @pytest.mark.security
+    async def test_only_the_workflows_editors_read_what_it_caught(self, db, tenant):
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        service, token, _redis = await _listening(db, ctx, workflow)
+        other = await _another_workflow(db, org, owner)
+        operator = await _user(db)
+        await _member(db, org=org, user=operator, role="operator")
+        stranger = await _user(db)
+        elsewhere = await _org(db, owner=stranger)
+
+        for reader, workflow_id in (
+            (ctx, other.id),
+            (_ctx(operator, org, "operator"), workflow.id),
+            (_ctx(stranger, elsewhere), workflow.id),
+        ):
+            with pytest.raises(NotFoundError):
+                await service.caught(reader, workflow_id, token)
+        with pytest.raises(NotFoundError):
+            await service.caught(ctx, workflow.id, "not-a-token")
+
+    async def test_listening_over_http_catches_the_call_and_answers_that_it_kept_it(self, http):
+        client, workflow_id, _factory = http
+        app.dependency_overrides[deps.get_redis] = _Redis
+        redis = _Redis()
+        app.dependency_overrides[deps.get_redis] = lambda: redis
+        base = f"{settings.API_V1_STR}/workflows/{workflow_id}"
+        draft = (await client.get(base)).json()
+        saved = await client.patch(
+            f"{base}/draft",
+            json={
+                "graph": _graph("trigger.webhook").model_dump(mode="json"),
+                "expected_revision": draft["draft_revision"],
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+        listening = await client.post(f"{base}/webhook-test")
+        assert listening.status_code == 201, listening.text
+        token = listening.json()["test_token"]
+        assert listening.json()["url"].endswith(f"/api/v1/workflow-webhook-tests/{token}")
+        caught = await client.post(
+            f"{settings.API_V1_STR}/workflow-webhook-tests/{token}", content=b'{"lead": 4}'
+        )
+        read = await client.get(f"{base}/webhook-test/{token}")
+
+        assert (caught.status_code, caught.json()) == (200, {"captured": True})
+        assert read.json()["state"] == "caught"
+        assert read.json()["delivery"]["body"] == {"lead": 4}

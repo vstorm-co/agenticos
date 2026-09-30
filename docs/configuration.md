@@ -477,6 +477,7 @@ write — so set it well past your longest legitimate run and no closer. See
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | The largest payload a run may be started with, as compact JSON. It is kept on the run for its `core.input` node, so a larger one is refused with `413` before the run is admitted |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | How long a webhook delivery whose graph has a Respond to webhook step waits for its answer before it is answered `202` and the run goes on. A proxy in front with a shorter read timeout cuts the wait first |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
 | `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |

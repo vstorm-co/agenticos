@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  Input,
   Label,
   Select,
   SelectContent,
@@ -560,6 +561,79 @@ function ConfigArray({
   );
 }
 
+/**
+ * Names mapped to text - a request's or an answer's headers: a row per entry,
+ * its name and its value. The rows are kept here as typed, so renaming one does
+ * not move it; what is saved drops a row with no name yet, and nothing at all
+ * when no row is left.
+ */
+function ConfigMap({
+  label,
+  disabled,
+  value,
+  onChange,
+}: {
+  label: string;
+  disabled: boolean;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const [rows, setRows] = useState<[string, string][]>(() =>
+    Object.entries(record(value)).map(([name, text]) => [name, String(text)]),
+  );
+  const save = (next: [string, string][]) => {
+    setRows(next);
+    const named = next.filter(([name]) => name !== "");
+    onChange(named.length === 0 ? undefined : Object.fromEntries(named));
+  };
+
+  return (
+    <Fieldset label={label}>
+      {rows.map(([name, text], index) => (
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            aria-label={t("nodeFormMapName", { index: index + 1 })}
+            placeholder={t("nodeFormMapNamePlaceholder")}
+            value={name}
+            disabled={disabled}
+            className="font-mono text-xs"
+            onChange={(event) => save(replaceAt(rows, index, [event.target.value, text]))}
+          />
+          <Input
+            aria-label={t("nodeFormMapValue", { index: index + 1 })}
+            placeholder={t("nodeFormMapValuePlaceholder")}
+            value={text}
+            disabled={disabled}
+            className="font-mono text-xs"
+            onChange={(event) => save(replaceAt(rows, index, [name, event.target.value]))}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("nodeFormRemoveRow", { index: index + 1 })}
+            disabled={disabled}
+            onClick={() => save(rows.filter((_, i) => i !== index))}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => setRows([...rows, ["", ""]])}
+      >
+        <Plus />
+        {t("nodeFormAddRow")}
+      </Button>
+    </Fieldset>
+  );
+}
+
 /** One config field, dispatched by its resolved shape. Recurses for objects, arrays and unions. */
 function ConfigNode({
   schema,
@@ -591,6 +665,12 @@ function ConfigNode({
           />
         ))}
       </Fieldset>
+    );
+  }
+
+  if (shape.kind === "map") {
+    return (
+      <ConfigMap label={label} disabled={ctx.disabled ?? false} value={value} onChange={onChange} />
     );
   }
 

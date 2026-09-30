@@ -1,5 +1,5 @@
 ---
-source_sha: "5b94f3d29c5f"
+source_sha: "3d41e332c829"
 ---
 
 # Konfiguration { #configuration }
@@ -509,6 +509,7 @@ legitimen Run und nicht knapper. Siehe
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Die größte Nutzlast, mit der ein Run gestartet werden kann, als kompaktes JSON. Sie wird für den `core.input`-Knoten am Run gespeichert, daher wird eine größere mit `413` abgelehnt, bevor der Run angenommen wird |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Wie lange eine Webhook-Zustellung, deren Graph einen Schritt Respond to webhook hat, auf ihre Antwort wartet, bevor sie mit `202` beantwortet wird und der Run weiterläuft. Ein vorgeschalteter Proxy mit kürzerem Lese-Timeout bricht das Warten zuerst ab |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Wie lange der Claim eines Workers auf einen Workflow-Knoten hält, bevor er als aufgegeben gilt. Der Worker erneuert ihn jedes Drittel dieser Zeit, solange der Knoten läuft; der Wert begrenzt also, wie lange ein toter Worker unbemerkt bleibt, nicht wie lange ein Knoten dauern darf |
 | `WORKFLOW_RETRY_CEILING` | `3` | Die Höchstzahl an fehlgeschlagenen oder unterbrochenen Versuchen, die ein Knoten bekommt: Versuche, die fehlgeschlagen sind, und Versuche, die der Tod eines Workers abgebrochen hat. Ein Versuch, der wartet - auf eine Freigabe oder auf einen Backoff, den der Knoten verlangt hat -, zählt nicht; wie oft ein Knoten wartet, begrenzen also nur Deadline, Budget oder ein Abbruch des Runs |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |

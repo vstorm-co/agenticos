@@ -1,5 +1,5 @@
 ---
-source_sha: "275f1a82981f"
+source_sha: "cb5cd8136482"
 ---
 
 # Architektur { #architecture }
@@ -237,7 +237,7 @@ den niemand geradesteht.
 Beide Grenzen sind gegen eine echte Datenbank in
 `tests/integration/test_run_commit_boundary.py` nachgewiesen.
 
-### Der eine andere frühe Commit { #the-one-other-early-commit }
+### Ein zweiter früher Commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` ist der zweite, und zwar aus dem
 umgekehrten Grund: nicht weil die Transaktion zu lange gehalten würde, sondern
@@ -252,6 +252,18 @@ Eintrag darüber, dass etwas geschehen ist.
 `test_the_response_survives_the_refusal_that_follows_it` rollt nach dem Aufruf
 zurück und prüft, was geblieben ist
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### Ein Webhook, der auf seine Antwort wartet { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` ist der dritte. Ein Webhook, dessen Graph einen
+Schritt Respond to webhook enthält, beantwortet seinen Absender mit dem, was dieser
+Schritt festhält, also muss die Anfrage auf einen Run warten, der noch nicht
+gestartet ist - und er kann nicht starten, bevor die Zulassung für den Worker
+sichtbar ist. Der Service committet den Run und seinen Zustellungseintrag, startet
+den Dispatch, den `spawn_after_commit` eingereiht hat (sonst startete ihn erst der
+abschließende Commit der Session), und fragt dann die Antwort des Runs ab. Nach dem
+Commit wird nichts geschrieben, also hat der abschließende Commit nichts mehr zu
+tun. `TestAnsweringTheSender` treibt den Run aus diesem Dispatch an.
 
 Sichtbarkeit schneidet in beide Richtungen. Alles, was früher schloss „die Zeile
 eines laufenden Runs kann nicht gesehen werden“, schließt jetzt über eine Zeile,
@@ -1008,6 +1020,9 @@ durchgearbeitetes Beispiel.
   `SessionService.detect_refresh_reuse` committet die soeben widerrufene Session
   und den Eintrag, der sagt warum — denn sein Aufrufer wirft unmittelbar danach
   einen 401, und das Zurückrollen würde beides rückgängig machen.
+- Ein Webhook, dessen Graph seine Zustellungen beantwortet, committet die
+  Zulassung in `WorkflowExposureService._answer`, damit der Run starten kann,
+  während die Anfrage auf ihren Schritt Respond to webhook wartet.
 - Hintergrundarbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, wird
   mit **`spawn_after_commit`** übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,

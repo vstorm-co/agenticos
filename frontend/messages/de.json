@@ -6117,7 +6117,18 @@
     "pickerWorkflowNone": "Noch kein Workflow ist mit dem Auslöser Called by a workflow veröffentlicht.",
     "pickerWorkflowGone": "Der gewählte Workflow kann nicht mehr aufgerufen werden: Veröffentlichen Sie ihn mit dem Auslöser Called by a workflow.",
     "nodeSummaryRules": "{count, plural, one {# Regel} other {# Regeln}}",
-    "nodeSummaryWait": "{seconds, plural, one {# Sekunde} other {# Sekunden}} lang"
+    "nodeSummaryWait": "{seconds, plural, one {# Sekunde} other {# Sekunden}} lang",
+    "webhookTestListen": "Auf Testaufruf warten",
+    "webhookTestWaiting": "Warte auf einen Aufruf",
+    "webhookTestUrl": "Test-URL",
+    "webhookTestHint": "Sende innerhalb von zwei Minuten einen POST mit einem JSON-Objekt als Body. Er wird hier behalten und als Ausgabe dieses Triggers angeheftet, und kein Run startet.",
+    "webhookTestStop": "Nicht mehr warten",
+    "webhookTestExpired": "Kein Aufruf ist rechtzeitig angekommen.",
+    "webhookTestCaught": "Testaufruf empfangen und angeheftet",
+    "nodeFormMapName": "Name {index}",
+    "nodeFormMapValue": "Wert {index}",
+    "nodeFormMapNamePlaceholder": "Name",
+    "nodeFormMapValuePlaceholder": "Wert"
   },
   "artifacts": {
     "title": "Artefakte",

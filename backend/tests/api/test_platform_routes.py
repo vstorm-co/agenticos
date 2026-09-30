@@ -916,6 +916,9 @@ RESOURCE_AWARE_SERVICES = (
     # `WorkflowExposureService` resolves `workflows:view`/`edit`/`run` against
     # the workflow in the path, per workflow rather than per role (#1792).
     deps.get_workflow_exposure_service,
+    # A webhook's test URL is the same: opening one and reading what it caught
+    # resolve `workflows:edit` against the workflow in the path (#1949).
+    deps.get_workflow_webhook_test_service,
     # A saved view is a sub-resource of one table: listing and reading resolve
     # against the table's own grants, and changing or deleting one additionally
     # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
@@ -1591,6 +1594,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # the exposure's own secret and the service verifies that HMAC against the
         # exposure in the path; the run then acts as the member who set it up.
         ("POST", f"{V1}/workflow-webhooks/{{exposure_id}}"),
+        # A webhook's test URL (#1949). The draft it is for has no signing secret
+        # yet, so the unguessable token in the path is the credential: minted by
+        # an editor, open for one call for two minutes, and the call is only kept
+        # for that editor to read - it never starts a run.
+        ("POST", f"{V1}/workflow-webhook-tests/{{token}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

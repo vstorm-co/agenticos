@@ -187,6 +187,7 @@ class HandlerOutcome:
     cost: Decimal = Decimal(0)
     cost_is_partial: bool = False
     run_output: dict[str, Any] | None = None
+    webhook_response: dict[str, Any] | None = None
 
 
 async def claim(
@@ -899,6 +900,7 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
         cost=scope.cost,
         cost_is_partial=scope.cost_is_partial,
         run_output=scope.run_output,
+        webhook_response=scope.webhook_response,
     )
 
 
@@ -1313,6 +1315,10 @@ async def settle(
         if outcome.run_output is not None:
             run = await workflow_run_repo.update_run(
                 db, run=run, update_data={"output": outcome.run_output}
+            )
+        if outcome.webhook_response is not None and run.webhook_response is None:
+            run = await workflow_run_repo.update_run(
+                db, run=run, update_data={"webhook_response": outcome.webhook_response}
             )
         return await _settle_completed(
             db, run=run, node_run=node_run, definition=begun.definition, result=result, now=now
