@@ -19,12 +19,17 @@ DEFAULT_PHONE_REGIONS = "US, GB, DE, PL"
 MAX_PHONE_CHARS = 200_000
 MAX_PHONE_DIGITS = 10_000
 MAX_PHONE_REGIONS = 16
+MAX_PHONE_REGIONS_CHARS = 256
 _BUDGET_REGIONS = 4
 _DIGIT = re.compile(r"\d")
 
 
 def parse_phone_regions(raw: str) -> tuple[str, ...]:
     """Normalize and deduplicate codes, rejecting unknown or excessive regions."""
+    # Bound allocations before splitting: duplicates and blanks do not count
+    # toward the region limit, and a stored draft can be validated repeatedly.
+    if len(raw) > MAX_PHONE_REGIONS_CHARS:
+        raise ValueError(f"Phone regions must be at most {MAX_PHONE_REGIONS_CHARS} characters")
     regions: list[str] = []
     for part in re.split(r"[,\n]", raw):
         code = part.strip().upper()

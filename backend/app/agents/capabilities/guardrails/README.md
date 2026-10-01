@@ -30,6 +30,9 @@ It uses libphonenumber (`phonenumberslite`) with strict grouping to avoid matchi
 IDs such as `ORD-2026-000417`. National formats use `phone_regions`; international
 (`+`) formats work regardless of that list. Bare digits remain ambiguous:
 `123456789` is a valid Polish landline, so listing PL also redacts that order ID.
+The region setting is limited to 256 characters before splitting or normalizing,
+so repeated codes and empty entries cannot cause unbounded parser allocations
+when validating a stored draft.
 
 Each region scans the whole text. `phone_limits` allows 200,000 characters and
 10,000 digits for up to four regions, reducing both proportionally beyond four;

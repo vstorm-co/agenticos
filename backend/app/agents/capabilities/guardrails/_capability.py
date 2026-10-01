@@ -50,6 +50,7 @@ from pydantic_ai_harness.guardrails.detectors import (
 from app.core.phone import (
     DEFAULT_PHONE_REGIONS,
     MAX_PHONE_REGIONS,
+    MAX_PHONE_REGIONS_CHARS,
     parse_phone_regions,
     phone_text_error,
     redact_phone_numbers,
@@ -145,7 +146,8 @@ class GuardrailsConfig(BaseModel):
         default=DEFAULT_PHONE_REGIONS,
         description=(
             "Countries whose national phone formats PII redaction reads, as two-letter codes "
-            f"(comma or newline separated), at most {MAX_PHONE_REGIONS}. "
+            f"(comma or newline separated), at most {MAX_PHONE_REGIONS} regions "
+            f"and {MAX_PHONE_REGIONS_CHARS} characters. "
             "A number written with + is redacted whatever is listed"
         ),
     )

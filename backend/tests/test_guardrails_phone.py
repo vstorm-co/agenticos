@@ -7,6 +7,8 @@ id that a digit-count regex would have taken must come through untouched.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 from pydantic_ai_harness.guardrails import GuardrailResult
@@ -26,6 +28,7 @@ from app.core.phone import (
     MAX_PHONE_CHARS,
     MAX_PHONE_DIGITS,
     MAX_PHONE_REGIONS,
+    MAX_PHONE_REGIONS_CHARS,
     PHONE_PLACEHOLDER,
     _merged,
     parse_phone_regions,
@@ -61,6 +64,36 @@ def _redacted(regions: tuple[str, ...], text: str) -> str:
 def test_regions_split_upper_case_and_drop_blanks_and_repeats():
     assert parse_phone_regions("us, gb\nDE, ,US") == ("US", "GB", "DE")
     assert parse_phone_regions("") == ()
+
+
+def test_regions_accept_the_character_limit():
+    assert parse_phone_regions("us".ljust(MAX_PHONE_REGIONS_CHARS)) == ("US",)
+
+
+@pytest.mark.parametrize("fragment", ["US,", ",\n", " ", "X"])
+def test_oversized_regions_are_refused_before_splitting(fragment: str):
+    raw = (fragment * (MAX_PHONE_REGIONS_CHARS + 1))[: MAX_PHONE_REGIONS_CHARS + 1]
+    with (
+        patch("app.core.phone.re.split", side_effect=AssertionError("must not split")),
+        pytest.raises(ValueError, match=f"at most {MAX_PHONE_REGIONS_CHARS} characters"),
+    ):
+        parse_phone_regions(raw)
+
+
+def test_validation_refuses_a_large_stored_region_setting():
+    load_builtins()
+    # Repeated valid codes used to allocate millions of strings before deduplication.
+    raw = "US," * (16 * 1024 * 1024 // 3)
+    with (
+        patch("app.core.phone.re.split", side_effect=AssertionError("must not split")),
+        pytest.raises(BadRequestError) as exc,
+    ):
+        get("guardrails").validate_config({"phone_regions": raw})
+    assert any(
+        "phone_regions" in str(problem)
+        and f"at most {MAX_PHONE_REGIONS_CHARS} characters" in str(problem)
+        for problem in exc.value.details["fields"]
+    )
 
 
 def test_an_unknown_region_is_refused():
