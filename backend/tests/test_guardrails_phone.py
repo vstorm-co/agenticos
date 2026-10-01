@@ -16,6 +16,7 @@ from app.agents.capabilities.guardrails._capability import _edge_detector
 from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
     PHONE_PLACEHOLDER,
+    _merged,
     parse_phone_regions,
     phone_numbers,
 )
@@ -70,6 +71,12 @@ def test_digits_that_are_not_a_phone_number_are_left_alone(text: str):
 def test_a_number_two_regions_both_match_is_replaced_once():
     """`+1` parses under every region; the spans merge rather than cut twice."""
     assert _redacted(("US", "CA"), "ring +1 415 555 0132.") == f"ring {PHONE_PLACEHOLDER}."
+
+
+def test_overlapping_and_touching_spans_merge_and_separate_ones_do_not():
+    assert _merged([(30, 40), (5, 20), (5, 20), (10, 25), (25, 28)]) == [(5, 28), (30, 40)]
+    assert _merged([(0, 10), (2, 4)]) == [(0, 10)]
+    assert _merged([]) == []
 
 
 def test_every_number_in_the_text_is_redacted():

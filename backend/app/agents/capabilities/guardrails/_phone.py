@@ -20,7 +20,7 @@ because the right trade-off depends on the markets an agent serves.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 import phonenumbers
 from pydantic_ai_harness.guardrails import GuardrailResult
@@ -54,6 +54,22 @@ def parse_phone_regions(raw: str) -> tuple[str, ...]:
     return tuple(regions)
 
 
+def _merged(spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
+    """The spans in order, with any that overlap or touch combined into one.
+
+    Two regions can match the same number, or overlapping parts of one, and
+    cutting each span separately would print two placeholders or cut into text
+    an earlier span already replaced.
+    """
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
     """A detector that rewrites valid phone numbers out of text.
 
@@ -74,18 +90,9 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
         if not spans:
             return GuardrailResult.allow()
 
-        # Two regions can match the same number, or overlapping parts of one, so
-        # the spans are merged before anything is cut.
-        merged: list[tuple[int, int]] = []
-        for start, end in sorted(spans):
-            if merged and start <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-            else:
-                merged.append((start, end))
-
         pieces: list[str] = []
         cursor = 0
-        for start, end in merged:
+        for start, end in _merged(spans):
             pieces.extend((text[cursor:start], PHONE_PLACEHOLDER))
             cursor = end
         pieces.append(text[cursor:])
