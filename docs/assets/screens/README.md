@@ -22,11 +22,12 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `knowledge-collection` | Complete: vstorm collection with document name, processing status and chunk count |
 | `mcp-connections` | Complete: connected server catalog including GitHub and Notion; no credentials shown |
 | `artifacts` | Complete: library and the OSS Launch Planner from the demo |
+| `activity` | Complete: filtered run history and agent version comparison; status, tokens, duration and recorded cost |
 | `run-detail` | The demo execution, tool calls and recorded cost |
 | `approval` | Complete: actual pending execute action and decision controls |
 | `routines` | Schedule, actual completed scheduled run and result |
 
-Eight screenshot slots are complete; `run-detail` and `routines` remain pending.
+Nine screenshot slots are complete; `run-detail` and `routines` remain pending.
 The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
 and stored as lossless WebP at the original 3502 × 2000 resolution.
 Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
@@ -86,3 +87,16 @@ the README also offers explicit video and screenshot links.
 
 An image nested inside a video does not replace a broken source in a browser that supports video.
 Keep the independent screenshot link. Do not commit local video masters; GitHub hosts the uploaded video.
+
+## Activity and integration scale
+
+The Activity light/dark pair was captured on 2026-10-02 at 1751 × 1000 with the sidebar
+collapsed, filtered to Claude Code like and Owner. Version summaries and individual run records
+are visible. These are observed demo records, not a performance benchmark. The captures do not
+replace the pending run-detail view of tool calls. Both files use lossless WebP without UI edits.
+
+The README headline “5,700+ integrations through MCP” refers to discoverable server entries.
+At revision `d76c6d597`, `backend/app/core/catalog/mcp_registry.json` contains 5,703 entries;
+`mcp_servers.json` separately contains 99 curated entries. Do not add the two counts as unique
+services or imply that all entries are connected, tested or first-party integrations. The public
+copy names server entries and the need to configure credentials and tool access beside the claim.

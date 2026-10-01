@@ -1,4 +1,4 @@
-<!-- source_sha: 049402217d6b -->
+<!-- source_sha: ef9b7b146a18 -->
 
 <div align="center">
 
@@ -33,6 +33,8 @@
 </div>
 
 Twórz agentów AI w przeglądarce, podłącz firmową wiedzę i narzędzia oraz udostępniaj agentów zespołowi. Uruchom warstwę agentów na własnej infrastrukturze i wybierz modele chmurowe lub lokalne.
+
+<p align="center"><strong>5700+ integracji przez MCP · Wspólni agenci i wiedza · Wbudowane observability · Własna infrastruktura</strong></p>
 
 ## Zobacz, jak to działa
 
@@ -145,12 +147,14 @@ odpowiedzi wspomaganym wyszukiwaniem. [Dodawanie i przetwarzanie dokumentów](do
 <tr>
 <td width="45%" valign="middle">
 
-### Podłącz aplikacje, w których pracujesz
+### 5700+ integracji przez MCP
 
-**MCP**, czyli Model Context Protocol, to standard łączenia agentów AI z narzędziami i źródłami danych.
-Na stronie **MCP servers** konfigurujesz zgodne połączenia, np. narzędzia Notion i GitHuba użyte w demo.
-Dostępne operacje zależą od serwera, danych uwierzytelniających oraz narzędzi włączonych dla agenta.
-[Podłącz aplikację](docs/mcp.pl.md).
+Podłącz agentów do narzędzi, których firma już używa: **GitHub, Notion, HubSpot, Linear i n8n**.
+**MCP** (Model Context Protocol) to standard, dzięki któremu agenci korzystają z zewnętrznych narzędzi i źródeł danych.
+
+Przeszukuj katalog **ponad 5700 wpisów serwerów MCP** lub dodaj zgodny serwer przez URL.
+Podłącz potrzebne usługi i wybierz narzędzia dostępne dla każdego agenta. Konfiguracja, dane uwierzytelniające
+i dostępne operacje zależą od serwera. [Podłącz swoje narzędzia](docs/mcp.pl.md).
 
 </td>
 <td width="55%">
@@ -187,6 +191,32 @@ Artefakt pokazuje dane z chwili publikacji. Kolejne wykonanie agenta może je za
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner z demo z wyborem odbiorców i rekomendacją." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Wbudowane observability: co działało i ile kosztowało
+
+**Activity** łączy historię wykonań, zatwierdzenia i wydatki. **Run** to pojedyncze wykonanie agenta:
+widzisz jego stan, model, tokeny, czas i zapisany koszt. Filtruj po agencie, osobie lub wersji,
+porównuj wyniki wersji i eksportuj dane do CSV.
+
+Znajdź wolne lub nieudane wykonania, a potem otwórz je, by sprawdzić rozmowę i wywołania narzędzi.
+[Poznaj Activity i kontrolę kosztów](docs/governance.pl.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: activity | light + dark; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity z porównaniem wersji agenta i filtrowaną historią wykonań: stan, tokeny, czas oraz zapisany koszt." width="100%">
 </picture>
 </a>
 

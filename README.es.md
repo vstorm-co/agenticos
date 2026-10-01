@@ -1,4 +1,4 @@
-<!-- source_sha: 049402217d6b -->
+<!-- source_sha: ef9b7b146a18 -->
 
 <div align="center">
 
@@ -33,6 +33,8 @@
 </div>
 
 Crea agentes de IA en el navegador, conecta conocimiento y herramientas de tu empresa y comparte los agentes con tu equipo. Aloja la capa de agentes en tu infraestructura y elige modelos locales o en la nube.
+
+<p align="center"><strong>5700+ integraciones mediante MCP · Agentes y conocimiento compartidos · Observabilidad integrada · Alojamiento propio</strong></p>
 
 ## Mira cómo funciona
 
@@ -145,12 +147,14 @@ por recuperación. [Añade y procesa documentos](docs/file-processing.es.md).
 <tr>
 <td width="45%" valign="middle">
 
-### Conecta las aplicaciones con las que trabajas
+### 5700+ integraciones mediante MCP
 
-**MCP**, Model Context Protocol, es un estándar para conectar agentes de IA con herramientas y fuentes de datos.
-La página **MCP servers** permite configurar conexiones compatibles, como las herramientas de Notion y GitHub
-utilizadas en la demo. Las acciones disponibles dependen del servidor, las credenciales y las herramientas
-activadas para el agente. [Conecta una aplicación](docs/mcp.es.md).
+Conecta agentes con las herramientas que tu empresa ya utiliza: **GitHub, Notion, HubSpot, Linear y n8n**.
+**MCP** (Model Context Protocol) es el estándar que permite a los agentes utilizar herramientas y fuentes de datos externas.
+
+Busca entre **más de 5700 entradas de servidores MCP** en el catálogo o añade un servidor compatible por URL.
+Conecta los servicios que necesitas y elige las herramientas de cada agente. La configuración, las credenciales
+y las acciones disponibles dependen del servidor. [Conecta tus herramientas](docs/mcp.es.md).
 
 </td>
 <td width="55%">
@@ -187,6 +191,32 @@ Un artefacto muestra los datos con los que se publicó. Una nueva ejecución del
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner de la demo con selección de audiencia y recomendación." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Observabilidad integrada: ejecuciones y costes a la vista
+
+**Activity** reúne el historial de ejecuciones, las aprobaciones y los gastos. Un **run** es una ejecución de un agente:
+consulta su estado, modelo, tokens, duración y coste registrado. Filtra por agente, persona o versión,
+compara resultados entre versiones y exporta los datos a CSV.
+
+Localiza ejecuciones lentas o fallidas y ábrelas para revisar la conversación y las llamadas a herramientas.
+[Explora Activity y el control de costes](docs/governance.es.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: activity | light + dark; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity con comparación de versiones e historial filtrado: estado, tokens, duración y coste registrado." width="100%">
 </picture>
 </a>
 

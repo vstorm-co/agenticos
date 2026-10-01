@@ -32,6 +32,8 @@
 
 Build AI agents in your browser, connect company knowledge and tools, and share the work with your team. Self-host the agent layer and choose cloud or local models.
 
+<p align="center"><strong>5,700+ integrations via MCP · Shared agents and knowledge · Built-in observability · Self-hosted</strong></p>
+
 ## See it in action
 
 **From a Notion brief and GitHub research to an interactive decision page.**
@@ -143,12 +145,14 @@ sources for relevant passages when answering. This is often called **RAG**, or r
 <tr>
 <td width="45%" valign="middle">
 
-### Connect the applications you work in
+### 5,700+ integrations through MCP
 
-**MCP**, the Model Context Protocol, is a standard for connecting AI agents to tools and data sources.
-The **MCP servers** page lets you configure compatible connections, such as the Notion and GitHub tools
-used in the demo. Available actions depend on the server, credentials and tools enabled for the agent.
-[Connect an application](docs/mcp.md).
+Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
+**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
+
+Discover **5,700+ MCP server entries** in the searchable catalog, or add a compatible server by URL.
+Connect the services you need and choose which tools each agent can use. Setup, credentials and
+available actions depend on the server. [Connect your tools](docs/mcp.md).
 
 </td>
 <td width="55%">
@@ -185,6 +189,32 @@ An artifact displays the data it was published with. A new agent run can update 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Built-in observability: see what ran and what it cost
+
+**Activity** brings run history, approvals and spend into one place. A **run** is one execution of an agent:
+see its status, model, tokens, duration and recorded cost. Filter by agent, person or version,
+compare version results and export the records as CSV.
+
+Find slow or failed work, then open a run to inspect its conversation and tool calls.
+[Explore Activity and cost controls](docs/governance.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: activity | light + dark; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
 </picture>
 </a>
 

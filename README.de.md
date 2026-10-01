@@ -1,4 +1,4 @@
-<!-- source_sha: 049402217d6b -->
+<!-- source_sha: ef9b7b146a18 -->
 
 <div align="center">
 
@@ -33,6 +33,8 @@
 </div>
 
 Erstelle KI-Agenten im Browser, verbinde Unternehmenswissen und Werkzeuge und stelle Agenten deinem Team bereit. Betreibe den Agent-Layer selbst und wähle Cloud- oder lokale Modelle.
+
+<p align="center"><strong>5.700+ Integrationen über MCP · Gemeinsame Agenten und Wissen · Integrierte Observability · Selbst gehostet</strong></p>
 
 ## So funktioniert es
 
@@ -145,12 +147,14 @@ also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](doc
 <tr>
 <td width="45%" valign="middle">
 
-### Anwendungen verbinden
+### 5.700+ Integrationen über MCP
 
-**MCP**, das Model Context Protocol, ist ein Standard zur Verbindung von KI-Agenten mit Werkzeugen und Datenquellen.
-Auf der Seite **MCP servers** konfigurierst du kompatible Verbindungen, beispielsweise die Notion- und
-GitHub-Werkzeuge aus der Demo. Verfügbare Aktionen hängen vom Server, den Zugangsdaten und den für den
-Agenten aktivierten Werkzeugen ab. [Eine Anwendung verbinden](docs/mcp.de.md).
+Verbinde Agenten mit den Werkzeugen, die dein Unternehmen bereits nutzt: **GitHub, Notion, HubSpot, Linear und n8n**.
+**MCP** (Model Context Protocol) ist der Standard, über den Agenten externe Werkzeuge und Datenquellen aufrufen.
+
+Durchsuche **über 5.700 MCP-Servereinträge** im Katalog oder füge einen kompatiblen Server per URL hinzu.
+Verbinde die benötigten Dienste und wähle die Werkzeuge für jeden Agenten. Einrichtung, Zugangsdaten
+und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.de.md).
 
 </td>
 <td width="55%">
@@ -187,6 +191,32 @@ Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer A
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner aus der Demo mit Zielgruppenauswahl und Empfehlung." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Integrierte Observability: Ausführungen und Kosten im Blick
+
+**Activity** bündelt Ausführungsverlauf, Freigaben und Ausgaben. Ein **Run** ist eine Ausführung eines Agenten:
+Du siehst Status, Modell, Token, Dauer und erfasste Kosten. Filtere nach Agent, Person oder Version,
+vergleiche Versionsergebnisse und exportiere die Daten als CSV.
+
+Finde langsame oder fehlgeschlagene Ausführungen und öffne sie, um Unterhaltung und Werkzeugaufrufe zu prüfen.
+[Activity und Kostenkontrolle erkunden](docs/governance.de.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: activity | light + dark; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Token, Dauer und erfasste Kosten." width="100%">
 </picture>
 </a>
 
