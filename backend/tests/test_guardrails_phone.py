@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.capabilities import get, load_builtins
 from app.agents.capabilities.guardrails import GuardrailsConfig
+from app.agents.capabilities.guardrails import _capability as capability_module
 from app.agents.capabilities.guardrails._capability import GuardrailBlocked, _edge_detector
 from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
+    MAX_PHONE_CHARS,
     MAX_PHONE_DIGITS,
     PHONE_PLACEHOLDER,
     _merged,
@@ -159,6 +162,23 @@ def test_a_text_at_the_digit_bound_is_still_redacted():
     assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
 
 
+def test_a_text_too_long_is_blocked_rather_than_read_whatever_its_digits():
+    """The matcher costs microseconds a character with no digit in sight, and a
+    prompt has no length limit of its own, so a run of brackets the size of a
+    request body held a worker for minutes under the digit bound."""
+    verdict = phone_numbers(_DEFAULT)("(" * (MAX_PHONE_CHARS + 1))
+    assert verdict.action == "block"
+    assert verdict.message == (
+        f"It is longer than {MAX_PHONE_CHARS:,} characters, the most phone number redaction reads."
+    )
+
+
+def test_a_text_at_the_length_bound_is_still_redacted():
+    tail = " call 415-555-0132"
+    text = "(" * (MAX_PHONE_CHARS - len(tail)) + tail
+    assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
+
+
 def test_rejected_candidates_do_not_end_the_scan_early():
     """libphonenumber stops after 65535 rejected candidates by default, which left
     any number after that much padding in place."""
@@ -180,6 +200,47 @@ def test_an_edge_refuses_text_its_phone_redaction_could_not_read():
     assert exc.value.edge == "input"
     assert str(exc.value).startswith("This request was blocked by an input guardrail. It holds")
     assert "415" not in str(exc.value)
+
+
+def test_an_edge_refuses_a_long_text_before_any_redactor_reads_it(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The phone detector refuses it anyway, and the harness patterns ahead of it
+    took some 30 s to scan a prompt the size of a request body first."""
+
+    def unread(text: str) -> GuardrailResult:
+        raise AssertionError("a redactor read text the edge refuses")
+
+    monkeypatch.setattr(capability_module, "redact_secrets", unread)
+    monkeypatch.setattr(capability_module, "redact_personal_data", unread)
+    detect = _edge_detector(
+        redact_secrets_on=True,
+        redact_pii_on=True,
+        phone_regions=("US",),
+        keywords=[],
+        edge="tool_result",
+    )
+    assert detect is not None
+    with pytest.raises(GuardrailBlocked) as exc:
+        detect("x " * MAX_PHONE_CHARS)
+    assert exc.value.edge == "tool_result"
+    assert str(exc.value).endswith(
+        f"It is longer than {MAX_PHONE_CHARS:,} characters, the most phone number redaction reads."
+    )
+
+
+def test_an_edge_without_pii_redaction_reads_a_long_text():
+    """The length bound is the phone detector's, so an edge that does not run it
+    keeps reading a long text as it did."""
+    detect = _edge_detector(
+        redact_secrets_on=True,
+        redact_pii_on=False,
+        phone_regions=("US",),
+        keywords=[],
+        edge="input",
+    )
+    assert detect is not None
+    assert detect("x " * MAX_PHONE_CHARS).action == "allow"
 
 
 def test_overlapping_and_touching_spans_merge_and_separate_ones_do_not():

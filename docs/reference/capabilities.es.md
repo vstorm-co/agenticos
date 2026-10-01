@@ -1,5 +1,5 @@
 ---
-source_sha: "96edfb113ee0"
+source_sha: "bc4ff8a0e256"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1797,7 +1797,7 @@ frente a cada país de la lista, y cada país añadido amplía lo que puede ser 
 simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`
 en la lista también se censura un número de pedido de nueve dígitos. Incluye los
 países a los que atiende el agent. Un código desconocido (lo habitual es `UK` en
-lugar de `GB`) se rechaza al publicar. Un texto con más de 10.000 dígitos no se lee: termina
+lugar de `GB`) se rechaza al publicar. Un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee: termina
 el run con `guardrail_blocked`, porque pasarlo sin leer pasaría también cada número
 que contiene.
 

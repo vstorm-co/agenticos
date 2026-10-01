@@ -51,6 +51,7 @@ from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
     parse_phone_regions,
     phone_numbers,
+    refuse_long_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -176,7 +177,7 @@ def _edge_detector(
 
     Redactors run in order and thread their cleaned text forward, so a key scrubbed
     by the first is invisible to the keyword check after it. A redactor that returns
-    `block` - the phone detector, for a text with too many digits to read - ends the
+    `block` - the phone detector, for a text too long to read - ends the
     run there, as a keyword block does. The keyword check runs last, on
     already-redacted text, and *raises* :class:`GuardrailBlocked` rather than
     returning a `block` verdict - that is what turns a block into a run outcome
@@ -186,6 +187,11 @@ def _edge_detector(
     no guardrail there rather than an inert one.
     """
     redactors: list[TextDetector] = []
+    if redact_pii_on:
+        # The phone detector refuses a text this long, so it is refused before any
+        # redactor scans it: the harness patterns alone took some 30 s on a prompt
+        # the size of a request body.
+        redactors.append(refuse_long_text)
     if redact_secrets_on:
         redactors.append(redact_secrets)
     if redact_pii_on:

@@ -1681,7 +1681,7 @@ country and is redacted whatever `phone_regions` lists. A national number, such 
 `415-555-0132`, is read against each listed country, and each one added widens what
 a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
 listed a nine-digit order id is redacted too. List the countries the agent serves.
-An unknown code (`UK` for `GB` is the common one) is refused at publish. A text with more than 10,000 digits is not read at all: it ends the run with
+An unknown code (`UK` for `GB` is the common one) is refused at publish. A text longer than 200,000 characters or with more than 10,000 digits is not read at all: it ends the run with
 `guardrail_blocked`, because passing it on unread would pass on every number in it.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and

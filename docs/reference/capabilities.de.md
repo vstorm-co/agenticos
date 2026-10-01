@@ -1,5 +1,5 @@
 ---
-source_sha: "96edfb113ee0"
+source_sha: "bc4ff8a0e256"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1893,7 +1893,7 @@ erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige
 polnische Festnetznummer, also wird mit `PL` in der Liste auch eine neunstellige
 Bestellnummer geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
 unbekannter Code (meist `UK` statt `GB`) wird beim Veröffentlichen abgelehnt.
-Ein Text mit mehr als 10.000 Ziffern wird gar nicht gelesen: Er beendet den Run mit
+Ein Text mit mehr als 200.000 Zeichen oder mehr als 10.000 Ziffern wird gar nicht gelesen: Er beendet den Run mit
 `guardrail_blocked`, denn ihn ungelesen weiterzugeben, gäbe jede Nummer darin weiter.
 
 **Das Schwärzen schreibt um; eine Blockade ist ein Run-Ergebnis.** Ein Schwärzer
