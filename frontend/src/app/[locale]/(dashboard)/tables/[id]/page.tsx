@@ -6,12 +6,15 @@ import { toast } from "sonner";
 import {
   Building2,
   Download,
+  List,
   Lock,
   MoreHorizontal,
   Plus,
   Save,
   Settings2,
   Share2,
+  SquareKanban,
+  Table2,
   Upload,
   Users,
   Zap,
@@ -94,6 +97,11 @@ import type {
 } from "@/types/tables";
 
 const VISIBILITY_ICON = { private: Lock, team: Users, org: Building2 } as const;
+const VIEW_TABS = [
+  { kind: "table", icon: Table2 },
+  { kind: "kanban", icon: SquareKanban },
+  { kind: "list", icon: List },
+] as const;
 
 function parseTab(value: string | null): ViewKind {
   return value === "kanban" || value === "list" ? value : "table";
@@ -353,13 +361,59 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
-          <TabsList data-tour="table-view-tabs">
-            <TabsTrigger value="table">{t("tabs.table")}</TabsTrigger>
-            <TabsTrigger value="kanban">{t("tabs.kanban")}</TabsTrigger>
-            <TabsTrigger value="list">{t("tabs.list")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* What the records are laid out as, and which saved view of them - one group. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+            <TabsList
+              data-tour="table-view-tabs"
+              className="bg-muted h-8 gap-0 rounded-lg border-0 p-0.5"
+            >
+              {VIEW_TABS.map(({ kind, icon: Icon }) => (
+                <TabsTrigger
+                  key={kind}
+                  value={kind}
+                  className="data-[state=active]:bg-background mb-0 h-full gap-1.5 rounded-md border-0 px-2.5 pb-0 text-xs data-[state=active]:shadow-sm"
+                >
+                  <Icon aria-hidden="true" className="size-3.5" />
+                  {t(`tabs.${kind}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <ViewSelect
+            kind={tab}
+            views={views}
+            activeViewId={viewIdParam}
+            onSelect={setViewIdParam}
+            canCreate={canEdit}
+            onCreate={async (name, visibility) => {
+              const created = await createView.mutateAsync({
+                name,
+                kind: tab,
+                visibility,
+                // A new view keeps what the screen is narrowed by now, and a
+                // board the column it is grouped by.
+                config: {
+                  ...emptyViewConfig(),
+                  ...working,
+                  group_by: tab === "kanban" ? groupBy : null,
+                },
+              });
+              setViewIdParam(created.id);
+            }}
+            onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
+            onDelete={(viewId) =>
+              // Deselected only once it is gone: a refused delete (toasted by the
+              // hook) leaves the view in place and still selected.
+              removeView.mutateAsync(viewId).then(
+                () => {
+                  if (viewId === viewIdParam) setViewIdParam(null);
+                },
+                () => undefined,
+              )
+            }
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput
             value={searchDraft}
@@ -396,39 +450,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               <Save className="h-4 w-4" /> {t("saveView")}
             </Button>
           )}
-          <ViewSelect
-            kind={tab}
-            views={views}
-            activeViewId={viewIdParam}
-            onSelect={setViewIdParam}
-            canCreate={canEdit}
-            onCreate={async (name, visibility) => {
-              const created = await createView.mutateAsync({
-                name,
-                kind: tab,
-                visibility,
-                // A new view keeps what the screen is narrowed by now, and a
-                // board the column it is grouped by.
-                config: {
-                  ...emptyViewConfig(),
-                  ...working,
-                  group_by: tab === "kanban" ? groupBy : null,
-                },
-              });
-              setViewIdParam(created.id);
-            }}
-            onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
-            onDelete={(viewId) =>
-              // Deselected only once it is gone: a refused delete (toasted by the
-              // hook) leaves the view in place and still selected.
-              removeView.mutateAsync(viewId).then(
-                () => {
-                  if (viewId === viewIdParam) setViewIdParam(null);
-                },
-                () => undefined,
-              )
-            }
-          />
         </div>
       </div>
 

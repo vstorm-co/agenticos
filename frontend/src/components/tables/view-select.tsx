@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
@@ -165,49 +165,65 @@ export function ViewSelect({
   const active = views.find((view) => view.id === activeViewId) ?? null;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Select
-        value={activeViewId ?? "__default__"}
-        onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
-      >
-        <SelectTrigger className="w-44" aria-label={t("selectViewFor", { kind })}>
-          <SelectValue placeholder={t("unsavedView")} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__default__">{t("unsavedView")}</SelectItem>
-          {views.map((view) => (
-            <SelectItem key={view.id} value={view.id}>
-              {view.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {canCreate && (
+    <div className="flex items-center gap-1">
+      {/* The view and saving the screen as a new one read as one control. */}
+      <div className="border-border bg-background flex h-8 items-stretch rounded-lg border">
+        <Select
+          value={activeViewId ?? "__default__"}
+          onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
+        >
+          <SelectTrigger
+            className="h-full w-40 rounded-r-none border-0 bg-transparent text-sm shadow-none"
+            aria-label={t("selectViewFor", { kind })}
+          >
+            <SelectValue placeholder={t("unsavedView")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__default__">{t("unsavedView")}</SelectItem>
+            {views.map((view) => (
+              <SelectItem key={view.id} value={view.id}>
+                {view.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {canCreate && (
+          <button
+            type="button"
+            data-tour="table-view-new"
+            onClick={() => {
+              setDraftVisibility("private");
+              setCreateOpen(true);
+            }}
+            aria-label={t("newView")}
+            title={t("newView")}
+            className="border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-8 items-center justify-center rounded-r-lg border-l outline-none focus-visible:ring-2"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {active?.can_manage && (
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          data-tour="table-view-new"
-          onClick={() => {
-            setDraftVisibility("private");
-            setCreateOpen(true);
-          }}
-          aria-label={t("newView")}
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground size-8"
+          aria-label={t("rename")}
+          title={t("rename")}
+          onClick={() => setRenaming(active)}
         >
-          <Plus className="h-4 w-4" />
-        </Button>
-      )}
-      {active?.can_manage && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(active)}>
-          {t("rename")}
+          <Pencil className="h-4 w-4" />
         </Button>
       )}
       {active?.can_delete && (
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="icon"
+          className="text-muted-foreground size-8"
           aria-label={t("delete")}
+          title={t("delete")}
           onClick={() => setDeleting(active)}
         >
           <Trash2 className="h-4 w-4" />

@@ -520,6 +520,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A table's layout and its saved view are one control.** Table, Kanban and
+  List are a segmented switch with icons, followed by the view picker and the
+  **+** that saves the screen as a new view; search and filters stay on the
+  right.
 - **A select's dropdown shows its choices tinted as the grid does**, in a cell,
   the record panel and a multi-select's list, with the chosen one tinted too.
 - **A kanban card lists up to four of the screen's columns** under its title,
