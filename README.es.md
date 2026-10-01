@@ -1,4 +1,4 @@
-<!-- source_sha: 571c0eb5fe9a -->
+<!-- source_sha: b833dde4abfc -->
 
 <div align="center">
 
@@ -63,10 +63,14 @@ al momento de la grabación; el artefacto no obtiene datos en vivo. Las conexion
 
 ## Convierte el trabajo individual con IA en una capacidad del equipo
 
-Ventas puede mantener un agente de investigación, operaciones programar un informe semanal y los expertos
-actualizar el conocimiento que utilizan los agentes. El equipo trabaja en el navegador; los desarrolladores
-amplían las herramientas y conectan los sistemas internos. La organización conserva los agentes
-y los procedimientos reutilizables.
+Para un informe periódico, el equipo puede repartirse el trabajo:
+
+1. **Una persona experta define el método:** mantiene las instrucciones, los skills y las fuentes de conocimiento.
+2. **La persona que configura el agente lo pone a disposición del equipo:** conecta las herramientas, publica una versión y concede acceso a sus compañeros.
+3. **Los compañeros utilizan los resultados:** ejecutan el agente, revisan su respuesta y comparten un artefacto con los ajustes de acceso adecuados.
+
+La organización conserva el agente y el conocimiento reutilizable. El equipo trabaja desde el navegador;
+los desarrolladores pueden conectar sistemas internos. [Configura el acceso del equipo](docs/permissions.es.md).
 
 | Qué necesita tu equipo | Cómo ayuda AgenticOS |
 |---|---|
@@ -101,6 +105,22 @@ Los modelos externos, parsers, embeddings, herramientas y trazas pueden enviar d
 infraestructura. Configura cada componente según tus requisitos de datos.
 [Seguridad y flujos de datos](docs/security.es.md).
 
+<details>
+<summary>Adónde van tus datos</summary>
+
+| Componente | Qué decides |
+|---|---|
+| Aplicación y almacenamiento | Operas la aplicación, la base de datos y el almacenamiento de archivos configurado; eliges dónde se ejecutan y cómo se hacen las copias de seguridad |
+| Modelos de lenguaje | Un proveedor alojado recibe el contexto enviado para la inferencia; elige un endpoint local si ese procesamiento debe permanecer en tu infraestructura |
+| Procesamiento y búsqueda de documentos | Revisa los parsers y proveedores de embeddings por separado: un modelo de chat local no hace locales un parser en la nube ni los embeddings remotos |
+| Herramientas y canales | Las integraciones habilitadas intercambian los datos necesarios para sus llamadas; los canales conectados reciben las respuestas enviadas a través de ellos |
+| Observabilidad | El tracing opcional puede exportar datos de ejecución; revisa tanto los ajustes del despliegue como los de cada agente |
+
+[Revisa los límites de los datos](docs/security.es.md#what-leaves-the-deployment) ·
+[Elige el procesamiento de documentos](docs/file-processing.es.md).
+
+</details>
+
 ## Inicio rápido
 
 Instala primero Docker con Compose. En macOS o Linux, ejecuta el comando siguiente; en Windows, utiliza
@@ -111,8 +131,28 @@ modelo, tu cuenta y la organización, y prepara el despliegue con un agente de e
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-Abre la consola en **http://localhost:3000**, inicia sesión con las credenciales que configuraste y prueba
-el agente de ejemplo. Después, añade un documento o conecta una herramienta para tu propia tarea.
+Abre la consola en **http://localhost:3000** e inicia sesión con las credenciales que configuraste.
+
+### Prueba tu primera tarea
+
+En **Chat**, selecciona **Getting Started** y pega este briefing ficticio. El acceso al modelo debe
+estar configurado; este ejercicio no necesita conexión con Notion ni GitHub.
+
+```text
+Responde en español. Convierte este briefing en una lista de tareas para el lanzamiento. Usa solo los hechos indicados.
+Para cada tarea, muestra la persona responsable, la fecha límite y la información que falta.
+No inventes fechas ni responsabilidades.
+
+Briefing:
+- El webinar para clientes será el 15 de octubre.
+- Maya se encarga de la página de destino; debe estar lista el 8 de octubre.
+- Leo se encarga de la demo, pero aún no se ha fijado su fecha de revisión.
+- Hay que enviar las invitaciones antes del 10 de octubre; no hay una persona asignada.
+```
+
+**Comprueba el resultado:** la página de destino debería indicar a Maya y el 8 de octubre; la demo,
+la falta de fecha de revisión; y las invitaciones, la falta de responsable. Después, prueba tu propio briefing o
+[configura un agente con herramientas y conocimiento de la empresa](docs/first-agent.es.md).
 
 <details>
 <summary>Revisa el instalador o elige otro método de despliegue</summary>

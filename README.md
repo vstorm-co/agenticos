@@ -61,9 +61,14 @@ the artifact does not fetch live data. Connections and capabilities are configur
 
 ## Turn individual AI work into a team capability
 
-A sales team can maintain a research agent, operations can schedule a weekly report, and subject experts
-can update the knowledge those agents use. People work through the browser; engineers extend tools
-and connect internal systems. The organization keeps the agents and their reusable know-how.
+For a recurring report, the team can divide the work:
+
+1. **A subject expert defines the method:** maintain the instructions, skills and source knowledge.
+2. **A builder makes the agent available:** configure its tools, publish a version and grant colleagues access.
+3. **Colleagues use the results:** run the agent, review its output and share an artifact with the appropriate access settings.
+
+The organization keeps the agent and reusable know-how. People work through the browser;
+engineers can connect internal systems. [Set up team access](docs/permissions.md).
 
 | What your team needs | How AgenticOS supports it |
 |---|---|
@@ -94,6 +99,22 @@ in-flight or concurrent requests can exceed a cap. [Execution and cost controls]
 parsers, embeddings, tools and tracing can still send data outside your infrastructure. Configure each
 component for your data requirements. [Security and data flows](docs/security.md).
 
+<details>
+<summary>Where your data goes</summary>
+
+| Component | What to decide |
+|---|---|
+| Application and storage | You operate the application, database and configured file storage; choose where they run and how they are backed up |
+| Language models | A hosted provider receives the context sent for inference; choose a local endpoint when that processing must stay on your infrastructure |
+| Document processing and search | Check parsers and embedding providers separately: a local chat model does not make a cloud parser or remote embeddings local |
+| Tools and channels | Enabled integrations exchange the data needed for their calls; connected channels receive the replies sent through them |
+| Observability | Optional tracing can export run data; check both deployment-wide and per-agent settings |
+
+[Review the data boundaries](docs/security.md#what-leaves-the-deployment) ·
+[Choose document processing](docs/file-processing.md).
+
+</details>
+
 ## Quick start
 
 Install Docker with Compose first. On macOS or Linux, run the command below; on Windows, use WSL2
@@ -104,8 +125,28 @@ and organization, then sets up the deployment with a starter agent.
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-Open the console at **http://localhost:3000**, sign in with the credentials you configured, and try
-the starter agent. Next, add a document or connect a tool for your own task.
+Open the console at **http://localhost:3000** and sign in with the credentials you configured.
+
+### Try your first task
+
+In **Chat**, select **Getting Started** and paste this fictional brief. Model access must be configured;
+this exercise needs no connection to Notion or GitHub.
+
+```text
+Turn this brief into a launch checklist. Use only the facts below.
+For each task, show the owner, deadline and missing information.
+Do not invent dates or responsibilities.
+
+Brief:
+- The customer webinar is on 15 October.
+- Maya owns the landing page; it must be ready by 8 October.
+- Leo owns the demo, but its review date is undecided.
+- Someone needs to send invitations by 10 October; no owner is assigned.
+```
+
+**Check the result:** the landing page should have Maya and 8 October; the demo should flag
+its missing review date; invitations should flag the missing owner. Next, try your own brief or
+[configure an agent with tools and company knowledge](docs/first-agent.md).
 
 <details>
 <summary>Inspect the installer or deploy another way</summary>

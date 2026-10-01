@@ -1,4 +1,4 @@
-<!-- source_sha: 571c0eb5fe9a -->
+<!-- source_sha: b833dde4abfc -->
 
 <div align="center">
 
@@ -63,9 +63,14 @@ artefakt nie pobiera danych na żywo. Połączenia i możliwości agenta skonfig
 
 ## Zbuduj wspólny sposób pracy z AI
 
-Sprzedaż może utrzymywać agenta do researchu, operacje planować cotygodniowy raport, a eksperci aktualizować
-wiedzę, z której korzystają agenci. Zespół pracuje w przeglądarce; programiści rozszerzają narzędzia
-i podłączają systemy wewnętrzne. Agenci i zapisane sposoby pracy pozostają zasobem organizacji.
+Przy cyklicznym raporcie zespół może podzielić pracę:
+
+1. **Ekspert określa sposób wykonania:** utrzymuje instrukcje, procedury i wiedzę źródłową.
+2. **Osoba konfigurująca udostępnia agenta:** podłącza narzędzia, publikuje wersję i nadaje współpracownikom dostęp.
+3. **Współpracownicy korzystają z wyników:** uruchamiają agenta, sprawdzają odpowiedź i udostępniają artefakt z odpowiednimi ustawieniami dostępu.
+
+Agent i zapisane sposoby pracy pozostają zasobem organizacji. Zespół pracuje w przeglądarce;
+programiści mogą podłączać systemy wewnętrzne. [Skonfiguruj dostęp zespołu](docs/permissions.pl.md).
 
 | Potrzeba zespołu | Jak pomaga AgenticOS |
 |---|---|
@@ -100,6 +105,22 @@ parsery, embeddingi, narzędzia i tracing nadal mogą wysyłać dane poza Twoją
 Skonfiguruj każdy element zgodnie z wymaganiami dotyczącymi danych.
 [Bezpieczeństwo i przepływy danych](docs/security.pl.md).
 
+<details>
+<summary>Dokąd trafiają Twoje dane</summary>
+
+| Element | O czym decydujesz |
+|---|---|
+| Aplikacja i dane | Utrzymujesz aplikację, bazę danych i skonfigurowany magazyn plików; wybierasz miejsce działania i sposób wykonywania kopii zapasowych |
+| Modele językowe | Dostawca w chmurze otrzymuje kontekst wysłany do modelu; wybierz lokalny endpoint, jeśli to przetwarzanie ma pozostać w Twojej infrastrukturze |
+| Przetwarzanie i wyszukiwanie dokumentów | Sprawdź osobno parsery i dostawców embeddingów: lokalny model czatu nie sprawia, że parser w chmurze lub zdalne embeddingi stają się lokalne |
+| Narzędzia i kanały | Włączone integracje wymieniają dane potrzebne do wywołań; podłączone kanały otrzymują wysyłane przez nie odpowiedzi |
+| Obserwowalność | Opcjonalny tracing może eksportować dane wykonań; sprawdź ustawienia całego wdrożenia i poszczególnych agentów |
+
+[Sprawdź granice przepływu danych](docs/security.pl.md#what-leaves-the-deployment) ·
+[Wybierz przetwarzanie dokumentów](docs/file-processing.pl.md).
+
+</details>
+
 ## Szybki start
 
 Zainstaluj Docker z Compose. Na macOS lub Linuksie uruchom poniższą komendę; na Windows użyj WSL2
@@ -110,8 +131,28 @@ konta i organizacji, a następnie uruchomi środowisko z przykładowym agentem.
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-Otwórz konsolę pod adresem **http://localhost:3000**, zaloguj się skonfigurowanymi danymi i wypróbuj
-przykładowego agenta. Następnie dodaj dokument lub podłącz narzędzie do własnego zadania.
+Otwórz konsolę pod adresem **http://localhost:3000** i zaloguj się skonfigurowanymi danymi.
+
+### Wypróbuj pierwsze zadanie
+
+W **Chat** wybierz agenta **Getting Started** i wklej ten fikcyjny brief. Dostęp do modelu musi być
+skonfigurowany; to ćwiczenie nie wymaga połączenia z Notion ani GitHubem.
+
+```text
+Odpowiedz po polsku. Zamień ten brief w listę zadań przed premierą. Użyj tylko podanych faktów.
+Dla każdego zadania podaj osobę odpowiedzialną, termin i brakujące informacje.
+Nie wymyślaj dat ani odpowiedzialności.
+
+Brief:
+- Webinar dla klientów odbędzie się 15 października.
+- Maya odpowiada za landing page; ma być gotowy do 8 października.
+- Leo odpowiada za demo, ale nie ustalono terminu jego przeglądu.
+- Zaproszenia trzeba wysłać do 10 października; nie wyznaczono odpowiedzialnej osoby.
+```
+
+**Sprawdź wynik:** przy landing page powinny pojawić się Maya i 8 października; przy demo —
+brak terminu przeglądu; przy zaproszeniach — brak odpowiedzialnej osoby. Następnie użyj własnego briefu lub
+[skonfiguruj agenta z narzędziami i wiedzą firmy](docs/first-agent.pl.md).
 
 <details>
 <summary>Sprawdź instalator lub wybierz inny sposób wdrożenia</summary>

@@ -1,4 +1,4 @@
-<!-- source_sha: 571c0eb5fe9a -->
+<!-- source_sha: b833dde4abfc -->
 
 <div align="center">
 
@@ -63,10 +63,14 @@ das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für
 
 ## KI-Arbeit im Team verankern
 
-Der Vertrieb kann einen Rechercheagenten pflegen, der Betrieb einen wöchentlichen Bericht planen und
-Fachexperten das Wissen aktualisieren, das diese Agenten nutzen. Das Team arbeitet im Browser;
-Entwickler erweitern Werkzeuge und verbinden interne Systeme. Die Organisation behält die Agenten
-und das wiederverwendbare Know-how.
+Bei einem regelmäßigen Bericht kann das Team die Arbeit aufteilen:
+
+1. **Eine Fachperson legt das Vorgehen fest:** Sie pflegt Anweisungen, Skills und Wissensquellen.
+2. **Eine zuständige Person stellt den Agenten bereit:** Sie konfiguriert Werkzeuge, veröffentlicht eine Version und erteilt Kollegen Zugriff.
+3. **Kollegen nutzen die Ergebnisse:** Sie führen den Agenten aus, prüfen seine Antwort und teilen ein Artefakt mit passenden Zugriffseinstellungen.
+
+Agent und wiederverwendbares Wissen bleiben bei der Organisation. Das Team arbeitet im Browser;
+Entwickler können interne Systeme anbinden. [Teamzugriff einrichten](docs/permissions.de.md).
 
 | Was dein Team braucht | Wie AgenticOS hilft |
 |---|---|
@@ -99,6 +103,22 @@ Beim [Self-Hosting](docs/rollout.de.md) übernimmt dein Team Betrieb, Updates un
 Werkzeuge und Tracing können weiterhin Daten aus deiner Infrastruktur übertragen. Konfiguriere jede
 Komponente nach deinen Datenanforderungen. [Sicherheit und Datenflüsse](docs/security.de.md).
 
+<details>
+<summary>Wohin deine Daten gelangen</summary>
+
+| Komponente | Was du entscheidest |
+|---|---|
+| Anwendung und Speicherung | Du betreibst Anwendung, Datenbank und konfigurierten Dateispeicher; wähle den Betriebsort und die Sicherung |
+| Sprachmodelle | Ein gehosteter Anbieter erhält den zur Inferenz gesendeten Kontext; wähle einen lokalen Endpunkt, wenn diese Verarbeitung in deiner Infrastruktur bleiben muss |
+| Dokumentverarbeitung und Suche | Prüfe Parser und Embedding-Anbieter getrennt: Ein lokales Chatmodell macht einen Cloud-Parser oder externe Embeddings nicht lokal |
+| Werkzeuge und Kanäle | Aktivierte Integrationen tauschen die für ihre Aufrufe nötigen Daten aus; verbundene Kanäle erhalten die darüber gesendeten Antworten |
+| Beobachtbarkeit | Optionales Tracing kann Ausführungsdaten exportieren; prüfe sowohl die Einstellungen der Bereitstellung als auch die einzelnen Agenten |
+
+[Datengrenzen prüfen](docs/security.de.md#what-leaves-the-deployment) ·
+[Dokumentverarbeitung wählen](docs/file-processing.de.md).
+
+</details>
+
 ## Schnellstart
 
 Installiere zuerst Docker mit Compose. Führe den folgenden Befehl unter macOS oder Linux aus;
@@ -109,8 +129,29 @@ durch Modellzugriff, Benutzerkonto und Organisation und richtet die Umgebung mit
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-Öffne die Konsole unter **http://localhost:3000**, melde dich mit deinen konfigurierten Zugangsdaten an
-und probiere den Beispielagenten aus. Füge danach ein Dokument hinzu oder verbinde ein Werkzeug für deine eigene Aufgabe.
+Öffne die Konsole unter **http://localhost:3000** und melde dich mit deinen konfigurierten Zugangsdaten an.
+
+### Die erste Aufgabe ausprobieren
+
+Wähle unter **Chat** den Agenten **Getting Started** und füge dieses fiktive Briefing ein. Der Modellzugriff muss
+eingerichtet sein; für diese Übung brauchst du keine Verbindung zu Notion oder GitHub.
+
+```text
+Antworte auf Deutsch. Erstelle aus diesem Briefing eine Checkliste für den Start. Nutze nur die genannten Fakten.
+Nenne für jede Aufgabe die verantwortliche Person, die Frist und fehlende Informationen.
+Erfinde keine Termine oder Zuständigkeiten.
+
+Briefing:
+- Das Kundenwebinar findet am 15. Oktober statt.
+- Maya betreut die Landingpage; sie muss bis zum 8. Oktober fertig sein.
+- Leo betreut die Demo, aber der Termin für ihre Prüfung steht noch nicht fest.
+- Die Einladungen müssen bis zum 10. Oktober verschickt werden; niemand ist dafür eingeteilt.
+```
+
+**Prüfe das Ergebnis:** Bei der Landingpage sollten Maya und der 8. Oktober stehen; bei der Demo
+sollte der fehlende Prüftermin auffallen, bei den Einladungen die fehlende Zuständigkeit. Probiere danach
+dein eigenes Briefing aus oder
+[konfiguriere einen Agenten mit Werkzeugen und Unternehmenswissen](docs/first-agent.de.md).
 
 <details>
 <summary>Installer prüfen oder eine andere Bereitstellung wählen</summary>
