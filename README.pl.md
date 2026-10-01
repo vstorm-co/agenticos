@@ -1,4 +1,4 @@
-<!-- source_sha: e0fd8d688cff -->
+<!-- source_sha: f719a0f49b0c -->
 
 <div align="center">
 
@@ -40,11 +40,20 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 
 **Od briefu w Notion i informacji z GitHuba do interaktywnej strony pomagającej podjąć decyzję.**
 
+<video src="https://raw.githubusercontent.com/vstorm-co/agenticos/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
+</video>
+
+<details>
+<summary>Film się nie wyświetla? Otwórz animowany podgląd</summary>
+
 <a href="docs/assets/screens/oss-launch-planner-demo.mp4?raw=true">
   <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
 </a>
 
 *Animowany podgląd przyspieszony 2×. Kliknij, aby obejrzeć 37-sekundowy film z dźwiękiem w normalnym tempie.*
+
+</details>
 
 [Obejrzyj film](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [Zobacz zrzut ekranu](docs/assets/screens/oss-launch-planner-poster.webp)
 

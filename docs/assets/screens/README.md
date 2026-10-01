@@ -86,8 +86,9 @@ The layout takes inspiration from stablyai/orca, using AgenticOS copy and origin
 Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
 on a feature branch. Check the light screenshots and their full-resolution links on GitHub.
 
-The README uses a linked GIF outside a video element so the preview does not depend on
-GitHub's mobile video player. The MP4 is stored alongside it; the explicit still-image link remains.
+The README leads with the shortened MP4 in a video element. An independently expandable GIF
+preview is available below it when playback is unavailable. The fallback is manually opened, not
+automatically selected by device. Direct video and still-image links remain available.
 
 ## Activity and integration scale
 
@@ -131,6 +132,7 @@ Audio has 30 ms fades around the cut; existing music and effects are otherwise r
 - `oss-launch-planner-preview.gif`: 640 × 364, 3 fps, 56 frames, 18.66 seconds, 925,508 bytes.
   It shows the shortened demo at 2× speed without sound, disclosed below the image in each language.
 - Both files fit the repository's 1 MiB asset limit. The GIF links to the shortened MP4.
+- The player uses an immutable raw URL at the asset's committed revision to avoid a GitHub file-view page as its source.
 - Original-resolution edited master and downloaded source remain in the local
   `Desktop/agenticos-demo-short` production folder.
 - Validated full MP4 decoding, duration, GIF frame timing and sampled frames around the cut.
