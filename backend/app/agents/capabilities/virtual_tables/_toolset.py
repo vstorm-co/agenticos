@@ -50,7 +50,7 @@ from app.schemas.virtual_table import (
     TableCreate,
 )
 from app.services.virtual_tables.facade import VirtualTableService
-from app.services.virtual_tables.presentation import labelled, schema
+from app.services.virtual_tables.presentation import filters_by_label, labelled, schema
 from app.services.virtual_tables.receipts import derived_operation_key
 
 Grants = dict[UUID, frozenset[TableOperation]]
@@ -201,7 +201,8 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         Args:
             table_id: The table's id.
             filters: Conditions that must all hold: `{column_id, op, value}`, with
-                `op` one of eq, neq, gt, gte, lt, lte, contains, in, is_null.
+                `op` one of eq, neq, gt, gte, lt, lte, contains, in, is_null; a
+                select's value is one of its option labels.
             sort_by: `created_at`, `updated_at` or a column id.
             descending: Newest or largest first.
             limit: At most 100.
@@ -209,7 +210,8 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
 
         Returns:
             A JSON object `{records, has_more}`. Each record carries `id`,
-            `external_id`, `revision` and `values` keyed by column label. There
+            `external_id`, `revision` and `values` keyed by column label, a
+            select's choice by its label. There
             is no total: `has_more` says whether to ask for the next page.
         """
 
@@ -220,7 +222,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 auth,
                 table_id,
                 RecordQuery(
-                    filters=filters or [],
+                    filters=filters_by_label(table, filters or []),
                     sort=RecordSort(by=sort_by, direction="desc" if descending else "asc"),
                     skip=skip,
                     limit=limit,
@@ -282,7 +284,8 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
 
         Args:
             table_id: The table's id.
-            values: Cell values keyed by column id or label, each fitting its type.
+            values: Cell values keyed by column id or label, each fitting its type;
+                a select's value is one of its option labels.
             external_id: Your own key for the record, unique in the table.
 
         Returns:
@@ -315,7 +318,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         Args:
             table_id: The table's id.
             external_id: The record's own key.
-            values: Cell values keyed by column id or label.
+            values: Cell values keyed by column id or label; a select's by option label.
             expected_revision: Required when the record exists: the revision you
                 last read. Ignored when it does not.
 
@@ -355,7 +358,8 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             record_id: The record's id.
             expected_revision: The revision you last read. If the record changed
                 since, nothing is written and you are told its current revision.
-            values: Only the cells to change, keyed by column id or label.
+            values: Only the cells to change, keyed by column id or label; a
+                select's by option label.
 
         Returns:
             The record as written, with its new revision.

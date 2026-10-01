@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import AuthContext
 from app.schemas.virtual_table import RecordFilter, RecordQuery, RecordSort
 from app.services.virtual_tables.facade import VirtualTableService
+from app.services.virtual_tables.presentation import filters_by_label
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.results import Completed, NodeResult
 from app.workflows.nodes._tables import (
@@ -66,7 +67,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             auth,
             table.id,
             RecordQuery(
-                filters=config.filters, sort=config.sort, skip=config.skip, limit=config.limit
+                filters=filters_by_label(table, config.filters),
+                sort=config.sort,
+                skip=config.skip,
+                limit=config.limit,
             ),
         )
         return Completed[TableRecordPage](

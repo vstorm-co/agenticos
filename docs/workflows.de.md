@@ -1,5 +1,5 @@
 ---
-source_sha: "4ad48ff1781d"
+source_sha: "3d9efa417500"
 ---
 
 # Workflows { #workflows }
@@ -612,9 +612,11 @@ Ein **New table record**-Trigger nennt eine Tabelle und filtert jeden Datensatz 
 wie er hinzugefügt wurde - in der Konsole, über die API, durch einen Agent oder den
 Tabellenschritt eines anderen Workflows. Er gibt den Datensatz weiter: seine
 `record_id`, seine `values` nach Spalten-ID, dieselben Werte als `fields` nach
-Beschriftung und die `author_id` dessen, der ihn hinzugefügt hat. Das Veröffentlichen
-braucht Lesezugriff auf die Tabelle, und ein Datensatz, der vor der Veröffentlichung
-hinzukam, startet ihn nie. Ein so gestarteter Run trägt die Kette der Trigger, die er
+Beschriftung, eine Auswahl als Label ihrer Option, und die `author_id` dessen, der
+ihn hinzugefügt hat. Das Veröffentlichen braucht Lesezugriff auf die Tabelle, und ein
+Datensatz, der vor der Veröffentlichung hinzukam, startet ihn nie.
+
+Ein so gestarteter Run trägt die Kette der Trigger, die er
 durchlief, sodass ein Workflow, der in die Tabelle zurückschreibt, deren Trigger ihn
 startete, blockiert wird statt im Kreis zu laufen.
 

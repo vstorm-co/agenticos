@@ -50,6 +50,11 @@ descriptions and external ids, because PostgreSQL cannot store it.
 
 Comparisons match only cells that hold a value. Use `is_null` to find the empty ones.
 
+An agent's table tools and a workflow's table steps name a choice by its option's
+label instead, matched case-insensitively: they write and filter by label, and read a
+record's choices back as labels, an archived option's too. A value naming no live
+option is refused with the options the column has.
+
 ## Changing a schema { #changing-a-schema }
 
 `PUT /tables/{id}/schema` takes the full list of columns the table should have, and

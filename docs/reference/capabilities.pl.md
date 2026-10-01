@@ -1,5 +1,5 @@
 ---
-source_sha: "17ed88d9faec"
+source_sha: "d71f6e6871d2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1465,7 +1465,8 @@ utworzy, jest dostępna do końca tego runa.
 Narzędzia zapisu są oznaczone jako mające skutki uboczne osobno dla każdego
 narzędzia, więc polityka zatwierdzeń obejmuje je, a nie odczyty. Klucz operacji
 zapisu pochodzi z runa i wywołania narzędzia, więc ponowione wywołanie odtwarza
-pierwszą odpowiedź. Wartości podaje się po id albo etykiecie kolumny. Konflikty,
+pierwszą odpowiedź. Wartości podaje się po id albo etykiecie kolumny, a wybór w
+kolumnie wyboru to etykieta opcji - tak samo przy zapisie, filtrowaniu i odczycie. Konflikty,
 walidacja, limity, historia i audyt są takie same jak w konsoli i API, bo każde
 narzędzie wywołuje ten sam serwis.
 

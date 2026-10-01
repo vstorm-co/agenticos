@@ -1,5 +1,5 @@
 ---
-source_sha: "578b67f7bf86"
+source_sha: "d078505e300c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -54,6 +54,11 @@ nie są przycinane. Obowiązuje tylko limit długości, a znak NUL jest odrzucan
 external id, bo PostgreSQL nie potrafi go zapisać.
 
 Porównania pasują tylko do komórek, które mają wartość. Puste znajdziesz przez `is_null`.
+
+Narzędzia tabel agenta i kroki tabel w workflow nazywają wybór etykietą opcji,
+bez rozróżniania wielkości liter: po etykiecie zapisują i filtrują, a wybory rekordu
+odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie wskazuje
+żadnej aktywnej opcji, jest odrzucana wraz z listą opcji kolumny.
 
 ## Zmiana schematu { #changing-a-schema }
 

@@ -52,6 +52,7 @@ from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus, WorkflowR
 from app.main import app
 from app.schemas.virtual_table import (
     ColumnInput,
+    OptionInput,
     RecordCreate,
     RecordFilter,
     RecordUpsert,
@@ -292,6 +293,9 @@ async def _table(
                     ColumnInput(label="Email", type="text"),
                     ColumnInput(label="Score", type="integer"),
                     ColumnInput(label="VIP", type="boolean"),
+                    ColumnInput(
+                        label="Stage", type="single_select", options=[OptionInput(label="Won")]
+                    ),
                 ],
             ),
         )
@@ -322,7 +326,9 @@ async def test_an_added_record_starts_the_live_version_with_the_record(world: _W
     workflow = await world.workflow()
     trigger_id = await world.trigger(workflow)
 
-    await world.add({"Email": "ada@example.com", "Score": 90})
+    stage = next(column for column in world.leads.columns if column.label == "Stage")
+    won = str(stage.options[0].id)
+    await world.add({"Email": "ada@example.com", "Score": 90, "Stage": won})
     pairs = await world.consume()
 
     (admission,) = await world.admissions(trigger_id)
@@ -335,8 +341,9 @@ async def test_an_added_record_starts_the_live_version_with_the_record(world: _W
     assert run.input == {
         "table_id": str(world.leads.id),
         "record_id": str(record_id),
-        "values": {email: "ada@example.com", score: 90},
-        "fields": {"Email": "ada@example.com", "Score": 90},
+        "values": {email: "ada@example.com", score: 90, str(stage.id): won},
+        # A choice reads by its label, as a step's condition names it.
+        "fields": {"Email": "ada@example.com", "Score": 90, "Stage": "Won"},
         "author_id": str(world.owner.id),
     }
     assert run.execution_principal_user_id == world.owner.id

@@ -1,5 +1,5 @@
 ---
-source_sha: "578b67f7bf86"
+source_sha: "d078505e300c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -57,6 +57,12 @@ Beschreibungen und external ids, weil PostgreSQL es nicht speichern kann.
 
 Vergleiche treffen nur Zellen, die einen Wert enthalten. Mit `is_null` finden Sie die
 leeren.
+
+Die Tabellen-Tools eines Agenten und die Tabellenschritte eines Workflows benennen eine
+Auswahl stattdessen über das Label ihrer Option, ohne Beachtung der Groß- und
+Kleinschreibung: Sie schreiben und filtern per Label und lesen die Auswahl eines
+Datensatzes als Labels zurück, auch die einer archivierten Option. Ein Wert, der keine
+aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
 
 ## Ein Schema ändern { #changing-a-schema }
 

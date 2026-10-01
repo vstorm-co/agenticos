@@ -539,9 +539,11 @@ audit trail. **Pause** in the **Trigger** sheet stops either without a publish, 
 A **New table record** trigger names a table and filters on each record as it was
 added, from the console, the API, an agent or another workflow's table step. It
 hands on the record: its `record_id`, its `values` by column id, the same values as
-`fields` by label, and the `author_id` of whoever added it. Publishing it needs
-read access to the table, and a record added before the publish never starts it. A
-run started this way carries the chain of triggers it came through, so a workflow
+`fields` by label, a choice as its option's label, and the `author_id` of whoever
+added it. Publishing it needs read access to the table, and a record added before the
+publish never starts it.
+
+A run started this way carries the chain of triggers it came through, so a workflow
 that writes back into a table whose trigger started it is blocked rather than
 looping.
 

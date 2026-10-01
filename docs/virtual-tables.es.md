@@ -1,5 +1,5 @@
 ---
-source_sha: "578b67f7bf86"
+source_sha: "d078505e300c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -55,6 +55,12 @@ descripciones y external ids, porque PostgreSQL no puede almacenarlo.
 
 Las comparaciones solo coinciden con celdas que tienen valor. Usa `is_null` para
 encontrar las vacías.
+
+Las herramientas de tablas de un agente y los pasos de tabla de un workflow nombran una
+elección por la etiqueta de su opción, sin distinguir mayúsculas: escriben y filtran por
+etiqueta, y leen las elecciones de un registro como etiquetas, también la de una opción
+archivada. Un valor que no nombra ninguna opción activa se rechaza con las opciones de
+la columna.
 
 ## Cambiar un esquema { #changing-a-schema }
 

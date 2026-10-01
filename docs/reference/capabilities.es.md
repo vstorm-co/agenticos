@@ -1,5 +1,5 @@
 ---
-source_sha: "17ed88d9faec"
+source_sha: "d71f6e6871d2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1493,7 +1493,8 @@ Las herramientas de escritura tienen efectos secundarios por herramienta, así q
 política de aprobación las cubre a ellas y no a las lecturas. La clave de operación
 de una escritura sale del run y de la llamada a la herramienta, así que una llamada
 reintentada repite su primera respuesta. Los valores se indican por id o etiqueta de
-columna. Los conflictos, la validación, las cuotas, el historial y la auditoría son
+columna, y la elección de una columna de selección es la etiqueta de su opción, igual
+al escribir, filtrar y leer. Los conflictos, la validación, las cuotas, el historial y la auditoría son
 los mismos que en la consola y la API, porque cada herramienta llama al mismo
 servicio.
 

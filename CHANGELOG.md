@@ -357,6 +357,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An agent and a workflow name a select's choice by its label.** The
+  schema an agent reads lists a select's options by label, yet its table tools
+  wrote, filtered and read back option ids, so writing `Won` was refused and a
+  workflow condition on `fields.Stage` never matched. Agent tools, table steps
+  and the New table record trigger now take a label (or an id) and read
+  choices back as labels; a value naming no option is refused with the
+  options the column has.
 - **A Wait can wait for a call.** #1947 proposed a Wait until a resume
   webhook, and only waits for a time shipped. With **Wait for a call to the
   run's resume link**, the step goes on when the address a new **Resume

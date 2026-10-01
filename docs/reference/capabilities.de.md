@@ -1,5 +1,5 @@
 ---
-source_sha: "17ed88d9faec"
+source_sha: "d71f6e6871d2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1571,7 +1571,8 @@ Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
 Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
 eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
 wiederholter Aufruf seine erste Antwort erneut ab. Werte werden per Spalten-ID oder
-Label angegeben. Konflikte, Validierung, Kontingente, Historie und Audit sind
+Label angegeben, und die Auswahl einer Auswahlspalte ist das Label ihrer Option -
+beim Schreiben, Filtern und Lesen gleich. Konflikte, Validierung, Kontingente, Historie und Audit sind
 dieselben wie in der Konsole und der API, weil jedes Tool denselben Service aufruft.
 
 ## Datum und Uhrzeit { #date-and-time }

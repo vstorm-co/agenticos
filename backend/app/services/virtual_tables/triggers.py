@@ -59,6 +59,7 @@ from app.schemas.virtual_table_trigger import (
 )
 from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.presentation import readable
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
@@ -494,7 +495,7 @@ class TableTriggerConsumer:
             record_id=event.record_id,
             values=values,
             fields={
-                column.label: values[str(column.id)]
+                column.label: readable(column, values[str(column.id)])
                 for column in columns.values()
                 if not column.archived and str(column.id) in values
             },

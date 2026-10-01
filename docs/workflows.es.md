@@ -1,5 +1,5 @@
 ---
-source_sha: "4ad48ff1781d"
+source_sha: "3d9efa417500"
 ---
 
 # Workflows { #workflows }
@@ -570,8 +570,10 @@ deja de verificarse al instante.
 Un trigger **New table record** nombra una tabla y filtra cada registro tal como se
 añadió: desde la consola, la API, un agent o el paso de tabla de otro workflow. Pasa
 el registro: su `record_id`, sus `values` por id de columna, los mismos valores como
-`fields` por etiqueta y el `author_id` de quien lo añadió. Publicarlo requiere acceso
-de lectura a la tabla, y un registro añadido antes de la publicación nunca lo inicia.
+`fields` por etiqueta, con una elección como la etiqueta de su opción, y el
+`author_id` de quien lo añadió. Publicarlo requiere acceso de lectura a la tabla, y
+un registro añadido antes de la publicación nunca lo inicia.
+
 Un run iniciado así lleva la cadena de triggers por la que pasó, así que un workflow
 que vuelve a escribir en la tabla cuyo trigger lo inició se bloquea en lugar de entrar
 en bucle.

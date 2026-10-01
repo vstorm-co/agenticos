@@ -1,5 +1,5 @@
 ---
-source_sha: "4ad48ff1781d"
+source_sha: "3d9efa417500"
 ---
 
 # Workflows { #workflows }
@@ -554,8 +554,10 @@ przechodzić weryfikację.
 Wyzwalacz **New table record** wskazuje tabelę i filtruje każdy rekord taki, jakim go
 dodano - z konsoli, przez API, przez agenta albo krok tabeli innego workflow.
 Przekazuje rekord: jego `record_id`, `values` według id kolumn, te same wartości jako
-`fields` według etykiet oraz `author_id` tego, kto go dodał. Publikacja wymaga
-dostępu do odczytu tabeli, a rekord dodany przed publikacją nigdy go nie uruchamia.
+`fields` według etykiet, z wyborem jako etykietą opcji, oraz `author_id` tego, kto
+go dodał. Publikacja wymaga dostępu do odczytu tabeli, a rekord dodany przed
+publikacją nigdy go nie uruchamia.
+
 Run uruchomiony w ten sposób niesie łańcuch wyzwalaczy, przez które przeszedł, więc
 workflow zapisujący z powrotem do tabeli, której wyzwalacz go uruchomił, jest
 blokowany zamiast się zapętlić.

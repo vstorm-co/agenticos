@@ -137,19 +137,25 @@ def _datetime(value: object, column: ColumnDef, writing: bool) -> CellValue:
         raise CellProblem("Timestamp is out of range") from None
 
 
+def _not_an_option(column: ColumnDef) -> CellProblem:
+    """The refusal of a value that names no option, saying which ones there are."""
+    live = ", ".join(option.label for option in column.options if not option.archived)
+    return CellProblem(f"That is not one of the column's options: {live or 'none'}")
+
+
 def _option_id(value: object, column: ColumnDef, writing: bool) -> str:
     if not isinstance(value, str):
-        raise CellProblem("Expected the id of one of the column's options")
+        raise _not_an_option(column)
     try:
         option_id = UUID(value)
     except ValueError:
-        raise CellProblem("Expected the id of one of the column's options") from None
+        raise _not_an_option(column) from None
     for option in column.options:
         if option.id == option_id:
             if writing and option.archived:
                 raise CellProblem("That option is archived and can no longer be chosen")
             return str(option_id)
-    raise CellProblem("That is not one of the column's options")
+    raise _not_an_option(column)
 
 
 def _single_select(value: object, column: ColumnDef, writing: bool) -> CellValue:

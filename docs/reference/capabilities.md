@@ -1392,7 +1392,8 @@ for the rest of that run.
 
 The write tools are side-effecting per tool, so an approval policy gates them and
 not the reads. A write's operation key comes from the run and the tool call, so a
-retried call replays its first answer. Values are keyed by column id or label.
+retried call replays its first answer. Values are keyed by column id or label, and a
+select's choice is its option label, written, filtered and read back alike.
 Conflicts, validation, quotas, history and audit are the same as in the console and
 the API, because every tool calls the same service.
 

@@ -26,7 +26,7 @@ from app.agents.deps import AgentDeps
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord
-from app.schemas.virtual_table import TableRead
+from app.schemas.virtual_table import RecordFilter, TableRead
 from app.services.virtual_tables.facade import VirtualTableService
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user, orders_table
 
@@ -249,7 +249,7 @@ async def test_records_are_listed_filtered_sorted_and_paged(world: _World):
             "list_records",
             _ctx(deps, call="list"),
             table_id=world.orders.id,
-            filters=[{"column_id": quantity_id, "op": "gte", "value": 2}],
+            filters=[RecordFilter(column_id=quantity_id, op="gte", value=2)],
             sort_by=quantity_id,
             descending=True,
             limit=1,
@@ -375,6 +375,51 @@ async def test_a_table_the_agent_creates_is_usable_for_the_rest_of_the_run(world
     assert [column["label"] for column in created["columns"]] == ["Email"]
     assert written["values"]["Email"] == "ada@example.com"
     assert set(capability.grants[uuid.UUID(created["id"])]) == set(TableOperation)
+
+
+async def test_a_choice_is_written_filtered_and_read_by_its_label(world: _World):
+    # The schema an agent reads names a select's options by label only, so a
+    # label is what it writes, filters by and must be shown back.
+    call, _capability, _ts = _tools({}, allow_create=True)
+    deps = world.deps()
+    table = json.loads(
+        await call(
+            "create_table",
+            _ctx(deps, call="make"),
+            name="Deals",
+            columns=[
+                {
+                    "label": "Stage",
+                    "type": "single_select",
+                    "options": [{"label": "Won"}, {"label": "Lost"}],
+                }
+            ],
+        )
+    )
+    table_id = uuid.UUID(table["id"])
+    for index, stage in enumerate(["won", "Lost"]):
+        await call(
+            "create_record",
+            _ctx(deps, call=f"row-{index}"),
+            table_id=table_id,
+            values={"Stage": stage},
+        )
+
+    page = json.loads(
+        await call(
+            "list_records",
+            _ctx(deps, call="list"),
+            table_id=table_id,
+            # As the model's arguments reach the tool: validated into filters.
+            filters=[RecordFilter(column_id=table["columns"][0]["id"], op="eq", value="Won")],
+        )
+    )
+    with pytest.raises(ModelRetry, match="options: Won, Lost"):
+        await call(
+            "create_record", _ctx(deps, call="bad"), table_id=table_id, values={"Stage": "Maybe"}
+        )
+
+    assert [record["values"]["Stage"] for record in page["records"]] == ["Won"]
 
 
 async def test_a_granted_table_that_is_gone_is_neither_listed_nor_said_to_exist(world: _World):
