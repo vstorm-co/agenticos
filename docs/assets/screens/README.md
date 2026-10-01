@@ -18,15 +18,16 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `agent-builder` | Complete: demo agent instructions, selected model, published version and draft changes |
 | `skills` | Complete: library and the artifact-pages procedure with instructions and templates |
 | `context` | Complete: library and glossary content with linked mode for on-demand reading |
-| `knowledge-bases` | Named collections |
-| `knowledge-collection` | Documents, processing status and preview or search result |
+| `knowledge-bases` | Complete: personal and organization collections |
+| `knowledge-collection` | Complete: vstorm collection with document name, processing status and chunk count |
 | `mcp-connections` | Notion/GitHub connections and tools; credentials hidden |
 | `artifacts` | Library and the OSS Launch Planner from the demo |
 | `run-detail` | The demo execution, tool calls and recorded cost |
 | `approval` | An actual pending tool action and decision controls |
 | `routines` | Schedule, actual completed scheduled run and result |
 
-The `agent-builder`, `skills` and `context` slots are complete; seven screenshot slots remain pending.
+The `agent-builder`, `skills`, `context`, `knowledge-bases` and `knowledge-collection` slots
+are complete; five screenshot slots remain pending.
 The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
 and stored as lossless WebP at the original 3502 × 2000 resolution.
 Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
@@ -38,6 +39,11 @@ The Context captures were supplied on 2026-10-01 and stored as lossless WebP at
 3502 × 2000: `light/context.webp`, `dark/context.webp`, `light/context-detail.webp`
 and `dark/context-detail.webp`. They show the library and the Glossary file in Preview,
 with linked mode and the enabled setting visible.
+
+The knowledge captures were supplied on 2026-10-01 and stored as lossless WebP at
+3502 × 2000: `light/knowledge-bases.webp`, `dark/knowledge-bases.webp`,
+`light/knowledge-collection.webp` and `dark/knowledge-collection.webp`. They show
+the collection list and the vstorm document list with a completed processing status.
 
 Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
 The documentation and presentation use explicit placeholders until new captures are ready.

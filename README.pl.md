@@ -1,4 +1,4 @@
-<!-- source_sha: 87872cb0fe4a -->
+<!-- source_sha: 0340b9ad0e04 -->
 
 <div align="center">
 
@@ -157,14 +157,20 @@ czy odczytuje na żądanie. [Więcej o kontekście](docs/context.pl.md).
 fragmenty potrzebne do odpowiedzi. Takie podejście jest często nazywane **RAG**, czyli generowaniem
 odpowiedzi wspomaganym wyszukiwaniem. [Dodawanie i przetwarzanie dokumentów](docs/file-processing.pl.md).
 
-<!-- MEDIA: knowledge-bases | capture light + dark -->
-> **Miejsce na zrzut — Bazy wiedzy:** nazwane kolekcje pokazujące organizację wiedzy zespołu.
+<!-- MEDIA: knowledge-bases | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Bazy wiedzy z kolekcjami osobistymi i organizacji." width="100%">
+</picture>
 
 Otwórz kolekcję, aby sprawdzić dokumenty i stan ich przetwarzania. Wybierz sposób odczytu
 obsługiwanych dokumentów, w tym rozpoznawanie tekstu w skanach (OCR).
 
-<!-- MEDIA: knowledge-collection | capture light + dark -->
-> **Miejsce na zrzut — Wnętrze kolekcji:** nazwy dokumentów, stan przetwarzania oraz czytelny podgląd dokumentu lub wynik wyszukiwania.
+<!-- MEDIA: knowledge-collection | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Kolekcja vstorm z poprawnie przetworzonym dokumentem adding_features.md." width="100%">
+</picture>
 
 ### Podłącz aplikacje, w których pracujesz
 

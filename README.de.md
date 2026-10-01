@@ -1,4 +1,4 @@
-<!-- source_sha: 87872cb0fe4a -->
+<!-- source_sha: 0340b9ad0e04 -->
 
 <div align="center">
 
@@ -157,14 +157,20 @@ erhält oder bei Bedarf liest. [Mehr über Kontext](docs/context.de.md).
 Fragen sucht der Agent darin nach passenden Textstellen. Dieses Vorgehen heißt häufig **RAG**,
 also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](docs/file-processing.de.md).
 
-<!-- MEDIA: knowledge-bases | capture light + dark -->
-> **Screenshot-Platzhalter — Wissensdatenbanken:** benannte Sammlungen, die die Organisation des Teamwissens zeigen.
+<!-- MEDIA: knowledge-bases | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Wissensdatenbanken mit persönlichen Sammlungen und Organisationssammlungen." width="100%">
+</picture>
 
 Öffne eine Sammlung, um Dokumente und ihren Verarbeitungsstatus zu prüfen. Wähle, wie unterstützte Dokumente
 gelesen werden, einschließlich Texterkennung für Scans (OCR).
 
-<!-- MEDIA: knowledge-collection | capture light + dark -->
-> **Screenshot-Platzhalter — Sammlungsdetails:** Dokumentnamen, Verarbeitungsstatus und eine lesbare Dokumentvorschau oder ein Suchergebnis.
+<!-- MEDIA: knowledge-collection | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Die Sammlung vstorm mit dem erfolgreich verarbeiteten Dokument adding_features.md." width="100%">
+</picture>
 
 ### Anwendungen verbinden
 

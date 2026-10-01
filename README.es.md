@@ -1,4 +1,4 @@
-<!-- source_sha: 87872cb0fe4a -->
+<!-- source_sha: 0340b9ad0e04 -->
 
 <div align="center">
 
@@ -157,14 +157,20 @@ Las **Knowledge bases** organizan documentos en colecciones que asignas a los ag
 fragmentos relevantes en esas fuentes al responder. Esto suele llamarse **RAG**, o generación aumentada
 por recuperación. [Añade y procesa documentos](docs/file-processing.es.md).
 
-<!-- MEDIA: knowledge-bases | capture light + dark -->
-> **Captura pendiente — Bases de conocimiento:** colecciones con nombres que muestran cómo se organiza el conocimiento del equipo.
+<!-- MEDIA: knowledge-bases | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Bases de conocimiento con colecciones personales y de la organización." width="100%">
+</picture>
 
 Abre una colección para consultar sus documentos y el estado de procesamiento. Elige cómo se leen
 los documentos compatibles, incluido el reconocimiento de texto en documentos escaneados (OCR).
 
-<!-- MEDIA: knowledge-collection | capture light + dark -->
-> **Captura pendiente — Detalle de colección:** nombres de documentos, estado de procesamiento y una vista previa legible o un resultado de búsqueda.
+<!-- MEDIA: knowledge-collection | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="La colección vstorm con el documento adding_features.md procesado correctamente." width="100%">
+</picture>
 
 ### Conecta las aplicaciones con las que trabajas
 

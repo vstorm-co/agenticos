@@ -155,14 +155,20 @@ or reads it on demand. [Learn about context](docs/context.md).
 sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
 [Add and process documents](docs/file-processing.md).
 
-<!-- MEDIA: knowledge-bases | capture light + dark -->
-> **Screenshot placeholder — Knowledge bases:** named collections showing how the team's knowledge is organized.
+<!-- MEDIA: knowledge-bases | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
+</picture>
 
 Open a collection to inspect its documents and processing status. Choose how supported documents are read,
 including text recognition for scans (OCR).
 
-<!-- MEDIA: knowledge-collection | capture light + dark -->
-> **Screenshot placeholder — Collection detail:** document names, processing status and a readable document preview or search result.
+<!-- MEDIA: knowledge-collection | light + dark -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
+</picture>
 
 ### Connect the applications you work in
 
