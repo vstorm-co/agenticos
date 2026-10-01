@@ -1,4 +1,4 @@
-<!-- source_sha: e144b87848f1 -->
+<!-- source_sha: 8db44b6e884d -->
 
 <div align="center">
 
@@ -76,7 +76,7 @@ Un artefacto muestra los datos con los que se publicó. Una nueva ejecución del
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 🔌 5700+ integraciones mediante MCP
 
@@ -87,13 +87,12 @@ Busca entre **más de 5700 entradas de servidores MCP** en el catálogo o añade
 Conecta los servicios que necesitas y elige las herramientas de cada agente. La configuración, las credenciales
 y las acciones disponibles dependen del servidor. [Conecta tus herramientas](docs/mcp.es.md).
 
-</td>
-<td width="55%">
 
-<!-- MEDIA: mcp-connections | light -->
 
-<a href="docs/assets/screens/light/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Catálogo MCP con GitHub, Notion, Slack y otros servicios y su estado de conexión." width="100%">
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="Catálogo MCP con GitHub, Notion, Slack y otros servicios y su estado de conexión." width="100%">
 </a>
 
 </td>

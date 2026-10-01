@@ -74,7 +74,7 @@ An artifact displays the data it was published with. A new agent run can update 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 🔌 5,700+ integrations through MCP
 
@@ -85,13 +85,12 @@ Discover **5,700+ MCP server entries** in the searchable catalog, or add a compa
 Connect the services you need and choose which tools each agent can use. Setup, credentials and
 available actions depend on the server. [Connect your tools](docs/mcp.md).
 
-</td>
-<td width="55%">
 
-<!-- MEDIA: mcp-connections | light -->
 
-<a href="docs/assets/screens/light/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
 </a>
 
 </td>

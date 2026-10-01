@@ -1,4 +1,4 @@
-<!-- source_sha: e144b87848f1 -->
+<!-- source_sha: 8db44b6e884d -->
 
 <div align="center">
 
@@ -76,7 +76,7 @@ Artefakt pokazuje dane z chwili publikacji. Kolejne wykonanie agenta może je za
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 🔌 5700+ integracji przez MCP
 
@@ -87,13 +87,12 @@ Przeszukuj katalog **ponad 5700 wpisów serwerów MCP** lub dodaj zgodny serwer 
 Podłącz potrzebne usługi i wybierz narzędzia dostępne dla każdego agenta. Konfiguracja, dane uwierzytelniające
 i dostępne operacje zależą od serwera. [Podłącz swoje narzędzia](docs/mcp.pl.md).
 
-</td>
-<td width="55%">
 
-<!-- MEDIA: mcp-connections | light -->
 
-<a href="docs/assets/screens/light/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Katalog MCP z GitHubem, Notion, Slackiem i innymi usługami oraz stanem połączeń." width="100%">
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="Katalog MCP z GitHubem, Notion, Slackiem i innymi usługami oraz stanem połączeń." width="100%">
 </a>
 
 </td>

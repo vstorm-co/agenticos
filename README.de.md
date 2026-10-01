@@ -1,4 +1,4 @@
-<!-- source_sha: e144b87848f1 -->
+<!-- source_sha: 8db44b6e884d -->
 
 <div align="center">
 
@@ -76,7 +76,7 @@ Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer A
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 🔌 5.700+ Integrationen über MCP
 
@@ -87,13 +87,12 @@ Durchsuche **über 5.700 MCP-Servereinträge** im Katalog oder füge einen kompa
 Verbinde die benötigten Dienste und wähle die Werkzeuge für jeden Agenten. Einrichtung, Zugangsdaten
 und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.de.md).
 
-</td>
-<td width="55%">
 
-<!-- MEDIA: mcp-connections | light -->
 
-<a href="docs/assets/screens/light/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
 </a>
 
 </td>

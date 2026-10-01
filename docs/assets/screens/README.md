@@ -120,3 +120,7 @@ The experimental overview films were rejected and are not included in the reposi
 
 The Routines light screenshot was captured on 2026-10-02 with expanded navigation behind the native
 modal. It shows Monday at 06:00 UTC and the message in Preview; it is a lossless WebP conversion.
+
+The MCP catalog now spans both columns of the feature table for legibility. Its current light asset
+is `light/mcp-catalog.webp` (formerly `light/mcp-connections.webp`): All categories, Any state,
+5,805 server entries and a mix of connected and available services. Historical dark paths are unchanged.
