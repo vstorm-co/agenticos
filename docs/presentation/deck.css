@@ -104,7 +104,7 @@
  *
  * The stage is the console's `--color-card` (24%) rather than its
  * `--color-background` (20%), which is kept as `--bg-deep`. Sampled from
- * `docs/assets/screens/dark/*.webp`, what a client actually sees on a dark
+ * the previous dark console captures, what a client actually sees on a dark
  * console is rgb(28,30,31); the 20% token renders rgb(20,22,25), which reads as
  * near-black on a projector and is the one value that made a slide look
  * generic rather than like the product.
@@ -548,4 +548,17 @@ body { counter-reset: slide; }
     box-shadow: 0 22px 60px -22px rgba(10, 15, 26, 0.4);
   }
   .sprite { display: none; }
+}
+
+/* Keep missing captures explicit while the product tour is being refreshed. */
+.shot .media-placeholder {
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--line);
+  border-radius: 22px;
+  background: var(--bg);
+  color: var(--muted-fg);
+  padding: 100px 56px;
+  text-align: center;
+  font-size: 30px;
 }
