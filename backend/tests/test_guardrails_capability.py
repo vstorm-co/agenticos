@@ -180,6 +180,20 @@ async def test_input_redaction_rewrites_the_prompt_the_model_sees():
     assert "[redacted:anthropic_key]" in result.output
 
 
+async def test_input_pii_redaction_hides_a_phone_number_from_the_model():
+    """The issue's message, run through the input edge on the default regions:
+    the model is handed the placeholder, never the number."""
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _echoes_prompt())
+    result = await agent.run(
+        "My email is jane.doe@example.com, my card number is 4111 1111 1111 1111, "
+        "my SSN is 123-45-6789, and my phone number is 415-555-0132."
+    )
+    assert result.output == (
+        "My email is [redacted:email], my card number is [redacted:credit_card], "
+        "my SSN is [redacted:us_ssn], and my phone number is [redacted:phone]."
+    )
+
+
 async def test_output_pii_redaction_removes_a_phone_number_from_the_answer():
     agent = _agent(
         GuardrailsConfig(redact_pii_out=True, phone_regions="US"),

@@ -1,5 +1,5 @@
 ---
-source_sha: "058201d18660"
+source_sha: "b75f454647ba"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1788,10 +1788,10 @@ Todos los campos de borde vienen apagados por defecto, y una capability activada
 sin ningún borde configurado no adjunta nada: un agent que no la usa no paga nada.
 
 **Un número de teléfono solo se censura cuando es un número real.** El detector es
-el de libphonenumber, con su nivel `VALID`: un candidato se acepta solo cuando
-encaja en el plan de numeración de su país, así que una fecha, una marca de tiempo
-o un número de pedido que una regla por cantidad de dígitos tomaría pasan sin
-cambios. Un número escrito con `+` indica su propio país y se censura sea cual sea
+el de libphonenumber, con su nivel `STRICT_GROUPING`: un candidato se acepta solo
+cuando encaja en el plan de numeración de su país y sus separadores caen donde ese
+país agrupa los dígitos, así que una fecha, un importe o un número de pedido que
+una regla por cantidad de dígitos tomaría pasan sin cambios. Un número escrito con `+` indica su propio país y se censura sea cual sea
 el contenido de `phone_regions`. Un número nacional, como `415-555-0132`, se lee
 frente a cada país de la lista, y cada país añadido amplía lo que puede ser una
 simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`

@@ -53,19 +53,69 @@ def test_a_national_number_needs_its_region():
     assert _redacted(("US",), text) == f"call {PHONE_PLACEHOLDER} today"
 
 
+_DEFAULT = parse_phone_regions(DEFAULT_PHONE_REGIONS)
+
+
+@pytest.mark.parametrize(
+    "number",
+    [
+        "415-555-0132",
+        "(415) 555-0132",
+        "415.555.0132",
+        "4155550132",
+        "+14155550132",
+        "+1 (415) 555-0132",
+        "+48 600 123 456",
+        "+48600123456",
+        "600 123 456",
+        "+48 22 123 45 67",
+        "+44 20 7946 0958",
+        "020 7946 0958",
+        "+49 30 1234567",
+        "030/1234567",
+        "+33 1 23 45 67 89",
+        "+81 3-1234-5678",
+    ],
+)
+def test_accepted_formats_are_redacted_with_the_default_regions(number: str):
+    assert _redacted(_DEFAULT, f"call {number} today") == f"call {PHONE_PLACEHOLDER} today"
+
+
 @pytest.mark.parametrize(
     "text",
     [
         "shipped on 2026-10-01",
+        "due 01.10.2026",
         "invoice 2026/10/01",
         "created at 1727800000",
+        "total $1,299.00",
+        "razem 1 299,00 zł",
+        "Summe €4.150,00",
+        "PLN 12 345,67",
         "order 4471",
-        "order 123456789",
+        "order #88412",
+        "ticket 4471-2290",
+        "invoice FV/2026/10/0042",
+        "SKU 123-4567",
+        "postcode 00-950",
+        "tracking 9400111202555842",
+        # Each of these is a valid US number when its digits are read without
+        # their grouping; `VALID` leniency redacted all three.
+        "order ORD-2026-000417",
+        "ref 2026-10-0001",
+        "id 4155-550132",
         "nothing numeric here",
     ],
 )
 def test_digits_that_are_not_a_phone_number_are_left_alone(text: str):
-    assert phone_numbers(("US", "GB", "DE"))(text).action == "allow"
+    assert phone_numbers(_DEFAULT)(text).action == "allow"
+
+
+def test_a_bare_digit_run_valid_in_a_listed_country_is_redacted():
+    """The documented trade-off: ungrouped digits carry no grouping to check, and
+    `123456789` is a valid Polish landline, so listing `PL` takes it."""
+    assert _redacted(("US",), "order 123456789") == "order 123456789"
+    assert _redacted(("PL",), "order 123456789") == f"order {PHONE_PLACEHOLDER}"
 
 
 def test_a_number_two_regions_both_match_is_replaced_once():

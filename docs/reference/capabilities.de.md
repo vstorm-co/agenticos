@@ -1,5 +1,5 @@
 ---
-source_sha: "058201d18660"
+source_sha: "b75f454647ba"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1882,10 +1882,11 @@ Jedes Kantenfeld ist standardmäßig aus, und eine Capability, die ohne konfigur
 Kante aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
 
 **Eine Telefonnummer wird nur geschwärzt, wenn sie eine echte Nummer ist.** Der
-Detektor stammt aus libphonenumber und läuft mit der Stufe `VALID`: Ein Kandidat
-wird nur angenommen, wenn er zum Nummerierungsplan seines Landes passt, sodass ein
-Datum, ein Zeitstempel oder eine Bestellnummer, die eine Regel nach Ziffernzahl
-treffen würde, durchkommt. Eine mit `+` geschriebene Nummer nennt ihr Land selbst
+Detektor stammt aus libphonenumber und läuft mit der Stufe `STRICT_GROUPING`: Ein
+Kandidat wird nur angenommen, wenn er zum Nummerierungsplan seines Landes passt und
+seine Trennzeichen dort stehen, wo dieses Land Ziffern gruppiert, sodass ein Datum,
+ein Betrag oder eine Bestellnummer, die eine Regel nach Ziffernzahl treffen würde,
+durchkommt. Eine mit `+` geschriebene Nummer nennt ihr Land selbst
 und wird geschwärzt, gleich was `phone_regions` aufführt. Eine nationale Nummer wie
 `415-555-0132` wird gegen jedes aufgeführte Land gelesen, und jedes weitere Land
 erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige

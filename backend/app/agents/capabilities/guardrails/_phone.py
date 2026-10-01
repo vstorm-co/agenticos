@@ -5,8 +5,11 @@ number, so a number reached the model and the reader while the personal data
 around it was scrubbed. A phone number cannot join that set as an `extra`
 regex: its shape alone does not separate it from an order id, a date or a Unix
 timestamp, which is the job Luhn and mod-97 do for a card and an IBAN. This
-uses libphonenumber's matcher at `Leniency.VALID` instead, which accepts a
-candidate only when it is a real number in the numbering plan of its country.
+uses libphonenumber's matcher at `Leniency.STRICT_GROUPING` instead, which
+accepts a candidate only when it is a real number in the numbering plan of its
+country *and* any separators in it fall where that country groups its digits.
+`VALID` alone checks the digits and not the grouping, so it read the
+`2026-000417` of `ORD-2026-000417` as the Washington number 202-600-0417.
 
 **Which countries.** A number written with `+` names its own country and is
 matched whatever is configured. A national number (`415-555-0132`,
@@ -84,7 +87,7 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
         spans: list[tuple[int, int]] = []
         for region in passes:
             for match in phonenumbers.PhoneNumberMatcher(
-                text, region, leniency=phonenumbers.Leniency.VALID
+                text, region, leniency=phonenumbers.Leniency.STRICT_GROUPING
             ):
                 spans.append((match.start, match.end))
         if not spans:

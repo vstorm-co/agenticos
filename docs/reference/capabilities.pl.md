@@ -1,5 +1,5 @@
 ---
-source_sha: "058201d18660"
+source_sha: "b75f454647ba"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1751,10 +1751,10 @@ skonfigurowanej krawędzi nie dołącza niczego — agent, który jej nie używa
 płaci nic.
 
 **Numer telefonu jest redagowany tylko wtedy, gdy jest prawdziwym numerem.**
-Detektor pochodzi z libphonenumber i działa z poziomem `VALID`: kandydat jest
-przyjmowany tylko wtedy, gdy pasuje do planu numeracji swojego kraju, więc data,
-znacznik czasu albo numer zamówienia, które wziąłaby reguła licząca cyfry,
-przechodzą bez zmian. Numer zapisany z `+` sam wskazuje kraj i jest redagowany
+Detektor pochodzi z libphonenumber i działa z poziomem `STRICT_GROUPING`: kandydat
+jest przyjmowany tylko wtedy, gdy pasuje do planu numeracji swojego kraju, a jego
+separatory stoją tam, gdzie ten kraj grupuje cyfry, więc data, kwota albo numer
+zamówienia, które wziąłaby reguła licząca cyfry, przechodzą bez zmian. Numer zapisany z `+` sam wskazuje kraj i jest redagowany
 niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
 `415-555-0132`, jest czytany względem każdego wymienionego kraju, a każdy dodany
 kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski

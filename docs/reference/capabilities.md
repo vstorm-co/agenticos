@@ -1673,9 +1673,10 @@ Every edge field defaults off, and a capability enabled with no edge configured 
 nothing — an agent that does not use it pays nothing.
 
 **A phone number is redacted only when it is a real number.** The detector is
-libphonenumber's, at its `VALID` leniency: a candidate is accepted only when it fits
-the numbering plan of its country, so a date, a timestamp or an order id that a
-digit-count rule would take comes through. A number written with `+` names its
+libphonenumber's, at its `STRICT_GROUPING` leniency: a candidate is accepted only
+when it fits the numbering plan of its country and its separators fall where that
+country groups digits, so a date, an amount or an order id that a digit-count rule
+would take comes through. A number written with `+` names its
 country and is redacted whatever `phone_regions` lists. A national number, such as
 `415-555-0132`, is read against each listed country, and each one added widens what
 a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`

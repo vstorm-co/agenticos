@@ -23,7 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
   scrubbed email, IBAN, card and US SSN, and a phone number in the same
   message reached the model and the reader unchanged. They now also redact a
   phone number as `[redacted:phone]` when it is valid in its country's
-  numbering plan, so a date, a timestamp or an order id comes through. A number
+  numbering plan and grouped the way that country writes it, so a date, an
+  amount or an order id such as `ORD-2026-000417` comes through. A number
   written with `+` is caught for any country; a national one for the countries
   in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
   code is refused at publish. An agent with no PII toggle on is unchanged.
