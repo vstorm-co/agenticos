@@ -1,4 +1,4 @@
-<!-- source_sha: f719a0f49b0c -->
+<!-- source_sha: a47758cd7328 -->
 
 <div align="center">
 
@@ -40,7 +40,7 @@ Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchi
 
 **Von einem Briefing in Notion und GitHub-Recherche zu einer interaktiven Entscheidungsseite.**
 
-<video src="https://raw.githubusercontent.com/vstorm-co/agenticos/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+<video src="https://github.com/vstorm-co/agenticos/raw/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
 </video>
 

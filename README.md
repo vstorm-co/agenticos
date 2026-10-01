@@ -38,7 +38,7 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 
 **From a Notion brief and GitHub research to an interactive decision page.**
 
-<video src="https://raw.githubusercontent.com/vstorm-co/agenticos/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+<video src="https://github.com/vstorm-co/agenticos/raw/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
 </video>
 
