@@ -1,4 +1,4 @@
-<!-- source_sha: 9166397b44c5 -->
+<!-- source_sha: 87872cb0fe4a -->
 
 <div align="center">
 
@@ -139,8 +139,17 @@ agentom, którzy jej potrzebują. [Więcej o skills](docs/skills.pl.md).
 Umieść tu fakty i reguły wspólne dla różnych zadań; wybierz, czy agent otrzymuje je automatycznie,
 czy odczytuje na żądanie. [Więcej o kontekście](docs/context.pl.md).
 
-<!-- MEDIA: context | capture light + dark -->
-> **Miejsce na zrzut — Context:** otwarty plik kontekstu firmy z treścią i ustawieniami przypisania.
+<!-- MEDIA: context | light + dark; library and glossary content -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Biblioteka Context ze współdzielonymi słownikami." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Podgląd treści słownika z trybem linked do odczytu na żądanie." width="100%">
+</picture>
 
 ### Udostępnij dokumenty do przeszukiwania
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 9166397b44c5 -->
+<!-- source_sha: 87872cb0fe4a -->
 
 <div align="center">
 
@@ -139,8 +139,17 @@ und weise ihn den passenden Agenten zu. [Mehr über Skills](docs/skills.de.md).
 Nutze ihn für Fakten und Regeln, die mehrere Aufgaben betreffen. Wähle, ob der Agent sie automatisch
 erhält oder bei Bedarf liest. [Mehr über Kontext](docs/context.de.md).
 
-<!-- MEDIA: context | capture light + dark -->
-> **Screenshot-Platzhalter — Context:** geöffnete Firmenkontextdatei mit Inhalt und Einstellungen zur Zuordnung.
+<!-- MEDIA: context | light + dark; library and glossary content -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Context-Bibliothek mit gemeinsam genutzten Glossardateien." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossarvorschau im Modus linked zum Lesen bei Bedarf." width="100%">
+</picture>
 
 ### Dokumente durchsuchbar machen
 

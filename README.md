@@ -137,8 +137,17 @@ that need it. [Learn about skills](docs/skills.md).
 Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
 or reads it on demand. [Learn about context](docs/context.md).
 
-<!-- MEDIA: context | capture light + dark -->
-> **Screenshot placeholder — Context:** a company context file open with its content and attachment settings.
+<!-- MEDIA: context | light + dark; library and glossary content -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
+</picture>
 
 ### Give it documents to search
 

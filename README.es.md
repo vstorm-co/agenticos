@@ -1,4 +1,4 @@
-<!-- source_sha: 9166397b44c5 -->
+<!-- source_sha: 87872cb0fe4a -->
 
 <div align="center">
 
@@ -139,8 +139,17 @@ una vez y asígnalo a los agentes que lo necesiten. [Más sobre skills](docs/ski
 Úsalo para hechos y reglas compartidos entre tareas; elige si el agente los recibe automáticamente
 o los lee cuando los necesita. [Más sobre contexto](docs/context.es.md).
 
-<!-- MEDIA: context | capture light + dark -->
-> **Captura pendiente — Context:** un archivo de contexto de la empresa abierto con su contenido y opciones de asignación.
+<!-- MEDIA: context | light + dark; library and glossary content -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Biblioteca Context con archivos de glosario compartidos." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Vista previa del glosario en modo linked para leerlo cuando sea necesario." width="100%">
+</picture>
 
 ### Dale documentos donde buscar
 
