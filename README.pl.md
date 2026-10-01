@@ -1,4 +1,4 @@
-<!-- source_sha: a6a796624051 -->
+<!-- source_sha: a49d7398a1bf -->
 
 <div align="center">
 
@@ -93,13 +93,14 @@ Artefakt pokazuje dane z chwili publikacji. Kolejne wykonanie agenta może je za
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z zapisanymi raportami i wersjami." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🤖 Skonfiguruj agenta
 
@@ -108,11 +109,12 @@ Gdy jest gotowy do użycia, publikujesz wersję. Możesz przeglądać wcześniej
 [Zbuduj agenta](docs/first-agent.pl.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: agent-builder | light -->
 
 <a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Konfiguracja agenta: instrukcje, wybrany model i aktualna opublikowana wersja." width="100%">
 </a>
 
@@ -133,13 +135,14 @@ i dostępne operacje zależą od serwera. [Podłącz swoje narzędzia](docs/mcp.
 <!-- MEDIA: mcp-catalog | light -->
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/mcp-catalog.webp" alt="Katalog MCP z GitHubem, Notion, Slackiem i innymi usługami oraz stanem połączeń." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧩 Naucz go powtarzalnej procedury
 
@@ -148,11 +151,12 @@ sprawdzić zgodność liczb w raporcie lub zastosować styl komunikacji. Zapisz 
 agentom, którzy jej potrzebują. [Więcej o skills](docs/skills.pl.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: skills | light -->
 
 <a href="docs/assets/screens/light/skill-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skill-detail.webp" alt="Procedura artifact-pages z instrukcjami i szablonami stron." width="100%">
 </a>
 
@@ -170,13 +174,14 @@ odpowiedzi wspomaganym wyszukiwaniem. [Dodawanie i przetwarzanie dokumentów](do
 <!-- MEDIA: knowledge-bases | light -->
 
 <a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Bazy wiedzy z kolekcjami osobistymi i organizacji." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧠 Wspólny kontekst
 
@@ -185,11 +190,12 @@ Umieść tu fakty i reguły wspólne dla różnych zadań; wybierz, czy agent ot
 czy odczytuje na żądanie. [Więcej o kontekście](docs/context.pl.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: context | light -->
 
 <a href="docs/assets/screens/light/context-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context-detail.webp" alt="Podgląd treści słownika z trybem linked do odczytu na żądanie." width="100%">
 </a>
 
@@ -210,13 +216,14 @@ Znajdź wolne lub nieudane wykonania, a potem otwórz je, by sprawdzić rozmowę
 <!-- MEDIA: activity | light; filtered run history and version comparison -->
 
 <a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/activity.webp" alt="Activity z porównaniem wersji agenta i filtrowaną historią wykonań: stan, tokeny, czas oraz zapisany koszt." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🛡️ Zatwierdzanie przez człowieka
 
@@ -225,18 +232,19 @@ sprawdzić planowaną operację przed decyzją o jej wykonaniu. Dostęp do agent
 [role i uprawnienia](docs/permissions.pl.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: approval | light -->
 
 <a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/approval.webp" alt="Oczekująca operacja narzędzia z argumentami i przyciskami zatwierdzania." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### ⏱️ Zaplanuj powtarzalną pracę
 
@@ -245,11 +253,12 @@ Możesz przygotować cotygodniowe podsumowanie lub cykliczny raport. Wykonania k
 dostępu i mechanizmów kontroli oraz pozostawiają zapis w historii. [Skonfiguruj rutynę](docs/triggers.pl.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: routines | light; existing weekly schedule configuration -->
 
 <a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/routines.webp" alt="Edytor harmonogramu: powtarzanie co poniedziałek o 06:00 UTC i podgląd wiadomości dla agenta." width="100%">
 </a>
 
@@ -261,20 +270,24 @@ dostępu i mechanizmów kontroli oraz pozostawiają zapis w historii. [Skonfigur
 <summary>Więcej widoków i szczegóły wykonania</summary>
 
 <a href="docs/assets/screens/light/skills.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skills.webp" alt="Biblioteka Skills z procedurami do wielokrotnego użycia." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/context.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context.webp" alt="Biblioteka Context ze współdzielonymi słownikami." width="100%">
 </a>
 
 <!-- MEDIA: knowledge-collection | light; supplementary view -->
 
 <a href="docs/assets/screens/light/knowledge-collection.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Kolekcja vstorm z poprawnie przetworzonym dokumentem adding_features.md." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/artifact-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner z demo z wyborem odbiorców i rekomendacją." width="100%">
 </a>
 

@@ -1,4 +1,4 @@
-<!-- source_sha: a6a796624051 -->
+<!-- source_sha: a49d7398a1bf -->
 
 <div align="center">
 
@@ -93,13 +93,14 @@ Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer A
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifacts.webp" alt="Artefaktbibliothek mit gespeicherten Berichten und Versionen." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🤖 Einen Agenten konfigurieren
 
@@ -108,11 +109,12 @@ und aktivierst Werkzeuge. Veröffentliche eine Version, wenn sie einsatzbereit i
 lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](docs/first-agent.de.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: agent-builder | light -->
 
 <a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Konfiguration mit Anweisungen, ausgewähltem Modell und aktueller veröffentlichter Version." width="100%">
 </a>
 
@@ -133,13 +135,14 @@ und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.d
 <!-- MEDIA: mcp-catalog | light -->
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧩 Wiederverwendbare Abläufe vermitteln
 
@@ -148,11 +151,12 @@ das Abgleichen eines Berichts oder die Anwendung eures Schreibstils. Schreibe ei
 und weise ihn den passenden Agenten zu. [Mehr über Skills](docs/skills.de.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: skills | light -->
 
 <a href="docs/assets/screens/light/skill-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skill-detail.webp" alt="Der Ablauf artifact-pages mit Anweisungen und Seitenvorlagen." width="100%">
 </a>
 
@@ -170,13 +174,14 @@ also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](doc
 <!-- MEDIA: knowledge-bases | light -->
 
 <a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Wissensdatenbanken mit persönlichen Sammlungen und Organisationssammlungen." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧠 Gemeinsamer Kontext
 
@@ -185,11 +190,12 @@ Nutze ihn für Fakten und Regeln, die mehrere Aufgaben betreffen. Wähle, ob der
 erhält oder bei Bedarf liest. [Mehr über Kontext](docs/context.de.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: context | light -->
 
 <a href="docs/assets/screens/light/context-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context-detail.webp" alt="Glossarvorschau im Modus linked zum Lesen bei Bedarf." width="100%">
 </a>
 
@@ -210,13 +216,14 @@ Finde langsame oder fehlgeschlagene Ausführungen und öffne sie, um Unterhaltun
 <!-- MEDIA: activity | light; filtered run history and version comparison -->
 
 <a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Token, Dauer und erfasste Kosten." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🛡️ Menschliche Freigabe
 
@@ -225,18 +232,19 @@ Person, die geplante Operation vor ihrer Entscheidung zu prüfen. Der Zugriff au
 wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: approval | light -->
 
 <a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/approval.webp" alt="Ausstehender Werkzeugaufruf mit Argumenten und Freigabesteuerung." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### ⏱️ Wiederkehrende Arbeit planen
 
@@ -245,11 +253,12 @@ Nutze sie für wöchentliche Zusammenfassungen oder wiederkehrende Berichte. Dab
 Zugriffsrechte und Kontrollen; die Ausführung wird protokolliert. [Eine Routine einrichten](docs/triggers.de.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: routines | light; existing weekly schedule configuration -->
 
 <a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/routines.webp" alt="Zeitplan-Editor mit wöchentlicher Wiederholung am Montag um 06:00 UTC und Vorschau der Agentennachricht." width="100%">
 </a>
 
@@ -261,20 +270,24 @@ Zugriffsrechte und Kontrollen; die Ausführung wird protokolliert. [Eine Routine
 <summary>Weitere Ansichten und Ausführungsdetails</summary>
 
 <a href="docs/assets/screens/light/skills.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit wiederverwendbaren Abläufen." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/context.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context.webp" alt="Context-Bibliothek mit gemeinsam genutzten Glossardateien." width="100%">
 </a>
 
 <!-- MEDIA: knowledge-collection | light; supplementary view -->
 
 <a href="docs/assets/screens/light/knowledge-collection.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Die Sammlung vstorm mit dem erfolgreich verarbeiteten Dokument adding_features.md." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/artifact-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner aus der Demo mit Zielgruppenauswahl und Empfehlung." width="100%">
 </a>
 

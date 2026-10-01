@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="52" viewBox="0 0 1600 52">
+<title>Decorative window frame</title>
+<path d="M16 .5H1584A15.5 15.5 0 0 1 1599.5 16V51.5H.5V16A15.5 15.5 0 0 1 16 .5Z" fill="#f6f8fa" stroke="#d0d7de"/>
+<circle cx="27" cy="26" r="7" fill="#ff5f57"/>
+<circle cx="51" cy="26" r="7" fill="#febc2e"/>
+<circle cx="75" cy="26" r="7" fill="#28c840"/>
+<text x="800" y="32" text-anchor="middle" fill="#57606a" font-family="Arial,Helvetica,sans-serif" font-size="18">AgenticOS</text>
+</svg>

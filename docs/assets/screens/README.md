@@ -141,3 +141,12 @@ Audio has 30 ms fades around the cut; existing music and effects are otherwise r
   `Desktop/agenticos-demo-short` production folder.
 - Validated full MP4 decoding, duration, GIF frame timing and sampled frames around the cut.
   Full-speed listening and physical mobile-device playback were not verified.
+
+## Screenshot presentation
+
+The original lossless screenshots remain unchanged. A separate vector window title bar with
+macOS-style controls appears above each linked screenshot; it is decorative, not captured application UI.
+Compact gallery rows use 30% text / 70% image to improve legibility. The four full-width highlights
+remain unchanged. The frame is a separate SVG so it does not resample or regenerate screenshot text.
+Current captures are mostly 1600 × 1000; higher pixel density requires new native-resolution captures,
+not enlarging these files. Earlier 3502 × 2000 screenshots have collapsed navigation and are not substituted.

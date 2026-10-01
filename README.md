@@ -91,13 +91,14 @@ An artifact displays the data it was published with. A new agent run can update 
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🤖 Configure an agent
 
@@ -106,11 +107,12 @@ Publish a version when it is ready for use. You can inspect earlier versions and
 [Build an agent](docs/first-agent.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: agent-builder | light -->
 
 <a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and current published version." width="100%">
 </a>
 
@@ -131,13 +133,14 @@ available actions depend on the server. [Connect your tools](docs/mcp.md).
 <!-- MEDIA: mcp-catalog | light -->
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧩 Teach a reusable procedure
 
@@ -146,11 +149,12 @@ reconcile a report or follow your writing style. Write a procedure once and atta
 that need it. [Learn about skills](docs/skills.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: skills | light -->
 
 <a href="docs/assets/screens/light/skill-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
 </a>
 
@@ -168,13 +172,14 @@ sources for relevant passages when answering. This is often called **RAG**, or r
 <!-- MEDIA: knowledge-bases | light -->
 
 <a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🧠 Shared context
 
@@ -183,11 +188,12 @@ Use it for facts and rules shared across tasks; choose whether the agent receive
 or reads it on demand. [Learn about context](docs/context.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: context | light -->
 
 <a href="docs/assets/screens/light/context-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
 </a>
 
@@ -208,13 +214,14 @@ Find slow or failed work, then open a run to inspect its conversation and tool c
 <!-- MEDIA: activity | light; filtered run history and version comparison -->
 
 <a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### 🛡️ Human approval
 
@@ -223,18 +230,19 @@ the proposed operation before deciding whether it should proceed. Access to agen
 controlled through [roles and permissions](docs/permissions.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: approval | light -->
 
 <a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
 </a>
 
 </td>
 </tr>
 <tr>
-<td width="45%" valign="middle">
+<td width="30%" valign="middle">
 
 ### ⏱️ Schedule repeat work
 
@@ -243,11 +251,12 @@ brief or a recurring report. Runs use the configured access and controls and lea
 [Set up a routine](docs/triggers.md).
 
 </td>
-<td width="55%">
+<td width="70%">
 
 <!-- MEDIA: routines | light; existing weekly schedule configuration -->
 
 <a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/routines.webp" alt="Schedule editor with weekly repetition on Monday at 06:00 UTC and the agent message in Preview." width="100%">
 </a>
 
@@ -259,20 +268,24 @@ brief or a recurring report. Runs use the configured access and controls and lea
 <summary>More views and execution details</summary>
 
 <a href="docs/assets/screens/light/skills.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/context.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
 </a>
 
 <!-- MEDIA: knowledge-collection | light; supplementary view -->
 
 <a href="docs/assets/screens/light/knowledge-collection.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
 </a>
 
 <a href="docs/assets/screens/light/artifact-detail.webp">
+  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
   <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
 </a>
 
