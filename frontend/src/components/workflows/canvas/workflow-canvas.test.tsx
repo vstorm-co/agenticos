@@ -161,6 +161,29 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-node-id="u"] .react-flow__handle')).toBeNull();
   });
 
+  it("selects a step on a click and opens it on a double click", () => {
+    seedTwoActions();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const card = container.querySelector('.react-flow__node[data-id="a"]')!;
+
+    fireEvent.click(card);
+    expect(store.getState().editingNodeId).toBeNull();
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+
+    fireEvent.dblClick(card);
+    expect(store.getState().editingNodeId).toBe("a");
+  });
+
+  it("opens a step on one click where nothing can be selected", () => {
+    seedTwoActions();
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
+    );
+
+    fireEvent.click(container.querySelector('.react-flow__node[data-id="b"]')!);
+    expect(store.getState().editingNodeId).toBe("b");
+  });
+
   it("marks a step publishing would refuse, and nothing on a read-only version", () => {
     seedFourKinds();
     const { container, unmount } = render(

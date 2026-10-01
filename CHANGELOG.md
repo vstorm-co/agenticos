@@ -529,6 +529,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A click selects a workflow step and a double click opens it**, so a step
+  can be picked out to move, copy or delete without its dialog opening.
 - **A workflow's save status no longer pushes the header around.** "Unsaved
   changes" and "Saved" sit under the title after its tags, where a status that
   changes length moves nothing, instead of beside the header's buttons.

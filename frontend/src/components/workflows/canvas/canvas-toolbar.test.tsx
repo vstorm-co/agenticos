@@ -111,10 +111,10 @@ describe("an empty canvas", () => {
 });
 
 describe("a step on the canvas", () => {
-  it("opens its settings when clicked", () => {
+  it("opens its settings when double-clicked", () => {
     seed(node("a"));
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
-    fireEvent.click(container.querySelector(".react-flow__node") as HTMLElement);
+    fireEvent.dblClick(container.querySelector(".react-flow__node") as HTMLElement);
     expect(store.getState().editingNodeId).toBe("a");
   });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "9342f618b587"
+source_sha: "87813099990a"
 ---
 
 # Workflows { #workflows }
@@ -157,8 +157,8 @@ Ninguno actúa mientras escribes en un campo.
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
 [referencia de nodos](reference/workflow-nodes.md).
 
-Un paso en el que haces clic se abre en un diálogo sobre el lienzo: arriba su nombre y
-lo que hace, y debajo, con palabras sencillas, cualquier problema que impida publicar -
+Un clic selecciona un paso y un doble clic lo abre en un diálogo sobre el lienzo (en
+una versión publicada basta un clic): arriba su nombre y lo que hace, y debajo, con palabras sencillas, cualquier problema que impida publicar -
 **Not connected yet** para un paso al que nada lleva. **Parameters** es aquello con lo
 que trabaja el paso y lo que debe hacer, en una sola lista, con la lista sobre la que
 trabaja primero: los **Items** de Filter antes de su **Condition**. **Settings** es cómo

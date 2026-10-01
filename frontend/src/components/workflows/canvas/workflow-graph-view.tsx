@@ -270,6 +270,9 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     return counts;
   }, [problems]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const openNode = (_event: React.MouseEvent, node: { id: string; type?: string }) => {
+    if (node.type !== "note") editNode(node.id);
+  };
   const addNote = useWorkflowEditorStore((state) => state.addNote);
   const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
   const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
@@ -375,8 +378,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               onNodesChange={applyNodeChanges}
               onEdgesChange={applyEdgeChanges}
               onConnect={connect}
-              // A step's settings open over the canvas; a drag never counts as a click.
-              onNodeClick={(_event, node) => node.type !== "note" && editNode(node.id)}
+              // A click selects a step, to move, copy or delete it; a double click
+              // opens its settings over the canvas. A drag never counts as either.
+              // Read-only, nothing is selected and xyflow gives a card pointer events
+              // only for a click handler, so one click opens it there.
+              onNodeClick={readOnly ? openNode : undefined}
+              onNodeDoubleClick={openNode}
               isValidConnection={isValid}
               nodesDraggable={!readOnly}
               nodesConnectable={!readOnly}

@@ -143,7 +143,7 @@ shortcut; **Tab** opens the step picker. None of them fires while you type in a 
 What each node does, what it is configured with and what its failures mean is in
 the [node reference](reference/workflow-nodes.md).
 
-Click a step and it opens in a dialog over the canvas: its name and what it does at
+A click selects a step; a double click opens it in a dialog over the canvas (in a published version, where nothing is selected, one click does): its name and what it does at
 the top, and under them, in plain words, any problem that stops a publish - **Not
 connected yet**, for a step nothing leads to. **Parameters** is what the step works
 on and is set to do, in one list, with the list a step works on first: Filter's

@@ -1,5 +1,5 @@
 ---
-source_sha: "9342f618b587"
+source_sha: "87813099990a"
 ---
 
 # Workflows { #workflows }
@@ -150,7 +150,7 @@ gdy piszesz w polu.
 Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
 [referencja węzłów](reference/workflow-nodes.md).
 
-Kliknięty krok otwiera się w oknie nad kanwą: u góry jego nazwa i to, co robi, a pod
+Kliknięcie zaznacza krok, a dwuklik otwiera go w oknie nad kanwą (w opublikowanej wersji, gdzie nic się nie zaznacza, wystarczy jedno kliknięcie): u góry jego nazwa i to, co robi, a pod
 nimi, zwykłymi słowami, każdy problem blokujący publikację - **Not connected yet** dla
 kroku, do którego nic nie prowadzi. **Parameters** to to, na czym krok pracuje i co ma
 zrobić, w jednej liście, z listą, na której krok pracuje, na początku: **Items** w

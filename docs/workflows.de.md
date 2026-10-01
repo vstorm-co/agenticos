@@ -1,5 +1,5 @@
 ---
-source_sha: "9342f618b587"
+source_sha: "87813099990a"
 ---
 
 # Workflows { #workflows }
@@ -166,7 +166,7 @@ Schrittauswahl. Keines davon greift, während Sie in einem Feld schreiben.
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
 in der [Knotenreferenz](reference/workflow-nodes.md).
 
-Ein angeklickter Schritt öffnet sich in einem Dialog über der Zeichenfläche: oben sein
+Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn in einem Dialog über der Zeichenfläche (in einer veröffentlichten Version, in der nichts ausgewählt wird, genügt ein Klick): oben sein
 Name und was er tut, darunter in einfachen Worten jedes Problem, das eine
 Veröffentlichung verhindert - **Not connected yet** für einen Schritt, zu dem nichts
 führt. **Parameters** ist, womit der Schritt arbeitet und was er tun soll, in einer
