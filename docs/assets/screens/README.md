@@ -74,8 +74,9 @@ automation and control over deployment and models. Use AI agent harness and Clau
 only where they explain the execution model or a concrete example. Do not label the product a platform
 or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
 
-The main reading path shows the demo followed by a visible feature table: a short explanation beside
-one linked screenshot per feature. Additional library and collection views and the pending run-detail
+The main reading path shows the demo followed by a visible feature table. Results, the MCP catalog, company knowledge and Activity
+use full-width screenshots, interleaved with compact text-and-image rows for configuration, skills
+and context. Approvals and routines close the gallery as compact rows. Additional library and collection views and the pending run-detail
 capture sit in a collapsed supplement. The Routines row shows the existing weekly schedule editor. Team access,
 installation and deployment controls follow the gallery; terminology remains defined in the feature copy.
 The layout takes inspiration from stablyai/orca, using AgenticOS copy and original product captures.

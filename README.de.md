@@ -1,4 +1,4 @@
-<!-- source_sha: 443fb37e166e -->
+<!-- source_sha: e0fd8d688cff -->
 
 <div align="center">
 
@@ -63,7 +63,7 @@ Nutze deinen veröffentlichten Agenten in **Slack, Mattermost oder Telegram**. K
 
 <table>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 📄 Ergebnisse außerhalb des Chats aufbewahren
 
@@ -74,98 +74,10 @@ Artefakts bleibt der Link zur aktuellen Seite erhalten; eine Unterhaltung kann a
 Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer Agentenlauf kann es aktualisieren.
 [Artefakte erstellen und teilen](docs/artifacts.de.md).
 
-</td>
-<td width="55%">
-
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
   <img src="docs/assets/screens/light/artifacts.webp" alt="Artefaktbibliothek mit gespeicherten Berichten und Versionen." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 🔌 5.700+ Integrationen über MCP
-
-Verbinde Agenten mit den Werkzeugen, die dein Unternehmen bereits nutzt: **GitHub, Notion, HubSpot, Linear und n8n**.
-**MCP** (Model Context Protocol) ist der Standard, über den Agenten externe Werkzeuge und Datenquellen aufrufen.
-
-Durchsuche **über 5.700 MCP-Servereinträge** im Katalog oder füge einen kompatiblen Server per URL hinzu.
-Verbinde die benötigten Dienste und wähle die Werkzeuge für jeden Agenten. Einrichtung, Zugangsdaten
-und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.de.md).
-
-
-
-<!-- MEDIA: mcp-catalog | light -->
-
-<a href="docs/assets/screens/light/mcp-catalog.webp">
-  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📚 Dokumente durchsuchbar machen
-
-**Knowledge bases** organisieren Dokumente in Sammlungen, die du Agenten zuweist. Beim Beantworten von
-Fragen sucht der Agent darin nach passenden Textstellen. Dieses Vorgehen heißt häufig **RAG**,
-also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](docs/file-processing.de.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: knowledge-bases | light -->
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Wissensdatenbanken mit persönlichen Sammlungen und Organisationssammlungen." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📊 Integrierte Observability: Ausführungen und Kosten im Blick
-
-**Activity** bündelt Ausführungsverlauf, Freigaben und Ausgaben. Ein **Run** ist eine Ausführung eines Agenten:
-Du siehst Status, Modell, Token, Dauer und erfasste Kosten. Filtere nach Agent, Person oder Version,
-vergleiche Versionsergebnisse und exportiere die Daten als CSV.
-
-Finde langsame oder fehlgeschlagene Ausführungen und öffne sie, um Unterhaltung und Werkzeugaufrufe zu prüfen.
-[Activity und Kostenkontrolle erkunden](docs/governance.de.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: activity | light; filtered run history and version comparison -->
-
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Token, Dauer und erfasste Kosten." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 🛡️ Menschliche Freigabe
-
-Für unterstützte Werkzeugaktionen kannst du eine menschliche Freigabe verlangen. Die Anfrage erlaubt einer
-Person, die geplante Operation vor ihrer Entscheidung zu prüfen. Der Zugriff auf Agenten und Ressourcen
-wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: approval | light -->
-
-<a href="docs/assets/screens/light/approval.webp">
-  <img src="docs/assets/screens/light/approval.webp" alt="Ausstehender Werkzeugaufruf mit Argumenten und Freigabesteuerung." width="100%">
 </a>
 
 </td>
@@ -191,6 +103,26 @@ lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](do
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 🔌 5.700+ Integrationen über MCP
+
+Verbinde Agenten mit den Werkzeugen, die dein Unternehmen bereits nutzt: **GitHub, Notion, HubSpot, Linear und n8n**.
+**MCP** (Model Context Protocol) ist der Standard, über den Agenten externe Werkzeuge und Datenquellen aufrufen.
+
+Durchsuche **über 5.700 MCP-Servereinträge** im Katalog oder füge einen kompatiblen Server per URL hinzu.
+Verbinde die benötigten Dienste und wähle die Werkzeuge für jeden Agenten. Einrichtung, Zugangsdaten
+und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.de.md).
+
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧩 Wiederverwendbare Abläufe vermitteln
@@ -211,6 +143,23 @@ und weise ihn den passenden Agenten zu. [Mehr über Skills](docs/skills.de.md).
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 📚 Dokumente durchsuchbar machen
+
+**Knowledge bases** organisieren Dokumente in Sammlungen, die du Agenten zuweist. Beim Beantworten von
+Fragen sucht der Agent darin nach passenden Textstellen. Dieses Vorgehen heißt häufig **RAG**,
+also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](docs/file-processing.de.md).
+
+<!-- MEDIA: knowledge-bases | light -->
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Wissensdatenbanken mit persönlichen Sammlungen und Organisationssammlungen." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧠 Gemeinsamer Kontext
@@ -226,6 +175,46 @@ erhält oder bei Bedarf liest. [Mehr über Kontext](docs/context.de.md).
 
 <a href="docs/assets/screens/light/context-detail.webp">
   <img src="docs/assets/screens/light/context-detail.webp" alt="Glossarvorschau im Modus linked zum Lesen bei Bedarf." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 📊 Integrierte Observability: Ausführungen und Kosten im Blick
+
+**Activity** bündelt Ausführungsverlauf, Freigaben und Ausgaben. Ein **Run** ist eine Ausführung eines Agenten:
+Du siehst Status, Modell, Token, Dauer und erfasste Kosten. Filtere nach Agent, Person oder Version,
+vergleiche Versionsergebnisse und exportiere die Daten als CSV.
+
+Finde langsame oder fehlgeschlagene Ausführungen und öffne sie, um Unterhaltung und Werkzeugaufrufe zu prüfen.
+[Activity und Kostenkontrolle erkunden](docs/governance.de.md).
+
+<!-- MEDIA: activity | light; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Token, Dauer und erfasste Kosten." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 🛡️ Menschliche Freigabe
+
+Für unterstützte Werkzeugaktionen kannst du eine menschliche Freigabe verlangen. Die Anfrage erlaubt einer
+Person, die geplante Operation vor ihrer Entscheidung zu prüfen. Der Zugriff auf Agenten und Ressourcen
+wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: approval | light -->
+
+<a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Ausstehender Werkzeugaufruf mit Argumenten und Freigabesteuerung." width="100%">
 </a>
 
 </td>

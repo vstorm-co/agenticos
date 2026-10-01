@@ -1,4 +1,4 @@
-<!-- source_sha: 443fb37e166e -->
+<!-- source_sha: e0fd8d688cff -->
 
 <div align="center">
 
@@ -63,7 +63,7 @@ Udostępnij opublikowanego agenta w **Slacku, Mattermost lub Telegramie**. Zesp�
 
 <table>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 📄 Zachowaj wyniki poza czatem
 
@@ -74,98 +74,10 @@ artefaktu zachowuje link do bieżącej strony; rozmowa może odsyłać do konkre
 Artefakt pokazuje dane z chwili publikacji. Kolejne wykonanie agenta może je zaktualizować.
 [Tworzenie i udostępnianie artefaktów](docs/artifacts.pl.md).
 
-</td>
-<td width="55%">
-
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
   <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z zapisanymi raportami i wersjami." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 🔌 5700+ integracji przez MCP
-
-Podłącz agentów do narzędzi, których firma już używa: **GitHub, Notion, HubSpot, Linear i n8n**.
-**MCP** (Model Context Protocol) to standard, dzięki któremu agenci korzystają z zewnętrznych narzędzi i źródeł danych.
-
-Przeszukuj katalog **ponad 5700 wpisów serwerów MCP** lub dodaj zgodny serwer przez URL.
-Podłącz potrzebne usługi i wybierz narzędzia dostępne dla każdego agenta. Konfiguracja, dane uwierzytelniające
-i dostępne operacje zależą od serwera. [Podłącz swoje narzędzia](docs/mcp.pl.md).
-
-
-
-<!-- MEDIA: mcp-catalog | light -->
-
-<a href="docs/assets/screens/light/mcp-catalog.webp">
-  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="Katalog MCP z GitHubem, Notion, Slackiem i innymi usługami oraz stanem połączeń." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📚 Udostępnij dokumenty do przeszukiwania
-
-**Knowledge bases** porządkują dokumenty w kolekcje przypisywane agentom. Agent wyszukuje w nich
-fragmenty potrzebne do odpowiedzi. Takie podejście jest często nazywane **RAG**, czyli generowaniem
-odpowiedzi wspomaganym wyszukiwaniem. [Dodawanie i przetwarzanie dokumentów](docs/file-processing.pl.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: knowledge-bases | light -->
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Bazy wiedzy z kolekcjami osobistymi i organizacji." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📊 Wbudowane observability: co działało i ile kosztowało
-
-**Activity** łączy historię wykonań, zatwierdzenia i wydatki. **Run** to pojedyncze wykonanie agenta:
-widzisz jego stan, model, tokeny, czas i zapisany koszt. Filtruj po agencie, osobie lub wersji,
-porównuj wyniki wersji i eksportuj dane do CSV.
-
-Znajdź wolne lub nieudane wykonania, a potem otwórz je, by sprawdzić rozmowę i wywołania narzędzi.
-[Poznaj Activity i kontrolę kosztów](docs/governance.pl.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: activity | light; filtered run history and version comparison -->
-
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity z porównaniem wersji agenta i filtrowaną historią wykonań: stan, tokeny, czas oraz zapisany koszt." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 🛡️ Zatwierdzanie przez człowieka
-
-Dla obsługiwanych operacji narzędzi możesz wymagać zgody człowieka. Prośba o zatwierdzenie pozwala
-sprawdzić planowaną operację przed decyzją o jej wykonaniu. Dostęp do agentów i zasobów określają
-[role i uprawnienia](docs/permissions.pl.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: approval | light -->
-
-<a href="docs/assets/screens/light/approval.webp">
-  <img src="docs/assets/screens/light/approval.webp" alt="Oczekująca operacja narzędzia z argumentami i przyciskami zatwierdzania." width="100%">
 </a>
 
 </td>
@@ -191,6 +103,26 @@ Gdy jest gotowy do użycia, publikujesz wersję. Możesz przeglądać wcześniej
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 🔌 5700+ integracji przez MCP
+
+Podłącz agentów do narzędzi, których firma już używa: **GitHub, Notion, HubSpot, Linear i n8n**.
+**MCP** (Model Context Protocol) to standard, dzięki któremu agenci korzystają z zewnętrznych narzędzi i źródeł danych.
+
+Przeszukuj katalog **ponad 5700 wpisów serwerów MCP** lub dodaj zgodny serwer przez URL.
+Podłącz potrzebne usługi i wybierz narzędzia dostępne dla każdego agenta. Konfiguracja, dane uwierzytelniające
+i dostępne operacje zależą od serwera. [Podłącz swoje narzędzia](docs/mcp.pl.md).
+
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="Katalog MCP z GitHubem, Notion, Slackiem i innymi usługami oraz stanem połączeń." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧩 Naucz go powtarzalnej procedury
@@ -211,6 +143,23 @@ agentom, którzy jej potrzebują. [Więcej o skills](docs/skills.pl.md).
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 📚 Udostępnij dokumenty do przeszukiwania
+
+**Knowledge bases** porządkują dokumenty w kolekcje przypisywane agentom. Agent wyszukuje w nich
+fragmenty potrzebne do odpowiedzi. Takie podejście jest często nazywane **RAG**, czyli generowaniem
+odpowiedzi wspomaganym wyszukiwaniem. [Dodawanie i przetwarzanie dokumentów](docs/file-processing.pl.md).
+
+<!-- MEDIA: knowledge-bases | light -->
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Bazy wiedzy z kolekcjami osobistymi i organizacji." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧠 Wspólny kontekst
@@ -226,6 +175,46 @@ czy odczytuje na żądanie. [Więcej o kontekście](docs/context.pl.md).
 
 <a href="docs/assets/screens/light/context-detail.webp">
   <img src="docs/assets/screens/light/context-detail.webp" alt="Podgląd treści słownika z trybem linked do odczytu na żądanie." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 📊 Wbudowane observability: co działało i ile kosztowało
+
+**Activity** łączy historię wykonań, zatwierdzenia i wydatki. **Run** to pojedyncze wykonanie agenta:
+widzisz jego stan, model, tokeny, czas i zapisany koszt. Filtruj po agencie, osobie lub wersji,
+porównuj wyniki wersji i eksportuj dane do CSV.
+
+Znajdź wolne lub nieudane wykonania, a potem otwórz je, by sprawdzić rozmowę i wywołania narzędzi.
+[Poznaj Activity i kontrolę kosztów](docs/governance.pl.md).
+
+<!-- MEDIA: activity | light; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity z porównaniem wersji agenta i filtrowaną historią wykonań: stan, tokeny, czas oraz zapisany koszt." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 🛡️ Zatwierdzanie przez człowieka
+
+Dla obsługiwanych operacji narzędzi możesz wymagać zgody człowieka. Prośba o zatwierdzenie pozwala
+sprawdzić planowaną operację przed decyzją o jej wykonaniu. Dostęp do agentów i zasobów określają
+[role i uprawnienia](docs/permissions.pl.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: approval | light -->
+
+<a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Oczekująca operacja narzędzia z argumentami i przyciskami zatwierdzania." width="100%">
 </a>
 
 </td>

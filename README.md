@@ -61,7 +61,7 @@ Use your published agent in **Slack, Mattermost or Telegram**. Colleagues can as
 
 <table>
 <tr>
-<td width="45%" valign="middle">
+<td colspan="2" valign="top">
 
 ### 📄 Keep results outside the chat
 
@@ -72,98 +72,10 @@ keeps its current-page link; a conversation can link to a particular version.
 An artifact displays the data it was published with. A new agent run can update it.
 [Create and share artifacts](docs/artifacts.md).
 
-</td>
-<td width="55%">
-
 <!-- MEDIA: artifacts | light -->
 
 <a href="docs/assets/screens/light/artifacts.webp">
   <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 🔌 5,700+ integrations through MCP
-
-Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
-**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
-
-Discover **5,700+ MCP server entries** in the searchable catalog, or add a compatible server by URL.
-Connect the services you need and choose which tools each agent can use. Setup, credentials and
-available actions depend on the server. [Connect your tools](docs/mcp.md).
-
-
-
-<!-- MEDIA: mcp-catalog | light -->
-
-<a href="docs/assets/screens/light/mcp-catalog.webp">
-  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📚 Give it documents to search
-
-**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
-sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
-[Add and process documents](docs/file-processing.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: knowledge-bases | light -->
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 📊 Built-in observability: see what ran and what it cost
-
-**Activity** brings run history, approvals and spend into one place. A **run** is one execution of an agent:
-see its status, model, tokens, duration and recorded cost. Filter by agent, person or version,
-compare version results and export the records as CSV.
-
-Find slow or failed work, then open a run to inspect its conversation and tool calls.
-[Explore Activity and cost controls](docs/governance.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: activity | light; filtered run history and version comparison -->
-
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 🛡️ Human approval
-
-You can require human approval for supported tool actions. The approval request lets a person review
-the proposed operation before deciding whether it should proceed. Access to agents and resources is
-controlled through [roles and permissions](docs/permissions.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: approval | light -->
-
-<a href="docs/assets/screens/light/approval.webp">
-  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
 </a>
 
 </td>
@@ -189,6 +101,26 @@ Publish a version when it is ready for use. You can inspect earlier versions and
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 🔌 5,700+ integrations through MCP
+
+Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
+**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
+
+Discover **5,700+ MCP server entries** in the searchable catalog, or add a compatible server by URL.
+Connect the services you need and choose which tools each agent can use. Setup, credentials and
+available actions depend on the server. [Connect your tools](docs/mcp.md).
+
+<!-- MEDIA: mcp-catalog | light -->
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧩 Teach a reusable procedure
@@ -209,6 +141,23 @@ that need it. [Learn about skills](docs/skills.md).
 </td>
 </tr>
 <tr>
+<td colspan="2" valign="top">
+
+### 📚 Give it documents to search
+
+**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
+sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
+[Add and process documents](docs/file-processing.md).
+
+<!-- MEDIA: knowledge-bases | light -->
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
 <td width="45%" valign="middle">
 
 ### 🧠 Shared context
@@ -224,6 +173,46 @@ or reads it on demand. [Learn about context](docs/context.md).
 
 <a href="docs/assets/screens/light/context-detail.webp">
   <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 📊 Built-in observability: see what ran and what it cost
+
+**Activity** brings run history, approvals and spend into one place. A **run** is one execution of an agent:
+see its status, model, tokens, duration and recorded cost. Filter by agent, person or version,
+compare version results and export the records as CSV.
+
+Find slow or failed work, then open a run to inspect its conversation and tool calls.
+[Explore Activity and cost controls](docs/governance.md).
+
+<!-- MEDIA: activity | light; filtered run history and version comparison -->
+
+<a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 🛡️ Human approval
+
+You can require human approval for supported tool actions. The approval request lets a person review
+the proposed operation before deciding whether it should proceed. Access to agents and resources is
+controlled through [roles and permissions](docs/permissions.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: approval | light -->
+
+<a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
 </a>
 
 </td>
