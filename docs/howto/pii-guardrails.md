@@ -134,9 +134,10 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
 - **A run shows `guardrail_blocked` you did not intend.** Read the run's `error`
   field — it names the edge (`input`, `output` or `tool_result`) but never the
   matched text, by design, so check the keyword list itself. An `error` that goes on
-  *"It holds more than 10,000 digits"* or *"It is longer than 200,000
-  characters"* came from PII redaction instead: it reads at most that much of
-  one text, and refuses the rest rather than pass on numbers it never read.
+  *"It holds more than ... digits"* or *"It is longer than ... characters"* came
+  from PII redaction instead: it reads at most that much of one text, less the
+  more countries `phone_regions` lists, and refuses the rest rather than pass on
+  numbers it never read.
 - **Tool-result screening seems unused.** It only matters once an agent has a
   tool that reads untrusted content — a fetched page, a file, an MCP response.
   This trial has none, so that edge was configured but never exercised.

@@ -28,9 +28,10 @@ pattern. It is libphonenumber's matcher (the `phonenumberslite` build) rather th
 a regex: digit count cannot tell a phone number from an order id or a timestamp,
 and the numbering-plan check can. National formats are read for the countries in
 `phone_regions`; a `+` number is read for any. The matcher is pure Python and
-costs tens of microseconds a digit and a few a character, so a text longer than
-`MAX_PHONE_CHARS` or with more than `MAX_PHONE_DIGITS` digits is refused with a
-`block` verdict, which the edge raises as
+costs tens of microseconds a digit and a few a character for each region, so
+`phone_regions` holds at most `MAX_PHONE_REGIONS` codes, and a text longer than
+`max_phone_chars` or with more than `max_phone_digits` digits for its regions is
+refused with a `block` verdict, which the edge raises as
 `GuardrailBlocked`, rather than read or passed on. When the harness grows a phone
 pattern, this file is the one to delete.
 - **block** on a keyword list. A match ends the run.

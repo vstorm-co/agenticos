@@ -38,8 +38,8 @@ from pydantic_ai_harness.guardrails.detectors import DEFAULT_PII_PATTERNS, perso
 
 from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
-    MAX_PHONE_DIGITS,
     has_too_many_digits,
+    max_phone_digits,
     parse_phone_regions,
     redact_phone_numbers,
 )
@@ -52,7 +52,7 @@ Every pattern here is linear in the text, but the scan is synchronous work on
 the event loop, so the ceiling is about what one request may do to a worker
 rather than about the regexes. The phone matcher is far slower per digit than
 the patterns, so a scan that includes `phone` has its own, lower ceiling in
-`MAX_PHONE_DIGITS`.
+`PHONE_DIGITS`.
 """
 
 PHONE = "phone"
@@ -60,6 +60,9 @@ PHONE = "phone"
 
 PHONE_REGIONS = parse_phone_regions(DEFAULT_PHONE_REGIONS)
 """The countries whose national formats a scan reads. A `+` number is read anyway."""
+
+PHONE_DIGITS = max_phone_digits(PHONE_REGIONS)
+"""The most digits a scan that includes `phone` reads, at `PHONE_REGIONS`."""
 
 PLACEHOLDER = "[redacted:{name}]"
 """What a match is replaced with. The library substitutes the category name."""
@@ -92,7 +95,7 @@ def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
 
     Args:
         text: The text to scan. Longer than `MAX_TEXT_CHARS` is refused, and so
-            is more than `MAX_PHONE_DIGITS` digits when `phone` is scanned.
+            is more than `PHONE_DIGITS` digits when `phone` is scanned.
         categories: Restrict the scan to these categories. `None` scans every
             one the deployment knows.
 
@@ -114,10 +117,10 @@ def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
             "scan the parts.",
         )
     selected = _selected(categories)
-    if PHONE in selected and has_too_many_digits(text):
+    if PHONE in selected and has_too_many_digits(text, PHONE_DIGITS):
         raise refused_field(
             "text",
-            f"A scan for phone numbers reads at most {MAX_PHONE_DIGITS} digits; split the "
+            f"A scan for phone numbers reads at most {PHONE_DIGITS} digits; split the "
             "document, or leave phone out of the categories.",
         )
     patterns = [name for name in selected if name != PHONE]

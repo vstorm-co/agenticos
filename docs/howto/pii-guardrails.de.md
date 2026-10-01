@@ -1,5 +1,5 @@
 ---
-source_sha: "947682b8c4e1"
+source_sha: "1492817b74ab"
 title: "Personenbezogene Daten aus den Prompts und Antworten eines Agents heraushalten"
 description: "Konfigurieren Sie die Guardrails-Capability so, dass sie E-Mail-Adressen, Telefonnummern, Kartennummern und Geheimnisse schwärzt, und vergleichen Sie dann, was das Modell tatsächlich erhielt, mit dem, was der Besucher sah."
 ---
@@ -75,7 +75,7 @@ Bei der zweiten Zeile der Tabelle lohnt es sich zu verweilen: Die Telefonnummer 
 - **Ein streamender Client zeigt kurz ein Geheimnis.** Die Schwärzung der Ausgabe läuft über die fertige Antwort, nachdem die `text_delta`-Frames schon hinausgegangen sind. Zeigen Sie den Text aus `final_result` an, wie `widget.js` es tut, statt nur Deltas anzuhängen. Das Puffern der Antwort bei eingeschalteter Ausgabeprüfung wird in [#1900](https://github.com/vstorm-co/agenticos/issues/1900) verfolgt.
 - **Die Blockierung hat nicht ausgelöst.** `blocked_keywords_*` sucht einen wörtlichen Teilstring ohne Beachtung der Groß- und Kleinschreibung. Eine Blockierung braucht außerdem den eigenen Schalter der Kante: Eine Schlüsselwortliste an der Ausgabekante bewirkt an der Eingabe nichts.
 - **Das Transkript zeigt weiterhin den Rohwert.** An der Eingabekante ist das erwartet: Umgeschrieben wird nur, was das Modell erreicht, nicht der gespeicherte Zug, den ein Mensch später liest. Schwärzen vor dem Speichern ist eine andere Funktion als diese.
-- **Ein Run zeigt ein `guardrail_blocked`, das Sie nicht beabsichtigt haben.** Lesen Sie das Feld `error` des Runs. Es nennt die Kante (`input`, `output` oder `tool_result`), aber absichtlich nie den gefundenen Text, also prüfen Sie die Schlüsselwortliste selbst. Ein `error`, der mit *„It holds more than 10,000 digits“* oder *„It is longer than 200,000 characters“* weitergeht, kommt stattdessen vom PII-Schwärzen: Es liest höchstens so viel eines Textes und lehnt den Rest ab, statt Nummern weiterzugeben, die es nie gelesen hat.
+- **Ein Run zeigt ein `guardrail_blocked`, das Sie nicht beabsichtigt haben.** Lesen Sie das Feld `error` des Runs. Es nennt die Kante (`input`, `output` oder `tool_result`), aber absichtlich nie den gefundenen Text, also prüfen Sie die Schlüsselwortliste selbst. Ein `error`, der mit *„It holds more than ... digits“* oder *„It is longer than ... characters“* weitergeht, kommt stattdessen vom PII-Schwärzen: Es liest höchstens so viel eines Textes, umso weniger, je mehr Länder `phone_regions` aufführt, und lehnt den Rest ab, statt Nummern weiterzugeben, die es nie gelesen hat.
 - **Die Prüfung von Tool-Ergebnissen wirkt ungenutzt.** Sie zählt erst, wenn ein Agent ein Tool hat, das nicht vertrauenswürdige Inhalte liest: eine abgerufene Seite, eine Datei, eine MCP-Antwort. Dieser Versuch hat keines, also war diese Kante konfiguriert, wurde aber nie genutzt.
 
 ## Den Versuch festhalten { #record-the-trial }

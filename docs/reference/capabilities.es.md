@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4ff8a0e256"
+source_sha: "76c7bd9e879e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1782,7 +1782,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 | `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT y bloques PEM |
 | `redact_pii_*` | `false` | limpia correos, números de teléfono (válidos en su plan de numeración), IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
 | `blocked_keywords_*` | `""` | términos separados por comas o saltos de línea; una coincidencia termina el run |
-| `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII |
+| `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII, como mucho 16 |
 
 Todos los campos de borde vienen apagados por defecto, y una capability activada
 sin ningún borde configurado no adjunta nada: un agent que no la usa no paga nada.
@@ -1797,9 +1797,12 @@ frente a cada país de la lista, y cada país añadido amplía lo que puede ser 
 simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`
 en la lista también se censura un número de pedido de nueve dígitos. Incluye los
 países a los que atiende el agent. Un código desconocido (lo habitual es `UK` en
-lugar de `GB`) se rechaza al publicar. Un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee: termina
-el run con `guardrail_blocked`, porque pasarlo sin leer pasaría también cada número
-que contiene.
+lugar de `GB`), o una lista de más de 16, se rechaza al publicar. Con hasta cuatro
+países, un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee.
+Cada país por encima de cuatro es otra pasada sobre el texto, así que ambos límites
+bajan en proporción, a 50.000 caracteres y 2.500 dígitos con dieciséis. Un texto por
+encima del límite termina el run con `guardrail_blocked`, porque pasarlo sin leer
+pasaría también cada número que contiene.
 
 **La censura reescribe; un bloqueo es un desenlace del run.** Un censor limpia la
 coincidencia y el run termina: una respuesta que devolvía una clave citada ha hecho el

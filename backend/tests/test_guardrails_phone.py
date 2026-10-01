@@ -19,9 +19,12 @@ from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
     MAX_PHONE_CHARS,
     MAX_PHONE_DIGITS,
+    MAX_PHONE_REGIONS,
     PHONE_PLACEHOLDER,
     _merged,
     has_too_many_digits,
+    max_phone_chars,
+    max_phone_digits,
     parse_phone_regions,
     phone_numbers,
     redact_phone_numbers,
@@ -140,9 +143,9 @@ def test_the_count_is_of_placeholders_written_not_of_region_matches():
 
 
 def test_the_digit_bound_counts_digits_not_characters():
-    assert not has_too_many_digits("1" * MAX_PHONE_DIGITS)
-    assert has_too_many_digits("1" * (MAX_PHONE_DIGITS + 1))
-    assert not has_too_many_digits("no digits " * MAX_PHONE_DIGITS)
+    assert not has_too_many_digits("1" * MAX_PHONE_DIGITS, MAX_PHONE_DIGITS)
+    assert has_too_many_digits("1" * (MAX_PHONE_DIGITS + 1), MAX_PHONE_DIGITS)
+    assert not has_too_many_digits("no digits " * MAX_PHONE_DIGITS, MAX_PHONE_DIGITS)
 
 
 def test_a_text_with_too_many_digits_is_blocked_rather_than_read():
@@ -241,6 +244,83 @@ def test_an_edge_without_pii_redaction_reads_a_long_text():
     )
     assert detect is not None
     assert detect("x " * MAX_PHONE_CHARS).action == "allow"
+
+
+_SIXTEEN = (
+    "US",
+    "GB",
+    "DE",
+    "PL",
+    "FR",
+    "IT",
+    "ES",
+    "NL",
+    "BE",
+    "AT",
+    "CH",
+    "SE",
+    "NO",
+    "DK",
+    "FI",
+    "IE",
+)
+
+
+def test_the_limits_are_shared_out_over_more_than_four_regions():
+    """Each region is a full pass of the matcher, so the text a pass may read
+    shrinks as passes are added and the total stays the four-region one."""
+    for regions in ((), ("US",), _DEFAULT):
+        assert max_phone_chars(regions) == MAX_PHONE_CHARS
+        assert max_phone_digits(regions) == MAX_PHONE_DIGITS
+    assert len(_SIXTEEN) == MAX_PHONE_REGIONS
+    assert max_phone_chars(_SIXTEEN) == MAX_PHONE_CHARS // 4
+    assert max_phone_digits(_SIXTEEN) == MAX_PHONE_DIGITS // 4
+
+
+def test_more_regions_block_a_text_the_default_four_read():
+    """Sixteen passes over a text with the four-region allowance of digits took
+    about 2.6 s; the allowance is a quarter of it there."""
+    detect = phone_numbers(_SIXTEEN)
+    digits = "1/2/3 " * (max_phone_digits(_SIXTEEN) // 3 + 1)
+    assert phone_numbers(_DEFAULT)(digits).action != "block"
+    assert detect(digits).message == (
+        f"It holds more than {MAX_PHONE_DIGITS // 4:,} digits, the most phone number redaction reads."
+    )
+    long_text = "(" * (max_phone_chars(_SIXTEEN) + 1)
+    assert phone_numbers(_DEFAULT)(long_text).action == "allow"
+    assert detect(long_text).message == (
+        f"It is longer than {MAX_PHONE_CHARS // 4:,} characters, the most phone number redaction reads."
+    )
+
+
+def test_an_edge_refuses_early_at_its_own_regions_limit():
+    detect = _edge_detector(
+        redact_secrets_on=False,
+        redact_pii_on=True,
+        phone_regions=_SIXTEEN,
+        keywords=[],
+        edge="input",
+    )
+    assert detect is not None
+    with pytest.raises(GuardrailBlocked, match=f"longer than {MAX_PHONE_CHARS // 4:,} characters"):
+        detect("x " * MAX_PHONE_CHARS)
+
+
+def test_more_regions_than_the_bound_are_refused():
+    """All 245 regions libphonenumber knows took 40 s on one prompt, and at that
+    count the shared-out limits would refuse nearly every text at run time."""
+    assert parse_phone_regions(", ".join(_SIXTEEN)) == _SIXTEEN
+    with pytest.raises(
+        ValueError, match=f"At most {MAX_PHONE_REGIONS} regions can be listed, and 17 are"
+    ):
+        parse_phone_regions(", ".join((*_SIXTEEN, "PT")))
+
+
+def test_publish_refuses_more_regions_than_the_bound():
+    load_builtins()
+    with pytest.raises(BadRequestError) as exc:
+        get("guardrails").validate_config({"phone_regions": ", ".join((*_SIXTEEN, "PT"))})
+    assert any("phone_regions" in str(problem) for problem in exc.value.details["fields"])
 
 
 def test_overlapping_and_touching_spans_merge_and_separate_ones_do_not():

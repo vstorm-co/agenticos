@@ -1,5 +1,5 @@
 ---
-source_sha: "947682b8c4e1"
+source_sha: "1492817b74ab"
 title: "Mantén los datos personales fuera de los prompts y respuestas del agent"
 description: "Configura la capability guardrails para que oculte correos, números de teléfono, números de tarjeta y secretos, y compara después lo que recibió de verdad el modelo con lo que vio el visitante."
 ---
@@ -75,7 +75,7 @@ Merece la pena detenerse en la segunda fila de la tabla: el número de teléfono
 - **Un cliente con streaming muestra un secreto por un momento.** La ocultación de la salida actúa sobre la respuesta terminada, cuando los frames `text_delta` ya han salido. Muestra el texto de `final_result`, como hace `widget.js`, en lugar de limitarte a añadir deltas. Almacenar la respuesta en búfer cuando está activada la comprobación de la salida se sigue en [#1900](https://github.com/vstorm-co/agenticos/issues/1900).
 - **El bloqueo no se activó.** `blocked_keywords_*` busca una subcadena literal sin distinguir mayúsculas y minúsculas. Un bloqueo también necesita el interruptor propio del borde: una lista de palabras clave en el borde de salida no hace nada con la entrada.
 - **La transcripción sigue mostrando el valor en bruto.** En el borde de entrada es lo esperado: solo se reescribe lo que llega al modelo, no el turno guardado que una persona revisa después. Ocultar antes de guardar es otra función distinta de esta.
-- **Un run muestra un `guardrail_blocked` que no pretendías.** Lee el campo `error` del run: nombra el borde (`input`, `output` o `tool_result`) pero, a propósito, nunca el texto que coincidió, así que revisa la propia lista de palabras clave. Un `error` que sigue con *«It holds more than 10,000 digits»* o *«It is longer than 200,000 characters»* viene en cambio de la censura de PII: lee como mucho esa cantidad de un texto y lo rechaza en lugar de pasar números que nunca leyó.
+- **Un run muestra un `guardrail_blocked` que no pretendías.** Lee el campo `error` del run: nombra el borde (`input`, `output` o `tool_result`) pero, a propósito, nunca el texto que coincidió, así que revisa la propia lista de palabras clave. Un `error` que sigue con *«It holds more than ... digits»* o *«It is longer than ... characters»* viene en cambio de la censura de PII: lee como mucho esa cantidad de un texto, menos cuantos más países liste `phone_regions`, y lo rechaza en lugar de pasar números que nunca leyó.
 - **La comprobación de resultados de herramientas parece no usarse.** Solo importa cuando un agent tiene una herramienta que lee contenido no fiable: una página descargada, un archivo, una respuesta MCP. Esta prueba no tiene ninguna, así que ese borde estaba configurado pero nunca se ejercitó.
 
 ## Registra la prueba { #record-the-trial }

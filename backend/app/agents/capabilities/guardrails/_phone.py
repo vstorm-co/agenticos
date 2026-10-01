@@ -23,11 +23,12 @@ because the right trade-off depends on the markets an agent serves.
 the text: a prompt of `1/2/3 1/2/3 ...` costs about 70 us a digit across the four
 default regions, and a prompt of repeated numbers keeps a span per number per
 region. It also costs time per character with no digit in it, a few
-microseconds for a run of brackets. A text longer than `MAX_PHONE_CHARS` or with
-more than `MAX_PHONE_DIGITS` digits is refused with a `block` verdict rather than
-read, and the matcher's own give-up after `max_tries` rejected candidates is
-lifted: both leave a number in place, and a redactor that has not read the whole
-text must not let it through as if it had.
+microseconds for a run of brackets. Each region is a full pass of the matcher, so
+both costs grow with the region count. A text longer than `max_phone_chars` or with
+more than `max_phone_digits` digits for the configured regions is refused with a
+`block` verdict rather than read, and the matcher's own give-up after `max_tries`
+rejected candidates is lifted: both leave a number in place, and a redactor that
+has not read the whole text must not let it through as if it had.
 """
 
 from __future__ import annotations
@@ -46,22 +47,37 @@ PHONE_PLACEHOLDER = "[redacted:phone]"
 DEFAULT_PHONE_REGIONS = "US, GB, DE, PL"
 
 MAX_PHONE_DIGITS = 10_000
-"""The most digits a text may hold for the phone detector to read it.
+"""The most digits a text may hold for the phone detector to read it, at up to
+four regions.
 
 About 0.7 s of matching at the four default regions in the worst text measured,
 and room for some 900 phone numbers - far more than a prompt, an answer or a tool
-result an agent works with holds.
+result an agent works with holds. `max_phone_digits` shares it out over more.
 """
 
 MAX_PHONE_CHARS = 200_000
-"""The longest text the phone detector reads, whatever it holds.
+"""The longest text the phone detector reads, whatever it holds, at up to four
+regions.
 
 The digit bound alone left a prompt of tens of megabytes with no digits to be
 read in full. A run of `(` costs about 2.3 us a character at the four default
 regions and a full-width `U+FF08` about 3.3 us, the slowest measured, so this is
 about 0.7 s again: some 50,000 tokens, and over three times the 60,000 characters
-at which `tool_output_limits` reduces a tool result by default.
+at which `tool_output_limits` reduces a tool result by default. `max_phone_chars`
+shares it out over more.
 """
+
+MAX_PHONE_REGIONS = 16
+"""The most regions `phone_regions` may list.
+
+Each one is a pass of the matcher over the whole text, about 0.17 s at the limits
+above, and all 245 libphonenumber knows took 40 s on one prompt. The limits shrink
+in proportion past four regions, so the bound is what keeps them usable: at 16
+they are 50,000 characters and 2,500 digits.
+"""
+
+_BUDGET_REGIONS = 4
+"""The region count the limits are measured at - the default list's length."""
 
 _REGION_SPLIT = re.compile(r"[,\n]")
 _DIGIT = re.compile(r"\d")
@@ -74,7 +90,8 @@ def parse_phone_regions(raw: str) -> tuple[str, ...]:
         ValueError: For a code libphonenumber does not know. Refused rather than
             skipped, because an unknown region matches no national number and the
             mistake would otherwise show up only as a phone number left in place.
-            `UK` is the common one; the ISO 3166 code is `GB`.
+            `UK` is the common one; the ISO 3166 code is `GB`. Also for more
+            than `MAX_PHONE_REGIONS` codes.
     """
     regions: list[str] = []
     for part in _REGION_SPLIT.split(raw):
@@ -85,6 +102,12 @@ def parse_phone_regions(raw: str) -> tuple[str, ...]:
             hint = " (the code for the United Kingdom is GB)" if code == "UK" else ""
             raise ValueError(f"'{code}' is not a two-letter ISO 3166 region code{hint}")
         regions.append(code)
+    if len(regions) > MAX_PHONE_REGIONS:
+        raise ValueError(
+            f"At most {MAX_PHONE_REGIONS} regions can be listed, and {len(regions)} are: "
+            "each one is another pass over every text, and the text each pass may "
+            "read shrinks to keep the total in bounds"
+        )
     return tuple(regions)
 
 
@@ -104,34 +127,53 @@ def _merged(spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def has_too_many_digits(text: str) -> bool:
-    """Whether `text` holds more than `MAX_PHONE_DIGITS` digits.
+def _shared(limit: int, regions: Sequence[str]) -> int:
+    """`limit` divided between the matcher's passes beyond `_BUDGET_REGIONS`."""
+    return limit * _BUDGET_REGIONS // max(_BUDGET_REGIONS, len(regions))
+
+
+def max_phone_chars(regions: Sequence[str]) -> int:
+    """The longest text the phone detector reads for `regions`."""
+    return _shared(MAX_PHONE_CHARS, regions)
+
+
+def max_phone_digits(regions: Sequence[str]) -> int:
+    """The most digits a text may hold for the phone detector to read it for `regions`."""
+    return _shared(MAX_PHONE_DIGITS, regions)
+
+
+def has_too_many_digits(text: str, limit: int) -> bool:
+    """Whether `text` holds more than `limit` digits.
 
     Stops counting at the bound, so a long text costs a regex scan and no more.
     """
-    return next(islice(_DIGIT.finditer(text), MAX_PHONE_DIGITS, None), None) is not None
+    return next(islice(_DIGIT.finditer(text), limit, None), None) is not None
 
 
-def refuse_long_text(text: str) -> GuardrailResult:
-    """`block` for a text longer than `MAX_PHONE_CHARS`, `allow` for any other.
+def refuse_long_text(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
+    """A detector that blocks a text longer than `max_phone_chars` and allows any other.
 
     The phone detector applies it itself. An edge also runs it ahead of its other
     redactors, which scan the whole text as well and would otherwise read a text
     the phone detector then refuses.
     """
-    if len(text) > MAX_PHONE_CHARS:
-        return GuardrailResult.block(
-            f"It is longer than {MAX_PHONE_CHARS:,} characters, "
-            "the most phone number redaction reads."
-        )
-    return GuardrailResult.allow()
+    limit = max_phone_chars(regions)
+
+    def detect(text: str) -> GuardrailResult:
+        if len(text) > limit:
+            return GuardrailResult.block(
+                f"It is longer than {limit:,} characters, the most phone number redaction reads."
+            )
+        return GuardrailResult.allow()
+
+    return detect
 
 
 def redact_phone_numbers(text: str, regions: Sequence[str]) -> tuple[str, int]:
     """`text` with each valid phone number replaced, and how many were replaced.
 
     Reads the whole text however long it is; a caller taking text from a user
-    checks it against `MAX_PHONE_CHARS` and `has_too_many_digits` first.
+    checks it against `max_phone_chars` and `max_phone_digits` first.
 
     The count is of placeholders written, so two regions matching one number
     count it once. `app/services/ml/pii.py` reports it; the guardrail only needs
@@ -152,7 +194,7 @@ def redact_phone_numbers(text: str, regions: Sequence[str]) -> tuple[str, int]:
             leniency=phonenumbers.Leniency.STRICT_GROUPING,
             # Its default, 65535, stops quietly part-way through a text padded with
             # rejected candidates and leaves every number after them in place.
-            # `MAX_PHONE_CHARS` and `MAX_PHONE_DIGITS` bound the work instead.
+            # `max_phone_chars` and `max_phone_digits` bound the work instead.
             max_tries=sys.maxsize,
         ):
             spans.append((match.start, match.end))
@@ -173,21 +215,24 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
     """A detector that rewrites valid phone numbers out of text.
 
     Returns a `block` verdict, with the reason as its message, for a text longer
-    than `MAX_PHONE_CHARS` or with more than `MAX_PHONE_DIGITS` digits.
+    than `max_phone_chars` or with more than `max_phone_digits` digits for
+    `regions`.
 
     Args:
         regions: Countries whose national formats are read. Empty matches only
             numbers written in international form, with `+`.
     """
 
+    refuse_long = refuse_long_text(regions)
+    digit_limit = max_phone_digits(regions)
+
     def detect(text: str) -> GuardrailResult:
-        too_long = refuse_long_text(text)
+        too_long = refuse_long(text)
         if too_long.action == "block":
             return too_long
-        if has_too_many_digits(text):
+        if has_too_many_digits(text, digit_limit):
             return GuardrailResult.block(
-                f"It holds more than {MAX_PHONE_DIGITS:,} digits, "
-                "the most phone number redaction reads."
+                f"It holds more than {digit_limit:,} digits, the most phone number redaction reads."
             )
         redacted, found = redact_phone_numbers(text, regions)
         return GuardrailResult.replace(redacted) if found else GuardrailResult.allow()

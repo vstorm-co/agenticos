@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4ff8a0e256"
+source_sha: "76c7bd9e879e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1744,7 +1744,7 @@ pythonowego strażnika.
 | `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT i bloki PEM |
 | `redact_pii_*` | `false` | wymaż e-mail, numer telefonu (poprawny w swoim planie numeracji), IBAN (mod-97), kartę (Luhn) i US SSN |
 | `blocked_keywords_*` | `""` | terminy rozdzielone przecinkiem albo nową linią; trafienie kończy run |
-| `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII |
+| `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII, najwyżej 16 |
 
 Każde pole krawędzi jest domyślnie wyłączone, a capability włączona bez
 skonfigurowanej krawędzi nie dołącza niczego — agent, który jej nie używa, nie
@@ -1760,9 +1760,12 @@ niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
 kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski
 numer stacjonarny, więc z `PL` na liście redagowany jest też dziewięciocyfrowy
 numer zamówienia. Wymień kraje, które agent obsługuje. Nieznany kod (najczęściej
-`UK` zamiast `GB`) jest odrzucany przy publikacji. Tekst dłuższy niż 200 000 znaków albo z więcej niż 10 000 cyfr nie jest w ogóle
-czytany: kończy run statusem `guardrail_blocked`, bo przekazanie go dalej bez
-czytania przekazałoby każdy numer, który zawiera.
+`UK` zamiast `GB`) albo lista dłuższa niż 16 kodów jest odrzucana przy publikacji.
+Przy najwyżej czterech krajach tekst dłuższy niż 200 000 znaków albo z więcej niż
+10 000 cyfr nie jest w ogóle czytany. Każdy kraj ponad cztery to kolejne przejście
+przez tekst, więc oba limity maleją proporcjonalnie, przy szesnastu do 50 000 znaków
+i 2500 cyfr. Tekst ponad limitem kończy run statusem `guardrail_blocked`, bo
+przekazanie go dalej bez czytania przekazałoby każdy numer, który zawiera.
 
 **Redagowanie przepisuje; blokada jest wynikiem runa.** Redaktor wymazuje trafienie
 i run kończy się normalnie — odpowiedź, która przytoczyła klucz z powrotem, mimo to

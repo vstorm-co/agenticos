@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4ff8a0e256"
+source_sha: "76c7bd9e879e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1876,7 +1876,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen |
 | `redact_pii_*` | `false` | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
 | `blocked_keywords_*` | `""` | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run |
-| `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest |
+| `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest, höchstens 16 |
 
 Jedes Kantenfeld ist standardmäßig aus, und eine Capability, die ohne konfigurierte
 Kante aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
@@ -1892,9 +1892,13 @@ und wird geschwärzt, gleich was `phone_regions` aufführt. Eine nationale Numme
 erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige
 polnische Festnetznummer, also wird mit `PL` in der Liste auch eine neunstellige
 Bestellnummer geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
-unbekannter Code (meist `UK` statt `GB`) wird beim Veröffentlichen abgelehnt.
-Ein Text mit mehr als 200.000 Zeichen oder mehr als 10.000 Ziffern wird gar nicht gelesen: Er beendet den Run mit
-`guardrail_blocked`, denn ihn ungelesen weiterzugeben, gäbe jede Nummer darin weiter.
+unbekannter Code (meist `UK` statt `GB`) oder eine Liste mit mehr als 16 Codes
+wird beim Veröffentlichen abgelehnt. Bei bis zu vier Ländern wird ein Text mit mehr
+als 200.000 Zeichen oder mehr als 10.000 Ziffern gar nicht gelesen. Jedes Land über
+vier ist ein weiterer Durchlauf über den Text, daher sinken beide Grenzen im selben
+Verhältnis, bei sechzehn auf 50.000 Zeichen und 2.500 Ziffern. Ein Text über der
+Grenze beendet den Run mit `guardrail_blocked`, denn ihn ungelesen weiterzugeben,
+gäbe jede Nummer darin weiter.
 
 **Das Schwärzen schreibt um; eine Blockade ist ein Run-Ergebnis.** Ein Schwärzer
 entfernt den Treffer, und der Run läuft zu Ende — eine Antwort, die einen Schlüssel

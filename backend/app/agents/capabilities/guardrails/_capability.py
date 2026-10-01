@@ -49,6 +49,7 @@ from pydantic_ai_harness.guardrails.detectors import (
 
 from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
+    MAX_PHONE_REGIONS,
     parse_phone_regions,
     phone_numbers,
     refuse_long_text,
@@ -144,7 +145,8 @@ class GuardrailsConfig(BaseModel):
         default=DEFAULT_PHONE_REGIONS,
         description=(
             "Countries whose national phone formats PII redaction reads, as two-letter codes "
-            "(comma or newline separated). A number written with + is redacted whatever is listed"
+            f"(comma or newline separated), at most {MAX_PHONE_REGIONS}. "
+            "A number written with + is redacted whatever is listed"
         ),
     )
 
@@ -191,7 +193,7 @@ def _edge_detector(
         # The phone detector refuses a text this long, so it is refused before any
         # redactor scans it: the harness patterns alone took some 30 s on a prompt
         # the size of a request body.
-        redactors.append(refuse_long_text)
+        redactors.append(refuse_long_text(phone_regions))
     if redact_secrets_on:
         redactors.append(redact_secrets)
     if redact_pii_on:

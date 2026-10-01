@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.agents.capabilities.guardrails._phone import MAX_PHONE_CHARS, MAX_PHONE_DIGITS
+from app.agents.capabilities.guardrails._phone import MAX_PHONE_DIGITS, max_phone_chars
 from app.core.exceptions import BadRequestError
 from app.services.ml import pii
 
@@ -88,7 +88,7 @@ def test_the_text_ceiling_is_within_what_the_phone_matcher_reads() -> None:
     """The scan checks the phone matcher's digit bound but not its length bound,
     because this ceiling already sits inside it. Raising it past the matcher's
     would let a long text without digits hold the event loop."""
-    assert pii.MAX_TEXT_CHARS <= MAX_PHONE_CHARS
+    assert max_phone_chars(pii.PHONE_REGIONS) >= pii.MAX_TEXT_CHARS
 
 
 def test_the_digit_ceiling_does_not_apply_to_a_scan_without_phone() -> None:
