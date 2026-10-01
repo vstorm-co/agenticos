@@ -150,7 +150,11 @@ class GuardrailsConfig(BaseModel):
     @field_validator("phone_regions")
     @classmethod
     def _known_regions(cls, raw: str) -> str:
-        """An unknown code is refused at publish, not ignored at run time."""
+        """An unknown code is refused at publish, where the Builder can point at it.
+
+        `build_guardrails` parses the same string, so a code let through here
+        would instead fail every run of the agent.
+        """
         parse_phone_regions(raw)
         return raw
 
