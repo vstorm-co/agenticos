@@ -121,8 +121,17 @@ Publish a version when it is ready for use. You can inspect earlier versions and
 reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
 that need it. [Learn about skills](docs/skills.md).
 
-<!-- MEDIA: skills | capture light + dark -->
-> **Screenshot placeholder — Skills:** the library and an open procedure with readable steps.
+<!-- MEDIA: skills | light + dark; library and artifact-pages procedure -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
+</picture>
 
 **Context** holds standing information such as product names, a glossary or communication guidelines.
 Use it for facts and rules shared across tasks; choose whether the agent receives it automatically

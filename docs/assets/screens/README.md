@@ -16,7 +16,7 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | Slot | Capture |
 |---|---|
 | `agent-builder` | Complete: demo agent instructions, selected model, published version and draft changes |
-| `skills` | Library and a readable procedure |
+| `skills` | Complete: library and the artifact-pages procedure with instructions and templates |
 | `context` | Company context content and attachment settings |
 | `knowledge-bases` | Named collections |
 | `knowledge-collection` | Documents, processing status and preview or search result |
@@ -26,10 +26,14 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `approval` | An actual pending tool action and decision controls |
 | `routines` | Schedule, actual completed scheduled run and result |
 
-The `agent-builder` light/dark pair is complete; nine screenshot slots remain pending.
+The `agent-builder` and `skills` slots are complete; eight screenshot slots remain pending.
 The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
 and stored as lossless WebP at the original 3502 × 2000 resolution.
 Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
+The Skills captures were supplied on 2026-10-01 and stored as lossless WebP at
+3502 × 2000: `light/skills.webp`, `dark/skills.webp`, `light/skill-detail.webp`
+and `dark/skill-detail.webp`. They show the library and the artifact-pages procedure in Preview.
+
 Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
 The documentation and presentation use explicit placeholders until new captures are ready.
 Earlier assets remain recoverable from Git history; do not reuse them for the refreshed interface.

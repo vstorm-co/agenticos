@@ -1,4 +1,4 @@
-<!-- source_sha: 96cce7bd5751 -->
+<!-- source_sha: 9166397b44c5 -->
 
 <div align="center">
 
@@ -123,8 +123,17 @@ Gdy jest gotowy do użycia, publikujesz wersję. Możesz przeglądać wcześniej
 sprawdzić zgodność liczb w raporcie lub zastosować styl komunikacji. Zapisz procedurę raz i przypisz ją
 agentom, którzy jej potrzebują. [Więcej o skills](docs/skills.pl.md).
 
-<!-- MEDIA: skills | capture light + dark -->
-> **Miejsce na zrzut — Skills:** biblioteka i otwarta procedura z czytelnymi krokami.
+<!-- MEDIA: skills | light + dark; library and artifact-pages procedure -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Biblioteka Skills z procedurami do wielokrotnego użycia." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="Procedura artifact-pages z instrukcjami i szablonami stron." width="100%">
+</picture>
 
 **Context** przechowuje stałe informacje, np. nazwy produktów, słownik lub zasady komunikacji.
 Umieść tu fakty i reguły wspólne dla różnych zadań; wybierz, czy agent otrzymuje je automatycznie,

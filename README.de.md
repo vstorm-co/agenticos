@@ -1,4 +1,4 @@
-<!-- source_sha: 96cce7bd5751 -->
+<!-- source_sha: 9166397b44c5 -->
 
 <div align="center">
 
@@ -123,8 +123,17 @@ lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](do
 das Abgleichen eines Berichts oder die Anwendung eures Schreibstils. Schreibe einen Ablauf einmal
 und weise ihn den passenden Agenten zu. [Mehr über Skills](docs/skills.de.md).
 
-<!-- MEDIA: skills | capture light + dark -->
-> **Screenshot-Platzhalter — Skills:** Bibliothek und ein geöffneter Ablauf mit lesbaren Schritten.
+<!-- MEDIA: skills | light + dark; library and artifact-pages procedure -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit wiederverwendbaren Abläufen." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="Der Ablauf artifact-pages mit Anweisungen und Seitenvorlagen." width="100%">
+</picture>
 
 **Context** enthält dauerhaft relevante Informationen wie Produktnamen, ein Glossar oder Kommunikationsregeln.
 Nutze ihn für Fakten und Regeln, die mehrere Aufgaben betreffen. Wähle, ob der Agent sie automatisch

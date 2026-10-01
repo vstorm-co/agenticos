@@ -1,4 +1,4 @@
-<!-- source_sha: 96cce7bd5751 -->
+<!-- source_sha: 9166397b44c5 -->
 
 <div align="center">
 
@@ -123,8 +123,17 @@ Los **Skills** son procedimientos escritos que un agente puede cargar cuando res
 revisar una propuesta, conciliar un informe o aplicar vuestro estilo de redacción. Escribe el procedimiento
 una vez y asígnalo a los agentes que lo necesiten. [Más sobre skills](docs/skills.es.md).
 
-<!-- MEDIA: skills | capture light + dark -->
-> **Captura pendiente — Skills:** la biblioteca y un procedimiento abierto con pasos legibles.
+<!-- MEDIA: skills | light + dark; library and artifact-pages procedure -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Biblioteca de Skills con procedimientos reutilizables." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="El procedimiento artifact-pages con instrucciones y plantillas de páginas." width="100%">
+</picture>
 
 **Context** contiene información estable, como nombres de productos, un glosario o pautas de comunicación.
 Úsalo para hechos y reglas compartidos entre tareas; elige si el agente los recibe automáticamente
