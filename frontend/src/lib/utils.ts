@@ -129,7 +129,14 @@ export function formatRunDuration(startedAt: string | null, endedAt: string | nu
   const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
   if (Number.isNaN(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  if (ms < 60_000)
+    return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  // A run parked on an approval can last a day; "80,081.7 s" reads as nothing.
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes} min ${Math.floor((ms % 60_000) / 1000)} s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${minutes % 60} min`;
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
 }
 
 export function truncate(str: string, maxLength: number): string {

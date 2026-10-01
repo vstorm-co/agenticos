@@ -10,7 +10,11 @@ import { InputPane, OutputPane } from "./step-panes";
 
 const mutate = vi.fn();
 const start = { mutate, isPending: false };
-vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start }) }));
+const useWorkflowTable = vi.fn((_id: string | null) => ({ table: null as unknown }));
+vi.mock("@/hooks", () => ({
+  useWorkflowRuns: () => ({ start }),
+  useWorkflowTable: (id: string | null) => useWorkflowTable(id),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("./webhook-listener", () => ({
   WebhookListener: ({ onCaught }: { onCaught: (delivery: Record<string, unknown>) => void }) => (
@@ -193,6 +197,24 @@ describe("the fields a step declares, before any run", () => {
 });
 
 describe("OutputPane", () => {
+  it("shows a table step's records in its table's column order", () => {
+    useWorkflowTable.mockReturnValueOnce({
+      table: {
+        columns: [
+          { id: "c1", label: "Company" },
+          { id: "c2", label: "Notes" },
+        ],
+      },
+    });
+    const record = { fields: { Notes: "n", Company: "Acme" } };
+    seed(line({ config: { table: { table_id: "t1" } }, pinned_output: { records: [record] } }));
+    renderOutput();
+
+    expect(useWorkflowTable).toHaveBeenCalledWith("t1");
+    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(headers).toEqual(["fields.Company", "fields.Notes"]);
+  });
+
   it("pins the call a webhook trigger's test URL caught", async () => {
     const webhook = makeDefinition({
       id: "trigger.webhook",

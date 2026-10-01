@@ -222,6 +222,12 @@ describe("formatRunDuration", () => {
     expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:30Z")).toBe("30 s");
   });
 
+  it("reads a long run in minutes, hours and days rather than thousands of seconds", () => {
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:01:05Z")).toBe("1 min 5 s");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-05T07:14:41Z")).toBe("22 h 14 min");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-06T12:00:00Z")).toBe("2 d 3 h");
+  });
+
   it("admits it does not know a duration when the run has not finished", () => {
     // A null end is not a fast run: a still-running or parked run has no duration
     // yet, and rendering "0 ms" would call the unfinished the fastest.

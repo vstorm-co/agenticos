@@ -12,7 +12,10 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NodeEditorDialog } from "./node-editor-dialog";
 
-vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start: { mutate: vi.fn() } }) }));
+vi.mock("@/hooks", () => ({
+  useWorkflowRuns: () => ({ start: { mutate: vi.fn() } }),
+  useWorkflowTable: () => ({ table: null }),
+}));
 
 const store = useWorkflowEditorStore;
 

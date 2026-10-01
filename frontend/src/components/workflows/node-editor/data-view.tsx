@@ -33,9 +33,19 @@ const VIEWS: View[] = ["table", "json", "schema"];
  * paths a later step reads.
  *
  * Given the step it came from (`source`), a column or a field can be dragged
- * onto a setting, which then reads it from that step.
+ * onto a setting, which then reads it from that step. `order` names the fields
+ * in the order the table view shows them - a table's columns, for a step that
+ * reads one.
  */
-export function DataView({ value, source }: { value: Record<string, unknown>; source?: Uuid }) {
+export function DataView({
+  value,
+  source,
+  order,
+}: {
+  value: Record<string, unknown>;
+  source?: Uuid;
+  order?: readonly string[];
+}) {
   const t = useTranslations("workflows");
   const [view, setView] = useState<View>("table");
 
@@ -64,7 +74,7 @@ export function DataView({ value, source }: { value: Record<string, unknown>; so
         ))}
       </div>
       {view === "json" && <JsonView value={value} />}
-      {view === "table" && <TableView value={value} source={source} />}
+      {view === "table" && <TableView value={value} source={source} order={order} />}
       {view === "schema" && <SchemaView value={value} source={source} />}
     </div>
   );
@@ -72,10 +82,18 @@ export function DataView({ value, source }: { value: Record<string, unknown>; so
 
 const DRAGGABLE = "cursor-grab active:cursor-grabbing hover:text-foreground";
 
-function TableView({ value, source }: { value: Record<string, unknown>; source?: Uuid }) {
+function TableView({
+  value,
+  source,
+  order,
+}: {
+  value: Record<string, unknown>;
+  source?: Uuid;
+  order?: readonly string[];
+}) {
   const t = useTranslations("workflows");
   const [everyRow, setEveryRow] = useState(false);
-  const { columns, rows, paths } = tableOf(value);
+  const { columns, rows, paths } = tableOf(value, order);
   const shown = everyRow ? rows : rows.slice(0, SHOWN_ROWS);
   if (columns.length === 0)
     return <p className="text-muted-foreground text-xs">{t("dataEmpty")}</p>;
@@ -104,7 +122,13 @@ function TableView({ value, source }: { value: Record<string, unknown>; source?:
                       field !== null && DRAGGABLE,
                     )}
                   >
-                    {column}
+                    {/* The name reads first; where it sits stays visible, quieter. */}
+                    <span className="opacity-60">
+                      {column.slice(0, column.lastIndexOf(".") + 1)}
+                    </span>
+                    <span className="text-foreground">
+                      {column.slice(column.lastIndexOf(".") + 1)}
+                    </span>
                   </th>
                 );
               })}

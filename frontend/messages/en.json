@@ -6547,7 +6547,8 @@
       "true": "True",
       "false": "False",
       "noneSelected": "None selected",
-      "noOptions": "No options"
+      "noOptions": "No options",
+      "value": "Value"
     },
     "create": {
       "title": "New table",
@@ -6715,7 +6716,7 @@
       "options": "Options",
       "optionsPlaceholder": "One option per line",
       "addTitle": "Add column",
-      "addDescription": "The column starts optional, since the records already here hold nothing for it. Its type cannot change later.",
+      "addDescription": "The column starts optional, since the records already here hold nothing for it. Its type can change later to one its values convert to.",
       "cancel": "Cancel",
       "save": "Save",
       "add": "Add column",

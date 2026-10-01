@@ -126,7 +126,9 @@ describe("TableGridView", () => {
       />,
       { wrapper },
     );
-    expect(screen.getByText("True")).toBeInTheDocument();
+    // Ticked, as a sheet shows a yes; the word is there for a screen reader.
+    expect(screen.getByText("True")).toHaveClass("sr-only");
+    expect(document.querySelector("svg.lucide-check")).not.toBeNull();
   });
 
   it("renders a false boolean cell", () => {
@@ -152,7 +154,8 @@ describe("TableGridView", () => {
       />,
       { wrapper },
     );
-    expect(screen.getByText("False")).toBeInTheDocument();
+    expect(screen.getByText("False")).toHaveClass("sr-only");
+    expect(document.querySelector("svg.lucide-check")).toBeNull();
   });
 
   it("shows an em dash for an empty cell", () => {

@@ -2,7 +2,7 @@
 
 import { type KeyboardEvent, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Maximize2, Plus, Trash2 } from "lucide-react";
+import { Check, Maximize2, Plus, Trash2 } from "lucide-react";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { ColumnTypeIcon, isNumeric } from "./column-type-icon";
@@ -31,6 +31,21 @@ const ROW_HEIGHT = 53;
 interface EditingCell {
   recordId: string;
   columnId: string;
+}
+
+/** A yes/no as a checkbox reads in a sheet: ticked or empty, its word for a screen reader. */
+function BoolMark({ on, label }: { on: boolean; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex size-4 items-center justify-center rounded border align-middle",
+        on ? "border-foreground bg-foreground text-background" : "border-input",
+      )}
+    >
+      {on && <Check aria-hidden="true" className="size-3" />}
+      <span className="sr-only">{label}</span>
+    </span>
+  );
 }
 
 /**
@@ -128,6 +143,9 @@ export function TableGridView({
 
   const display = (column: ColumnDef, record: RecordRead) => {
     const value = record.values[column.id] ?? null;
+    if (column.type === "boolean" && typeof value === "boolean") {
+      return <BoolMark on={value} label={boolLabel(value)} />;
+    }
     return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel, locale) || "—");
   };
 

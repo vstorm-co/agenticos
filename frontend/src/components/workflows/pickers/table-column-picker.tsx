@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ColumnTypeIcon } from "@/components/tables/column-type-icon";
 import { useWorkflowTable, useWorkflowTables } from "@/hooks";
-import type { ColumnDef, TableSummary } from "@/types/tables";
+import type { ColumnDef, ColumnTypeName, TableSummary } from "@/types/tables";
 import type { TableIORef } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
@@ -44,11 +45,12 @@ function ColumnRow({
   onToggle,
 }: {
   label: string;
-  type?: string;
+  type?: ColumnTypeName;
   checked: boolean;
   disabled?: boolean;
   onToggle: () => void;
 }) {
+  const typeName = useTranslations("tables.schema.types");
   return (
     <button
       type="button"
@@ -71,9 +73,10 @@ function ColumnRow({
       >
         {checked && <Check className="h-3 w-3" />}
       </span>
+      {type !== undefined && <ColumnTypeIcon type={type} />}
       <span className="truncate">{label}</span>
       {type !== undefined && (
-        <span className="text-muted-foreground ml-auto font-mono text-xs">{type}</span>
+        <span className="text-muted-foreground ml-auto text-xs">{typeName(type)}</span>
       )}
     </button>
   );

@@ -127,6 +127,17 @@ describe("data as a table", () => {
     expect(table.paths?.["payload.name"]).toEqual(["payload", "name"]);
   });
 
+  it("shows a table's fields in its column order, which the stored data loses", () => {
+    // Postgres hands back an object's keys shortest first.
+    const record = { fields: { Notes: "n", Score: 1, Company: "Acme" }, record_id: "r" };
+    const table = tableOf({ records: [record] }, ["Company", "Score", "Notes"]);
+    expect(table.columns).toEqual(["fields.Company", "fields.Score", "fields.Notes", "record_id"]);
+  });
+
+  it("keeps the order a column came in when no order is given", () => {
+    expect(tableOf({ a: 1, p: { x: 1 }, b: 2 }).columns).toEqual(["a", "p.x", "b"]);
+  });
+
   it("shows at most twelve columns", () => {
     const wide = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`c${index}`, index]));
     expect(tableOf(wide).columns).toHaveLength(12);

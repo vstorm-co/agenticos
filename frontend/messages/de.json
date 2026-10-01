@@ -6406,7 +6406,8 @@
       "true": "Wahr",
       "false": "Falsch",
       "noneSelected": "Nichts ausgewählt",
-      "noOptions": "Keine Optionen"
+      "noOptions": "Keine Optionen",
+      "value": "Wert"
     },
     "create": {
       "title": "Neue Tabelle",
@@ -6574,7 +6575,7 @@
       "options": "Optionen",
       "optionsPlaceholder": "Eine Option pro Zeile",
       "addTitle": "Spalte hinzufügen",
-      "addDescription": "Die Spalte ist zunächst optional, da die vorhandenen Datensätze keinen Wert für sie haben. Ihr Typ lässt sich später nicht ändern.",
+      "addDescription": "Die Spalte ist zunächst optional, da die vorhandenen Datensätze keinen Wert für sie haben. Ihr Typ lässt sich später in einen ändern, in den sich ihre Werte umwandeln lassen.",
       "cancel": "Abbrechen",
       "save": "Speichern",
       "add": "Spalte hinzufügen",

@@ -79,6 +79,7 @@ function Operand({
       column={asColumn}
       value={(filter.value ?? null) as CellValue}
       onChange={onChange}
+      placeholder={t("value")}
     />
   );
 }

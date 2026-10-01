@@ -88,6 +88,7 @@ describe("RecordFiltersPopover", () => {
   it("writes a typed operand once the field is left", () => {
     const onChange = open([{ column_id: "seats", op: "gt", value: null }]);
     const input = screen.getByRole("spinbutton");
+    expect(input).toHaveAttribute("placeholder", "Value");
 
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.blur(input);

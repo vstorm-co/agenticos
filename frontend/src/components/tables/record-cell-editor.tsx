@@ -148,12 +148,15 @@ export function RecordCellEditor({
   onChange,
   disabled,
   error,
+  placeholder,
 }: {
   column: ColumnDef;
   value: CellValue;
   onChange: (value: CellValue) => void;
   disabled?: boolean;
   error?: string;
+  /** What a typed value's empty field says - text and numbers only. */
+  placeholder?: string;
 }) {
   const t = useTranslations("tables.cells");
   const id = `cell-${column.id}`;
@@ -169,6 +172,7 @@ export function RecordCellEditor({
           value={typeof value === "string" ? value : ""}
           onChange={onChange}
           disabled={disabled}
+          placeholder={placeholder}
           {...invalid}
         />
       )}
@@ -179,6 +183,7 @@ export function RecordCellEditor({
           value={typeof value === "string" ? value : ""}
           onChange={onChange}
           disabled={disabled}
+          placeholder={placeholder}
           {...invalid}
         />
       )}
@@ -189,6 +194,7 @@ export function RecordCellEditor({
           value={typeof value === "number" ? value : null}
           onChange={onChange}
           disabled={disabled}
+          placeholder={placeholder}
           {...invalid}
         />
       )}
@@ -200,6 +206,7 @@ export function RecordCellEditor({
           onChange={onChange}
           disabled={disabled}
           truncate
+          placeholder={placeholder}
           {...invalid}
         />
       )}

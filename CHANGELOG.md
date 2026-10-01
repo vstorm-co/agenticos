@@ -525,6 +525,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **A Filter or If card reads its condition** - "score ≥ 80 and stage ≠ Won" -
   rather than the expression, which shows only when the builder cannot read
   it; and a workflow's description is edited as the text it is, not in a box.
+- **A table step's data reads as the table does.** Its records show in the
+  table's column order, which the stored run data cannot keep, with the
+  column's name ahead of its quieter `fields.` prefix; a table step's column
+  list names each type in words with its icon; a yes/no cell is a tick; a
+  filter's value field says so; and a run that waited a day reads "22 h 14
+  min" rather than "80,081.7 s".
 - **A table's layout and its saved view are one control.** Table, Kanban and
   List are a segmented switch with icons, followed by the view picker and the
   **+** that saves the screen as a new view; search and filters stay on the

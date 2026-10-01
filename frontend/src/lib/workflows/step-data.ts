@@ -96,11 +96,32 @@ function flatRow(
 }
 
 /**
+ * Columns in the order `order` names them - by their last segment, within the
+ * columns sharing a prefix - the rest after, as they came.
+ */
+function ordered(columns: string[], order: readonly string[]): string[] {
+  if (order.length === 0) return columns;
+  const rank = (column: string) => {
+    const at = order.indexOf(column.slice(column.lastIndexOf(".") + 1));
+    return at < 0 ? order.length : at;
+  };
+  const groups = new Map<string, string[]>();
+  for (const column of columns) {
+    const prefix = column.slice(0, column.lastIndexOf(".") + 1);
+    groups.set(prefix, [...(groups.get(prefix) ?? []), column]);
+  }
+  return [...groups.values()].flatMap((group) => group.sort((a, b) => rank(a) - rank(b)));
+}
+
+/**
  * Data as rows: the list of records it holds when it holds exactly one (a
  * table read, a search), otherwise the data itself as a single row - with
  * nested objects spread into columns either way.
+ *
+ * `order` names fields in the order to show them - a table's columns, which the
+ * stored data cannot keep: Postgres orders an object's keys by their length.
  */
-export function tableOf(value: Record<string, unknown>): DataTable {
+export function tableOf(value: Record<string, unknown>, order: readonly string[] = []): DataTable {
   const lists = Object.values(value).filter(
     (field): field is Record<string, unknown>[] =>
       Array.isArray(field) && field.length > 0 && field.every(isRecord),
@@ -113,10 +134,14 @@ export function tableOf(value: Record<string, unknown>): DataTable {
   const columns: string[] = [];
   for (const row of rows.slice(0, SHOWN_ROWS)) {
     for (const key of Object.keys(row)) {
-      if (!columns.includes(key) && columns.length < SHOWN_COLUMNS) columns.push(key);
+      if (!columns.includes(key)) columns.push(key);
     }
   }
-  return { columns, rows, paths: listed ? null : paths };
+  return {
+    columns: ordered(columns, order).slice(0, SHOWN_COLUMNS),
+    rows,
+    paths: listed ? null : paths,
+  };
 }
 
 export interface SchemaField {

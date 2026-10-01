@@ -23,7 +23,7 @@ const TABLE_T1 = {
   schema_version: 2,
   columns: [
     { id: "c1", label: "Email", type: "text", archived: false },
-    { id: "c2", label: "Name", type: "text", archived: false },
+    { id: "c2", label: "Name", type: "single_select", archived: false },
     { id: "c3", label: "Retired", type: "text", archived: true },
   ],
 };
@@ -48,6 +48,13 @@ function mount(
 }
 
 describe("TableColumnPicker", () => {
+  it("names each column's type as the table does, not by its wire name", () => {
+    mount(ref());
+
+    expect(screen.getByRole("checkbox", { name: "Name" })).toHaveTextContent("Single select");
+    expect(screen.queryByText("single_select")).toBeNull();
+  });
+
   it("choosing a table pins it to its current schema, all columns", async () => {
     useWorkflowTableMock.mockReturnValue({ table: null, isLoading: false });
     const onChange = mount(null);

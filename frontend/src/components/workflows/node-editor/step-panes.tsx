@@ -9,7 +9,7 @@ import { Badge, Button, ConfirmDialog, Spinner, Textarea } from "@/components/ui
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { validateGraph } from "@/components/workflows/validation";
-import { useWorkflowRuns } from "@/hooks";
+import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
 import {
   MAX_PINNED_BYTES,
   isInsideALoop,
@@ -137,13 +137,42 @@ export function InputPane({
                 fallback={<Empty>{t("stepNoDataYet")}</Empty>}
               />
             ) : (
-              <DataView value={output} source={source} />
+              <StepDataView node={instance} value={output} source={source} />
             )}
           </div>
         );
       })}
     </Pane>
   );
+}
+
+/** The table a step reads or writes, from its `table` setting. */
+function tableIdOf(node: NodeInstance | undefined): string | null {
+  const ref = node?.config.table;
+  return typeof ref === "object" &&
+    ref !== null &&
+    "table_id" in ref &&
+    typeof ref.table_id === "string"
+    ? ref.table_id
+    : null;
+}
+
+/** A step's data, a table step's in its table's column order. */
+function StepDataView({
+  node,
+  value,
+  source,
+}: {
+  node: NodeInstance | undefined;
+  value: Record<string, unknown>;
+  source?: string;
+}) {
+  const { table } = useWorkflowTable(tableIdOf(node));
+  const order = useMemo(
+    () => table?.columns.flatMap((column) => [column.label, column.id]) ?? [],
+    [table],
+  );
+  return <DataView value={value} source={source} order={order} />;
 }
 
 /**
@@ -314,7 +343,7 @@ export function OutputPane({
               />
             )
           ) : (
-            <DataView value={shown} />
+            <StepDataView node={node} value={shown} />
           )}
           {canPin && (
             <div className="flex flex-wrap gap-2">
