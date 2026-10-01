@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A workflow note can be tinted** grey, yellow, green, blue, purple or red
+  from the swatches a selected note shows; the graph keeps the colour.
 - **A table column's type can change** to one its values read as: anything to
   text, text to a number, a yes/no, a date or a single select (an option per
   distinct value), a whole number to a number and back, a date to a date and
@@ -520,6 +522,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A Filter or If card reads its condition** - "score ≥ 80 and stage ≠ Won" -
+  rather than the expression, which shows only when the builder cannot read
+  it; and a workflow's description is edited as the text it is, not in a box.
 - **A table's layout and its saved view are one control.** Table, Kanban and
   List are a segmented switch with icons, followed by the view picker and the
   **+** that saves the screen as a new view; search and filters stay on the

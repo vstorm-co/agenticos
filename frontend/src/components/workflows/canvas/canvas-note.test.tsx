@@ -46,6 +46,20 @@ const stored = () => store.getState().graph?.notes?.[0]?.text;
 afterEach(() => store.getState().teardown());
 
 describe("a note on the canvas", () => {
+  it("takes a colour from the swatches it shows once selected", async () => {
+    seed([note()]);
+    store.getState().setSelection({ nodeIds: ["n"], edgeIds: [] });
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+
+    const grey = await screen.findByRole("radio", { name: "Grey" });
+    expect(grey).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(grey);
+    expect(store.getState().graph?.notes?.[0]?.color).toBeUndefined();
+    await userEvent.click(screen.getByRole("radio", { name: "Red" }));
+    expect(store.getState().graph?.notes?.[0]?.color).toBe("red");
+    expect(document.querySelector('[data-note-id="n"]')?.className).toContain("border-rose-500/40");
+  });
+
   it("shows its markdown, and is written from its Edit button", async () => {
     seed([note()]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);

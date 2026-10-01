@@ -6340,7 +6340,18 @@
     "nodeEditorRanWith": "Einstellungen, mit denen der Schritt lief",
     "versionLive": "Live",
     "publishTitleVersion": "Version {version} veröffentlichen",
-    "publishNothingChanged": "Seit Version {version}, die live ist, hat sich nichts geändert: Es entsteht eine identische Version."
+    "publishNothingChanged": "Seit Version {version}, die live ist, hat sich nichts geändert: Es entsteht eine identische Version.",
+    "noteColor": "Farbe der Notiz",
+    "noteColors": {
+      "default": "Grau",
+      "yellow": "Gelb",
+      "green": "Grün",
+      "blue": "Blau",
+      "purple": "Lila",
+      "red": "Rot"
+    },
+    "nodeSummaryAnd": " und ",
+    "nodeSummaryOr": " oder "
   },
   "artifacts": {
     "title": "Artefakte",

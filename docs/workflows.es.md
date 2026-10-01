@@ -1,5 +1,5 @@
 ---
-source_sha: "19d5d1158c4e"
+source_sha: "4ad48ff1781d"
 ---
 
 # Workflows { #workflows }
@@ -142,7 +142,8 @@ Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off
 
 **Add a note** bajo el selector que abre un clic derecho pone una nota junto a los pasos:
 markdown, escrita con doble clic o con su lápiz, movida arrastrando y redimensionada
-desde sus esquinas. Una nota se guarda en el grafo, así que las versiones, las
+desde sus esquinas; seleccionada, muestra muestras de color - gris, amarillo, verde,
+azul, morado o rojo - para que un aviso se distinga de una tarea. Una nota se guarda en el grafo, así que las versiones, las
 restauraciones y las copias del workflow la conservan, pero nada la ejecuta ni la
 comprueba. Seleccionar una conexión ofrece un **+** que pone el siguiente paso elegido
 en su mitad, conectado por ambos lados donde los puertos encajan. **Tidy up** en la

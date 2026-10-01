@@ -1,5 +1,5 @@
 ---
-source_sha: "19d5d1158c4e"
+source_sha: "4ad48ff1781d"
 ---
 
 # Workflows { #workflows }
@@ -150,7 +150,9 @@ Leiste unten sie zusammen.
 
 **Add a note** unter der Auswahl, die ein Rechtsklick öffnet, setzt eine Notiz neben die
 Schritte: Markdown, per Doppelklick oder Stift geschrieben, durch Ziehen verschoben und
-an den Ecken in der Größe geändert. Eine Notiz wird im Graphen gespeichert, sodass
+an den Ecken in der Größe geändert; ausgewählt zeigt sie Farbfelder - Grau, Gelb,
+Grün, Blau, Lila oder Rot -, damit sich eine Warnung von einer Aufgabe abhebt. Eine
+Notiz wird im Graphen gespeichert, sodass
 Versionen, Wiederherstellungen und Kopien des Workflows sie behalten, aber nichts führt
 sie aus oder prüft sie. Eine ausgewählte Verbindung bietet ein **+**, das den nächsten
 gewählten Schritt in ihre Mitte setzt, auf beiden Seiten verbunden, wo die Ports passen.

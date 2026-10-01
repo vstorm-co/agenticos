@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Textarea } from "@/components/ui";
-
 /** The longest description; `WorkflowUpdate.description` in the service. */
 const MAX_DESCRIPTION = 2000;
 
@@ -47,12 +45,15 @@ export function WorkflowDescription({
     if (next !== description) onChange(next);
   };
   return (
-    <Textarea
+    // The text itself, made editable - not a form field dropped into the header:
+    // the same size and colour, growing with what is written.
+    <textarea
       aria-label={t("describeLabel")}
       value={draft}
       maxLength={MAX_DESCRIPTION}
-      rows={2}
-      className="max-w-2xl text-sm"
+      rows={1}
+      placeholder={t("describe")}
+      className="bg-accent/60 placeholder:text-muted-foreground/70 focus-visible:ring-ring/40 -mx-1.5 block [field-sizing:content] w-[calc(100%+0.75rem)] max-w-2xl resize-none rounded-md px-1.5 text-sm leading-relaxed outline-none focus-visible:ring-1"
       // Opened by the click that asked for it, so taking focus is expected.
       // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus

@@ -6481,7 +6481,18 @@
     "nodeEditorRanWith": "Settings this step ran with",
     "versionLive": "Live",
     "publishTitleVersion": "Publish version {version}",
-    "publishNothingChanged": "Nothing has changed since version {version}, which is live: this makes an identical version."
+    "publishNothingChanged": "Nothing has changed since version {version}, which is live: this makes an identical version.",
+    "noteColor": "Note colour",
+    "noteColors": {
+      "default": "Grey",
+      "yellow": "Yellow",
+      "green": "Green",
+      "blue": "Blue",
+      "purple": "Purple",
+      "red": "Red"
+    },
+    "nodeSummaryAnd": " and ",
+    "nodeSummaryOr": " or "
   },
   "artifacts": {
     "title": "Artifacts",

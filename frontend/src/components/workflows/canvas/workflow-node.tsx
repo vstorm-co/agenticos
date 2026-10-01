@@ -29,6 +29,7 @@ import { useCanvasInteraction } from "./canvas-context";
 import { useIsRunView, useNodeRunSummary } from "./run-overlay";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { QuickAdd } from "./quick-add";
+import { type ConditionOp, parseCondition, takesNoValue } from "@/lib/workflows/conditions";
 
 type Translate = ReturnType<typeof useTranslations<"workflows">>;
 
@@ -102,9 +103,45 @@ function transformSummary(instance: NodeInstance, t: Translate): string | null {
   }
 }
 
+const CONDITION_ROOT: Record<string, "item" | "value"> = {
+  "data.filter": "item",
+  "logic.if": "value",
+};
+
+const OP_SIGN: Partial<Record<ConditionOp, string>> = {
+  eq: "=",
+  ne: "≠",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+};
+
+/**
+ * A condition as a card reads it - "score ≥ 80 and stage ≠ Won" - when the
+ * builder could have written it; otherwise null, and the card shows the
+ * expression itself.
+ */
+function conditionSummary(expression: string, root: "item" | "value", t: Translate): string | null {
+  const condition = parseCondition(expression, root);
+  if (condition === null) return null;
+  const rows = condition.rows.map((row) => {
+    const field = row.field || root;
+    const sign = OP_SIGN[row.op];
+    if (sign !== undefined) return `${field} ${sign} ${row.value}`;
+    const words = t(`conditionOps.${row.op}`);
+    return takesNoValue(row.op) ? `${field} ${words}` : `${field} ${words} ${row.value}`;
+  });
+  return rows.join(t(condition.join === "and" ? "nodeSummaryAnd" : "nodeSummaryOr"));
+}
+
 /** Whether a card's summary is an expression - a condition, a crontab - set in monospace. */
 function summaryIsCode(instance: NodeInstance): boolean {
-  if (instance.definition_id === "logic.if") return true;
+  const root = CONDITION_ROOT[instance.definition_id];
+  if (root !== undefined) {
+    const condition = instance.config.condition;
+    return typeof condition === "string" && parseCondition(condition, root) === null;
+  }
   return (
     instance.definition_id === "trigger.schedule" && cadenceDraftOf(instance.config).mode === "cron"
   );
@@ -123,7 +160,14 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
   const config = instance.config;
   switch (instance.definition_id) {
     case "logic.if":
-      return typeof config.condition === "string" && config.condition ? config.condition : null;
+    case "data.filter": {
+      const condition = config.condition;
+      if (typeof condition !== "string" || !condition) return null;
+      return (
+        conditionSummary(condition, CONDITION_ROOT[instance.definition_id] as "item", t) ??
+        condition
+      );
+    }
     case "http.request": {
       if (typeof config.url !== "string" || !config.url) return null;
       const method = typeof config.method === "string" ? config.method : "GET";
@@ -148,8 +192,6 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       return typeof config.seconds === "number"
         ? t("nodeSummaryWait", { seconds: config.seconds })
         : null;
-    case "data.filter":
-      return typeof config.condition === "string" && config.condition ? config.condition : null;
     case "control.foreach":
       return config.item_error_policy === "collect"
         ? t("nodeSummaryCollect")

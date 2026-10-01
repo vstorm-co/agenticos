@@ -130,7 +130,8 @@ Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** an
 
 **Add a note** under the picker a right click opens puts a note beside the steps:
 markdown, written on a double-click or with its pencil, moved by dragging and resized
-from its corners. A note is kept in the graph, so versions, restores and copies of the
+from its corners; selected, it shows swatches to tint it - grey, yellow, green, blue,
+purple or red - so a warning reads apart from a to-do. A note is kept in the graph, so versions, restores and copies of the
 workflow keep it, but nothing runs or checks it. Selecting a connection offers a **+**
 that puts the next step picked into its middle, wired on both sides where the ports fit.
 The toolbar's **Tidy up** lines the steps in view up left to right as one undoable edit,

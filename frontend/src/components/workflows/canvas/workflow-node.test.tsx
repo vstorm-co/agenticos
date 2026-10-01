@@ -109,7 +109,10 @@ beforeEach(() => store.getState().teardown());
 describe("a node card", () => {
   it("says what each kind of step is set to do", () => {
     seed([
-      instance("i", "logic.if", { config: { condition: "value.ok" } }),
+      instance("i", "logic.if", {
+        config: { condition: "value.score >= `80` || contains(value.tags || '', 'vip')" },
+      }),
+      instance("i2", "logic.if", { config: { condition: "length(value.tags) > `2`" } }),
       instance("h", "http.request", {
         config: { url: "https://api.example.com/x", method: "POST" },
       }),
@@ -121,7 +124,9 @@ describe("a node card", () => {
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
 
-    expect(screen.getByText("value.ok")).toBeTruthy();
+    // A condition the builder could have written reads as one; any other is shown as code.
+    expect(screen.getByText("score ≥ 80 or tags contains vip")).not.toHaveClass("font-mono");
+    expect(screen.getByText("length(value.tags) > `2`")).toHaveClass("font-mono");
     expect(screen.getByText("POST api.example.com")).toBeTruthy();
     expect(screen.getByText("GET not a url")).toBeTruthy();
     expect(screen.getByText("REJECTED")).toBeTruthy();
@@ -142,7 +147,10 @@ describe("a node card", () => {
     expect(summary("flow.wait", { until_called: true, seconds: 60 })).toBe(
       "nodeSummaryWaitCall:{}",
     );
-    expect(summary("data.filter", { condition: "item.ok" })).toBe("item.ok");
+    expect(summary("data.filter", { condition: "item.ok" })).toBe("ok conditionOps.notEmpty:{}");
+    expect(summary("data.filter", { condition: "!item.gone && item == 'x'" })).toBe(
+      "gone conditionOps.empty:{}nodeSummaryAnd:{}item = x",
+    );
     expect(summary("data.filter", {})).toBeNull();
   });
 

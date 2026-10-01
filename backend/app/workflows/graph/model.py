@@ -13,7 +13,7 @@ why a plain forward walk is not enough.
 """
 
 import json
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -158,6 +158,10 @@ class ScopeBoundary(BaseModel):
 
 MAX_CANVAS_NOTES = 50
 
+NoteColor = Literal["default", "yellow", "green", "blue", "purple", "red"]
+"""A note's tint, from a small palette so a workflow's notes can be told apart by
+kind - a warning in red, a to-do in yellow - and the console draws each one."""
+
 
 class CanvasNote(BaseModel):
     """A note on the canvas, beside the steps: text, where it sits and how big it is.
@@ -174,6 +178,7 @@ class CanvasNote(BaseModel):
     layout: NodePosition
     width: float = Field(default=240, ge=120, le=1200)
     height: float = Field(default=140, ge=60, le=1200)
+    color: NoteColor = "default"
 
 
 class WorkflowGraph(BaseModel):

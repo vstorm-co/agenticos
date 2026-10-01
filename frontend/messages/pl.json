@@ -4133,7 +4133,18 @@
     "nodeEditorRanWith": "Ustawienia, z którymi krok działał",
     "versionLive": "Aktywna",
     "publishTitleVersion": "Opublikuj wersję {version}",
-    "publishNothingChanged": "Nic się nie zmieniło od wersji {version}, która jest aktywna: powstanie identyczna wersja."
+    "publishNothingChanged": "Nic się nie zmieniło od wersji {version}, która jest aktywna: powstanie identyczna wersja.",
+    "noteColor": "Kolor notatki",
+    "noteColors": {
+      "default": "Szary",
+      "yellow": "Żółty",
+      "green": "Zielony",
+      "blue": "Niebieski",
+      "purple": "Fioletowy",
+      "red": "Czerwony"
+    },
+    "nodeSummaryAnd": " i ",
+    "nodeSummaryOr": " lub "
   },
   "artifacts": {
     "title": "Artefakty",

@@ -236,6 +236,9 @@ export interface ScopeBoundary {
  * not by a recursive subgraph.
  */
 /** A note on the canvas beside the steps. Never run or validated. Mirrors `CanvasNote`. */
+/** A note's tint. Mirrors `NoteColor`. */
+export type NoteColor = "default" | "yellow" | "green" | "blue" | "purple" | "red";
+
 export interface CanvasNote {
   id: Uuid;
   /** Markdown. */
@@ -243,6 +246,7 @@ export interface CanvasNote {
   layout: NodePosition;
   width?: number;
   height?: number;
+  color?: NoteColor;
 }
 
 export interface WorkflowGraph {

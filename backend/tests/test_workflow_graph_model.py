@@ -4,6 +4,7 @@ AC3: layout moves do not alter execution semantics. AC4: contract
 serialization tests cover nested bindings.
 """
 
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -185,6 +186,20 @@ def test_canvas_notes_ride_along_with_the_graph_and_its_scopes():
         CanvasNote(id=note_id, text="**Why** this", layout=graph.notes[0].layout),
     )
     assert (again.notes[0].width, again.notes[0].height) == (240, 140)
+
+
+def test_a_note_keeps_its_colour_and_refuses_one_off_the_palette():
+    def note(**rest: Any) -> dict[str, Any]:
+        return {"id": str(uuid4()), "layout": {"x": 0, "y": 0}, **rest}
+
+    graph = WorkflowGraph.model_validate(
+        {"entry_node_id": str(uuid4()), "nodes": [], "notes": [note(), note(color="red")]}
+    )
+    assert [n.color for n in graph.notes] == ["default", "red"]
+    with pytest.raises(ValidationError):
+        WorkflowGraph.model_validate(
+            {"entry_node_id": str(uuid4()), "nodes": [], "notes": [note(color="teal")]}
+        )
 
 
 def test_a_graph_holds_a_bounded_number_of_canvas_notes():

@@ -7,11 +7,39 @@ import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Textarea } from "@/components/ui";
-import type { CanvasNote } from "@/lib/workflows/types";
+import type { CanvasNote, NoteColor } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 export type CanvasNoteNode = Node<{ note: CanvasNote; readOnly: boolean }, "note">;
+
+/** Each tint as the card draws it, and as its swatch shows it. */
+// Opaque - the card's own colour mixed with the tint - so the canvas's grid does
+// not show through the text.
+const TINTS: Record<NoteColor, { card: string; swatch: string }> = {
+  default: { card: "bg-muted border-border", swatch: "bg-muted-foreground/40" },
+  yellow: {
+    card: "bg-[color-mix(in_oklab,var(--color-amber-500)_16%,var(--color-card))] border-amber-500/40",
+    swatch: "bg-amber-400",
+  },
+  green: {
+    card: "bg-[color-mix(in_oklab,var(--color-emerald-500)_16%,var(--color-card))] border-emerald-500/40",
+    swatch: "bg-emerald-400",
+  },
+  blue: {
+    card: "bg-[color-mix(in_oklab,var(--color-sky-500)_16%,var(--color-card))] border-sky-500/40",
+    swatch: "bg-sky-400",
+  },
+  purple: {
+    card: "bg-[color-mix(in_oklab,var(--color-violet-500)_16%,var(--color-card))] border-violet-500/40",
+    swatch: "bg-violet-400",
+  },
+  red: {
+    card: "bg-[color-mix(in_oklab,var(--color-rose-500)_16%,var(--color-card))] border-rose-500/40",
+    swatch: "bg-rose-400",
+  },
+};
+const COLORS = Object.keys(TINTS) as NoteColor[];
 
 export const NOTE_WIDTH = 240;
 export const NOTE_HEIGHT = 140;
@@ -19,13 +47,15 @@ export const NOTE_HEIGHT = 140;
 /**
  * A note on the canvas: markdown beside the steps, for whoever reads the
  * workflow next. Double-click to write in it, click away to keep it; drag it by
- * its body and resize it from its corners once selected. It is never a step -
- * no port, nothing runs it.
+ * its body and resize it from its corners once selected, and pick its tint from
+ * the swatches it then shows - a warning in red, a to-do in yellow. It is never
+ * a step - no port, nothing runs it.
  */
 export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   const t = useTranslations("workflows");
   const updateNote = useWorkflowEditorStore((state) => state.updateNote);
   const { note, readOnly } = data;
+  const color = note.color ?? "default";
   const [draft, setDraft] = useState<string | null>(null);
 
   const finish = () => {
@@ -40,7 +70,8 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
     <div
       data-note-id={note.id}
       className={cn(
-        "group bg-muted/70 text-foreground relative h-full w-full overflow-hidden rounded-lg border p-3 text-sm shadow-sm",
+        "group text-foreground relative h-full w-full overflow-hidden rounded-lg border p-3 text-sm shadow-sm",
+        TINTS[color].card,
         selected && "ring-primary/40 ring-2",
       )}
       onDoubleClick={() => !readOnly && setDraft(note.text)}
@@ -56,6 +87,31 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
         >
           <Pencil aria-hidden="true" className="size-3.5" />
         </button>
+      )}
+      {!readOnly && selected && draft === null && (
+        <div
+          role="radiogroup"
+          aria-label={t("noteColor")}
+          className="nodrag absolute right-1.5 bottom-1.5 flex gap-1"
+        >
+          {COLORS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={color === option}
+              aria-label={t(`noteColors.${option}`)}
+              title={t(`noteColors.${option}`)}
+              onClick={() => color !== option && updateNote(note.id, { color: option })}
+              className={cn(
+                "focus-visible:ring-ring size-3.5 rounded-full outline-none focus-visible:ring-2",
+                TINTS[option].swatch,
+                color === option &&
+                  "ring-foreground/70 ring-offset-background ring-2 ring-offset-1",
+              )}
+            />
+          ))}
+        </div>
       )}
       {draft !== null ? (
         <Textarea

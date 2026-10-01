@@ -1,5 +1,5 @@
 ---
-source_sha: "19d5d1158c4e"
+source_sha: "4ad48ff1781d"
 ---
 
 # Workflows { #workflows }
@@ -135,7 +135,9 @@ zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
 
 **Add a note** pod wyborem kroków otwieranym prawym przyciskiem stawia notatkę obok kroków: markdown,
 pisany po dwukrotnym kliknięciu lub ołówkiem, przesuwany przeciąganiem i zmieniający
-rozmiar od rogów. Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
+rozmiar od rogów; zaznaczona pokazuje próbki kolorów - szary, żółty, zielony,
+niebieski, fioletowy albo czerwony - żeby ostrzeżenie odróżniało się od zadania.
+Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
 workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
 pokazuje **+**, które wstawia następny wybrany krok w jego środek, połączony z obu stron,
 gdzie porty pasują. **Tidy up** na pasku narzędzi układa widoczne kroki od lewej do prawej

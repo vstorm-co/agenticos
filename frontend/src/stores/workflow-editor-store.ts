@@ -229,7 +229,10 @@ export interface WorkflowEditorState {
   /** Put an empty note on the canvas at `position`, selected, and return its id. */
   addNote: (position: NodePosition) => Uuid;
   /** Change one note's text or size - one undoable edit. */
-  updateNote: (noteId: Uuid, patch: Partial<Pick<CanvasNote, "text" | "width" | "height">>) => void;
+  updateNote: (
+    noteId: Uuid,
+    patch: Partial<Pick<CanvasNote, "text" | "width" | "height" | "color">>,
+  ) => void;
   /** Open the step picker or the shortcut sheet, or close whichever is open. */
   setOverlay: (overlay: CanvasOverlay) => void;
   /** Open the picker to put a step into the middle of `edgeId`. */
