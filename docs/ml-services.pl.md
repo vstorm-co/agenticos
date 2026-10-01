@@ -1,5 +1,5 @@
 ---
-source_sha: "b542fd3f7700"
+source_sha: "6b5c25065003"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -36,8 +36,8 @@ odczytać, zamiast wierzyć stronie dokumentacji.
 | `image_analysis` | FA-074 | — | prepared | Brak na tym wdrożeniu |
 
 Dwa wiersze mówią „nie" i oba mówią dlaczego. **Nazwane encje** — imię i
-nazwisko, adres pocztowy, numer telefonu — nie mają kształtu wzorca, więc żadne
-wyrażenie regularne ich nie znajdzie: potrzeba modelu rozpoznawania encji dla
+nazwisko, adres pocztowy — nie mają kształtu wzorca, więc żadne wyrażenie
+regularne ich nie znajdzie: potrzeba modelu rozpoznawania encji dla
 każdego języka w zakresie. Endpoint wykrywania poniesie dodatkowe kategorie w
 dniu, w którym taki model się pojawi, a do tego czasu ich nie deklaruje.
 **Analiza obrazu** jest oznaczona jako zakres przyszły w samych wymaganiach.
@@ -160,9 +160,15 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Raportowana jest każda zamówiona kategoria, także te, które nic nie dopasowały —
 „szukano i nie ma" i „nie szukano" to różne odpowiedzi. Kategorie to `email`,
-`iban`, `credit_card` i `us_ssn`, a każda jest dopasowywana kształtem, a potem
-sprawdzana: Luhn dla karty, ISO 7064 dla IBAN-u, więc ciąg cyfr nie zostaje
-zgłoszony jako rachunek.
+`iban`, `credit_card`, `us_ssn` i `phone`, a każda jest dopasowywana kształtem,
+a potem sprawdzana: Luhn dla karty, ISO 7064 dla IBAN-u, plan numeracji kraju i
+grupowanie cyfr dla numeru telefonu, więc ciąg cyfr nie zostaje zgłoszony jako
+rachunek ani numer.
+
+Numer telefonu zapisany z `+` jest znajdowany niezależnie od kraju; krajowy,
+taki jak `415-555-0132`, jest czytany względem domyślnych krajów guardrails,
+`US, GB, DE, PL`. Pole `phone_regions`, które zmienia tę listę, należy do
+guardrails agenta, nie do tego endpointu.
 
 Wraca liczność i tekst po redakcji, a nie offsety poszczególnych dopasowań.
 Detektory odpowiadają przepisanym tekstem, a odzyskanie pozycji oznaczałoby
@@ -199,7 +205,9 @@ fakturą, jest gorsza niż uczciwe zliczenie jednostek.
 Pojedyncze wywołanie przyjmuje do `ML_MAX_UPLOAD_SIZE_MB` megabajtów, domyślnie
 25, i tylko tyle bajtów jest odczytywanych z ciała żądania — za duże wysłanie
 zostaje odrzucone, zanim w ogóle zostanie skopiowane do pamięci. Jedno skanowanie
-czyta najwyżej 200000 znaków. Wywołujący może wykonać `RATE_LIMIT_ML_PER_MINUTE`
+czyta najwyżej 200000 znaków, a skanowanie obejmujące `phone` najwyżej 10 000
+cyfr: dopasowanie numerów telefonu kosztuje dziesiątki mikrosekund na cyfrę,
+więc dłuższy tekst zostaje odrzucony, a nie przeczytany. Wywołujący może wykonać `RATE_LIMIT_ML_PER_MINUTE`
 wywołań na minutę, domyślnie 30, liczonych na wywołującego, a nie na adres.
 
 Limit tempa liczy **starty** i nie widzi tego, co wciąż trwa, co jest złym

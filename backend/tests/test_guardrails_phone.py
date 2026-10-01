@@ -21,6 +21,7 @@ from app.agents.capabilities.guardrails._phone import (
     has_too_many_digits,
     parse_phone_regions,
     phone_numbers,
+    redact_phone_numbers,
 )
 from app.core.exceptions import BadRequestError
 
@@ -125,6 +126,16 @@ def test_a_number_two_regions_both_match_is_replaced_once():
     assert _redacted(("US", "CA"), "ring +1 415 555 0132.") == f"ring {PHONE_PLACEHOLDER}."
 
 
+def test_the_count_is_of_placeholders_written_not_of_region_matches():
+    """`app/services/ml/pii.py` reports this count, so a number two regions both
+    read must count once, and text with nothing in it must count zero."""
+    assert redact_phone_numbers("ring +1 415 555 0132 or 415-555-0199", ("US", "CA")) == (
+        f"ring {PHONE_PLACEHOLDER} or {PHONE_PLACEHOLDER}",
+        2,
+    )
+    assert redact_phone_numbers("nothing here", _DEFAULT) == ("nothing here", 0)
+
+
 def test_the_digit_bound_counts_digits_not_characters():
     assert not has_too_many_digits("1" * MAX_PHONE_DIGITS)
     assert has_too_many_digits("1" * (MAX_PHONE_DIGITS + 1))
@@ -146,6 +157,13 @@ def test_a_text_with_too_many_digits_is_blocked_rather_than_read():
 def test_a_text_at_the_digit_bound_is_still_redacted():
     text = "1 " * (MAX_PHONE_DIGITS - 10) + "call 415-555-0132"
     assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
+
+
+def test_rejected_candidates_do_not_end_the_scan_early():
+    """libphonenumber stops after 65535 rejected candidates by default, which left
+    any number after that much padding in place."""
+    text = "a1 " * 65536 + "call 415-555-0132"
+    assert redact_phone_numbers(text, ("US",)) == ("a1 " * 65536 + f"call {PHONE_PLACEHOLDER}", 1)
 
 
 def test_an_edge_refuses_text_its_phone_redaction_could_not_read():

@@ -22,6 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.agents.capabilities.guardrails._phone import DEFAULT_PHONE_REGIONS
+
 
 class DeliveryState(StrEnum):
     """How far one service family has been delivered on this deployment."""
@@ -95,13 +97,19 @@ SERVICE_CATALOG: tuple[MLServiceEntry, ...] = (
         family="Privacy",
         requirements=("FA-069", "FA-073"),
         endpoint="POST /api/v1/ml/privacy/pii",
-        engine="The pattern detectors in pydantic-ai-harness, as the guardrails capability uses them",
+        engine=(
+            "The pattern detectors in pydantic-ai-harness and libphonenumber, as the "
+            "guardrails capability uses them"
+        ),
         state=DeliveryState.SERVED,
         note=(
             "Counts what was found per category and returns the text with each match "
-            "replaced. Covers email addresses, IBANs, payment card numbers and US social "
-            "security numbers, each shape-matched and then checked - Luhn for a card, "
-            "ISO 7064 for an IBAN - so a run of digits is not reported as an account."
+            "replaced. Covers email addresses, phone numbers, IBANs, payment card numbers "
+            "and US social security numbers, each shape-matched and then checked - Luhn for "
+            "a card, ISO 7064 for an IBAN, the country's numbering plan and digit grouping "
+            "for a phone number - so a run of digits is not reported as an account or a "
+            "number. A phone number written with + is found whatever its country; a "
+            f"national one is read against the guardrails' default countries, {DEFAULT_PHONE_REGIONS}."
         ),
     ),
     MLServiceEntry(
@@ -112,8 +120,8 @@ SERVICE_CATALOG: tuple[MLServiceEntry, ...] = (
         engine="None on this deployment",
         state=DeliveryState.DEPENDENCY,
         note=(
-            "Personal names, postal addresses and telephone numbers are not pattern-shaped "
-            "and are not detected. They need a named-entity model per language in scope, "
+            "Personal names and postal addresses are not pattern-shaped and are not "
+            "detected. They need a named-entity model per language in scope, "
             "which is a model to select and host rather than a route to add - the detection "
             "endpoint above will carry the extra categories once one is provided."
         ),

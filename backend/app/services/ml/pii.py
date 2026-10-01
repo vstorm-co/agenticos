@@ -18,7 +18,13 @@ up the original has the replaced text to align against.
 
 **Category names are the library's**, so a category added upstream reaches this
 service and the guardrails together, and `known_categories` is what the API
-offers rather than a list typed here that would go stale.
+offers rather than a list typed here that would go stale. The one exception is
+`phone`, which the library lacks and the guardrails add from
+`guardrails/_phone.py`. It is taken from there for the same reason, and runs on
+the same terms: after the library's patterns, so a card or an SSN is already a
+placeholder before anything reads it as a phone number, and against
+`DEFAULT_PHONE_REGIONS`, which is what an agent reads unless its own
+`phone_regions` says otherwise.
 """
 
 from __future__ import annotations
@@ -30,15 +36,30 @@ from dataclasses import dataclass
 
 from pydantic_ai_harness.guardrails.detectors import DEFAULT_PII_PATTERNS, personal_data
 
+from app.agents.capabilities.guardrails._phone import (
+    DEFAULT_PHONE_REGIONS,
+    MAX_PHONE_DIGITS,
+    has_too_many_digits,
+    parse_phone_regions,
+    redact_phone_numbers,
+)
 from app.core.field_errors import refused_field
 
 MAX_TEXT_CHARS = 200_000
 """How much text one call may scan.
 
-Every pattern here is linear in the text and there are four of them, but the
-scan is synchronous work on the event loop, so the ceiling is about what one
-request may do to a worker rather than about the regexes.
+Every pattern here is linear in the text, but the scan is synchronous work on
+the event loop, so the ceiling is about what one request may do to a worker
+rather than about the regexes. The phone matcher is far slower per digit than
+the patterns, so a scan that includes `phone` has its own, lower ceiling in
+`MAX_PHONE_DIGITS`.
 """
+
+PHONE = "phone"
+"""The category `guardrails/_phone.py` adds, named as its placeholder names it."""
+
+PHONE_REGIONS = parse_phone_regions(DEFAULT_PHONE_REGIONS)
+"""The countries whose national formats a scan reads. A `+` number is read anyway."""
 
 PLACEHOLDER = "[redacted:{name}]"
 """What a match is replaced with. The library substitutes the category name."""
@@ -63,14 +84,15 @@ class PiiReport:
 
 def known_categories() -> tuple[str, ...]:
     """The categories this deployment can detect, in the order they are applied."""
-    return tuple(DEFAULT_PII_PATTERNS)
+    return (*DEFAULT_PII_PATTERNS, PHONE)
 
 
 def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
     """Count the personal data in `text` per category, and redact it.
 
     Args:
-        text: The text to scan. Longer than `MAX_TEXT_CHARS` is refused.
+        text: The text to scan. Longer than `MAX_TEXT_CHARS` is refused, and so
+            is more than `MAX_PHONE_DIGITS` digits when `phone` is scanned.
         categories: Restrict the scan to these categories. `None` scans every
             one the deployment knows.
 
@@ -80,8 +102,9 @@ def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
         with every match replaced.
 
     Raises:
-        BadRequestError: If the text is too long, or a category is not one this
-            deployment detects. Both name the field, because both are the
+        BadRequestError: If the text is too long or holds too many digits to
+            read for phone numbers, or a category is not one this
+            deployment detects. Each names the field, because each is the
             caller's input rather than a state of the deployment.
     """
     if len(text) > MAX_TEXT_CHARS:
@@ -91,12 +114,24 @@ def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
             "scan the parts.",
         )
     selected = _selected(categories)
-    counts = tuple(CategoryCount(category=name, count=_count(text, name)) for name in selected)
-    detector = personal_data(only=list(selected), placeholder=PLACEHOLDER)
-    verdict = detector(text)
-    redacted = verdict.replacement if isinstance(verdict.replacement, str) else text
+    if PHONE in selected and has_too_many_digits(text):
+        raise refused_field(
+            "text",
+            f"A scan for phone numbers reads at most {MAX_PHONE_DIGITS} digits; split the "
+            "document, or leave phone out of the categories.",
+        )
+    patterns = [name for name in selected if name != PHONE]
+    counts = [CategoryCount(category=name, count=_count(text, name)) for name in patterns]
+    redacted = text
+    if patterns:
+        verdict = personal_data(only=patterns, placeholder=PLACEHOLDER)(text)
+        if isinstance(verdict.replacement, str):
+            redacted = verdict.replacement
+    if PHONE in selected:
+        redacted, found = redact_phone_numbers(redacted, PHONE_REGIONS)
+        counts.append(CategoryCount(category=PHONE, count=found))
     return PiiReport(
-        counts=counts,
+        counts=tuple(counts),
         total=sum(entry.count for entry in counts),
         redacted_text=redacted,
     )
@@ -128,7 +163,7 @@ def _selected(categories: Sequence[str] | None) -> tuple[str, ...]:
 
 
 def _count(text: str, category: str) -> int:
-    """How many matches one category has in `text`.
+    """How many matches one of the library's categories has in `text`.
 
     Counted by redacting with a marker instead of the readable placeholder and
     counting the markers. The marker is sixteen random letters between two

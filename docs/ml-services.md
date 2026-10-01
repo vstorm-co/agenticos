@@ -32,8 +32,7 @@ read it rather than trusting a page.
 | `image_analysis` | FA-074 | — | prepared | None on this deployment |
 
 Two rows say no, and both say why. **Named entities** — a person's name, a
-postal address, a telephone number — are not pattern-shaped, so no regular
-expression finds them: that needs a named-entity model per language in scope.
+postal address — are not pattern-shaped, so no regular expression finds them: that needs a named-entity model per language in scope.
 The detection endpoint carries the extra categories the day one is provided, and
 until then it does not claim them. **Image analysis** is marked as future scope
 in the requirements themselves.
@@ -159,9 +158,15 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Every category asked for is reported, including the ones that matched nothing —
 "looked for and absent" and "not looked for" are different answers. The
-categories are `email`, `iban`, `credit_card` and `us_ssn`, and each is
-shape-matched and then checked: Luhn for a card, ISO 7064 for an IBAN, so a run
-of digits is not reported as an account.
+categories are `email`, `iban`, `credit_card`, `us_ssn` and `phone`, and each
+is shape-matched and then checked: Luhn for a card, ISO 7064 for an IBAN, the
+country's numbering plan and digit grouping for a phone number, so a run of
+digits is not reported as an account or a number.
+
+A phone number written with `+` is found whatever its country; a national one,
+such as `415-555-0132`, is read against the guardrails' default countries, `US,
+GB, DE, PL`. The `phone_regions` field that changes that list belongs to an
+agent's guardrails, not to this endpoint.
 
 What comes back is counts and the redacted text, not the offsets of each match.
 The detectors answer with rewritten text, and recovering positions would mean
@@ -197,7 +202,9 @@ can reconcile against an invoice is worse than an honest unit count.
 A single call accepts up to `ML_MAX_UPLOAD_SIZE_MB` megabytes, 25 by default,
 and only that many bytes are read out of the body — an over-large submission is
 refused without having been copied into memory first. One scan reads at most
-200000 characters. A caller may make `RATE_LIMIT_ML_PER_MINUTE` calls a minute,
+200000 characters, and a scan that includes `phone` at most 10,000 digits: the
+phone matcher costs tens of microseconds a digit, so a longer text is refused
+rather than read. A caller may make `RATE_LIMIT_ML_PER_MINUTE` calls a minute,
 30 by default, counted per caller rather than per address.
 
 A rate limit counts **starts** and cannot see what is still running, which is the

@@ -30,6 +30,10 @@ Two things are versioned separately from this file and worth knowing about:
   code is refused at publish. A text with more than 10,000 digits is not
   read: it ends the run with `guardrail_blocked` rather than reach the model
   unredacted. An agent with no PII toggle on is unchanged.
+  `POST /api/v1/ml/privacy/pii` finds the same numbers as a `phone`
+  category, against the default countries, where it returned them unchanged
+  and refused `categories: ["phone"]`; a scan that includes `phone` refuses
+  text with more than 10,000 digits.
 
 ## [0.0.516] - 2026-10-01
 

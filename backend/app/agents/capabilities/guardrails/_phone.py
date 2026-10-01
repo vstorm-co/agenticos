@@ -23,13 +23,15 @@ because the right trade-off depends on the markets an agent serves.
 the text: a prompt of `1/2/3 1/2/3 ...` costs about 70 us a digit across the four
 default regions, and a prompt of repeated numbers keeps a span per number per
 region. A text with more than `MAX_PHONE_DIGITS` digits is refused with a `block`
-verdict rather than read: a redactor that has not read the whole text must not
-let it through as if it had.
+verdict rather than read, and the matcher's own give-up after `max_tries` rejected
+candidates is lifted: both leave a number in place, and a redactor that has not
+read the whole text must not let it through as if it had.
 """
 
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Callable, Iterable, Sequence
 from itertools import islice
 
@@ -98,6 +100,48 @@ def has_too_many_digits(text: str) -> bool:
     return next(islice(_DIGIT.finditer(text), MAX_PHONE_DIGITS, None), None) is not None
 
 
+def redact_phone_numbers(text: str, regions: Sequence[str]) -> tuple[str, int]:
+    """`text` with each valid phone number replaced, and how many were replaced.
+
+    Reads the whole text however long it is; a caller taking text from a user
+    checks `has_too_many_digits` first.
+
+    The count is of placeholders written, so two regions matching one number
+    count it once. `app/services/ml/pii.py` reports it; the guardrail only needs
+    the text.
+
+    Args:
+        text: The text to read.
+        regions: Countries whose national formats are read. Empty matches only
+            numbers written in international form, with `+`.
+    """
+    # `None` is libphonenumber's "no default region": only `+` numbers parse.
+    passes: tuple[str | None, ...] = tuple(regions) or (None,)
+    spans: list[tuple[int, int]] = []
+    for region in passes:
+        for match in phonenumbers.PhoneNumberMatcher(
+            text,
+            region,
+            leniency=phonenumbers.Leniency.STRICT_GROUPING,
+            # Its default, 65535, stops quietly part-way through a text padded with
+            # rejected candidates and leaves every number after them in place.
+            # `MAX_PHONE_DIGITS` is what bounds the work instead.
+            max_tries=sys.maxsize,
+        ):
+            spans.append((match.start, match.end))
+    if not spans:
+        return text, 0
+
+    merged = _merged(spans)
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in merged:
+        pieces.extend((text[cursor:start], PHONE_PLACEHOLDER))
+        cursor = end
+    pieces.append(text[cursor:])
+    return "".join(pieces), len(merged)
+
+
 def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
     """A detector that rewrites valid phone numbers out of text.
 
@@ -108,8 +152,6 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
         regions: Countries whose national formats are read. Empty matches only
             numbers written in international form, with `+`.
     """
-    # `None` is libphonenumber's "no default region": only `+` numbers parse.
-    passes: tuple[str | None, ...] = tuple(regions) or (None,)
 
     def detect(text: str) -> GuardrailResult:
         if has_too_many_digits(text):
@@ -117,21 +159,7 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
                 f"It holds more than {MAX_PHONE_DIGITS:,} digits, "
                 "the most phone number redaction reads."
             )
-        spans: list[tuple[int, int]] = []
-        for region in passes:
-            for match in phonenumbers.PhoneNumberMatcher(
-                text, region, leniency=phonenumbers.Leniency.STRICT_GROUPING
-            ):
-                spans.append((match.start, match.end))
-        if not spans:
-            return GuardrailResult.allow()
-
-        pieces: list[str] = []
-        cursor = 0
-        for start, end in _merged(spans):
-            pieces.extend((text[cursor:start], PHONE_PLACEHOLDER))
-            cursor = end
-        pieces.append(text[cursor:])
-        return GuardrailResult.replace("".join(pieces))
+        redacted, found = redact_phone_numbers(text, regions)
+        return GuardrailResult.replace(redacted) if found else GuardrailResult.allow()
 
     return detect

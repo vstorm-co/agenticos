@@ -1,5 +1,5 @@
 ---
-source_sha: "b542fd3f7700"
+source_sha: "6b5c25065003"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -36,8 +36,7 @@ integración puede leerla en lugar de fiarse de una página.
 | `image_analysis` | FA-074 | — | prepared | Ninguno en este despliegue |
 
 Dos filas dicen que no, y ambas dicen por qué. Las **entidades nombradas** — el
-nombre de una persona, una dirección postal, un número de teléfono — no tienen
-forma de patrón, así que ninguna expresión regular las encuentra: eso requiere un
+nombre de una persona, una dirección postal — no tienen forma de patrón, así que ninguna expresión regular las encuentra: eso requiere un
 modelo de reconocimiento de entidades por cada idioma del alcance. El endpoint de
 detección llevará las categorías adicionales el día que se provea uno, y hasta
 entonces no las reclama. El **análisis de imagen** está marcado como alcance
@@ -166,9 +165,16 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Se informa de cada categoría pedida, incluidas las que no encontraron nada —
 "buscada y ausente" y "no buscada" son respuestas distintas. Las categorías son
-`email`, `iban`, `credit_card` y `us_ssn`, y cada una se empareja por forma y
-después se comprueba: Luhn para una tarjeta, ISO 7064 para un IBAN, de modo que
-una tira de dígitos no se reporte como una cuenta.
+`email`, `iban`, `credit_card`, `us_ssn` y `phone`, y cada una se empareja por
+forma y después se comprueba: Luhn para una tarjeta, ISO 7064 para un IBAN, el
+plan de numeración del país y la agrupación de los dígitos para un número de
+teléfono, de modo que una tira de dígitos no se reporte como una cuenta ni como
+un número.
+
+Un número de teléfono escrito con `+` se encuentra sea cual sea su país; uno
+nacional, como `415-555-0132`, se lee frente a los países por defecto de los
+guardrails, `US, GB, DE, PL`. El campo `phone_regions`, que cambia esa lista,
+pertenece a los guardrails de un agente, no a este endpoint.
 
 Lo que vuelve son recuentos y el texto redactado, no los desplazamientos de cada
 coincidencia. Los detectores responden con texto reescrito, y recuperar las
@@ -207,7 +213,9 @@ que un recuento honesto de unidades.
 Una sola llamada acepta hasta `ML_MAX_UPLOAD_SIZE_MB` megabytes, 25 por defecto,
 y solo esa cantidad de bytes se lee del cuerpo: una entrega demasiado grande se
 rechaza sin haberse copiado antes a memoria. Un escaneo lee como mucho 200000
-caracteres. Un llamante puede hacer `RATE_LIMIT_ML_PER_MINUTE` llamadas por
+caracteres, y un escaneo que incluye `phone` como mucho 10.000 dígitos: buscar
+números de teléfono cuesta decenas de microsegundos por dígito, así que un texto
+más largo se rechaza en lugar de leerse. Un llamante puede hacer `RATE_LIMIT_ML_PER_MINUTE` llamadas por
 minuto, 30 por defecto, contadas por llamante y no por dirección.
 
 Un límite de tasa cuenta **arranques** y no ve lo que sigue en marcha, que es la

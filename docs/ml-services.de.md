@@ -1,5 +1,5 @@
 ---
-source_sha: "b542fd3f7700"
+source_sha: "6b5c25065003"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -36,7 +36,7 @@ Integration sie lesen kann, statt einer Seite zu vertrauen.
 | `image_analysis` | FA-074 | — | prepared | Keine in diesem Deployment |
 
 Zwei Zeilen sagen nein, und beide sagen warum. **Benannte Entitäten** — der Name
-einer Person, eine Postanschrift, eine Telefonnummer — haben keine Musterform,
+einer Person, eine Postanschrift — haben keine Musterform,
 also findet sie kein regulärer Ausdruck: dafür braucht es ein
 Named-Entity-Modell je Sprache im Umfang. Der Erkennungsendpunkt trägt die
 zusätzlichen Kategorien an dem Tag, an dem eines bereitgestellt wird, und bis
@@ -167,9 +167,16 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Jede angeforderte Kategorie wird berichtet, auch die, die nichts getroffen haben
 — "gesucht und nicht vorhanden" und "nicht gesucht" sind verschiedene Antworten.
-Die Kategorien sind `email`, `iban`, `credit_card` und `us_ssn`, und jede wird
-nach Form getroffen und dann geprüft: Luhn für eine Karte, ISO 7064 für eine
-IBAN, damit eine Ziffernfolge nicht als Konto gemeldet wird.
+Die Kategorien sind `email`, `iban`, `credit_card`, `us_ssn` und `phone`, und
+jede wird nach Form getroffen und dann geprüft: Luhn für eine Karte, ISO 7064
+für eine IBAN, der Nummerierungsplan des Landes und die Gruppierung der Ziffern
+für eine Telefonnummer, damit eine Ziffernfolge nicht als Konto oder Nummer
+gemeldet wird.
+
+Eine mit `+` geschriebene Telefonnummer wird unabhängig vom Land gefunden; eine
+nationale wie `415-555-0132` wird gegen die Standardländer der Guardrails
+gelesen, `US, GB, DE, PL`. Das Feld `phone_regions`, das diese Liste ändert,
+gehört zu den Guardrails eines Agenten, nicht zu diesem Endpunkt.
 
 Zurück kommen Zählungen und der geschwärzte Text, nicht die Offsets der einzelnen
 Treffer. Die Detektoren antworten mit umgeschriebenem Text, und die Positionen
@@ -209,7 +216,9 @@ kann, ist schlimmer als eine ehrliche Einheitenzählung.
 Ein einzelner Aufruf nimmt bis zu `ML_MAX_UPLOAD_SIZE_MB` Megabyte an,
 standardmäßig 25, und nur so viele Bytes werden aus dem Body gelesen - eine zu
 große Einreichung wird abgelehnt, ohne vorher in den Speicher kopiert worden zu
-sein. Ein Scan liest höchstens 200000 Zeichen. Ein Aufrufer darf
+sein. Ein Scan liest höchstens 200000 Zeichen, ein Scan mit `phone` höchstens 10.000
+Ziffern: Die Telefonnummernsuche kostet Dutzende Mikrosekunden pro Ziffer, also
+wird ein längerer Text abgelehnt statt gelesen. Ein Aufrufer darf
 `RATE_LIMIT_ML_PER_MINUTE` Aufrufe pro Minute machen, standardmäßig 30, gezählt
 pro Aufrufer statt pro Adresse.
 
