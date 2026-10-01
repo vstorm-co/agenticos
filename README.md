@@ -3,8 +3,8 @@
 <h1><img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="64" valign="middle"> AgenticOS</h1>
 
 <p>
-  <b>The open-source agent layer for your company.</b><br>
-  Give your team shared AI agents, company knowledge and automation — on infrastructure you control.
+  <b>Put AI to work across your company.</b><br>
+  The open-source agent layer for shared agents, company knowledge and automation — on infrastructure you control.
 </p>
 
 <p>
@@ -30,7 +30,7 @@
 
 </div>
 
-Build AI agents in your browser, connect company knowledge and tools, and share the work with your team. Self-host the agent layer and choose cloud or local models.
+Give an agent the brief, the knowledge and the tools. Let it research, prepare reports and create results your team can use. Keep the instructions, access and run history in one place; choose cloud or local models.
 
 <p align="center"><strong>5,700+ integrations via MCP · Shared agents and knowledge · Built-in observability · Self-hosted</strong></p>
 
@@ -53,125 +53,7 @@ the artifact does not fetch live data. Connections and capabilities are configur
 <tr>
 <td width="45%" valign="middle">
 
-### Configure an agent
-
-In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
-Publish a version when it is ready for use. You can inspect earlier versions and roll back a change.
-[Build an agent](docs/first-agent.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: agent-builder | light + dark -->
-
-<a href="docs/assets/screens/light/agent-builder.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and published version alongside draft changes." width="100%">
-</picture>
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### Teach a reusable procedure
-
-**Skills** are written procedures an agent can load when relevant: how to review a proposal,
-reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
-that need it. [Learn about skills](docs/skills.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: skills | light + dark -->
-
-<a href="docs/assets/screens/light/skill-detail.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
-  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
-</picture>
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### Shared context
-
-**Context** holds standing information such as product names, a glossary or communication guidelines.
-Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
-or reads it on demand. [Learn about context](docs/context.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: context | light + dark -->
-
-<a href="docs/assets/screens/light/context-detail.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
-  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
-</picture>
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### Give it documents to search
-
-**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
-sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
-[Add and process documents](docs/file-processing.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: knowledge-bases | light + dark -->
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
-</picture>
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### 5,700+ integrations through MCP
-
-Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
-**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
-
-Discover **5,700+ MCP server entries** in the searchable catalog, or add a compatible server by URL.
-Connect the services you need and choose which tools each agent can use. Setup, credentials and
-available actions depend on the server. [Connect your tools](docs/mcp.md).
-
-</td>
-<td width="55%">
-
-<!-- MEDIA: mcp-connections | light + dark -->
-
-<a href="docs/assets/screens/light/mcp-connections.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Connected MCP servers including GitHub and Notion." width="100%">
-</picture>
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="45%" valign="middle">
-
-### Keep results outside the chat
+### 📄 Keep results outside the chat
 
 **Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
 Open them from the library, inspect versions and choose who can access them. Updating the same artifact
@@ -183,13 +65,10 @@ An artifact displays the data it was published with. A new agent run can update 
 </td>
 <td width="55%">
 
-<!-- MEDIA: artifacts | light + dark -->
+<!-- MEDIA: artifacts | light -->
 
-<a href="docs/assets/screens/light/artifact-detail.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
-  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
-</picture>
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
 </a>
 
 </td>
@@ -197,7 +76,50 @@ An artifact displays the data it was published with. A new agent run can update 
 <tr>
 <td width="45%" valign="middle">
 
-### Built-in observability: see what ran and what it cost
+### 🔌 5,700+ integrations through MCP
+
+Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
+**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
+
+Discover **5,700+ MCP server entries** in the searchable catalog, or add a compatible server by URL.
+Connect the services you need and choose which tools each agent can use. Setup, credentials and
+available actions depend on the server. [Connect your tools](docs/mcp.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: mcp-connections | light -->
+
+<a href="docs/assets/screens/light/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 📚 Give it documents to search
+
+**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
+sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
+[Add and process documents](docs/file-processing.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: knowledge-bases | light -->
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 📊 Built-in observability: see what ran and what it cost
 
 **Activity** brings run history, approvals and spend into one place. A **run** is one execution of an agent:
 see its status, model, tokens, duration and recorded cost. Filter by agent, person or version,
@@ -209,13 +131,10 @@ Find slow or failed work, then open a run to inspect its conversation and tool c
 </td>
 <td width="55%">
 
-<!-- MEDIA: activity | light + dark; filtered run history and version comparison -->
+<!-- MEDIA: activity | light; filtered run history and version comparison -->
 
 <a href="docs/assets/screens/light/activity.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity.webp">
   <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
-</picture>
 </a>
 
 </td>
@@ -223,7 +142,7 @@ Find slow or failed work, then open a run to inspect its conversation and tool c
 <tr>
 <td width="45%" valign="middle">
 
-### Human approval
+### 🛡️ Human approval
 
 You can require human approval for supported tool actions. The approval request lets a person review
 the proposed operation before deciding whether it should proceed. Access to agents and resources is
@@ -232,13 +151,10 @@ controlled through [roles and permissions](docs/permissions.md).
 </td>
 <td width="55%">
 
-<!-- MEDIA: approval | light + dark -->
+<!-- MEDIA: approval | light -->
 
 <a href="docs/assets/screens/light/approval.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
   <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
-</picture>
 </a>
 
 </td>
@@ -246,7 +162,67 @@ controlled through [roles and permissions](docs/permissions.md).
 <tr>
 <td width="45%" valign="middle">
 
-### Schedule repeat work
+### 🤖 Configure an agent
+
+In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
+Publish a version when it is ready for use. You can inspect earlier versions and roll back a change.
+[Build an agent](docs/first-agent.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: agent-builder | light -->
+
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and current published version." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 🧩 Teach a reusable procedure
+
+**Skills** are written procedures an agent can load when relevant: how to review a proposal,
+reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
+that need it. [Learn about skills](docs/skills.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: skills | light -->
+
+<a href="docs/assets/screens/light/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### 🧠 Shared context
+
+**Context** holds standing information such as product names, a glossary or communication guidelines.
+Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
+or reads it on demand. [Learn about context](docs/context.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: context | light -->
+
+<a href="docs/assets/screens/light/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### ⏱️ Schedule repeat work
 
 **Routines** run an agent on a schedule or in response to a configured event. Use them for a weekly
 brief or a recurring report. Runs use the configured access and controls and leave an execution record.
@@ -255,7 +231,7 @@ brief or a recurring report. Runs use the configured access and controls and lea
 </td>
 <td width="55%">
 
-<!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
+<!-- MEDIA: routines | capture light with expanded sidebar; show an actual scheduled execution -->
 > **Screenshot placeholder — Routines:** a report's schedule, last completed scheduled run and link to its result.
 
 </td>
@@ -266,33 +242,21 @@ brief or a recurring report. Runs use the configured access and controls and lea
 <summary>More views and execution details</summary>
 
 <a href="docs/assets/screens/light/skills.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
   <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
-</picture>
 </a>
 
 <a href="docs/assets/screens/light/context.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
   <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
-</picture>
 </a>
 
-<!-- MEDIA: knowledge-collection | light + dark; supplementary view -->
+<!-- MEDIA: knowledge-collection | light; supplementary view -->
 
 <a href="docs/assets/screens/light/knowledge-collection.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
   <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
-</picture>
 </a>
 
-<a href="docs/assets/screens/light/artifacts.webp">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
-</picture>
+<a href="docs/assets/screens/light/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
 </a>
 
 ### Inspect actions and costs
@@ -301,7 +265,7 @@ A **run** is one execution of an agent. **Activity / Runs** shows its status and
 open a run to inspect the conversation and tool calls. Budget checks use recorded spend before model
 requests; requests already in progress or concurrent runs can exceed a cap. [Budgets and audit history](docs/governance.md).
 
-<!-- MEDIA: run-detail | capture light + dark; same run as the demo -->
+<!-- MEDIA: run-detail | capture light with expanded sidebar; same run as the demo -->
 > **Screenshot placeholder — Run detail:** status, duration, recorded cost and tool calls for the demonstrated task.
 
 </details>
@@ -316,7 +280,6 @@ For a recurring report, the team can divide the work:
 
 The organization keeps the agent and reusable know-how. People work through the browser;
 engineers can connect internal systems. [Set up team access](docs/permissions.md).
-
 
 Use published agents in web chat or supported channels such as Slack, Telegram and Mattermost,
 or connect them through the API, a hosted page or a website widget. [Explore channels](docs/channels.md).

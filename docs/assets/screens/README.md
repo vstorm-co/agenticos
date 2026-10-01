@@ -10,12 +10,12 @@
 
 The four root READMEs share this video and poster. Upcoming screenshots are visibly marked as
 placeholders rather than using old UI captures or missing image paths. Each slot has a stable HTML
-comment (`MEDIA: <id>`) to find it across translations. Capture matching light/dark pairs with the same
-content and framing, then replace the corresponding blockquote with a theme-aware picture.
+comment (`MEDIA: <id>`) to find it across translations. Capture light-mode views with expanded navigation, then replace the corresponding blockquote
+with a linked screenshot. Keep the UI and displayed data unchanged.
 
 | Slot | Capture |
 |---|---|
-| `agent-builder` | Complete: demo agent instructions, selected model, published version and draft changes |
+| `agent-builder` | Complete: demo agent instructions, selected model, current published version (v6) |
 | `skills` | Complete: library and the artifact-pages procedure with instructions and templates |
 | `context` | Complete: library and glossary content with linked mode for on-demand reading |
 | `knowledge-bases` | Complete: personal and organization collections |
@@ -28,6 +28,11 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `routines` | Schedule, actual completed scheduled run and result |
 
 Nine screenshot slots are complete; `run-detail` and `routines` remain pending.
+
+## Previous capture provenance
+
+The following records describe earlier captures. The light-mode refresh below supersedes their
+dimensions and sidebar states for the eleven replaced light images; dark alternates are unchanged.
 The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
 and stored as lossless WebP at the original 3502 × 2000 resolution.
 Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
@@ -78,7 +83,7 @@ The layout takes inspiration from stablyai/orca, using AgenticOS copy and origin
 ## Paths and video embedding
 
 Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
-on a feature branch. Check light/dark picture rendering on GitHub when adding the new pairs.
+on a feature branch. Check the light screenshots and their full-resolution links on GitHub.
 
 Use the stable GitHub attachment URL for the video, not a local MP4 or a temporary signed redirect.
 The current attachment is listed at the top. A ranged GET returned `206` with `video/mp4` on 2026-10-01.
@@ -100,3 +105,15 @@ At revision `d76c6d597`, `backend/app/core/catalog/mcp_registry.json` contains 5
 `mcp_servers.json` separately contains 99 curated entries. Do not add the two counts as unique
 services or imply that all entries are connected, tested or first-party integrations. The public
 copy names server entries and the need to configure credentials and tool access beside the claim.
+
+## Current light-mode screenshots
+
+The README displays light screenshots in both GitHub themes. Eleven light screenshots were
+recaptured on 2026-10-02 at 1600 × 1000 with the sidebar expanded; dialogs retain navigation behind
+the modal. The artifact detail remains the original full-screen product view with its authored dark
+design. Lossless WebP conversions were verified pixel-for-pixel. Dark captures remain prior alternates.
+The latest builder is current with v6; skill detail shows Source. The MCP page displayed 5,805 catalog
+entries; the public claim stays at 5,700+ and describes discoverable server entries.
+
+The user-provided Notion/GitHub demo remains the primary video, visible above the feature gallery.
+The experimental overview films were rejected and are not included in the repository.
