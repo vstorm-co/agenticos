@@ -1,8 +1,40 @@
-# Console screenshots — what each one shows
+# README media and capture inventory
 
-Captured 2026-09-01 from a running deployment. Every screen is here twice, once
-per theme, under the same filename: `light/agents.png` and `dark/agents.png` are
-the same page. 27 pairs, plus the chat recording at the top level.
+## Current README demo
+
+- Video: https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953
+- Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5937226436
+- Poster: `oss-launch-planner-poster.webp`, extracted at 24 seconds from the user-provided edited demo.
+- Content: the Claude Code like agent prepares the OSS Launch Planner, the user changes its audience selection and creates a sharing link.
+- The video is edited: waiting time is removed. Repository metrics are a snapshot, not live data.
+
+The four root READMEs share this video and poster. Upcoming screenshots are visibly marked as
+placeholders rather than using old UI captures or missing image paths. Each slot has a stable HTML
+comment (`MEDIA: <id>`) to find it across translations. Capture matching light/dark pairs with the same
+content and framing, then replace the corresponding blockquote with a theme-aware picture.
+
+| Slot | Capture |
+|---|---|
+| `agent-builder` | Demo agent instructions, selected tools and published version |
+| `skills` | Library and a readable procedure |
+| `context` | Company context content and attachment settings |
+| `knowledge-bases` | Named collections |
+| `knowledge-collection` | Documents, processing status and preview or search result |
+| `mcp-connections` | Notion/GitHub connections and tools; credentials hidden |
+| `artifacts` | Library and the OSS Launch Planner from the demo |
+| `run-detail` | The demo execution, tool calls and recorded cost |
+| `approval` | An actual pending tool action and decision controls |
+| `routines` | Schedule, actual completed scheduled run and result |
+
+All ten screenshots are pending. The poster is a frame from the supplied video, not a new UI capture.
+The older assets below remain available for the existing documentation gallery.
+
+## Previous console screenshots
+
+
+Captured 2026-09-01 from a running deployment: 27 light/dark pairs, eight dark-only
+Builder views and the previous chat recording. Matching filenames such as `light/agents.webp`
+and `dark/agents.webp` show the same page in different themes.
 
 Not a site page — this file is in `exclude_docs`, so `--strict` does not ask for
 it in the nav.
@@ -41,9 +73,8 @@ it in the nav.
 
 ## The Builder — dark only
 
-Eight more screens, added 2026-09-01 and in `dark/` alone. Every other screen on
-this page is a pair; these are not, so a light-theme reader gets a dark image
-until the light eight are captured.
+Eight more screens, added 2026-09-01 and in `dark/` alone. The 27 older console views listed above are pairs;
+these eight have no light variant. They remain in the documentation gallery.
 
 | File | What it shows |
 |---|---|
@@ -68,46 +99,30 @@ ffmpeg -i <master>.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 27 \
 
 ## Two gaps worth filling
 
-- **No agent detail / Builder.** The single most important screen in the
-  product — Build, Toolbox, MCP servers, Limits, Availability, History — is not
-  in the set. Six tabs, so six pairs if all of them are wanted.
+- **Light-theme Builder captures are missing.** The eight views above exist only in dark mode.
+  Capture the selected current Builder view in both themes for the README refresh.
 - **No sign-in or onboarding.** Whatever a first-time visitor meets is
   undocumented here.
 
-## Paths
+## Paths and video embedding
 
-The README references these with **relative** paths (`docs/assets/screens/...`),
-not `raw.githubusercontent.com/.../main/...`: a raw URL resolves against `main`,
-so every image on a feature branch is a 404 until the branch merges, which makes
-the one place you want to check the layout the one place it cannot be checked.
+Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
+on a feature branch. Check light/dark picture rendering on GitHub when adding the new pairs.
 
-Relative `src` on an `<img>` is rewritten by GitHub and works. Relative `srcset`
-on a `<source>` inside `<picture>` is less certain — if GitHub does not rewrite
-it, a dark-mode reader simply gets the light image, which is a degradation
-rather than a break.
+Use the stable GitHub attachment URL for the video, not a local MP4 or a temporary signed redirect.
+The current attachment is listed at the top. A ranged GET returned `206` with `video/mp4` on 2026-10-01.
+GitHub's Markdown renderer retains the video and controls but may strip the poster attribute;
+the README also offers explicit video and screenshot links.
 
-**A `<video>` with a relative `src` does not work at all**, and nesting an
-`<img>` inside it does not save the situation: fallback content is shown when a
-browser cannot handle the *element*, not when its source resolves to nothing. A
-real player needs a URL GitHub itself serves, so the README points at an
-attachment on GitHub's own CDN:
+An image nested inside a video is fallback for renderers that support that fallback behavior. It does
+not replace a broken video source in a browser that supports video. Keep the independent screenshot link.
+
+The previous README used this attachment for the older CSV demonstration:
 
     https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc
 
-That URL answers a range request with `206`, which is what makes the timeline
-scrubbable rather than a play button. It was produced by dropping
-`chat-live-demo-master.mp4` — 9.3 MB, 1912 wide — into an issue comment; the
-upload happens on drop, so the comment itself never has to be posted. Replacing
-the clip means repeating that and swapping the URL.
-
-The master sits beside these files and is **deliberately untracked**: it is
-served from GitHub's CDN, not from here, so committing it would cost 9.3 MB of
-history for nothing. That also makes it the one file in this directory a
-`git add -A` would sweep in by accident, which is a reason to stage paths rather
-than everything.
-
-`chat-live-demo.webp` stays nested inside the `<video>` as fallback content, for
-a renderer that strips the tag — npm, some PyPI mirrors, a few aggregators.
+Its `chat-live-demo.webp` and poster remain historical assets. The current README uses the OSS Launch
+Planner video and poster instead. Do not commit local video masters; GitHub hosts the uploaded video.
 
 ## How the split was made
 
