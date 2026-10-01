@@ -47,12 +47,12 @@ from pydantic_ai_harness.guardrails.detectors import (
     redact_secrets,
 )
 
-from app.agents.capabilities.guardrails._phone import (
+from app.core.phone import (
     DEFAULT_PHONE_REGIONS,
     MAX_PHONE_REGIONS,
     parse_phone_regions,
-    phone_numbers,
-    refuse_long_text,
+    phone_text_error,
+    redact_phone_numbers,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,11 +153,7 @@ class GuardrailsConfig(BaseModel):
     @field_validator("phone_regions")
     @classmethod
     def _known_regions(cls, raw: str) -> str:
-        """An unknown code is refused at publish, where the Builder can point at it.
-
-        `build_guardrails` parses the same string, so a code let through here
-        would instead fail every run of the agent.
-        """
+        """Reject unknown regions at publish rather than on every agent run."""
         parse_phone_regions(raw)
         return raw
 
@@ -165,6 +161,28 @@ class GuardrailsConfig(BaseModel):
 def _keywords(raw: str) -> list[str]:
     """The terms in a delimited keyword string, blanks dropped."""
     return [term.strip() for term in _KEYWORD_SPLIT.split(raw) if term.strip()]
+
+
+def refuse_long_text(regions: tuple[str, ...]) -> TextDetector:
+    """Check raw length before other redactors; check digits after they run."""
+
+    def detect(text: str) -> GuardrailResult:
+        error = phone_text_error(text, regions, check_digits=False)
+        return GuardrailResult.block(error) if error else GuardrailResult.allow()
+
+    return detect
+
+
+def phone_numbers(regions: tuple[str, ...]) -> TextDetector:
+    """Adapt phone matching and scan limits to the harness verdicts."""
+
+    def detect(text: str) -> GuardrailResult:
+        if error := phone_text_error(text, regions):
+            return GuardrailResult.block(error)
+        redacted, found = redact_phone_numbers(text, regions)
+        return GuardrailResult.replace(redacted) if found else GuardrailResult.allow()
+
+    return detect
 
 
 def _edge_detector(

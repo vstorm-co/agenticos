@@ -14,22 +14,43 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 from app.agents.capabilities import get, load_builtins
 from app.agents.capabilities.guardrails import GuardrailsConfig
 from app.agents.capabilities.guardrails import _capability as capability_module
-from app.agents.capabilities.guardrails._capability import GuardrailBlocked, _edge_detector
-from app.agents.capabilities.guardrails._phone import (
+from app.agents.capabilities.guardrails._capability import (
+    GuardrailBlocked,
+    TextDetector,
+    _edge_detector,
+    phone_numbers,
+)
+from app.core.exceptions import BadRequestError
+from app.core.phone import (
     DEFAULT_PHONE_REGIONS,
     MAX_PHONE_CHARS,
     MAX_PHONE_DIGITS,
     MAX_PHONE_REGIONS,
     PHONE_PLACEHOLDER,
     _merged,
-    has_too_many_digits,
-    max_phone_chars,
-    max_phone_digits,
     parse_phone_regions,
-    phone_numbers,
+    phone_limits,
+    phone_text_error,
     redact_phone_numbers,
 )
-from app.core.exceptions import BadRequestError
+
+
+def _pii_edge(
+    regions: tuple[str, ...] = ("US",),
+    *,
+    edge: str = "input",
+    secrets: bool = False,
+    pii: bool = True,
+) -> TextDetector:
+    detector = _edge_detector(
+        redact_secrets_on=secrets,
+        redact_pii_on=pii,
+        phone_regions=regions,
+        keywords=[],
+        edge=edge,
+    )
+    assert detector is not None
+    return detector
 
 
 def _redacted(regions: tuple[str, ...], text: str) -> str:
@@ -143,42 +164,37 @@ def test_the_count_is_of_placeholders_written_not_of_region_matches():
 
 
 def test_the_digit_bound_counts_digits_not_characters():
-    assert not has_too_many_digits("1" * MAX_PHONE_DIGITS, MAX_PHONE_DIGITS)
-    assert has_too_many_digits("1" * (MAX_PHONE_DIGITS + 1), MAX_PHONE_DIGITS)
-    assert not has_too_many_digits("no digits " * MAX_PHONE_DIGITS, MAX_PHONE_DIGITS)
+    assert phone_text_error("1" * MAX_PHONE_DIGITS, _DEFAULT) is None
+    assert phone_text_error("1" * (MAX_PHONE_DIGITS + 1), _DEFAULT) is not None
+    assert phone_text_error("no digits " * MAX_PHONE_DIGITS, _DEFAULT) is None
 
 
-def test_a_text_with_too_many_digits_is_blocked_rather_than_read():
-    """Repeated numbers kept a span per number per region and the matcher costs
-    tens of microseconds a digit, so a long prompt of them could take a worker's
-    memory and time. Refused, because returning it unread would pass the numbers on."""
-    flood = "+1 415-555-0132 " * (MAX_PHONE_DIGITS // 11 + 1)
-    verdict = phone_numbers(_DEFAULT)(flood)
+@pytest.mark.parametrize(
+    "text,reason",
+    [
+        (
+            "+1 415-555-0132 " * (MAX_PHONE_DIGITS // 11 + 1),
+            f"holds more than {MAX_PHONE_DIGITS:,} digits",
+        ),
+        ("(" * (MAX_PHONE_CHARS + 1), f"is longer than {MAX_PHONE_CHARS:,} characters"),
+    ],
+    ids=["digits", "characters"],
+)
+def test_text_over_either_limit_is_blocked(text: str, reason: str):
+    verdict = phone_numbers(_DEFAULT)(text)
     assert verdict.action == "block"
-    assert verdict.message == (
-        f"It holds more than {MAX_PHONE_DIGITS:,} digits, the most phone number redaction reads."
-    )
+    assert verdict.message == f"It {reason}, the most phone number redaction reads."
 
 
-def test_a_text_at_the_digit_bound_is_still_redacted():
-    text = "1 " * (MAX_PHONE_DIGITS - 10) + "call 415-555-0132"
-    assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
-
-
-def test_a_text_too_long_is_blocked_rather_than_read_whatever_its_digits():
-    """The matcher costs microseconds a character with no digit in sight, and a
-    prompt has no length limit of its own, so a run of brackets the size of a
-    request body held a worker for minutes under the digit bound."""
-    verdict = phone_numbers(_DEFAULT)("(" * (MAX_PHONE_CHARS + 1))
-    assert verdict.action == "block"
-    assert verdict.message == (
-        f"It is longer than {MAX_PHONE_CHARS:,} characters, the most phone number redaction reads."
-    )
-
-
-def test_a_text_at_the_length_bound_is_still_redacted():
-    tail = " call 415-555-0132"
-    text = "(" * (MAX_PHONE_CHARS - len(tail)) + tail
+@pytest.mark.parametrize(
+    "text",
+    [
+        "1 " * (MAX_PHONE_DIGITS - 10) + "call 415-555-0132",
+        "(" * (MAX_PHONE_CHARS - len(" call 415-555-0132")) + " call 415-555-0132",
+    ],
+    ids=["digits", "characters"],
+)
+def test_text_at_either_limit_is_still_redacted(text: str):
     assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
 
 
@@ -190,14 +206,7 @@ def test_rejected_candidates_do_not_end_the_scan_early():
 
 
 def test_an_edge_refuses_text_its_phone_redaction_could_not_read():
-    detect = _edge_detector(
-        redact_secrets_on=False,
-        redact_pii_on=True,
-        phone_regions=("US",),
-        keywords=[],
-        edge="input",
-    )
-    assert detect is not None
+    detect = _pii_edge()
     with pytest.raises(GuardrailBlocked) as exc:
         detect("+1 415-555-0132 " * MAX_PHONE_DIGITS)
     assert exc.value.edge == "input"
@@ -216,14 +225,7 @@ def test_an_edge_refuses_a_long_text_before_any_redactor_reads_it(
 
     monkeypatch.setattr(capability_module, "redact_secrets", unread)
     monkeypatch.setattr(capability_module, "redact_personal_data", unread)
-    detect = _edge_detector(
-        redact_secrets_on=True,
-        redact_pii_on=True,
-        phone_regions=("US",),
-        keywords=[],
-        edge="tool_result",
-    )
-    assert detect is not None
+    detect = _pii_edge(edge="tool_result", secrets=True)
     with pytest.raises(GuardrailBlocked) as exc:
         detect("x " * MAX_PHONE_CHARS)
     assert exc.value.edge == "tool_result"
@@ -235,14 +237,7 @@ def test_an_edge_refuses_a_long_text_before_any_redactor_reads_it(
 def test_an_edge_without_pii_redaction_reads_a_long_text():
     """The length bound is the phone detector's, so an edge that does not run it
     keeps reading a long text as it did."""
-    detect = _edge_detector(
-        redact_secrets_on=True,
-        redact_pii_on=False,
-        phone_regions=("US",),
-        keywords=[],
-        edge="input",
-    )
-    assert detect is not None
+    detect = _pii_edge(secrets=True, pii=False)
     assert detect("x " * MAX_PHONE_CHARS).action == "allow"
 
 
@@ -270,23 +265,21 @@ def test_the_limits_are_shared_out_over_more_than_four_regions():
     """Each region is a full pass of the matcher, so the text a pass may read
     shrinks as passes are added and the total stays the four-region one."""
     for regions in ((), ("US",), _DEFAULT):
-        assert max_phone_chars(regions) == MAX_PHONE_CHARS
-        assert max_phone_digits(regions) == MAX_PHONE_DIGITS
+        assert phone_limits(regions) == (MAX_PHONE_CHARS, MAX_PHONE_DIGITS)
     assert len(_SIXTEEN) == MAX_PHONE_REGIONS
-    assert max_phone_chars(_SIXTEEN) == MAX_PHONE_CHARS // 4
-    assert max_phone_digits(_SIXTEEN) == MAX_PHONE_DIGITS // 4
+    assert phone_limits(_SIXTEEN) == (MAX_PHONE_CHARS // 4, MAX_PHONE_DIGITS // 4)
 
 
 def test_more_regions_block_a_text_the_default_four_read():
     """Sixteen passes over a text with the four-region allowance of digits took
     about 2.6 s; the allowance is a quarter of it there."""
     detect = phone_numbers(_SIXTEEN)
-    digits = "1/2/3 " * (max_phone_digits(_SIXTEEN) // 3 + 1)
+    digits = "1/2/3 " * (phone_limits(_SIXTEEN)[1] // 3 + 1)
     assert phone_numbers(_DEFAULT)(digits).action != "block"
     assert detect(digits).message == (
         f"It holds more than {MAX_PHONE_DIGITS // 4:,} digits, the most phone number redaction reads."
     )
-    long_text = "(" * (max_phone_chars(_SIXTEEN) + 1)
+    long_text = "(" * (phone_limits(_SIXTEEN)[0] + 1)
     assert phone_numbers(_DEFAULT)(long_text).action == "allow"
     assert detect(long_text).message == (
         f"It is longer than {MAX_PHONE_CHARS // 4:,} characters, the most phone number redaction reads."
@@ -294,14 +287,7 @@ def test_more_regions_block_a_text_the_default_four_read():
 
 
 def test_an_edge_refuses_early_at_its_own_regions_limit():
-    detect = _edge_detector(
-        redact_secrets_on=False,
-        redact_pii_on=True,
-        phone_regions=_SIXTEEN,
-        keywords=[],
-        edge="input",
-    )
-    assert detect is not None
+    detect = _pii_edge(_SIXTEEN)
     with pytest.raises(GuardrailBlocked, match=f"longer than {MAX_PHONE_CHARS // 4:,} characters"):
         detect("x " * MAX_PHONE_CHARS)
 
@@ -361,14 +347,7 @@ def test_publish_names_the_field_with_the_unknown_region():
 
 def test_the_pii_flag_redacts_a_phone_beside_the_harness_patterns():
     """The issue's message: the phone number was the one thing left in it."""
-    detect = _edge_detector(
-        redact_secrets_on=False,
-        redact_pii_on=True,
-        phone_regions=("US",),
-        keywords=[],
-        edge="output",
-    )
-    assert detect is not None
+    detect = _pii_edge(edge="output")
     verdict = detect(
         "Reach jane@example.com on 415-555-0132, card 4111 1111 1111 1111, SSN 123-45-6789"
     )
@@ -383,25 +362,19 @@ def test_the_pii_flag_redacts_a_phone_beside_the_harness_patterns():
 def test_the_harness_patterns_run_before_the_phone_detector():
     """With PL configured `123-45-6789` is a valid Polish number, so order decides
     what the redaction says it removed: it is an SSN, and must be labelled one."""
-    detect = _edge_detector(
-        redact_secrets_on=False,
-        redact_pii_on=True,
-        phone_regions=("PL",),
-        keywords=[],
-        edge="input",
-    )
-    assert detect is not None
+    detect = _pii_edge(("PL",))
     cleaned = str(detect("SSN 123-45-6789").replacement)
     assert cleaned == "SSN [redacted:us_ssn]"
 
 
+def test_guardrails_count_digits_after_other_pii_has_been_redacted():
+    text = "123-45-6789 " * (MAX_PHONE_DIGITS // 9 + 1) + "call 415-555-0132"
+    verdict = _pii_edge()(text)
+    assert verdict.action == "replace"
+    assert str(verdict.replacement).endswith(f"call {PHONE_PLACEHOLDER}")
+    assert "123-45-6789" not in str(verdict.replacement)
+
+
 def test_an_edge_without_pii_redaction_leaves_phone_numbers():
-    detect = _edge_detector(
-        redact_secrets_on=True,
-        redact_pii_on=False,
-        phone_regions=("US",),
-        keywords=[],
-        edge="input",
-    )
-    assert detect is not None
+    detect = _pii_edge(secrets=True, pii=False)
     assert detect("call 415-555-0132").action == "allow"

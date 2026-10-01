@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from app.agents.capabilities.guardrails._phone import DEFAULT_PHONE_REGIONS
+from app.core.phone import DEFAULT_PHONE_REGIONS
 
 
 class DeliveryState(StrEnum):

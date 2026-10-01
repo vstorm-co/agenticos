@@ -23,18 +23,27 @@ detectors:
   rewritten in place and the run carries on — an agent that quoted a key back has
   still done the work.
 
-The phone detector is ours, in `_phone.py`, because the harness ships no phone
-pattern. It is libphonenumber's matcher (the `phonenumberslite` build) rather than
-a regex: digit count cannot tell a phone number from an order id or a timestamp,
-and the numbering-plan check can. National formats are read for the countries in
-`phone_regions`; a `+` number is read for any. The matcher is pure Python and
-costs tens of microseconds a digit and a few a character for each region, so
-`phone_regions` holds at most `MAX_PHONE_REGIONS` codes, and a text longer than
-`max_phone_chars` or with more than `max_phone_digits` digits for its regions is
-refused with a `block` verdict, which the edge raises as
-`GuardrailBlocked`, rather than read or passed on. When the harness grows a phone
-pattern, this file is the one to delete.
 - **block** on a keyword list. A match ends the run.
+
+Phone matching lives in `app/core/phone.py`, shared with the ML PII service.
+It uses libphonenumber (`phonenumberslite`) with strict grouping to avoid matching
+IDs such as `ORD-2026-000417`. National formats use `phone_regions`; international
+(`+`) formats work regardless of that list. Bare digits remain ambiguous:
+`123456789` is a valid Polish landline, so listing PL also redacts that order ID.
+
+Each region scans the whole text. `phone_limits` allows 200,000 characters and
+10,000 digits for up to four regions, reducing both proportionally beyond four;
+at the maximum 16 regions, the limits are 50,000 characters and 2,500 digits.
+These bounds address both duplicate-match memory use and synchronous CPU work:
+the original four-region measurements were about 0.7 seconds for digit-heavy
+text at the digit limit or repeated full-width brackets at the character limit.
+The matcher's rejected-candidate cutoff is disabled so it cannot silently skip
+numbers near the end of a text.
+
+Guardrails check raw length before any redaction, then length and digits after
+the harness redactors, raising `GuardrailBlocked` on refusal. The ML endpoint
+checks the original input against its character limit and the shared phone
+limits, returning a field error. Neither passes an unchecked input to the matcher.
 
 ## Why a block *stops* the run
 

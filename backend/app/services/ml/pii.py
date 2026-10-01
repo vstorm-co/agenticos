@@ -18,13 +18,9 @@ up the original has the replaced text to align against.
 
 **Category names are the library's**, so a category added upstream reaches this
 service and the guardrails together, and `known_categories` is what the API
-offers rather than a list typed here that would go stale. The one exception is
-`phone`, which the library lacks and the guardrails add from
-`guardrails/_phone.py`. It is taken from there for the same reason, and runs on
-the same terms: after the library's patterns, so a card or an SSN is already a
-placeholder before anything reads it as a phone number, and against
-`DEFAULT_PHONE_REGIONS`, which is what an agent reads unless its own
-`phone_regions` says otherwise.
+offers rather than a list typed here that would go stale. Phone matching is
+shared with guardrails through `app/core/phone.py`, using the default regions
+and running after the library's patterns so cards and SSNs take precedence.
 """
 
 from __future__ import annotations
@@ -36,14 +32,14 @@ from dataclasses import dataclass
 
 from pydantic_ai_harness.guardrails.detectors import DEFAULT_PII_PATTERNS, personal_data
 
-from app.agents.capabilities.guardrails._phone import (
+from app.core.field_errors import refused_field
+from app.core.phone import (
     DEFAULT_PHONE_REGIONS,
-    has_too_many_digits,
-    max_phone_digits,
     parse_phone_regions,
+    phone_limits,
+    phone_text_error,
     redact_phone_numbers,
 )
-from app.core.field_errors import refused_field
 
 MAX_TEXT_CHARS = 200_000
 """How much text one call may scan.
@@ -56,12 +52,12 @@ the patterns, so a scan that includes `phone` has its own, lower ceiling in
 """
 
 PHONE = "phone"
-"""The category `guardrails/_phone.py` adds, named as its placeholder names it."""
+"""The category `app/core/phone.py` adds, named as its placeholder names it."""
 
 PHONE_REGIONS = parse_phone_regions(DEFAULT_PHONE_REGIONS)
 """The countries whose national formats a scan reads. A `+` number is read anyway."""
 
-PHONE_DIGITS = max_phone_digits(PHONE_REGIONS)
+PHONE_DIGITS = phone_limits(PHONE_REGIONS)[1]
 """The most digits a scan that includes `phone` reads, at `PHONE_REGIONS`."""
 
 PLACEHOLDER = "[redacted:{name}]"
@@ -117,7 +113,7 @@ def scan(text: str, *, categories: Sequence[str] | None = None) -> PiiReport:
             "scan the parts.",
         )
     selected = _selected(categories)
-    if PHONE in selected and has_too_many_digits(text, PHONE_DIGITS):
+    if PHONE in selected and phone_text_error(text, PHONE_REGIONS):
         raise refused_field(
             "text",
             f"A scan for phone numbers reads at most {PHONE_DIGITS} digits; split the "
