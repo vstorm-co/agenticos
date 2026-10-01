@@ -975,6 +975,25 @@ class TestAnsweringTheSender:
             (run,) = (await fresh.execute(select(WorkflowRun))).scalars().all()
         assert run.status == WorkflowRunStatus.SUCCEEDED.value
 
+    async def test_the_sender_gets_what_the_wait_returns(
+        self, db, tenant, _no_prefect_submission, monkeypatch
+    ):
+        # The wait itself is covered on its own (test_workflow_webhook_answer);
+        # stood in for here, the line handing its answer back runs without a
+        # background drive, which the coverage tracer can lose.
+        owner, org, workflow = tenant
+        graph = _answering(_respond(201))
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
+        answered = WebhookAnswer(status_code=201, headers={}, body={"lead": 3})
+        monkeypatch.setattr(WorkflowExposureService, "_answer", AsyncMock(return_value=answered))
+        body = b'{"lead": 3}'
+
+        received = await WorkflowExposureService(db).receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body)
+        )
+
+        assert received == answered
+
     async def test_only_the_first_respond_step_answers(
         self, engine, db, tenant, _no_prefect_submission
     ):
