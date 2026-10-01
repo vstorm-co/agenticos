@@ -419,5 +419,8 @@ and see the [roadmap](docs/ROADMAP.md) for planned work.
 [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md)
 for attribution and bundled components.
 
-[Vstorm](https://vstorm.co/) maintains AgenticOS and can help with deployment, integrations and custom development.
-Support and maintenance are agreed for each project.
+## Need help putting agents into production?
+
+Vstorm can help deploy AgenticOS in client infrastructure, write documentation, define processes and build custom elements. Maintenance and support are agreed for the project.
+
+Built with care by [**Vstorm**](https://vstorm.co) · [oss.vstorm.co](https://oss.vstorm.co)

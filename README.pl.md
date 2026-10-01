@@ -1,4 +1,4 @@
-<!-- source_sha: 9b7f4b5d007c -->
+<!-- source_sha: 490548e50185 -->
 
 <div align="center">
 
@@ -427,5 +427,8 @@ a [roadmapa](docs/ROADMAP.md) przedstawia planowane prace.
 [Apache License 2.0](LICENSE). Zobacz [NOTICE](NOTICE) i [informacje o komponentach zewnętrznych](THIRD_PARTY_NOTICES.md),
 aby poznać atrybucje i skład dystrybucji.
 
-[Vstorm](https://vstorm.co/) rozwija AgenticOS i pomaga we wdrożeniach, integracjach oraz rozwoju na zamówienie.
-Zakres wsparcia i utrzymania jest uzgadniany dla każdego projektu.
+## Potrzebujesz pomocy we wdrożeniu agentów na produkcję?
+
+Vstorm może pomóc wdrożyć AgenticOS w infrastrukturze klienta, przygotować dokumentację, zdefiniować procesy i zbudować elementy na zamówienie. Zakres utrzymania i wsparcia jest uzgadniany dla danego projektu.
+
+Stworzone z dbałością przez [**Vstorm**](https://vstorm.co) · [oss.vstorm.co](https://oss.vstorm.co)
