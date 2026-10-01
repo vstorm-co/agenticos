@@ -1,4 +1,4 @@
-<!-- source_sha: 74a30d94e71c -->
+<!-- source_sha: 443fb37e166e -->
 
 <div align="center">
 
@@ -40,11 +40,13 @@ Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchi
 
 **Von einem Briefing in Notion und GitHub-Recherche zu einer interaktiven Entscheidungsseite.**
 
-<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
-</video>
+<a href="docs/assets/screens/oss-launch-planner-demo.mp4?raw=true">
+  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
+</a>
 
-[Video ansehen](https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
+*Animierte Vorschau mit 2× Geschwindigkeit. Klicke für das 37-sekündige Video mit Ton in normalem Tempo.*
+
+[Video ansehen](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
 
 *Bearbeitete Demonstration ohne Wartezeiten. Die Repository-Zahlen entsprechen dem Stand der Aufnahme;
 das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für diese Demo eingerichtet.*

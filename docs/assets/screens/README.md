@@ -1,6 +1,6 @@
 # README media and capture inventory
 
-## Current README demo
+## Original demo source
 
 - Video: https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953
 - Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5937226436
@@ -8,7 +8,7 @@
 - Content: the Claude Code like agent prepares the OSS Launch Planner, the user changes its audience selection and creates a sharing link.
 - The video is edited: waiting time is removed. Repository metrics are a snapshot, not live data.
 
-The four root READMEs share this video and poster. Upcoming screenshots are visibly marked as
+The four root READMEs share the shortened demo and animated preview described below. Upcoming screenshots are visibly marked as
 placeholders rather than using old UI captures or missing image paths. Each slot has a stable HTML
 comment (`MEDIA: <id>`) to find it across translations. Capture light-mode views with expanded navigation, then replace the corresponding blockquote
 with a linked screenshot. Keep the UI and displayed data unchanged.
@@ -85,13 +85,8 @@ The layout takes inspiration from stablyai/orca, using AgenticOS copy and origin
 Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
 on a feature branch. Check the light screenshots and their full-resolution links on GitHub.
 
-Use the stable GitHub attachment URL for the video, not a local MP4 or a temporary signed redirect.
-The current attachment is listed at the top. A ranged GET returned `206` with `video/mp4` on 2026-10-01.
-GitHub's Markdown renderer retains the video and controls but may strip the poster attribute;
-the README also offers explicit video and screenshot links.
-
-An image nested inside a video does not replace a broken source in a browser that supports video.
-Keep the independent screenshot link. Do not commit local video masters; GitHub hosts the uploaded video.
+The README uses a linked GIF outside a video element so the preview does not depend on
+GitHub's mobile video player. The MP4 is stored alongside it; the explicit still-image link remains.
 
 ## Activity and integration scale
 
@@ -124,3 +119,18 @@ modal. It shows Monday at 06:00 UTC and the message in Preview; it is a lossless
 The MCP catalog now spans both columns of the feature table for legibility. Its current light asset
 is `light/mcp-catalog.webp` (formerly `light/mcp-connections.webp`): All categories, Any state,
 5,805 server entries and a mix of connected and available services. Historical dark paths are unchanged.
+
+## Shortened demo and mobile preview
+
+The original hosted demo was downloaded on 2026-10-02. Remove source 00:30–00:39 from both video
+and audio, retaining 00:00–00:30 and 00:39–00:46.466667. The result is 37.466667 seconds.
+Audio has 30 ms fades around the cut; existing music and effects are otherwise retained.
+
+- `oss-launch-planner-demo.mp4`: 960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes.
+- `oss-launch-planner-preview.gif`: 640 × 364, 3 fps, 56 frames, 18.66 seconds, 925,508 bytes.
+  It shows the shortened demo at 2× speed without sound, disclosed below the image in each language.
+- Both files fit the repository's 1 MiB asset limit. The GIF links to the shortened MP4.
+- Original-resolution edited master and downloaded source remain in the local
+  `Desktop/agenticos-demo-short` production folder.
+- Validated full MP4 decoding, duration, GIF frame timing and sampled frames around the cut.
+  Full-speed listening and physical mobile-device playback were not verified.

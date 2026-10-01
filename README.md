@@ -38,11 +38,13 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 
 **From a Notion brief and GitHub research to an interactive decision page.**
 
-<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
+<a href="docs/assets/screens/oss-launch-planner-demo.mp4?raw=true">
+  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</a>
 
-[Watch the video](https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
+*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
+
+[Watch the video](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
 *Edited demonstration with waiting time removed. Repository figures reflect the recording's snapshot;
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
