@@ -1,4 +1,4 @@
-<!-- source_sha: b833dde4abfc -->
+<!-- source_sha: aae8dc24efb3 -->
 
 <div align="center">
 
@@ -247,8 +247,12 @@ La página **MCP servers** permite configurar conexiones compatibles, como las h
 utilizadas en la demo. Las acciones disponibles dependen del servidor, las credenciales y las herramientas
 activadas para el agente. [Conecta una aplicación](docs/mcp.es.md).
 
-<!-- MEDIA: mcp-connections | capture light + dark -->
-> **Captura pendiente — Conexiones con aplicaciones:** servidores de Notion y GitHub conectados y herramientas seleccionadas, con las credenciales ocultas.
+<!-- MEDIA: mcp-connections | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Servidores MCP conectados, incluidos GitHub y Notion." width="100%">
+</picture>
 
 ### Guarda los resultados fuera del chat
 
@@ -259,8 +263,17 @@ artefacto conserva el enlace a su página actual; una conversación puede enlaza
 Un artefacto muestra los datos con los que se publicó. Una nueva ejecución del agente puede actualizarlos.
 [Crea y comparte artefactos](docs/artifacts.es.md).
 
-<!-- MEDIA: artifacts | capture light + dark; use the OSS Launch Planner from the video -->
-> **Captura pendiente — Artifacts:** la biblioteca y el OSS Launch Planner abierto con su selector de audiencia y recomendación.
+<!-- MEDIA: artifacts | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteca de artefactos con informes guardados y versiones." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner de la demo con selección de audiencia y recomendación." width="100%">
+</picture>
 
 ### Consulta las acciones y los costes
 
@@ -276,8 +289,12 @@ Puedes exigir aprobación humana para las acciones de herramientas compatibles. 
 revisar la operación propuesta antes de decidir si debe continuar. El acceso a agentes y recursos
 se controla mediante [roles y permisos](docs/permissions.es.md).
 
-<!-- MEDIA: approval | capture light + dark; real pending operation -->
-> **Captura pendiente — Aprobación:** una acción real que espera una decisión, con la operación y los controles de aprobación visibles.
+<!-- MEDIA: approval | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Acción de herramienta pendiente con argumentos y controles de aprobación." width="100%">
+</picture>
 
 ### Programa el trabajo recurrente
 

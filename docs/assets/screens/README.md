@@ -20,14 +20,13 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `context` | Complete: library and glossary content with linked mode for on-demand reading |
 | `knowledge-bases` | Complete: personal and organization collections |
 | `knowledge-collection` | Complete: vstorm collection with document name, processing status and chunk count |
-| `mcp-connections` | Notion/GitHub connections and tools; credentials hidden |
-| `artifacts` | Library and the OSS Launch Planner from the demo |
+| `mcp-connections` | Complete: connected server catalog including GitHub and Notion; no credentials shown |
+| `artifacts` | Complete: library and the OSS Launch Planner from the demo |
 | `run-detail` | The demo execution, tool calls and recorded cost |
-| `approval` | An actual pending tool action and decision controls |
+| `approval` | Complete: actual pending execute action and decision controls |
 | `routines` | Schedule, actual completed scheduled run and result |
 
-The `agent-builder`, `skills`, `context`, `knowledge-bases` and `knowledge-collection` slots
-are complete; five screenshot slots remain pending.
+Eight screenshot slots are complete; `run-detail` and `routines` remain pending.
 The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
 and stored as lossless WebP at the original 3502 × 2000 resolution.
 Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
@@ -45,6 +44,19 @@ The knowledge captures were supplied on 2026-10-01 and stored as lossless WebP a
 `light/knowledge-collection.webp` and `dark/knowledge-collection.webp`. They show
 the collection list and the vstorm document list with a completed processing status.
 
+The MCP, Artifacts and Approval pairs were captured from the authenticated application on
+2026-10-02 at 1751 × 1000, with the sidebar collapsed, and encoded as lossless WebP without
+resizing or altering the UI. Files in both theme directories: `mcp-connections.webp`,
+`artifacts.webp`, `artifact-detail.webp`, `approval.webp`.
+
+The MCP view shows connected servers, not the tools enabled for a particular agent.
+The OSS Launch Planner keeps its own dark styling in both application themes; its data is
+explicitly labeled as a 1 October snapshot. Approval shows a real pending action; no approval
+or rejection was performed to prepare the capture. Narrow preliminary captures are not committed.
+
+The current Routines examples contain internal business instructions; a suitable demo capture
+with a real completed scheduled run is still needed.
+
 Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
 The documentation and presentation use explicit placeholders until new captures are ready.
 Earlier assets remain recoverable from Git history; do not reuse them for the refreshed interface.
@@ -56,7 +68,7 @@ automation and control over deployment and models. Use AI agent harness and Clau
 only where they explain the execution model or a concrete example. Do not label the product a platform
 or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
 
-The main reading path shows the demo and agent builder. The remaining captures and five pending slots
+The main reading path shows the demo and agent builder. The remaining captures and two pending slots
 are retained in a collapsed product tour. Keep the team benefits and security controls readable outside
 the gallery; screenshots support those claims rather than define the document structure.
 

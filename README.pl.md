@@ -1,4 +1,4 @@
-<!-- source_sha: b833dde4abfc -->
+<!-- source_sha: aae8dc24efb3 -->
 
 <div align="center">
 
@@ -247,8 +247,12 @@ Na stronie **MCP servers** konfigurujesz zgodne połączenia, np. narzędzia Not
 Dostępne operacje zależą od serwera, danych uwierzytelniających oraz narzędzi włączonych dla agenta.
 [Podłącz aplikację](docs/mcp.pl.md).
 
-<!-- MEDIA: mcp-connections | capture light + dark -->
-> **Miejsce na zrzut — Połączenia z aplikacjami:** połączone serwery Notion i GitHuba oraz wybrane narzędzia, z ukrytymi danymi uwierzytelniającymi.
+<!-- MEDIA: mcp-connections | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Połączone serwery MCP, w tym GitHub i Notion." width="100%">
+</picture>
 
 ### Zachowaj wyniki poza czatem
 
@@ -259,8 +263,17 @@ artefaktu zachowuje link do bieżącej strony; rozmowa może odsyłać do konkre
 Artefakt pokazuje dane z chwili publikacji. Kolejne wykonanie agenta może je zaktualizować.
 [Tworzenie i udostępnianie artefaktów](docs/artifacts.pl.md).
 
-<!-- MEDIA: artifacts | capture light + dark; use the OSS Launch Planner from the video -->
-> **Miejsce na zrzut — Artifacts:** biblioteka i otwarty OSS Launch Planner z wyborem odbiorców oraz rekomendacją.
+<!-- MEDIA: artifacts | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z zapisanymi raportami i wersjami." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner z demo z wyborem odbiorców i rekomendacją." width="100%">
+</picture>
 
 ### Sprawdzaj działania i koszty
 
@@ -275,8 +288,12 @@ Dla obsługiwanych operacji narzędzi możesz wymagać zgody człowieka. Prośba
 sprawdzić planowaną operację przed decyzją o jej wykonaniu. Dostęp do agentów i zasobów określają
 [role i uprawnienia](docs/permissions.pl.md).
 
-<!-- MEDIA: approval | capture light + dark; real pending operation -->
-> **Miejsce na zrzut — Zatwierdzenie:** rzeczywista operacja czekająca na decyzję, z opisem i przyciskami zatwierdzania.
+<!-- MEDIA: approval | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Oczekująca operacja narzędzia z argumentami i przyciskami zatwierdzania." width="100%">
+</picture>
 
 ### Zaplanuj powtarzalną pracę
 

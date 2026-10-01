@@ -1,4 +1,4 @@
-<!-- source_sha: b833dde4abfc -->
+<!-- source_sha: aae8dc24efb3 -->
 
 <div align="center">
 
@@ -246,8 +246,12 @@ Auf der Seite **MCP servers** konfigurierst du kompatible Verbindungen, beispiel
 GitHub-Werkzeuge aus der Demo. Verfügbare Aktionen hängen vom Server, den Zugangsdaten und den für den
 Agenten aktivierten Werkzeugen ab. [Eine Anwendung verbinden](docs/mcp.de.md).
 
-<!-- MEDIA: mcp-connections | capture light + dark -->
-> **Screenshot-Platzhalter — Anwendungsverbindungen:** verbundene Notion- und GitHub-Server mit ausgewählten Werkzeugen; Zugangsdaten sind verborgen.
+<!-- MEDIA: mcp-connections | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Verbundene MCP-Server, darunter GitHub und Notion." width="100%">
+</picture>
 
 ### Ergebnisse außerhalb des Chats aufbewahren
 
@@ -258,8 +262,17 @@ Artefakts bleibt der Link zur aktuellen Seite erhalten; eine Unterhaltung kann a
 Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer Agentenlauf kann es aktualisieren.
 [Artefakte erstellen und teilen](docs/artifacts.de.md).
 
-<!-- MEDIA: artifacts | capture light + dark; use the OSS Launch Planner from the video -->
-> **Screenshot-Platzhalter — Artifacts:** Bibliothek und geöffneter OSS Launch Planner mit Zielgruppenauswahl und Empfehlung.
+<!-- MEDIA: artifacts | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artefaktbibliothek mit gespeicherten Berichten und Versionen." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner aus der Demo mit Zielgruppenauswahl und Empfehlung." width="100%">
+</picture>
 
 ### Aktionen und Kosten prüfen
 
@@ -275,8 +288,12 @@ Für unterstützte Werkzeugaktionen kannst du eine menschliche Freigabe verlange
 Person, die geplante Operation vor ihrer Entscheidung zu prüfen. Der Zugriff auf Agenten und Ressourcen
 wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
 
-<!-- MEDIA: approval | capture light + dark; real pending operation -->
-> **Screenshot-Platzhalter — Freigabe:** eine echte ausstehende Aktion mit Beschreibung und Bedienelementen zur Entscheidung.
+<!-- MEDIA: approval | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Ausstehender Werkzeugaufruf mit Argumenten und Freigabesteuerung." width="100%">
+</picture>
 
 ### Wiederkehrende Arbeit planen
 

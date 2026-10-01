@@ -241,8 +241,12 @@ The **MCP servers** page lets you configure compatible connections, such as the 
 used in the demo. Available actions depend on the server, credentials and tools enabled for the agent.
 [Connect an application](docs/mcp.md).
 
-<!-- MEDIA: mcp-connections | capture light + dark -->
-> **Screenshot placeholder — Application connections:** connected Notion and GitHub servers and selected tools, with credentials hidden.
+<!-- MEDIA: mcp-connections | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Connected MCP servers including GitHub and Notion." width="100%">
+</picture>
 
 ### Keep results outside the chat
 
@@ -253,8 +257,17 @@ keeps its current-page link; a conversation can link to a particular version.
 An artifact displays the data it was published with. A new agent run can update it.
 [Create and share artifacts](docs/artifacts.md).
 
-<!-- MEDIA: artifacts | capture light + dark; use the OSS Launch Planner from the video -->
-> **Screenshot placeholder — Artifacts:** the library and the OSS Launch Planner open with its audience selector and recommendation.
+<!-- MEDIA: artifacts | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
+</picture>
 
 ### Inspect actions and costs
 
@@ -269,8 +282,12 @@ You can require human approval for supported tool actions. The approval request 
 the proposed operation before deciding whether it should proceed. Access to agents and resources is
 controlled through [roles and permissions](docs/permissions.md).
 
-<!-- MEDIA: approval | capture light + dark; real pending operation -->
-> **Screenshot placeholder — Approval:** a real action waiting for a decision, with the operation and approval controls visible.
+<!-- MEDIA: approval | light + dark; captured from the application -->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
+</picture>
 
 ### Schedule repeat work
 
