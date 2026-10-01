@@ -15,7 +15,14 @@ const TONES = [
 ];
 
 /** A select value as a chip: its option's label, tinted by where the option sits. */
-export function OptionChip({ column, optionId }: { column: ColumnDef; optionId: string }) {
+export function OptionChip({
+  column,
+  optionId,
+}: {
+  /** Only its options are read: where one sits gives its tint. */
+  column: Pick<ColumnDef, "options">;
+  optionId: string;
+}) {
   const index = column.options.findIndex((option) => option.id === optionId);
   const option = index === -1 ? undefined : column.options[index];
   return (

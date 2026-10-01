@@ -1,16 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Label,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui";
+import { Button, Checkbox, Label, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import type { OptionDef } from "@/types/tables";
+
+import { OptionChip } from "./option-chip";
 
 /**
  * A `multi_select` cell: a popover with a checkbox per live option and a chip
@@ -60,13 +54,7 @@ export function MultiSelectCell({
             <span className="text-muted-foreground">{t("noneSelected")}</span>
           ) : (
             selected.map((option) => (
-              <Badge key={option.id} variant="secondary">
-                {option.archived ? (
-                  <span className="line-through">{option.label}</span>
-                ) : (
-                  option.label
-                )}
-              </Badge>
+              <OptionChip key={option.id} column={{ options }} optionId={option.id} />
             ))
           )}
         </Button>
@@ -83,12 +71,8 @@ export function MultiSelectCell({
                 onCheckedChange={() => toggle(option.id)}
                 disabled={disabled}
               />
-              <Label htmlFor={`${id}-${option.id}`} className="text-sm font-normal">
-                {option.archived ? (
-                  <span className="line-through">{option.label}</span>
-                ) : (
-                  option.label
-                )}
+              <Label htmlFor={`${id}-${option.id}`} className="font-normal">
+                <OptionChip column={{ options }} optionId={option.id} />
               </Label>
             </div>
           ))

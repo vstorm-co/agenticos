@@ -15,6 +15,7 @@ import {
 import { DateCell } from "./date-cell";
 import { DatetimeCell } from "./datetime-cell";
 import { MultiSelectCell } from "./multi-select-cell";
+import { OptionChip } from "./option-chip";
 import type { CellValue, ColumnDef } from "@/types/tables";
 
 const UNSET = "__unset__";
@@ -263,12 +264,9 @@ export function RecordCellEditor({
             {column.options
               .filter((option) => !option.archived || option.id === value)
               .map((option) => (
+                // Tinted as the grid shows it, so a choice reads the same in the list.
                 <SelectItem key={option.id} value={option.id}>
-                  {option.archived ? (
-                    <span className="line-through">{option.label}</span>
-                  ) : (
-                    option.label
-                  )}
+                  <OptionChip column={column} optionId={option.id} />
                 </SelectItem>
               ))}
           </SelectContent>

@@ -520,6 +520,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A select's dropdown shows its choices tinted as the grid does**, in a cell,
+  the record panel and a multi-select's list, with the chosen one tinted too.
 - **A kanban card lists up to four of the screen's columns** under its title,
   leaving out empty ones, and a table's record count sits under its name beside
   who may reach it, not beside the view tabs.
