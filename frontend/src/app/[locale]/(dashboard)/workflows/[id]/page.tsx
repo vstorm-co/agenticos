@@ -18,7 +18,8 @@ import { LiveRun, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas
 import {
   ConflictBanner,
   DebugRun,
-  EditorActions,
+  DraftAutosave,
+  PublishDialog,
   WorkflowSettingsForm,
   ChatButton,
   RunButton,
@@ -176,6 +177,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         canEdit={canEdit}
         onChange={(tags) => actions.update.mutate({ id: workflow.id, update: { tags } })}
       />
+      {canEdit && <DraftAutosave saveDraft={saveDraft.mutateAsync} />}
     </div>
   );
 
@@ -258,12 +260,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               <RunButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
             )}
             {canEdit && (
-              <EditorActions
-                workflow={workflow}
-                catalog={nodes}
-                saveDraft={saveDraft.mutateAsync}
-                publish={publish.mutateAsync}
-              />
+              <PublishDialog workflow={workflow} catalog={nodes} publish={publish.mutateAsync} />
             )}
           </div>
         }

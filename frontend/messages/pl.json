@@ -4144,7 +4144,9 @@
       "red": "Czerwony"
     },
     "nodeSummaryAnd": " i ",
-    "nodeSummaryOr": " lub "
+    "nodeSummaryOr": " lub ",
+    "cardAgentVersion": "{name} · v{version}",
+    "pickerVersionLive": "Live"
   },
   "artifacts": {
     "title": "Artefakty",

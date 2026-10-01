@@ -248,7 +248,7 @@ step names a real thing your organization has:
 
 | Picker | What it pins |
 |---|---|
-| **Agent** and **Version** | An agent, then one of its published versions. Changing the agent clears the pinned version, because a version belongs to one agent |
+| **Agent** and **Version** | An agent, by its face and description, then one of its published versions, with the live one marked and each one's date and release note. Changing the agent clears the pinned version, because a version belongs to one agent. The step's card then shows the agent's face and "name · v3" |
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
 | **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
 
@@ -343,7 +343,7 @@ connection that crosses into or out of a loop's body.
 ## Autosave and the revision-conflict banner { #autosave-and-the-revision-conflict-banner }
 
 Your draft saves itself. A short pause after you stop editing writes the current
-graph, and the status beside the header reflects it — **Unsaved changes** while a
+graph, and the status under the title, after its tags, reflects it — **Unsaved changes** while a
 save is pending, **Saving…** while it runs, **Saved** once it lands, and **Save
 failed — will retry** if it did not.
 

@@ -25,6 +25,7 @@ import {
   nodeLevelProblems,
   nodeNames,
 } from "@/components/workflows/property-panel/problems";
+import { AgentTile, resourcePin } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,17 @@ export function NodeEditorDialog({
   if (graph === null || node === null) return null;
   const visual = nodeVisual(node.definition_id, definition?.category ?? "");
   const Icon = visual.icon;
+  const pin = resourcePin(node);
+  const tile = (
+    <span
+      className={cn(
+        "flex size-10 shrink-0 items-center justify-center rounded-xl",
+        visual.tileClass,
+      )}
+    >
+      <Icon aria-hidden="true" className="size-5" />
+    </span>
+  );
   const nodeProblems = nodeLevelProblems(problems, node.id);
   const names = nodeNames(graph, catalogIndex);
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
@@ -171,14 +183,11 @@ export function NodeEditorDialog({
         )}
       >
         <header className="border-border flex items-start gap-3 border-b px-6 pt-6 pr-14 pb-4">
-          <span
-            className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-xl",
-              visual.tileClass,
-            )}
-          >
-            <Icon aria-hidden="true" className="size-5" />
-          </span>
+          {pin?.kind === "agent" ? (
+            <AgentTile agentId={pin.id} fallback={tile} className="size-10" />
+          ) : (
+            tile
+          )}
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <DialogTitle className="truncate text-base">

@@ -17,6 +17,11 @@ vi.mock("@/hooks", () => ({
   useWorkflowTable: () => ({ table: null }),
 }));
 
+vi.mock("@/components/workflows/canvas/node-resource", async (original) => ({
+  ...(await original<typeof import("@/components/workflows/canvas/node-resource")>()),
+  AgentTile: ({ agentId }: { agentId: string }) => <span>face of {agentId}</span>,
+}));
+
 const store = useWorkflowEditorStore;
 
 function node(id: string, definitionId = "debug.echo", config = {}): NodeInstance {
@@ -55,6 +60,14 @@ describe("NodeEditorDialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(store.getState().editingNodeId).toBeNull();
+  });
+
+  it("heads a step that runs an agent with the agent's face", () => {
+    seed(node("a", "debug.echo", { agent: { agent_id: "a1", version_id: null } }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+
+    expect(screen.getByText("face of a1")).toBeInTheDocument();
   });
 
   it("deletes the step it shows", async () => {

@@ -1,7 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import { AutosaveStatusIndicator } from "./autosave-status";
+import { echo, graph } from "@/components/workflows/validation/fixtures";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+import { AutosaveStatusIndicator, DraftAutosave } from "./autosave-status";
 import type { AutosaveStatus } from "./use-workflow-autosave";
 
 describe("AutosaveStatusIndicator", () => {
@@ -22,5 +25,21 @@ describe("AutosaveStatusIndicator", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveAttribute("data-autosave-status", "idle");
     expect(region).toHaveTextContent("");
+  });
+});
+
+describe("DraftAutosave", () => {
+  it("drives the autosave and says how it went, saying nothing of a clean draft", () => {
+    act(() => {
+      const store = useWorkflowEditorStore.getState();
+      store.teardown();
+      store.load({ workflowId: "w1", expectedRevision: 0 });
+      store.seedGraph(graph({ entry: "a", nodes: [echo("a")] }));
+    });
+    const saveDraft = vi.fn();
+    render(<DraftAutosave saveDraft={saveDraft} />);
+
+    expect(screen.getByRole("status")).toHaveAttribute("data-autosave-status", "idle");
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

@@ -152,7 +152,8 @@ vi.mock("@/components/workflows/editor", () => ({
       debug
     </button>
   ),
-  EditorActions: () => <div data-testid="editor-actions" />,
+  PublishDialog: () => <div data-testid="publish-dialog" />,
+  DraftAutosave: () => <div data-testid="draft-autosave" />,
   ChatButton: ({ onStarted }: { onStarted: (runId: string) => void }) => (
     <button type="button" data-testid="chat-button" onClick={() => onStarted("run-chat")}>
       chat
@@ -214,7 +215,8 @@ describe("the workflow editor page permission gate", () => {
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "false");
-    expect(screen.getByTestId("editor-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("publish-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-autosave")).toBeInTheDocument();
     expect(screen.getByTestId("run-button")).toBeInTheDocument();
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
@@ -256,7 +258,8 @@ describe("the workflow editor page permission gate", () => {
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");
     // No autosave/publish and no conflict banner; a step's settings open read-only.
-    expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("publish-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("draft-autosave")).not.toBeInTheDocument();
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
     // History stays readable, but a version cannot be restored over the draft.
@@ -274,7 +277,8 @@ describe("the workflow editor page permission gate", () => {
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");
-    expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("publish-dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("draft-autosave")).not.toBeInTheDocument();
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
     await openHistory();

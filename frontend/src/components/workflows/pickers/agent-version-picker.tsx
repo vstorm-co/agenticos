@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { AlertTriangle, Plus } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
+  Badge,
   Label,
   Select,
   SelectContent,
@@ -14,6 +16,7 @@ import {
 } from "@/components/ui";
 import { useAgents, useAllAgentVersions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { formatDateTime } from "@/lib/utils";
 import type { Uuid } from "@/lib/workflows/types";
 
 /**
@@ -50,6 +53,7 @@ export interface AgentVersionPickerProps {
  */
 export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVersionPickerProps) {
   const t = useTranslations("workflows");
+  const locale = useLocale();
   const { agents, isLoading: agentsLoading } = useAgents();
   const { versions, isLoading: versionsLoading } = useAllAgentVersions(value.agent_id);
 
@@ -81,8 +85,30 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
           </SelectTrigger>
           <SelectContent>
             {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                {agent.name}
+              // The face, in the list and the field alike, and the description
+              // beside it in the list, are what tell two agents apart.
+              <SelectItem
+                key={agent.id}
+                value={agent.id}
+                textValue={agent.name}
+                trailing={
+                  agent.description && (
+                    <span className="text-muted-foreground ml-3 max-w-[55%] truncate text-xs">
+                      {agent.description}
+                    </span>
+                  )
+                }
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <AgentAvatar
+                    agentId={agent.id}
+                    slug={agent.slug}
+                    hasAvatar={agent.has_avatar}
+                    colorSlot={agent.avatar_color}
+                    size="sm"
+                  />
+                  <span className="truncate">{agent.name}</span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -112,8 +138,28 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
           </SelectTrigger>
           <SelectContent>
             {versions.map((version) => (
-              <SelectItem key={version.id} value={version.id}>
-                {t("pickerVersionNumber", { version: version.version })}
+              <SelectItem
+                key={version.id}
+                value={version.id}
+                textValue={t("pickerVersionNumber", { version: version.version })}
+                trailing={
+                  // When and why it was published, to pin the right one.
+                  <span className="text-muted-foreground ml-3 truncate text-xs">
+                    {[
+                      version.created_at && formatDateTime(version.created_at, locale),
+                      version.note,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                }
+              >
+                <span className="flex items-center gap-2">
+                  {t("pickerVersionNumber", { version: version.version })}
+                  {version.id === chosenAgent?.current_version_id && (
+                    <Badge variant="outline">{t("pickerVersionLive")}</Badge>
+                  )}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

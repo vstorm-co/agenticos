@@ -26,6 +26,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { NodeRunStatusLabel } from "@/components/workflows/runs/run-status";
 
 import { useCanvasInteraction } from "./canvas-context";
+import { AgentTile, ResourceLine, resourcePin } from "./node-resource";
 import { useIsRunView, useNodeRunSummary } from "./run-overlay";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { QuickAdd } from "./quick-add";
@@ -254,6 +255,17 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
   const summary = nodeSummary(instance, t);
+  const pin = resourcePin(instance);
+  const tile = (
+    <span
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+        visual.tileClass,
+      )}
+    >
+      <Icon aria-hidden="true" className="size-4" />
+    </span>
+  );
   // Under the name, what the step is set to do - or else, for a step given a
   // name of its own, what kind of step it is ("Limit"), or which group it
   // belongs to ("Slack", "Tables"), which a long description would only truncate.
@@ -351,14 +363,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       ))}
 
       <div className="flex items-start gap-2.5 p-3">
-        <span
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg",
-            visual.tileClass,
-          )}
-        >
-          <Icon aria-hidden="true" className="size-4" />
-        </span>
+        {pin?.kind === "agent" ? <AgentTile agentId={pin.id} fallback={tile} /> : tile}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-sm leading-5 font-medium">{name}</span>
@@ -420,7 +425,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
             </span>
           </div>
-          {(summary ?? group) !== null && (
+          {(summary ?? group ?? pin) !== null && (
             <p
               title={definition?.description}
               className={cn(
@@ -428,7 +433,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 summary !== null && summaryIsCode(instance) && "font-mono",
               )}
             >
-              {summary ?? group}
+              {summary ?? (pin === null ? group : <ResourceLine pin={pin} fallback={group} />)}
             </p>
           )}
         </div>

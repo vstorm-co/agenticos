@@ -1,5 +1,5 @@
 ---
-source_sha: "3d9efa417500"
+source_sha: "9342f618b587"
 ---
 
 # Workflows { #workflows }
@@ -281,7 +281,7 @@ hat:
 
 | Auswahlfeld | Was es pinnt |
 |---|---|
-| **Agent** und **Version** | Einen Agent, dann eine seiner veröffentlichten Versionen. Ein Wechsel des Agents löscht die gepinnte Version, weil eine Version zu einem Agent gehört |
+| **Agent** und **Version** | Einen Agent, an seinem Avatar und seiner Beschreibung erkennbar, dann eine seiner veröffentlichten Versionen, mit markierter Live-Version sowie Datum und Release Note jeder Version. Ein Wechsel des Agents löscht die gepinnte Version, weil eine Version zu einem Agent gehört. Die Karte des Schritts zeigt dann den Avatar des Agents und „Name · v3“ |
 | **Table** und **Columns** | Eine [Virtual Table](virtual-tables.md), dann die Spalten, die der Schritt liest — begrenzt auf das aktuelle Schema dieser Tabelle |
 | **Secret** | Ein [Vault](secrets.md)-Secret, per Referenz. Ein Schritt speichert die id des Secrets, nie seinen Wert |
 
@@ -385,7 +385,7 @@ Schleife hinein oder aus ihm heraus kreuzt.
 ## Autosave und das Revisions-Konflikt-Banner { #autosave-and-the-revision-conflict-banner }
 
 Ihr Draft speichert sich selbst. Eine kurze Pause, nachdem Sie aufhören zu
-bearbeiten, schreibt den aktuellen Graphen, und der Status neben dem Kopf spiegelt
+bearbeiten, schreibt den aktuellen Graphen, und der Status unter dem Titel, nach seinen Tags, spiegelt
 ihn — **Unsaved changes**, solange ein Speichern aussteht, **Saving…**, während es
 läuft, **Saved**, sobald es landet, und **Save failed — will retry**, wenn es das
 nicht tat.

@@ -529,6 +529,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow's save status no longer pushes the header around.** "Unsaved
+  changes" and "Saved" sit under the title after its tags, where a status that
+  changes length moves nothing, instead of beside the header's buttons.
+- **An agent step shows which agent it runs.** The picker lists each agent
+  with its face and description, and each version with the live one marked,
+  its date and release note; the step's card and dialog wear the agent's face,
+  and a card that pins an agent, a table or a workflow names it under its title.
 - **A Filter or If card reads its condition** - "score ≥ 80 and stage ≠ Won" -
   rather than the expression, which shows only when the builder cannot read
   it; and a workflow's description is edited as the text it is, not in a box.

@@ -1,5 +1,5 @@
 ---
-source_sha: "3d9efa417500"
+source_sha: "9342f618b587"
 ---
 
 # Workflows { #workflows }
@@ -255,7 +255,7 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 
 | Pole wyboru | Co przypina |
 |---|---|
-| **Agent** i **Version** | Agenta, a potem jedną z jego opublikowanych wersji. Zmiana agenta czyści przypiętą wersję, bo wersja należy do jednego agenta |
+| **Agent** i **Version** | Agenta, po jego awatarze i opisie, a potem jedną z jego opublikowanych wersji, z oznaczoną wersją live oraz datą i notatką każdej. Zmiana agenta czyści przypiętą wersję, bo wersja należy do jednego agenta. Karta kroku pokazuje wtedy awatar agenta i „nazwa · v3” |
 | **Table** i **Columns** | [Virtual Table](virtual-tables.md), a potem kolumny, które krok odczytuje — ograniczone do bieżącego schematu tej tabeli |
 | **Secret** | Sekret w [vault](secrets.md), przez referencję. Krok zapisuje id sekretu, nigdy jego wartość |
 
@@ -348,7 +348,7 @@ połączenie, które przekracza granicę ciała pętli — do środka lub na zew
 ## Autozapis i banner konfliktu rewizji { #autosave-and-the-revision-conflict-banner }
 
 Twój draft zapisuje się sam. Krótka przerwa po tym, jak przestajesz edytować,
-zapisuje bieżący graf, a status obok nagłówka to odzwierciedla — **Unsaved changes**,
+zapisuje bieżący graf, a status pod tytułem, za tagami, to odzwierciedla — **Unsaved changes**,
 gdy zapis oczekuje, **Saving…**, gdy trwa, **Saved**, gdy się dokona, i **Save failed
 — will retry**, gdy się nie dokonał.
 

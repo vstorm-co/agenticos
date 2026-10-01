@@ -1,5 +1,5 @@
 ---
-source_sha: "3d9efa417500"
+source_sha: "9342f618b587"
 ---
 
 # Workflows { #workflows }
@@ -263,7 +263,7 @@ que un paso nombre algo real que tu organización tiene:
 
 | Selector | Qué fija |
 |---|---|
-| **Agent** y **Version** | Un agent, y luego una de sus versiones publicadas. Cambiar el agent borra la versión fijada, porque una versión pertenece a un agent |
+| **Agent** y **Version** | Un agent, por su avatar y su descripción, y luego una de sus versiones publicadas, con la versión live marcada y la fecha y la nota de cada una. Cambiar el agent borra la versión fijada, porque una versión pertenece a un agent. La tarjeta del paso muestra entonces el avatar del agent y «nombre · v3» |
 | **Table** y **Columns** | Una [Virtual Table](virtual-tables.md), y luego las columnas que el paso lee — acotadas al esquema actual de esa tabla |
 | **Secret** | Un secreto del [vault](secrets.md), por referencia. Un paso guarda la id del secreto, nunca su valor |
 
@@ -361,7 +361,7 @@ o una conexión que cruza hacia dentro o hacia fuera del cuerpo de un bucle.
 ## Autoguardado y el banner de conflicto de revisión { #autosave-and-the-revision-conflict-banner }
 
 Tu draft se guarda solo. Una breve pausa después de que dejas de editar escribe el
-grafo actual, y el estado junto a la cabecera lo refleja — **Unsaved changes**
+grafo actual, y el estado bajo el título, tras sus etiquetas, lo refleja — **Unsaved changes**
 mientras un guardado está pendiente, **Saving…** mientras se ejecuta, **Saved** una
 vez que aterriza, y **Save failed — will retry** si no lo hizo.
 

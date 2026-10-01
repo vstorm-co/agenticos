@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
 import type { NodeInstance, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
@@ -14,6 +14,12 @@ import { nodeSummary } from "./workflow-node";
  * What a node card says about its step: a line of what it is set to do, its
  * policy, its labelled ports, and - on a run's canvas - what the run did with it.
  */
+
+vi.mock("./node-resource", async (original) => ({
+  ...(await original<typeof import("./node-resource")>()),
+  AgentTile: ({ agentId }: { agentId: string }) => <span>face of {agentId}</span>,
+  ResourceLine: ({ pin }: { pin: { id: string } }) => <>uses {pin.id}</>,
+}));
 
 const store = useWorkflowEditorStore;
 
@@ -107,6 +113,18 @@ function seed(nodes: NodeInstance[], extra: Partial<WorkflowGraph> = {}): void {
 beforeEach(() => store.getState().teardown());
 
 describe("a node card", () => {
+  it("shows the agent a step runs as its face, and names what a step works with", () => {
+    seed([
+      instance("a", "data.map", { config: { agent: { agent_id: "a1", version_id: "v1" } } }),
+      instance("t", "data.map", { config: { table: { table_id: "t1" } } }),
+    ]);
+    render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    expect(screen.getByText("face of a1")).toBeInTheDocument();
+    expect(screen.getByText("uses a1")).toBeInTheDocument();
+    expect(screen.getByText("uses t1")).toBeInTheDocument();
+  });
+
   it("says what each kind of step is set to do", () => {
     seed([
       instance("i", "logic.if", {

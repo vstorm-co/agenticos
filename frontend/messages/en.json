@@ -6492,7 +6492,9 @@
       "red": "Red"
     },
     "nodeSummaryAnd": " and ",
-    "nodeSummaryOr": " or "
+    "nodeSummaryOr": " or ",
+    "cardAgentVersion": "{name} · v{version}",
+    "pickerVersionLive": "Live"
   },
   "artifacts": {
     "title": "Artifacts",

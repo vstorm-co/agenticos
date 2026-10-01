@@ -13,12 +13,18 @@ vi.mock("@/hooks", () => ({
 }));
 
 const AGENTS = [
-  { id: "a1", name: "Support" },
-  { id: "a2", name: "Billing" },
+  {
+    id: "a1",
+    slug: "support",
+    name: "Support",
+    description: "Answers tickets",
+    current_version_id: "v2",
+  },
+  { id: "a2", slug: "billing", name: "Billing", description: null, current_version_id: null },
 ];
 const VERSIONS = [
-  { id: "v1", version: 1 },
-  { id: "v2", version: 2 },
+  { id: "v1", version: 1, note: null },
+  { id: "v2", version: 2, note: "Shorter answers", created_at: "2026-09-30T10:00:00Z" },
 ];
 
 beforeEach(() => {
@@ -34,6 +40,20 @@ function mount(value: AgentVersionRef, props: Partial<{ disabled: boolean; error
 }
 
 describe("AgentVersionPicker", () => {
+  it("shows each agent's face and description, and which version is live", async () => {
+    mount({ agent_id: "a1", version_id: "v1" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    expect(screen.getByRole("option", { name: /Support/ })).toHaveTextContent("Answers tickets");
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Version" }));
+    const live = screen.getByRole("option", { name: /Version 2/ });
+    expect(live).toHaveTextContent("Live");
+    expect(live).toHaveTextContent("Shorter answers");
+    expect(screen.getByRole("option", { name: /Version 1/ })).not.toHaveTextContent("Live");
+  });
+
   it("choosing an agent clears the pinned version", async () => {
     const onChange = mount({ agent_id: "a1", version_id: "v1" });
 
@@ -47,7 +67,7 @@ describe("AgentVersionPicker", () => {
     const onChange = mount({ agent_id: "a1", version_id: null });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Version" }));
-    await userEvent.click(screen.getByRole("option", { name: "Version 2" }));
+    await userEvent.click(screen.getByRole("option", { name: /^Version 2/ }));
 
     expect(onChange).toHaveBeenCalledWith({ agent_id: "a1", version_id: "v2" });
   });
