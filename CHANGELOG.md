@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.516] - 2026-10-01
+
 ### Changed
 
 - **A personal service is asked for when the agent needs it.** The dashboard
