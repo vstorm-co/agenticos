@@ -57,8 +57,15 @@ the `expected_version` the caller last read. The service reconciles it with the
 current columns:
 
 - A column with an `id` is that column. A column without one is new.
-- A column's **type never changes**, because the values stored under it would no
-  longer mean what they did. Add a new column instead.
+- A column's **type changes only to one its values read as**, and the change
+  rewrites every record's value. Any value becomes text; text becomes a number, a
+  yes/no, a date or a single select when it says one - a select gains an option per
+  distinct value; a whole number becomes a number and back when it is whole; a date
+  becomes a date and time; one choice becomes several and back when there is one.
+  Any other change is refused, and so is one some value does not survive, naming
+  how many and one example - nothing is written. Something that uses the column
+  refuses it as an archive does. A record's revision moves on, so an edit against
+  its old value is a conflict.
 - Nothing is deleted. A column or option left out is **archived**: its values stay
   readable and filterable, and writing to it is refused with `ARCHIVED_COLUMN`.
 - Archived ones count toward the limits. A table holds at most 100 columns and a select
@@ -164,7 +171,7 @@ screen until the hidden-columns button shows it again; **Save view** keeps both.
 **Rename** and **Archive column** change the table for everyone, each as the same new
 schema version the Columns dialog would write, and an archive something still uses is
 refused, with the workflows, views and triggers listed in the dialog. The **+** after the last column adds one, optional to begin
-with. A column's type never changes.
+with. A column's type changes in **Columns**, to the types its values convert to.
 
 In **Columns**, **Required** makes a column need a
 value, and an archived column moves under **Archived columns**, where **Restore** brings
@@ -192,7 +199,7 @@ from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, or an ISO date and time - and otherwise text, or long
 text once a value has a line break or runs past 1,000 characters. The name comes from
-the file, and both can be changed before creating, since a type cannot change later.
+the file, and both can be changed before creating, which costs less than a type change later.
 Once the table exists the import opens with every column already mapped, and the
 table opens after it.
 
@@ -258,7 +265,8 @@ widens access beyond what the table itself allows.
 In the console, the screen with no view picked reads **All records**, and **+** beside
 it saves what the screen shows as a new view. A kanban board with no view asks which
 single-select column makes its lanes and draws at once; saved as a view, it keeps
-that grouping. A table with no single-select column offers **Add a column** instead.
+that grouping. A card lists up to four of the screen's columns under its title,
+leaving out empty ones. A table with no single-select column offers **Add a column** instead.
 
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and

@@ -282,12 +282,25 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         title={table.name}
         description={table.description ?? undefined}
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
+        // Facts about the table, under its name rather than among the controls.
+        badges={
+          <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+            <VisibilityIcon aria-hidden="true" className="size-3.5" />
+            {t(`visibility.${table.visibility}`)}
+            {matching && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">
+                  {t(matching.capped ? "recordCountCapped" : "recordCount", {
+                    count: matching.count,
+                  })}
+                </span>
+              </>
+            )}
+          </span>
+        }
         actions={
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground mr-1 inline-flex items-center gap-1.5 text-xs">
-              <VisibilityIcon aria-hidden="true" className="size-3.5" />
-              {t(`visibility.${table.visibility}`)}
-            </span>
             {canEdit && (
               <Button
                 variant="outline"
@@ -340,20 +353,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
-            <TabsList data-tour="table-view-tabs">
-              <TabsTrigger value="table">{t("tabs.table")}</TabsTrigger>
-              <TabsTrigger value="kanban">{t("tabs.kanban")}</TabsTrigger>
-              <TabsTrigger value="list">{t("tabs.list")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {matching && (
-            <span className="text-muted-foreground text-sm tabular-nums">
-              {t(matching.capped ? "recordCountCapped" : "recordCount", { count: matching.count })}
-            </span>
-          )}
-        </div>
+        <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+          <TabsList data-tour="table-view-tabs">
+            <TabsTrigger value="table">{t("tabs.table")}</TabsTrigger>
+            <TabsTrigger value="kanban">{t("tabs.kanban")}</TabsTrigger>
+            <TabsTrigger value="list">{t("tabs.list")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput
             value={searchDraft}
@@ -474,6 +480,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           <TableKanbanView
             tableId={id}
             columns={table.columns}
+            shownColumns={columns}
             groupByColumnId={groupBy}
             baseFilters={applied}
             search={search}

@@ -1,5 +1,5 @@
 ---
-source_sha: "67fc055c8e59"
+source_sha: "578b67f7bf86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -65,9 +65,16 @@ Tabelle haben soll, und die `expected_version`, die der Aufrufer zuletzt gelesen
 Der Service gleicht sie mit den aktuellen Spalten ab:
 
 - Eine Spalte mit `id` ist diese Spalte. Eine Spalte ohne `id` ist neu.
-- Der **Typ einer Spalte ändert sich nie**, weil die darunter gespeicherten Werte sonst
-  nicht mehr bedeuten würden, was sie bedeutet haben. Fügen Sie stattdessen eine neue
-  Spalte hinzu.
+- Der **Typ einer Spalte ändert sich nur in einen, als den sich ihre Werte lesen
+  lassen**, und die Änderung schreibt den Wert jedes Datensatzes neu. Jeder Wert wird
+  zu Text; Text wird zu einer Zahl, einem Ja/Nein, einem Datum oder einer
+  Einfachauswahl, wenn er eines sagt - eine Auswahl erhält je unterschiedlichem Wert
+  eine Option; eine ganze Zahl wird zur Zahl und zurück, wenn sie ganz ist; ein Datum
+  wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
+  ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
+  mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
+  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
+  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
 - Nichts wird gelöscht. Eine weggelassene Spalte oder Option wird **archiviert**: Ihre
   Werte bleiben les- und filterbar, und ein Schreibzugriff darauf wird mit
   `ARCHIVED_COLUMN` abgelehnt.
@@ -188,7 +195,8 @@ wieder zeigt; **Save view** speichert beides. **Rename** und **Archive column** 
 Tabelle für alle, jeweils als dieselbe neue Schemaversion, die der Dialog Columns
 schreiben würde, und eine Archivierung von etwas, das noch verwendet wird,
 wird abgelehnt, mit den Workflows, Ansichten und Triggern im Dialog. Das **+** nach der letzten Spalte fügt eine hinzu,
-anfangs optional. Der Typ einer Spalte ändert sich nie.
+anfangs optional. Der Typ einer Spalte ändert sich in **Columns**, in die Typen, in
+die sich ihre Werte umwandeln lassen.
 
 In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte Spalte
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
@@ -218,7 +226,7 @@ beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jed
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum oder Datum und
 Uhrzeit in ISO - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
 hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
-sich vor dem Erstellen ändern, da sich ein Typ später nicht ändern lässt. Sobald die
+sich vor dem Erstellen ändern, was weniger kostet als eine spätere Typänderung. Sobald die
 Tabelle existiert, öffnet sich der Import mit jeder Spalte schon zugeordnet, danach die
 Tabelle.
 
@@ -295,7 +303,8 @@ selbst erlaubt.
 In der Konsole heißt der Bildschirm ohne gewählte Ansicht **All records**, und **+**
 daneben speichert, was er zeigt, als neue Ansicht. Ein Kanban-Board ohne Ansicht fragt,
 welche Einfachauswahl-Spalte seine Bahnen bildet, und zeichnet sich sofort; als Ansicht
-gespeichert, behält es diese Gruppierung. Eine Tabelle ohne Einfachauswahl-Spalte bietet
+gespeichert, behält es diese Gruppierung. Eine Karte zeigt unter ihrem Titel bis zu
+vier Spalten des Bildschirms und lässt leere weg. Eine Tabelle ohne Einfachauswahl-Spalte bietet
 stattdessen **Add a column** an.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`

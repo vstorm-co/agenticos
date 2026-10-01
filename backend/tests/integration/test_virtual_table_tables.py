@@ -339,7 +339,7 @@ async def test_a_schema_change_refuses_what_would_break_stored_values(db):
     keep = [column("Name", "text", id=name_id), column("Age", "integer", id=age_id)]
     two_options = [OptionInput(label="a"), OptionInput(label="a")]
     cases = [
-        ([keep[0], column("Age", "text", id=age_id)], "columns.1.type"),
+        ([keep[0], column("Age", "date", id=age_id)], "columns.1.type"),
         ([*keep, column("Name", "text")], "columns"),
         ([*keep, column("Boss", "text", nullable=False)], "columns.2.default"),
         ([*keep, column("Bad", "integer", default="x")], "columns.2.default"),
@@ -363,6 +363,149 @@ async def test_a_schema_change_refuses_what_would_break_stored_values(db):
         assert raised.value.details is not None
         assert raised.value.details["fields"][0]["field"] == field
     assert (await service.describe_table(ctx, table.id)).schema_version == 1
+
+
+async def test_a_type_change_rewrites_every_value_it_survives(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(name="Leads", columns=[column("Score", "text"), column("Stage", "text")]),
+    )
+    score_id, stage_id = (col.id for col in table.columns)
+    written = [
+        await service.create_record(
+            ctx, table.id, RecordCreate(values={str(score_id): score, str(stage_id): stage})
+        )
+        for score, stage in (("90", "Won"), (" 7 ", "New"), ("", "Won"))
+    ]
+
+    changed = await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[
+                column("Score", "integer", id=score_id),
+                column("Stage", "single_select", id=stage_id),
+            ],
+        ),
+    )
+
+    assert changed.schema_version == 2
+    stage = changed.columns[1]
+    assert [option.label for option in stage.options] == ["Won", "New"]
+    won, new = (str(option.id) for option in stage.options)
+    records = [await service.get_record(ctx, table.id, w.record.id) for w in written]
+    assert [record.values.get(str(score_id)) for record in records] == [90, 7, None]
+    assert [record.values[str(stage_id)] for record in records] == [won, new, won]
+    # An edit against what a record held before is now a conflict, not a write.
+    assert all(record.revision > 1 for record in records)
+
+
+async def test_a_type_change_a_value_does_not_survive_writes_nothing(db, monkeypatch):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Leads",
+            columns=[column("Score", "text"), column("Code", "text", nullable=False, default="a")],
+        ),
+    )
+    score_id, code_id = (col.id for col in table.columns)
+    for score, code in (("90", "a"), ("ninety", "b"), ("", "c")):
+        await service.create_record(
+            ctx, table.id, RecordCreate(values={str(score_id): score, str(code_id): code})
+        )
+
+    def change(score: str, code: str) -> SchemaUpdate:
+        return SchemaUpdate(
+            expected_version=1,
+            columns=[
+                column("Score", score, id=score_id),  # type: ignore[arg-type]
+                column("Code", code, id=code_id, nullable=False),  # type: ignore[arg-type]
+            ],
+        )
+
+    with pytest.raises(InvalidSchemaError) as raised:
+        await service.update_schema(ctx, table.id, change("integer", "text"))
+    assert raised.value.details is not None
+    problem = raised.value.details["fields"][0]
+    assert problem["field"] == "columns.0.type"
+    assert "1 records" in problem["message"] and "'ninety'" in problem["message"]
+
+    monkeypatch.setattr("app.services.virtual_tables.tables.MAX_OPTIONS", 2)
+    with pytest.raises(InvalidSchemaError) as too_many:
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=1,
+                columns=[
+                    column("Score", "text", id=score_id),
+                    column("Code", "single_select", id=code_id, nullable=False),
+                ],
+            ),
+        )
+    assert "3 different values" in too_many.value.details["fields"][0]["message"]
+    assert (await service.describe_table(ctx, table.id)).schema_version == 1
+
+
+async def test_text_too_long_to_name_a_choice_stays_text(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Notes", columns=[column("Note", "text")])
+    )
+    note_id = table.columns[0].id
+    await service.create_record(ctx, table.id, RecordCreate(values={str(note_id): "x" * 65}))
+    with pytest.raises(InvalidSchemaError) as raised:
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(expected_version=1, columns=[column("Note", "single_select", id=note_id)]),
+        )
+    assert "longer than 64" in raised.value.details["fields"][0]["message"]
+
+
+async def test_a_required_column_is_not_emptied_by_a_type_change(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(name="Notes", columns=[column("Count", "text", nullable=False, default="1")]),
+    )
+    count_id = table.columns[0].id
+    await service.create_record(ctx, table.id, RecordCreate(values={str(count_id): " "}))
+    with pytest.raises(InvalidSchemaError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=1,
+                columns=[column("Count", "integer", id=count_id, nullable=False)],
+            ),
+        )
+
+
+async def test_a_choice_becomes_text_by_its_labels(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Leads",
+            columns=[column("Stage", "single_select", options=[OptionInput(label="Won")])],
+        ),
+    )
+    stage = table.columns[0]
+    written = await service.create_record(
+        ctx, table.id, RecordCreate(values={str(stage.id): str(stage.options[0].id)})
+    )
+    changed = await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(expected_version=1, columns=[column("Stage", "text", id=stage.id)]),
+    )
+    assert changed.columns[0].options == []
+    record = await service.get_record(ctx, table.id, written.record.id)
+    assert record.values[str(stage.id)] == "Won"
 
 
 async def test_options_are_archived_when_left_out_and_keep_their_ids(db):
@@ -559,6 +702,21 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
             ),
         )
     assert seen == [None, frozenset({table.columns[1].id})]
+    # A type change asks about the column it retypes, as an archive does.
+    with pytest.raises(SchemaDependencyError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=1,
+                columns=[
+                    column("Name", "text", id=table.columns[0].id),
+                    column("Age", "text", id=table.columns[1].id),
+                ],
+            ),
+        )
+    assert seen[-1] == frozenset({table.columns[1].id})
+    seen.pop()
     # A change that archives nothing does not ask.
     await service.update_schema(
         ctx,

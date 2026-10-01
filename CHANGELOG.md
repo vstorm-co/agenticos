@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A table column's type can change** to one its values read as: anything to
+  text, text to a number, a yes/no, a date or a single select (an option per
+  distinct value), a whole number to a number and back, a date to a date and
+  time, one choice to several and back. Saving rewrites every record's value
+  in the same change; a value that does not convert refuses it, naming how
+  many and one example, and something that uses the column refuses it as an
+  archive does. **Columns** offers only the types a column converts to.
 - **Try a chat-triggered draft in a chat panel.** Open chat in the editor
   runs the draft as a test with each message, opens the run on the canvas and
   shows its answer; nothing said there reaches a real conversation (#1955).
@@ -513,6 +520,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A kanban card lists up to four of the screen's columns** under its title,
+  leaving out empty ones, and a table's record count sits under its name beside
+  who may reach it, not beside the view tabs.
 - **Tables say more and ask less.** A table's card reads "14 records · 6
   columns" and when it changed, with who may reach it as an icon; the table
   list returns `record_count` and `column_count`. The grid shows each column's

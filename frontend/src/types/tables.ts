@@ -18,6 +18,23 @@ export const COLUMN_TYPES = [
 
 export type ColumnTypeName = (typeof COLUMN_TYPES)[number];
 
+/**
+ * What a column of each type may become - every value is rewritten to it, and a
+ * change some value does not survive is refused. Mirrors `CONVERSIONS` in
+ * `backend/app/services/virtual_tables/conversions.py`.
+ */
+export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[]> = {
+  text: ["long_text", "number", "integer", "boolean", "date", "datetime", "single_select"],
+  long_text: ["text", "number", "integer", "boolean", "date", "datetime"],
+  number: ["text", "long_text", "integer"],
+  integer: ["text", "long_text", "number"],
+  boolean: ["text", "long_text"],
+  date: ["text", "long_text", "datetime"],
+  datetime: ["text", "long_text"],
+  single_select: ["text", "long_text", "multi_select"],
+  multi_select: ["text", "long_text", "single_select"],
+};
+
 export type FilterOp =
   "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "contains" | "starts_with" | "in" | "is_null";
 

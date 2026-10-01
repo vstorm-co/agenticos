@@ -40,8 +40,12 @@ from sqlalchemy import (
     select,
     text,
     tuple_,
+    update,
 )
-from sqlalchemy.dialects.postgresql import array
+from sqlalchemy import column as sa_column
+from sqlalchemy import values as sa_values
+from sqlalchemy.dialects.postgresql import JSONB, array
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -352,6 +356,67 @@ async def current_columns(
         )
     )
     return dict(rows.all())
+
+
+async def column_values(
+    db: AsyncSession, *, table_id: UUID, column_id: UUID
+) -> list[tuple[UUID, Any]]:
+    """Every record's value for one column, by record id - those that hold one."""
+    key = str(column_id)
+    rows = await db.execute(
+        select(VirtualTableRecord.id, VirtualTableRecord.values[key]).where(
+            VirtualTableRecord.table_id == table_id, VirtualTableRecord.values.has_key(key)
+        )
+    )
+    return [(record_id, value) for record_id, value in rows.all()]
+
+
+_REWRITE_BATCH = 1_000
+"""Records rewritten per statement: one round trip each, not one per record."""
+
+
+async def rewrite_column(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    column_id: UUID,
+    values: Sequence[tuple[UUID, Any]],
+) -> None:
+    """Set one column's value on each record named, bumping its revision.
+
+    A value of None takes the key out, as an empty cell is stored. The bumped
+    revision makes an edit made against the old value a conflict, not a write of a
+    value its column no longer accepts.
+    """
+    key = str(column_id)
+    kept = [(record_id, value) for record_id, value in values if value is not None]
+    cleared = [record_id for record_id, value in values if value is None]
+    for start in range(0, len(kept), _REWRITE_BATCH):
+        cells = sa_values(
+            sa_column("rid", PG_UUID(as_uuid=True)), sa_column("cell", JSONB), name="cells"
+        ).data(kept[start : start + _REWRITE_BATCH])
+        await db.execute(
+            update(VirtualTableRecord)
+            .where(VirtualTableRecord.table_id == table_id, VirtualTableRecord.id == cells.c.rid)
+            .values(
+                values=func.jsonb_set(VirtualTableRecord.values, [key], cells.c.cell),
+                revision=VirtualTableRecord.revision + 1,
+            )
+            .execution_options(synchronize_session=False)
+        )
+    for start in range(0, len(cleared), _REWRITE_BATCH):
+        await db.execute(
+            update(VirtualTableRecord)
+            .where(
+                VirtualTableRecord.table_id == table_id,
+                VirtualTableRecord.id.in_(cleared[start : start + _REWRITE_BATCH]),
+            )
+            .values(
+                values=VirtualTableRecord.values.op("-")(key),
+                revision=VirtualTableRecord.revision + 1,
+            )
+            .execution_options(synchronize_session=False)
+        )
 
 
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:

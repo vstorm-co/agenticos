@@ -6571,7 +6571,7 @@
       "fromCsv": "Start from a CSV file",
       "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",
       "fromCsvChosen": "{file} - {count, plural, one {# row} other {# rows}} to import",
-      "fromCsvTypes": "Each column's type was read from its values. Check them before creating: a type cannot change later.",
+      "fromCsvTypes": "Each column's type was read from its values. Check them before creating: a type changes later only to one its values convert to.",
       "csvEmpty": "That file has no rows under its header.",
       "csvTooWide": "A table holds at most {max} columns.",
       "csvColumn": "Column {n}",
@@ -6607,7 +6607,9 @@
       "archiveOption": "Archive {option}",
       "restoreOption": "Restore {option}",
       "archivedHeading": "Archived columns - their values are kept",
-      "restore": "Restore"
+      "restore": "Restore",
+      "retype": "Saving turns every value from {from} into {to}. If one does not read as {to}, nothing is saved and the dialog says which.",
+      "retypeToChoice": "Saving turns every value from {from} into {to}: each different value becomes one of its choices."
     },
     "sheet": {
       "title": "Record",

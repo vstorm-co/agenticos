@@ -6,8 +6,8 @@ rules that keep stored records meaningful live:
 
 - a column keeps its id for life, so an existing column is matched by id and
   never by label; renaming one changes no record;
-- a column's type never changes, because the values stored under it would no
-  longer mean what they did;
+- a column's type changes only to one its values read as (`conversions`), and
+  the change rewrites them; any other would leave values meaning nothing;
 - nothing is deleted. A column or select option left out of the submission is
   archived: its values stay readable and it can no longer be written;
 - a new required column needs a default, since the records that already exist
@@ -26,6 +26,7 @@ from app.schemas.virtual_table import (
     OptionDef,
     OptionInput,
 )
+from app.services.virtual_tables.conversions import CONVERSIONS, convertible
 from app.services.virtual_tables.exceptions import InvalidSchemaError
 from app.services.virtual_tables.types import OPTION_TYPES, CellProblem, validate_default
 
@@ -39,6 +40,9 @@ class SchemaDiff:
 
     required: frozenset[UUID]
     """Live columns that now demand a value and that existing records may lack one for."""
+
+    retyped: frozenset[UUID]
+    """Columns whose type changed, whose values every record must be rewritten for."""
 
 
 def _options(
@@ -78,14 +82,27 @@ def _options(
 
 def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> ColumnDef:
     where = f"columns.{index}"
-    if previous is not None and previous.type != submitted.type:
+    if (
+        previous is not None
+        and previous.type != submitted.type
+        and not convertible(previous.type, submitted.type)
+    ):
+        into = ", ".join(sorted(CONVERSIONS[previous.type]))
         raise InvalidSchemaError(
             f"{where}.type",
-            f"A column's type cannot be changed (it is {previous.type}); add a new column instead",
+            f"A {previous.type} column cannot become {submitted.type}; it can become {into}. "
+            "Add a new column instead",
         )
     if submitted.options and submitted.type not in OPTION_TYPES:
         raise InvalidSchemaError(f"{where}.options", f"A {submitted.type} column has no options")
-    options = _options(f"{where}.options", submitted.options, previous.options if previous else [])
+    # Options carry over from one kind of choice to the other; a column that stops
+    # being a choice has none, and one that becomes one starts from what was sent.
+    keeps_options = (
+        previous is not None and previous.type in OPTION_TYPES and submitted.type in OPTION_TYPES
+    )
+    options = _options(
+        f"{where}.options", submitted.options, previous.options if keeps_options else []
+    )
     column = ColumnDef(
         id=previous.id if previous else uuid4(),
         label=submitted.label,
@@ -169,4 +186,9 @@ def diff(previous: Sequence[ColumnDef], current: Sequence[ColumnDef]) -> SchemaD
         and column.id in before
         and _becomes_required(before[column.id], column)
     )
-    return SchemaDiff(archived=archived, required=required)
+    retyped = frozenset(
+        column.id
+        for column in current
+        if column.id in before and before[column.id].type != column.type
+    )
+    return SchemaDiff(archived=archived, required=required, retyped=retyped)

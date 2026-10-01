@@ -19,6 +19,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { formatCellValue } from "@/lib/format-cell-value";
 import { useTableViewStore } from "@/stores";
 import type { RecordConflict } from "@/stores/table-view-store";
+import { selectChips } from "./option-chip";
 import { useKanbanDrag } from "./use-kanban-drag";
 import type { ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort } from "@/types/tables";
 
@@ -43,9 +44,13 @@ function laneFilter(groupBy: string, lane: Lane, archivedOptionIds: string[]): R
     : { column_id: groupBy, op: "eq", value: lane.optionId };
 }
 
+/** The most fields a card shows under its title: enough to tell cards apart. */
+const CARD_FIELDS = 4;
+
 function KanbanCard({
   record,
   titleColumn,
+  properties,
   boolLabel,
   dragProps,
   onOpen,
@@ -61,6 +66,8 @@ function KanbanCard({
   // card) until `columns` has yielded a `groupByColumn`, which guarantees
   // `columns[0]` exists too.
   titleColumn: ColumnDef;
+  /** The columns a card shows under its title, each with its value - empty ones left out. */
+  properties: ColumnDef[];
   boolLabel: (value: boolean) => string;
   dragProps: HTMLAttributes<HTMLDivElement>;
   onOpen: () => void;
@@ -80,6 +87,12 @@ function KanbanCard({
     boolLabel,
     locale,
   );
+  const shown = properties
+    .map((column) => ({ column, value: record.values[column.id] ?? null }))
+    .filter(
+      ({ value }) => value !== null && value !== "" && !(Array.isArray(value) && !value.length),
+    )
+    .slice(0, CARD_FIELDS);
 
   return (
     <div
@@ -110,6 +123,18 @@ function KanbanCard({
           </DropdownMenu>
         )}
       </div>
+      {shown.length > 0 && (
+        <dl className="space-y-1 text-xs">
+          {shown.map(({ column, value }) => (
+            <div key={column.id} className="flex min-w-0 items-center gap-2">
+              <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
+              <dd className="min-w-0 flex-1 truncate">
+                {selectChips(column, value) ?? formatCellValue(column, value, boolLabel, locale)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {conflict && (
         <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
           <div className="flex items-center gap-1.5">
@@ -139,6 +164,7 @@ function KanbanLane({
   sort,
   archivedOptionIds,
   titleColumn,
+  properties,
   boolLabel,
   cardProps,
   laneDropProps,
@@ -157,6 +183,7 @@ function KanbanLane({
   sort: RecordSort;
   archivedOptionIds: string[];
   titleColumn: ColumnDef;
+  properties: ColumnDef[];
   boolLabel: (value: boolean) => string;
   cardProps: (record: RecordRead) => HTMLAttributes<HTMLDivElement>;
   laneDropProps: HTMLAttributes<HTMLDivElement>;
@@ -202,6 +229,7 @@ function KanbanLane({
             key={record.id}
             record={record}
             titleColumn={titleColumn}
+            properties={properties}
             boolLabel={boolLabel}
             dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
             onOpen={() => onOpenRecord(record)}
@@ -232,6 +260,7 @@ function KanbanLane({
 export function TableKanbanView({
   tableId,
   columns,
+  shownColumns,
   groupByColumnId,
   baseFilters,
   search = null,
@@ -241,6 +270,11 @@ export function TableKanbanView({
 }: {
   tableId: string;
   columns: ColumnDef[];
+  /**
+   * The columns the screen shows - its hidden ones left out - whose values a
+   * card lists under its title. Every live column when absent.
+   */
+  shownColumns?: ColumnDef[];
   groupByColumnId: string;
   baseFilters: RecordFilter[];
   /** The search box's text, narrowing every lane alike. */
@@ -334,6 +368,9 @@ export function TableKanbanView({
   // `groupByColumn` was found in `columns`, so `columns` has at least one
   // element and this index is never out of range.
   const titleColumn = columns[0] as ColumnDef;
+  const properties = (shownColumns ?? columns.filter((column) => !column.archived)).filter(
+    (column) => column.id !== titleColumn.id && column.id !== groupByColumnId,
+  );
 
   const liveOptions: OptionDef[] = groupByColumn.options.filter((option) => !option.archived);
   const archivedOptionIds = groupByColumn.options
@@ -363,6 +400,7 @@ export function TableKanbanView({
           sort={sort}
           archivedOptionIds={archivedOptionIds}
           titleColumn={titleColumn}
+          properties={properties}
           boolLabel={boolLabel}
           cardProps={cardProps}
           laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}

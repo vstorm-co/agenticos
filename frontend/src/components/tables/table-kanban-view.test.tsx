@@ -130,6 +130,65 @@ beforeEach(() => {
 });
 
 describe("TableKanbanView", () => {
+  it("lists a card's other fields under its title, the empty ones left out", async () => {
+    const NOTE: ColumnDef = { ...TITLE, id: "note", label: "Note" };
+    const extra = (n: number): ColumnDef => ({ ...TITLE, id: `x${n}`, label: `Extra ${n}` });
+    const columns = [TITLE, GROUP_BY, NOTE, PAID, extra(1), extra(2), extra(3)];
+    mockLanes({
+      o1: [
+        {
+          ...record("a", "o1"),
+          values: {
+            name: "Ada",
+            status: "o1",
+            note: "",
+            paid: true,
+            x1: "one",
+            x2: "two",
+            x3: "three",
+          },
+        },
+      ],
+    });
+    const { unmount } = render(
+      <TableKanbanView
+        tableId="t1"
+        columns={columns}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Ada")).toBeInTheDocument();
+    // Not the title or the lane's own column, not an empty note, and at most four.
+    expect(screen.getByText("Paid")).toBeInTheDocument();
+    expect(screen.getByText("Extra 3")).toBeInTheDocument();
+    expect(screen.queryByText("Note")).not.toBeInTheDocument();
+    expect(screen.queryByText("Status")).not.toBeInTheDocument();
+    unmount();
+
+    // A column the screen hides is not on the card either.
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={columns}
+        shownColumns={[TITLE, GROUP_BY, PAID]}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("Paid")).toBeInTheDocument();
+    expect(screen.queryByText("Extra 1")).not.toBeInTheDocument();
+  });
+
   it("shows a fallback message when the grouping column is not a single_select", () => {
     render(
       <TableKanbanView

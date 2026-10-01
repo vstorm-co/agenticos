@@ -4223,7 +4223,7 @@
       "fromCsv": "Zacznij od pliku CSV",
       "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",
       "fromCsvChosen": "{file} - {count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}} do importu",
-      "fromCsvTypes": "Typ każdej kolumny odczytano z jej wartości. Sprawdź je przed utworzeniem: typu nie da się później zmienić.",
+      "fromCsvTypes": "Typ każdej kolumny odczytano z jej wartości. Sprawdź je przed utworzeniem: później typ zmienia się tylko na taki, na który dają się przekonwertować wartości.",
       "csvEmpty": "Ten plik nie ma wierszy pod nagłówkiem.",
       "csvTooWide": "Tabela mieści najwyżej {max} kolumn.",
       "csvColumn": "Kolumna {n}",
@@ -4259,7 +4259,9 @@
       "archiveOption": "Zarchiwizuj {option}",
       "restoreOption": "Przywróć {option}",
       "archivedHeading": "Zarchiwizowane kolumny - ich wartości zostają",
-      "restore": "Przywróć"
+      "restore": "Przywróć",
+      "retype": "Zapis zamieni każdą wartość z {from} na {to}. Jeśli któraś nie da się odczytać jako {to}, nic nie zostanie zapisane, a okno powie, która.",
+      "retypeToChoice": "Zapis zamieni każdą wartość z {from} na {to}: każda inna wartość stanie się jedną z opcji."
     },
     "sheet": {
       "title": "Rekord",

@@ -75,7 +75,10 @@ def _plain_key(value: str) -> str:
 
 PlainKey = AfterValidator(_plain_key)
 
-Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64), NoNul]
+MAX_LABEL = 64
+Label = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_LABEL), NoNul
+]
 Description = Annotated[str, StringConstraints(max_length=500), NoNul]
 CellKey = Annotated[str, StringConstraints(max_length=64), NoNul]
 """A key of a record's `values`: a column id. Bounded and clean because an unknown one is echoed

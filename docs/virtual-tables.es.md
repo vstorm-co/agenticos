@@ -1,5 +1,5 @@
 ---
-source_sha: "67fc055c8e59"
+source_sha: "578b67f7bf86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -63,8 +63,15 @@ la `expected_version` que el llamante leyó por última vez. El servicio la conc
 las columnas actuales:
 
 - Una columna con `id` es esa columna. Una columna sin él es nueva.
-- El **tipo de una columna nunca cambia**, porque los valores guardados bajo él dejarían
-  de significar lo que significaban. Añade una columna nueva en su lugar.
+- El **tipo de una columna cambia solo a uno como el que se leen sus valores**, y el
+  cambio reescribe el valor de cada registro. Cualquier valor pasa a texto; el texto
+  pasa a número, sí/no, fecha o selección única cuando lo dice - una selección recibe
+  una opción por cada valor distinto; un entero pasa a número y vuelve cuando es
+  entero; una fecha pasa a fecha y hora; una elección pasa a varias y vuelve cuando es
+  una. Cualquier otro cambio se rechaza, igual que uno que algún valor no supera - con
+  cuántos y un ejemplo, y no se escribe nada. Lo que usa la columna lo rechaza como a un
+  archivado. La revisión del registro avanza, así que una edición contra su valor
+  antiguo es un conflicto.
 - No se borra nada. Una columna u opción omitida se **archiva**: sus valores siguen
   siendo legibles y filtrables, y escribir en ella se rechaza con `ARCHIVED_COLUMN`.
 - Las archivadas cuentan para los límites. Una tabla tiene como máximo 100 columnas y una
@@ -177,8 +184,9 @@ view** la quita de la pantalla hasta que el botón de columnas ocultas la vuelve
 **Save view** guarda ambas cosas. **Rename** y **Archive column** cambian la tabla para
 todos, cada una como la misma nueva versión del esquema que escribiría el diálogo
 Columns, y un archivado de algo que aún se usa se rechaza, con los workflows, vistas y
-disparadores enumerados en el diálogo. El **+** tras la última columna añade una, opcional al principio. El tipo de una
-columna nunca cambia.
+disparadores enumerados en el diálogo. El **+** tras la última columna añade una, opcional al principio.
+
+El tipo de una columna cambia en **Columns**, a los tipos a los que se convierten sus valores.
 
 En **Columns**, **Required** hace que una columna necesite un valor, y una columna
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
@@ -205,8 +213,8 @@ línea. Cada registro añadido inicia los disparadores de la tabla, como cualqui
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, o fecha y hora ISO -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
-caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, ya
-que un tipo no puede cambiar después. Cuando la tabla existe, la importación se abre
+caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, lo
+que cuesta menos que un cambio de tipo después. Cuando la tabla existe, la importación se abre
 con cada columna ya asignada, y después se abre la tabla.
 
 ## Reintentos seguros { #safe-retries }
@@ -276,7 +284,8 @@ permite la propia tabla.
 En la consola, la pantalla sin vista elegida se llama **All records**, y **+** a su
 lado guarda lo que muestra como una vista nueva. Un tablero kanban sin vista pregunta
 qué columna de selección única forma sus carriles y se dibuja al momento; guardado como
-vista, conserva esa agrupación. Una tabla sin columna de selección única ofrece en su
+vista, conserva esa agrupación. Una tarjeta muestra bajo su título hasta cuatro
+columnas de la pantalla, sin las vacías. Una tabla sin columna de selección única ofrece en su
 lugar **Add a column**.
 
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las

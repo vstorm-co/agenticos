@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SchemaEditorDialog } from "./schema-editor-dialog";
 import { ApiError } from "@/lib/api-client";
-import type { TableRead } from "@/types/tables";
+import type { ColumnInput, TableRead } from "@/types/tables";
 
 function table(overrides: Partial<TableRead> = {}): TableRead {
   return {
@@ -58,7 +58,41 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByDisplayValue("Status")).toBeInTheDocument();
   });
 
-  it("an existing column's type is locked", () => {
+  it("offers a saved column only the types its values convert to, and says what saving does", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({
+          columns: [{ ...table().columns[0]!, default: "n/a" }, table().columns[1]!],
+        })}
+        onSave={onSave}
+        isSaving={false}
+        error={null}
+      />,
+    );
+    const [customer, status] = screen.getAllByRole("combobox", { name: "Column type" });
+    await user.click(customer as HTMLElement);
+    // Text can become a number, not a list of choices.
+    expect(screen.getByRole("option", { name: "Integer" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Multi select" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: "Integer" }));
+    expect(screen.getByText(/Saving turns every value from Text into Integer/)).toBeInTheDocument();
+
+    await user.click(status as HTMLElement);
+    await user.click(screen.getByRole("option", { name: "Text" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const [savedCustomer, savedStatus] = onSave.mock.calls[0]?.[0] as ColumnInput[];
+    // The old type's default goes, and a choice turned text keeps no options.
+    expect(savedCustomer).toMatchObject({ type: "integer", default: null });
+    expect(savedStatus).toMatchObject({ type: "text", options: [] });
+  });
+
+  it("says text becoming a choice takes its values as the choices", async () => {
+    const user = userEvent.setup();
     render(
       <SchemaEditorDialog
         open
@@ -69,8 +103,9 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
-    const typeSelects = screen.getAllByRole("combobox", { name: "Column type" });
-    expect(typeSelects[0]).toBeDisabled();
+    await user.click(screen.getAllByRole("combobox", { name: "Column type" })[0] as HTMLElement);
+    await user.click(screen.getByRole("option", { name: "Single select" }));
+    expect(screen.getByText(/each different value becomes one of its choices/)).toBeInTheDocument();
   });
 
   it("editing a column's label updates the row", async () => {

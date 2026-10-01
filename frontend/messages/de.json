@@ -6430,7 +6430,7 @@
       "fromCsv": "Mit einer CSV-Datei beginnen",
       "fromCsvHint": "Ihre Kopfzeile wird zu den Spalten, jede mit dem Typ ihrer Werte, und ihre Zeilen werden importiert, sobald die Tabelle existiert.",
       "fromCsvChosen": "{file} - {count, plural, one {# Zeile} other {# Zeilen}} zum Importieren",
-      "fromCsvTypes": "Der Typ jeder Spalte wurde aus ihren Werten gelesen. Prüfe sie vor dem Erstellen: Ein Typ lässt sich später nicht ändern.",
+      "fromCsvTypes": "Der Typ jeder Spalte wurde aus ihren Werten gelesen. Prüfen Sie sie vor dem Erstellen: Später ändert sich ein Typ nur in einen, in den sich die Werte umwandeln lassen.",
       "csvEmpty": "Diese Datei hat keine Zeilen unter ihrer Kopfzeile.",
       "csvTooWide": "Eine Tabelle fasst höchstens {max} Spalten.",
       "csvColumn": "Spalte {n}",
@@ -6466,7 +6466,9 @@
       "archiveOption": "{option} archivieren",
       "restoreOption": "{option} wiederherstellen",
       "archivedHeading": "Archivierte Spalten - ihre Werte bleiben erhalten",
-      "restore": "Wiederherstellen"
+      "restore": "Wiederherstellen",
+      "retype": "Beim Speichern wird jeder Wert von {from} zu {to}. Lässt sich einer nicht als {to} lesen, wird nichts gespeichert, und der Dialog sagt, welcher.",
+      "retypeToChoice": "Beim Speichern wird jeder Wert von {from} zu {to}: Jeder unterschiedliche Wert wird zu einer seiner Optionen."
     },
     "sheet": {
       "title": "Datensatz",

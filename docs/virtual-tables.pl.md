@@ -1,5 +1,5 @@
 ---
-source_sha: "67fc055c8e59"
+source_sha: "578b67f7bf86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -62,8 +62,15 @@ Porównania pasują tylko do komórek, które mają wartość. Puste znajdziesz 
 ją z bieżącymi kolumnami:
 
 - Kolumna z `id` to ta kolumna. Kolumna bez niego jest nowa.
-- **Typ kolumny nigdy się nie zmienia**, bo zapisane pod nim wartości przestałyby
-  znaczyć to, co znaczyły. Dodaj zamiast tego nową kolumnę.
+- **Typ kolumny zmienia się tylko na taki, jako który dają się odczytać jej
+  wartości**, a zmiana przepisuje wartość w każdym rekordzie. Każda wartość staje się
+  tekstem; tekst staje się liczbą, tak/nie, datą albo pojedynczym wyborem, gdy to
+  mówi - wybór dostaje opcję na każdą inną wartość; liczba całkowita staje się liczbą
+  i z powrotem, gdy jest całkowita; data staje się datą z czasem; jeden wybór staje się
+  kilkoma i z powrotem, gdy jest jeden. Każda inna zmiana jest odrzucana, podobnie jak
+  taka, której któraś wartość nie przetrwa - z liczbą i przykładem, a nic nie zostaje
+  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rewizja rekordu
+  idzie dalej, więc edycja według starej wartości jest konfliktem.
 - Nic nie jest usuwane. Pominięta kolumna lub opcja zostaje **zarchiwizowana**: jej
   wartości pozostają czytelne i filtrowalne, a zapis do niej jest odrzucany kodem
   `ARCHIVED_COLUMN`.
@@ -175,7 +182,8 @@ zapisuje jedno i drugie. **Rename** i **Archive column** zmieniają tabelę dla 
 każda jako ta sama nowa wersja schematu, którą zapisałby dialog Columns, a archiwizacja
 czegoś, co jest jeszcze używane, zostaje odrzucona, a workflow, widoki i wyzwalacze
 pojawiają się w dialogu. **+** za ostatnią
-kolumną dodaje nową, na początek opcjonalną. Typ kolumny nigdy się nie zmienia.
+kolumną dodaje nową, na początek opcjonalną. Typ kolumny zmienia się w **Columns**, na
+typy, na które dają się przekonwertować jej wartości.
 
 W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, a
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
@@ -204,7 +212,7 @@ każdy inny.
 wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data albo data i godzina
 w ISO - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
 przekracza 1000 znaków. Nazwa pochodzi z pliku i obie rzeczy można zmienić przed
-utworzeniem, bo typu nie da się później zmienić. Gdy tabela już istnieje, import
+utworzeniem, co kosztuje mniej niż późniejsza zmiana typu. Gdy tabela już istnieje, import
 otwiera się z każdą kolumną już przypisaną, a po nim otwiera się tabela.
 
 ## Bezpieczne ponawianie { #safe-retries }
@@ -274,7 +282,7 @@ tabela.
 W konsoli ekran bez wybranego widoku nazywa się **All records**, a **+** obok zapisuje
 to, co pokazuje ekran, jako nowy widok. Tablica kanban bez widoku pyta, która kolumna
 jednokrotnego wyboru tworzy tory, i od razu się rysuje; zapisana jako widok zachowuje
-to grupowanie. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
+to grupowanie. Karta pokazuje pod tytułem do czterech kolumn ekranu, pomijając puste. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
 column**.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`

@@ -24,7 +24,7 @@ import { ColumnTypeIcon } from "./column-type-icon";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
-import { COLUMN_TYPES } from "@/types/tables";
+import { COLUMN_CONVERSIONS, COLUMN_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 
 /** An option row, `archived` narrowed to required - see `Row` below. */
@@ -37,6 +37,8 @@ interface OptionRow {
 interface Row extends Omit<ColumnInput, "options"> {
   /** A stable React key independent of the backend id - a new column has none yet. */
   key: string;
+  /** The type the column is saved with, for one that exists: what it may change from. */
+  savedType?: ColumnTypeName;
   // Narrowed from `ColumnInput`'s optional versions: every `Row` this module
   // constructs (`toRows`, `blankRow`) sets all three, so nothing downstream
   // needs a fallback for "not set yet".
@@ -51,6 +53,7 @@ function toRows(table: TableRead): Row[] {
     id: column.id,
     label: column.label,
     type: column.type,
+    savedType: column.type,
     nullable: column.nullable,
     default: column.default,
     options: column.options.map((option) => ({
@@ -60,6 +63,15 @@ function toRows(table: TableRead): Row[] {
     })),
     archived: column.archived,
   }));
+}
+
+const OPTION_TYPES: ReadonlySet<ColumnTypeName> = new Set(["single_select", "multi_select"]);
+
+/** The types a row may be set to: any for a new column, what it converts to for a saved one. */
+function typesFor(row: Row): ColumnTypeName[] {
+  if (row.savedType === undefined) return [...COLUMN_TYPES];
+  const reachable = new Set([row.savedType, ...COLUMN_CONVERSIONS[row.savedType]]);
+  return COLUMN_TYPES.filter((type) => reachable.has(type));
 }
 
 function blankRow(): Row {
@@ -188,7 +200,18 @@ export function SchemaEditorDialog({
   }
 
   function submit() {
-    onSave(rows.map(({ key: _key, ...column }) => column));
+    onSave(
+      rows.map(({ key: _key, savedType, ...column }) => {
+        const retyped = savedType !== undefined && column.type !== savedType;
+        return {
+          ...column,
+          // A default of the old type is not one of the new; a choice's options
+          // are not text's, and text becoming a choice takes its own values.
+          default: retyped ? null : column.default,
+          options: OPTION_TYPES.has(column.type) ? column.options : [],
+        };
+      }),
+    );
   }
 
   return (
@@ -211,14 +234,13 @@ export function SchemaEditorDialog({
                   />
                   <Select
                     value={row.type}
-                    disabled={!!row.id}
                     onValueChange={(value) => updateRow(row.key, { type: value as ColumnTypeName })}
                   >
                     <SelectTrigger className="w-44" aria-label={t("columnType")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {COLUMN_TYPES.map((type) => (
+                      {typesFor(row).map((type) => (
                         <SelectItem key={type} value={type}>
                           <span className="inline-flex items-center gap-2">
                             <ColumnTypeIcon type={type} />
@@ -263,6 +285,19 @@ export function SchemaEditorDialog({
                 </div>
                 {problemFor(index, "label") && (
                   <p className="text-destructive text-xs">{problemFor(index, "label")}</p>
+                )}
+                {row.savedType !== undefined && row.type !== row.savedType && (
+                  <p className="text-muted-foreground text-xs">
+                    {t(
+                      row.type === "single_select" && !OPTION_TYPES.has(row.savedType)
+                        ? "retypeToChoice"
+                        : "retype",
+                      {
+                        from: t(`types.${row.savedType}`),
+                        to: t(`types.${row.type}`),
+                      },
+                    )}
+                  </p>
                 )}
                 {problemFor(index, "type") && (
                   <p className="text-destructive text-xs">{problemFor(index, "type")}</p>

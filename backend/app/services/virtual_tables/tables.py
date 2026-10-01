@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
@@ -15,8 +15,12 @@ from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import (
+    MAX_LABEL,
+    MAX_OPTIONS,
+    CellValue,
     ColumnDef,
     OperationKey,
+    OptionDef,
     SchemaUpdate,
     SchemaVersionList,
     SchemaVersionRead,
@@ -29,6 +33,7 @@ from app.schemas.virtual_table import (
 )
 from app.services.access import TABLE, accessible_ids, visible_resource_ids
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.conversions import convert, option_labels
 from app.services.virtual_tables.dependencies import find_dependents
 from app.services.virtual_tables.exceptions import (
     InvalidSchemaError,
@@ -38,6 +43,7 @@ from app.services.virtual_tables.exceptions import (
 from app.services.virtual_tables.quotas import enforce_table_count
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.schema import build_columns, diff
+from app.services.virtual_tables.types import CellProblem
 
 _OPERATION_KEY = TypeAdapter(OperationKey)
 
@@ -275,8 +281,9 @@ class TableOperations(Operations):
             # client's `expected_version` stale for a change that changed nothing.
             return self._read(table, previous, can_edit=True)
         change = diff(previous, columns)
+        await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
+        columns = await self._retype(table, previous, columns, change.retyped)
         await self._refuse_empty_required(table, columns, change.required)
-        await self._refuse_dependents(ctx, table, column_ids=change.archived)
         version = table.schema_version + 1
         await virtual_table_repo.add_schema_version(
             self.db,
@@ -298,6 +305,63 @@ class TableOperations(Operations):
             details={"version": version, "archived_columns": len(change.archived)},
         )
         return self._read(table, columns, can_edit=True)
+
+    async def _retype(
+        self,
+        table: VirtualTable,
+        previous: list[ColumnDef],
+        columns: list[ColumnDef],
+        retyped: frozenset[UUID],
+    ) -> list[ColumnDef]:
+        """Rewrite every record's value of each column whose type changed, or refuse.
+
+        All of a change's values are converted before any is written, so a change
+        some value does not survive writes nothing. Text that becomes a choice
+        gains an option for each distinct value it holds.
+
+        Raises:
+            InvalidSchemaError: A value does not read as its column's new type, or
+                text holds more distinct values than a choice column can have.
+        """
+        if not retyped:
+            return columns
+        before = {column.id: column for column in previous}
+        result = list(columns)
+        rewrites: list[tuple[UUID, list[tuple[UUID, CellValue]]]] = []
+        for index, column in enumerate(columns):
+            if column.id not in retyped:
+                continue
+            old = before[column.id]
+            held = await virtual_table_repo.column_values(
+                self.db, table_id=table.id, column_id=column.id
+            )
+            if column.type == "single_select" and old.type in ("text", "long_text"):
+                column = _with_choices(index, column, [value for _record, value in held])
+                result[index] = column
+            converted: list[tuple[UUID, CellValue]] = []
+            refused: list[CellValue] = []
+            for record_id, value in held:
+                try:
+                    new = convert(value, old, column)
+                except CellProblem:
+                    refused.append(value)
+                    continue
+                if new is None and not column.nullable:
+                    refused.append(value)
+                    continue
+                converted.append((record_id, new))
+            if refused:
+                raise InvalidSchemaError(
+                    f"columns.{index}.type",
+                    f"{len(refused)} records hold a value that does not read as {column.type}, "
+                    f"such as {str(refused[0])[:40]!r}. Change them first, or add a new column.",
+                )
+            rewrites.append((column.id, converted))
+        for column_id, converted in rewrites:
+            await virtual_table_repo.rewrite_column(
+                self.db, table_id=table.id, column_id=column_id, values=converted
+            )
+        return result
 
     async def _claim_name(self, ctx: AuthContext, name: str) -> None:
         """Refuse a name a live table holds, serialized so two creates cannot both pass."""
@@ -342,3 +406,22 @@ class TableOperations(Operations):
                     for dependent in dependents
                 ]
             )
+
+
+def _with_choices(index: int, column: ColumnDef, values: list[CellValue]) -> ColumnDef:
+    """A text column becoming a choice, with an option for each distinct value it holds."""
+    live = {option.label for option in column.options if not option.archived}
+    missing = [label for label in option_labels(values) if label not in live]
+    if len(column.options) + len(missing) > MAX_OPTIONS:
+        raise InvalidSchemaError(
+            f"columns.{index}.type",
+            f"It holds {len(live) + len(missing)} different values, more than the "
+            f"{MAX_OPTIONS} choices a column can have.",
+        )
+    if any(len(label) > MAX_LABEL for label in missing):
+        raise InvalidSchemaError(
+            f"columns.{index}.type",
+            f"Some values are longer than {MAX_LABEL} characters, the most a choice can be.",
+        )
+    added = [OptionDef(id=uuid4(), label=label, archived=False) for label in missing]
+    return column.model_copy(update={"options": [*column.options, *added]})
