@@ -1,4 +1,4 @@
-<!-- source_sha: a47758cd7328 -->
+<!-- source_sha: 9c7ae6d93edc -->
 
 <div align="center">
 
@@ -40,7 +40,7 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 
 **Od briefu w Notion i informacji z GitHuba do interaktywnej strony pomagającej podjąć decyzję.**
 
-<video src="https://github.com/vstorm-co/agenticos/raw/3a6fc33b8990366b3a8e931d38d43fc30add8978/docs/assets/screens/oss-launch-planner-demo.mp4" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
 </video>
 
@@ -55,7 +55,7 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 
 </details>
 
-[Obejrzyj film](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [Zobacz zrzut ekranu](docs/assets/screens/oss-launch-planner-poster.webp)
+[Obejrzyj skrócony film (37 sekund)](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [Zobacz zrzut ekranu](docs/assets/screens/oss-launch-planner-poster.webp)
 
 *Zmontowane demo z usuniętym czasem oczekiwania. Dane repozytoriów odpowiadają chwili nagrania;
 artefakt nie pobiera danych na żywo. Połączenia i możliwości agenta skonfigurowano na potrzeby tego demo.*
