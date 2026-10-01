@@ -1,4 +1,4 @@
-<!-- source_sha: 490548e50185 -->
+<!-- source_sha: e144b87848f1 -->
 
 <div align="center">
 
@@ -233,8 +233,11 @@ Zugriffsrechte und Kontrollen; die Ausführung wird protokolliert. [Eine Routine
 </td>
 <td width="55%">
 
-<!-- MEDIA: routines | capture light with expanded sidebar; show an actual scheduled execution -->
-> **Screenshot-Platzhalter — Routines:** Zeitplan eines Berichts, letzter abgeschlossener zeitgesteuerter Lauf und Link zum Ergebnis.
+<!-- MEDIA: routines | light; existing weekly schedule configuration -->
+
+<a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/light/routines.webp" alt="Zeitplan-Editor mit wöchentlicher Wiederholung am Montag um 06:00 UTC und Vorschau der Agentennachricht." width="100%">
+</a>
 
 </td>
 </tr>

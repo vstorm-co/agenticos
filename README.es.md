@@ -1,4 +1,4 @@
-<!-- source_sha: 490548e50185 -->
+<!-- source_sha: e144b87848f1 -->
 
 <div align="center">
 
@@ -233,8 +233,11 @@ configurados y dejan un registro. [Configura una rutina](docs/triggers.es.md).
 </td>
 <td width="55%">
 
-<!-- MEDIA: routines | capture light with expanded sidebar; show an actual scheduled execution -->
-> **Captura pendiente — Routines:** programación de un informe, última ejecución programada completada y enlace al resultado.
+<!-- MEDIA: routines | light; existing weekly schedule configuration -->
+
+<a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/light/routines.webp" alt="Editor de horarios con repetición semanal los lunes a las 06:00 UTC y vista previa del mensaje para el agente." width="100%">
+</a>
 
 </td>
 </tr>

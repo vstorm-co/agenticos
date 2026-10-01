@@ -231,8 +231,11 @@ brief or a recurring report. Runs use the configured access and controls and lea
 </td>
 <td width="55%">
 
-<!-- MEDIA: routines | capture light with expanded sidebar; show an actual scheduled execution -->
-> **Screenshot placeholder — Routines:** a report's schedule, last completed scheduled run and link to its result.
+<!-- MEDIA: routines | light; existing weekly schedule configuration -->
+
+<a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/light/routines.webp" alt="Schedule editor with weekly repetition on Monday at 06:00 UTC and the agent message in Preview." width="100%">
+</a>
 
 </td>
 </tr>

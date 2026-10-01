@@ -1,4 +1,4 @@
-<!-- source_sha: 490548e50185 -->
+<!-- source_sha: e144b87848f1 -->
 
 <div align="center">
 
@@ -233,8 +233,11 @@ dostępu i mechanizmów kontroli oraz pozostawiają zapis w historii. [Skonfigur
 </td>
 <td width="55%">
 
-<!-- MEDIA: routines | capture light with expanded sidebar; show an actual scheduled execution -->
-> **Miejsce na zrzut — Routines:** harmonogram raportu, ostatnie zakończone wykonanie z harmonogramu i link do wyniku.
+<!-- MEDIA: routines | light; existing weekly schedule configuration -->
+
+<a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/light/routines.webp" alt="Edytor harmonogramu: powtarzanie co poniedziałek o 06:00 UTC i podgląd wiadomości dla agenta." width="100%">
+</a>
 
 </td>
 </tr>

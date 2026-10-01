@@ -25,9 +25,9 @@ with a linked screenshot. Keep the UI and displayed data unchanged.
 | `activity` | Complete: filtered run history and agent version comparison; status, tokens, duration and recorded cost |
 | `run-detail` | The demo execution, tool calls and recorded cost |
 | `approval` | Complete: actual pending execute action and decision controls |
-| `routines` | Schedule, actual completed scheduled run and result |
+| `routines` | Complete: existing weekly schedule editor, Monday at 06:00 UTC, message in Preview |
 
-Nine screenshot slots are complete; `run-detail` and `routines` remain pending.
+Ten screenshot slots are complete; `run-detail` remains pending.
 
 ## Previous capture provenance
 
@@ -60,8 +60,8 @@ The OSS Launch Planner keeps its own dark styling in both application themes; it
 explicitly labeled as a 1 October snapshot. Approval shows a real pending action; no approval
 or rejection was performed to prepare the capture. Narrow preliminary captures are not committed.
 
-The current Routines examples contain internal business instructions; a suitable demo capture
-with a real completed scheduled run is still needed.
+The Routines capture shows configuration of an existing schedule, not a completed execution or result.
+It contains the generic reconciliation procedure; no schedule was saved or run for the screenshot.
 
 Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
 The documentation and presentation use explicit placeholders until new captures are ready.
@@ -76,7 +76,7 @@ or imply live multiplayer sessions, absolute data isolation, model parity or gua
 
 The main reading path shows the demo followed by a visible feature table: a short explanation beside
 one linked screenshot per feature. Additional library and collection views and the pending run-detail
-capture sit in a collapsed supplement. The Routines row keeps its explicit placeholder. Team access,
+capture sit in a collapsed supplement. The Routines row shows the existing weekly schedule editor. Team access,
 installation and deployment controls follow the gallery; terminology remains defined in the feature copy.
 The layout takes inspiration from stablyai/orca, using AgenticOS copy and original product captures.
 
@@ -117,3 +117,6 @@ entries; the public claim stays at 5,700+ and describes discoverable server entr
 
 The user-provided Notion/GitHub demo remains the primary video, visible above the feature gallery.
 The experimental overview films were rejected and are not included in the repository.
+
+The Routines light screenshot was captured on 2026-10-02 with expanded navigation behind the native
+modal. It shows Monday at 06:00 UTC and the message in Preview; it is a lossless WebP conversion.
