@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **An agent card no longer blinks out when the cursor leaves it.** The
+  gallery's entrance animation and the card's hover beam both set an
+  animation on the same element, so each time the beam went out the card
+  replayed its entrance from fully transparent. Firefox and browsers built on
+  it showed this as the card vanishing under the cursor. The beam now sits
+  inside its own wrapper.
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed
