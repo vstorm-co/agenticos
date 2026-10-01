@@ -86,7 +86,7 @@ The layout takes inspiration from stablyai/orca, using AgenticOS copy and origin
 Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
 on a feature branch. Check the light screenshots and their full-resolution links on GitHub.
 
-The README leads with the original GitHub-hosted attachment in a video element. An independently expandable GIF
+The README leads with the shortened GitHub-hosted attachment in a video element. An independently expandable GIF
 preview is available below it when playback is unavailable. The fallback is manually opened, not
 automatically selected by device. Direct video and still-image links remain available.
 
@@ -132,10 +132,11 @@ Audio has 30 ms fades around the cut; existing music and effects are otherwise r
 - `oss-launch-planner-preview.gif`: 640 × 364, 3 fps, 56 frames, 18.66 seconds, 925,508 bytes.
   It shows the shortened demo at 2× speed without sound, disclosed below the image in each language.
 - Both files fit the repository's 1 MiB asset limit. The GIF links to the shortened MP4.
-- GitHub strips repository-hosted video embeds when rendering in repository context. The primary
-  player therefore uses the original 46.5-second attachment; the explicitly labeled shortened-video
-  link and optional GIF use the 37.5-second edit. Embedding the shorter video requires uploading it
-  through GitHub's authenticated attachment interface.
+- GitHub strips repository-hosted video embeds when rendering in repository context. The player,
+  direct video links and GIF now point to the user's uploaded full-resolution shortened attachment:
+  https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512
+- Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5942800375
+
 - Original-resolution edited master and downloaded source remain in the local
   `Desktop/agenticos-demo-short` production folder.
 - Validated full MP4 decoding, duration, GIF frame timing and sampled frames around the cut.

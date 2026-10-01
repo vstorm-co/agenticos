@@ -1,4 +1,4 @@
-<!-- source_sha: 9c7ae6d93edc -->
+<!-- source_sha: 64643af6d2fe -->
 
 <div align="center">
 
@@ -40,14 +40,14 @@ Dale a un agente el briefing, el conocimiento y las herramientas. Deja que inves
 
 **De un briefing en Notion y una investigación en GitHub a una página interactiva para tomar decisiones.**
 
-<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a fuentes" width="100%">
 </video>
 
 <details>
 <summary>¿No se carga el vídeo? Abre la vista previa animada</summary>
 
-<a href="docs/assets/screens/oss-launch-planner-demo.mp4?raw=true">
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
   <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a fuentes" width="100%">
 </a>
 
@@ -55,7 +55,7 @@ Dale a un agente el briefing, el conocimiento y las herramientas. Deja que inves
 
 </details>
 
-[Ver el vídeo recortado (37 segundos)](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [Ver una captura](docs/assets/screens/oss-launch-planner-poster.webp)
+[Ver el vídeo recortado (37 segundos)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Ver una captura](docs/assets/screens/oss-launch-planner-poster.webp)
 
 *Demostración editada con los tiempos de espera eliminados. Las cifras de los repositorios corresponden
 al momento de la grabación; el artefacto no obtiene datos en vivo. Las conexiones y capacidades se configuraron para esta demo.*

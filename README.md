@@ -38,14 +38,14 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 
 **From a Notion brief and GitHub research to an interactive decision page.**
 
-<video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
 </video>
 
 <details>
 <summary>Video not loading? Open the animated preview</summary>
 
-<a href="docs/assets/screens/oss-launch-planner-demo.mp4?raw=true">
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
   <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
 </a>
 
@@ -53,7 +53,7 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 
 </details>
 
-[Watch the shortened video (37 seconds)](docs/assets/screens/oss-launch-planner-demo.mp4?raw=true) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
+[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
 *Edited demonstration with waiting time removed. Repository figures reflect the recording's snapshot;
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
