@@ -1,4 +1,4 @@
-<!-- source_sha: 6eb450050094 -->
+<!-- source_sha: 96cce7bd5751 -->
 
 <div align="center">
 
@@ -111,8 +111,11 @@ En **Agents**, crea un asistente para una tarea, elige su modelo, escribe instru
 Publica una versión cuando esté lista para usarse. Puedes consultar versiones anteriores y revertir un cambio.
 [Crea un agente](docs/first-agent.es.md).
 
-<!-- MEDIA: agent-builder | capture light + dark; same agent as the demo -->
-> **Captura pendiente — Configuración del agente:** instrucciones, herramientas seleccionadas y versión publicada del agente de la demo.
+<!-- MEDIA: agent-builder | light + dark; same agent as the demo -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Configuración del agente con instrucciones, modelo seleccionado y versión publicada con cambios en el borrador." width="100%">
+</picture>
 
 ### Enseña un procedimiento reutilizable
 

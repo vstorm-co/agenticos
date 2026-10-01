@@ -1,4 +1,4 @@
-<!-- source_sha: 6eb450050094 -->
+<!-- source_sha: 96cce7bd5751 -->
 
 <div align="center">
 
@@ -111,8 +111,11 @@ W **Agents** tworzysz asystenta do zadania, wybierasz model, piszesz instrukcje 
 Gdy jest gotowy do użycia, publikujesz wersję. Możesz przeglądać wcześniejsze wersje i cofnąć zmianę.
 [Zbuduj agenta](docs/first-agent.pl.md).
 
-<!-- MEDIA: agent-builder | capture light + dark; same agent as the demo -->
-> **Miejsce na zrzut — Konfiguracja agenta:** instrukcje, wybrane narzędzia i opublikowana wersja agenta z demo.
+<!-- MEDIA: agent-builder | light + dark; same agent as the demo -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Konfiguracja agenta: instrukcje, wybrany model i opublikowana wersja ze zmianami w szkicu." width="100%">
+</picture>
 
 ### Naucz go powtarzalnej procedury
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 6eb450050094 -->
+<!-- source_sha: 96cce7bd5751 -->
 
 <div align="center">
 
@@ -111,8 +111,11 @@ Unter **Agents** erstellst du einen Assistenten für eine Aufgabe, wählst sein 
 und aktivierst Werkzeuge. Veröffentliche eine Version, wenn sie einsatzbereit ist. Frühere Versionen
 lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](docs/first-agent.de.md).
 
-<!-- MEDIA: agent-builder | capture light + dark; same agent as the demo -->
-> **Screenshot-Platzhalter — Agent Builder:** Anweisungen, ausgewählte Werkzeuge und veröffentlichte Version des Demo-Agenten.
+<!-- MEDIA: agent-builder | light + dark; same agent as the demo -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Konfiguration mit Anweisungen, ausgewähltem Modell und veröffentlichter Version mit Entwurfsänderungen." width="100%">
+</picture>
 
 ### Wiederverwendbare Abläufe vermitteln
 

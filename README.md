@@ -109,8 +109,11 @@ In **Agents**, create an assistant for a task, choose its model, write instructi
 Publish a version when it is ready for use. You can inspect earlier versions and roll back a change.
 [Build an agent](docs/first-agent.md).
 
-<!-- MEDIA: agent-builder | capture light + dark; same agent as the demo -->
-> **Screenshot placeholder — Agent builder:** instructions, selected tools and published version of the demo agent.
+<!-- MEDIA: agent-builder | light + dark; same agent as the demo -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and published version alongside draft changes." width="100%">
+</picture>
 
 ### Teach a reusable procedure
 

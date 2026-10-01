@@ -15,7 +15,7 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 
 | Slot | Capture |
 |---|---|
-| `agent-builder` | Demo agent instructions, selected tools and published version |
+| `agent-builder` | Complete: demo agent instructions, selected model, published version and draft changes |
 | `skills` | Library and a readable procedure |
 | `context` | Company context content and attachment settings |
 | `knowledge-bases` | Named collections |
@@ -26,7 +26,10 @@ content and framing, then replace the corresponding blockquote with a theme-awar
 | `approval` | An actual pending tool action and decision controls |
 | `routines` | Schedule, actual completed scheduled run and result |
 
-All ten screenshots are pending. The poster is a frame from the supplied video, not a new UI capture.
+The `agent-builder` light/dark pair is complete; nine screenshot slots remain pending.
+The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
+and stored as lossless WebP at the original 3502 × 2000 resolution.
+Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
 Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
 The documentation and presentation use explicit placeholders until new captures are ready.
 Earlier assets remain recoverable from Git history; do not reuse them for the refreshed interface.
