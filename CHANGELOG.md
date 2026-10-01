@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **PII redaction covers phone numbers.** The `redact_pii_*` guardrails
+  scrubbed email, IBAN, card and US SSN, and a phone number in the same
+  message reached the model and the reader unchanged. They now also redact a
+  phone number as `[redacted:phone]` when it is valid in its country's
+  numbering plan, so a date, a timestamp or an order id comes through. A number
+  written with `+` is caught for any country; a national one for the countries
+  in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
+  code is refused at publish. An agent with no PII toggle on is unchanged.
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed

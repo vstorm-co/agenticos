@@ -183,6 +183,10 @@ dependencies = [
     # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
     # decision is recorded in `licenses/policy.toml`.
     "ldap3>=2.9.1",
+    # The `guardrails` phone detector, which the harness's PII patterns lack. The
+    # lite build: the same `phonenumbers` module and numbering-plan metadata,
+    # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
+    "phonenumberslite>=9.0.40",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's

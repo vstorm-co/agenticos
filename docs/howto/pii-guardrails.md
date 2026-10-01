@@ -1,6 +1,6 @@
 ---
 title: "Keep personal data out of an agent's prompts and answers"
-description: "Configure the guardrails capability to redact emails, card numbers and secrets, then check what the model actually received against what the visitor saw."
+description: "Configure the guardrails capability to redact emails, phone numbers, card numbers and secrets, then check what the model actually received against what the visitor saw."
 ---
 
 # Keep personal data out of an agent's prompts and answers
@@ -20,7 +20,7 @@ embedding model are needed. The capability adds no tools, so nothing beyond
 ## Prepare the input
 
 No file this time — the input is the chat message itself. Use this line, which
-mixes a pattern the capability recognises with one it deliberately does not:
+carries one of each kind of personal data the capability recognises:
 
 ```text
 My email is jane.doe@example.com, my card number is 4111 1111 1111 1111,
@@ -28,9 +28,10 @@ my SSN is 123-45-6789, and my phone number is 415-555-0132.
 ```
 
 The reference facts: `redact_pii_*` scrubs email, IBAN, credit card
-(Luhn-checked) and US SSN — a fixed list of regex-shaped patterns. It does not
-scrub phone numbers; there is no phone detector in this capability. That gap is
-deliberate to verify, not a mistake in the fixture.
+(Luhn-checked), US SSN and phone number. A phone number is checked against the
+numbering plan of its country: one written with `+` is caught for any country, a
+national one such as `415-555-0132` only for the countries in **phone_regions**,
+which defaults to `US, GB, DE, PL`.
 
 ## Build the agent
 
@@ -38,9 +39,10 @@ deliberate to verify, not a mistake in the fixture.
 2. In **Toolbox**, enable **Guardrails**. It contributes no tool — there is
    nothing here for a person to approve, only a check on text.
 3. Under the capability's config, turn on **Redact API keys and tokens from the
-   user's prompt**, **Redact emails, IBANs, cards and SSNs from the prompt**,
-   **Redact API keys and tokens from the agent's answer** and **Redact emails,
-   IBANs, cards and SSNs from the answer**. Set **Block the run if the prompt
+   user's prompt**, **Redact emails, phone numbers, IBANs, cards and SSNs from
+   the prompt**, **Redact API keys and tokens from the agent's answer** and
+   **Redact emails, phone numbers, IBANs, cards and SSNs from the answer**. Leave
+   **phone_regions** at its default, which includes `US`. Set **Block the run if the prompt
    contains any of these terms (comma or newline separated)** to `wire transfer`.
 4. Set the instructions below, then **Publish**.
 
@@ -69,26 +71,28 @@ I need to send a wire transfer today, can you help?
 
 | Check | Reference |
 | --- | --- |
-| The reply | Does not repeat the email, card number or SSN in the clear |
-| Phone number in the reply | Repeated as-is — no detector redacts it |
+| The reply | Does not repeat the email, card number, SSN or phone number in the clear |
+| Phone number in the reply | Absent, or quoted back as `[redacted:phone]` |
 | `Reference key:` line in the reply | Reads `Reference key: [redacted:openai_key]`, not the real value |
 | The run's transcript (Activity) for the user's own turn | Shows the original, unredacted message you typed, phone number and all |
 | The wire-transfer message | The run's status is `guardrail_blocked`, cost `0`, and no answer is produced |
 | The same wire-transfer message with the keyword unset | Runs normally — the block is the keyword, not the topic |
 
-The second row of the table is the one worth sitting with: redaction runs on the
-edges the capability was built for, and a value with no matching pattern reaches
-the model exactly as typed. The fourth row is the other one — a person reviewing
+The second row of the table is the one worth sitting with: the phone number is
+national, so it is caught only because `US` is in **phone_regions** — take `US`
+out and it reaches the model exactly as typed. The fourth row is the other one — a person reviewing
 Activity to see "what happened" sees the visitor's real input, because the
 guardrail rewrites what the *model* reads, never the stored conversation turn.
 
-!!! example "Recorded on v0.0.504, 25 September 2026"
+!!! example "Recorded on v0.0.504, 25 September 2026, before phone redaction"
 
     Model: Claude Sonnet 4.6 through OpenRouter. First reply: *"some of your
     details were automatically redacted for your security before they reached
     me, so I was not able to see your email, card number, or SSN"*, followed by
     `Phone Number: 415-555-0132` quoted back unchanged and `Reference key:
-    [redacted:openai_key]`. Cost 0.003 USD.
+    [redacted:openai_key]`. Cost 0.003 USD. That run predates the phone
+    detector ([#1901](https://github.com/vstorm-co/agenticos/issues/1901));
+    with it, the number reaches the model as `[redacted:phone]`.
 
     The run's transcript stored the user turn as
     `My email is jane.doe@example.com, my card number is 4111 1111 1111 1111,
@@ -111,10 +115,11 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
 ## When it goes wrong
 
 - **A value you expected redacted comes through untouched.** Check it against the
-  four patterns: email, IBAN, credit card (checksum-verified), US SSN. A phone
-  number, a physical address or a name are not covered — this is a regex layer,
-  not a model that understands what personal data is. A phone pattern is
-  tracked in [#1901](https://github.com/vstorm-co/agenticos/issues/1901).
+  five detectors: email, IBAN, credit card (checksum-verified), US SSN and phone
+  number. A national phone number needs its country in **phone_regions**, and a
+  number that is not valid in its country's numbering plan is left alone. A
+  physical address or a name are not covered — this is a pattern layer, not a
+  model that understands what personal data is.
 - **A streaming client shows a secret for a moment.** Output redaction runs on
   the finished answer, after the `text_delta` frames have gone out. Render the
   `final_result` text, as `widget.js` does, rather than only appending deltas.
@@ -137,8 +142,8 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
 
 Keep the exact message, the agent version, which edges and keywords were
 configured, the run's transcript for both turns, and the run's `status` and cost
-from Activity. A person decides which four patterns are enough for a given agent,
-whether the phone-number gap matters for it, and whether tool-result screening
+from Activity. A person decides whether these five detectors are enough for a
+given agent, which countries belong in its **phone_regions**, and whether tool-result screening
 belongs on before any tool that reads the outside world is added.
 
 ## Next steps

@@ -1,5 +1,5 @@
 ---
-source_sha: "b14ec65a3eb7"
+source_sha: "40402bef169a"
 ---
 
 # Ochrona danych { #data-protection }
@@ -156,7 +156,7 @@ jest luką — i tak jest nazwany.
 | W tranzycie, do providerów | HTTPS do każdego skatalogowanego endpointu. Własny `base_url` jest odrzucany bez hosta albo z poświadczeniami w środku, ale **`http://` jest przyjmowany**, dla Ollamy albo gatewaya w sieci samego wdrożenia; profil na zwykłym HTTP wskazujący poza tę sieć wysyła prompty i klucz jawnie. Punkt 4 listy kontrolnej wypisuje każdy taki profil | `refused_field("base_url", ...)` w serwisie profili modeli; schemat to kontrola operatora |
 | Sekrety w odpowiedziach, logach, audycie, eksportach | Żaden endpoint nie zwraca jawnego tekstu; `SecretStr` wszędzie; spece odwołują się do sekretów po id | [Sekrety](secrets.md#what-never-happens) |
 | Dane osobowe w logach | `app/core/logging.py` redaguje adresy e-mail, JWT, klucze API, tokeny bearer i pary `password=` z każdego rekordu logu, tak w API, jak i w workerze | `tests/test_logging.py`; worker instaluje to w `prefect_app.py` (#440) |
-| Dane osobowe docierające do modelu | Capability `guardrails` redaguje numery IBAN, numery kart, amerykańskie numery ubezpieczenia społecznego i adresy e-mail z promptów, odpowiedzi i wyników narzędzi, jeśli jest skonfigurowana | [Capabilities](reference/capabilities.md); jej testy pod `tests/` |
+| Dane osobowe docierające do modelu | Capability `guardrails` redaguje numery IBAN, numery kart, amerykańskie numery ubezpieczenia społecznego, numery telefonów i adresy e-mail z promptów, odpowiedzi i wyników narzędzi, jeśli jest skonfigurowana | [Capabilities](reference/capabilities.md); jej testy pod `tests/` |
 | Dane osobowe w kolumnie błędu | `rag_documents.error_message` i pokrewne zapisują etap i klasę, nigdy tekst klienta | `app/services/rag/failures.py` (#423) |
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |

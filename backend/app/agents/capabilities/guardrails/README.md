@@ -19,8 +19,16 @@ On each edge, two kinds of check, drawn from `pydantic-ai-harness`'s ready-made
 detectors:
 
 - **redact** secrets (API keys, tokens, JWTs, PEM blocks) and/or personal data
-  (email, IBAN with mod-97, card with Luhn, US SSN). A match is rewritten in place
-  and the run carries on — an agent that quoted a key back has still done the work.
+  (email, IBAN with mod-97, card with Luhn, US SSN, phone number). A match is
+  rewritten in place and the run carries on — an agent that quoted a key back has
+  still done the work.
+
+The phone detector is ours, in `_phone.py`, because the harness ships no phone
+pattern. It is libphonenumber's matcher (the `phonenumberslite` build) rather than
+a regex: digit count cannot tell a phone number from an order id or a timestamp,
+and the numbering-plan check can. National formats are read for the countries in
+`phone_regions`; a `+` number is read for any. When the harness grows a phone
+pattern, this file is the one to delete.
 - **block** on a keyword list. A match ends the run.
 
 ## Why a block *stops* the run

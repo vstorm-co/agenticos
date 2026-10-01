@@ -31,7 +31,7 @@ import logging
 import re
 from collections.abc import Callable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
@@ -45,6 +45,12 @@ from pydantic_ai_harness.guardrails.detectors import (
     for_tool_result_text,
     redact_personal_data,
     redact_secrets,
+)
+
+from app.agents.capabilities.guardrails._phone import (
+    DEFAULT_PHONE_REGIONS,
+    parse_phone_regions,
+    phone_numbers,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,8 +94,10 @@ class GuardrailsConfig(BaseModel):
     """Which checks run on which edge.
 
     Flat booleans and one delimited string per edge, so the Builder can render the
-    whole form. Every field defaults off: an agent that enables the capability but
-    configures no edge gets no guardrail at all, and the builder returns `None`.
+    whole form. Every edge field defaults off: an agent that enables the capability
+    but configures no edge gets no guardrail at all, and the builder returns `None`.
+    `phone_regions` is the one field with a value by default, and it only changes
+    what a PII redaction reads.
 
     The three edges are the three the harness's text detectors have adapters for -
     the prompt (a `str`), the output (via `for_text`) and a tool result (via
@@ -101,7 +109,8 @@ class GuardrailsConfig(BaseModel):
         default=False, description="Redact API keys and tokens from the user's prompt"
     )
     redact_pii_in: bool = Field(
-        default=False, description="Redact emails, IBANs, cards and SSNs from the prompt"
+        default=False,
+        description="Redact emails, phone numbers, IBANs, cards and SSNs from the prompt",
     )
     blocked_keywords_in: str = Field(
         default="",
@@ -111,7 +120,8 @@ class GuardrailsConfig(BaseModel):
         default=False, description="Redact API keys and tokens from the agent's answer"
     )
     redact_pii_out: bool = Field(
-        default=False, description="Redact emails, IBANs, cards and SSNs from the answer"
+        default=False,
+        description="Redact emails, phone numbers, IBANs, cards and SSNs from the answer",
     )
     blocked_keywords_out: str = Field(
         default="",
@@ -122,12 +132,27 @@ class GuardrailsConfig(BaseModel):
         description="Redact API keys and tokens from tool results before the model reads them",
     )
     redact_pii_tool: bool = Field(
-        default=False, description="Redact emails, IBANs, cards and SSNs from tool results"
+        default=False,
+        description="Redact emails, phone numbers, IBANs, cards and SSNs from tool results",
     )
     blocked_keywords_tool: str = Field(
         default="",
         description="Block the run if a tool result contains any of these terms (comma or newline separated)",
     )
+    phone_regions: str = Field(
+        default=DEFAULT_PHONE_REGIONS,
+        description=(
+            "Countries whose national phone formats PII redaction reads, as two-letter codes "
+            "(comma or newline separated). A number written with + is redacted whatever is listed"
+        ),
+    )
+
+    @field_validator("phone_regions")
+    @classmethod
+    def _known_regions(cls, raw: str) -> str:
+        """An unknown code is refused at publish, not ignored at run time."""
+        parse_phone_regions(raw)
+        return raw
 
 
 def _keywords(raw: str) -> list[str]:
@@ -136,7 +161,12 @@ def _keywords(raw: str) -> list[str]:
 
 
 def _edge_detector(
-    *, redact_secrets_on: bool, redact_pii_on: bool, keywords: list[str], edge: str
+    *,
+    redact_secrets_on: bool,
+    redact_pii_on: bool,
+    phone_regions: tuple[str, ...],
+    keywords: list[str],
+    edge: str,
 ) -> TextDetector | None:
     """One text detector for an edge: redact first, then block.
 
@@ -153,7 +183,9 @@ def _edge_detector(
     if redact_secrets_on:
         redactors.append(redact_secrets)
     if redact_pii_on:
-        redactors.append(redact_personal_data)
+        # After the harness patterns, so a card or an SSN is already a placeholder
+        # and cannot be read as a national phone number.
+        redactors.extend((redact_personal_data, phone_numbers(phone_regions)))
     keyword_detector = blocked_keywords(keywords) if keywords else None
     if not redactors and keyword_detector is None:
         return None
@@ -184,10 +216,12 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     absent" contract every capability owes.
     """
     edges: list[AbstractCapability[object]] = []
+    phone_regions = parse_phone_regions(config.phone_regions)
 
     input_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_in,
         redact_pii_on=config.redact_pii_in,
+        phone_regions=phone_regions,
         keywords=_keywords(config.blocked_keywords_in),
         edge="input",
     )
@@ -197,6 +231,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     output_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_out,
         redact_pii_on=config.redact_pii_out,
+        phone_regions=phone_regions,
         keywords=_keywords(config.blocked_keywords_out),
         edge="output",
     )
@@ -206,6 +241,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,
         redact_pii_on=config.redact_pii_tool,
+        phone_regions=phone_regions,
         keywords=_keywords(config.blocked_keywords_tool),
         edge="tool_result",
     )

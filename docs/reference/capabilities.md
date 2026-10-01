@@ -1652,8 +1652,9 @@ deliberately not exposed.
 
 No tools. Inspects the text flowing through a run at three edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
-`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
-them rather than carrying a Python guard.
+`pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
+agent is data, so the config selects and parameterises them rather than carrying a
+Python guard.
 
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
@@ -1664,11 +1665,22 @@ them rather than carrying a Python guard.
 | Config | Default | |
 |---|---|---|
 | `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
-| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+| `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads |
 
-Every field defaults off, and a capability enabled with no edge configured attaches
+Every edge field defaults off, and a capability enabled with no edge configured attaches
 nothing — an agent that does not use it pays nothing.
+
+**A phone number is redacted only when it is a real number.** The detector is
+libphonenumber's, at its `VALID` leniency: a candidate is accepted only when it fits
+the numbering plan of its country, so a date, a timestamp or an order id that a
+digit-count rule would take comes through. A number written with `+` names its
+country and is redacted whatever `phone_regions` lists. A national number, such as
+`415-555-0132`, is read against each listed country, and each one added widens what
+a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
+listed a nine-digit order id is redacted too. List the countries the agent serves.
+An unknown code (`UK` for `GB` is the common one) is refused at publish.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
 the run finishes — an answer that quoted a key back has still done the work. A

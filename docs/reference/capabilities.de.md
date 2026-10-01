@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "058201d18660"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1861,7 +1861,8 @@ selbst ein Modell oder ein Embedding aufruft —, ist bewusst nicht freigegeben.
 
 Keine Tools. Prüft den Text, der durch einen Run fließt, an drei Kanten und
 **schwärzt** entweder einen Treffer oder **blockiert** den Run. Die Prüfungen sind
-fertige Detektoren aus `pydantic-ai-harness`; ein Agent ist Daten, deshalb wählt und
+fertige Detektoren aus `pydantic-ai-harness` und ein Detektor für Telefonnummern,
+den der Harness nicht mitbringt; ein Agent ist Daten, deshalb wählt und
 parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 
 | Kante | Liest | Schwärzen | Blockieren |
@@ -1873,11 +1874,24 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Konfiguration | Standard | |
 |---|---|---|
 | `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen |
-| `redact_pii_*` | `false` | E-Mail, IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
+| `redact_pii_*` | `false` | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
 | `blocked_keywords_*` | `""` | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run |
+| `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest |
 
-Jedes Feld ist standardmäßig aus, und eine Capability, die ohne konfigurierte Kante
-aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
+Jedes Kantenfeld ist standardmäßig aus, und eine Capability, die ohne konfigurierte
+Kante aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
+
+**Eine Telefonnummer wird nur geschwärzt, wenn sie eine echte Nummer ist.** Der
+Detektor stammt aus libphonenumber und läuft mit der Stufe `VALID`: Ein Kandidat
+wird nur angenommen, wenn er zum Nummerierungsplan seines Landes passt, sodass ein
+Datum, ein Zeitstempel oder eine Bestellnummer, die eine Regel nach Ziffernzahl
+treffen würde, durchkommt. Eine mit `+` geschriebene Nummer nennt ihr Land selbst
+und wird geschwärzt, gleich was `phone_regions` aufführt. Eine nationale Nummer wie
+`415-555-0132` wird gegen jedes aufgeführte Land gelesen, und jedes weitere Land
+erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige
+polnische Festnetznummer, also wird mit `PL` in der Liste auch eine neunstellige
+Bestellnummer geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
+unbekannter Code (meist `UK` statt `GB`) wird beim Veröffentlichen abgelehnt.
 
 **Das Schwärzen schreibt um; eine Blockade ist ein Run-Ergebnis.** Ein Schwärzer
 entfernt den Treffer, und der Run läuft zu Ende — eine Antwort, die einen Schlüssel
