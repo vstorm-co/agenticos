@@ -5,14 +5,14 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Build AI agents that work with your team's documents and tools.</b><br>
-  Configure them in your browser, get useful results, and keep track of their actions and costs.
+  <b>The open-source agent layer for your company.</b><br>
+  Give your team shared AI agents, company knowledge and automation — on infrastructure you control.
 </p>
 
 <p>
   <a href="#see-it-in-action">Watch the demo</a> &middot;
   <a href="#quick-start">Quick start</a> &middot;
-  <a href="#inside-the-platform">Explore the platform</a> &middot;
+  <a href="#explore-the-agent-layer">Explore the agent layer</a> &middot;
   <a href="docs/index.md">Documentation</a>
 </p>
 
@@ -32,13 +32,16 @@
 
 </div>
 
-AgenticOS is an open-source, self-hosted workspace for creating and using AI agents.
-An agent is an AI assistant you give a task, instructions, and access to selected documents and tools.
-It can research a question, analyse a file, prepare a report, or perform a connected action.
-You choose the capabilities and access available to each agent.
+AgenticOS is an open-source, self-hosted agent layer for teams. Build AI agents in your browser,
+connect them to company documents and tools, and share them with the people who need them.
+Agents can research, analyse files, create reports and carry out multi-step tasks. Your organization
+controls their access, model choices and deployment.
 
-Teams configure agents and reusable procedures through the interface. Developers extend the platform
-and integrate it with their applications. Operators manage access, deployment and usage in one place.
+When agents become part of everyday work, the team needs to know which ones to use, what they can
+access and what their work costs. AgenticOS brings agents, reusable instructions, knowledge,
+automation and execution history into one place.
+
+**Apache-2.0 · Self-hosted · Cloud or local models · Shared agents and knowledge**
 
 ## See it in action
 
@@ -56,17 +59,40 @@ a result you can open and use outside the conversation.
 *Edited demonstration with waiting time removed. Repository figures reflect the recording's snapshot;
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
 
-## Start with a task
+## Turn individual AI work into a team capability
 
-| Your task | What you give the agent | What you can ask for |
-|---|---|---|
-| Research a decision | A brief and access to relevant applications | A comparison with sources, recommendations and open questions |
-| Analyse a spreadsheet | A CSV and a question | Calculations, charts and a downloadable result |
-| Answer from company knowledge | Handbooks, policies or product documents | An answer with references you can check |
-| Prepare a recurring report | Instructions, sources and a schedule | A new report or an updated artifact after each run |
+A sales team can maintain a research agent, operations can schedule a weekly report, and subject experts
+can update the knowledge those agents use. People work through the browser; engineers extend tools
+and connect internal systems. The organization keeps the agents and their reusable know-how.
 
-These are starting points; enable the necessary tools and verify the result for your task.
-[Build your first document agent](docs/howto/first-document-agent.md) or [explore more use cases](docs/use-cases.md).
+| What your team needs | How AgenticOS supports it |
+|---|---|
+| Consistent ways of working | **Skills** store reusable procedures; **Context** stores shared facts, terminology and guidelines |
+| Answers grounded in company documents | **Knowledge bases** hold searchable collections, with retrieval-augmented generation (**RAG**) to find relevant passages |
+| Actions in existing applications | **MCP** (Model Context Protocol) connects agents to compatible tools and data sources, such as Notion and GitHub |
+| Results colleagues can use | **Artifacts** are saved pages such as reports and interactive dashboards, with versions and access settings |
+| Work that repeats | **Routines** run agents on a schedule or a configured event, with an execution record |
+| Appropriate access for each person | Organizations, roles and resource grants control who can use and manage shared agents and knowledge |
+
+Use published agents in web chat or supported channels such as Slack, Telegram and Mattermost,
+or connect them through the API, a hosted page or a website widget. [Explore channels](docs/channels.md).
+
+## Own your deployment, models and access
+
+**Run it on your infrastructure.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
+Choose hosted model providers or local models through Ollama and compatible endpoints such as vLLM.
+Model capability and hardware requirements depend on the model you choose. [Model configuration](docs/models.md).
+
+**Decide what an agent may do.** Configure resource permissions, store credentials in the vault and
+require human approval for supported tool actions. [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md).
+
+**Inspect the work and spend.** A run is one execution of an agent. Inspect its tool calls and recorded
+usage, alongside audit records for governance actions. Budgets check recorded spend before model requests;
+in-flight or concurrent requests can exceed a cap. [Execution and cost controls](docs/governance.md).
+
+[Self-hosting](docs/rollout.md) gives your team responsibility for deployment, updates and backups. External models,
+parsers, embeddings, tools and tracing can still send data outside your infrastructure. Configure each
+component for your data requirements. [Security and data flows](docs/security.md).
 
 ## Quick start
 
@@ -95,13 +121,7 @@ For development from source, see [Contributing](CONTRIBUTING.md).
 
 </details>
 
-You operate the deployment. Models, document processing and connected tools may use external services,
-depending on your configuration. See [deployment responsibilities](docs/rollout.md) and [data flows](docs/security.md).
-
-## Inside the platform
-
-Chat is where you ask for work. The rest of the workspace holds the instructions, knowledge,
-connections, results and controls that make that work repeatable.
+## Explore the agent layer
 
 ### Configure an agent
 
@@ -114,6 +134,9 @@ Publish a version when it is ready for use. You can inspect earlier versions and
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and published version alongside draft changes." width="100%">
 </picture>
+
+<details>
+<summary>Open the product tour: configuration, shared knowledge, integrations and automation</summary>
 
 ### Teach a reusable procedure
 
@@ -217,30 +240,42 @@ brief or a recurring report. Runs use the configured access and controls and lea
 <!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
 > **Screenshot placeholder — Routines:** a report's schedule, last completed scheduled run and link to its result.
 
-## Use it with your team
+</details>
 
-Use the web console, expose an agent through the API, or configure a supported channel such as Slack,
-Telegram, Mattermost, a hosted page or a website widget. [Choose a channel](docs/channels.md).
-The optional [desktop app](docs/desktop.md) brings the console into its own window, with a desktop pet
-and a shortcut for sending a screenshot into a new chat.
+## Is AgenticOS the right fit?
 
-Organizations, resource permissions, the credentials vault and usage dashboards help operators
-manage the deployment. [Plan a rollout](docs/rollout.md).
+Choose AgenticOS when your company wants shared agents, reusable knowledge and automation with control
+over the source code, models and deployment. Your team operates the installation; Vstorm can help with
+implementation and support. If you only need an agent library inside an existing application, start
+with a framework. If you want a fully managed service, include operating responsibility in your comparison.
 
-## Is AgenticOS a fit?
+Compare the approach with [Dify](docs/about/dify.md), [Viktor](docs/about/viktor.md) and
+[Wonderful](docs/about/wonderful.md), or use the [comparison guide](docs/about/comparison.md)
+to choose by task, ownership and required controls.
 
-AgenticOS is designed for teams that want to configure and use agents through a browser while
-operating their own deployment. Engineers can add capabilities and integrations; task owners can
-maintain instructions, documents and procedures through the interface.
+## Questions about the agent layer
 
-If you want a managed service, account for the work of operating a self-hosted platform. If you only
-need an agent library inside an existing application, evaluate a framework directly. Compare options
-by the task, deployment model and controls you need in the [platform comparison guide](docs/about/comparison.md).
+### Is AgenticOS an AI agent harness?
+
+AgenticOS packages an AI agent harness with a team interface: model execution, tools, skills, context
+and controls configured through a browser. Developers add capabilities in code; teams configure and
+use them. See the [architecture](docs/architecture.md) for the execution model.
+
+### Can I create a Claude Code-like agent for business tasks?
+
+You can configure an agent for multi-step work with files, tools and delegated tasks. Its available actions depend on enabled capabilities and model support. AgenticOS is an independent
+project with its own runtime and model choices. See the [Claude Code comparison](docs/about/claude-code.md).
+
+### What can colleagues share?
+
+Teams can share agents, skills, context, knowledge collections and artifacts under resource permissions.
+A shared agent can serve different people; a shared artifact gives colleagues a result they can open
+outside the chat.
 
 ## For developers and operators
 
 Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js.
-Agent configuration selects capabilities registered by the platform; developers extend those capabilities in code.
+Agent configuration selects capabilities registered in the runtime; developers extend those capabilities in code.
 
 | Start here | What it covers |
 |---|---|

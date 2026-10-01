@@ -1,4 +1,4 @@
-<!-- source_sha: 0340b9ad0e04 -->
+<!-- source_sha: 571c0eb5fe9a -->
 
 <div align="center">
 
@@ -7,14 +7,14 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Crea agentes de IA que trabajen con los documentos y herramientas de tu equipo.</b><br>
-  Configúralos en el navegador, aprovecha sus resultados y consulta sus acciones y costes.
+  <b>La capa de agentes de código abierto para tu empresa.</b><br>
+  Agentes de IA, conocimiento y automatización compartidos — en infraestructura que tú controlas.
 </p>
 
 <p>
   <a href="#mira-cómo-funciona">Ver la demo</a> &middot;
   <a href="#inicio-rápido">Inicio rápido</a> &middot;
-  <a href="#explora-la-plataforma">Explorar la plataforma</a> &middot;
+  <a href="#explora-la-capa-de-agentes">Explora la capa de agentes</a> &middot;
   <a href="docs/index.es.md">Documentación</a>
 </p>
 
@@ -34,13 +34,16 @@
 
 </div>
 
-AgenticOS es un espacio de trabajo de código abierto y autoalojado para crear y utilizar agentes de IA.
-Un agente es un asistente de IA al que asignas una tarea, instrucciones y acceso a documentos y herramientas concretos.
-Puede investigar un tema, analizar un archivo, preparar un informe o ejecutar una acción en una aplicación conectada.
-Tú eliges las capacidades y el acceso disponibles para cada agente.
+AgenticOS es una capa de agentes de IA de código abierto y autoalojada para equipos. Crea agentes en el
+navegador, conéctalos con documentos y herramientas de la empresa y compártelos con quienes los necesitan.
+Los agentes pueden investigar, analizar archivos, crear informes y ejecutar tareas de varios pasos.
+Tu organización controla su acceso, la elección de modelos y el despliegue.
 
-Los equipos configuran agentes y procedimientos reutilizables desde la interfaz. Los desarrolladores
-amplían la plataforma y la integran con sus aplicaciones. Los operadores gestionan el acceso, el despliegue y el uso en un solo lugar.
+Cuando los agentes forman parte del trabajo diario, el equipo necesita saber cuáles usar, a qué pueden
+acceder y cuánto cuesta su trabajo. AgenticOS reúne agentes, instrucciones reutilizables, conocimiento,
+automatización e historial de ejecución en un solo lugar.
+
+**Apache-2.0 · Autoalojado · Modelos en la nube o locales · Agentes y conocimiento compartidos**
 
 ## Mira cómo funciona
 
@@ -58,17 +61,45 @@ El informe es un **artefacto**: un resultado que puedes abrir y utilizar fuera d
 *Demostración editada con los tiempos de espera eliminados. Las cifras de los repositorios corresponden
 al momento de la grabación; el artefacto no obtiene datos en vivo. Las conexiones y capacidades se configuraron para esta demo.*
 
-## Empieza con una tarea
+## Convierte el trabajo individual con IA en una capacidad del equipo
 
-| Tu tarea | Qué le das al agente | Qué puedes pedir |
-|---|---|---|
-| Investigar para tomar una decisión | Un briefing y acceso a las aplicaciones pertinentes | Una comparación con fuentes, recomendaciones y preguntas abiertas |
-| Analizar una hoja de cálculo | Un CSV y una pregunta | Cálculos, gráficos y un resultado descargable |
-| Responder con conocimiento de la empresa | Manuales, políticas o documentos de producto | Una respuesta con referencias que puedas comprobar |
-| Preparar un informe periódico | Instrucciones, fuentes y una programación | Un informe nuevo o un artefacto actualizado después de cada ejecución |
+Ventas puede mantener un agente de investigación, operaciones programar un informe semanal y los expertos
+actualizar el conocimiento que utilizan los agentes. El equipo trabaja en el navegador; los desarrolladores
+amplían las herramientas y conectan los sistemas internos. La organización conserva los agentes
+y los procedimientos reutilizables.
 
-Son puntos de partida: activa las herramientas necesarias y verifica el resultado de tu tarea.
-[Crea tu primer agente de documentos](docs/howto/first-document-agent.es.md) o [consulta más casos de uso](docs/use-cases.es.md).
+| Qué necesita tu equipo | Cómo ayuda AgenticOS |
+|---|---|
+| Formas de trabajar consistentes | **Skills** guarda procedimientos reutilizables; **Context**, hechos, terminología y pautas compartidas |
+| Respuestas basadas en documentos de la empresa | Las **bases de conocimiento** contienen colecciones consultables; la generación aumentada por recuperación (**RAG**) encuentra los fragmentos relevantes |
+| Acciones en las aplicaciones existentes | **MCP** (Model Context Protocol) conecta agentes con herramientas y fuentes de datos compatibles, como Notion y GitHub |
+| Resultados útiles para otros compañeros | Los **Artifacts** son páginas guardadas, como informes y paneles interactivos, con versiones y ajustes de acceso |
+| Trabajo recurrente | **Routines** ejecuta agentes según un horario o un evento configurado y conserva un registro de ejecución |
+| Acceso adecuado para cada persona | Las organizaciones, los roles y los permisos por recurso controlan quién puede usar y gestionar los agentes y el conocimiento compartidos |
+
+Usa los agentes publicados en el chat web o en canales compatibles como Slack, Telegram y Mattermost,
+o mediante la API, una página alojada o un widget web. [Explora los canales](docs/channels.es.md).
+
+## Controla tu despliegue, modelos y acceso
+
+**Ejecuta en tu infraestructura.** AgenticOS es software Apache-2.0 que puedes inspeccionar, modificar
+y operar. Elige proveedores en la nube o modelos locales mediante Ollama y endpoints compatibles como
+vLLM. Las capacidades y los requisitos de hardware dependen del modelo elegido.
+[Configuración de modelos](docs/models.es.md).
+
+**Decide qué puede hacer un agente.** Configura permisos por recurso, guarda credenciales en la bóveda
+y exige aprobación humana para las acciones de herramientas compatibles.
+[Controles de acceso](docs/permissions.es.md) · [Secretos](docs/secrets.es.md).
+
+**Revisa el trabajo y el gasto.** Un run es una ejecución de un agente. Inspecciona las llamadas a
+herramientas, el consumo registrado y los registros de auditoría de acciones administrativas. Los presupuestos
+comprueban el gasto registrado antes de las solicitudes al modelo; las solicitudes en curso o simultáneas
+pueden superar un límite. [Control de ejecuciones y costes](docs/governance.es.md).
+
+El [autoalojamiento](docs/rollout.es.md) deja en manos de tu equipo el despliegue, las actualizaciones y las copias de seguridad.
+Los modelos externos, parsers, embeddings, herramientas y trazas pueden enviar datos fuera de tu
+infraestructura. Configura cada componente según tus requisitos de datos.
+[Seguridad y flujos de datos](docs/security.es.md).
 
 ## Inicio rápido
 
@@ -97,13 +128,7 @@ Para desarrollar a partir del código fuente, consulta [Contribuir](CONTRIBUTING
 
 </details>
 
-Tú operas el despliegue. Los modelos, el procesamiento de documentos y las herramientas conectadas pueden
-utilizar servicios externos según la configuración. Consulta las [responsabilidades de operación](docs/rollout.es.md) y los [flujos de datos](docs/security.es.md).
-
-## Explora la plataforma
-
-El chat es donde encargas el trabajo. El resto del espacio reúne las instrucciones, el conocimiento,
-las conexiones, los resultados y los controles que permiten repetirlo.
+## Explora la capa de agentes
 
 ### Configura un agente
 
@@ -116,6 +141,9 @@ Publica una versión cuando esté lista para usarse. Puedes consultar versiones 
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Configuración del agente con instrucciones, modelo seleccionado y versión publicada con cambios en el borrador." width="100%">
 </picture>
+
+<details>
+<summary>Abre el recorrido: configuración, conocimiento compartido, integraciones y automatización</summary>
 
 ### Enseña un procedimiento reutilizable
 
@@ -220,30 +248,44 @@ configurados y dejan un registro. [Configura una rutina](docs/triggers.es.md).
 <!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
 > **Captura pendiente — Routines:** programación de un informe, última ejecución programada completada y enlace al resultado.
 
-## Trabaja con tu equipo
+</details>
 
-Utiliza la consola web, ofrece un agente mediante la API o configura un canal compatible como Slack,
-Telegram, Mattermost, una página alojada o un widget para tu sitio web. [Elige un canal](docs/channels.es.md).
-La [aplicación de escritorio](docs/desktop.es.md) opcional abre la consola en su propia ventana, con una
-mascota de escritorio y un atajo para enviar una captura a un chat nuevo.
+## ¿Encaja AgenticOS con tu empresa?
 
-Las organizaciones, los permisos sobre recursos, la bóveda de credenciales y los paneles de uso ayudan
-a los operadores a gestionar el despliegue. [Planifica la puesta en marcha](docs/rollout.es.md).
+Elige AgenticOS si tu empresa necesita agentes, conocimiento y automatización compartidos con control
+sobre el código, los modelos y el despliegue. Tu equipo opera la instalación; Vstorm puede ayudar con
+la implementación y el soporte. Si solo necesitas una biblioteca de agentes en una aplicación existente,
+empieza con un framework. Si buscas un servicio totalmente gestionado, compara también quién se ocupa de operarlo.
 
-## ¿Encaja AgenticOS con tu equipo?
+Compara el enfoque con [Dify](docs/about/dify.es.md), [Viktor](docs/about/viktor.es.md) y
+[Wonderful](docs/about/wonderful.es.md), o utiliza la [guía de comparación](docs/about/comparison.es.md)
+para elegir según la tarea, la propiedad y los controles necesarios.
 
-AgenticOS está diseñado para equipos que quieren configurar y utilizar agentes desde el navegador y
-operar su propio despliegue. Los ingenieros pueden añadir capacidades e integraciones; los responsables
-de las tareas pueden mantener instrucciones, documentos y procedimientos desde la interfaz.
+## Preguntas sobre la capa de agentes
 
-Si buscas un servicio gestionado, considera el trabajo de operar una plataforma autoalojada. Si solo
-necesitas una biblioteca de agentes dentro de una aplicación existente, evalúa directamente un framework.
-Compara las opciones por tarea, modelo de despliegue y controles necesarios en la [guía de comparación de plataformas](docs/about/comparison.es.md).
+### ¿Es AgenticOS un AI agent harness?
+
+AgenticOS combina un AI agent harness con una interfaz para equipos: ejecución de modelos, herramientas,
+skills, contexto y controles configurables desde el navegador. Los desarrolladores añaden capacidades
+mediante código; los equipos las configuran y utilizan. La [arquitectura](docs/architecture.es.md)
+describe cómo se ejecutan los agentes.
+
+### ¿Puedo crear un agente al estilo de Claude Code para tareas empresariales?
+
+Puedes configurar un agente para trabajar en varios pasos con archivos, herramientas y tareas delegadas. Las acciones disponibles dependen de las capacidades activadas y del soporte del
+modelo. AgenticOS es un proyecto independiente con su propio entorno de ejecución y elección de modelos.
+Consulta la [comparación con Claude Code](docs/about/claude-code.es.md).
+
+### ¿Qué pueden compartir los compañeros?
+
+Los equipos pueden compartir agentes, skills, contexto, colecciones de conocimiento y artifacts según
+los permisos por recurso. Un agente compartido puede atender a distintas personas; un artifact compartido
+ofrece un resultado accesible fuera del chat.
 
 ## Para desarrolladores y operadores
 
-La plataforma utiliza FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis, Prefect y Next.js.
-La configuración del agente selecciona capacidades registradas en la plataforma; los desarrolladores las amplían mediante código.
+AgenticOS utiliza FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis, Prefect y Next.js.
+La configuración del agente selecciona capacidades registradas en el entorno de ejecución; los desarrolladores las amplían mediante código.
 
 | Empieza aquí | Qué incluye |
 |---|---|

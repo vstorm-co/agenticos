@@ -1,4 +1,4 @@
-<!-- source_sha: 0340b9ad0e04 -->
+<!-- source_sha: 571c0eb5fe9a -->
 
 <div align="center">
 
@@ -7,14 +7,14 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Twórz agentów AI pracujących z dokumentami i narzędziami Twojego zespołu.</b><br>
-  Konfiguruj ich w przeglądarce, korzystaj z wyników i śledź działania oraz koszty.
+  <b>Otwarta warstwa agentów AI dla Twojej firmy.</b><br>
+  Wspólni agenci, wiedza firmowa i automatyzacja pracy — na infrastrukturze, którą kontrolujesz.
 </p>
 
 <p>
   <a href="#zobacz-jak-to-działa">Zobacz demo</a> &middot;
   <a href="#szybki-start">Szybki start</a> &middot;
-  <a href="#poznaj-platformę">Poznaj platformę</a> &middot;
+  <a href="#poznaj-warstwę-agentów">Poznaj warstwę agentów</a> &middot;
   <a href="docs/index.pl.md">Dokumentacja</a>
 </p>
 
@@ -34,13 +34,16 @@
 
 </div>
 
-AgenticOS to otwarte oprogramowanie do tworzenia i używania agentów AI, uruchamiane na własnej infrastrukturze.
-Agent to asystent AI, któremu powierzasz zadanie, przekazujesz instrukcje i dajesz dostęp do wybranych dokumentów oraz narzędzi.
-Może zbadać temat, przeanalizować plik, przygotować raport lub wykonać operację w podłączonej aplikacji.
-Wybierasz możliwości i zakres dostępu każdego agenta.
+AgenticOS to otwarta warstwa agentów AI dla zespołów, którą uruchamiasz na własnej infrastrukturze.
+Twórz agentów w przeglądarce, łącz ich z firmowymi dokumentami i narzędziami oraz udostępniaj osobom,
+które ich potrzebują. Agenci mogą prowadzić research, analizować pliki, tworzyć raporty i wykonywać
+wieloetapowe zadania. Organizacja kontroluje ich dostęp, wybór modeli i wdrożenie.
 
-Zespoły konfigurują agentów i wspólne procedury w interfejsie. Programiści rozszerzają platformę
-i integrują ją ze swoimi aplikacjami. Administratorzy zarządzają dostępem, wdrożeniem i wykorzystaniem w jednym miejscu.
+Gdy agenci stają się częścią codziennej pracy, zespół musi wiedzieć, z których korzystać, do czego mają
+dostęp i ile kosztuje ich praca. AgenticOS łączy agentów, wspólne instrukcje, wiedzę, automatyzacje
+i historię wykonania w jednym miejscu.
+
+**Apache-2.0 · Własna infrastruktura · Modele chmurowe lub lokalne · Wspólni agenci i wiedza**
 
 ## Zobacz, jak to działa
 
@@ -58,17 +61,44 @@ wynikiem pracy, który można otworzyć i wykorzystać poza rozmową.
 *Zmontowane demo z usuniętym czasem oczekiwania. Dane repozytoriów odpowiadają chwili nagrania;
 artefakt nie pobiera danych na żywo. Połączenia i możliwości agenta skonfigurowano na potrzeby tego demo.*
 
-## Zacznij od zadania
+## Zbuduj wspólny sposób pracy z AI
 
-| Twoje zadanie | Co przekazujesz agentowi | O co możesz poprosić |
-|---|---|---|
-| Zebranie informacji do decyzji | Brief i dostęp do odpowiednich aplikacji | Porównanie ze źródłami, rekomendacjami i otwartymi pytaniami |
-| Analiza arkusza | Plik CSV i pytanie | Obliczenia, wykresy i wynik do pobrania |
-| Odpowiedź na podstawie wiedzy firmy | Podręczniki, zasady lub dokumentacja produktów | Odpowiedź z odwołaniami, które można sprawdzić |
-| Przygotowanie cyklicznego raportu | Instrukcje, źródła i harmonogram | Nowy raport lub aktualizacja artefaktu po każdym wykonaniu |
+Sprzedaż może utrzymywać agenta do researchu, operacje planować cotygodniowy raport, a eksperci aktualizować
+wiedzę, z której korzystają agenci. Zespół pracuje w przeglądarce; programiści rozszerzają narzędzia
+i podłączają systemy wewnętrzne. Agenci i zapisane sposoby pracy pozostają zasobem organizacji.
 
-To przykłady na początek; włącz potrzebne narzędzia i zweryfikuj wynik swojego zadania.
-[Zbuduj pierwszego agenta korzystającego z dokumentów](docs/howto/first-document-agent.pl.md) lub [poznaj więcej zastosowań](docs/use-cases.pl.md).
+| Potrzeba zespołu | Jak pomaga AgenticOS |
+|---|---|
+| Spójny sposób wykonywania zadań | **Skills** przechowują procedury; **Context** — wspólne fakty, terminologię i wytyczne |
+| Odpowiedzi oparte na dokumentach firmy | **Bazy wiedzy** przechowują kolekcje dokumentów; **RAG** to wyszukiwanie fragmentów potrzebnych do przygotowania odpowiedzi |
+| Działania w używanych aplikacjach | **MCP** (Model Context Protocol) łączy agentów ze zgodnymi narzędziami i źródłami danych, np. Notion i GitHubem |
+| Wyniki przydatne współpracownikom | **Artefakty** to zapisane strony, np. raporty i interaktywne dashboardy, z wersjami i ustawieniami dostępu |
+| Powtarzalna praca | **Routines** uruchamiają agentów według harmonogramu lub zdarzenia i zachowują zapis wykonania |
+| Dostęp dopasowany do osoby | Organizacje, role i uprawnienia do zasobów określają, kto może używać wspólnych agentów i wiedzy oraz nimi zarządzać |
+
+Korzystaj z opublikowanych agentów w czacie lub obsługiwanych kanałach, np. Slack, Telegram i Mattermost,
+albo przez API, stronę agenta lub widget na stronie. [Poznaj kanały](docs/channels.pl.md).
+
+## Kontroluj wdrożenie, modele i dostęp
+
+**Uruchamiaj na własnej infrastrukturze.** Kod AgenticOS na licencji Apache-2.0 możesz przeglądać,
+modyfikować i utrzymywać. Wybierz dostawcę modeli w chmurze lub modele lokalne przez Ollama
+i zgodne endpointy, np. vLLM. Możliwości i wymagania sprzętowe zależą od wybranego modelu.
+[Konfiguracja modeli](docs/models.pl.md).
+
+**Określ, co wolno agentowi.** Skonfiguruj uprawnienia do zasobów, przechowuj dane uwierzytelniające
+w sejfie i wymagaj zatwierdzenia przez człowieka dla obsługiwanych działań narzędzi.
+[Kontrola dostępu](docs/permissions.pl.md) · [Sekrety](docs/secrets.pl.md).
+
+**Sprawdzaj działania i wydatki.** Run to pojedyncze wykonanie agenta. Przeglądaj wywołania narzędzi,
+zapisane zużycie oraz rejestr audytowy działań administracyjnych. Budżety sprawdzają zapisane wydatki
+przed żądaniami do modelu; żądania trwające lub równoległe mogą przekroczyć limit.
+[Kontrola wykonań i kosztów](docs/governance.pl.md).
+
+[Własny hosting](docs/rollout.pl.md) oznacza odpowiedzialność za wdrożenie, aktualizacje i kopie zapasowe. Zewnętrzne modele,
+parsery, embeddingi, narzędzia i tracing nadal mogą wysyłać dane poza Twoją infrastrukturę.
+Skonfiguruj każdy element zgodnie z wymaganiami dotyczącymi danych.
+[Bezpieczeństwo i przepływy danych](docs/security.pl.md).
 
 ## Szybki start
 
@@ -97,13 +127,7 @@ Pracę nad kodem opisuje [poradnik dla współtwórców](CONTRIBUTING.pl.md).
 
 </details>
 
-Odpowiadasz za utrzymanie wdrożenia. Modele, przetwarzanie dokumentów i podłączone narzędzia mogą korzystać
-z usług zewnętrznych, zależnie od konfiguracji. Sprawdź [podział odpowiedzialności](docs/rollout.pl.md) i [przepływy danych](docs/security.pl.md).
-
-## Poznaj platformę
-
-W czacie zlecasz pracę. Pozostałe części środowiska przechowują instrukcje, wiedzę,
-połączenia, wyniki i ustawienia kontroli potrzebne do jej powtarzania.
+## Poznaj warstwę agentów
 
 ### Skonfiguruj agenta
 
@@ -116,6 +140,9 @@ Gdy jest gotowy do użycia, publikujesz wersję. Możesz przeglądać wcześniej
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Konfiguracja agenta: instrukcje, wybrany model i opublikowana wersja ze zmianami w szkicu." width="100%">
 </picture>
+
+<details>
+<summary>Rozwiń przegląd: konfiguracja, wspólna wiedza, integracje i automatyzacje</summary>
 
 ### Naucz go powtarzalnej procedury
 
@@ -219,30 +246,44 @@ dostępu i mechanizmów kontroli oraz pozostawiają zapis w historii. [Skonfigur
 <!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
 > **Miejsce na zrzut — Routines:** harmonogram raportu, ostatnie zakończone wykonanie z harmonogramu i link do wyniku.
 
-## Pracuj razem z zespołem
+</details>
 
-Korzystaj z konsoli w przeglądarce, udostępnij agenta przez API lub skonfiguruj obsługiwany kanał,
-np. Slack, Telegram, Mattermost, stronę agenta albo widget na stronie WWW. [Wybierz kanał](docs/channels.pl.md).
-Opcjonalna [aplikacja desktopowa](docs/desktop.pl.md) otwiera konsolę w osobnym oknie, dodając zwierzaka
-na pulpicie i skrót do przesyłania zrzutu ekranu do nowego czatu.
+## Czy AgenticOS pasuje do Twojej firmy?
 
-Organizacje, uprawnienia do zasobów, sejf z danymi uwierzytelniającymi i dashboardy zużycia pomagają
-administratorom zarządzać wdrożeniem. [Zaplanuj wdrożenie](docs/rollout.pl.md).
+Wybierz AgenticOS, jeśli firma potrzebuje wspólnych agentów, wiedzy i automatyzacji oraz kontroli
+nad kodem, modelami i wdrożeniem. Twój zespół utrzymuje instalację; Vstorm może pomóc we wdrożeniu
+i wsparciu. Jeśli potrzebujesz tylko biblioteki agentów w istniejącej aplikacji, zacznij od frameworka.
+Jeśli szukasz usługi w pełni zarządzanej, uwzględnij odpowiedzialność za utrzymanie w porównaniu.
 
-## Czy AgenticOS pasuje do Twoich potrzeb?
+Porównaj podejście z [Dify](docs/about/dify.pl.md), [Viktor](docs/about/viktor.pl.md)
+i [Wonderful](docs/about/wonderful.pl.md) lub skorzystaj z [porównania rozwiązań](docs/about/comparison.pl.md),
+aby wybrać według zadania, własności i potrzebnej kontroli.
 
-AgenticOS jest przeznaczony dla zespołów, które chcą konfigurować i używać agentów przez przeglądarkę,
-korzystając z własnego wdrożenia. Inżynierowie mogą dodawać możliwości i integracje, a osoby odpowiedzialne
-za zadania utrzymywać instrukcje, dokumenty i procedury w interfejsie.
+## Pytania o warstwę agentów
 
-Jeśli szukasz usługi zarządzanej, uwzględnij pracę potrzebną do utrzymania własnej platformy. Jeśli potrzebujesz
-wyłącznie biblioteki agentowej we własnej aplikacji, rozważ bezpośrednie użycie frameworka. Porównaj opcje
-według zadania, sposobu wdrożenia i potrzebnej kontroli w [porównaniu platform](docs/about/comparison.pl.md).
+### Czy AgenticOS to AI agent harness?
+
+AgenticOS udostępnia AI agent harness z interfejsem dla zespołu: wykonywanie zadań przez model,
+narzędzia, skills, kontekst i mechanizmy kontroli konfigurowane w przeglądarce. Programiści dodają
+możliwości w kodzie, a zespoły konfigurują je i używają. Sposób wykonywania zadań opisuje
+[architektura](docs/architecture.pl.md).
+
+### Czy mogę stworzyć agenta w stylu Claude Code do zadań biznesowych?
+
+Możesz skonfigurować agenta do wieloetapowej pracy z plikami, narzędziami i delegowaniem zadań. Dostępne działania zależą od włączonych możliwości i obsługi przez model.
+AgenticOS to niezależny projekt z własnym środowiskiem wykonawczym i wyborem modeli.
+Zobacz [porównanie z Claude Code](docs/about/claude-code.pl.md).
+
+### Co mogą współdzielić członkowie zespołu?
+
+Zespoły mogą współdzielić agentów, skills, kontekst, kolekcje wiedzy i artefakty zgodnie z uprawnieniami
+do zasobów. Wspólny agent może obsługiwać różne osoby, a udostępniony artefakt daje im wynik dostępny
+poza czatem.
 
 ## Dla programistów i administratorów
 
-Platforma korzysta z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.js.
-Konfiguracja agenta wybiera możliwości zarejestrowane w platformie; programiści rozszerzają je w kodzie.
+AgenticOS korzysta z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.js.
+Konfiguracja agenta wybiera możliwości zarejestrowane w środowisku wykonawczym; programiści rozszerzają je w kodzie.
 
 | Zacznij tutaj | Zakres |
 |---|---|

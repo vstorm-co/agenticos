@@ -1,4 +1,4 @@
-<!-- source_sha: 0340b9ad0e04 -->
+<!-- source_sha: 571c0eb5fe9a -->
 
 <div align="center">
 
@@ -7,14 +7,14 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Erstelle KI-Agenten, die mit den Dokumenten und Werkzeugen deines Teams arbeiten.</b><br>
-  Konfiguriere sie im Browser, nutze ihre Ergebnisse und behalte Aktionen und Kosten im Blick.
+  <b>Der Open-Source-Agent-Layer für dein Unternehmen.</b><br>
+  Gemeinsame KI-Agenten, Unternehmenswissen und Automatisierung — auf Infrastruktur, die du kontrollierst.
 </p>
 
 <p>
   <a href="#so-funktioniert-es">Demo ansehen</a> &middot;
   <a href="#schnellstart">Schnellstart</a> &middot;
-  <a href="#die-plattform-entdecken">Plattform entdecken</a> &middot;
+  <a href="#den-agent-layer-erkunden">Den Agent-Layer erkunden</a> &middot;
   <a href="docs/index.de.md">Dokumentation</a>
 </p>
 
@@ -34,13 +34,16 @@
 
 </div>
 
-AgenticOS ist ein selbst gehosteter Open-Source-Arbeitsbereich zum Erstellen und Nutzen von KI-Agenten.
-Ein Agent ist ein KI-Assistent, dem du eine Aufgabe, Anweisungen und Zugriff auf ausgewählte Dokumente und Werkzeuge gibst.
-Er kann recherchieren, eine Datei analysieren, einen Bericht erstellen oder eine Aktion in einer angebundenen Anwendung ausführen.
-Du legst die Fähigkeiten und Zugriffsrechte jedes Agenten fest.
+AgenticOS ist ein selbst gehosteter Open-Source-Agent-Layer für Teams. Erstelle KI-Agenten im Browser,
+verbinde sie mit Unternehmensdokumenten und Werkzeugen und teile sie mit den Personen, die sie benötigen.
+Agenten können recherchieren, Dateien analysieren, Berichte erstellen und mehrstufige Aufgaben erledigen.
+Deine Organisation kontrolliert ihren Zugriff, die Modellwahl und den Betrieb.
 
-Teams konfigurieren Agenten und wiederverwendbare Abläufe über die Oberfläche. Entwickler erweitern
-die Plattform und integrieren sie in ihre Anwendungen. Betreiber verwalten Zugriff, Bereitstellung und Nutzung an einem Ort.
+Wenn Agenten zum Arbeitsalltag gehören, muss das Team wissen, welche es nutzen kann, worauf sie zugreifen
+und was ihre Arbeit kostet. AgenticOS bündelt Agenten, wiederverwendbare Anweisungen, Wissen,
+Automatisierung und Ausführungsverläufe an einem Ort.
+
+**Apache-2.0 · Selbst gehostet · Cloud- oder lokale Modelle · Gemeinsame Agenten und Wissen**
 
 ## So funktioniert es
 
@@ -58,17 +61,43 @@ Der Bericht ist ein **Artefakt**: ein Ergebnis, das du außerhalb der Unterhaltu
 *Bearbeitete Demonstration ohne Wartezeiten. Die Repository-Zahlen entsprechen dem Stand der Aufnahme;
 das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für diese Demo eingerichtet.*
 
-## Beginne mit einer Aufgabe
+## KI-Arbeit im Team verankern
 
-| Deine Aufgabe | Was du dem Agenten gibst | Was du anfordern kannst |
-|---|---|---|
-| Eine Entscheidung vorbereiten | Ein Briefing und Zugriff auf relevante Anwendungen | Einen Vergleich mit Quellen, Empfehlungen und offenen Fragen |
-| Eine Tabelle analysieren | Eine CSV-Datei und eine Frage | Berechnungen, Diagramme und ein Ergebnis zum Herunterladen |
-| Fragen zu Firmenwissen beantworten | Handbücher, Richtlinien oder Produktdokumente | Eine Antwort mit überprüfbaren Quellenverweisen |
-| Einen wiederkehrenden Bericht erstellen | Anweisungen, Quellen und einen Zeitplan | Einen neuen Bericht oder ein aktualisiertes Artefakt nach jedem Lauf |
+Der Vertrieb kann einen Rechercheagenten pflegen, der Betrieb einen wöchentlichen Bericht planen und
+Fachexperten das Wissen aktualisieren, das diese Agenten nutzen. Das Team arbeitet im Browser;
+Entwickler erweitern Werkzeuge und verbinden interne Systeme. Die Organisation behält die Agenten
+und das wiederverwendbare Know-how.
 
-Das sind Ausgangspunkte: Aktiviere die erforderlichen Werkzeuge und prüfe das Ergebnis für deine Aufgabe.
-[Erstelle deinen ersten Dokumentenagenten](docs/howto/first-document-agent.de.md) oder [entdecke weitere Anwendungsfälle](docs/use-cases.de.md).
+| Was dein Team braucht | Wie AgenticOS hilft |
+|---|---|
+| Einheitliche Arbeitsweisen | **Skills** speichern wiederverwendbare Abläufe; **Context** enthält gemeinsame Fakten, Begriffe und Richtlinien |
+| Antworten aus Unternehmensdokumenten | **Wissensdatenbanken** enthalten durchsuchbare Sammlungen; Retrieval-Augmented Generation (**RAG**) findet relevante Textstellen |
+| Aktionen in vorhandenen Anwendungen | **MCP** (Model Context Protocol) verbindet Agenten mit kompatiblen Werkzeugen und Datenquellen wie Notion und GitHub |
+| Nutzbare Ergebnisse für Kollegen | **Artifacts** sind gespeicherte Seiten wie Berichte und interaktive Dashboards, mit Versionen und Zugriffseinstellungen |
+| Wiederkehrende Arbeit | **Routines** starten Agenten nach Zeitplan oder konfiguriertem Ereignis und protokollieren die Ausführung |
+| Passender Zugriff pro Person | Organisationen, Rollen und Ressourcenfreigaben regeln, wer gemeinsame Agenten und Wissen nutzen und verwalten darf |
+
+Nutze veröffentlichte Agenten im Webchat oder in unterstützten Kanälen wie Slack, Telegram und Mattermost,
+oder binde sie über die API, eine gehostete Seite oder ein Website-Widget ein. [Kanäle erkunden](docs/channels.de.md).
+
+## Betrieb, Modelle und Zugriff selbst kontrollieren
+
+**Auf eigener Infrastruktur betreiben.** AgenticOS ist Apache-2.0-Software, die du prüfen, ändern und
+betreiben kannst. Wähle Cloudanbieter oder lokale Modelle über Ollama und kompatible Endpunkte wie vLLM.
+Fähigkeiten und Hardwareanforderungen hängen vom gewählten Modell ab. [Modelle konfigurieren](docs/models.de.md).
+
+**Festlegen, was ein Agent tun darf.** Konfiguriere Ressourcenrechte, speichere Zugangsdaten im Vault
+und verlange für unterstützte Werkzeugaktionen eine menschliche Freigabe.
+[Zugriffskontrollen](docs/permissions.de.md) · [Geheimnisse](docs/secrets.de.md).
+
+**Arbeit und Ausgaben nachvollziehen.** Ein Run ist eine Ausführung eines Agenten. Prüfe Werkzeugaufrufe
+und erfassten Verbrauch sowie Audit-Einträge für Verwaltungsaktionen. Budgets prüfen erfasste Ausgaben
+vor Modellanfragen; laufende oder parallele Anfragen können eine Grenze überschreiten.
+[Ausführungen und Kosten kontrollieren](docs/governance.de.md).
+
+Beim [Self-Hosting](docs/rollout.de.md) übernimmt dein Team Betrieb, Updates und Backups. Externe Modelle, Parser, Embeddings,
+Werkzeuge und Tracing können weiterhin Daten aus deiner Infrastruktur übertragen. Konfiguriere jede
+Komponente nach deinen Datenanforderungen. [Sicherheit und Datenflüsse](docs/security.de.md).
 
 ## Schnellstart
 
@@ -97,13 +126,7 @@ Für die Entwicklung am Quellcode siehe [Mitwirken](CONTRIBUTING.de.md).
 
 </details>
 
-Du betreibst die Umgebung. Modelle, Dokumentenverarbeitung und angebundene Werkzeuge können je nach
-Konfiguration externe Dienste nutzen. Siehe [Betriebsverantwortung](docs/rollout.de.md) und [Datenflüsse](docs/security.de.md).
-
-## Die Plattform entdecken
-
-Im Chat beauftragst du den Agenten. Der übrige Arbeitsbereich enthält die Anweisungen, das Wissen,
-die Verbindungen, Ergebnisse und Kontrollen, mit denen sich diese Arbeit wiederholen lässt.
+## Den Agent-Layer erkunden
 
 ### Einen Agenten konfigurieren
 
@@ -116,6 +139,9 @@ lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](do
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Konfiguration mit Anweisungen, ausgewähltem Modell und veröffentlichter Version mit Entwurfsänderungen." width="100%">
 </picture>
+
+<details>
+<summary>Produktrundgang öffnen: Konfiguration, gemeinsames Wissen, Integrationen und Automatisierung</summary>
 
 ### Wiederverwendbare Abläufe vermitteln
 
@@ -220,29 +246,43 @@ Zugriffsrechte und Kontrollen; die Ausführung wird protokolliert. [Eine Routine
 <!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
 > **Screenshot-Platzhalter — Routines:** Zeitplan eines Berichts, letzter abgeschlossener zeitgesteuerter Lauf und Link zum Ergebnis.
 
-## Im Team arbeiten
+</details>
 
-Nutze die Webkonsole, stelle einen Agenten über die API bereit oder konfiguriere einen unterstützten Kanal
-wie Slack, Telegram, Mattermost, eine gehostete Seite oder ein Website-Widget. [Einen Kanal auswählen](docs/channels.de.md).
-Die optionale [Desktop-App](docs/desktop.de.md) öffnet die Konsole in einem eigenen Fenster, ergänzt um ein
-Desktop-Maskottchen und einen Kurzbefehl zum Senden eines Screenshots in einen neuen Chat.
+## Passt AgenticOS zu deinem Unternehmen?
 
-Organisationen, Ressourcenberechtigungen, der Zugangsdaten-Tresor und Nutzungsdashboards helfen Betreibern,
-die Umgebung zu verwalten. [Eine Einführung planen](docs/rollout.de.md).
+Wähle AgenticOS, wenn dein Unternehmen gemeinsame Agenten, Wissen und Automatisierung mit Kontrolle über
+Quellcode, Modelle und Betrieb benötigt. Dein Team betreibt die Installation; Vstorm kann bei Umsetzung
+und Support helfen. Wenn du nur eine Agentenbibliothek in einer bestehenden Anwendung benötigst, beginne
+mit einem Framework. Bei einem vollständig verwalteten Dienst gehört die Betriebsverantwortung in den Vergleich.
 
-## Passt AgenticOS zu deinem Team?
+Vergleiche den Ansatz mit [Dify](docs/about/dify.de.md), [Viktor](docs/about/viktor.de.md) und
+[Wonderful](docs/about/wonderful.de.md), oder nutze den [Vergleichsleitfaden](docs/about/comparison.de.md)
+für die Auswahl nach Aufgabe, Eigentum und erforderlichen Kontrollen.
 
-AgenticOS richtet sich an Teams, die Agenten im Browser konfigurieren und nutzen sowie ihre eigene
-Umgebung betreiben möchten. Entwickler ergänzen Fähigkeiten und Integrationen; Aufgabenverantwortliche
-pflegen Anweisungen, Dokumente und Abläufe über die Oberfläche.
+## Fragen zum Agent-Layer
 
-Wenn du einen verwalteten Dienst suchst, berücksichtige den Betriebsaufwand einer selbst gehosteten Plattform.
-Benötigst du nur eine Agentenbibliothek in einer bestehenden Anwendung, prüfe ein Framework direkt.
-Vergleiche Optionen nach Aufgabe, Bereitstellungsmodell und benötigten Kontrollen im [Plattformvergleich](docs/about/comparison.de.md).
+### Ist AgenticOS ein AI Agent Harness?
+
+AgenticOS verbindet einen AI Agent Harness mit einer Teamoberfläche: Modellausführung, Werkzeuge,
+Skills, Kontext und Kontrollen werden im Browser konfiguriert. Entwickler ergänzen Fähigkeiten im Code;
+Teams konfigurieren und nutzen sie. Die [Architektur](docs/architecture.de.md) beschreibt die Ausführung.
+
+### Kann ich einen Agenten nach dem Vorbild von Claude Code für Geschäftsaufgaben erstellen?
+
+Du kannst einen Agenten für mehrstufige Arbeit mit Dateien, Werkzeugen und delegierten Aufgaben
+konfigurieren. Verfügbare Aktionen hängen von aktivierten Fähigkeiten und der Unterstützung
+durch das Modell ab. AgenticOS ist ein unabhängiges Projekt mit eigener Laufzeit und Modellwahl.
+Siehe den [Vergleich mit Claude Code](docs/about/claude-code.de.md).
+
+### Was können Kollegen gemeinsam nutzen?
+
+Teams können Agenten, Skills, Kontext, Wissenssammlungen und Artifacts gemäß den Ressourcenrechten teilen.
+Ein gemeinsamer Agent kann verschiedene Personen unterstützen; ein geteiltes Artifact macht ein Ergebnis
+außerhalb des Chats zugänglich.
 
 ## Für Entwickler und Betreiber
 
-Die Plattform basiert auf FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis, Prefect und Next.js.
+AgenticOS basiert auf FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis, Prefect und Next.js.
 Die Agentenkonfiguration wählt registrierte Fähigkeiten aus; Entwickler erweitern diese im Code.
 
 | Einstieg | Inhalt |

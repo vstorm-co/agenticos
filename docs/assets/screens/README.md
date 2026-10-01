@@ -49,6 +49,17 @@ Previous UI screenshots, the old CSV demo and its poster/animation were removed 
 The documentation and presentation use explicit placeholders until new captures are ready.
 Earlier assets remain recoverable from Git history; do not reuse them for the refreshed interface.
 
+## Placement and positioning
+
+The README leads with the open-source agent layer for companies: shared agents, knowledge,
+automation and control over deployment and models. Use AI agent harness and Claude Code-like
+only where they explain the execution model or a concrete example. Do not label the product a platform
+or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
+
+The main reading path shows the demo and agent builder. The remaining captures and five pending slots
+are retained in a collapsed product tour. Keep the team benefits and security controls readable outside
+the gallery; screenshots support those claims rather than define the document structure.
+
 ## Paths and video embedding
 
 Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
