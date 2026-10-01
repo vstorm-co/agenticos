@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="144">
-
-<h1>AgenticOS</h1>
+<h1><img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="64" valign="middle"> AgenticOS</h1>
 
 <p>
   <b>The open-source agent layer for your company.</b><br>
@@ -32,23 +30,11 @@
 
 </div>
 
-AgenticOS is an open-source, self-hosted agent layer for teams. Build AI agents in your browser,
-connect them to company documents and tools, and share them with the people who need them.
-Agents can research, analyse files, create reports and carry out multi-step tasks. Your organization
-controls their access, model choices and deployment.
-
-When agents become part of everyday work, the team needs to know which ones to use, what they can
-access and what their work costs. AgenticOS brings agents, reusable instructions, knowledge,
-automation and execution history into one place.
-
-**Apache-2.0 · Self-hosted · Cloud or local models · Shared agents and knowledge**
+Build AI agents in your browser, connect company knowledge and tools, and share the work with your team. Self-host the agent layer and choose cloud or local models.
 
 ## See it in action
 
 **From a Notion brief and GitHub research to an interactive decision page.**
-The demo uses the **Claude Code like** agent to prepare an OSS project comparison, switch between
-audiences in the resulting page, and create a sharing link. The report is an **artifact**:
-a result you can open and use outside the conversation.
 
 <video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
@@ -58,6 +44,237 @@ a result you can open and use outside the conversation.
 
 *Edited demonstration with waiting time removed. Repository figures reflect the recording's snapshot;
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
+
+## Explore the agent layer
+
+<table>
+<tr>
+<td width="45%" valign="middle">
+
+### Configure an agent
+
+In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
+Publish a version when it is ready for use. You can inspect earlier versions and roll back a change.
+[Build an agent](docs/first-agent.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: agent-builder | light + dark -->
+
+<a href="docs/assets/screens/light/agent-builder.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and published version alongside draft changes." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Teach a reusable procedure
+
+**Skills** are written procedures an agent can load when relevant: how to review a proposal,
+reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
+that need it. [Learn about skills](docs/skills.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: skills | light + dark -->
+
+<a href="docs/assets/screens/light/skill-detail.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Shared context
+
+**Context** holds standing information such as product names, a glossary or communication guidelines.
+Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
+or reads it on demand. [Learn about context](docs/context.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: context | light + dark -->
+
+<a href="docs/assets/screens/light/context-detail.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Give it documents to search
+
+**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
+sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
+[Add and process documents](docs/file-processing.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: knowledge-bases | light + dark -->
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Connect the applications you work in
+
+**MCP**, the Model Context Protocol, is a standard for connecting AI agents to tools and data sources.
+The **MCP servers** page lets you configure compatible connections, such as the Notion and GitHub tools
+used in the demo. Available actions depend on the server, credentials and tools enabled for the agent.
+[Connect an application](docs/mcp.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: mcp-connections | light + dark -->
+
+<a href="docs/assets/screens/light/mcp-connections.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
+  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Connected MCP servers including GitHub and Notion." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Keep results outside the chat
+
+**Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
+Open them from the library, inspect versions and choose who can access them. Updating the same artifact
+keeps its current-page link; a conversation can link to a particular version.
+
+An artifact displays the data it was published with. A new agent run can update it.
+[Create and share artifacts](docs/artifacts.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: artifacts | light + dark -->
+
+<a href="docs/assets/screens/light/artifact-detail.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Human approval
+
+You can require human approval for supported tool actions. The approval request lets a person review
+the proposed operation before deciding whether it should proceed. Access to agents and resources is
+controlled through [roles and permissions](docs/permissions.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: approval | light + dark -->
+
+<a href="docs/assets/screens/light/approval.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
+</picture>
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="45%" valign="middle">
+
+### Schedule repeat work
+
+**Routines** run an agent on a schedule or in response to a configured event. Use them for a weekly
+brief or a recurring report. Runs use the configured access and controls and leave an execution record.
+[Set up a routine](docs/triggers.md).
+
+</td>
+<td width="55%">
+
+<!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
+> **Screenshot placeholder — Routines:** a report's schedule, last completed scheduled run and link to its result.
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary>More views and execution details</summary>
+
+<a href="docs/assets/screens/light/skills.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
+</picture>
+</a>
+
+<a href="docs/assets/screens/light/context.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
+</picture>
+</a>
+
+<!-- MEDIA: knowledge-collection | light + dark; supplementary view -->
+
+<a href="docs/assets/screens/light/knowledge-collection.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
+</picture>
+</a>
+
+<a href="docs/assets/screens/light/artifacts.webp">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
+</picture>
+</a>
+
+### Inspect actions and costs
+
+A **run** is one execution of an agent. **Activity / Runs** shows its status and recorded usage;
+open a run to inspect the conversation and tool calls. Budget checks use recorded spend before model
+requests; requests already in progress or concurrent runs can exceed a cap. [Budgets and audit history](docs/governance.md).
+
+<!-- MEDIA: run-detail | capture light + dark; same run as the demo -->
+> **Screenshot placeholder — Run detail:** status, duration, recorded cost and tool calls for the demonstrated task.
+
+</details>
 
 ## Turn individual AI work into a team capability
 
@@ -70,50 +287,9 @@ For a recurring report, the team can divide the work:
 The organization keeps the agent and reusable know-how. People work through the browser;
 engineers can connect internal systems. [Set up team access](docs/permissions.md).
 
-| What your team needs | How AgenticOS supports it |
-|---|---|
-| Consistent ways of working | **Skills** store reusable procedures; **Context** stores shared facts, terminology and guidelines |
-| Answers grounded in company documents | **Knowledge bases** hold searchable collections, with retrieval-augmented generation (**RAG**) to find relevant passages |
-| Actions in existing applications | **MCP** (Model Context Protocol) connects agents to compatible tools and data sources, such as Notion and GitHub |
-| Results colleagues can use | **Artifacts** are saved pages such as reports and interactive dashboards, with versions and access settings |
-| Work that repeats | **Routines** run agents on a schedule or a configured event, with an execution record |
-| Appropriate access for each person | Organizations, roles and resource grants control who can use and manage shared agents and knowledge |
 
 Use published agents in web chat or supported channels such as Slack, Telegram and Mattermost,
 or connect them through the API, a hosted page or a website widget. [Explore channels](docs/channels.md).
-
-## Own your deployment, models and access
-
-**Run it on your infrastructure.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
-Choose hosted model providers or local models through Ollama and compatible endpoints such as vLLM.
-Model capability and hardware requirements depend on the model you choose. [Model configuration](docs/models.md).
-
-**Decide what an agent may do.** Configure resource permissions, store credentials in the vault and
-require human approval for supported tool actions. [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md).
-
-**Inspect the work and spend.** A run is one execution of an agent. Inspect its tool calls and recorded
-usage, alongside audit records for governance actions. Budgets check recorded spend before model requests;
-in-flight or concurrent requests can exceed a cap. [Execution and cost controls](docs/governance.md).
-
-[Self-hosting](docs/rollout.md) gives your team responsibility for deployment, updates and backups. External models,
-parsers, embeddings, tools and tracing can still send data outside your infrastructure. Configure each
-component for your data requirements. [Security and data flows](docs/security.md).
-
-<details>
-<summary>Where your data goes</summary>
-
-| Component | What to decide |
-|---|---|
-| Application and storage | You operate the application, database and configured file storage; choose where they run and how they are backed up |
-| Language models | A hosted provider receives the context sent for inference; choose a local endpoint when that processing must stay on your infrastructure |
-| Document processing and search | Check parsers and embedding providers separately: a local chat model does not make a cloud parser or remote embeddings local |
-| Tools and channels | Enabled integrations exchange the data needed for their calls; connected channels receive the replies sent through them |
-| Observability | Optional tracing can export run data; check both deployment-wide and per-agent settings |
-
-[Review the data boundaries](docs/security.md#what-leaves-the-deployment) ·
-[Choose document processing](docs/file-processing.md).
-
-</details>
 
 ## Quick start
 
@@ -162,141 +338,36 @@ For development from source, see [Contributing](CONTRIBUTING.md).
 
 </details>
 
-## Explore the agent layer
+## Own your deployment, models and access
 
-### Configure an agent
+**Run it on your infrastructure.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
+Choose hosted model providers or local models through Ollama and compatible endpoints such as vLLM.
+Model capability and hardware requirements depend on the model you choose. [Model configuration](docs/models.md).
 
-In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
-Publish a version when it is ready for use. You can inspect earlier versions and roll back a change.
-[Build an agent](docs/first-agent.md).
+**Decide what an agent may do.** Configure resource permissions, store credentials in the vault and
+require human approval for supported tool actions. [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md).
 
-<!-- MEDIA: agent-builder | light + dark; same agent as the demo -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and published version alongside draft changes." width="100%">
-</picture>
+**Inspect the work and spend.** A run is one execution of an agent. Inspect its tool calls and recorded
+usage, alongside audit records for governance actions. Budgets check recorded spend before model requests;
+in-flight or concurrent requests can exceed a cap. [Execution and cost controls](docs/governance.md).
+
+[Self-hosting](docs/rollout.md) gives your team responsibility for deployment, updates and backups. External models,
+parsers, embeddings, tools and tracing can still send data outside your infrastructure. Configure each
+component for your data requirements. [Security and data flows](docs/security.md).
 
 <details>
-<summary>Open the product tour: configuration, shared knowledge, integrations and automation</summary>
+<summary>Where your data goes</summary>
 
-### Teach a reusable procedure
+| Component | What to decide |
+|---|---|
+| Application and storage | You operate the application, database and configured file storage; choose where they run and how they are backed up |
+| Language models | A hosted provider receives the context sent for inference; choose a local endpoint when that processing must stay on your infrastructure |
+| Document processing and search | Check parsers and embedding providers separately: a local chat model does not make a cloud parser or remote embeddings local |
+| Tools and channels | Enabled integrations exchange the data needed for their calls; connected channels receive the replies sent through them |
+| Observability | Optional tracing can export run data; check both deployment-wide and per-agent settings |
 
-**Skills** are written procedures an agent can load when relevant: how to review a proposal,
-reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
-that need it. [Learn about skills](docs/skills.md).
-
-<!-- MEDIA: skills | light + dark; library and artifact-pages procedure -->
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
-  <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skill-detail.webp">
-  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
-</picture>
-
-**Context** holds standing information such as product names, a glossary or communication guidelines.
-Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
-or reads it on demand. [Learn about context](docs/context.md).
-
-<!-- MEDIA: context | light + dark; library and glossary content -->
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
-  <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context-detail.webp">
-  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
-</picture>
-
-### Give it documents to search
-
-**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
-sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
-[Add and process documents](docs/file-processing.md).
-
-<!-- MEDIA: knowledge-bases | light + dark -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
-</picture>
-
-Open a collection to inspect its documents and processing status. Choose how supported documents are read,
-including text recognition for scans (OCR).
-
-<!-- MEDIA: knowledge-collection | light + dark -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp">
-  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
-</picture>
-
-### Connect the applications you work in
-
-**MCP**, the Model Context Protocol, is a standard for connecting AI agents to tools and data sources.
-The **MCP servers** page lets you configure compatible connections, such as the Notion and GitHub tools
-used in the demo. Available actions depend on the server, credentials and tools enabled for the agent.
-[Connect an application](docs/mcp.md).
-
-<!-- MEDIA: mcp-connections | light + dark; captured from the application -->
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-connections.webp">
-  <img src="docs/assets/screens/light/mcp-connections.webp" alt="Connected MCP servers including GitHub and Notion." width="100%">
-</picture>
-
-### Keep results outside the chat
-
-**Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
-Open them from the library, inspect versions and choose who can access them. Updating the same artifact
-keeps its current-page link; a conversation can link to a particular version.
-
-An artifact displays the data it was published with. A new agent run can update it.
-[Create and share artifacts](docs/artifacts.md).
-
-<!-- MEDIA: artifacts | light + dark; captured from the application -->
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/artifact-detail.webp">
-  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
-</picture>
-
-### Inspect actions and costs
-
-A **run** is one execution of an agent. **Activity / Runs** shows its status and recorded usage;
-open a run to inspect the conversation and tool calls. Budget checks use recorded spend before model
-requests; requests already in progress or concurrent runs can exceed a cap. [Budgets and audit history](docs/governance.md).
-
-<!-- MEDIA: run-detail | capture light + dark; same run as the demo -->
-> **Screenshot placeholder — Run detail:** status, duration, recorded cost and tool calls for the demonstrated task.
-
-You can require human approval for supported tool actions. The approval request lets a person review
-the proposed operation before deciding whether it should proceed. Access to agents and resources is
-controlled through [roles and permissions](docs/permissions.md).
-
-<!-- MEDIA: approval | light + dark; captured from the application -->
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/approval.webp">
-  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
-</picture>
-
-### Schedule repeat work
-
-**Routines** run an agent on a schedule or in response to a configured event. Use them for a weekly
-brief or a recurring report. Runs use the configured access and controls and leave an execution record.
-[Set up a routine](docs/triggers.md).
-
-<!-- MEDIA: routines | capture light + dark; show an actual scheduled execution -->
-> **Screenshot placeholder — Routines:** a report's schedule, last completed scheduled run and link to its result.
+[Review the data boundaries](docs/security.md#what-leaves-the-deployment) ·
+[Choose document processing](docs/file-processing.md).
 
 </details>
 
@@ -311,7 +382,8 @@ Compare the approach with [Dify](docs/about/dify.md), [Viktor](docs/about/viktor
 [Wonderful](docs/about/wonderful.md), or use the [comparison guide](docs/about/comparison.md)
 to choose by task, ownership and required controls.
 
-## Questions about the agent layer
+<details>
+<summary>Questions about the agent layer</summary>
 
 ### Is AgenticOS an AI agent harness?
 
@@ -329,6 +401,8 @@ project with its own runtime and model choices. See the [Claude Code comparison]
 Teams can share agents, skills, context, knowledge collections and artifacts under resource permissions.
 A shared agent can serve different people; a shared artifact gives colleagues a result they can open
 outside the chat.
+
+</details>
 
 ## For developers and operators
 

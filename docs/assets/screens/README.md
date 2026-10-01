@@ -68,9 +68,11 @@ automation and control over deployment and models. Use AI agent harness and Clau
 only where they explain the execution model or a concrete example. Do not label the product a platform
 or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
 
-The main reading path shows the demo and agent builder. The remaining captures and two pending slots
-are retained in a collapsed product tour. Keep the team benefits and security controls readable outside
-the gallery; screenshots support those claims rather than define the document structure.
+The main reading path shows the demo followed by a visible feature table: a short explanation beside
+one linked screenshot per feature. Additional library and collection views and the pending run-detail
+capture sit in a collapsed supplement. The Routines row keeps its explicit placeholder. Team access,
+installation and deployment controls follow the gallery; terminology remains defined in the feature copy.
+The layout takes inspiration from stablyai/orca, using AgenticOS copy and original product captures.
 
 ## Paths and video embedding
 
