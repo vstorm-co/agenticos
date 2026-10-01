@@ -47,6 +47,14 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 *Edited demonstration with waiting time removed. Repository figures reflect the recording's snapshot;
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
 
+## 💬 Bring agents to where your team already works
+
+Use your published agent in **Slack, Mattermost or Telegram**. Colleagues can ask for help in the tools they already use, with the agent's configured instructions, knowledge and tools.
+
+**One agent, multiple ways to reach it:** team messaging, AgenticOS web chat, a website widget, a hosted page or your own application through the API. Configure the channel once; manage the agent's published version centrally and inspect its runs in Activity.
+
+[Connect Slack, Mattermost and other channels](docs/channels.md).
+
 ## Explore the agent layer
 
 <table>
@@ -282,9 +290,6 @@ For a recurring report, the team can divide the work:
 
 The organization keeps the agent and reusable know-how. People work through the browser;
 engineers can connect internal systems. [Set up team access](docs/permissions.md).
-
-Use published agents in web chat or supported channels such as Slack, Telegram and Mattermost,
-or connect them through the API, a hosted page or a website widget. [Explore channels](docs/channels.md).
 
 ## Quick start
 

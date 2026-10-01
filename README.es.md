@@ -1,4 +1,4 @@
-<!-- source_sha: 8db44b6e884d -->
+<!-- source_sha: 74a30d94e71c -->
 
 <div align="center">
 
@@ -48,6 +48,14 @@ Dale a un agente el briefing, el conocimiento y las herramientas. Deja que inves
 
 *Demostración editada con los tiempos de espera eliminados. Las cifras de los repositorios corresponden
 al momento de la grabación; el artefacto no obtiene datos en vivo. Las conexiones y capacidades se configuraron para esta demo.*
+
+## 💬 Lleva los agentes a donde tu equipo ya trabaja
+
+Usa tu agente publicado en **Slack, Mattermost o Telegram**. Tus compañeros pueden pedir ayuda desde las herramientas que ya utilizan, con las instrucciones, el conocimiento y las herramientas configurados para el agente.
+
+**Un agente, varias formas de acceder:** mensajería del equipo, chat de AgenticOS, widget web, página alojada o tu propia aplicación mediante la API. Configura el canal, gestiona la versión publicada del agente desde un solo lugar y consulta sus ejecuciones en Activity.
+
+[Conecta Slack, Mattermost y otros canales](docs/channels.es.md).
 
 ## Explora la capa de agentes
 
@@ -285,9 +293,6 @@ Para un informe periódico, el equipo puede repartirse el trabajo:
 
 La organización conserva el agente y el conocimiento reutilizable. El equipo trabaja desde el navegador;
 los desarrolladores pueden conectar sistemas internos. [Configura el acceso del equipo](docs/permissions.es.md).
-
-Usa los agentes publicados en el chat web o en canales compatibles como Slack, Telegram y Mattermost,
-o mediante la API, una página alojada o un widget web. [Explora los canales](docs/channels.es.md).
 
 ## Inicio rápido
 

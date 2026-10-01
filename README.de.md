@@ -1,4 +1,4 @@
-<!-- source_sha: 8db44b6e884d -->
+<!-- source_sha: 74a30d94e71c -->
 
 <div align="center">
 
@@ -48,6 +48,14 @@ Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchi
 
 *Bearbeitete Demonstration ohne Wartezeiten. Die Repository-Zahlen entsprechen dem Stand der Aufnahme;
 das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für diese Demo eingerichtet.*
+
+## 💬 Agenten dort einsetzen, wo dein Team bereits arbeitet
+
+Nutze deinen veröffentlichten Agenten in **Slack, Mattermost oder Telegram**. Kollegen können in ihren vertrauten Werkzeugen um Hilfe bitten; der Agent nutzt seine konfigurierten Anweisungen, sein Wissen und seine Werkzeuge.
+
+**Ein Agent, mehrere Zugangswege:** Team-Messenger, AgenticOS-Webchat, Website-Widget, gehostete Seite oder deine eigene Anwendung über die API. Richte den Kanal ein, verwalte die veröffentlichte Agentenversion zentral und prüfe seine Ausführungen in Activity.
+
+[Slack, Mattermost und weitere Kanäle verbinden](docs/channels.de.md).
 
 ## Den Agent-Layer erkunden
 
@@ -285,9 +293,6 @@ Bei einem regelmäßigen Bericht kann das Team die Arbeit aufteilen:
 
 Agent und wiederverwendbares Wissen bleiben bei der Organisation. Das Team arbeitet im Browser;
 Entwickler können interne Systeme anbinden. [Teamzugriff einrichten](docs/permissions.de.md).
-
-Nutze veröffentlichte Agenten im Webchat oder in unterstützten Kanälen wie Slack, Telegram und Mattermost,
-oder binde sie über die API, eine gehostete Seite oder ein Website-Widget ein. [Kanäle erkunden](docs/channels.de.md).
 
 ## Schnellstart
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 8db44b6e884d -->
+<!-- source_sha: 74a30d94e71c -->
 
 <div align="center">
 
@@ -48,6 +48,14 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 
 *Zmontowane demo z usuniętym czasem oczekiwania. Dane repozytoriów odpowiadają chwili nagrania;
 artefakt nie pobiera danych na żywo. Połączenia i możliwości agenta skonfigurowano na potrzeby tego demo.*
+
+## 💬 Agenci tam, gdzie już pracuje Twój zespół
+
+Udostępnij opublikowanego agenta w **Slacku, Mattermost lub Telegramie**. Zespół może prosić o pomoc w narzędziach, których już używa, a agent korzysta ze skonfigurowanych instrukcji, wiedzy i narzędzi.
+
+**Jeden agent, wiele sposobów dostępu:** komunikator zespołu, czat AgenticOS, widget na stronie, strona agenta lub własna aplikacja przez API. Skonfiguruj kanał, zarządzaj opublikowaną wersją agenta w jednym miejscu i sprawdzaj jego wykonania w Activity.
+
+[Podłącz Slack, Mattermost i pozostałe kanały](docs/channels.pl.md).
 
 ## Poznaj warstwę agentów
 
@@ -284,9 +292,6 @@ Przy cyklicznym raporcie zespół może podzielić pracę:
 
 Agent i zapisane sposoby pracy pozostają zasobem organizacji. Zespół pracuje w przeglądarce;
 programiści mogą podłączać systemy wewnętrzne. [Skonfiguruj dostęp zespołu](docs/permissions.pl.md).
-
-Korzystaj z opublikowanych agentów w czacie lub obsługiwanych kanałach, np. Slack, Telegram i Mattermost,
-albo przez API, stronę agenta lub widget na stronie. [Poznaj kanały](docs/channels.pl.md).
 
 ## Szybki start
 
