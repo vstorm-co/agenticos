@@ -27,7 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
   amount or an order id such as `ORD-2026-000417` comes through. A number
   written with `+` is caught for any country; a national one for the countries
   in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
-  code is refused at publish. An agent with no PII toggle on is unchanged.
+  code is refused at publish. A text with more than 10,000 digits is not
+  read: it ends the run with `guardrail_blocked` rather than reach the model
+  unredacted. An agent with no PII toggle on is unchanged.
 
 ## [0.0.516] - 2026-10-01
 

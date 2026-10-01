@@ -18,12 +18,20 @@ each configured region. Every region added also widens what a bare run of
 digits can be: `123456789` is a valid Polish landline, so with `PL` configured a
 nine-digit order id is redacted too. The list is a field rather than a constant
 because the right trade-off depends on the markets an agent serves.
+
+**How much text.** The matcher is pure Python and its cost follows the digits in
+the text: a prompt of `1/2/3 1/2/3 ...` costs about 70 us a digit across the four
+default regions, and a prompt of repeated numbers keeps a span per number per
+region. A text with more than `MAX_PHONE_DIGITS` digits is refused with a `block`
+verdict rather than read: a redactor that has not read the whole text must not
+let it through as if it had.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable, Sequence
+from itertools import islice
 
 import phonenumbers
 from pydantic_ai_harness.guardrails import GuardrailResult
@@ -33,7 +41,16 @@ PHONE_PLACEHOLDER = "[redacted:phone]"
 
 DEFAULT_PHONE_REGIONS = "US, GB, DE, PL"
 
+MAX_PHONE_DIGITS = 10_000
+"""The most digits a text may hold for the phone detector to read it.
+
+About 0.7 s of matching at the four default regions in the worst text measured,
+and room for some 900 phone numbers - far more than a prompt, an answer or a tool
+result an agent works with holds.
+"""
+
 _REGION_SPLIT = re.compile(r"[,\n]")
+_DIGIT = re.compile(r"\d")
 
 
 def parse_phone_regions(raw: str) -> tuple[str, ...]:
@@ -73,8 +90,19 @@ def _merged(spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
+def has_too_many_digits(text: str) -> bool:
+    """Whether `text` holds more than `MAX_PHONE_DIGITS` digits.
+
+    Stops counting at the bound, so a long text costs a regex scan and no more.
+    """
+    return next(islice(_DIGIT.finditer(text), MAX_PHONE_DIGITS, None), None) is not None
+
+
 def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
     """A detector that rewrites valid phone numbers out of text.
+
+    Returns a `block` verdict, with the reason as its message, for a text with
+    more than `MAX_PHONE_DIGITS` digits.
 
     Args:
         regions: Countries whose national formats are read. Empty matches only
@@ -84,6 +112,11 @@ def phone_numbers(regions: Sequence[str]) -> Callable[[str], GuardrailResult]:
     passes: tuple[str | None, ...] = tuple(regions) or (None,)
 
     def detect(text: str) -> GuardrailResult:
+        if has_too_many_digits(text):
+            return GuardrailResult.block(
+                f"It holds more than {MAX_PHONE_DIGITS:,} digits, "
+                "the most phone number redaction reads."
+            )
         spans: list[tuple[int, int]] = []
         for region in passes:
             for match in phonenumbers.PhoneNumberMatcher(

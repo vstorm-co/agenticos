@@ -1,5 +1,5 @@
 ---
-source_sha: "b75f454647ba"
+source_sha: "96edfb113ee0"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1760,7 +1760,9 @@ niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
 kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski
 numer stacjonarny, więc z `PL` na liście redagowany jest też dziewięciocyfrowy
 numer zamówienia. Wymień kraje, które agent obsługuje. Nieznany kod (najczęściej
-`UK` zamiast `GB`) jest odrzucany przy publikacji.
+`UK` zamiast `GB`) jest odrzucany przy publikacji. Tekst z więcej niż 10 000 cyfr nie jest w ogóle
+czytany: kończy run statusem `guardrail_blocked`, bo przekazanie go dalej bez
+czytania przekazałoby każdy numer, który zawiera.
 
 **Redagowanie przepisuje; blokada jest wynikiem runa.** Redaktor wymazuje trafienie
 i run kończy się normalnie — odpowiedź, która przytoczyła klucz z powrotem, mimo to

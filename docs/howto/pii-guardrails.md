@@ -133,7 +133,10 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
   reviews later. Redact before storage is a different feature this one is not.
 - **A run shows `guardrail_blocked` you did not intend.** Read the run's `error`
   field — it names the edge (`input`, `output` or `tool_result`) but never the
-  matched text, by design, so check the keyword list itself.
+  matched text, by design, so check the keyword list itself. An `error` that goes on
+  *"It holds more than 10,000 digits"* came from PII redaction instead: it reads
+  at most that many digits of one text, and refuses the rest rather than pass on
+  numbers it never read.
 - **Tool-result screening seems unused.** It only matters once an agent has a
   tool that reads untrusted content — a fetched page, a file, an MCP response.
   This trial has none, so that edge was configured but never exercised.

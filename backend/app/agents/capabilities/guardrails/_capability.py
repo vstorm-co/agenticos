@@ -175,9 +175,11 @@ def _edge_detector(
     """One text detector for an edge: redact first, then block.
 
     Redactors run in order and thread their cleaned text forward, so a key scrubbed
-    by the first is invisible to the keyword check after it. The keyword check runs
-    last, on already-redacted text, and *raises* :class:`GuardrailBlocked` rather
-    than returning a `block` verdict - that is what turns a block into a run outcome
+    by the first is invisible to the keyword check after it. A redactor that returns
+    `block` - the phone detector, for a text with too many digits to read - ends the
+    run there, as a keyword block does. The keyword check runs last, on
+    already-redacted text, and *raises* :class:`GuardrailBlocked` rather than
+    returning a `block` verdict - that is what turns a block into a run outcome
     instead of a graceful answer.
 
     Returns `None` when nothing is configured for the edge, so the caller attaches
@@ -199,6 +201,13 @@ def _edge_detector(
         replaced = False
         for redactor in redactors:
             verdict = redactor(cleaned)
+            if verdict.action == "block":
+                # A redactor that could not read the text. Passing it on would
+                # pass on whatever it failed to redact.
+                logger.info("A redactor refused text at the %s edge: %s", edge, verdict.message)
+                raise GuardrailBlocked(
+                    edge=edge, message=f"{_BLOCK_MESSAGE[edge]} {verdict.message}"
+                )
             if verdict.action == "replace":
                 # A redactor's replacement is always the cleaned string.
                 cleaned = str(verdict.replacement)

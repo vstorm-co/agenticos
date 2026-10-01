@@ -12,11 +12,13 @@ from pydantic import ValidationError
 
 from app.agents.capabilities import get, load_builtins
 from app.agents.capabilities.guardrails import GuardrailsConfig
-from app.agents.capabilities.guardrails._capability import _edge_detector
+from app.agents.capabilities.guardrails._capability import GuardrailBlocked, _edge_detector
 from app.agents.capabilities.guardrails._phone import (
     DEFAULT_PHONE_REGIONS,
+    MAX_PHONE_DIGITS,
     PHONE_PLACEHOLDER,
     _merged,
+    has_too_many_digits,
     parse_phone_regions,
     phone_numbers,
 )
@@ -121,6 +123,45 @@ def test_a_bare_digit_run_valid_in_a_listed_country_is_redacted():
 def test_a_number_two_regions_both_match_is_replaced_once():
     """`+1` parses under every region; the spans merge rather than cut twice."""
     assert _redacted(("US", "CA"), "ring +1 415 555 0132.") == f"ring {PHONE_PLACEHOLDER}."
+
+
+def test_the_digit_bound_counts_digits_not_characters():
+    assert not has_too_many_digits("1" * MAX_PHONE_DIGITS)
+    assert has_too_many_digits("1" * (MAX_PHONE_DIGITS + 1))
+    assert not has_too_many_digits("no digits " * MAX_PHONE_DIGITS)
+
+
+def test_a_text_with_too_many_digits_is_blocked_rather_than_read():
+    """Repeated numbers kept a span per number per region and the matcher costs
+    tens of microseconds a digit, so a long prompt of them could take a worker's
+    memory and time. Refused, because returning it unread would pass the numbers on."""
+    flood = "+1 415-555-0132 " * (MAX_PHONE_DIGITS // 11 + 1)
+    verdict = phone_numbers(_DEFAULT)(flood)
+    assert verdict.action == "block"
+    assert verdict.message == (
+        f"It holds more than {MAX_PHONE_DIGITS:,} digits, the most phone number redaction reads."
+    )
+
+
+def test_a_text_at_the_digit_bound_is_still_redacted():
+    text = "1 " * (MAX_PHONE_DIGITS - 10) + "call 415-555-0132"
+    assert _redacted(("US",), text).endswith(f"call {PHONE_PLACEHOLDER}")
+
+
+def test_an_edge_refuses_text_its_phone_redaction_could_not_read():
+    detect = _edge_detector(
+        redact_secrets_on=False,
+        redact_pii_on=True,
+        phone_regions=("US",),
+        keywords=[],
+        edge="input",
+    )
+    assert detect is not None
+    with pytest.raises(GuardrailBlocked) as exc:
+        detect("+1 415-555-0132 " * MAX_PHONE_DIGITS)
+    assert exc.value.edge == "input"
+    assert str(exc.value).startswith("This request was blocked by an input guardrail. It holds")
+    assert "415" not in str(exc.value)
 
 
 def test_overlapping_and_touching_spans_merge_and_separate_ones_do_not():

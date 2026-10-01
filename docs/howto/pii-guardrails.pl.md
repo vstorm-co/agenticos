@@ -1,5 +1,5 @@
 ---
-source_sha: "e7ffb37fb1d6"
+source_sha: "c03119bf01df"
 title: "Trzymaj dane osobowe z dala od promptów i odpowiedzi agenta"
 description: "Skonfiguruj capability guardrails tak, żeby redagowała adresy e-mail, numery telefonów, numery kart i sekrety, a potem porównaj to, co faktycznie dostał model, z tym, co zobaczył odwiedzający."
 ---
@@ -75,7 +75,7 @@ Nad drugim wierszem tabeli warto się zatrzymać: numer telefonu jest krajowy, w
 - **Klient streamujący na chwilę pokazuje sekret.** Redakcja odpowiedzi działa na gotowej odpowiedzi, gdy ramki `text_delta` już wyszły. Wyświetlaj tekst z `final_result`, tak jak `widget.js`, zamiast tylko doklejać delty. Buforowanie odpowiedzi przy włączonym sprawdzaniu wyjścia jest śledzone w [#1900](https://github.com/vstorm-co/agenticos/issues/1900).
 - **Blokada nie zadziałała.** `blocked_keywords_*` dopasowuje dosłowny podciąg bez rozróżniania wielkości liter. Blokada wymaga też włączenia przełącznika danej krawędzi: lista słów kluczowych na krawędzi wyjściowej nic nie robi z wejściem.
 - **Transkrypcja nadal pokazuje surową wartość.** Na krawędzi wejściowej tak ma być: przepisywane jest tylko to, co trafia do modelu, a nie zapisana tura, którą człowiek przegląda później. Redagowanie przed zapisem to inna funkcja, a nie ta.
-- **Run pokazuje `guardrail_blocked`, którego się nie spodziewałeś.** Przeczytaj pole `error` runu. Podaje krawędź (`input`, `output` albo `tool_result`), ale celowo nigdy dopasowanego tekstu, więc sprawdź samą listę słów kluczowych.
+- **Run pokazuje `guardrail_blocked`, którego się nie spodziewałeś.** Przeczytaj pole `error` runu. Podaje krawędź (`input`, `output` albo `tool_result`), ale celowo nigdy dopasowanego tekstu, więc sprawdź samą listę słów kluczowych. Pole `error`, które ciągnie się dalej słowami *„It holds more than 10,000 digits”*, pochodzi z redagowania PII: czyta ono najwyżej tyle cyfr jednego tekstu i odmawia, zamiast przekazać dalej numery, których nie przeczytało.
 - **Sprawdzanie wyników narzędzi wygląda na nieużywane.** Ma znaczenie dopiero wtedy, gdy agent ma narzędzie czytające niezaufane treści: pobraną stronę, plik, odpowiedź MCP. Ta próba żadnego nie ma, więc ta krawędź była skonfigurowana, ale nigdy nie użyta.
 
 ## Zapisz próbę { #record-the-trial }
