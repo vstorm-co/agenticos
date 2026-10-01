@@ -1,4 +1,4 @@
-<!-- source_sha: 64643af6d2fe -->
+<!-- source_sha: a6a796624051 -->
 
 <div align="center">
 
@@ -34,7 +34,8 @@
 
 Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje raporty i tworzy wyniki, z których skorzysta zespół. Instrukcje, uprawnienia i historia wykonań pozostają w jednym miejscu; wybierasz modele chmurowe lub lokalne.
 
-<p align="center"><strong>5700+ integracji przez MCP · Wspólni agenci i wiedza · Wbudowane observability · Własna infrastruktura</strong></p>
+<h3 align="center">🔌 5700+ integracji przez MCP &nbsp;·&nbsp; 🤝 Wspólni agenci i wiedza<br>
+📊 Wbudowane observability &nbsp;·&nbsp; 🏠 Własna infrastruktura</h3>
 
 ## Zobacz, jak to działa
 
@@ -61,6 +62,12 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 artefakt nie pobiera danych na żywo. Połączenia i możliwości agenta skonfigurowano na potrzeby tego demo.*
 
 ## 💬 Agenci tam, gdzie już pracuje Twój zespół
+
+<p align="center">
+  <a href="docs/channels.pl.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
+  <a href="docs/channels.pl.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
+  <a href="docs/channels.pl.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
+</p>
 
 Udostępnij opublikowanego agenta w **Slacku, Mattermost lub Telegramie**. Zespół może prosić o pomoc w narzędziach, których już używa, a agent korzysta ze skonfigurowanych instrukcji, wiedzy i narzędzi.
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 64643af6d2fe -->
+<!-- source_sha: a6a796624051 -->
 
 <div align="center">
 
@@ -34,7 +34,8 @@
 
 Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchieren, Berichte vorbereiten und Ergebnisse erstellen, die dein Team nutzen kann. Anweisungen, Zugriffsrechte und Ausführungsverlauf bleiben an einem Ort; du wählst Cloud- oder lokale Modelle.
 
-<p align="center"><strong>5.700+ Integrationen über MCP · Gemeinsame Agenten und Wissen · Integrierte Observability · Selbst gehostet</strong></p>
+<h3 align="center">🔌 5.700+ Integrationen über MCP &nbsp;·&nbsp; 🤝 Gemeinsame Agenten und Wissen<br>
+📊 Integrierte Observability &nbsp;·&nbsp; 🏠 Selbst gehostet</h3>
 
 ## So funktioniert es
 
@@ -61,6 +62,12 @@ Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchi
 das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für diese Demo eingerichtet.*
 
 ## 💬 Agenten dort einsetzen, wo dein Team bereits arbeitet
+
+<p align="center">
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
+</p>
 
 Nutze deinen veröffentlichten Agenten in **Slack, Mattermost oder Telegram**. Kollegen können in ihren vertrauten Werkzeugen um Hilfe bitten; der Agent nutzt seine konfigurierten Anweisungen, sein Wissen und seine Werkzeuge.
 

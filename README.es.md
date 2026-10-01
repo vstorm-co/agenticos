@@ -1,4 +1,4 @@
-<!-- source_sha: 64643af6d2fe -->
+<!-- source_sha: a6a796624051 -->
 
 <div align="center">
 
@@ -34,7 +34,8 @@
 
 Dale a un agente el briefing, el conocimiento y las herramientas. Deja que investigue, prepare informes y cree resultados que tu equipo pueda utilizar. Mantén las instrucciones, los permisos y el historial de ejecuciones en un solo lugar; elige modelos locales o en la nube.
 
-<p align="center"><strong>5700+ integraciones mediante MCP · Agentes y conocimiento compartidos · Observabilidad integrada · Alojamiento propio</strong></p>
+<h3 align="center">🔌 5700+ integraciones mediante MCP &nbsp;·&nbsp; 🤝 Agentes y conocimiento compartidos<br>
+📊 Observabilidad integrada &nbsp;·&nbsp; 🏠 Alojamiento propio</h3>
 
 ## Mira cómo funciona
 
@@ -61,6 +62,12 @@ Dale a un agente el briefing, el conocimiento y las herramientas. Deja que inves
 al momento de la grabación; el artefacto no obtiene datos en vivo. Las conexiones y capacidades se configuraron para esta demo.*
 
 ## 💬 Lleva los agentes a donde tu equipo ya trabaja
+
+<p align="center">
+  <a href="docs/channels.es.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
+  <a href="docs/channels.es.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
+  <a href="docs/channels.es.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
+</p>
 
 Usa tu agente publicado en **Slack, Mattermost o Telegram**. Tus compañeros pueden pedir ayuda desde las herramientas que ya utilizan, con las instrucciones, el conocimiento y las herramientas configurados para el agente.
 

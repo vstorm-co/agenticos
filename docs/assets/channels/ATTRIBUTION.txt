@@ -1,0 +1,12 @@
+Channel logo cards
+
+Glyphs reused unchanged from frontend/src/lib/brand-glyphs.generated.ts:
+- Slack: Font Awesome Free (Fonticons, Inc.), CC BY 4.0.
+  https://fontawesome.com/license/free
+  https://creativecommons.org/licenses/by/4.0/
+- Mattermost and Telegram: Simple Icons, CC0 1.0.
+  https://simpleicons.org/
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+The card framing, colors and text labels were added for the README.
+Brand marks belong to their respective owners and identify supported channels.

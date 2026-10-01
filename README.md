@@ -32,7 +32,8 @@
 
 Give an agent the brief, the knowledge and the tools. Let it research, prepare reports and create results your team can use. Keep the instructions, access and run history in one place; choose cloud or local models.
 
-<p align="center"><strong>5,700+ integrations via MCP · Shared agents and knowledge · Built-in observability · Self-hosted</strong></p>
+<h3 align="center">🔌 5,700+ integrations via MCP &nbsp;·&nbsp; 🤝 Shared agents and knowledge<br>
+📊 Built-in observability &nbsp;·&nbsp; 🏠 Self-hosted</h3>
 
 ## See it in action
 
@@ -59,6 +60,12 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 the artifact does not fetch live data. Connections and capabilities are configured for this demo.*
 
 ## 💬 Bring agents to where your team already works
+
+<p align="center">
+  <a href="docs/channels.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
+  <a href="docs/channels.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
+  <a href="docs/channels.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
+</p>
 
 Use your published agent in **Slack, Mattermost or Telegram**. Colleagues can ask for help in the tools they already use, with the agent's configured instructions, knowledge and tools.
 
