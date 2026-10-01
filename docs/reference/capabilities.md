@@ -1652,8 +1652,9 @@ deliberately not exposed.
 
 No tools. Inspects the text flowing through a run at three edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
-`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
-them rather than carrying a Python guard.
+`pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
+agent is data, so the config selects and parameterises them rather than carrying a
+Python guard.
 
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
@@ -1664,11 +1665,28 @@ them rather than carrying a Python guard.
 | Config | Default | |
 |---|---|---|
 | `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
-| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+| `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
 
-Every field defaults off, and a capability enabled with no edge configured attaches
+Every edge field defaults off, and a capability enabled with no edge configured attaches
 nothing — an agent that does not use it pays nothing.
+
+**A phone number is redacted only when it is a real number.** The detector is
+libphonenumber's, at its `STRICT_GROUPING` leniency: a candidate is accepted only
+when it fits the numbering plan of its country and its separators fall where that
+country groups digits, so a date, an amount or an order id that a digit-count rule
+would take comes through. A number written with `+` names its
+country and is redacted whatever `phone_regions` lists. A national number, such as
+`415-555-0132`, is read against each listed country, and each one added widens what
+a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
+listed a nine-digit order id is redacted too. List the countries the agent serves.
+An unknown code (`UK` for `GB` is the common one), or a list of more than 16, is
+refused at publish. With up to four countries, a text longer than 200,000 characters
+or with more than 10,000 digits is not read at all. Each country past four is another
+pass over the text, so both limits shrink in proportion, to 50,000 characters and
+2,500 digits at sixteen. A text over the limit ends the run with
+`guardrail_blocked`, because passing it on unread would pass on every number in it.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
 the run finishes — an answer that quoted a key back has still done the work. A

@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "76c7bd9e879e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1729,8 +1729,9 @@ embeddingi — celowo nie jest wystawiony.
 
 Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
-`pydantic-ai-harness`; agent jest danymi, więc konfiguracja wybiera je i
-parametryzuje, zamiast nieść pythonowego strażnika.
+`pydantic-ai-harness` oraz detektor numerów telefonu, którego harness nie dostarcza;
+agent jest danymi, więc konfiguracja wybiera je i parametryzuje, zamiast nieść
+pythonowego strażnika.
 
 | Krawędź | Czyta | Redagowanie | Blokowanie |
 |---|---|---|---|
@@ -1741,11 +1742,30 @@ parametryzuje, zamiast nieść pythonowego strażnika.
 | Konfiguracja | Domyślnie | |
 |---|---|---|
 | `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT i bloki PEM |
-| `redact_pii_*` | `false` | wymaż e-mail, IBAN (mod-97), kartę (Luhn) i US SSN |
+| `redact_pii_*` | `false` | wymaż e-mail, numer telefonu (poprawny w swoim planie numeracji), IBAN (mod-97), kartę (Luhn) i US SSN |
 | `blocked_keywords_*` | `""` | terminy rozdzielone przecinkiem albo nową linią; trafienie kończy run |
+| `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII, najwyżej 16 |
 
-Każde pole jest domyślnie wyłączone, a capability włączona bez skonfigurowanej
-krawędzi nie dołącza niczego — agent, który jej nie używa, nie płaci nic.
+Każde pole krawędzi jest domyślnie wyłączone, a capability włączona bez
+skonfigurowanej krawędzi nie dołącza niczego — agent, który jej nie używa, nie
+płaci nic.
+
+**Numer telefonu jest redagowany tylko wtedy, gdy jest prawdziwym numerem.**
+Detektor pochodzi z libphonenumber i działa z poziomem `STRICT_GROUPING`: kandydat
+jest przyjmowany tylko wtedy, gdy pasuje do planu numeracji swojego kraju, a jego
+separatory stoją tam, gdzie ten kraj grupuje cyfry, więc data, kwota albo numer
+zamówienia, które wziąłaby reguła licząca cyfry, przechodzą bez zmian. Numer zapisany z `+` sam wskazuje kraj i jest redagowany
+niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
+`415-555-0132`, jest czytany względem każdego wymienionego kraju, a każdy dodany
+kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski
+numer stacjonarny, więc z `PL` na liście redagowany jest też dziewięciocyfrowy
+numer zamówienia. Wymień kraje, które agent obsługuje. Nieznany kod (najczęściej
+`UK` zamiast `GB`) albo lista dłuższa niż 16 kodów jest odrzucana przy publikacji.
+Przy najwyżej czterech krajach tekst dłuższy niż 200 000 znaków albo z więcej niż
+10 000 cyfr nie jest w ogóle czytany. Każdy kraj ponad cztery to kolejne przejście
+przez tekst, więc oba limity maleją proporcjonalnie, przy szesnastu do 50 000 znaków
+i 2500 cyfr. Tekst ponad limitem kończy run statusem `guardrail_blocked`, bo
+przekazanie go dalej bez czytania przekazałoby każdy numer, który zawiera.
 
 **Redagowanie przepisuje; blokada jest wynikiem runa.** Redaktor wymazuje trafienie
 i run kończy się normalnie — odpowiedź, która przytoczyła klucz z powrotem, mimo to

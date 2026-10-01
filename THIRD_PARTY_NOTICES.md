@@ -24,7 +24,7 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 113 | 241 |
-| Apache-2.0 | 60 | 24 |
+| Apache-2.0 | 61 | 24 |
 | BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
@@ -52,7 +52,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-243 distributions.
+244 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -203,6 +203,7 @@ names no author is in the evidence column below.
 | packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
 | pathspec | 1.1.1 | MPL-2.0 | https://github.com/cpburnz/python-pathspec | classifier; review accepted |
 | pendulum | 3.2.0 | MIT | https://github.com/sdispater/pendulum | License field |
+| phonenumberslite | 9.0.40 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 12.3.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.11.8 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
 | pluggy | 1.6.0 | MIT | https://pypi.org/project/pluggy/1.6.0/ | License field |
