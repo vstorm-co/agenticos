@@ -128,6 +128,12 @@ A delete is a hard delete. The record's history stays until its retention remove
 
 ## Editing records in the console { #editing-in-the-console }
 
+The catalog's cards say how many records and live columns each table has, who may
+reach it and when it last changed. On a table's page, each header shows its column's
+type by an icon, numbers sit right-aligned, and dates read as your locale writes
+them. The record panel is titled by the record's first column and says when it was
+added and last changed.
+
 A member who can edit the table adds, changes and deletes records from its page.
 **Add record** asks for a value per live column, typed as the column is. A column that
 is required and has no default is marked `*` and must be filled before the record is
@@ -160,16 +166,20 @@ schema version the Columns dialog would write, and an archive something still us
 refused, with the workflows, views and triggers listed in the dialog. The **+** after the last column adds one, optional to begin
 with. A column's type never changes.
 
+In **Columns**, **Required** makes a column need a
+value, and an archived column moves under **Archived columns**, where **Restore** brings
+it back with its values.
+
 ### Import and export { #import-and-export }
 
-**Export** saves what the page shows as a CSV file: the records the filters and search
+**Export**, under **…** beside **Share**, saves what the page shows as a CSV file: the records the filters and search
 match, in the grid's order, under its visible columns. `POST
 /tables/{id}/records/export` does the same for a caller, with the same filters,
 search, sort and a list of `columns`. An option is written as its label, several as
 `a; b`, and a text cell a spreadsheet would read as a formula starts with `'`. More
 than 100,000 matching records are refused with `EXPORT_TOO_LARGE` (413).
 
-**Import** reads a CSV file, comma or semicolon separated, whose first row names its
+**Import**, in the same menu, reads a CSV file, comma or semicolon separated, whose first row names its
 columns. Each file column is matched to the table column of the same name, or to
 **External id**, and can be pointed elsewhere or skipped. A value that does not read
 as its column's type fails its row before anything is sent. The rest go 200 at a time
@@ -177,7 +187,8 @@ to `POST /tables/{id}/records/batch`, which writes each record on its own and li
 the ones it refused with their codes, and the console lists every failed row with its
 line. Each record added starts the table's triggers, as any other would.
 
-A new table can start from a file too: **Start from a CSV file** in **New table** turns
+**New table** starts with a **Name** column. It can start from a file instead: **Start
+from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, or an ISO date and time - and otherwise text, or long
 text once a value has a line break or runs past 1,000 characters. The name comes from
@@ -243,6 +254,11 @@ board every visit. It is a sub-resource of the table, not a shareable resource o
 its own: a view has no owner-and-grants of its own kind, and `shared` means only
 "visible to anyone who already holds `tables:view` on the parent table" - it never
 widens access beyond what the table itself allows.
+
+In the console, the screen with no view picked reads **All records**, and **+** beside
+it saves what the screen shows as a new view. A kanban board with no view asks which
+single-select column makes its lanes and draws at once; saved as a view, it keeps
+that grouping. A table with no single-select column offers **Add a column** instead.
 
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and

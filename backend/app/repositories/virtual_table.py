@@ -16,6 +16,7 @@ of a duplicate) and :func:`claim_receipt` (a retried operation key claims the sa
 row). A caller that loses the race gets `None` and reads the winner.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -38,6 +39,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
 )
 from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -314,6 +316,42 @@ async def count_records_up_to(
     )
     count = await db.scalar(select(func.count()).select_from(capped))
     return count or 0
+
+
+async def record_counts(
+    db: AsyncSession, *, organization_id: UUID, table_ids: Sequence[UUID]
+) -> dict[UUID, int]:
+    """How many records each table holds, for a page of tables in one grouped query.
+
+    A table with none is absent from the answer.
+    """
+    if not table_ids:
+        return {}
+    rows = await db.execute(
+        select(VirtualTableRecord.table_id, func.count(VirtualTableRecord.id))
+        .where(
+            VirtualTableRecord.organization_id == organization_id,
+            VirtualTableRecord.table_id.in_(table_ids),
+        )
+        .group_by(VirtualTableRecord.table_id)
+    )
+    return dict(rows.all())
+
+
+async def current_columns(
+    db: AsyncSession, *, tables: Sequence[VirtualTable]
+) -> dict[UUID, list[dict[str, Any]]]:
+    """Each table's current schema columns, for a page of tables in one query."""
+    if not tables:
+        return {}
+    rows = await db.execute(
+        select(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.columns).where(
+            tuple_(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.version).in_(
+                [(table.id, table.schema_version) for table in tables]
+            )
+        )
+    )
+    return dict(rows.all())
 
 
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:

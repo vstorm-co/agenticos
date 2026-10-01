@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import type { ColumnDef, RecordSort } from "@/types/tables";
+import { ColumnTypeIcon } from "./column-type-icon";
 
 export interface ColumnActions {
   onSort: (sort: RecordSort) => void;
@@ -45,9 +46,10 @@ export function ColumnHeaderMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="hover:text-foreground data-[state=open]:text-foreground inline-flex items-center gap-1 uppercase outline-none"
+        className="hover:text-foreground data-[state=open]:text-foreground inline-flex items-center gap-1.5 uppercase outline-none"
         aria-label={t("open", { column: column.label })}
       >
+        <ColumnTypeIcon type={column.type} />
         {column.label}
         {sortedHere === "asc" && <ArrowUp aria-hidden="true" className="size-3" />}
         {sortedHere === "desc" && <ArrowDown aria-hidden="true" className="size-3" />}

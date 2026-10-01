@@ -1,5 +1,5 @@
 ---
-source_sha: "3b91bbe3bade"
+source_sha: "67fc055c8e59"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -146,6 +146,13 @@ Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt, bis ihr
 
 ## Datensätze in der Konsole bearbeiten { #editing-in-the-console }
 
+Die Karten des Katalogs sagen, wie viele Datensätze und aktive Spalten jede Tabelle hat,
+wer sie erreichen darf und wann sie sich zuletzt geändert hat. Auf der Seite einer
+Tabelle zeigt jede Kopfzeile den Typ ihrer Spalte als Symbol, Zahlen stehen
+rechtsbündig, und Daten lesen sich so, wie Ihre Sprache sie schreibt. Das
+Datensatz-Panel trägt die erste Spalte des Datensatzes als Titel und sagt, wann er
+hinzugefügt und zuletzt geändert wurde.
+
 Ein Mitglied, das die Tabelle bearbeiten darf, fügt Datensätze auf ihrer Seite hinzu,
 ändert und löscht sie. **Add record** fragt nach einem Wert je aktiver Spalte, im Typ
 der Spalte. Eine Pflichtspalte ohne Standardwert ist mit `*` markiert und muss
@@ -183,9 +190,13 @@ schreiben würde, und eine Archivierung von etwas, das noch verwendet wird,
 wird abgelehnt, mit den Workflows, Ansichten und Triggern im Dialog. Das **+** nach der letzten Spalte fügt eine hinzu,
 anfangs optional. Der Typ einer Spalte ändert sich nie.
 
+In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte Spalte
+wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
+zurückbringt.
+
 ### Import und Export { #import-and-export }
 
-**Export** speichert, was die Seite zeigt, als CSV-Datei: die Datensätze, die Filter und
+**Export**, unter **…** neben **Share**, speichert, was die Seite zeigt, als CSV-Datei: die Datensätze, die Filter und
 Suche treffen, in der Reihenfolge des Rasters, unter seinen sichtbaren Spalten. `POST
 /tables/{id}/records/export` tut dasselbe für einen Aufrufer, mit denselben Filtern,
 Suche, Sortierung und einer Liste `columns`. Eine Option wird als ihre Bezeichnung
@@ -193,7 +204,7 @@ geschrieben, mehrere als `a; b`, und eine Textzelle, die eine Tabellenkalkulatio
 Formel lesen würde, beginnt mit `'`. Mehr als 100.000 passende Datensätze werden mit
 `EXPORT_TOO_LARGE` (413) abgelehnt.
 
-**Import** liest eine komma- oder semikolongetrennte CSV-Datei, deren erste Zeile die
+**Import**, im selben Menü, liest eine komma- oder semikolongetrennte CSV-Datei, deren erste Zeile die
 Spalten benennt. Jede Spalte der Datei wird der gleichnamigen Tabellenspalte oder
 **External id** zugeordnet und kann umgelenkt oder übersprungen werden. Ein Wert, der
 sich nicht als Typ seiner Spalte lesen lässt, lässt seine Zeile scheitern, bevor etwas
@@ -202,8 +213,8 @@ Datensatz einzeln schreibt und die abgelehnten mit ihren Codes auflistet, und di
 listet jede gescheiterte Zeile mit ihrer Zeilennummer. Jeder hinzugefügte Datensatz
 startet die Trigger der Tabelle wie jeder andere.
 
-Eine neue Tabelle kann auch mit einer Datei beginnen: **Start from a CSV file** in
-**New table** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
+**New table** beginnt mit einer Spalte **Name**. Stattdessen kann sie mit einer Datei
+beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum oder Datum und
 Uhrzeit in ISO - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
 hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
@@ -280,6 +291,12 @@ hat keinen eigenen Besitzer und keine eigenen Grants ihrer Art, und `shared`
 bedeutet nur "sichtbar für jeden, der bereits `tables:view` auf der übergeordneten
 Tabelle hält" - sie erweitert den Zugriff nie über das hinaus, was die Tabelle
 selbst erlaubt.
+
+In der Konsole heißt der Bildschirm ohne gewählte Ansicht **All records**, und **+**
+daneben speichert, was er zeigt, als neue Ansicht. Ein Kanban-Board ohne Ansicht fragt,
+welche Einfachauswahl-Spalte seine Bahnen bildet, und zeichnet sich sofort; als Ansicht
+gespeichert, behält es diese Gruppierung. Eine Tabelle ohne Einfachauswahl-Spalte bietet
+stattdessen **Add a column** an.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`

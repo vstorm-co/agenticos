@@ -3,7 +3,19 @@
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Download, Plus, Save, Settings2, Share2, Upload, Zap } from "lucide-react";
+import {
+  Building2,
+  Download,
+  Lock,
+  MoreHorizontal,
+  Plus,
+  Save,
+  Settings2,
+  Share2,
+  Upload,
+  Users,
+  Zap,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
@@ -31,9 +43,17 @@ import { TableListView } from "@/components/tables/table-list-view";
 import { TableTriggersPanel } from "@/components/tables/triggers/table-triggers-panel";
 import { ViewSelect } from "@/components/tables/view-select";
 import {
-  Badge,
   Button,
   ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -72,6 +92,8 @@ import type {
   RecordSort,
   ViewKind,
 } from "@/types/tables";
+
+const VISIBILITY_ICON = { private: Lock, team: Users, org: Building2 } as const;
 
 function parseTab(value: string | null): ViewKind {
   return value === "kanban" || value === "list" ? value : "table";
@@ -125,7 +147,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     activeView?.config.visible_columns ?? null,
   );
   const search = useDebounced(searchDraft).trim() || null;
-  const groupBy = activeView?.config.group_by ?? null;
+  // A board groups by its view's column, or - with no view saying so - by the
+  // column picked above it, so a board is one choice away rather than a dead end.
+  const [groupPick, setGroupPick] = useState<string | null>(null);
+  const groupBy = activeView?.config.group_by ?? groupPick;
 
   // `sort` is the grid's own working sort, seeded from the active view's
   // stored one each time the view changes - re-seeded from render, not a
@@ -190,6 +215,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const hidden = liveColumns.filter((column) => !columns.includes(column));
   // What this screen shows now, against what the active view keeps.
   const working = { filters: applied, search, sort, visible_columns: visible };
+  const groupable = liveColumns.filter((column) => column.type === "single_select");
+  const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const unsaved =
     activeView !== null &&
     activeView.can_manage &&
@@ -257,7 +284,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
         actions={
           <div className="flex items-center gap-2">
-            <Badge variant="outline">{t(`visibility.${table.visibility}`)}</Badge>
+            <span className="text-muted-foreground mr-1 inline-flex items-center gap-1.5 text-xs">
+              <VisibilityIcon aria-hidden="true" className="size-3.5" />
+              {t(`visibility.${table.visibility}`)}
+            </span>
             {canEdit && (
               <Button
                 variant="outline"
@@ -283,6 +313,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
               <Share2 className="h-4 w-4" /> {t("share")}
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label={t("more")} title={t("more")}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canEdit && (
+                  <DropdownMenuItem onSelect={() => setImporting(true)}>
+                    <Upload className="h-4 w-4" /> {t("import")}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem disabled={exporting} onSelect={exportShown}>
+                  <Download className="h-4 w-4" /> {t("export")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <Button size="sm" onClick={() => addRecord()}>
                 <Plus className="h-4 w-4" /> {t("addRecord")}
@@ -315,14 +362,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             className="sm:w-56"
           />
           <RecordFiltersPopover columns={liveColumns} filters={filters} onChange={setFilters} />
-          <Button variant="outline" size="sm" disabled={exporting} onClick={exportShown}>
-            <Download className="h-4 w-4" /> {t("export")}
-          </Button>
-          {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
-              <Upload className="h-4 w-4" /> {t("import")}
-            </Button>
-          )}
           {hidden.length > 0 && (
             <HiddenColumnsPopover
               hidden={hidden}
@@ -362,8 +401,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 name,
                 kind: tab,
                 visibility,
-                // A new view keeps what the screen is narrowed by now.
-                config: { ...emptyViewConfig(), ...working },
+                // A new view keeps what the screen is narrowed by now, and a
+                // board the column it is grouped by.
+                config: {
+                  ...emptyViewConfig(),
+                  ...working,
+                  group_by: tab === "kanban" ? groupBy : null,
+                },
               });
               setViewIdParam(created.id);
             }}
@@ -407,6 +451,24 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      {tab === "kanban" && groupPick !== null && !activeView?.config.group_by && (
+        // Picked here rather than saved: it can be picked again.
+        <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
+          {t("kanbanGroupBy")}
+          <Select value={groupPick} onValueChange={setGroupPick}>
+            <SelectTrigger className="h-8 w-44" aria-label={t("kanbanGroupBy")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {groupable.map((column) => (
+                <SelectItem key={column.id} value={column.id}>
+                  {column.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {tab === "kanban" &&
         (groupBy ? (
           <TableKanbanView
@@ -420,7 +482,35 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             canEdit={canEdit}
           />
         ) : (
-          <p className="text-muted-foreground text-sm">{t("kanbanNeedsView")}</p>
+          <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
+            <p className="text-sm font-medium">{t("kanbanGroupTitle")}</p>
+            {groupable.length > 0 ? (
+              <>
+                <p className="text-muted-foreground max-w-md text-sm">{t("kanbanGroupHint")}</p>
+                <Select value="" onValueChange={setGroupPick}>
+                  <SelectTrigger className="w-56" aria-label={t("kanbanGroupBy")}>
+                    <SelectValue placeholder={t("kanbanGroupBy")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupable.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>
+                        {column.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground max-w-md text-sm">{t("kanbanNoGroupable")}</p>
+                {canEdit && (
+                  <Button size="sm" variant="outline" onClick={() => setAddingColumn(true)}>
+                    <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         ))}
 
       {tab === "list" && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { EmptyState } from "@/components/states";
 import { Skeleton } from "@/components/ui";
 import { formatCellValue } from "@/lib/format-cell-value";
@@ -23,6 +23,7 @@ export function TableListView({
   onOpenRecord: (record: RecordRead) => void;
 }) {
   const t = useTranslations("tables.cells");
+  const locale = useLocale();
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
   const [title, ...secondary] = columns;
@@ -51,7 +52,8 @@ export function TableListView({
             className="hover:bg-accent flex w-full flex-col gap-0.5 px-3 py-2.5 text-left"
           >
             <span className="text-foreground truncate text-sm font-medium">
-              {(title && formatCellValue(title, record.values[title.id] ?? null, boolLabel)) ||
+              {(title &&
+                formatCellValue(title, record.values[title.id] ?? null, boolLabel, locale)) ||
                 record.id}
             </span>
             {secondary.length > 0 && (
@@ -59,7 +61,7 @@ export function TableListView({
                 {secondary
                   .slice(0, 3)
                   .map((column) =>
-                    formatCellValue(column, record.values[column.id] ?? null, boolLabel),
+                    formatCellValue(column, record.values[column.id] ?? null, boolLabel, locale),
                   )
                   .filter(Boolean)
                   .join(" · ")}

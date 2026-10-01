@@ -630,7 +630,6 @@
           "kanban": "Kanban",
           "list": "Lista"
         },
-        "kanbanNeedsView": "Zapisz widok kanban z kolumną grupującą, aby zobaczyć tablicę.",
         "shareTitle": "Dostęp do {name}",
         "shareDescription": "Kto widzi i edytuje tę tabelę.",
         "visibility": {
@@ -652,14 +651,20 @@
         "recordCount": "{count, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}}",
         "recordCountCapped": "{count, number}+ rekordów",
         "export": "Eksportuj",
-        "import": "Importuj"
+        "import": "Importuj",
+        "more": "Więcej akcji",
+        "kanbanGroupTitle": "Która kolumna tworzy tory?",
+        "kanbanGroupHint": "Każda z jej opcji staje się torem, a przeciągnięcie karty między torami ją zmienia. Zapisz tablicę jako widok, żeby ją zachować.",
+        "kanbanGroupBy": "Grupuj według",
+        "kanbanNoGroupable": "Tablica grupuje rekordy według kolumny jednokrotnego wyboru, np. Stage. Ta tabela jeszcze takiej nie ma.",
+        "kanbanAddColumn": "Dodaj kolumnę"
       },
       "views": {
         "created": "Zapisano widok",
         "deleted": "Usunięto widok",
         "selectViewFor": "{kind, select, table {Wybierz widok tabeli} kanban {Wybierz widok kanban} list {Wybierz widok listy} other {Wybierz widok}}",
-        "unsavedView": "Niezapisany widok",
-        "newView": "Nowy widok",
+        "unsavedView": "Wszystkie rekordy",
+        "newView": "Zapisz jako nowy widok",
         "rename": "Zmień nazwę",
         "delete": "Usuń",
         "namePlaceholder": "Nazwa widoku",
@@ -672,7 +677,6 @@
         "deleteDescription": "Usunąć widok „{name}”? Tej operacji nie można cofnąć."
       },
       "noDescription": "Brak opisu.",
-      "schemaVersion": "Schemat v{version}",
       "readOnly": "Tylko odczyt",
       "editedWhen": "edytowano {when}",
       "triggers": {
@@ -715,7 +719,8 @@
         "cancel": "Anuluj",
         "create": "Dodaj rekord",
         "created": "Dodano rekord."
-      }
+      },
+      "cardSize": "{records, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}} · {columns, plural, one {# kolumna} few {# kolumny} many {# kolumn} other {# kolumny}}"
     },
     "workflows": {
       "templatesHeading": "Szablony",
@@ -4187,9 +4192,9 @@
     },
     "create": {
       "title": "Nowa tabela",
-      "namePlaceholder": "Nazwa tabeli",
+      "namePlaceholder": "Leady",
       "nameLabel": "Nazwa",
-      "descriptionPlaceholder": "Opis (opcjonalnie)",
+      "descriptionPlaceholder": "Czym są rekordy i kto je wypełnia",
       "descriptionLabel": "Opis",
       "visibilityLabel": "Widoczność",
       "visibility": {
@@ -4221,15 +4226,15 @@
       "fromCsvTypes": "Typ każdej kolumny odczytano z jej wartości. Sprawdź je przed utworzeniem: typu nie da się później zmienić.",
       "csvEmpty": "Ten plik nie ma wierszy pod nagłówkiem.",
       "csvTooWide": "Tabela mieści najwyżej {max} kolumn.",
-      "csvColumn": "Kolumna {n}"
+      "csvColumn": "Kolumna {n}",
+      "firstColumn": "Nazwa",
+      "columnsHeading": "Kolumny"
     },
     "schema": {
       "title": "Kolumny",
       "labelPlaceholder": "Etykieta kolumny",
       "columnLabel": "Etykieta kolumny",
       "columnType": "Typ kolumny",
-      "nullable": "Opcjonalna",
-      "archived": "Zarchiwizowana",
       "removeColumn": "Usuń kolumnę",
       "optionPlaceholder": "Etykieta opcji",
       "optionLabel": "Etykieta opcji",
@@ -4248,7 +4253,13 @@
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
         "multi_select": "Wybór wielokrotny"
-      }
+      },
+      "required": "Wymagana",
+      "archiveColumn": "Zarchiwizuj {column}",
+      "archiveOption": "Zarchiwizuj {option}",
+      "restoreOption": "Przywróć {option}",
+      "archivedHeading": "Zarchiwizowane kolumny - ich wartości zostają",
+      "restore": "Przywróć"
     },
     "sheet": {
       "title": "Rekord",
@@ -4260,7 +4271,9 @@
       "deleteTitle": "Usunąć ten rekord?",
       "deleteDescription": "Zniknie ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla niego. Przez kilka sekund można to cofnąć.",
       "deleted": "Usunięto rekord.",
-      "deleteConflict": "Ktoś zmienił ten rekord od jego otwarcia, więc został zachowany. Sprawdź go i spróbuj ponownie."
+      "deleteConflict": "Ktoś zmienił ten rekord od jego otwarcia, więc został zachowany. Sprawdź go i spróbuj ponownie.",
+      "added": "Dodany {when}",
+      "changed": "zmieniony {when}"
     },
     "kanban": {
       "moveTo": "Przenieś do",

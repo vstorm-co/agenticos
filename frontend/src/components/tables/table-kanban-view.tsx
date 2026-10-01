@@ -1,7 +1,7 @@
 "use client";
 
 import type { HTMLAttributes } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -73,7 +73,13 @@ function KanbanCard({
   canEdit: boolean;
 }) {
   const t = useTranslations("tables.kanban");
-  const title = formatCellValue(titleColumn, record.values[titleColumn.id] ?? null, boolLabel);
+  const locale = useLocale();
+  const title = formatCellValue(
+    titleColumn,
+    record.values[titleColumn.id] ?? null,
+    boolLabel,
+    locale,
+  );
 
   return (
     <div

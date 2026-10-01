@@ -136,6 +136,33 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     assert owner.id
 
 
+async def test_the_listing_counts_each_tables_records_and_live_columns(db):
+    service, ctx, _owner, _org = await _setup(db)
+    people = await service.create_table(
+        ctx, TableCreate(name="People", columns=[column("Name", "text"), column("Age", "integer")])
+    )
+    await service.create_table(ctx, TableCreate(name="Empty"))
+    name_id, age_id = (col.id for col in people.columns)
+    for who in ("Ada", "Grace"):
+        await service.create_record(ctx, people.id, RecordCreate(values={str(name_id): who}))
+    # An archived column is not counted: it is in no form or view any more.
+    await service.update_schema(
+        ctx,
+        people.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[
+                column("Name", "text", id=name_id),
+                column("Age", "integer", id=age_id, archived=True),
+            ],
+        ),
+    )
+
+    listed = {item.name: item for item in (await service.list_tables(ctx)).items}
+    assert (listed["People"].record_count, listed["People"].column_count) == (2, 1)
+    assert (listed["Empty"].record_count, listed["Empty"].column_count) == (0, 0)
+
+
 async def test_sort_by_updated_at_puts_the_most_recently_changed_table_first(engine: AsyncEngine):
     # The default listing is alphabetical, which a "most recently changed"
     # dashboard card cannot re-derive from a truncated page of it - a table

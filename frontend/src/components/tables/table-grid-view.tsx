@@ -1,10 +1,11 @@
 "use client";
 
 import { type KeyboardEvent, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Maximize2, Plus, Trash2 } from "lucide-react";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
+import { ColumnTypeIcon, isNumeric } from "./column-type-icon";
 import { InlineCell } from "./inline-cell";
 import { NewRecordRow } from "./new-record-row";
 import { selectChips } from "./option-chip";
@@ -20,6 +21,7 @@ import { EmptyState } from "@/components/states";
 import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { formatCellValue } from "@/lib/format-cell-value";
+import { cn } from "@/lib/utils";
 import { useTableViewStore } from "@/stores";
 import type { CellValue, ColumnDef, RecordRead, RecordSort } from "@/types/tables";
 
@@ -83,6 +85,7 @@ export function TableGridView({
   onEndReached?: () => void;
 }) {
   const t = useTranslations("tables.cells");
+  const locale = useLocale();
   const tGrid = useTranslations("tables.grid");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
@@ -125,7 +128,7 @@ export function TableGridView({
 
   const display = (column: ColumnDef, record: RecordRead) => {
     const value = record.values[column.id] ?? null;
-    return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel) || "—");
+    return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel, locale) || "—");
   };
 
   /**
@@ -171,7 +174,10 @@ export function TableGridView({
         data-cell={`${records.indexOf(record)}:${columns.indexOf(column)}`}
         onKeyDown={(event) => moveFrom(event, records.indexOf(record), columns.indexOf(column))}
         aria-label={tGrid("editCell", { column: column.label })}
-        className="hover:bg-accent/60 focus-visible:ring-ring -mx-4 -my-3 block min-h-11 w-[calc(100%+2rem)] px-4 py-3 text-left focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset"
+        className={cn(
+          "hover:bg-accent/60 focus-visible:ring-ring -mx-4 -my-3 block min-h-11 w-[calc(100%+2rem)] px-4 py-3 focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
+          isNumeric(column.type) ? "text-right" : "text-left",
+        )}
         onClick={(event) => {
           event.stopPropagation();
           // A yes/no that cannot be empty has one edit to make: the other one.
@@ -192,8 +198,14 @@ export function TableGridView({
     header: columnActions ? (
       <ColumnHeaderMenu column={column} sort={sort} actions={columnActions} />
     ) : (
-      column.label
+      <span className="inline-flex items-center gap-1.5">
+        <ColumnTypeIcon type={column.type} />
+        {column.label}
+      </span>
     ),
+    // Numbers read right-aligned, so their digits line up down the column.
+    align: isNumeric(column.type) ? ("right" as const) : undefined,
+    className: isNumeric(column.type) ? "tabular-nums" : undefined,
     cell: (record) => renderCell(column, record),
     sortable: !columnActions && column.type !== "multi_select",
   }));

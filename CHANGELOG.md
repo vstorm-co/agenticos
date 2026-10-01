@@ -513,6 +513,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Tables say more and ask less.** A table's card reads "14 records · 6
+  columns" and when it changed, with who may reach it as an icon; the table
+  list returns `record_count` and `column_count`. The grid shows each column's
+  type by an icon, right-aligns numbers and writes dates the way the viewer's
+  locale does; the record panel is titled by the record's first column and says
+  when it was added and changed. A kanban board with no view asks which
+  single-select column makes its lanes instead of sending you to save a view
+  first. **Import** and **Export** moved under **…**, the unsaved screen reads
+  **All records**, **Columns** has a **Required** switch and an **Archived
+  columns** section with **Restore**, and **New table** starts with a **Name**
+  column and labelled fields.
 - **A workflow step's dialog works the way n8n's does.** **Parameters** holds
   what the step works on and is set to do in one list, the list it works on
   first, and **Settings** how it runs: **Run this step**, what it does when it

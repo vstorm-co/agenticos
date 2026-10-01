@@ -19,7 +19,7 @@ describe("CreateTableDialog", () => {
     expect(screen.getByRole("button", { name: /create table/i })).toBeDisabled();
   });
 
-  it("submits the trimmed name, description and visibility with no columns", async () => {
+  it("submits the trimmed name, description and visibility, with the Name column it starts with", async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
     render(
@@ -41,7 +41,7 @@ describe("CreateTableDialog", () => {
         name: "Orders",
         description: null,
         visibility: "private",
-        columns: [],
+        columns: [{ label: "Name", type: "text" }],
       },
       null,
     );
@@ -83,13 +83,20 @@ describe("CreateTableDialog", () => {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Orders" } });
 
     await user.click(screen.getByRole("button", { name: /add column/i }));
-    fireEvent.change(screen.getByLabelText("Column label"), { target: { value: "Total" } });
-    await user.click(screen.getByRole("combobox", { name: "Column type" }));
+    fireEvent.change(screen.getAllByLabelText("Column label")[1] as HTMLElement, {
+      target: { value: "Total" },
+    });
+    await user.click(screen.getAllByRole("combobox", { name: "Column type" })[1] as HTMLElement);
     await user.click(screen.getByRole("option", { name: "Number" }));
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ columns: [{ label: "Total", type: "number" }] }),
+      expect.objectContaining({
+        columns: [
+          { label: "Name", type: "text" },
+          { label: "Total", type: "number" },
+        ],
+      }),
       null,
     );
   });
@@ -111,7 +118,10 @@ describe("CreateTableDialog", () => {
     await user.click(screen.getByRole("button", { name: /add column/i }));
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
-    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ columns: [] }), null);
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ columns: [{ label: "Name", type: "text" }] }),
+      null,
+    );
   });
 
   it("edits one of several columns without touching the others", async () => {
@@ -163,11 +173,13 @@ describe("CreateTableDialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /add column/i }));
     expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: /add column/i }));
+    expect(screen.getAllByLabelText("Column label")).toHaveLength(2);
 
-    await user.click(screen.getByRole("button", { name: /remove column/i }));
-    expect(screen.queryByLabelText("Column label")).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /remove column/i })[1] as HTMLElement);
+    expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
+    expect(screen.getByDisplayValue("Name")).toBeInTheDocument();
   });
 
   it("shows a field-level error beside the name input", () => {
@@ -395,7 +407,8 @@ describe("CreateTableDialog", () => {
       const wide = Array.from({ length: 101 }, (_, at) => `C${at}`);
       await choose(`${wide.join(",")}\n${wide.join(",")}\n`);
       expect(screen.getByText("A table holds at most 100 columns.")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Column label")).not.toBeInTheDocument();
+      // The table keeps the column it starts with.
+      expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
     });
 
     it("ignores a file input left empty", async () => {
@@ -405,7 +418,8 @@ describe("CreateTableDialog", () => {
           target: { files: [] },
         });
       });
-      expect(screen.queryByLabelText("Column label")).not.toBeInTheDocument();
+      // The table keeps the column it starts with.
+      expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
     });
   });
 });

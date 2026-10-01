@@ -78,7 +78,7 @@ describe("ViewSelect", () => {
   it("shows the unsaved-view placeholder when no view is active", () => {
     renderSelect({ views: [] });
     expect(screen.getByRole("combobox", { name: /select a table view/i })).toHaveTextContent(
-      "Unsaved view",
+      "All records",
     );
   });
 
@@ -97,7 +97,7 @@ describe("ViewSelect", () => {
     const { onSelect } = renderSelect({ activeViewId: "v1" });
 
     await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
-    await user.click(screen.getByRole("option", { name: "Unsaved view" }));
+    await user.click(screen.getByRole("option", { name: "All records" }));
 
     expect(onSelect).toHaveBeenCalledWith(null);
   });

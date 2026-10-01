@@ -1,5 +1,5 @@
 ---
-source_sha: "3b91bbe3bade"
+source_sha: "67fc055c8e59"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -137,6 +137,12 @@ Un borrado es un borrado definitivo. El historial del registro se conserva hasta
 
 ## Editar registros en la consola { #editing-in-the-console }
 
+Las tarjetas del catálogo dicen cuántos registros y columnas activas tiene cada tabla,
+quién puede verla y cuándo cambió por última vez. En la página de una tabla, cada
+cabecera muestra el tipo de su columna con un icono, los números van alineados a la
+derecha y las fechas se leen como las escribe tu idioma. El panel de un registro lleva
+como título su primera columna y dice cuándo se añadió y cuándo cambió por última vez.
+
 Un miembro que puede editar la tabla añade, cambia y elimina registros desde su página.
 **Add record** pide un valor por cada columna activa, con el tipo de la columna. Una
 columna obligatoria sin valor predeterminado lleva la marca `*` y hay que rellenarla
@@ -174,9 +180,12 @@ Columns, y un archivado de algo que aún se usa se rechaza, con los workflows, v
 disparadores enumerados en el diálogo. El **+** tras la última columna añade una, opcional al principio. El tipo de una
 columna nunca cambia.
 
+En **Columns**, **Required** hace que una columna necesite un valor, y una columna
+archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
+
 ### Importar y exportar { #import-and-export }
 
-**Export** guarda lo que muestra la página como un archivo CSV: los registros que
+**Export**, bajo **…** junto a **Share**, guarda lo que muestra la página como un archivo CSV: los registros que
 coinciden con los filtros y la búsqueda, en el orden de la cuadrícula, con sus columnas
 visibles. `POST /tables/{id}/records/export` hace lo mismo para quien llama, con los
 mismos filtros, búsqueda, orden y una lista de `columns`. Una opción se escribe como su
@@ -184,7 +193,7 @@ etiqueta, varias como `a; b`, y una celda de texto que una hoja de cálculo leer
 fórmula empieza por `'`. Más de 100.000 registros coincidentes se rechazan con
 `EXPORT_TOO_LARGE` (413).
 
-**Import** lee un archivo CSV separado por comas o punto y coma cuya primera fila nombra
+**Import**, en el mismo menú, lee un archivo CSV separado por comas o punto y coma cuya primera fila nombra
 sus columnas. Cada columna del archivo se asocia a la columna de la tabla con el mismo
 nombre, o a **External id**, y puede dirigirse a otra u omitirse. Un valor que no se lee
 en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va de 200 en
@@ -192,8 +201,8 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
-Una tabla nueva también puede empezar desde un archivo: **Start from a CSV file** en
-**New table** convierte la cabecera en columnas y da a cada una el tipo más estrecho
+**New table** empieza con una columna **Name**. En su lugar puede empezar desde un
+archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, o fecha y hora ISO -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
 caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, ya
@@ -263,6 +272,12 @@ tabla, no un recurso compartible propio: una vista no tiene propietario ni grant
 de su propio tipo, y `shared` significa solo "visible para cualquiera que ya tenga
 `tables:view` sobre la tabla superior" - nunca amplía el acceso más allá de lo que
 permite la propia tabla.
+
+En la consola, la pantalla sin vista elegida se llama **All records**, y **+** a su
+lado guarda lo que muestra como una vista nueva. Un tablero kanban sin vista pregunta
+qué columna de selección única forma sus carriles y se dibuja al momento; guardado como
+vista, conserva esa agrupación. Una tabla sin columna de selección única ofrece en su
+lugar **Add a column**.
 
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`

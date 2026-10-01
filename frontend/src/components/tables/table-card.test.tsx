@@ -1,12 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { ColumnDef, TableSummary } from "@/types/tables";
+import type { ColumnDef, TableListItem } from "@/types/tables";
 
 import { OptionChip, selectChips } from "./option-chip";
 import { TableCard } from "./table-card";
 
-const TABLE: TableSummary = {
+const TABLE: TableListItem = {
   id: "t",
   name: "Leads",
   description: null,
@@ -17,16 +17,26 @@ const TABLE: TableSummary = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: false,
+  record_count: 14,
+  column_count: 1,
 };
 
 describe("TableCard", () => {
-  it("shows a table's reach, schema version and that this caller only reads it", () => {
+  it("shows how much a table holds, who may reach it, and that this caller only reads it", () => {
     render(<TableCard table={TABLE} />);
     expect(screen.getByRole("link", { name: "Open Leads" })).toHaveAttribute("href", "/tables/t");
-    expect(screen.getByText("Team")).toBeTruthy();
-    expect(screen.getByText("Schema v3")).toBeTruthy();
+    expect(screen.getByText("14 records · 1 column")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Team" })).toBeTruthy();
     expect(screen.getByText("Read only")).toBeTruthy();
-    expect(screen.getByText("No description yet.")).toBeTruthy();
+    expect(screen.getByText(/^edited /)).toBeTruthy();
+    // No description, and none said to be missing.
+    expect(screen.queryByText("No description yet.")).toBeNull();
+  });
+
+  it("says what a table is for when it says so", () => {
+    render(<TableCard table={{ ...TABLE, description: "Inbound leads", can_edit: true }} />);
+    expect(screen.getByText("Inbound leads")).toBeTruthy();
+    expect(screen.queryByText("Read only")).toBeNull();
   });
 });
 

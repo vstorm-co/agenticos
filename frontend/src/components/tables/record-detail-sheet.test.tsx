@@ -125,6 +125,26 @@ beforeEach(() => {
 });
 
 describe("RecordDetailSheet", () => {
+  it("is titled by its first column, and says when it was added and changed", () => {
+    const { rerender } = renderSheet({
+      record: { ...record, updated_at: "2026-09-24T10:00:00Z" },
+    });
+    expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByText(/^Added .* · changed /)).toBeTruthy();
+
+    // Nothing in the first column, and never changed: the plain title, only its adding.
+    rerender(sheet({ record: { ...record, values: {} } }));
+    expect(screen.getByRole("heading", { name: "Record" })).toBeTruthy();
+    expect(screen.queryByText(/changed/)).toBeNull();
+
+    // A yes/no first column is titled by how it reads.
+    const done: ColumnDef = { ...columns[0]!, id: "b1", label: "Done", type: "boolean" };
+    rerender(sheet({ columns: [done], record: { ...record, values: { b1: true } } }));
+    expect(screen.getByRole("heading", { name: "True" })).toBeTruthy();
+    rerender(sheet({ columns: [done], record: { ...record, values: { b1: false } } }));
+    expect(screen.getByRole("heading", { name: "False" })).toBeTruthy();
+  });
+
   it("renders nothing in the body when there is no record", () => {
     renderSheet({ record: null });
     expect(screen.queryByText("Name")).not.toBeInTheDocument();

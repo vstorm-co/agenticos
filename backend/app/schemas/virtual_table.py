@@ -190,8 +190,15 @@ class TableRead(TableSummary):
     columns: list[ColumnDef]
 
 
+class TableListItem(TableSummary):
+    """A table as the catalog lists it: how much it holds, beside what it is."""
+
+    record_count: int = Field(description="How many records the table holds")
+    column_count: int = Field(description="How many live columns its current schema has")
+
+
 class TableList(_Schema):
-    items: list[TableSummary]
+    items: list[TableListItem]
     total: int
 
 

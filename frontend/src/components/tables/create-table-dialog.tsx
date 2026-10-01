@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileUp, Plus, Trash2 } from "lucide-react";
 
+import { ColumnTypeIcon } from "./column-type-icon";
 import { inferType, readCsvFile } from "./csv-cells";
 import {
   Button,
@@ -13,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -104,7 +106,11 @@ export function CreateTableDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<TableVisibility>("private");
-  const [columns, setColumns] = useState<DraftColumn[]>([]);
+  // A table starts with the column every record is named by; a CSV replaces it.
+  const firstColumn = (): DraftColumn[] => [
+    { key: crypto.randomUUID(), label: t("firstColumn"), type: "text" },
+  ];
+  const [columns, setColumns] = useState<DraftColumn[]>(firstColumn);
   const [csv, setCsv] = useState<{
     fileName: string;
     headers: string[];
@@ -129,7 +135,7 @@ export function CreateTableDialog({
     setName("");
     setDescription("");
     setVisibility("private");
-    setColumns([]);
+    setColumns(firstColumn());
     setCsv(null);
     setCsvError(null);
   }
@@ -187,34 +193,41 @@ export function CreateTableDialog({
         {/* Grows a row per column, so it scrolls and the footer's Create stays on screen. */}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           <div className="space-y-1.5" data-tour="table-dialog-name">
+            <Label htmlFor="table-name">{t("nameLabel")}</Label>
             <Input
+              id="table-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t("namePlaceholder")}
-              aria-label={t("nameLabel")}
               aria-invalid={nameProblem ? true : undefined}
             />
             {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
           </div>
-          <Textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder={t("descriptionPlaceholder")}
-            aria-label={t("descriptionLabel")}
-          />
-          <Select
-            value={visibility}
-            onValueChange={(next) => setVisibility(next as TableVisibility)}
-          >
-            <SelectTrigger data-tour="table-dialog-visibility" aria-label={t("visibilityLabel")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="private">{t("visibility.private")}</SelectItem>
-              <SelectItem value="team">{t("visibility.team")}</SelectItem>
-              <SelectItem value="org">{t("visibility.org")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-1.5">
+            <Label htmlFor="table-description">{t("descriptionLabel")}</Label>
+            <Textarea
+              id="table-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder={t("descriptionPlaceholder")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="table-visibility">{t("visibilityLabel")}</Label>
+            <Select
+              value={visibility}
+              onValueChange={(next) => setVisibility(next as TableVisibility)}
+            >
+              <SelectTrigger id="table-visibility" data-tour="table-dialog-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="private">{t("visibility.private")}</SelectItem>
+                <SelectItem value="team">{t("visibility.team")}</SelectItem>
+                <SelectItem value="org">{t("visibility.org")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <label className="border-border hover:bg-accent/40 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm">
               <FileUp aria-hidden="true" className="text-muted-foreground size-4" />
@@ -240,6 +253,7 @@ export function CreateTableDialog({
             {csvError !== null && <p className="text-destructive text-xs">{csvError}</p>}
           </div>
           <div className="space-y-2" data-tour="table-dialog-columns">
+            <p className="text-sm font-medium">{t("columnsHeading")}</p>
             {columns.map((column) => (
               <div key={column.key} className="flex items-center gap-2">
                 <Input
@@ -270,7 +284,10 @@ export function CreateTableDialog({
                   <SelectContent>
                     {COLUMN_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {t(`types.${type}`)}
+                        <span className="inline-flex items-center gap-2">
+                          <ColumnTypeIcon type={type} />
+                          {t(`types.${type}`)}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -20,6 +20,10 @@ import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
 import { RecordCellEditor } from "./record-cell-editor";
 import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
+import { formatCellValue } from "@/lib/format-cell-value";
+import { formatDateTime } from "@/lib/utils";
+
+import { ColumnTypeIcon } from "./column-type-icon";
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -82,7 +86,10 @@ export function RecordDetailSheet({
   onRecordUpdated: (record: RecordRead) => void;
 }) {
   const t = useTranslations("tables.sheet");
+  const tCells = useTranslations("tables.cells");
   const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
   const { commit, fetchRecord } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -209,13 +216,20 @@ export function RecordDetailSheet({
     onOpenChange(false);
   }
 
+  // Named by what its first column holds - "Northwind" - the way a row is read.
+  const first = columns.find((column) => !column.archived);
+  const heading =
+    record && first
+      ? formatCellValue(first, record.values[first.id] ?? null, boolLabel, locale)
+      : "";
+
   // `Sheet` calls `onOpenChange` only from an overlay click, always to close.
   return (
     <Sheet open={open} onOpenChange={close}>
       <SheetContent side="right" className="w-full sm:w-[28rem]">
         <div ref={panelRef} className="contents">
           <SheetHeader>
-            <SheetTitle>{t("title")}</SheetTitle>
+            <SheetTitle className="truncate">{heading || t("title")}</SheetTitle>
             <SheetClose onClick={close} />
           </SheetHeader>
           {record && (
@@ -233,7 +247,10 @@ export function RecordDetailSheet({
                     : (record.values[column.id] ?? null);
                   return (
                     <div key={column.id} className="space-y-1">
-                      <Label htmlFor={`cell-${column.id}`}>{column.label}</Label>
+                      <Label htmlFor={`cell-${column.id}`} className="flex items-center gap-1.5">
+                        <ColumnTypeIcon type={column.type} className="text-muted-foreground" />
+                        {column.label}
+                      </Label>
                       <RecordCellEditor
                         column={column}
                         value={value}
@@ -274,6 +291,12 @@ export function RecordDetailSheet({
                     </div>
                   );
                 })}
+              <p className="text-muted-foreground border-border border-t pt-3 text-xs">
+                {t("added", { when: formatDateTime(record.created_at, locale) })}
+                {record.updated_at &&
+                  record.updated_at !== record.created_at &&
+                  ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
+              </p>
             </div>
           )}
           {record && canEdit && (

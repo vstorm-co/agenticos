@@ -449,7 +449,7 @@ describe("the table detail page", () => {
     await waitFor(() => expect(grid).toHaveAttribute("data-sort", "name:desc"));
 
     await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
-    await user.click(screen.getByRole("option", { name: "Unsaved view" }));
+    await user.click(screen.getByRole("option", { name: "All records" }));
 
     await waitFor(() => expect(grid).toHaveAttribute("data-sort", "created_at:asc"));
   });
@@ -606,7 +606,7 @@ describe("the table detail page", () => {
       await screen.findByTestId("grid-view");
 
       await user.click(screen.getByRole("button", { name: "set-filters" }));
-      await user.click(screen.getByRole("button", { name: "New view" }));
+      await user.click(screen.getByRole("button", { name: "Save as a new view" }));
       await user.type(screen.getByRole("textbox", { name: "View name" }), "Ada's");
       await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -631,7 +631,8 @@ describe("the table detail page", () => {
       renderPage();
       await screen.findByTestId("grid-view");
 
-      await user.click(screen.getByRole("button", { name: "Export" }));
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Export" }));
       await waitFor(() =>
         expect(exportRecords).toHaveBeenCalledWith("t1", {
           filters: [],
@@ -640,8 +641,13 @@ describe("the table detail page", () => {
           columns: ["c1", "c2"],
         }),
       );
-      await waitFor(() => expect(screen.getByRole("button", { name: "Export" })).toBeEnabled());
-      await user.click(screen.getByRole("button", { name: "Export" }));
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "Export" })).not.toHaveAttribute(
+          "data-disabled",
+        ),
+      );
+      await user.click(screen.getByRole("menuitem", { name: "Export" }));
       await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Too many"));
     });
 
@@ -651,17 +657,20 @@ describe("the table detail page", () => {
       renderPage();
       await screen.findByTestId("grid-view");
 
-      await user.click(screen.getByRole("button", { name: "Import" }));
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Import" }));
       expect(screen.getByRole("dialog", { name: "import-dialog" })).toBeInTheDocument();
     });
 
     it("hides the import from a reader, who can still export", async () => {
       serve({ tableFixture: table({ can_edit: false }) });
+      const user = userEvent.setup();
       renderPage();
       await screen.findByTestId("grid-view");
 
-      expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      expect(screen.queryByRole("menuitem", { name: "Import" })).not.toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Export" })).toBeInTheDocument();
     });
   });
 
@@ -938,18 +947,39 @@ describe("the table detail page", () => {
     expect(new URL(window.location.href).searchParams.get("view")).toBe("list");
   });
 
-  it("asks for a grouped view before drawing the kanban board", async () => {
+  it("asks which column makes the lanes, and draws the board once one is picked", async () => {
     serve({ viewsFixture: views({ items: [] }) });
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("grid-view");
 
     await user.click(screen.getByRole("tab", { name: "Kanban" }));
-
-    expect(
-      await screen.findByText(/Save a kanban view with a grouping column/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Which column makes the lanes?")).toBeInTheDocument();
     expect(screen.queryByTestId("kanban-view")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Group by" }));
+    await user.click(screen.getByRole("option", { name: "Status" }));
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    // Picked, not saved: it can be picked again above the board.
+    expect(screen.getByRole("combobox", { name: "Group by" })).toHaveTextContent("Status");
+  });
+
+  it("says a board needs a single-select column when the table has none", async () => {
+    const plain = table();
+    serve({
+      viewsFixture: views({ items: [] }),
+      tableFixture: {
+        ...plain,
+        columns: plain.columns.filter((column) => column.type !== "single_select"),
+      },
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+
+    await user.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(await screen.findByText(/This table has none yet/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a column" })).toBeInTheDocument();
   });
 
   it("draws the kanban board once a grouped view is active, passing its grouping column through", async () => {

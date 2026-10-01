@@ -4372,7 +4372,6 @@
           "kanban": "Kanban",
           "list": "Liste"
         },
-        "kanbanNeedsView": "Speichern Sie eine Kanban-Ansicht mit einer Gruppierungsspalte, um dieses Board zu nutzen.",
         "shareTitle": "Zugriff auf {name}",
         "shareDescription": "Wer diese Tabelle sehen und bearbeiten kann.",
         "visibility": {
@@ -4394,14 +4393,20 @@
         "recordCount": "{count, plural, one {# Datensatz} other {# Datensätze}}",
         "recordCountCapped": "{count, number}+ Datensätze",
         "export": "Exportieren",
-        "import": "Importieren"
+        "import": "Importieren",
+        "more": "Weitere Aktionen",
+        "kanbanGroupTitle": "Welche Spalte bildet die Bahnen?",
+        "kanbanGroupHint": "Jede ihrer Optionen wird zu einer Bahn, und eine Karte zwischen Bahnen zu ziehen ändert sie. Speichern Sie das Board als Ansicht, um es zu behalten.",
+        "kanbanGroupBy": "Gruppieren nach",
+        "kanbanNoGroupable": "Ein Board gruppiert Datensätze nach einer Einfachauswahl-Spalte wie Stage. Diese Tabelle hat noch keine.",
+        "kanbanAddColumn": "Spalte hinzufügen"
       },
       "views": {
         "created": "Ansicht gespeichert",
         "deleted": "Ansicht gelöscht",
         "selectViewFor": "{kind, select, table {Tabellenansicht wählen} kanban {Kanban-Ansicht wählen} list {Listenansicht wählen} other {Ansicht wählen}}",
-        "unsavedView": "Ungespeicherte Ansicht",
-        "newView": "Neue Ansicht",
+        "unsavedView": "Alle Datensätze",
+        "newView": "Als neue Ansicht speichern",
         "rename": "Umbenennen",
         "delete": "Löschen",
         "namePlaceholder": "Name der Ansicht",
@@ -4414,7 +4419,6 @@
         "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden."
       },
       "noDescription": "Noch keine Beschreibung.",
-      "schemaVersion": "Schema v{version}",
       "readOnly": "Nur lesen",
       "editedWhen": "bearbeitet {when}",
       "triggers": {
@@ -4457,7 +4461,8 @@
         "cancel": "Abbrechen",
         "create": "Datensatz hinzufügen",
         "created": "Datensatz hinzugefügt."
-      }
+      },
+      "cardSize": "{records, plural, one {# Datensatz} other {# Datensätze}} · {columns, plural, one {# Spalte} other {# Spalten}}"
     },
     "workflows": {
       "templatesHeading": "Vorlagen",
@@ -6394,9 +6399,9 @@
     },
     "create": {
       "title": "Neue Tabelle",
-      "namePlaceholder": "Tabellenname",
+      "namePlaceholder": "Leads",
       "nameLabel": "Name",
-      "descriptionPlaceholder": "Beschreibung (optional)",
+      "descriptionPlaceholder": "Was die Datensätze sind und wer sie ausfüllt",
       "descriptionLabel": "Beschreibung",
       "visibilityLabel": "Sichtbarkeit",
       "visibility": {
@@ -6428,15 +6433,15 @@
       "fromCsvTypes": "Der Typ jeder Spalte wurde aus ihren Werten gelesen. Prüfe sie vor dem Erstellen: Ein Typ lässt sich später nicht ändern.",
       "csvEmpty": "Diese Datei hat keine Zeilen unter ihrer Kopfzeile.",
       "csvTooWide": "Eine Tabelle fasst höchstens {max} Spalten.",
-      "csvColumn": "Spalte {n}"
+      "csvColumn": "Spalte {n}",
+      "firstColumn": "Name",
+      "columnsHeading": "Spalten"
     },
     "schema": {
       "title": "Spalten",
       "labelPlaceholder": "Spaltenbeschriftung",
       "columnLabel": "Spaltenbeschriftung",
       "columnType": "Spaltentyp",
-      "nullable": "Optional",
-      "archived": "Archiviert",
       "removeColumn": "Spalte entfernen",
       "optionPlaceholder": "Optionsbeschriftung",
       "optionLabel": "Optionsbeschriftung",
@@ -6455,7 +6460,13 @@
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
         "multi_select": "Mehrfachauswahl"
-      }
+      },
+      "required": "Erforderlich",
+      "archiveColumn": "{column} archivieren",
+      "archiveOption": "{option} archivieren",
+      "restoreOption": "{option} wiederherstellen",
+      "archivedHeading": "Archivierte Spalten - ihre Werte bleiben erhalten",
+      "restore": "Wiederherstellen"
     },
     "sheet": {
       "title": "Datensatz",
@@ -6467,7 +6478,9 @@
       "deleteTitle": "Diesen Datensatz löschen?",
       "deleteDescription": "Er verschwindet aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für ihn ausgelöst. Ein paar Sekunden lang lässt sich das rückgängig machen.",
       "deleted": "Datensatz gelöscht.",
-      "deleteConflict": "Jemand hat diesen Datensatz seit dem Öffnen geändert, daher wurde er behalten. Prüfen Sie ihn und versuchen Sie es erneut."
+      "deleteConflict": "Jemand hat diesen Datensatz seit dem Öffnen geändert, daher wurde er behalten. Prüfen Sie ihn und versuchen Sie es erneut.",
+      "added": "Hinzugefügt {when}",
+      "changed": "geändert {when}"
     },
     "kanban": {
       "moveTo": "Verschieben nach",

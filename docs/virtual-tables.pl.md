@@ -1,5 +1,5 @@
 ---
-source_sha: "3b91bbe3bade"
+source_sha: "67fc055c8e59"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -136,6 +136,12 @@ Usunięcie jest twarde. Historia rekordu zostaje, dopóki nie usunie jej retencj
 
 ## Edycja rekordów w konsoli { #editing-in-the-console }
 
+Karty katalogu mówią, ile rekordów i aktywnych kolumn ma każda tabela, kto ma do niej
+dostęp i kiedy ostatnio się zmieniła. Na stronie tabeli każdy nagłówek pokazuje typ
+kolumny ikoną, liczby są wyrównane do prawej, a daty zapisane tak, jak zapisuje je
+twój język. Panel rekordu ma w tytule pierwszą kolumnę rekordu i mówi, kiedy go dodano
+i kiedy ostatnio zmieniono.
+
 Członek, który może edytować tabelę, dodaje, zmienia i usuwa rekordy z jej strony.
 **Add record** prosi o wartość dla każdej aktywnej kolumny, w typie tej kolumny.
 Kolumna wymagana i bez wartości domyślnej jest oznaczona `*` i trzeba ją wypełnić,
@@ -171,16 +177,20 @@ czegoś, co jest jeszcze używane, zostaje odrzucona, a workflow, widoki i wyzwa
 pojawiają się w dialogu. **+** za ostatnią
 kolumną dodaje nową, na początek opcjonalną. Typ kolumny nigdy się nie zmienia.
 
+W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, a
+zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
+razem z jej wartościami.
+
 ### Import i eksport { #import-and-export }
 
-**Export** zapisuje to, co pokazuje strona, jako plik CSV: rekordy pasujące do filtrów
+**Export**, w menu **…** obok **Share**, zapisuje to, co pokazuje strona, jako plik CSV: rekordy pasujące do filtrów
 i wyszukiwania, w kolejności siatki, w jej widocznych kolumnach. `POST
 /tables/{id}/records/export` robi to samo dla wywołującego, z tymi samymi filtrami,
 wyszukiwaniem, sortowaniem i listą `columns`. Opcja jest zapisywana jako jej etykieta,
 kilka jako `a; b`, a komórka tekstowa, którą arkusz odczytałby jako formułę, zaczyna
 się od `'`. Ponad 100 000 pasujących rekordów jest odrzucane z `EXPORT_TOO_LARGE` (413).
 
-**Import** czyta plik CSV rozdzielany przecinkiem lub średnikiem, którego pierwszy
+**Import**, w tym samym menu, czyta plik CSV rozdzielany przecinkiem lub średnikiem, którego pierwszy
 wiersz nazywa kolumny. Każda kolumna pliku jest dopasowana do kolumny tabeli o tej
 samej nazwie albo do **External id** i można ją skierować gdzie indziej lub pominąć.
 Wartość, której nie da się odczytać w typie kolumny, odrzuca swój wiersz, zanim cokolwiek
@@ -189,8 +199,8 @@ zapisuje każdy rekord osobno i wymienia odrzucone z ich kodami, a konsola wypis
 nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabeli, jak
 każdy inny.
 
-Nowa tabela też może zacząć się od pliku: **Start from a CSV file** w **New table**
-zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
+**New table** zaczyna się od kolumny **Name**. Zamiast tego może zacząć się od pliku:
+**Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
 wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data albo data i godzina
 w ISO - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
 przekracza 1000 znaków. Nazwa pochodzi z pliku i obie rzeczy można zmienić przed
@@ -260,6 +270,12 @@ współdzielonym: widok nie ma własnego właściciela ani grantów swojego rodz
 `shared` oznacza wyłącznie "widoczny dla każdego, kto już ma `tables:view` na
 tabeli nadrzędnej" - nigdy nie poszerza dostępu ponad to, na co pozwala sama
 tabela.
+
+W konsoli ekran bez wybranego widoku nazywa się **All records**, a **+** obok zapisuje
+to, co pokazuje ekran, jako nowy widok. Tablica kanban bez widoku pyta, która kolumna
+jednokrotnego wyboru tworzy tory, i od razu się rysuje; zapisana jako widok zachowuje
+to grupowanie. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
+column**.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez

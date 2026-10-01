@@ -79,8 +79,15 @@ export interface TableRead extends TableSummary {
   columns: ColumnDef[];
 }
 
+/** A table as the catalog lists it: how much it holds. Mirrors `TableListItem`. */
+export interface TableListItem extends TableSummary {
+  record_count: number;
+  /** Live columns of its current schema. */
+  column_count: number;
+}
+
 export interface TableList {
-  items: TableSummary[];
+  items: TableListItem[];
   total: number;
 }
 

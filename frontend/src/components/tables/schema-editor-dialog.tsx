@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Plus, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -17,7 +16,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
+
+import { ColumnTypeIcon } from "./column-type-icon";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
@@ -194,122 +197,150 @@ export function SchemaEditorDialog({
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          {rows.map((row, index) => (
-            <div key={row.key} className="border-border space-y-2 rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={row.label}
-                  placeholder={t("labelPlaceholder")}
-                  onChange={(event) => updateRow(row.key, { label: event.target.value })}
-                  aria-label={t("columnLabel")}
-                  aria-invalid={problemFor(index, "label") ? true : undefined}
-                />
-                <Select
-                  value={row.type}
-                  disabled={!!row.id}
-                  onValueChange={(value) => updateRow(row.key, { type: value as ColumnTypeName })}
-                >
-                  <SelectTrigger className="w-40" aria-label={t("columnType")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLUMN_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {t(`types.${type}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-                  <Checkbox
-                    checked={row.nullable}
-                    onCheckedChange={(checked) =>
-                      updateRow(row.key, { nullable: checked === true })
-                    }
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          {rows.map((row, index) =>
+            row.archived ? null : (
+              <div key={row.key} className="border-border space-y-2 rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={row.label}
+                    placeholder={t("labelPlaceholder")}
+                    onChange={(event) => updateRow(row.key, { label: event.target.value })}
+                    aria-label={t("columnLabel")}
+                    aria-invalid={problemFor(index, "label") ? true : undefined}
                   />
-                  {t("nullable")}
-                </label>
-                {row.id ? (
-                  <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-                    <Checkbox
-                      checked={row.archived}
-                      onCheckedChange={(checked) =>
-                        updateRow(row.key, { archived: checked === true })
-                      }
-                    />
-                    {t("archived")}
-                  </label>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("removeColumn")}
-                    onClick={() => removeRow(row.key)}
+                  <Select
+                    value={row.type}
+                    disabled={!!row.id}
+                    onValueChange={(value) => updateRow(row.key, { type: value as ColumnTypeName })}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <SelectTrigger className="w-44" aria-label={t("columnType")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLUMN_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          <span className="inline-flex items-center gap-2">
+                            <ColumnTypeIcon type={type} />
+                            {t(`types.${type}`)}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                    <Switch
+                      id={`${row.key}-required`}
+                      checked={!row.nullable}
+                      onCheckedChange={(on) => updateRow(row.key, { nullable: !on })}
+                    />
+                    <label htmlFor={`${row.key}-required`}>{t("required")}</label>
+                  </div>
+                  {row.id ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground size-8 shrink-0"
+                      aria-label={t("archiveColumn", { column: row.label })}
+                      title={t("archiveColumn", { column: row.label })}
+                      onClick={() => updateRow(row.key, { archived: true })}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground size-8 shrink-0"
+                      aria-label={t("removeColumn")}
+                      onClick={() => removeRow(row.key)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {problemFor(index, "label") && (
+                  <p className="text-destructive text-xs">{problemFor(index, "label")}</p>
+                )}
+                {problemFor(index, "type") && (
+                  <p className="text-destructive text-xs">{problemFor(index, "type")}</p>
+                )}
+                {problemFor(index, "default") && (
+                  <p className="text-destructive text-xs">{problemFor(index, "default")}</p>
+                )}
+                {problemFor(index, "nullable") && (
+                  <p className="text-destructive text-xs">{problemFor(index, "nullable")}</p>
+                )}
+                {(row.type === "single_select" || row.type === "multi_select") && (
+                  <div className="space-y-1.5 pl-1">
+                    {row.options.map((option, optionIndex) => (
+                      <div key={option.id ?? optionIndex} className="flex items-center gap-2">
+                        <Input
+                          value={option.label}
+                          placeholder={t("optionPlaceholder")}
+                          disabled={option.archived}
+                          className={cn(option.archived && "line-through opacity-60")}
+                          onChange={(event) =>
+                            updateOption(row.key, optionIndex, event.target.value)
+                          }
+                          aria-label={t("optionLabel")}
+                        />
+                        {option.id ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground size-8 shrink-0"
+                            aria-label={
+                              option.archived
+                                ? t("restoreOption", { option: option.label })
+                                : t("archiveOption", { option: option.label })
+                            }
+                            title={
+                              option.archived
+                                ? t("restoreOption", { option: option.label })
+                                : t("archiveOption", { option: option.label })
+                            }
+                            onClick={() => toggleOptionArchived(row.key, optionIndex)}
+                          >
+                            {option.archived ? (
+                              <ArchiveRestore className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground size-8 shrink-0"
+                            aria-label={t("removeOption")}
+                            onClick={() => removeOption(row.key, optionIndex)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {problemFor(index, "options") && (
+                      <p className="text-destructive text-xs">{problemFor(index, "options")}</p>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addOption(row.key)}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> {t("addOption")}
+                    </Button>
+                  </div>
                 )}
               </div>
-              {problemFor(index, "label") && (
-                <p className="text-destructive text-xs">{problemFor(index, "label")}</p>
-              )}
-              {problemFor(index, "type") && (
-                <p className="text-destructive text-xs">{problemFor(index, "type")}</p>
-              )}
-              {problemFor(index, "default") && (
-                <p className="text-destructive text-xs">{problemFor(index, "default")}</p>
-              )}
-              {problemFor(index, "nullable") && (
-                <p className="text-destructive text-xs">{problemFor(index, "nullable")}</p>
-              )}
-              {(row.type === "single_select" || row.type === "multi_select") && (
-                <div className="space-y-1.5 pl-1">
-                  {row.options.map((option, optionIndex) => (
-                    <div key={option.id ?? optionIndex} className="flex items-center gap-2">
-                      <Input
-                        value={option.label}
-                        placeholder={t("optionPlaceholder")}
-                        onChange={(event) => updateOption(row.key, optionIndex, event.target.value)}
-                        aria-label={t("optionLabel")}
-                      />
-                      {option.id ? (
-                        <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-                          <Checkbox
-                            checked={option.archived}
-                            onCheckedChange={() => toggleOptionArchived(row.key, optionIndex)}
-                          />
-                          {t("archived")}
-                        </label>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t("removeOption")}
-                          onClick={() => removeOption(row.key, optionIndex)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  {problemFor(index, "options") && (
-                    <p className="text-destructive text-xs">{problemFor(index, "options")}</p>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addOption(row.key)}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> {t("addOption")}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+            ),
+          )}
           <Button
             type="button"
             variant="outline"
@@ -317,6 +348,32 @@ export function SchemaEditorDialog({
           >
             <Plus className="h-4 w-4" /> {t("addColumn")}
           </Button>
+          {rows.some((row) => row.archived) && (
+            // Archived, a column keeps its values but leaves every form and view;
+            // restoring it brings them back.
+            <section className="space-y-1.5 pt-2">
+              <h3 className="text-muted-foreground text-xs font-medium">{t("archivedHeading")}</h3>
+              {rows
+                .filter((row) => row.archived)
+                .map((row) => (
+                  <div
+                    key={row.key}
+                    className="border-border text-muted-foreground flex items-center gap-2 rounded-lg border border-dashed px-3 py-1.5 text-sm"
+                  >
+                    <ColumnTypeIcon type={row.type} />
+                    <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => updateRow(row.key, { archived: false })}
+                    >
+                      <ArchiveRestore className="h-4 w-4" /> {t("restore")}
+                    </Button>
+                  </div>
+                ))}
+            </section>
+          )}
         </div>
         {generalError && <p className="text-destructive text-sm">{generalError}</p>}
         <SchemaDependents error={error} />

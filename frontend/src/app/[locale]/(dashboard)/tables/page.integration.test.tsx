@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TablesPage from "./page";
 import { apiClient } from "@/lib/api-client";
-import type { TableSummary } from "@/types/tables";
+import type { TableListItem } from "@/types/tables";
 
 /**
  * The tables catalog: the list, its search, the create control's permission
@@ -39,7 +39,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function table(overrides: Partial<TableSummary> = {}): TableSummary {
+function table(overrides: Partial<TableListItem> = {}): TableListItem {
   return {
     id: "t-1",
     name: "Orders",
@@ -51,6 +51,8 @@ function table(overrides: Partial<TableSummary> = {}): TableSummary {
     created_at: "2026-08-01T00:00:00Z",
     updated_at: null,
     can_edit: true,
+    record_count: 3,
+    column_count: 2,
     ...overrides,
   };
 }
@@ -63,13 +65,14 @@ beforeEach(() => {
 });
 
 describe("the tables catalog page", () => {
-  it("lists each table with its description and visibility, linking to its detail page", async () => {
+  it("lists each table with its size, description and visibility, linking to its detail page", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
     render(<TablesPage />, { wrapper });
 
     expect(await screen.findByText("Orders")).toBeInTheDocument();
     expect(screen.getByText("Customer orders")).toBeInTheDocument();
-    expect(screen.getByText("Private")).toBeInTheDocument();
+    expect(screen.getByText("3 records · 2 columns")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Private" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Orders/ })).toHaveAttribute("href", "/tables/t-1");
   });
 

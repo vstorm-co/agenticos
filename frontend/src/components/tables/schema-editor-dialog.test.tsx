@@ -93,23 +93,29 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByDisplayValue("Client")).toBeInTheDocument();
   });
 
-  it("archiving an existing column checks its Archived box", async () => {
+  it("archives an existing column into the Archived section, and restores it", async () => {
+    const onSave = vi.fn();
     const user = userEvent.setup();
     render(
       <SchemaEditorDialog
         open
         onOpenChange={vi.fn()}
         table={table()}
-        onSave={vi.fn()}
+        onSave={onSave}
         isSaving={false}
         error={null}
       />,
     );
 
-    const archivedBoxes = screen.getAllByRole("checkbox", { name: "Archived" });
-    await user.click(archivedBoxes[0] as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Archive Customer" }));
+    expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
+    expect(screen.getByText(/^Archived columns/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave.mock.calls[0]?.[0][0]).toMatchObject({ label: "Customer", archived: true });
 
-    expect(archivedBoxes[0]).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getAllByLabelText("Column label")).toHaveLength(2);
+    expect(screen.queryByText(/^Archived columns/)).not.toBeInTheDocument();
   });
 
   it("adds a new blank column with a removable row, and removes it", async () => {
@@ -132,7 +138,7 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getAllByLabelText("Column label")).toHaveLength(2);
   });
 
-  it("a new column has no Archived checkbox, since nothing exists yet to archive", () => {
+  it("a new column has no archive button, since nothing exists yet to archive", () => {
     render(
       <SchemaEditorDialog
         open
@@ -143,10 +149,10 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
-    expect(screen.queryByRole("checkbox", { name: "Archived" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Archive/ })).not.toBeInTheDocument();
   });
 
-  it("toggling nullable updates the row", async () => {
+  it("makes a column required with its switch, and optional again", async () => {
     const user = userEvent.setup();
     render(
       <SchemaEditorDialog
@@ -158,15 +164,16 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
-    const nullableBoxes = screen.getAllByRole("checkbox", { name: "Optional" });
-    expect(nullableBoxes[0]).toBeChecked();
+    const required = screen.getAllByRole("switch", { name: "Required" });
+    expect(required[0]).not.toBeChecked();
 
-    await user.click(nullableBoxes[0] as HTMLElement);
-
-    expect(nullableBoxes[0]).not.toBeChecked();
+    await user.click(required[0] as HTMLElement);
+    expect(required[0]).toBeChecked();
+    await user.click(required[0] as HTMLElement);
+    expect(required[0]).not.toBeChecked();
   });
 
-  it("shows option rows for a single_select column, with an option-level archived toggle", async () => {
+  it("shows option rows for a single_select column, each archived and restored in place", async () => {
     const user = userEvent.setup();
     render(
       <SchemaEditorDialog
@@ -178,17 +185,12 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
-    expect(screen.getByDisplayValue("Open")).toBeInTheDocument();
-    // Two existing columns each carry their own column-level Archived checkbox,
-    // plus one for the single_select column's one live option: three in total.
-    const archivedBoxes = screen.getAllByRole("checkbox", { name: "Archived" });
-    expect(archivedBoxes).toHaveLength(3);
-    const optionBox = archivedBoxes[2] as HTMLElement;
-    expect(optionBox).not.toBeChecked();
+    expect(screen.getByDisplayValue("Open")).toBeEnabled();
 
-    await user.click(optionBox);
-
-    expect(optionBox).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Archive Open" }));
+    expect(screen.getByDisplayValue("Open")).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Restore Open" }));
+    expect(screen.getByDisplayValue("Open")).toBeEnabled();
   });
 
   it("adds and renames an option on a select column", async () => {

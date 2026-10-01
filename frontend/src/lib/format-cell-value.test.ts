@@ -82,6 +82,20 @@ describe("formatCellValue", () => {
     );
   });
 
+  it("writes a date as the viewer's locale does, on the day it names", () => {
+    expect(formatCellValue(column({ type: "date" }), "2026-10-04", boolLabel, "en-US")).toBe(
+      "Oct 4, 2026",
+    );
+    expect(formatCellValue(column({ type: "date" }), "2026-10-04", boolLabel, "pl")).toBe(
+      "4 paź 2026",
+    );
+    expect(
+      formatCellValue(column({ type: "datetime" }), "2026-10-04T10:00:00Z", boolLabel, "en-US"),
+    ).toMatch(/^Oct 4, 2026, \d{1,2}:\d{2}/);
+    // Not a date after all: shown as it is stored.
+    expect(formatCellValue(column({ type: "date" }), "soon", boolLabel, "en-US")).toBe("soon");
+  });
+
   it("stringifies text, long_text, number and integer values", () => {
     expect(formatCellValue(column({ type: "text" }), "hello", boolLabel)).toBe("hello");
     expect(formatCellValue(column({ type: "long_text" }), "a long story", boolLabel)).toBe(

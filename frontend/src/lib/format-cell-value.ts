@@ -12,11 +12,16 @@ import type { CellValue, ColumnDef } from "@/types/tables";
  * `boolLabel` renders `true`/`false` - a module constant cannot call a
  * translator, so the caller's own `tables.cells` strings are threaded through
  * rather than this file holding an English "true"/"false" of its own.
+ *
+ * Given the viewer's `locale`, a date reads as that locale writes one - "Oct 4,
+ * 2026", "4 paź 2026" - and a date and time in the viewer's own zone; without
+ * one, as it is stored. A date has no zone, so it is read as the day it names.
  */
 export function formatCellValue(
   column: ColumnDef,
   value: CellValue,
   boolLabel: (value: boolean) => string,
+  locale?: string,
 ): string {
   if (value === null || value === undefined) return "";
 
@@ -35,9 +40,24 @@ export function formatCellValue(
         .join(", ");
     }
     case "date":
-    case "datetime":
-      return typeof value === "string" ? value : "";
+    case "datetime": {
+      if (typeof value !== "string") return "";
+      const dated = locale === undefined ? null : localDate(column.type, value, locale);
+      return dated ?? value;
+    }
     default:
       return String(value);
   }
+}
+
+/** A stored date or date-time as `locale` writes it, or null when it is not one. */
+function localDate(type: "date" | "datetime", value: string, locale: string): string | null {
+  const date = new Date(type === "date" ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(
+    locale,
+    type === "date"
+      ? { dateStyle: "medium", timeZone: "UTC" }
+      : { dateStyle: "medium", timeStyle: "short" },
+  ).format(date);
 }

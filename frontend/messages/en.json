@@ -4878,7 +4878,6 @@
           "kanban": "Kanban",
           "list": "List"
         },
-        "kanbanNeedsView": "Save a kanban view with a grouping column to use this board.",
         "shareTitle": "Access to {name}",
         "shareDescription": "Who can see and edit this table.",
         "visibility": {
@@ -4900,14 +4899,20 @@
         "recordCount": "{count, plural, one {# record} other {# records}}",
         "recordCountCapped": "{count, number}+ records",
         "export": "Export",
-        "import": "Import"
+        "import": "Import",
+        "more": "More actions",
+        "kanbanGroupTitle": "Which column makes the lanes?",
+        "kanbanGroupHint": "Each of its choices becomes a lane, and dragging a card between lanes changes it. Save the board as a view to keep it.",
+        "kanbanGroupBy": "Group by",
+        "kanbanNoGroupable": "A board groups records by a single-select column, such as Stage. This table has none yet.",
+        "kanbanAddColumn": "Add a column"
       },
       "views": {
         "created": "View saved",
         "deleted": "View deleted",
         "selectViewFor": "{kind, select, table {Select a table view} kanban {Select a kanban view} list {Select a list view} other {Select a view}}",
-        "unsavedView": "Unsaved view",
-        "newView": "New view",
+        "unsavedView": "All records",
+        "newView": "Save as a new view",
         "rename": "Rename",
         "delete": "Delete",
         "namePlaceholder": "View name",
@@ -4920,7 +4925,6 @@
         "deleteDescription": "Delete “{name}”? This cannot be undone."
       },
       "noDescription": "No description yet.",
-      "schemaVersion": "Schema v{version}",
       "readOnly": "Read only",
       "editedWhen": "edited {when}",
       "triggers": {
@@ -4963,7 +4967,8 @@
         "cancel": "Cancel",
         "create": "Add record",
         "created": "Record added."
-      }
+      },
+      "cardSize": "{records, plural, one {# record} other {# records}} · {columns, plural, one {# column} other {# columns}}"
     }
   },
   "profile": {
@@ -6535,9 +6540,9 @@
     },
     "create": {
       "title": "New table",
-      "namePlaceholder": "Table name",
+      "namePlaceholder": "Leads",
       "nameLabel": "Name",
-      "descriptionPlaceholder": "Description (optional)",
+      "descriptionPlaceholder": "What the records are, and who fills them in",
       "descriptionLabel": "Description",
       "visibilityLabel": "Visibility",
       "visibility": {
@@ -6569,15 +6574,15 @@
       "fromCsvTypes": "Each column's type was read from its values. Check them before creating: a type cannot change later.",
       "csvEmpty": "That file has no rows under its header.",
       "csvTooWide": "A table holds at most {max} columns.",
-      "csvColumn": "Column {n}"
+      "csvColumn": "Column {n}",
+      "firstColumn": "Name",
+      "columnsHeading": "Columns"
     },
     "schema": {
       "title": "Columns",
       "labelPlaceholder": "Column label",
       "columnLabel": "Column label",
       "columnType": "Column type",
-      "nullable": "Optional",
-      "archived": "Archived",
       "removeColumn": "Remove column",
       "optionPlaceholder": "Option label",
       "optionLabel": "Option label",
@@ -6596,7 +6601,13 @@
         "datetime": "Date & time",
         "single_select": "Single select",
         "multi_select": "Multi select"
-      }
+      },
+      "required": "Required",
+      "archiveColumn": "Archive {column}",
+      "archiveOption": "Archive {option}",
+      "restoreOption": "Restore {option}",
+      "archivedHeading": "Archived columns - their values are kept",
+      "restore": "Restore"
     },
     "sheet": {
       "title": "Record",
@@ -6608,7 +6619,9 @@
       "deleteTitle": "Delete this record?",
       "deleteDescription": "It leaves every view, and a table trigger watching deletions fires for it. You can undo it for a few seconds.",
       "deleted": "Record deleted.",
-      "deleteConflict": "Someone changed this record since you opened it, so it was kept. Check it and try again."
+      "deleteConflict": "Someone changed this record since you opened it, so it was kept. Check it and try again.",
+      "added": "Added {when}",
+      "changed": "changed {when}"
     },
     "kanban": {
       "moveTo": "Move to",

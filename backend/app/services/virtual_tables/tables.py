@@ -22,6 +22,7 @@ from app.schemas.virtual_table import (
     SchemaVersionRead,
     TableCreate,
     TableList,
+    TableListItem,
     TableRead,
     TableSummary,
     TableUpdate,
@@ -155,12 +156,24 @@ class TableOperations(Operations):
         # queries for a caller whose role alone does not already reach
         # `TABLES_EDIT` on every one of them.
         editable = await accessible_ids(self.db, ctx, items, Perm.TABLES_EDIT, resource_type=TABLE)
+        # What each holds, the same way: a query for the page, not one per card.
+        records = await virtual_table_repo.record_counts(
+            self.db, organization_id=ctx.organization_id, table_ids=[item.id for item in items]
+        )
+        columns = await virtual_table_repo.current_columns(self.db, tables=items)
         summaries = [
-            TableSummary.model_validate(item).model_copy(
-                # An archived table refuses every write regardless of the grant
-                # (`_ensure_live`), so `can_edit` says so - this list is the only
-                # place `include_archived` surfaces one without a caller opening it.
-                update={"can_edit": item.id in editable and item.archived_at is None}
+            TableListItem.model_validate(
+                {
+                    **TableSummary.model_validate(item).model_dump(),
+                    # An archived table refuses every write regardless of the grant
+                    # (`_ensure_live`), so `can_edit` says so - this list is the only
+                    # place `include_archived` surfaces one without a caller opening it.
+                    "can_edit": item.id in editable and item.archived_at is None,
+                    "record_count": records.get(item.id, 0),
+                    "column_count": sum(
+                        1 for column in columns.get(item.id, []) if not column.get("archived")
+                    ),
+                }
             )
             for item in items
         ]
