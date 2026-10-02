@@ -1,4 +1,4 @@
-<!-- source_sha: 47c6c2527a65 -->
+<!-- source_sha: ae331dd9e708 -->
 
 <div align="center">
 
@@ -33,7 +33,7 @@
 
 </div>
 
-Dale a un agente el briefing, el conocimiento y las herramientas. Deja que investigue, prepare informes y cree resultados que tu equipo pueda usar. Las instrucciones, el acceso y el historial de ejecuciones quedan en un solo lugar; eliges modelos en la nube o locales.
+Dale a un agente un briefing, tus documentos y tus herramientas. Investiga, redacta el informe y publica una página que tu equipo puede abrir. Las instrucciones, el acceso y cada ejecución quedan en un solo lugar, con modelos en la nube o locales.
 
 <h3 align="center">🔌 5700+ integraciones mediante MCP &nbsp;·&nbsp; 🤝 Agentes y conocimiento compartidos<br>
 📊 Observabilidad integrada &nbsp;·&nbsp; 🏠 Autoalojado</h3>
@@ -41,6 +41,9 @@ Dale a un agente el briefing, el conocimiento y las herramientas. Deja que inves
 ## Mira cómo funciona
 
 **De un briefing en Notion y una investigación en GitHub a una página interactiva para decidir.**
+
+El agente lee el briefing en Notion, investiga los repositorios candidatos en GitHub y publica un artifact
+que recomienda un proyecto para cada audiencia, con sus fuentes.
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%">
@@ -92,7 +95,8 @@ Briefing:
 ```
 
 **Comprueba el resultado:** la página de destino debería indicar a Maya y el 8 de octubre; la demo,
-la falta de fecha de revisión; y las invitaciones, la falta de responsable. Después, prueba tu propio briefing o
+la falta de fecha de revisión; y las invitaciones, la falta de responsable. Luego abre **Activity**: la ejecución
+ya está ahí, con su modelo, tokens, duración y coste. Después, prueba tu propio briefing o
 [configura un agente con herramientas y conocimiento de la empresa](docs/first-agent.es.md).
 
 <details>
@@ -119,11 +123,13 @@ Para desarrollar a partir del código fuente, consulta [Contribuir](CONTRIBUTING
 
 Usa tu agente publicado en **Slack, Mattermost o Telegram**. Tus compañeros piden ayuda en las herramientas que ya usan, y el agente responde con sus instrucciones, su conocimiento y sus herramientas. Una `@mention` se ejecuta como la persona que la envió, no como el bot.
 
-**Un agente, varias formas de llegar a él:** mensajería del equipo, el chat web de AgenticOS, un widget en tu web, una página alojada o tu propia aplicación a través de la API. Configura el canal una vez; gestiona la versión publicada del agente desde un único lugar y revisa sus ejecuciones en Activity.
+El mismo agente publicado responde también en el chat web, en un widget en tu web, en una página alojada y en tu propia aplicación a través de la API, con un solo conjunto de límites y un solo historial de ejecuciones.
 
 [Conecta Slack, Mattermost y otros canales](docs/channels.es.md).
 
 ## Explora la capa de agentes
+
+Todo lo siguiente vive en la consola del navegador; nada de ello necesita código.
 
 <table>
 <tr>
@@ -167,7 +173,7 @@ Publica una versión cuando esté listo. Cada versión anterior sigue disponible
 Conecta los agentes a las herramientas que tu empresa ya usa: **GitHub, Notion, HubSpot, Linear y n8n**.
 **MCP** (Model Context Protocol) es el estándar que permite a los agentes llamar a herramientas y fuentes de datos externas.
 
-Busca entre **más de 5700 servidores MCP** en el catálogo o añade un servidor compatible por URL.
+Busca en el catálogo por nombre o añade un servidor compatible por URL.
 Conecta los servicios que necesites y elige qué herramientas puede usar cada agente. [Conecta tus herramientas](docs/mcp.es.md).
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
@@ -339,8 +345,8 @@ Para un informe recurrente, el equipo puede repartirse el trabajo:
 2. **Quien configura pone el agente a disposición:** configura sus herramientas, publica una versión y da acceso a los compañeros.
 3. **Los compañeros usan los resultados:** ejecutan el agente, revisan su respuesta y comparten un artifact con quien lo necesita.
 
-La organización conserva el agente y el conocimiento reutilizable. El equipo trabaja en el navegador;
-los ingenieros pueden conectar sistemas internos. [Configura el acceso del equipo](docs/permissions.es.md).
+El agente y su know-how pertenecen a la organización, no a quien escribió el primer prompt.
+[Configura el acceso del equipo](docs/permissions.es.md).
 
 ## Controla tu despliegue, modelos y acceso
 
@@ -351,10 +357,7 @@ Elige proveedores de modelos alojados o modelos locales mediante Ollama y endpoi
 **Decide qué puede hacer un agente.** Configura permisos sobre los recursos, guarda las credenciales en la bóveda cifrada
 y pon la aprobación de una persona delante de las herramientas que actúan fuera. [Control de acceso](docs/permissions.es.md) · [Secretos](docs/secrets.es.md).
 
-**Ve el trabajo y el gasto.** Cada ejecución conserva sus llamadas a herramientas y su coste, y cada presupuesto se comprueba
-antes de llamar al modelo. [Control de ejecución y costes](docs/governance.es.md).
-
-[Desplegar y operar](docs/rollout.es.md) · [Seguridad y flujos de datos](docs/security.es.md)
+[Desplegar y operar](docs/rollout.es.md) · [Control de ejecución y costes](docs/governance.es.md) · [Seguridad y flujos de datos](docs/security.es.md)
 
 ## ¿Encaja AgenticOS con tu empresa?
 
@@ -409,7 +412,15 @@ cualquier zona de la pantalla directamente en un chat nuevo.
 ## Para desarrolladores y operadores
 
 Construido con FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis, Prefect y Next.js.
-La configuración del agente selecciona capacidades registradas en el runtime; los desarrolladores las amplían en código.
+Cada agente publicado es también un endpoint, con el mismo presupuesto, las mismas aprobaciones y el mismo historial de ejecuciones que la consola:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Resume los tickets de soporte abiertos"}'
+```
 
 | Empieza aquí | Qué cubre |
 |---|---|

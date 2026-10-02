@@ -1,4 +1,4 @@
-<!-- source_sha: 47c6c2527a65 -->
+<!-- source_sha: ae331dd9e708 -->
 
 <div align="center">
 
@@ -33,7 +33,7 @@
 
 </div>
 
-Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje raporty i tworzy wyniki, z których skorzysta zespół. Instrukcje, uprawnienia i historia wykonań pozostają w jednym miejscu; wybierasz modele chmurowe lub lokalne.
+Daj agentowi brief, swoje dokumenty i narzędzia. Zbiera informacje, pisze raport i publikuje stronę, którą zespół może otworzyć. Instrukcje, uprawnienia i każde wykonanie zostają w jednym miejscu, na modelach chmurowych lub lokalnych.
 
 <h3 align="center">🔌 5700+ integracji przez MCP &nbsp;·&nbsp; 🤝 Wspólni agenci i wiedza<br>
 📊 Wbudowane observability &nbsp;·&nbsp; 🏠 Własna infrastruktura</h3>
@@ -41,6 +41,9 @@ Daj agentowi brief, wiedzę i narzędzia. Niech zbiera informacje, przygotowuje 
 ## Zobacz, jak to działa
 
 **Od briefu w Notion i informacji z GitHuba do interaktywnej strony pomagającej podjąć decyzję.**
+
+Agent czyta brief w Notion, sprawdza kandydujące repozytoria na GitHubie i publikuje artefakt,
+który dla każdej grupy odbiorców poleca jeden projekt, ze źródłami.
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
@@ -92,7 +95,8 @@ Brief:
 ```
 
 **Sprawdź wynik:** przy landing page powinny pojawić się Maya i 8 października; przy demo —
-brak terminu przeglądu; przy zaproszeniach — brak odpowiedzialnej osoby. Następnie użyj własnego briefu lub
+brak terminu przeglądu; przy zaproszeniach — brak odpowiedzialnej osoby. Potem otwórz **Activity**: wykonanie
+już tam jest, z modelem, tokenami, czasem i kosztem. Następnie użyj własnego briefu lub
 [skonfiguruj agenta z narzędziami i wiedzą firmy](docs/first-agent.pl.md).
 
 <details>
@@ -119,11 +123,13 @@ Pracę nad kodem opisuje [poradnik dla współtwórców](CONTRIBUTING.pl.md).
 
 Udostępnij opublikowanego agenta w **Slacku, Mattermost lub Telegramie**. Zespół prosi o pomoc w narzędziach, których już używa, a agent odpowiada ze swoimi instrukcjami, wiedzą i narzędziami. `@mention` działa jako osoba, która wysłała wiadomość, a nie jako bot.
 
-**Jeden agent, wiele sposobów dostępu:** komunikator zespołu, czat AgenticOS, widget na stronie, strona agenta lub własna aplikacja przez API. Skonfiguruj kanał, zarządzaj opublikowaną wersją agenta w jednym miejscu i sprawdzaj jego wykonania w Activity.
+Ten sam opublikowany agent odpowiada też w czacie, w widgecie na stronie, na stronie agenta i we własnej aplikacji przez API, z jednym zestawem limitów i jedną historią wykonań.
 
 [Podłącz Slack, Mattermost i pozostałe kanały](docs/channels.pl.md).
 
 ## Poznaj warstwę agentów
+
+Wszystko poniżej działa w konsoli w przeglądarce; nic z tego nie wymaga kodu.
 
 <table>
 <tr>
@@ -167,7 +173,7 @@ Gdy jest gotowy do użycia, publikujesz wersję. Każda wcześniejsza wersja poz
 Podłącz agentów do narzędzi, których firma już używa: **GitHub, Notion, HubSpot, Linear i n8n**.
 **MCP** (Model Context Protocol) to standard, dzięki któremu agenci korzystają z zewnętrznych narzędzi i źródeł danych.
 
-Przeszukuj katalog **ponad 5700 serwerów MCP** lub dodaj zgodny serwer przez URL.
+Przeszukuj katalog po nazwie lub dodaj zgodny serwer przez URL.
 Podłącz potrzebne usługi i wybierz narzędzia dostępne dla każdego agenta. [Podłącz swoje narzędzia](docs/mcp.pl.md).
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
@@ -340,8 +346,8 @@ Przy cyklicznym raporcie zespół może podzielić pracę:
 2. **Osoba konfigurująca udostępnia agenta:** podłącza narzędzia, publikuje wersję i nadaje współpracownikom dostęp.
 3. **Współpracownicy korzystają z wyników:** uruchamiają agenta, sprawdzają odpowiedź i udostępniają artefakt osobom, które go potrzebują.
 
-Agent i zapisane sposoby pracy pozostają zasobem organizacji. Zespół pracuje w przeglądarce;
-programiści mogą podłączać systemy wewnętrzne. [Skonfiguruj dostęp zespołu](docs/permissions.pl.md).
+Agent i jego know-how należą do organizacji, a nie do osoby, która napisała pierwszy prompt.
+[Skonfiguruj dostęp zespołu](docs/permissions.pl.md).
 
 ## Kontroluj wdrożenie, modele i dostęp
 
@@ -353,10 +359,7 @@ i zgodne endpointy, np. vLLM. [Konfiguracja modeli](docs/models.pl.md).
 w szyfrowanym sejfie i postaw zatwierdzenie człowieka przed narzędziami, które działają na zewnątrz.
 [Kontrola dostępu](docs/permissions.pl.md) · [Sekrety](docs/secrets.pl.md).
 
-**Widzisz pracę i wydatki.** Każde wykonanie zachowuje wywołania narzędzi i koszt, a każdy budżet jest
-sprawdzany przed wywołaniem modelu. [Kontrola wykonań i kosztów](docs/governance.pl.md).
-
-[Wdrożenie i utrzymanie](docs/rollout.pl.md) · [Bezpieczeństwo i przepływy danych](docs/security.pl.md)
+[Wdrożenie i utrzymanie](docs/rollout.pl.md) · [Kontrola wykonań i kosztów](docs/governance.pl.md) · [Bezpieczeństwo i przepływy danych](docs/security.pl.md)
 
 ## Czy AgenticOS pasuje do Twojej firmy?
 
@@ -411,7 +414,15 @@ zrzut dowolnego fragmentu ekranu prosto do nowego czatu.
 ## Dla programistów i administratorów
 
 AgenticOS korzysta z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.js.
-Konfiguracja agenta wybiera możliwości zarejestrowane w środowisku wykonawczym; programiści rozszerzają je w kodzie.
+Każdy opublikowany agent jest też endpointem, z tym samym budżetem, zatwierdzeniami i historią wykonań co konsola:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Podsumuj otwarte zgłoszenia supportu"}'
+```
 
 | Zacznij tutaj | Zakres |
 |---|---|

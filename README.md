@@ -31,7 +31,7 @@
 
 </div>
 
-Give an agent the brief, the knowledge and the tools. Let it research, prepare reports and create results your team can use. Keep the instructions, access and run history in one place; choose cloud or local models.
+Give an agent a brief, your documents and your tools. It researches, writes the report and publishes a page your team can open. Instructions, access and every run stay in one place, on cloud or local models.
 
 <h3 align="center">🔌 5,700+ integrations via MCP &nbsp;·&nbsp; 🤝 Shared agents and knowledge<br>
 📊 Built-in observability &nbsp;·&nbsp; 🏠 Self-hosted</h3>
@@ -39,6 +39,9 @@ Give an agent the brief, the knowledge and the tools. Let it research, prepare r
 ## See it in action
 
 **From a Notion brief and GitHub research to an interactive decision page.**
+
+The agent reads the brief in Notion, researches the candidate repositories on GitHub and publishes an artifact
+that recommends one project for each audience, with its sources.
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
@@ -90,7 +93,8 @@ Brief:
 ```
 
 **Check the result:** the landing page should have Maya and 8 October; the demo should flag
-its missing review date; invitations should flag the missing owner. Next, try your own brief or
+its missing review date; invitations should flag the missing owner. Then open **Activity**: the run is
+already there, with its model, tokens, duration and cost. Next, try your own brief or
 [configure an agent with tools and company knowledge](docs/first-agent.md).
 
 <details>
@@ -117,11 +121,13 @@ For development from source, see [Contributing](CONTRIBUTING.md).
 
 Use your published agent in **Slack, Mattermost or Telegram**. Colleagues ask for help in the tools they already use, and the agent answers with its instructions, knowledge and tools. An `@mention` runs as the person who sent it, not as the bot.
 
-**One agent, multiple ways to reach it:** team messaging, AgenticOS web chat, a website widget, a hosted page or your own application through the API. Configure the channel once; manage the agent's published version centrally and inspect its runs in Activity.
+The same published agent also answers in web chat, a website widget, a hosted page and your own application through the API, with one set of limits and one run history.
 
 [Connect Slack, Mattermost and other channels](docs/channels.md).
 
 ## Explore the agent layer
+
+Everything below lives in the browser console; none of it needs code.
 
 <table>
 <tr>
@@ -165,7 +171,7 @@ Publish a version when it is ready for use. Every earlier version stays readable
 Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
 **MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
 
-Search **5,700+ MCP servers** in the catalog, or add a compatible server by URL.
+Search the catalog by name, or add a compatible server by URL.
 Connect the services you need and choose which tools each agent can use. [Connect your tools](docs/mcp.md).
 
 <a href="docs/assets/screens/light/mcp-catalog.webp">
@@ -337,8 +343,8 @@ For a recurring report, the team can divide the work:
 2. **A builder makes the agent available:** configure its tools, publish a version and grant colleagues access.
 3. **Colleagues use the results:** run the agent, review its output and share an artifact with the people who need it.
 
-The organization keeps the agent and reusable know-how. People work through the browser;
-engineers can connect internal systems. [Set up team access](docs/permissions.md).
+The agent and its know-how belong to the organization, not to whoever wrote the first prompt.
+[Set up team access](docs/permissions.md).
 
 ## Own your deployment, models and access
 
@@ -349,10 +355,7 @@ Choose hosted model providers or local models through Ollama and compatible endp
 **Decide what an agent may do.** Configure resource permissions, store credentials in the encrypted vault and
 put a person's approval in front of tools that act. [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md).
 
-**See the work and the spend.** Every run keeps its tool calls and cost, and every budget is checked before
-the model is called. [Execution and cost controls](docs/governance.md).
-
-[Deploy and operate](docs/rollout.md) · [Security and data flows](docs/security.md)
+[Deploy and operate](docs/rollout.md) · [Execution and cost controls](docs/governance.md) · [Security and data flows](docs/security.md)
 
 ## Is AgenticOS the right fit?
 
@@ -407,7 +410,15 @@ that screenshots any region straight into a new chat.
 ## For developers and operators
 
 Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js.
-Agent configuration selects capabilities registered in the runtime; developers extend those capabilities in code.
+Every published agent is also an endpoint, behind the same budget, approvals and run history as the console:
+
+```bash
+curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarize the open support tickets"}'
+```
 
 | Start here | What it covers |
 |---|---|
