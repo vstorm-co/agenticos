@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="168" height="96" viewBox="0 0 168 96" role="img" aria-label="Slack">
 <title>Slack</title>
 <rect x="4" y="7" width="160" height="86" rx="16" fill="#000000" opacity="0.04"/>
-<rect x="4.5" y="4.5" width="159" height="86" rx="16" fill="#ffffff" stroke="#dfe5ed"/>
+<rect x="4.5" y="4.5" width="159" height="86" rx="16" fill="#161b22" stroke="#30363d"/>
 <rect x="60" y="13" width="48" height="44" rx="12" fill="#ffffff"/>
 <svg x="68" y="19" width="32" height="32" viewBox="0 0 54 54" fill="none">
 <g clip-path="url(#clip0_4127_70105)">
@@ -20,5 +20,5 @@
 </clipPath>
 </defs>
 </svg>
-<text x="84" y="75" text-anchor="middle" fill="#24292f" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="600">Slack</text>
+<text x="84" y="75" text-anchor="middle" fill="#e6edf3" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="600">Slack</text>
 </svg>

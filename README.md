@@ -43,6 +43,63 @@ An equipment-policy assistant needs someone who knows the policy, someone who co
 
 Changes to instructions and knowledge happen in the console. New capabilities are added in Python. [How to build an agent](docs/first-agent.md) · [Team access](docs/permissions.md).
 
+## Connect the apps your team already uses
+
+Bring documents, messages and work tools into your agents. Select an app below for connection instructions.
+
+<p align="center">
+  <a href="docs/howto/configure-sync-sources.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
+    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
+  </picture></a>
+  <a href="docs/triggers.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
+    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.md#outlook-setup"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
+    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
+  </picture></a>
+</p>
+
+**Files and email.** Sync Google Drive™ documents into knowledge collections, or start agent runs from incoming Gmail messages. Microsoft Outlook email and calendar use [third-party MCP servers](docs/mcp.md#outlook-setup), with a separate provider account and permissions.
+
+<p align="center">
+  <a href="docs/mcp.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
+    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
+    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
+    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
+  </picture></a>
+</p>
+
+**Team tools.** Connect Notion pages, GitHub repositories and Linear issues through their MCP servers. Choose which tools each agent can use.
+
+<p align="center">
+  <a href="docs/channels.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
+    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
+    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
+    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
+  </picture></a>
+</p>
+
+**Conversations.** Let colleagues use a published agent in Slack, Mattermost or Telegram after configuring its channel.
+
+<sub>Google Drive is a trademark of Google LLC. App names and logos identify connection options, not partnerships. [Logo sources](docs/assets/integrations/ATTRIBUTION.txt).</sub>
+
 ## Quick start
 
 All it needs is Docker with Compose. On macOS or Linux, run:
@@ -157,12 +214,6 @@ Connect tools such as **GitHub, Notion, HubSpot or Linear** through [MCP](docs/m
 ### Make the agent and its results available
 
 Colleagues can use a published agent in web chat or through configured **Slack, Mattermost and Telegram** channels. Developers can call it through the API. [Connect a channel](docs/channels.md).
-
-<p align="center">
-  <a href="docs/channels.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
-  <a href="docs/channels.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
-  <a href="docs/channels.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
-</p>
 
 Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates to the same artifact keep its link and earlier versions remain readable. [Share an artifact](docs/artifacts.md).
 

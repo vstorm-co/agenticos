@@ -1,5 +1,5 @@
 ---
-source_sha: "90a6ac952954"
+source_sha: "0f382acc604e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -739,6 +739,25 @@ Katalog oszczędza komuś szukania URL-a; nie jest bramką.
 
 Aby dodać wpis do listy, zobacz
 [Dodawanie serwera do katalogu MCP](howto/add-mcp-server.md).
+
+<a id="outlook-setup"></a>
+
+### Poczta i kalendarz Outlook { #outlook-email-and-calendar }
+
+Outlook jest dostępny przez zewnętrzne usługi MCP, a nie wbudowany konektor
+skrzynki pocztowej. Dołączony rejestr zawiera wpisy MintMCP dla poczty i kalendarza:
+
+| Wpis w rejestrze | URL serwera |
+|---|---|
+| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
+
+Znajdź wpis w katalogu MCP lub dodaj jego URL jako własny serwer. Skorzystaj z
+[instrukcji dostawcy](https://www.mintmcp.com/servers), skonfiguruj konto i
+autoryzację, a następnie przetestuj połączenie i wybierz narzędzia agenta.
+Dostępność, uprawnienia i ewentualne opłaty zależą od dostawcy. Wpis w rejestrze
+nie oznacza testu całej integracji z AgenticOS. Przed włączeniem narzędzi zapisu
+sprawdź opisane poniżej tryby zatwierdzania.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

@@ -1,12 +1,11 @@
-Channel logo cards
+Channel logo tiles
 
-Glyphs reused unchanged from frontend/src/lib/brand-glyphs.generated.ts:
-- Slack: Font Awesome Free (Fonticons, Inc.), CC BY 4.0.
-  https://fontawesome.com/license/free
-  https://creativecommons.org/licenses/by/4.0/
-- Mattermost and Telegram: Simple Icons, CC0 1.0.
-  https://simpleicons.org/
-  https://creativecommons.org/publicdomain/zero/1.0/
+Slack now uses the official full-color SVG linked from slack.com, replacing
+the previous monochrome Font Awesome glyph. Mattermost and Telegram retain
+their Simple Icons glyphs (CC0 1.0). Light and dark frames match the other
+application tiles used in the README.
 
-The card framing, colors and text labels were added for the README.
-Brand marks belong to their respective owners and identify supported channels.
+Full sources, attribution and connection scope:
+../integrations/ATTRIBUTION.txt
+Source and output hashes:
+../integrations/manifest.json

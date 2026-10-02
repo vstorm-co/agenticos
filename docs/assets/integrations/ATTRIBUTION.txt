@@ -1,0 +1,43 @@
+README application logo tiles
+Sources checked: 2 October 2026.
+
+The tiles identify connection options. They do not imply a partnership,
+endorsement, or an end-to-end test of a third-party service.
+Names and brand marks belong to their respective owners. The repository's
+Apache-2.0 license does not relicense these third-party marks.
+
+Official full-color artwork, embedded with its original paths, colors and
+aspect ratio (only uniformly scaled and placed within a separate card):
+
+- Slack: Slack Technologies, LLC. SVG linked from slack.com's navigation.
+  https://slack.com/media-kit
+  https://a.slack-edge.com/9cc0056/marketing/img/nav/logo.svg
+- Google Drive and Gmail: Google LLC, 2026 product icons linked from
+  Google's Drive branding guide and Google Workspace product pages.
+  Google Drive is a trademark of Google LLC; use is subject to Google Permissions.
+  https://developers.google.com/workspace/drive/api/guides/branding
+  https://workspace.google.com/products/gmail/
+  https://www.gstatic.com/images/branding/productlogos/drive_2026/v2/web/192px.svg
+  https://www.gstatic.com/images/branding/productlogos/gmail_2026/v2/web/192px.svg
+- Microsoft Outlook: Microsoft, FY26 product icon linked from the Outlook page.
+  https://www.microsoft.com/en-us/microsoft-365/outlook/email-and-calendar-software-microsoft-outlook
+  https://www.microsoft.com/content/dam/microsoft/bade/images/icons/en-us/m365-app-icons-fy26/Outlook-Icon-FY26.svg
+
+Notion, GitHub, Linear, Mattermost and Telegram glyphs are reused unchanged
+from frontend/src/lib/brand-glyphs.generated.ts (Simple Icons, CC0 1.0).
+https://simpleicons.org/
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The neutral card frames and text labels were added for the README. Each logo
+has a light and a dark card variant; a white inset preserves the original mark
+colors in both themes. manifest.json records the sources, dimensions and hashes.
+
+Connection evidence:
+- Google Drive: docs/howto/configure-sync-sources.md; gdrive connector.
+- Gmail: docs/triggers.md; incoming-mail event trigger, not a sending tool.
+- Outlook: third-party MintMCP email/calendar entries in the bundled
+  backend/app/core/catalog/mcp_registry.json, also listed at
+  https://www.mintmcp.com/servers . A separate provider account and permissions
+  are required; no live Outlook account was connected for this README change.
+- Notion, GitHub and Linear: backend/app/core/catalog/mcp_servers.json.
+- Slack, Mattermost and Telegram: docs/channels.md.

@@ -1,4 +1,4 @@
-<!-- source_sha: 846acb8e8674 -->
+<!-- source_sha: 6050f1b237a4 -->
 
 <div align="center">
 
@@ -44,6 +44,63 @@ Un asistente para consultas sobre solicitudes de equipamiento necesita a alguien
 3. **Los compañeros lo usan y lo comprueban:** hacen preguntas, revisan fuentes y comparten resultados. Los operadores inspeccionan las ejecuciones en Activity.
 
 Las instrucciones y el conocimiento se actualizan en la consola. Las nuevas capacidades se añaden en Python. [Cómo crear un agente](docs/first-agent.es.md) · [Acceso del equipo](docs/permissions.es.md).
+
+## Conecta las aplicaciones que tu equipo ya usa
+
+Pon documentos, mensajes y herramientas de trabajo a disposición de tus agentes. Selecciona una aplicación para abrir las instrucciones de conexión.
+
+<p align="center">
+  <a href="docs/howto/configure-sync-sources.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
+    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
+  </picture></a>
+  <a href="docs/triggers.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
+    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.es.md#outlook-setup"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
+    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
+  </picture></a>
+</p>
+
+**Archivos y correo.** Sincroniza documentos de Google Drive™ con colecciones de conocimiento o inicia agentes al recibir mensajes en Gmail. El correo y el calendario de Microsoft Outlook usan [servidores MCP de terceros](docs/mcp.es.md#outlook-setup), con una cuenta del proveedor y permisos independientes.
+
+<p align="center">
+  <a href="docs/mcp.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
+    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
+    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
+    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
+  </picture></a>
+</p>
+
+**Herramientas del equipo.** Conecta páginas de Notion, repositorios de GitHub e incidencias de Linear mediante sus servidores MCP. Elige qué herramientas puede usar cada agente.
+
+<p align="center">
+  <a href="docs/channels.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
+    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
+    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.es.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
+    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
+  </picture></a>
+</p>
+
+**Conversaciones.** Tras configurar el canal, los compañeros pueden usar un agente publicado en Slack, Mattermost o Telegram.
+
+<sub>Google Drive es una marca de Google LLC. Los nombres y logotipos indican opciones de conexión, no asociaciones comerciales. [Fuentes de los logotipos](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 
 ## Inicio rápido
 
@@ -159,12 +216,6 @@ Conecta herramientas como **GitHub, Notion, HubSpot o Linear** mediante [MCP](do
 ### Da acceso al agente y a sus resultados
 
 Los compañeros pueden usar un agente publicado en el chat web o mediante canales configurados de **Slack, Mattermost y Telegram**. Los desarrolladores pueden invocarlo a través de la API. [Conecta un canal](docs/channels.es.md).
-
-<p align="center">
-  <a href="docs/channels.es.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
-  <a href="docs/channels.es.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
-  <a href="docs/channels.es.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
-</p>
 
 Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **artefactos**. Elige quién puede abrirlos; las actualizaciones del mismo artefacto conservan su enlace y las versiones anteriores siguen siendo legibles. [Comparte un artefacto](docs/artifacts.es.md).
 

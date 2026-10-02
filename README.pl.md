@@ -1,4 +1,4 @@
-<!-- source_sha: 846acb8e8674 -->
+<!-- source_sha: 6050f1b237a4 -->
 
 <div align="center">
 
@@ -44,6 +44,63 @@ Asystent odpowiadający na pytania o zamawianie sprzętu potrzebuje osoby znają
 3. **Współpracownicy korzystają i sprawdzają:** zadają pytania, przeglądają źródła i udostępniają wyniki. Administratorzy analizują wykonania w Activity.
 
 Instrukcje i wiedzę zmieniasz w konsoli. Nowe możliwości dodajesz w Pythonie. [Jak zbudować agenta](docs/first-agent.pl.md) · [Dostęp dla zespołu](docs/permissions.pl.md).
+
+## Podłącz aplikacje, których Twój zespół już używa
+
+Udostępnij agentom dokumenty, wiadomości i narzędzia pracy. Wybierz aplikację poniżej, aby przejść do instrukcji połączenia.
+
+<p align="center">
+  <a href="docs/howto/configure-sync-sources.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
+    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
+  </picture></a>
+  <a href="docs/triggers.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
+    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.pl.md#outlook-setup"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
+    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
+  </picture></a>
+</p>
+
+**Pliki i poczta.** Synchronizuj dokumenty z Google Drive™ z kolekcjami wiedzy lub uruchamiaj agentów po nadejściu wiadomości w Gmailu. Poczta i kalendarz Microsoft Outlook korzystają z [zewnętrznych serwerów MCP](docs/mcp.pl.md#outlook-setup), z osobnym kontem u dostawcy i uprawnieniami.
+
+<p align="center">
+  <a href="docs/mcp.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
+    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
+    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
+  </picture></a>
+  <a href="docs/mcp.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
+    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
+  </picture></a>
+</p>
+
+**Narzędzia zespołu.** Połącz strony Notion, repozytoria GitHub i zgłoszenia Linear przez ich serwery MCP. Wybierz narzędzia dostępne dla każdego agenta.
+
+<p align="center">
+  <a href="docs/channels.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
+    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
+    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
+  </picture></a>
+  <a href="docs/channels.pl.md"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
+    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
+  </picture></a>
+</p>
+
+**Rozmowy.** Po skonfigurowaniu kanału współpracownicy mogą korzystać z opublikowanego agenta w Slacku, Mattermost lub Telegramie.
+
+<sub>Google Drive jest znakiem towarowym Google LLC. Nazwy i logotypy wskazują możliwości połączenia, a nie partnerstwa. [Źródła logotypów](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 
 ## Szybki start
 
@@ -159,12 +216,6 @@ Podłącz narzędzia takie jak **GitHub, Notion, HubSpot lub Linear** przez [MCP
 ### Udostępnij agenta i jego wyniki
 
 Współpracownicy mogą korzystać z opublikowanego agenta w czacie internetowym lub przez skonfigurowane kanały **Slack, Mattermost i Telegram**. Programiści mogą wywoływać go przez API. [Podłącz kanał](docs/channels.pl.md).
-
-<p align="center">
-  <a href="docs/channels.pl.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
-  <a href="docs/channels.pl.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
-  <a href="docs/channels.pl.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
-</p>
 
 Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacja tego samego artefaktu zachowuje jego link, a wcześniejsze wersje pozostają dostępne. [Udostępnij artefakt](docs/artifacts.pl.md).
 
