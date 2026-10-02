@@ -37,15 +37,13 @@ AgenticOS is a self-hosted workspace for building and running shared AI agents. 
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder showing instructions, model selection and a published version." width="100%">
 </a>
 
-## Give your team a shared way to work
+## What you can do
 
-An equipment-policy assistant needs someone who knows the policy, someone who configures the agent and colleagues who can use it. AgenticOS gives each of them a part in the same workflow:
-
-1. **An expert maintains the method:** write instructions, reusable procedures and source documents.
-2. **A builder publishes the agent:** choose its model and tools, set limits and grant access.
-3. **Colleagues use and check it:** ask questions, review sources and share results. Operators inspect runs in Activity.
-
-Changes to instructions and knowledge happen in the console. New capabilities are added in Python. [How to build an agent](docs/first-agent.md) · [Team access](docs/permissions.md).
+- **Build in the browser:** configure an agent's model, instructions, knowledge and tools, then publish a version.
+- **Work as a team:** let experts maintain the instructions and documents, and give colleagues access to the published agent.
+- **Share useful results:** publish reports, comparisons and dashboards as artifacts with controlled access.
+- **Inspect and repeat runs:** review tool calls and recorded costs in Activity; trigger agents on schedules or events.
+- **Choose your infrastructure:** self-host, connect hosted or local models, and extend capabilities in Python.
 
 ## Quick start
 
@@ -61,58 +59,7 @@ published images and starts a deployment with a working agent in it.
 
 Open **http://localhost:3000** and sign in with the login you chose during installation.
 
-### Build an assistant from a document
-
-Start with the [equipment-policy walkthrough](docs/howto/first-document-agent.md). It includes a tiny fictional handbook, setup steps and a recorded test with its limitations. You need an embedding model for document search as well as the chat model.
-
-<details>
-<summary>Follow the document-assistant exercise</summary>
-
-1. Save the two lines below as `equipment-handbook.md` and upload it to a knowledge collection. Configure embeddings and wait for processing.
-2. Create an agent, select its model and enable knowledge search for that collection. Instruct it to cite the handbook and say when an answer is missing. Publish the agent.
-3. Ask the questions below in fresh conversations, then inspect the retrieved material and run in **Activity**.
-
-```text
-Equipment requests go to the office manager.
-Include the item, reason and delivery location.
-```
-
-| Ask | Check against the source |
-|---|---|
-| Who handles an equipment request? | The office manager, with a citation to the handbook |
-| Which details should an equipment request include? | Item, reason and delivery location |
-| How much can I spend? | The spending allowance is not stated |
-
-Then follow the guide to replace the document with an updated policy and test a fresh conversation. Once the answers check out, grant a colleague access to the agent and the required resources, and have them try it from their own account. [Configure access](docs/permissions.md) before using private documents.
-
-The guide records a test on **v0.0.504, 25 September 2026**, including a retry and the answer after a document update. Treat it as a reproducible example; check your own model's answers against the source.
-
-</details>
-
-<details>
-<summary>Only checking the installation? Try a task without document setup</summary>
-
-In **Chat**, select **Getting Started** and paste this fictional brief. It needs nothing connected
-to Notion or GitHub.
-
-```text
-Turn this brief into a launch checklist. Use only the facts below.
-For each task, show the owner, deadline and missing information.
-Do not invent dates or responsibilities.
-
-Brief:
-- The customer webinar is on 15 October.
-- Maya owns the landing page; it must be ready by 8 October.
-- Leo owns the demo, but its review date is undecided.
-- Someone needs to send invitations by 10 October; no owner is assigned.
-```
-
-**Check the result:** the landing page should have Maya and 8 October; the demo should flag
-its missing review date; invitations should flag the missing owner. Then open **Activity**: the run is
-already there, with its model, tokens, duration and cost. Next, try your own brief or
-[configure an agent with tools and company knowledge](docs/first-agent.md).
-
-</details>
+**Your first agent:** follow the [document-assistant walkthrough](docs/howto/first-document-agent.md) to upload a handbook, ask questions and check answers against cited sources and test an updated document. Document search requires an embedding model. For other tasks, see [Build an agent](docs/first-agent.md).
 
 <details>
 <summary>Inspect the installer or deploy another way</summary>
@@ -242,13 +189,7 @@ Bring documents, messages and work tools into your agents. Select an app below f
 
 Choose it when a team has repeated document or tool-based work, subject experts who can maintain the instructions, and someone responsible for operating a self-hosted deployment.
 
-| Your starting point | What to evaluate |
-|---|---|
-| You want colleagues to use and maintain shared agents | Try AgenticOS's builder, knowledge and publishing workflow. If a shared chat interface is enough, also evaluate [Open WebUI](https://github.com/open-webui/open-webui). |
-| You mainly need to design workflows or AI applications | Compare the authoring workflow with [Dify](docs/about/dify.md) and [n8n](docs/about/n8n.md), using one of your real tasks. |
-| You are building agents as part of a software product | Start with an SDK or runtime such as [Pydantic AI](https://ai.pydantic.dev) or [Agno](https://github.com/agno-agi/agno); decide whether you also need AgenticOS's team console. |
-
-Self-hosting gives you an operating responsibility: upgrades, backups, credentials and provider bills. If nobody will own that work, settle the deployment and support arrangement before a pilot. [Rollout guide](docs/rollout.md) · [Detailed comparisons and gaps](docs/about/comparison.md).
+Evaluate it with one of your own tasks. [Compare approaches](docs/about/comparison.md) · [Plan a rollout](docs/rollout.md).
 
 ## Own your deployment, models and access
 

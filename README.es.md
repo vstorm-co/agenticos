@@ -1,4 +1,4 @@
-<!-- source_sha: f4a951bb9509 -->
+<!-- source_sha: 1535e1f7883f -->
 
 <div align="center">
 
@@ -39,15 +39,13 @@ AgenticOS es un espacio de trabajo autoalojado para crear y ejecutar agentes de 
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Builder del agente con instrucciones, selección de modelo y una versión publicada." width="100%">
 </a>
 
-## Dale a tu equipo una forma compartida de trabajar
+## Qué puedes hacer
 
-Un asistente para consultas sobre solicitudes de equipamiento necesita a alguien que conozca la política, a alguien que configure el agente y a compañeros que lo usen. AgenticOS conecta su trabajo:
-
-1. **Un experto mantiene el método:** redacta instrucciones, procedimientos reutilizables y documentos fuente.
-2. **Un builder publica el agente:** elige el modelo y las herramientas, establece límites y concede acceso.
-3. **Los compañeros lo usan y lo comprueban:** hacen preguntas, revisan fuentes y comparten resultados. Los operadores inspeccionan las ejecuciones en Activity.
-
-Las instrucciones y el conocimiento se actualizan en la consola. Las nuevas capacidades se añaden en Python. [Cómo crear un agente](docs/first-agent.es.md) · [Acceso del equipo](docs/permissions.es.md).
+- **Crear en el navegador:** configura el modelo, las instrucciones, el conocimiento y las herramientas del agente, y publica una versión.
+- **Trabajar en equipo:** los expertos mantienen las instrucciones y los documentos; los compañeros acceden al agente publicado.
+- **Compartir resultados:** publica informes, comparaciones y paneles como artefactos con acceso controlado.
+- **Inspeccionar y repetir ejecuciones:** revisa llamadas a herramientas y costes registrados en Activity; ejecuta agentes por horario o por eventos.
+- **Elegir tu infraestructura:** aloja la plataforma tú mismo, conecta modelos externos o locales y amplía sus capacidades en Python.
 
 ## Inicio rápido
 
@@ -63,58 +61,7 @@ las imágenes publicadas y arranca un despliegue con un agente que ya funciona.
 
 Abre **http://localhost:3000** e inicia sesión con el usuario que elegiste durante la instalación.
 
-### Crea un asistente a partir de un documento
-
-Empieza con la [guía de solicitudes de equipamiento](docs/howto/first-document-agent.es.md). Incluye un breve manual ficticio, los pasos de configuración y una prueba documentada con sus limitaciones. Para buscar en documentos necesitas un modelo de embeddings además del modelo de chat.
-
-<details>
-<summary>Sigue el ejercicio del asistente de documentos</summary>
-
-1. Guarda las dos líneas siguientes como `equipment-handbook.md` y sube el archivo a una colección de conocimiento. Configura los embeddings y espera a que termine el procesamiento.
-2. Crea un agente, selecciona su modelo y activa la búsqueda de conocimiento para esa colección. Indícale que cite el manual y señale cuándo falta una respuesta. Publica el agente.
-3. Haz las preguntas siguientes en conversaciones nuevas y revisa el material recuperado y la ejecución en **Activity**.
-
-```text
-Equipment requests go to the office manager.
-Include the item, reason and delivery location.
-```
-
-| Pregunta | Comprueba con la fuente |
-|---|---|
-| ¿Quién gestiona las solicitudes de equipamiento? | El responsable de oficina, con una cita del manual |
-| ¿Qué datos debe incluir una solicitud de equipamiento? | Artículo, motivo y lugar de entrega |
-| ¿Cuánto puedo gastar? | El documento no indica un límite de gasto |
-
-Después, sigue la guía para sustituir el documento por una política actualizada y prueba una conversación nueva. Cuando las respuestas sean correctas, concede a un compañero acceso al agente y a los recursos necesarios y pídele que lo pruebe desde su propia cuenta. [Configura el acceso](docs/permissions.es.md) antes de utilizar documentos privados.
-
-La guía documenta una prueba en **v0.0.504, el 25 de septiembre de 2026**, incluido un reintento y la respuesta tras actualizar el documento. Es un ejemplo que puedes reproducir; contrasta las respuestas de tu propio modelo con la fuente.
-
-</details>
-
-<details>
-<summary>¿Solo quieres comprobar la instalación? Prueba una tarea sin configurar documentos</summary>
-
-En **Chat**, selecciona **Getting Started** y pega este briefing ficticio. No necesita conexión con
-Notion ni GitHub.
-
-```text
-Responde en español. Convierte este briefing en una lista de tareas para el lanzamiento. Usa solo los hechos indicados.
-Para cada tarea, muestra la persona responsable, la fecha límite y la información que falta.
-No inventes fechas ni responsabilidades.
-
-Briefing:
-- El webinar para clientes será el 15 de octubre.
-- Maya se encarga de la página de destino; debe estar lista el 8 de octubre.
-- Leo se encarga de la demo, pero aún no se ha fijado su fecha de revisión.
-- Hay que enviar las invitaciones antes del 10 de octubre; no hay una persona asignada.
-```
-
-**Comprueba el resultado:** la página de destino debería indicar a Maya y el 8 de octubre; la demo,
-la falta de fecha de revisión; y las invitaciones, la falta de responsable. Luego abre **Activity**: la ejecución
-ya está ahí, con su modelo, tokens, duración y coste. Después, prueba tu propio briefing o
-[configura un agente con herramientas y conocimiento de la empresa](docs/first-agent.es.md).
-
-</details>
+**Tu primer agente:** sigue la [guía del asistente de documentos](docs/howto/first-document-agent.es.md) para subir un manual, hacer preguntas, contrastar las respuestas con las fuentes citadas y probar un documento actualizado. La búsqueda de documentos requiere un modelo de embeddings. Para otras tareas, consulta [Crear un agente](docs/first-agent.es.md).
 
 <details>
 <summary>Revisa el instalador o elige otro método de despliegue</summary>
@@ -242,15 +189,9 @@ Pon documentos, mensajes y herramientas de trabajo a disposición de tus agentes
 
 ## ¿Encaja AgenticOS con tu equipo?
 
-Elígelo cuando el equipo tenga tareas recurrentes basadas en documentos o herramientas, expertos que puedan mantener las instrucciones y alguien responsable de operar un despliegue autoalojado.
+Elígelo si el equipo tiene tareas recurrentes con documentos o herramientas, expertos que mantengan las instrucciones y una persona responsable de operar el despliegue en infraestructura propia.
 
-| Tu punto de partida | Qué evaluar |
-|---|---|
-| Quieres que los compañeros usen y mantengan agentes compartidos | Prueba el builder, el conocimiento y la publicación de AgenticOS. Si basta con una interfaz de chat compartida, evalúa también [Open WebUI](https://github.com/open-webui/open-webui). |
-| Tu necesidad principal es diseñar workflows o aplicaciones de IA | Compara el proceso de creación con [Dify](docs/about/dify.es.md) y [n8n](docs/about/n8n.es.md), usando una tarea real. |
-| Creas agentes como parte de un producto de software | Empieza con un SDK o un entorno de ejecución como [Pydantic AI](https://ai.pydantic.dev) o [Agno](https://github.com/agno-agi/agno); decide si también necesitas la consola de equipo de AgenticOS. |
-
-El autoalojamiento implica responsabilizarse de actualizaciones, copias de seguridad, credenciales y facturas de proveedores. Si nadie asumirá ese trabajo, acuerda el despliegue y el soporte antes de un piloto. [Guía de despliegue](docs/rollout.es.md) · [Comparaciones detalladas y carencias](docs/about/comparison.es.md).
+Evalúalo con una de tus tareas. [Compara enfoques](docs/about/comparison.es.md) · [Planifica el despliegue](docs/rollout.es.md).
 
 ## Controla tu despliegue, modelos y acceso
 

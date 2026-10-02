@@ -1,4 +1,4 @@
-<!-- source_sha: f4a951bb9509 -->
+<!-- source_sha: 1535e1f7883f -->
 
 <div align="center">
 
@@ -39,15 +39,13 @@ AgenticOS to środowisko na własnej infrastrukturze do tworzenia i uruchamiania
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Builder agenta z instrukcjami, wyborem modelu i opublikowaną wersją." width="100%">
 </a>
 
-## Zbuduj wspólny sposób pracy
+## Co możesz zrobić
 
-Asystent odpowiadający na pytania o zamawianie sprzętu potrzebuje osoby znającej zasady, osoby konfigurującej agenta i współpracowników, którzy będą z niego korzystać. AgenticOS łączy ich pracę:
-
-1. **Ekspert utrzymuje metodę:** pisze instrukcje, procedury wielokrotnego użytku i dokumenty źródłowe.
-2. **Builder publikuje agenta:** wybiera model i narzędzia, ustawia limity i przyznaje dostęp.
-3. **Współpracownicy korzystają i sprawdzają:** zadają pytania, przeglądają źródła i udostępniają wyniki. Administratorzy analizują wykonania w Activity.
-
-Instrukcje i wiedzę zmieniasz w konsoli. Nowe możliwości dodajesz w Pythonie. [Jak zbudować agenta](docs/first-agent.pl.md) · [Dostęp dla zespołu](docs/permissions.pl.md).
+- **Twórz w przeglądarce:** ustaw model, instrukcje, wiedzę i narzędzia agenta, a następnie opublikuj wersję.
+- **Pracuj zespołowo:** eksperci utrzymują instrukcje i dokumenty, a współpracownicy otrzymują dostęp do opublikowanego agenta.
+- **Udostępniaj wyniki:** publikuj raporty, porównania i dashboardy jako artefakty z kontrolą dostępu.
+- **Sprawdzaj i powtarzaj wykonania:** przeglądaj wywołania narzędzi i zapisane koszty w Activity; uruchamiaj agentów według harmonogramu lub zdarzeń.
+- **Wybieraj infrastrukturę:** uruchom system u siebie, podłącz modele zewnętrzne lub lokalne i rozszerzaj możliwości w Pythonie.
 
 ## Szybki start
 
@@ -63,58 +61,7 @@ i uruchamia wdrożenie z działającym agentem.
 
 Otwórz **http://localhost:3000** i zaloguj się loginem wybranym podczas instalacji.
 
-### Zbuduj asystenta na podstawie dokumentu
-
-Zacznij od [poradnika o zasadach zamawiania sprzętu](docs/howto/first-document-agent.pl.md). Zawiera krótki, fikcyjny regulamin, kroki konfiguracji i zapis testu wraz z ograniczeniami. Do wyszukiwania w dokumentach potrzebujesz modelu embeddingów oprócz modelu do rozmowy.
-
-<details>
-<summary>Przejdź ćwiczenie z asystentem dokumentów</summary>
-
-1. Zapisz poniższe dwa zdania jako `equipment-handbook.md` i wgraj plik do kolekcji wiedzy. Skonfiguruj embeddingi i poczekaj na przetworzenie.
-2. Utwórz agenta, wybierz model i włącz wyszukiwanie w tej kolekcji. Poleć mu cytować regulamin i wskazywać brak odpowiedzi. Opublikuj agenta.
-3. Zadaj poniższe pytania w nowych rozmowach, a następnie sprawdź znalezione materiały i wykonanie w **Activity**.
-
-```text
-Equipment requests go to the office manager.
-Include the item, reason and delivery location.
-```
-
-| Zapytaj | Sprawdź ze źródłem |
-|---|---|
-| Kto obsługuje zamówienia sprzętu? | Office manager, z odwołaniem do regulaminu |
-| Jakie informacje należy podać w zamówieniu sprzętu? | Przedmiot, powód i miejsce dostawy |
-| Ile mogę wydać? | Dokument nie określa limitu wydatków |
-
-Następnie zgodnie z poradnikiem zastąp dokument zaktualizowanym regulaminem i przetestuj nową rozmowę. Gdy odpowiedzi będą poprawne, przyznaj współpracownikowi dostęp do agenta i wymaganych zasobów, aby sprawdził go ze swojego konta. [Skonfiguruj uprawnienia](docs/permissions.pl.md), zanim użyjesz prywatnych dokumentów.
-
-Poradnik opisuje test na **v0.0.504 z 25 września 2026 r.**, w tym ponowienie pytania i odpowiedź po aktualizacji dokumentu. To przykład do odtworzenia; odpowiedzi własnego modelu sprawdź ze źródłem.
-
-</details>
-
-<details>
-<summary>Sprawdzasz tylko instalację? Wypróbuj zadanie bez konfiguracji dokumentów</summary>
-
-W **Chat** wybierz agenta **Getting Started** i wklej ten fikcyjny brief. Nie wymaga on połączenia
-z Notion ani GitHubem.
-
-```text
-Odpowiedz po polsku. Zamień ten brief w listę zadań przed premierą. Użyj tylko podanych faktów.
-Dla każdego zadania podaj osobę odpowiedzialną, termin i brakujące informacje.
-Nie wymyślaj dat ani odpowiedzialności.
-
-Brief:
-- Webinar dla klientów odbędzie się 15 października.
-- Maya odpowiada za landing page; ma być gotowy do 8 października.
-- Leo odpowiada za demo, ale nie ustalono terminu jego przeglądu.
-- Zaproszenia trzeba wysłać do 10 października; nie wyznaczono odpowiedzialnej osoby.
-```
-
-**Sprawdź wynik:** przy landing page powinny pojawić się Maya i 8 października; przy demo —
-brak terminu przeglądu; przy zaproszeniach — brak odpowiedzialnej osoby. Potem otwórz **Activity**: wykonanie
-już tam jest, z modelem, tokenami, czasem i kosztem. Następnie użyj własnego briefu lub
-[skonfiguruj agenta z narzędziami i wiedzą firmy](docs/first-agent.pl.md).
-
-</details>
+**Twój pierwszy agent:** przejdź [poradnik asystenta dokumentów](docs/howto/first-document-agent.pl.md), aby wgrać regulamin, zadawać pytania i sprawdzać odpowiedzi w przywołanych źródłach i przetestować zaktualizowany dokument. Wyszukiwanie w dokumentach wymaga modelu embeddingów. Inne zadania opisuje poradnik [Zbuduj agenta](docs/first-agent.pl.md).
 
 <details>
 <summary>Sprawdź instalator lub wybierz inny sposób wdrożenia</summary>
@@ -242,15 +189,9 @@ Udostępnij agentom dokumenty, wiadomości i narzędzia pracy. Wybierz aplikacj�
 
 ## Czy AgenticOS pasuje do Twojego zespołu?
 
-Wybierz go, gdy zespół ma powtarzalne zadania oparte na dokumentach lub narzędziach, ekspertów mogących utrzymywać instrukcje i osobę odpowiedzialną za wdrożenie na własnej infrastrukturze.
+Wybierz go, gdy zespół ma powtarzalne zadania związane z dokumentami lub narzędziami, ekspertów utrzymujących instrukcje oraz osobę odpowiedzialną za działanie wdrożenia na własnej infrastrukturze.
 
-| Punkt wyjścia | Co sprawdzić |
-|---|---|
-| Chcesz, aby współpracownicy używali i rozwijali wspólnych agentów | Wypróbuj builder, wiedzę i publikowanie w AgenticOS. Jeśli wystarczy wspólny interfejs czatu, sprawdź też [Open WebUI](https://github.com/open-webui/open-webui). |
-| Przede wszystkim projektujesz workflow lub aplikacje AI | Porównaj sposób tworzenia z [Dify](docs/about/dify.pl.md) i [n8n](docs/about/n8n.pl.md) na jednym ze swoich rzeczywistych zadań. |
-| Budujesz agentów jako część produktu programistycznego | Zacznij od SDK lub środowiska wykonawczego, np. [Pydantic AI](https://ai.pydantic.dev) lub [Agno](https://github.com/agno-agi/agno); oceń, czy potrzebujesz również konsoli zespołowej AgenticOS. |
-
-Własne wdrożenie oznacza odpowiedzialność za aktualizacje, kopie zapasowe, poświadczenia i rachunki dostawców. Jeśli nikt nie ma tego utrzymywać, ustal sposób wdrożenia i wsparcia przed pilotażem. [Przewodnik wdrożenia](docs/rollout.pl.md) · [Szczegółowe porównania i braki](docs/about/comparison.pl.md).
+Sprawdź go na jednym z własnych zadań. [Porównaj podejścia](docs/about/comparison.pl.md) · [Zaplanuj wdrożenie](docs/rollout.pl.md).
 
 ## Kontroluj wdrożenie, modele i dostęp
 

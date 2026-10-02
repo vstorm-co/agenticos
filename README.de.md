@@ -1,4 +1,4 @@
-<!-- source_sha: f4a951bb9509 -->
+<!-- source_sha: 1535e1f7883f -->
 
 <div align="center">
 
@@ -39,15 +39,13 @@ AgenticOS ist eine selbst gehostete Arbeitsumgebung zum Erstellen und Betreiben 
   <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version." width="100%">
 </a>
 
-## Gib deinem Team eine gemeinsame Arbeitsweise
+## Was du damit machen kannst
 
-Ein Assistent für Fragen zur Gerätebeschaffung braucht jemanden, der die Regeln kennt, jemanden, der den Agenten konfiguriert, und Kollegen, die ihn nutzen. AgenticOS verbindet ihre Arbeit:
-
-1. **Ein Fachexperte pflegt die Methode:** Anweisungen, wiederverwendbare Abläufe und Quelldokumente schreiben.
-2. **Ein Builder veröffentlicht den Agenten:** Modell und Werkzeuge auswählen, Limits setzen und Zugriff gewähren.
-3. **Kollegen nutzen und prüfen ihn:** Fragen stellen, Quellen prüfen und Ergebnisse teilen. Betreiber sehen die Ausführungen in Activity ein.
-
-Anweisungen und Wissen werden in der Konsole geändert. Neue Fähigkeiten werden in Python ergänzt. [Einen Agenten erstellen](docs/first-agent.de.md) · [Teamzugriff](docs/permissions.de.md).
+- **Im Browser erstellen:** Modell, Anweisungen, Wissen und Werkzeuge eines Agenten konfigurieren und eine Version veröffentlichen.
+- **Im Team arbeiten:** Fachleute pflegen Anweisungen und Dokumente; Kollegen erhalten Zugriff auf den veröffentlichten Agenten.
+- **Ergebnisse teilen:** Berichte, Vergleiche und Dashboards als Artefakte mit geregeltem Zugriff veröffentlichen.
+- **Ausführungen prüfen und wiederholen:** Werkzeugaufrufe und erfasste Kosten in Activity prüfen; Agenten nach Zeitplan oder durch Ereignisse starten.
+- **Infrastruktur selbst wählen:** selbst hosten, gehostete oder lokale Modelle anbinden und Fähigkeiten in Python erweitern.
 
 ## Schnellstart
 
@@ -63,59 +61,7 @@ veröffentlichten Images und startet eine Bereitstellung mit einem funktionieren
 
 Öffne **http://localhost:3000** und melde dich mit dem bei der Installation gewählten Login an.
 
-### Erstelle einen Assistenten auf Basis eines Dokuments
-
-Beginne mit der [Anleitung zur Gerätebeschaffung](docs/howto/first-document-agent.de.md). Sie enthält ein kurzes fiktives Handbuch, Einrichtungsschritte und einen dokumentierten Test samt Einschränkungen. Für die Dokumentensuche brauchst du zusätzlich zum Chatmodell ein Embedding-Modell.
-
-<details>
-<summary>Übung mit dem Dokumentassistenten durchführen</summary>
-
-1. Speichere die beiden Zeilen unten als `equipment-handbook.md` und lade die Datei in eine Wissenssammlung. Konfiguriere die Embeddings und warte auf die Verarbeitung.
-2. Erstelle einen Agenten, wähle sein Modell und aktiviere die Wissenssuche für diese Sammlung. Weise ihn an, das Handbuch zu zitieren und fehlende Antworten zu benennen. Veröffentliche den Agenten.
-3. Stelle die folgenden Fragen in neuen Gesprächen und prüfe anschließend die gefundenen Inhalte und die Ausführung in **Activity**.
-
-```text
-Equipment requests go to the office manager.
-Include the item, reason and delivery location.
-```
-
-| Frage | Mit der Quelle abgleichen |
-|---|---|
-| Wer bearbeitet Geräteanfragen? | Der Office Manager, mit einem Verweis auf das Handbuch |
-| Welche Angaben muss eine Geräteanfrage enthalten? | Gegenstand, Begründung und Lieferort |
-| Wie viel darf ich ausgeben? | Das Dokument nennt kein Ausgabenlimit |
-
-Ersetze das Dokument dann nach der Anleitung durch eine aktualisierte Richtlinie und teste ein neues Gespräch. Wenn die Antworten stimmen, gib einem Kollegen Zugriff auf den Agenten und die erforderlichen Ressourcen und lass ihn den Agenten mit seinem eigenen Konto testen. [Konfiguriere den Zugriff](docs/permissions.de.md), bevor du private Dokumente verwendest.
-
-Die Anleitung dokumentiert einen Test auf **v0.0.504 vom 25. September 2026**, einschließlich eines erneuten Versuchs und der Antwort nach einer Dokumentänderung. Nutze ihn als nachvollziehbares Beispiel; prüfe die Antworten deines eigenen Modells anhand der Quelle.
-
-</details>
-
-<details>
-<summary>Nur die Installation prüfen? Probiere eine Aufgabe ohne Dokumenteinrichtung</summary>
-
-Wähle unter **Chat** den Agenten **Getting Started** und füge dieses fiktive Briefing ein. Es braucht keine
-Verbindung zu Notion oder GitHub.
-
-```text
-Antworte auf Deutsch. Erstelle aus diesem Briefing eine Checkliste für den Start. Nutze nur die genannten Fakten.
-Nenne für jede Aufgabe die verantwortliche Person, die Frist und fehlende Informationen.
-Erfinde keine Termine oder Zuständigkeiten.
-
-Briefing:
-- Das Kundenwebinar findet am 15. Oktober statt.
-- Maya betreut die Landingpage; sie muss bis zum 8. Oktober fertig sein.
-- Leo betreut die Demo, aber der Termin für ihre Prüfung steht noch nicht fest.
-- Die Einladungen müssen bis zum 10. Oktober verschickt werden; niemand ist dafür eingeteilt.
-```
-
-**Prüfe das Ergebnis:** Bei der Landingpage sollten Maya und der 8. Oktober stehen; bei der Demo
-sollte der fehlende Prüftermin auffallen, bei den Einladungen die fehlende Zuständigkeit. Öffne dann **Activity**:
-Die Ausführung ist schon da, mit Modell, Tokens, Dauer und Kosten. Probiere danach
-dein eigenes Briefing aus oder
-[konfiguriere einen Agenten mit Werkzeugen und Unternehmenswissen](docs/first-agent.de.md).
-
-</details>
+**Dein erster Agent:** Folge der [Anleitung für einen Dokumentassistenten](docs/howto/first-document-agent.de.md), um ein Handbuch hochzuladen, Fragen zu stellen, Antworten anhand der zitierten Quellen zu prüfen und ein aktualisiertes Dokument zu testen. Die Dokumentsuche benötigt ein Embedding-Modell. Weitere Aufgaben behandelt [Einen Agenten erstellen](docs/first-agent.de.md).
 
 <details>
 <summary>Installer prüfen oder eine andere Bereitstellung wählen</summary>
@@ -243,15 +189,9 @@ Stelle deinen Agenten Dokumente, Nachrichten und Arbeitswerkzeuge bereit. Wähle
 
 ## Passt AgenticOS zu deinem Team?
 
-Wähle es, wenn dein Team wiederkehrende dokumenten- oder werkzeugbasierte Aufgaben hat, Fachexperten die Anweisungen pflegen können und jemand für den selbst gehosteten Betrieb verantwortlich ist.
+Wähle es, wenn dein Team wiederkehrende Aufgaben mit Dokumenten oder Werkzeugen hat, Fachleute die Anweisungen pflegen und jemand den Betrieb auf eigener Infrastruktur verantwortet.
 
-| Dein Ausgangspunkt | Was du prüfen solltest |
-|---|---|
-| Kollegen sollen gemeinsame Agenten nutzen und pflegen | Probiere Builder, Wissen und Veröffentlichung in AgenticOS aus. Wenn eine gemeinsame Chatoberfläche ausreicht, prüfe auch [Open WebUI](https://github.com/open-webui/open-webui). |
-| Du entwirfst hauptsächlich Workflows oder KI-Anwendungen | Vergleiche den Erstellungsprozess mit [Dify](docs/about/dify.de.md) und [n8n](docs/about/n8n.de.md) anhand einer echten Aufgabe. |
-| Du baust Agenten als Teil eines Softwareprodukts | Beginne mit einem SDK oder einer Laufzeitumgebung wie [Pydantic AI](https://ai.pydantic.dev) oder [Agno](https://github.com/agno-agi/agno); entscheide, ob du zusätzlich die Teamkonsole von AgenticOS brauchst. |
-
-Selbsthosting bedeutet Verantwortung für Updates, Backups, Zugangsdaten und Anbieterrechnungen. Wenn niemand diese Aufgaben übernimmt, kläre Betrieb und Support vor einem Pilotprojekt. [Einführungsleitfaden](docs/rollout.de.md) · [Detaillierte Vergleiche und Lücken](docs/about/comparison.de.md).
+Prüfe es anhand einer eigenen Aufgabe. [Ansätze vergleichen](docs/about/comparison.de.md) · [Rollout planen](docs/rollout.de.md).
 
 ## Betrieb, Modelle und Zugriff selbst kontrollieren
 
