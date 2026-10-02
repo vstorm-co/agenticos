@@ -1,4 +1,4 @@
-<!-- source_sha: 1cdad3786611 -->
+<!-- source_sha: afab117df33b -->
 
 <div align="center">
 
@@ -14,7 +14,7 @@
   <a href="#szybki-start">Szybki start</a> &middot;
   <a href="#twórz-udostępniaj-i-nadzoruj">Twórz, udostępniaj i nadzoruj</a> &middot;
   <a href="#czy-agenticos-pasuje-do-twojego-zespołu">Czy to dla nas?</a> &middot;
-  <a href="docs/index.pl.md">Dokumentacja</a>
+  <a href="https://vstorm-co.github.io/agenticos/pl/">Dokumentacja</a>
 </p>
 
 <p>
@@ -61,7 +61,7 @@ i uruchamia wdrożenie z działającym agentem.
 
 Otwórz **http://localhost:3000** i zaloguj się loginem wybranym podczas instalacji.
 
-**Twój pierwszy agent:** przejdź [poradnik asystenta dokumentów](docs/howto/first-document-agent.pl.md), aby wgrać regulamin, zadawać pytania i sprawdzać odpowiedzi w przywołanych źródłach i przetestować zaktualizowany dokument. Wyszukiwanie w dokumentach wymaga modelu embeddingów. Inne zadania opisuje poradnik [Zbuduj agenta](docs/first-agent.pl.md).
+**Twój pierwszy agent:** przejdź [poradnik asystenta dokumentów](https://vstorm-co.github.io/agenticos/pl/howto/first-document-agent/), aby wgrać regulamin, zadawać pytania i sprawdzać odpowiedzi w przywołanych źródłach i przetestować zaktualizowany dokument. Wyszukiwanie w dokumentach wymaga modelu embeddingów. Inne zadania opisuje poradnik [Zbuduj agenta](https://vstorm-co.github.io/agenticos/pl/first-agent/).
 
 <details>
 <summary>Sprawdź instalator lub wybierz inny sposób wdrożenia</summary>
@@ -72,8 +72,8 @@ Przeczytaj [instalator](scripts/quickstart.sh) przed uruchomieniem. Aby sprawdzi
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- --check
 ```
 
-Ręczną konfigurację Docker Compose, wybór wersji i rozwiązywanie problemów opisuje [instrukcja instalacji](docs/install.pl.md).
-Pracę nad kodem opisuje [poradnik dla współtwórców](CONTRIBUTING.pl.md).
+Ręczną konfigurację Docker Compose, wybór wersji i rozwiązywanie problemów opisuje [instrukcja instalacji](https://vstorm-co.github.io/agenticos/pl/install/).
+Pracę nad kodem opisuje [poradnik dla współtwórców](https://vstorm-co.github.io/agenticos/pl/help/).
 
 </details>
 
@@ -83,15 +83,15 @@ Pracę nad kodem opisuje [poradnik dla współtwórców](CONTRIBUTING.pl.md).
 
 Wybierz model, instrukcje i narzędzia w przeglądarce. Opublikuj wersję dla współpracowników; wcześniejsze wersje pozostają dostępne do przeglądania i przywrócenia.
 
-[Bazy wiedzy](docs/file-processing.pl.md) dostarczają dokumenty do wyszukiwania. [Skills](docs/skills.pl.md) przechowują procedury wielokrotnego użytku, a [kontekst](docs/context.pl.md) — wspólne fakty i wytyczne. Aktualizuj te zasoby wraz ze zmianami w pracy.
+[Bazy wiedzy](https://vstorm-co.github.io/agenticos/pl/file-processing/) dostarczają dokumenty do wyszukiwania. [Skills](https://vstorm-co.github.io/agenticos/pl/skills/) przechowują procedury wielokrotnego użytku, a [kontekst](https://vstorm-co.github.io/agenticos/pl/context/) — wspólne fakty i wytyczne. Aktualizuj te zasoby wraz ze zmianami w pracy.
 
-Podłącz narzędzia takie jak **GitHub, Notion, HubSpot lub Linear** przez [MCP](docs/mcp.pl.md). Katalog łączy wybrane połączenia z **ponad 5700 wpisami serwerów MCP** skopiowanymi z rejestru. Wpisy z rejestru to metadane od wydawców, a nie przetestowane integracje. Każde połączenie wymaga konfiguracji i sprawdzenia dostępu.
+Podłącz narzędzia takie jak **GitHub, Notion, HubSpot lub Linear** przez [MCP](https://vstorm-co.github.io/agenticos/pl/mcp/). Katalog łączy wybrane połączenia z **ponad 5700 wpisami serwerów MCP** skopiowanymi z rejestru. Wpisy z rejestru to metadane od wydawców, a nie przetestowane integracje. Każde połączenie wymaga konfiguracji i sprawdzenia dostępu.
 
 ### Udostępnij agenta i jego wyniki
 
-Współpracownicy mogą korzystać z opublikowanego agenta w czacie internetowym lub przez skonfigurowane kanały **Slack, Mattermost i Telegram**. Programiści mogą wywoływać go przez API. [Podłącz kanał](docs/channels.pl.md).
+Współpracownicy mogą korzystać z opublikowanego agenta w czacie internetowym lub przez skonfigurowane kanały **Slack, Mattermost i Telegram**. Programiści mogą wywoływać go przez API. [Podłącz kanał](https://vstorm-co.github.io/agenticos/pl/channels/).
 
-Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacja tego samego artefaktu zachowuje jego link, a wcześniejsze wersje pozostają dostępne. [Udostępnij artefakt](docs/artifacts.pl.md).
+Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacja tego samego artefaktu zachowuje jego link, a wcześniejsze wersje pozostają dostępne. [Udostępnij artefakt](https://vstorm-co.github.io/agenticos/pl/artifacts/).
 
 <a href="docs/assets/screens/light/artifacts.webp">
   <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z raportami, ustawieniami dostępu i wersjami." width="100%">
@@ -99,15 +99,15 @@ Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy ja
 
 ### Sprawdzaj wykonania i powtarzaj przydatne zadania
 
-**Activity** łączy historię wykonań, zatwierdzenia i zarejestrowane wydatki. Przeglądaj wywołania narzędzi, porównuj wersje agentów i eksportuj dane. Część kosztów zależy od danych o zużyciu i cenach dostawcy; usługi zewnętrzne mogą naliczać opłaty osobno. [Ograniczenia rozliczania kosztów](docs/governance.pl.md).
+**Activity** łączy historię wykonań, zatwierdzenia i zarejestrowane wydatki. Przeglądaj wywołania narzędzi, porównuj wersje agentów i eksportuj dane. Część kosztów zależy od danych o zużyciu i cenach dostawcy; usługi zewnętrzne mogą naliczać opłaty osobno. [Ograniczenia rozliczania kosztów](https://vstorm-co.github.io/agenticos/pl/governance/).
 
 <a href="docs/assets/screens/light/activity.webp">
   <img src="docs/assets/screens/light/activity.webp" alt="Activity z porównaniem wersji i historią wykonań, w tym oczekującym zatwierdzeniem." width="100%">
 </a>
 
-Skonfiguruj wymagane zatwierdzenia dla obsługiwanych narzędzi capabilities. W czacie internetowym tryb **Ask about everything** obejmuje również wywołania narzędzi MCP obsługiwane przez runner. Zakres zatwierdzeń zależy od narzędzia i trybu wykonania; samo włączenie połączenia nie wymusza zatwierdzania. [Tryby i ograniczenia zatwierdzeń](docs/governance.pl.md#how-much-one-conversation-wants-to-be-asked).
+Skonfiguruj wymagane zatwierdzenia dla obsługiwanych narzędzi capabilities. W czacie internetowym tryb **Ask about everything** obejmuje również wywołania narzędzi MCP obsługiwane przez runner. Zakres zatwierdzeń zależy od narzędzia i trybu wykonania; samo włączenie połączenia nie wymusza zatwierdzania. [Tryby i ograniczenia zatwierdzeń](https://vstorm-co.github.io/agenticos/pl/governance/#how-much-one-conversation-wants-to-be-asked).
 
-Gdy zadanie nadaje się do powtarzania, użyj [rutyn](docs/triggers.pl.md), aby uruchamiać agenta według harmonogramu lub zdarzenia. Sprawdź jego narzędzia, limity i politykę zatwierdzeń przed pozostawieniem go bez nadzoru.
+Gdy zadanie nadaje się do powtarzania, użyj [rutyn](https://vstorm-co.github.io/agenticos/pl/triggers/), aby uruchamiać agenta według harmonogramu lub zdarzenia. Sprawdź jego narzędzia, limity i politykę zatwierdzeń przed pozostawieniem go bez nadzoru.
 
 ## Nagrany przykład integracji
 
@@ -123,35 +123,33 @@ Demo pokazuje, jak brief z Notion po analizie repozytoriów na GitHubie staje si
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Szesnaście logotypów aplikacji na ciemnych szklanych kafelkach: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
-[Synchronizacja Google Drive™](docs/howto/configure-sync-sources.pl.md) · [Zdarzenia Gmail](docs/triggers.pl.md) · [Narzędzia MCP: Notion, GitHub, Linear i inne](docs/mcp.pl.md) · [Kanały rozmowy: Slack, Mattermost, Telegram](docs/channels.pl.md).
+[Synchronizacja Google Drive™](https://vstorm-co.github.io/agenticos/pl/howto/configure-sync-sources/) · [Zdarzenia Gmail](https://vstorm-co.github.io/agenticos/pl/triggers/) · [Narzędzia MCP: Notion, GitHub, Linear i inne](https://vstorm-co.github.io/agenticos/pl/mcp/) · [Kanały rozmowy: Slack, Mattermost, Telegram](https://vstorm-co.github.io/agenticos/pl/channels/).
 
-[Poczta i kalendarz Outlook](docs/mcp.pl.md#outlook-setup) łączą się przez zewnętrzną usługę MCP, która wymaga osobnego konta i uprawnień.
+[Poczta i kalendarz Outlook](https://vstorm-co.github.io/agenticos/pl/mcp/) łączą się przez zewnętrzną usługę MCP, która wymaga osobnego konta i uprawnień.
 
 Część połączeń korzysta z zewnętrznych usług MCP i wymaga osobnej konfiguracji, kont oraz uprawnień.
-
-<sub>Google Drive jest znakiem towarowym Google LLC. Nazwy i logotypy wskazują możliwości połączenia, a nie partnerstwa. [Źródła logotypów](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 
 ## Czy AgenticOS pasuje do Twojego zespołu?
 
 Wybierz go, gdy zespół ma powtarzalne zadania związane z dokumentami lub narzędziami, ekspertów utrzymujących instrukcje oraz osobę odpowiedzialną za działanie wdrożenia na własnej infrastrukturze.
 
-Sprawdź go na jednym z własnych zadań. [Porównaj podejścia](docs/about/comparison.pl.md) · [Zaplanuj wdrożenie](docs/rollout.pl.md).
+Sprawdź go na jednym z własnych zadań. [Porównaj podejścia](https://vstorm-co.github.io/agenticos/pl/about/comparison/) · [Zaplanuj wdrożenie](https://vstorm-co.github.io/agenticos/pl/rollout/).
 
 ## Kontroluj wdrożenie, modele i dostęp
 
-**Sovereign oznacza kontrolę nad wdrożeniem, dostawcami modeli, przepływami danych i dostępem do agentów.** AgenticOS jest oprogramowaniem na licencji Apache-2.0, które możesz sprawdzać, modyfikować i utrzymywać. Wybierz modele hostowane lub lokalne przez Ollama i kompatybilne endpointy, takie jak vLLM. [Konfiguracja modeli](docs/models.pl.md).
+**Sovereign oznacza kontrolę nad wdrożeniem, dostawcami modeli, przepływami danych i dostępem do agentów.** AgenticOS jest oprogramowaniem na licencji Apache-2.0, które możesz sprawdzać, modyfikować i utrzymywać. Wybierz modele hostowane lub lokalne przez Ollama i kompatybilne endpointy, takie jak vLLM. [Konfiguracja modeli](https://vstorm-co.github.io/agenticos/pl/models/).
 
 Uruchomienie konsoli na własnej infrastrukturze nie sprawia, że każdy model, parser i narzędzie działa lokalnie. Sprawdź skonfigurowane usługi i dane, które otrzymują. Nadaj uprawnienia do zasobów, zapisz poświadczenia w szyfrowanym sejfie i przetestuj politykę zatwierdzeń włączonych narzędzi.
 
-[Bezpieczeństwo i przepływy danych](docs/security.pl.md) · [Uprawnienia](docs/permissions.pl.md) · [Sekrety](docs/secrets.pl.md) · [Kontrola wykonań i kosztów](docs/governance.pl.md).
+[Bezpieczeństwo i przepływy danych](https://vstorm-co.github.io/agenticos/pl/security/) · [Uprawnienia](https://vstorm-co.github.io/agenticos/pl/permissions/) · [Sekrety](https://vstorm-co.github.io/agenticos/pl/secrets/) · [Kontrola wykonań i kosztów](https://vstorm-co.github.io/agenticos/pl/governance/).
 
 ## Dla programistów i administratorów
 
 Zbudowany z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.js. Inżynierowie dodają capabilities w typowanym Pythonie; zespoły składają z zarejestrowanych capabilities agentów w konsoli.
 
-[Architektura](docs/architecture.pl.md) · [Capabilities](docs/reference/capabilities.pl.md) · [API](docs/api.pl.md) · [Współtworzenie](CONTRIBUTING.pl.md) · [Plan rozwoju](docs/ROADMAP.md).
+[Architektura](https://vstorm-co.github.io/agenticos/pl/architecture/) · [Capabilities](https://vstorm-co.github.io/agenticos/pl/reference/capabilities/) · [API](https://vstorm-co.github.io/agenticos/pl/api/) · [Współtworzenie](https://vstorm-co.github.io/agenticos/pl/help/).
 
-[Analogia systemu operacyjnego](docs/about/index.pl.md) wyjaśnia architekturę. Opcjonalna [aplikacja desktopowa](docs/desktop.pl.md) dodaje osobne okno, zwierzaka i skrót do zrzutów ekranu na macOS. [Projekty open source Vstorm](https://github.com/vstorm-co) zawierają biblioteki i narzędzia wokół AgenticOS.
+[Analogia systemu operacyjnego](https://vstorm-co.github.io/agenticos/pl/about/) wyjaśnia architekturę. Opcjonalna [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dodaje osobne okno, zwierzaka i skrót do zrzutów ekranu na macOS. [Projekty open source Vstorm](https://github.com/vstorm-co) zawierają biblioteki i narzędzia wokół AgenticOS.
 
 ## Licencja
 
