@@ -1,4 +1,4 @@
-<!-- source_sha: 1535e1f7883f -->
+<!-- source_sha: 6ae81923567f -->
 
 <div align="center">
 
@@ -132,58 +132,16 @@ Diese Demo zeigt, wie aus einem Notion-Briefing nach einer GitHub-Recherche eine
 
 ## Verbinde die Apps, die dein Team bereits nutzt
 
-Stelle deinen Agenten Dokumente, Nachrichten und Arbeitswerkzeuge bereit. Wähle unten eine App, um die Verbindungsanleitung zu öffnen.
+<picture>
+  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.png">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/integrations/connections-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.gif">
+  <img src="docs/assets/integrations/connections-light.gif" alt="Illustration der Verbindungen von AgenticOS zu Google Drive, Gmail, Outlook, Notion, GitHub, Linear, Slack, Mattermost und Telegram." width="960" height="300">
+</picture>
 
-<p align="center">
-  <a href="docs/howto/configure-sync-sources.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
-    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
-  </picture></a>
-  <a href="docs/triggers.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
-    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.de.md#outlook-setup"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
-    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
-  </picture></a>
-</p>
+[Google Drive™ synchronisieren](docs/howto/configure-sync-sources.de.md) · [Gmail-Ereignisse](docs/triggers.de.md) · [MCP-Werkzeuge: Notion, GitHub, Linear und mehr](docs/mcp.de.md) · [Chatkanäle: Slack, Mattermost, Telegram](docs/channels.de.md).
 
-**Dateien und E-Mail.** Synchronisiere Google Drive™-Dokumente in Wissenssammlungen oder starte Agenten durch eingehende Gmail-Nachrichten. E-Mail und Kalender von Microsoft Outlook werden über [MCP-Server von Drittanbietern](docs/mcp.de.md#outlook-setup) verbunden, mit einem separaten Anbieterkonto und Berechtigungen.
-
-<p align="center">
-  <a href="docs/mcp.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
-    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
-    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
-    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
-  </picture></a>
-</p>
-
-**Teamwerkzeuge.** Verbinde Notion-Seiten, GitHub-Repositories und Linear-Issues über deren MCP-Server. Wähle aus, welche Werkzeuge jeder Agent nutzen darf.
-
-<p align="center">
-  <a href="docs/channels.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
-    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
-    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.de.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
-    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
-  </picture></a>
-</p>
-
-**Gespräche.** Nach der Kanaleinrichtung können Kollegen einen veröffentlichten Agenten in Slack, Mattermost oder Telegram nutzen.
+[Outlook-E-Mail und -Kalender](docs/mcp.de.md#outlook-setup) werden über einen externen MCP-Dienst mit eigenem Konto und Berechtigungen angebunden.
 
 <sub>Google Drive ist eine Marke von Google LLC. App-Namen und Logos zeigen Verbindungsmöglichkeiten, keine Partnerschaften. [Logoquellen](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 

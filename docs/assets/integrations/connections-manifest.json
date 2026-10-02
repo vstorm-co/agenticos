@@ -1,0 +1,31 @@
+{
+  "purpose": "Illustrative map of connection options, not a live execution or architecture diagram.",
+  "placement": "README integration section after the product tour",
+  "dimensions": [
+    960,
+    300
+  ],
+  "duration_ms": 6000,
+  "frames": 72,
+  "loop": true,
+  "motion": "Stationary brand marks and undirected lines with a gentle connection emphasis and central halo.",
+  "source": "render_banner.py; existing SVG tiles and their source manifest.json",
+  "outputs": {
+    "connections-light.png": {
+      "sha256": "3ceb29b1ea66eedc79065738df1310b011005b2b2afe50d4e587e02433f2ceaf",
+      "bytes": 58076
+    },
+    "connections-light.gif": {
+      "sha256": "2ac06071336ec4214c8c7c6874a1a527ed3bccda4a163c219736782a7dc9a9df",
+      "bytes": 242119
+    },
+    "connections-dark.png": {
+      "sha256": "f04b030294e48bebb6335e78224c6d15419ae9713d79a649572c0fa6d0a1b747",
+      "bytes": 68077
+    },
+    "connections-dark.gif": {
+      "sha256": "1b0df609972f6ba68fc4c27116648d7d4c871be52d2937cb9d94b58094f430e5",
+      "bytes": 268575
+    }
+  }
+}

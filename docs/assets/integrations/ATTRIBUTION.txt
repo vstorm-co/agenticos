@@ -41,3 +41,13 @@ Connection evidence:
   are required; no live Outlook account was connected for this README change.
 - Notion, GitHub and Linear: backend/app/core/catalog/mcp_servers.json.
 - Slack, Mattermost and Telegram: docs/channels.md.
+
+Connection banner (connections-light/dark.gif and .png):
+A code-rendered illustration of connection options, not a product screenshot,
+live execution, or architecture diagram. Brand marks are extracted from the
+SVG tiles listed above and rendered without changing their paths or colors.
+The 960 x 300 banner uses stationary marks, undirected connections, and a
+six-second loop of gentle emphasis. Static PNG alternatives carry the same
+information. README picture sources select those for reduced-motion users.
+Editable source: render_banner.py (run from repository root; Pillow and
+rsvg-convert required). Output sizes and hashes: connections-manifest.json.

@@ -130,58 +130,16 @@ This demo shows a Notion brief becoming a sourced, interactive page after GitHub
 
 ## Connect the apps your team already uses
 
-Bring documents, messages and work tools into your agents. Select an app below for connection instructions.
+<picture>
+  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.png">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/integrations/connections-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.gif">
+  <img src="docs/assets/integrations/connections-light.gif" alt="Illustration of AgenticOS connected to Google Drive, Gmail, Outlook, Notion, GitHub, Linear, Slack, Mattermost and Telegram." width="960" height="300">
+</picture>
 
-<p align="center">
-  <a href="docs/howto/configure-sync-sources.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
-    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
-  </picture></a>
-  <a href="docs/triggers.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
-    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.md#outlook-setup"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
-    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
-  </picture></a>
-</p>
+[Google Drive™ sync](docs/howto/configure-sync-sources.md) · [Gmail triggers](docs/triggers.md) · [MCP tools: Notion, GitHub, Linear and more](docs/mcp.md) · [Chat channels: Slack, Mattermost, Telegram](docs/channels.md).
 
-**Files and email.** Sync Google Drive™ documents into knowledge collections, or start agent runs from incoming Gmail messages. Microsoft Outlook email and calendar use [third-party MCP servers](docs/mcp.md#outlook-setup), with a separate provider account and permissions.
-
-<p align="center">
-  <a href="docs/mcp.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
-    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
-    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
-    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
-  </picture></a>
-</p>
-
-**Team tools.** Connect Notion pages, GitHub repositories and Linear issues through their MCP servers. Choose which tools each agent can use.
-
-<p align="center">
-  <a href="docs/channels.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
-    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
-    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
-    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
-  </picture></a>
-</p>
-
-**Conversations.** Let colleagues use a published agent in Slack, Mattermost or Telegram after configuring its channel.
+[Outlook email and calendar](docs/mcp.md#outlook-setup) connect through a third-party MCP service with its own account and permissions.
 
 <sub>Google Drive is a trademark of Google LLC. App names and logos identify connection options, not partnerships. [Logo sources](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 

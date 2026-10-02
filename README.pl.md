@@ -1,4 +1,4 @@
-<!-- source_sha: 1535e1f7883f -->
+<!-- source_sha: 6ae81923567f -->
 
 <div align="center">
 
@@ -132,58 +132,16 @@ Demo pokazuje, jak brief z Notion po analizie repozytoriów na GitHubie staje si
 
 ## Podłącz aplikacje, których Twój zespół już używa
 
-Udostępnij agentom dokumenty, wiadomości i narzędzia pracy. Wybierz aplikację poniżej, aby przejść do instrukcji połączenia.
+<picture>
+  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.png">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/integrations/connections-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.gif">
+  <img src="docs/assets/integrations/connections-light.gif" alt="Ilustracja połączeń AgenticOS z Google Drive, Gmailem, Outlookiem, Notion, GitHubem, Linear, Slackiem, Mattermost i Telegramem." width="960" height="300">
+</picture>
 
-<p align="center">
-  <a href="docs/howto/configure-sync-sources.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/drive-dark.svg">
-    <img src="docs/assets/integrations/drive.svg" alt="Google Drive™" width="168" height="96">
-  </picture></a>
-  <a href="docs/triggers.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/gmail-dark.svg">
-    <img src="docs/assets/integrations/gmail.svg" alt="Gmail" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.pl.md#outlook-setup"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/outlook-dark.svg">
-    <img src="docs/assets/integrations/outlook.svg" alt="Microsoft Outlook" width="168" height="96">
-  </picture></a>
-</p>
+[Synchronizacja Google Drive™](docs/howto/configure-sync-sources.pl.md) · [Zdarzenia Gmail](docs/triggers.pl.md) · [Narzędzia MCP: Notion, GitHub, Linear i inne](docs/mcp.pl.md) · [Kanały rozmowy: Slack, Mattermost, Telegram](docs/channels.pl.md).
 
-**Pliki i poczta.** Synchronizuj dokumenty z Google Drive™ z kolekcjami wiedzy lub uruchamiaj agentów po nadejściu wiadomości w Gmailu. Poczta i kalendarz Microsoft Outlook korzystają z [zewnętrznych serwerów MCP](docs/mcp.pl.md#outlook-setup), z osobnym kontem u dostawcy i uprawnieniami.
-
-<p align="center">
-  <a href="docs/mcp.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/notion-dark.svg">
-    <img src="docs/assets/integrations/notion.svg" alt="Notion" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/github-dark.svg">
-    <img src="docs/assets/integrations/github.svg" alt="GitHub" width="168" height="96">
-  </picture></a>
-  <a href="docs/mcp.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/linear-dark.svg">
-    <img src="docs/assets/integrations/linear.svg" alt="Linear" width="168" height="96">
-  </picture></a>
-</p>
-
-**Narzędzia zespołu.** Połącz strony Notion, repozytoria GitHub i zgłoszenia Linear przez ich serwery MCP. Wybierz narzędzia dostępne dla każdego agenta.
-
-<p align="center">
-  <a href="docs/channels.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/slack-dark.svg">
-    <img src="docs/assets/channels/slack.svg" alt="Slack" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/mattermost-dark.svg">
-    <img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="168" height="96">
-  </picture></a>
-  <a href="docs/channels.pl.md"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/channels/telegram-dark.svg">
-    <img src="docs/assets/channels/telegram.svg" alt="Telegram" width="168" height="96">
-  </picture></a>
-</p>
-
-**Rozmowy.** Po skonfigurowaniu kanału współpracownicy mogą korzystać z opublikowanego agenta w Slacku, Mattermost lub Telegramie.
+[Poczta i kalendarz Outlook](docs/mcp.pl.md#outlook-setup) łączą się przez zewnętrzną usługę MCP, która wymaga osobnego konta i uprawnień.
 
 <sub>Google Drive jest znakiem towarowym Google LLC. Nazwy i logotypy wskazują możliwości połączenia, a nie partnerstwa. [Źródła logotypów](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 
