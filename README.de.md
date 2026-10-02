@@ -1,4 +1,4 @@
-<!-- source_sha: a49d7398a1bf -->
+<!-- source_sha: 47c6c2527a65 -->
 
 <div align="center">
 
@@ -13,6 +13,7 @@
   <a href="#so-funktioniert-es">Demo ansehen</a> &middot;
   <a href="#schnellstart">Schnellstart</a> &middot;
   <a href="#den-agent-layer-erkunden">Den Agent-Layer erkunden</a> &middot;
+  <a href="#warum-ein-betriebssystem">Warum ein OS</a> &middot;
   <a href="docs/index.de.md">Dokumentation</a>
 </p>
 
@@ -20,7 +21,7 @@
   <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0"></a>
-  <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
+  <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Gebaut mit Pydantic AI"></a>
 </p>
 
 <p>
@@ -32,14 +33,14 @@
 
 </div>
 
-Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchieren, Berichte vorbereiten und Ergebnisse erstellen, die dein Team nutzen kann. Anweisungen, Zugriffsrechte und Ausführungsverlauf bleiben an einem Ort; du wählst Cloud- oder lokale Modelle.
+Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchieren, Berichte vorbereiten und Ergebnisse erstellen, mit denen dein Team arbeiten kann. Anweisungen, Zugriffe und Ausführungsverlauf bleiben an einem Ort; du wählst Cloud- oder lokale Modelle.
 
 <h3 align="center">🔌 5.700+ Integrationen über MCP &nbsp;·&nbsp; 🤝 Gemeinsame Agenten und Wissen<br>
 📊 Integrierte Observability &nbsp;·&nbsp; 🏠 Selbst gehostet</h3>
 
 ## So funktioniert es
 
-**Von einem Briefing in Notion und GitHub-Recherche zu einer interaktiven Entscheidungsseite.**
+**Von einem Notion-Briefing und GitHub-Recherche zu einer interaktiven Entscheidungsseite.**
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
@@ -52,284 +53,31 @@ Gib einem Agenten das Briefing, das Wissen und die Werkzeuge. Lass ihn recherchi
   <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
 </a>
 
-*Animierte Vorschau mit 2× Geschwindigkeit. Klicke für das 37-sekündige Video mit Ton in normalem Tempo.*
+*Animierte Vorschau in doppelter Geschwindigkeit. Klicke, um das 37-sekündige Video mit Ton in normaler Geschwindigkeit anzusehen.*
 
 </details>
 
-[Gekürztes Video ansehen (37 Sekunden)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
-
-*Bearbeitete Demonstration ohne Wartezeiten. Die Repository-Zahlen entsprechen dem Stand der Aufnahme;
-das Artefakt ruft keine Live-Daten ab. Verbindungen und Fähigkeiten wurden für diese Demo eingerichtet.*
-
-## 💬 Agenten dort einsetzen, wo dein Team bereits arbeitet
-
-<p align="center">
-  <a href="docs/channels.de.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
-  <a href="docs/channels.de.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
-  <a href="docs/channels.de.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
-</p>
-
-Nutze deinen veröffentlichten Agenten in **Slack, Mattermost oder Telegram**. Kollegen können in ihren vertrauten Werkzeugen um Hilfe bitten; der Agent nutzt seine konfigurierten Anweisungen, sein Wissen und seine Werkzeuge.
-
-**Ein Agent, mehrere Zugangswege:** Team-Messenger, AgenticOS-Webchat, Website-Widget, gehostete Seite oder deine eigene Anwendung über die API. Richte den Kanal ein, verwalte die veröffentlichte Agentenversion zentral und prüfe seine Ausführungen in Activity.
-
-[Slack, Mattermost und weitere Kanäle verbinden](docs/channels.de.md).
-
-## Den Agent-Layer erkunden
-
-<table>
-<tr>
-<td colspan="2" valign="top">
-
-### 📄 Ergebnisse außerhalb des Chats aufbewahren
-
-**Artifacts** sind Seiten, die ein Agent erstellt: Berichte, interaktive Vergleiche oder kleine Dashboards.
-Öffne sie aus der Bibliothek, prüfe Versionen und lege fest, wer Zugriff erhält. Beim Aktualisieren desselben
-Artefakts bleibt der Link zur aktuellen Seite erhalten; eine Unterhaltung kann auf eine bestimmte Version verweisen.
-
-Ein Artefakt zeigt die Daten vom Zeitpunkt seiner Veröffentlichung. Ein neuer Agentenlauf kann es aktualisieren.
-[Artefakte erstellen und teilen](docs/artifacts.de.md).
-
-<!-- MEDIA: artifacts | light -->
-
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artefaktbibliothek mit gespeicherten Berichten und Versionen." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🤖 Einen Agenten konfigurieren
-
-Unter **Agents** erstellst du einen Assistenten für eine Aufgabe, wählst sein Modell, schreibst Anweisungen
-und aktivierst Werkzeuge. Veröffentliche eine Version, wenn sie einsatzbereit ist. Frühere Versionen
-lassen sich einsehen und Änderungen zurücknehmen. [Einen Agenten erstellen](docs/first-agent.de.md).
-
-</td>
-<td width="70%">
-
-<!-- MEDIA: agent-builder | light -->
-
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Konfiguration mit Anweisungen, ausgewähltem Modell und aktueller veröffentlichter Version." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 🔌 5.700+ Integrationen über MCP
-
-Verbinde Agenten mit den Werkzeugen, die dein Unternehmen bereits nutzt: **GitHub, Notion, HubSpot, Linear und n8n**.
-**MCP** (Model Context Protocol) ist der Standard, über den Agenten externe Werkzeuge und Datenquellen aufrufen.
-
-Durchsuche **über 5.700 MCP-Servereinträge** im Katalog oder füge einen kompatiblen Server per URL hinzu.
-Verbinde die benötigten Dienste und wähle die Werkzeuge für jeden Agenten. Einrichtung, Zugangsdaten
-und verfügbare Aktionen hängen vom Server ab. [Werkzeuge verbinden](docs/mcp.de.md).
-
-<!-- MEDIA: mcp-catalog | light -->
-
-<a href="docs/assets/screens/light/mcp-catalog.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten sowie dem Verbindungsstatus." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🧩 Wiederverwendbare Abläufe vermitteln
-
-**Skills** sind schriftliche Abläufe, die ein Agent bei Bedarf laden kann: etwa eine Angebotsprüfung,
-das Abgleichen eines Berichts oder die Anwendung eures Schreibstils. Schreibe einen Ablauf einmal
-und weise ihn den passenden Agenten zu. [Mehr über Skills](docs/skills.de.md).
-
-</td>
-<td width="70%">
-
-<!-- MEDIA: skills | light -->
-
-<a href="docs/assets/screens/light/skill-detail.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/skill-detail.webp" alt="Der Ablauf artifact-pages mit Anweisungen und Seitenvorlagen." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 📚 Dokumente durchsuchbar machen
-
-**Knowledge bases** organisieren Dokumente in Sammlungen, die du Agenten zuweist. Beim Beantworten von
-Fragen sucht der Agent darin nach passenden Textstellen. Dieses Vorgehen heißt häufig **RAG**,
-also Retrieval-Augmented Generation. [Dokumente hinzufügen und verarbeiten](docs/file-processing.de.md).
-
-<!-- MEDIA: knowledge-bases | light -->
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Wissensdatenbanken mit persönlichen Sammlungen und Organisationssammlungen." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🧠 Gemeinsamer Kontext
-
-**Context** enthält dauerhaft relevante Informationen wie Produktnamen, ein Glossar oder Kommunikationsregeln.
-Nutze ihn für Fakten und Regeln, die mehrere Aufgaben betreffen. Wähle, ob der Agent sie automatisch
-erhält oder bei Bedarf liest. [Mehr über Kontext](docs/context.de.md).
-
-</td>
-<td width="70%">
-
-<!-- MEDIA: context | light -->
-
-<a href="docs/assets/screens/light/context-detail.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossarvorschau im Modus linked zum Lesen bei Bedarf." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 📊 Integrierte Observability: Ausführungen und Kosten im Blick
-
-**Activity** bündelt Ausführungsverlauf, Freigaben und Ausgaben. Ein **Run** ist eine Ausführung eines Agenten:
-Du siehst Status, Modell, Token, Dauer und erfasste Kosten. Filtere nach Agent, Person oder Version,
-vergleiche Versionsergebnisse und exportiere die Daten als CSV.
-
-Finde langsame oder fehlgeschlagene Ausführungen und öffne sie, um Unterhaltung und Werkzeugaufrufe zu prüfen.
-[Activity und Kostenkontrolle erkunden](docs/governance.de.md).
-
-<!-- MEDIA: activity | light; filtered run history and version comparison -->
-
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Token, Dauer und erfasste Kosten." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🛡️ Menschliche Freigabe
-
-Für unterstützte Werkzeugaktionen kannst du eine menschliche Freigabe verlangen. Die Anfrage erlaubt einer
-Person, die geplante Operation vor ihrer Entscheidung zu prüfen. Der Zugriff auf Agenten und Ressourcen
-wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
-
-</td>
-<td width="70%">
-
-<!-- MEDIA: approval | light -->
-
-<a href="docs/assets/screens/light/approval.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/approval.webp" alt="Ausstehender Werkzeugaufruf mit Argumenten und Freigabesteuerung." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### ⏱️ Wiederkehrende Arbeit planen
-
-**Routines** führen einen Agenten nach Zeitplan oder bei einem konfigurierten Ereignis aus.
-Nutze sie für wöchentliche Zusammenfassungen oder wiederkehrende Berichte. Dabei gelten die konfigurierten
-Zugriffsrechte und Kontrollen; die Ausführung wird protokolliert. [Eine Routine einrichten](docs/triggers.de.md).
-
-</td>
-<td width="70%">
-
-<!-- MEDIA: routines | light; existing weekly schedule configuration -->
-
-<a href="docs/assets/screens/light/routines.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/routines.webp" alt="Zeitplan-Editor mit wöchentlicher Wiederholung am Montag um 06:00 UTC und Vorschau der Agentennachricht." width="100%">
-</a>
-
-</td>
-</tr>
-</table>
-
-<details>
-<summary>Weitere Ansichten und Ausführungsdetails</summary>
-
-<a href="docs/assets/screens/light/skills.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit wiederverwendbaren Abläufen." width="100%">
-</a>
-
-<a href="docs/assets/screens/light/context.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/context.webp" alt="Context-Bibliothek mit gemeinsam genutzten Glossardateien." width="100%">
-</a>
-
-<!-- MEDIA: knowledge-collection | light; supplementary view -->
-
-<a href="docs/assets/screens/light/knowledge-collection.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Die Sammlung vstorm mit dem erfolgreich verarbeiteten Dokument adding_features.md." width="100%">
-</a>
-
-<a href="docs/assets/screens/light/artifact-detail.webp">
-  <img src="docs/assets/screens/window-chrome.svg" alt="" width="100%"><br>
-  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner aus der Demo mit Zielgruppenauswahl und Empfehlung." width="100%">
-</a>
-
-### Aktionen und Kosten prüfen
-
-Ein **Run** ist eine Ausführung eines Agenten. **Activity / Runs** zeigt Status und erfassten Verbrauch;
-öffne einen Lauf, um Unterhaltung und Werkzeugaufrufe zu prüfen. Budgetprüfungen berücksichtigen erfasste
-Ausgaben vor Modellanfragen; laufende Anfragen oder parallele Ausführungen können ein Limit überschreiten.
-[Budgets und Audit-Verlauf](docs/governance.de.md).
-
-<!-- MEDIA: run-detail | capture light with expanded sidebar; same run as the demo -->
-> **Screenshot-Platzhalter — Ausführungsdetails:** Status, Dauer, erfasste Kosten und Werkzeugaufrufe der gezeigten Aufgabe.
-
-</details>
-
-## KI-Arbeit im Team verankern
-
-Bei einem regelmäßigen Bericht kann das Team die Arbeit aufteilen:
-
-1. **Eine Fachperson legt das Vorgehen fest:** Sie pflegt Anweisungen, Skills und Wissensquellen.
-2. **Eine zuständige Person stellt den Agenten bereit:** Sie konfiguriert Werkzeuge, veröffentlicht eine Version und erteilt Kollegen Zugriff.
-3. **Kollegen nutzen die Ergebnisse:** Sie führen den Agenten aus, prüfen seine Antwort und teilen ein Artefakt mit passenden Zugriffseinstellungen.
-
-Agent und wiederverwendbares Wissen bleiben bei der Organisation. Das Team arbeitet im Browser;
-Entwickler können interne Systeme anbinden. [Teamzugriff einrichten](docs/permissions.de.md).
+[Das gekürzte Video ansehen (37 Sekunden)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
 
 ## Schnellstart
 
-Installiere zuerst Docker mit Compose. Führe den folgenden Befehl unter macOS oder Linux aus;
-unter Windows nutzt du WSL2 mit der WSL2-Integration von Docker Desktop. Der Installer führt dich
-durch Modellzugriff, Benutzerkonto und Organisation und richtet die Umgebung mit einem Beispielagenten ein.
+Du brauchst nur Docker mit Compose. Unter macOS oder Linux führst du aus:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-Öffne die Konsole unter **http://localhost:3000** und melde dich mit deinen konfigurierten Zugangsdaten an.
+Unter Windows führst du denselben Befehl in WSL2 aus, mit eingeschalteter WSL2-Integration in Docker Desktop.
+Der Installer fragt nach Modellanbieter und Schlüssel, deinem Login und dem Namen der Organisation, lädt die
+veröffentlichten Images und startet eine Bereitstellung mit einem funktionierenden Agenten.
+
+Öffne **http://localhost:3000** und melde dich mit dem gewählten Login an. Mit den Standardwerten ist das
+`admin@example.com` / `admin123`.
 
 ### Die erste Aufgabe ausprobieren
 
-Wähle unter **Chat** den Agenten **Getting Started** und füge dieses fiktive Briefing ein. Der Modellzugriff muss
-eingerichtet sein; für diese Übung brauchst du keine Verbindung zu Notion oder GitHub.
+Wähle unter **Chat** den Agenten **Getting Started** und füge dieses fiktive Briefing ein. Es braucht keine
+Verbindung zu Notion oder GitHub.
 
 ```text
 Antworte auf Deutsch. Erstelle aus diesem Briefing eine Checkliste für den Start. Nutze nur die genannten Fakten.
@@ -362,100 +110,355 @@ Für die Entwicklung am Quellcode siehe [Mitwirken](CONTRIBUTING.de.md).
 
 </details>
 
-## Betrieb, Modelle und Zugriff selbst kontrollieren
+## 💬 Agenten dort einsetzen, wo dein Team bereits arbeitet
 
-**Auf eigener Infrastruktur betreiben.** AgenticOS ist Apache-2.0-Software, die du prüfen, ändern und
-betreiben kannst. Wähle Cloudanbieter oder lokale Modelle über Ollama und kompatible Endpunkte wie vLLM.
-Fähigkeiten und Hardwareanforderungen hängen vom gewählten Modell ab. [Modelle konfigurieren](docs/models.de.md).
+<p align="center">
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/mattermost.svg" alt="Mattermost" width="176" height="64"></a>
+  <a href="docs/channels.de.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
+</p>
 
-**Festlegen, was ein Agent tun darf.** Konfiguriere Ressourcenrechte, speichere Zugangsdaten im Vault
-und verlange für unterstützte Werkzeugaktionen eine menschliche Freigabe.
-[Zugriffskontrollen](docs/permissions.de.md) · [Geheimnisse](docs/secrets.de.md).
+Nutze deinen veröffentlichten Agenten in **Slack, Mattermost oder Telegram**. Kollegen bitten dort um Hilfe, wo sie ohnehin arbeiten, und der Agent antwortet mit seinen Anweisungen, seinem Wissen und seinen Werkzeugen. Eine `@mention` läuft als die Person, die sie geschickt hat, nicht als der Bot.
 
-**Arbeit und Ausgaben nachvollziehen.** Ein Run ist eine Ausführung eines Agenten. Prüfe Werkzeugaufrufe
-und erfassten Verbrauch sowie Audit-Einträge für Verwaltungsaktionen. Budgets prüfen erfasste Ausgaben
-vor Modellanfragen; laufende oder parallele Anfragen können eine Grenze überschreiten.
-[Ausführungen und Kosten kontrollieren](docs/governance.de.md).
+**Ein Agent, viele Zugänge:** Team-Messaging, der Web-Chat von AgenticOS, ein Website-Widget, eine gehostete Seite oder deine eigene Anwendung über die API. Richte den Kanal einmal ein; verwalte die veröffentlichte Version des Agenten zentral und prüfe seine Ausführungen in Activity.
 
-Beim [Self-Hosting](docs/rollout.de.md) übernimmt dein Team Betrieb, Updates und Backups. Externe Modelle, Parser, Embeddings,
-Werkzeuge und Tracing können weiterhin Daten aus deiner Infrastruktur übertragen. Konfiguriere jede
-Komponente nach deinen Datenanforderungen. [Sicherheit und Datenflüsse](docs/security.de.md).
+[Slack, Mattermost und weitere Kanäle verbinden](docs/channels.de.md).
+
+## Den Agent-Layer erkunden
+
+<table>
+<tr>
+<td colspan="2" valign="top">
+
+### 📄 Ergebnisse außerhalb des Chats aufbewahren
+
+**Artifacts** sind Seiten, die ein Agent erstellt: Berichte, interaktive Vergleiche oder kleine Dashboards.
+Öffne sie aus der Bibliothek, prüfe Versionen und lege fest, wer Zugriff hat. Wird dasselbe Artifact aktualisiert,
+bleibt sein Link erhalten; eine Unterhaltung kann auf eine bestimmte Version verweisen. [Artifacts erstellen und teilen](docs/artifacts.de.md).
+
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifact-Bibliothek mit gespeicherten Berichten und Versionen." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="30%" valign="middle">
+
+### 🤖 Einen Agenten konfigurieren
+
+Unter **Agents** erstellst du einen Assistenten für eine Aufgabe, wählst sein Modell, schreibst Anweisungen und aktivierst Werkzeuge.
+Veröffentliche eine Version, sobald er einsatzbereit ist. Jede frühere Version bleibt lesbar, und ein Rollback ist ein Klick.
+[Einen Agenten bauen](docs/first-agent.de.md).
+
+</td>
+<td width="70%">
+
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Builder mit Anweisungen, ausgewähltem Modell und aktuell veröffentlichter Version." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 🔌 5.700+ Integrationen über MCP
+
+Verbinde Agenten mit den Werkzeugen, die dein Unternehmen bereits nutzt: **GitHub, Notion, HubSpot, Linear und n8n**.
+**MCP** (Model Context Protocol) ist der Standard, über den Agenten externe Werkzeuge und Datenquellen aufrufen.
+
+Durchsuche **5.700+ MCP-Server** im Katalog oder füge einen kompatiblen Server per URL hinzu.
+Verbinde die benötigten Dienste und wähle, welche Werkzeuge jeder Agent nutzen darf. [Werkzeuge verbinden](docs/mcp.de.md).
+
+<a href="docs/assets/screens/light/mcp-catalog.webp">
+  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP-Katalog mit GitHub, Notion, Slack und weiteren Diensten samt Verbindungsstatus." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="30%" valign="middle">
+
+### 🧩 Wiederverwendbare Abläufe vermitteln
+
+**Skills** sind schriftliche Abläufe, die ein Agent bei Bedarf lädt: wie ein Angebot geprüft,
+ein Bericht abgestimmt oder dein Schreibstil eingehalten wird. Schreibe einen Ablauf einmal und hänge ihn an die Agenten,
+die ihn brauchen. Nach einer Änderung gilt er ab der nächsten Antwort, ohne Release. [Mehr über Skills](docs/skills.de.md).
+
+</td>
+<td width="70%">
+
+<a href="docs/assets/screens/light/skill-detail.webp">
+  <img src="docs/assets/screens/light/skill-detail.webp" alt="Der Ablauf artifact-pages mit Anweisungen und Seitenvorlagen." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 📚 Dokumente durchsuchbar machen
+
+**Knowledge bases** ordnen Dokumente in Sammlungen, die du Agenten zuweist. Der Agent durchsucht diese
+Quellen beim Antworten nach passenden Abschnitten. Das wird oft **RAG** genannt, Retrieval-Augmented Generation.
+PDF-Reader, Chunking und OCR wählst du pro Sammlung. [Dokumente hinzufügen und verarbeiten](docs/file-processing.de.md).
+
+<a href="docs/assets/screens/light/knowledge-bases.webp">
+  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases mit persönlichen und organisationsweiten Sammlungen." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="30%" valign="middle">
+
+### 🧠 Gemeinsamer Kontext
+
+**Context** enthält feste Informationen wie Produktnamen, ein Glossar oder Kommunikationsrichtlinien.
+Nutze ihn für Fakten und Regeln, die für viele Aufgaben gelten; lege fest, ob der Agent sie automatisch erhält
+oder bei Bedarf liest. [Mehr über Context](docs/context.de.md).
+
+</td>
+<td width="70%">
+
+<a href="docs/assets/screens/light/context-detail.webp">
+  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossar in der Vorschau, verknüpft zum Lesen bei Bedarf." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 📊 Integrierte Observability: Ausführungen und Kosten im Blick
+
+**Activity** bündelt Ausführungsverlauf, Freigaben und Ausgaben. Jede Ausführung speichert Status,
+Modell, Tokens, Dauer und Kosten. Filtere nach Agent, Person oder Version, vergleiche Versionen und exportiere die
+Daten als CSV. Öffne eine Ausführung, um die Unterhaltung und jeden Werkzeugaufruf zu sehen.
+[Activity und Kostenkontrolle](docs/governance.de.md).
+
+<a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity mit Versionsvergleich und gefiltertem Ausführungsverlauf: Status, Tokens, Dauer und erfasste Kosten." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="30%" valign="middle">
+
+### 🛡️ Menschliche Freigabe
+
+Alles, was etwas verschickt, ablegt oder verändert, kann auf einen Menschen warten. Die Freigabeanfrage zeigt
+die geplante Operation mit ihren Argumenten, und die Aktion läuft erst, wenn jemand zustimmt.
+Der Zugriff auf Agenten und Ressourcen wird über [Rollen und Berechtigungen](docs/permissions.de.md) gesteuert.
+
+</td>
+<td width="70%">
+
+<a href="docs/assets/screens/light/approval.webp">
+  <img src="docs/assets/screens/light/approval.webp" alt="Eine wartende Werkzeugaktion mit Argumenten und Freigabeschaltflächen." width="100%">
+</a>
+
+</td>
+</tr>
+<tr>
+<td width="30%" valign="middle">
+
+### ⏱️ Wiederkehrende Arbeit planen
+
+**Routines** starten einen Agenten nach Zeitplan oder auf ein Ereignis hin: das Montagsbriefing, der
+wiederkehrende Bericht. Eine Routine-Ausführung hat dieselben Limits und denselben Eintrag wie alles, worum ein Mensch gebeten hat.
+[Eine Routine einrichten](docs/triggers.de.md).
+
+</td>
+<td width="70%">
+
+<a href="docs/assets/screens/light/routines.webp">
+  <img src="docs/assets/screens/light/routines.webp" alt="Zeitplan-Editor mit wöchentlicher Wiederholung am Montag um 06:00 UTC und der Nachricht an den Agenten in der Vorschau." width="100%">
+</a>
+
+</td>
+</tr>
+</table>
 
 <details>
-<summary>Wohin deine Daten gelangen</summary>
+<summary>Weitere Ansichten</summary>
 
-| Komponente | Was du entscheidest |
-|---|---|
-| Anwendung und Speicherung | Du betreibst Anwendung, Datenbank und konfigurierten Dateispeicher; wähle den Betriebsort und die Sicherung |
-| Sprachmodelle | Ein gehosteter Anbieter erhält den zur Inferenz gesendeten Kontext; wähle einen lokalen Endpunkt, wenn diese Verarbeitung in deiner Infrastruktur bleiben muss |
-| Dokumentverarbeitung und Suche | Prüfe Parser und Embedding-Anbieter getrennt: Ein lokales Chatmodell macht einen Cloud-Parser oder externe Embeddings nicht lokal |
-| Werkzeuge und Kanäle | Aktivierte Integrationen tauschen die für ihre Aufrufe nötigen Daten aus; verbundene Kanäle erhalten die darüber gesendeten Antworten |
-| Beobachtbarkeit | Optionales Tracing kann Ausführungsdaten exportieren; prüfe sowohl die Einstellungen der Bereitstellung als auch die einzelnen Agenten |
+<a href="docs/assets/screens/light/skills.webp">
+  <img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit wiederverwendbaren Abläufen." width="100%">
+</a>
 
-[Datengrenzen prüfen](docs/security.de.md#what-leaves-the-deployment) ·
-[Dokumentverarbeitung wählen](docs/file-processing.de.md).
+<a href="docs/assets/screens/light/context.webp">
+  <img src="docs/assets/screens/light/context.webp" alt="Context-Bibliothek mit gemeinsamen Glossardateien." width="100%">
+</a>
+
+<a href="docs/assets/screens/light/knowledge-collection.webp">
+  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="Die Sammlung vstorm mit erfolgreich verarbeiteter adding_features.md." width="100%">
+</a>
+
+<a href="docs/assets/screens/light/artifact-detail.webp">
+  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner aus der Demo mit Zielgruppenauswahl und Empfehlung." width="100%">
+</a>
 
 </details>
 
+## Warum ein Betriebssystem
+
+Der Name ist eine Behauptung, also hier die Kriterien. Ein Betriebssystem erledigt sieben Aufgaben; jede Zeile
+ist ein Mechanismus, den du im Quellcode nachlesen kannst.
+
+| Ein Betriebssystem… | AgenticOS |
+|---|---|
+| **Führt Prozesse aus und isoliert sie** | Führt Agenten aus, isoliert Mandanten im Schema und speichert jede Ausführung mit ihren Kosten |
+| **Setzt Ressourcenlimits durch** | Monatliche Budgets pro Agent, geprüft *vor* jeder Modellanfrage |
+| **Steuert den Zugriff** | Ein [Berechtigungskatalog](docs/permissions.de.md) im Code, daraus zusammengesetzte Rollen, Freigaben pro Ressource; eine Freigabe ist das `sudo` |
+| **Spricht Hardware über Treiber an** | [27 Modellanbieter](docs/models.de.md) und [MCP-Server](docs/mcp.de.md) hinter einer Schnittstelle |
+| **Führt ein Dateisystem** | [Sammlungen, Skills und Context](docs/file-processing.de.md) in deinem eigenen Postgres |
+| **Gibt vielen Oberflächen eine Shell** | Ein Runner hinter Web-Chat, API, Slack, Telegram, Mattermost, Widget, gehosteter Seite und Zeitplan |
+| **Schreibt ein Audit-Log** | Wer was wann ausgeführt hat, was es gekostet hat und wer es freigegeben hat — auch wenn die Ausführung fehlschlug |
+
+Wende dieselben sieben auf alles andere in der Kategorie an, uns eingeschlossen:
+[was ein Betriebssystem für Agenten ausmacht](docs/about/index.de.md).
+
+## Warum es das gibt
+
+Die meisten Agent-Frameworks liefern eine Bibliothek. Du schreibst Python, deployst es, und jede Änderung am
+Verhalten eines Agenten ist ein Pull Request, ein Review und ein Release. Das ist die richtige Form für ein
+Produktfeature und die falsche für die vierzig kleinen Agenten, die ein Unternehmen tatsächlich will — denn wer
+weiß, was der Agent sagen soll, ist nicht die Person mit Commit-Rechten.
+
+**Code definiert, Konfiguration setzt zusammen.** Ein Fachteam baut Agenten im Browser zusammen und öffnet nie
+Python; Entwickler erweitern, was es zum Zusammensetzen gibt, und die Konfiguration erreicht nur, was der Code
+registriert hat. Die Obergrenze ist die Capability-Registry, keine Konfigurationsdatei.
+
+## KI-Arbeit im Team verankern
+
+Für einen wiederkehrenden Bericht kann das Team die Arbeit aufteilen:
+
+1. **Eine Fachperson legt die Methode fest:** Sie pflegt Anweisungen, Skills und das Quellwissen.
+2. **Eine Person aus dem Aufbau stellt den Agenten bereit:** Sie konfiguriert Werkzeuge, veröffentlicht eine Version und gibt Kollegen Zugriff.
+3. **Kollegen nutzen die Ergebnisse:** Sie starten den Agenten, prüfen das Ergebnis und teilen ein Artifact mit den Personen, die es brauchen.
+
+Agent und wiederverwendbares Wissen bleiben in der Organisation. Die Arbeit läuft im Browser;
+Entwickler können interne Systeme anbinden. [Teamzugriff einrichten](docs/permissions.de.md).
+
+## Betrieb, Modelle und Zugriff selbst kontrollieren
+
+**Auf deiner Infrastruktur betreiben.** AgenticOS ist Apache-2.0-Software, die du prüfen, ändern und betreiben kannst.
+Wähle gehostete Modellanbieter oder lokale Modelle über Ollama und kompatible Endpunkte wie vLLM.
+[Modellkonfiguration](docs/models.de.md).
+
+**Festlegen, was ein Agent darf.** Konfiguriere Ressourcenberechtigungen, speichere Zugangsdaten im verschlüsselten Vault
+und setze eine menschliche Freigabe vor Werkzeuge, die nach außen handeln. [Zugriffskontrolle](docs/permissions.de.md) · [Secrets](docs/secrets.de.md).
+
+**Arbeit und Ausgaben sehen.** Jede Ausführung behält ihre Werkzeugaufrufe und Kosten, und jedes Budget wird geprüft,
+bevor das Modell aufgerufen wird. [Ausführungs- und Kostenkontrolle](docs/governance.de.md).
+
+[Bereitstellen und betreiben](docs/rollout.de.md) · [Sicherheit und Datenflüsse](docs/security.de.md)
+
 ## Passt AgenticOS zu deinem Unternehmen?
 
-Wähle AgenticOS, wenn dein Unternehmen gemeinsame Agenten, Wissen und Automatisierung mit Kontrolle über
-Quellcode, Modelle und Betrieb benötigt. Dein Team betreibt die Installation; Vstorm kann bei Umsetzung
-und Support helfen. Wenn du nur eine Agentenbibliothek in einer bestehenden Anwendung benötigst, beginne
-mit einem Framework. Bei einem vollständig verwalteten Dienst gehört die Betriebsverantwortung in den Vergleich.
+Wähle AgenticOS, wenn dein Unternehmen gemeinsame Agenten, wiederverwendbares Wissen und Automatisierung will und dabei
+Quellcode, Modelle und Bereitstellung selbst kontrollieren möchte. Wenn du nur eine Agent-Bibliothek in einer
+bestehenden Anwendung brauchst, beginne mit einem Framework.
 
-Vergleiche den Ansatz mit [Dify](docs/about/dify.de.md), [Viktor](docs/about/viktor.de.md) und
-[Wonderful](docs/about/wonderful.de.md), oder nutze den [Vergleichsleitfaden](docs/about/comparison.de.md)
-für die Auswahl nach Aufgabe, Eigentum und erforderlichen Kontrollen.
+Jeder Vergleich zitiert die Seiten des Anbieters, zeigt, wo AgenticOS weiter geht, und nennt, was es noch nicht kann.
+
+- **Assistenz-Apps:** [Claude](docs/about/claude-apps.de.md) · [ChatGPT](docs/about/chatgpt.de.md). Lizenzen für Mitarbeitende oder Agenten, die deiner Organisation gehören, auf jedem Modell.
+- **Builder in Cloud-Suiten:** [Copilot Studio](docs/about/copilot-studio.de.md) · [Gemini Enterprise](docs/about/gemini-enterprise.de.md). Cloud und Abrechnung eines Anbieters oder deine Infrastruktur und die Preise deines Modellanbieters.
+- **Selbst gehostete Builder:** [Dify](docs/about/dify.de.md) · [n8n](docs/about/n8n.de.md). Lizenzbedingungen und Enterprise-Stufen oder Apache-2.0 mit Governance inklusive.
+- **KI-Kollege als Dienst:** [Viktor](docs/about/viktor.de.md). Ein gemeinsamer KI-Mitarbeiter oder viele Agenten mit eigenen Zugriffen und Budgets.
+- **Gelieferter Agent-Layer:** [Wonderful](docs/about/wonderful.de.md). Ein System, das ein Anbieter liefert, oder eines, das dir vom ersten Tag an gehört.
+- **Coding-Agenten:** [Claude Code](docs/about/claude-code.de.md) · [Codex](docs/about/codex.de.md) · [OpenCode](docs/about/opencode.de.md). Für Entwickler gebaut; AgenticOS ist für alle anderen, und Entwickler erweitern es.
+
+[Alle Vergleiche und die Lücken](docs/about/comparison.de.md).
 
 <details>
 <summary>Fragen zum Agent-Layer</summary>
 
 ### Ist AgenticOS ein AI Agent Harness?
 
-AgenticOS verbindet einen AI Agent Harness mit einer Teamoberfläche: Modellausführung, Werkzeuge,
-Skills, Kontext und Kontrollen werden im Browser konfiguriert. Entwickler ergänzen Fähigkeiten im Code;
-Teams konfigurieren und nutzen sie. Die [Architektur](docs/architecture.de.md) beschreibt die Ausführung.
+Ja, mit einer Oberfläche fürs Team. Der Harness ist die Schleife, die ein Modell mit Werkzeugen ausführt: Suche
+in deinen Dokumenten, Websuche und ein echter Browser, Python in einer Sandbox mit Dateien und Shell, Diagramme,
+Bilder, Delegation an Subagenten, eine Aufgabenliste und das Verdichten langer Unterhaltungen. Jede dieser Fähigkeiten
+schaltest du pro Agent im Browser ein, neben Skills, Context, MCP-Servern, Budgets und Freigaben. Entwickler fügen
+neue Fähigkeiten in typisiertem Python hinzu. Siehe die [Capability-Referenz](docs/reference/capabilities.de.md).
 
 ### Kann ich einen Agenten nach dem Vorbild von Claude Code für Geschäftsaufgaben erstellen?
 
-Du kannst einen Agenten für mehrstufige Arbeit mit Dateien, Werkzeugen und delegierten Aufgaben
-konfigurieren. Verfügbare Aktionen hängen von aktivierten Fähigkeiten und der Unterstützung
-durch das Modell ab. AgenticOS ist ein unabhängiges Projekt mit eigener Laufzeit und Modellwahl.
-Siehe den [Vergleich mit Claude Code](docs/about/claude-code.de.md).
+Ja. Gib einem Agenten eine Sandbox mit Dateien und Shell, Websuche, einen Browser, Delegation und eine Aufgabenliste,
+und hänge die nötigen Skills und den Context an. Er plant mehrstufige Arbeit, liest, bevor er handelt, bearbeitet Dateien,
+führt Befehle aus, gibt Teile an Spezialisten ab und prüft das Ergebnis. Er antwortet im Web-Chat, in Slack oder über
+die API, auf dem Modell deiner Wahl, mit Freigabe vor allem, was nach außen handelt. Siehe den
+[Vergleich mit Claude Code](docs/about/claude-code.de.md).
 
 ### Was können Kollegen gemeinsam nutzen?
 
-Teams können Agenten, Skills, Kontext, Wissenssammlungen und Artifacts gemäß den Ressourcenrechten teilen.
-Ein gemeinsamer Agent kann verschiedene Personen unterstützen; ein geteiltes Artifact macht ein Ergebnis
-außerhalb des Chats zugänglich.
+Teams können Agenten, Skills, Context, Wissenssammlungen und Artifacts gemäß den Ressourcenberechtigungen teilen.
+Ein gemeinsamer Agent kann verschiedenen Personen dienen; ein geteiltes Artifact gibt Kollegen ein Ergebnis,
+das sie außerhalb des Chats öffnen können.
 
 </details>
 
+## Auf dem Desktop, wenn du willst
+
+Die Konsole ist eine Web-App, und ein Browser genügt. Die optionale [Desktop-App](docs/desktop.de.md)
+ist dieselbe Konsole in einem eigenen Fenster, mit einem Maskottchen auf dem Desktop und einem globalen Kürzel (`⌘⇧A`),
+das einen beliebigen Bildschirmbereich direkt in einen neuen Chat aufnimmt.
+
 ## Für Entwickler und Betreiber
 
-AgenticOS basiert auf FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis, Prefect und Next.js.
-Die Agentenkonfiguration wählt registrierte Fähigkeiten aus; Entwickler erweitern diese im Code.
+Gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis, Prefect und Next.js.
+Die Agentenkonfiguration wählt Fähigkeiten aus, die in der Laufzeit registriert sind; Entwickler erweitern sie im Code.
 
-| Einstieg | Inhalt |
+| Hier anfangen | Inhalt |
 |---|---|
 | [Architektur](docs/architecture.de.md) | Dienste, Speicherung und Ausführung |
-| [Fähigkeiten](docs/reference/capabilities.de.md) | Verfügbare Werkzeuge und Konfiguration |
-| [API](docs/api.de.md) | Integration mit deinen Anwendungen |
+| [Capabilities](docs/reference/capabilities.de.md) | Verfügbare Werkzeuge und Konfiguration |
+| [API](docs/api.de.md) | Integration in deine Anwendungen |
 | [Modelle](docs/models.de.md) | Modellanbieter und Profile |
-| [Sicherheit](docs/security.de.md) | Datenflüsse und Systemgrenzen |
-| [Tests](docs/testing.de.md) | Testsuiten und Umfang der Abdeckung |
+| [Sicherheit](docs/security.de.md) | Datenflüsse und Grenzen der Bereitstellung |
+| [Tests](docs/testing.de.md) | Testsuiten und Abdeckungsumfang |
 
-Beiträge sind willkommen. [Mitwirken](CONTRIBUTING.de.md) beschreibt Einrichtung und erforderliche Prüfungen;
-die [Roadmap](docs/ROADMAP.md) zeigt geplante Arbeiten.
+`make check` vor einem Pull Request: jeder CI-Job außer e2e. Neues Verhalten kommt mit einem Test; ein Bugfix
+mit einem Regressionstest. Der Kern hält 100 % Abdeckung, und CI schlägt darunter fehl.
 
-## Lizenz und Support
+Drei Dinge, über die eine erste Änderung stolpert: Ein Werkzeug ist Code, ein Agent nicht (es gibt kein
+`@agent.tool` — eine Capability registriert sich und ist dann ein Schalter in jedem Builder);
+`require(...)`-Gates gehören nur auf Collection-Routen; und wenn das Werkzeug schon als MCP-Server existiert,
+schreib keins. [Mitwirken](CONTRIBUTING.de.md) beschreibt den Rest, [`.claude/`](.claude/README.md) enthält
+dieselben Konventionen für eine Maschine, die [Roadmap](docs/ROADMAP.md) zeigt geplante Arbeit, und Einstiegsaufgaben
+sind [hier markiert](https://github.com/vstorm-co/agenticos/labels/good%20first%20issue).
 
-[Apache License 2.0](LICENSE). Siehe [NOTICE](NOTICE) und [Hinweise zu Drittanbieterkomponenten](THIRD_PARTY_NOTICES.md)
-für Urheberhinweise und enthaltene Komponenten.
+<details>
+<summary><b>Das übrige Vstorm-OSS-Ökosystem</b></summary>
+
+Alles hier läuft auf [Pydantic AI](https://ai.pydantic.dev).
+
+| Projekt | Was es ist | |
+|---|---|---|
+| **[full-stack-ai-agent-template](https://github.com/vstorm-co/full-stack-ai-agent-template)** | Der Generator, aus dem AgenticOS entstand — FastAPI + Next.js, RAG, Streaming, Auth, 20+ Integrationen | [![Stars](https://img.shields.io/github/stars/vstorm-co/full-stack-ai-agent-template?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/full-stack-ai-agent-template) |
+| **[pydantic-deepagents](https://github.com/vstorm-co/pydantic-deepagents)** | Quelloffenes, selbst gehostetes Claude Code — ein Terminal-Assistent und das Framework dahinter | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-deepagents?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-deepagents) |
+| **[pydantic-ai-shields](https://github.com/vstorm-co/pydantic-ai-shields)** | Guardrails — Kostenverfolgung, Erkennung von Prompt Injection, PII-Filter, Schwärzen von Secrets | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-shields?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-shields) |
+| **[subagents-pydantic-ai](https://github.com/vstorm-co/subagents-pydantic-ai)** | Verschachtelte Delegation an Subagenten, parallele Ausführung, Abbruch von Aufgaben | [![Stars](https://img.shields.io/github/stars/vstorm-co/subagents-pydantic-ai?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/subagents-pydantic-ai) |
+| **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** | Dateispeicher und in Docker isolierte Sandboxes, mit Berechtigungssystem | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-backend?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-backend) |
+| **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** | Hierarchische Aufgabenplanung mit PostgreSQL-Speicher und Ereignissystem | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-todo?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-todo) |
+| **[production-stack-skills](https://github.com/vstorm-co/production-stack-skills)** | Skill-Paket, das einen Coding-Agenten zu einem erfahrenen Produktionsingenieur macht | [![Stars](https://img.shields.io/github/stars/vstorm-co/production-stack-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/production-stack-skills) |
+| **[content-skills](https://github.com/vstorm-co/content-skills)** | Skill-Paket für Inhalte mit Coding-Agenten — markenbewusst, mit eingebautem Anti-Slop | [![Stars](https://img.shields.io/github/stars/vstorm-co/content-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/content-skills) |
+
+Alle Projekte findest du auf **[oss.vstorm.co](https://oss.vstorm.co)**.
+
+</details>
+
+## Lizenz
+
+[Apache License 2.0](LICENSE). Siehe [NOTICE](NOTICE) und die [Hinweise zu Drittkomponenten](THIRD_PARTY_NOTICES.md)
+für Namensnennungen und enthaltene Komponenten.
 
 ## Brauchst du Hilfe beim produktiven Einsatz von Agenten?
 
-Vstorm kann AgenticOS in der Infrastruktur des Kunden bereitstellen, Dokumentation erstellen, Prozesse definieren und individuelle Komponenten entwickeln. Wartung und Support werden für das jeweilige Projekt vereinbart.
+Vstorm stellt AgenticOS in der Infrastruktur von Kunden bereit, schreibt die Dokumentation, definiert die Prozesse
+und baut eigene Capabilities. Wartung und Support werden pro Auftrag vereinbart.
 
-Mit Sorgfalt entwickelt von [**Vstorm**](https://vstorm.co) · [oss.vstorm.co](https://oss.vstorm.co)
+Mit Sorgfalt gebaut von [**Vstorm**](https://vstorm.co) · [oss.vstorm.co](https://oss.vstorm.co)
