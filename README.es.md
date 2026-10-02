@@ -1,4 +1,4 @@
-<!-- source_sha: b4a163cbb989 -->
+<!-- source_sha: 49d79991622a -->
 
 <div align="center">
 
@@ -6,7 +6,8 @@
 
 <p>
   <b>Pon la IA a trabajar en tu empresa.</b><br>
-  La capa de agentes de código abierto para compartir agentes, conocimiento y automatización — en infraestructura que tú controlas.
+  <strong>Sovereign Agentic AI Layer</strong><br>
+  Código abierto. Agentes compartidos, conocimiento y automatización — en infraestructura que tú controlas.
 </p>
 
 <p>
@@ -349,6 +350,8 @@ El agente y su know-how pertenecen a la organización, no a quien escribió el p
 [Configura el acceso del equipo](docs/permissions.es.md).
 
 ## Controla tu despliegue, modelos y acceso
+
+**Soberanía significa controlar el despliegue, los proveedores de modelos, los flujos de datos y el acceso de los agentes.** Tú eliges qué componentes se ejecutan localmente y qué servicios externos reciben datos.
 
 **Ejecútalo en tu infraestructura.** AgenticOS es software Apache-2.0 que puedes revisar, modificar y operar.
 Elige proveedores de modelos alojados o modelos locales mediante Ollama y endpoints compatibles como vLLM.

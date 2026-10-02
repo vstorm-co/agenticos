@@ -4,7 +4,8 @@
 
 <p>
   <b>Put AI to work across your company.</b><br>
-  The open-source agent layer for shared agents, company knowledge and automation — on infrastructure you control.
+  <strong>Sovereign Agentic AI Layer</strong><br>
+  Open source. Shared agents, company knowledge and automation — on infrastructure you control.
 </p>
 
 <p>
@@ -347,6 +348,8 @@ The agent and its know-how belong to the organization, not to whoever wrote the 
 [Set up team access](docs/permissions.md).
 
 ## Own your deployment, models and access
+
+**Sovereign means control over your deployment, model providers, data flows and agent access.** Choose which components run locally and which external services receive data.
 
 **Run it on your infrastructure.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
 Choose hosted model providers or local models through Ollama and compatible endpoints such as vLLM.

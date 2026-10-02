@@ -1,4 +1,4 @@
-<!-- source_sha: b4a163cbb989 -->
+<!-- source_sha: 49d79991622a -->
 
 <div align="center">
 
@@ -6,7 +6,8 @@
 
 <p>
   <b>Lass KI in deinem Unternehmen mitarbeiten.</b><br>
-  Der Open-Source-Agent-Layer für gemeinsame Agenten, Unternehmenswissen und Automatisierung — auf Infrastruktur, die du kontrollierst.
+  <strong>Sovereign Agentic AI Layer</strong><br>
+  Open Source. Gemeinsame Agenten, Unternehmenswissen und Automatisierung — auf Infrastruktur, die du kontrollierst.
 </p>
 
 <p>
@@ -350,6 +351,8 @@ Der Agent und sein Know-how gehören der Organisation, nicht der Person, die den
 [Teamzugriff einrichten](docs/permissions.de.md).
 
 ## Betrieb, Modelle und Zugriff selbst kontrollieren
+
+**Souveränität bedeutet Kontrolle über Bereitstellung, Modellanbieter, Datenflüsse und Agentenzugriff.** Du wählst, welche Komponenten lokal laufen und welche externen Dienste Daten erhalten.
 
 **Auf deiner Infrastruktur betreiben.** AgenticOS ist Apache-2.0-Software, die du prüfen, ändern und betreiben kannst.
 Wähle gehostete Modellanbieter oder lokale Modelle über Ollama und kompatible Endpunkte wie vLLM.

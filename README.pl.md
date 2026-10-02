@@ -1,4 +1,4 @@
-<!-- source_sha: b4a163cbb989 -->
+<!-- source_sha: 49d79991622a -->
 
 <div align="center">
 
@@ -6,7 +6,8 @@
 
 <p>
   <b>Daj agentom AI pracę w swojej firmie.</b><br>
-  Otwarta warstwa agentów AI: wspólni agenci, wiedza firmowa i automatyzacja — na infrastrukturze, którą kontrolujesz.
+  <strong>Sovereign Agentic AI Layer</strong><br>
+  Open source. Wspólni agenci, wiedza firmowa i automatyzacja — na infrastrukturze, którą kontrolujesz.
 </p>
 
 <p>
@@ -350,6 +351,8 @@ Agent i jego know-how należą do organizacji, a nie do osoby, która napisała 
 [Skonfiguruj dostęp zespołu](docs/permissions.pl.md).
 
 ## Kontroluj wdrożenie, modele i dostęp
+
+**Suwerenność oznacza kontrolę nad wdrożeniem, dostawcami modeli, przepływem danych i dostępem agentów.** Wybierasz, które komponenty działają lokalnie i do których usług zewnętrznych trafiają dane.
 
 **Uruchamiaj na własnej infrastrukturze.** Kod AgenticOS na licencji Apache-2.0 możesz przeglądać,
 modyfikować i utrzymywać. Wybierz dostawcę modeli w chmurze lub modele lokalne przez Ollama

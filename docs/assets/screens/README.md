@@ -69,7 +69,9 @@ Earlier assets remain recoverable from Git history; do not reuse them for the re
 
 ## Placement and positioning
 
-The README leads with the open-source agent layer for companies: shared agents, knowledge,
+The README positions AgenticOS as the “Sovereign Agentic AI Layer”, retaining this exact category
+name in every language. Sovereignty means control over deployment, models, data flows and access.
+The company benefits remain shared agents, knowledge,
 automation and control over deployment and models. Use AI agent harness and Claude Code-like
 only where they explain the execution model or a concrete example. Do not label the product a platform
 or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
