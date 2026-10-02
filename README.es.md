@@ -1,4 +1,4 @@
-<!-- source_sha: 5a178ecb1588 -->
+<!-- source_sha: 846acb8e8674 -->
 
 <div align="center">
 
@@ -57,8 +57,7 @@ En Windows, ejecuta el mismo comando dentro de WSL2 con la integración de WSL2 
 El instalador pregunta por el proveedor de modelos y su clave, tu usuario y el nombre de la organización, descarga
 las imágenes publicadas y arranca un despliegue con un agente que ya funciona.
 
-Abre **http://localhost:3000** e inicia sesión con el usuario que elegiste. Con los valores por defecto es
-`admin@example.com` / `admin123`.
+Abre **http://localhost:3000** e inicia sesión con el usuario que elegiste durante la instalación.
 
 ### Crea un asistente a partir de un documento
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 5a178ecb1588 -->
+<!-- source_sha: 846acb8e8674 -->
 
 <div align="center">
 
@@ -57,8 +57,7 @@ Na Windows uruchom tę samą komendę w WSL2 z włączoną integracją WSL2 w Do
 Instalator pyta o dostawcę modelu i klucz, login oraz nazwę organizacji, pobiera opublikowane obrazy
 i uruchamia wdrożenie z działającym agentem.
 
-Otwórz **http://localhost:3000** i zaloguj się wybranym loginem. Przy wartościach domyślnych
-to `admin@example.com` / `admin123`.
+Otwórz **http://localhost:3000** i zaloguj się loginem wybranym podczas instalacji.
 
 ### Zbuduj asystenta na podstawie dokumentu
 

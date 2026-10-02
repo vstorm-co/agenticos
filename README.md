@@ -55,8 +55,7 @@ On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integrat
 The installer asks for a model provider and key, your login and an organization name, pulls the
 published images and starts a deployment with a working agent in it.
 
-Open **http://localhost:3000** and sign in with the login you chose. If you accepted the defaults,
-that is `admin@example.com` / `admin123`.
+Open **http://localhost:3000** and sign in with the login you chose during installation.
 
 ### Build an assistant from a document
 

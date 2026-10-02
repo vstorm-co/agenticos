@@ -1,4 +1,4 @@
-<!-- source_sha: 5a178ecb1588 -->
+<!-- source_sha: 846acb8e8674 -->
 
 <div align="center">
 
@@ -57,8 +57,7 @@ Unter Windows führst du denselben Befehl in WSL2 aus, mit eingeschalteter WSL2-
 Der Installer fragt nach Modellanbieter und Schlüssel, deinem Login und dem Namen der Organisation, lädt die
 veröffentlichten Images und startet eine Bereitstellung mit einem funktionierenden Agenten.
 
-Öffne **http://localhost:3000** und melde dich mit dem gewählten Login an. Mit den Standardwerten ist das
-`admin@example.com` / `admin123`.
+Öffne **http://localhost:3000** und melde dich mit dem bei der Installation gewählten Login an.
 
 ### Erstelle einen Assistenten auf Basis eines Dokuments
 
