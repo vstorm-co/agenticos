@@ -33,6 +33,10 @@
 
 AgenticOS is a self-hosted workspace for building and running shared AI agents. Give an agent a task, connect company documents and tools, and publish it for your team. Engineers extend its capabilities; domain experts maintain its instructions and knowledge.
 
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder showing instructions, model selection and a published version." width="100%">
+</a>
+
 ## Give your team a shared way to work
 
 An equipment-policy assistant needs someone who knows the policy, someone who configures the agent and colleagues who can use it. AgenticOS gives each of them a part in the same workflow:
@@ -42,6 +46,140 @@ An equipment-policy assistant needs someone who knows the policy, someone who co
 3. **Colleagues use and check it:** ask questions, review sources and share results. Operators inspect runs in Activity.
 
 Changes to instructions and knowledge happen in the console. New capabilities are added in Python. [How to build an agent](docs/first-agent.md) · [Team access](docs/permissions.md).
+
+## Quick start
+
+All it needs is Docker with Compose. On macOS or Linux, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+```
+
+On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on.
+The installer asks for a model provider and key, your login and an organization name, pulls the
+published images and starts a deployment with a working agent in it.
+
+Open **http://localhost:3000** and sign in with the login you chose during installation.
+
+### Build an assistant from a document
+
+Start with the [equipment-policy walkthrough](docs/howto/first-document-agent.md). It includes a tiny fictional handbook, setup steps and a recorded test with its limitations. You need an embedding model for document search as well as the chat model.
+
+<details>
+<summary>Follow the document-assistant exercise</summary>
+
+1. Save the two lines below as `equipment-handbook.md` and upload it to a knowledge collection. Configure embeddings and wait for processing.
+2. Create an agent, select its model and enable knowledge search for that collection. Instruct it to cite the handbook and say when an answer is missing. Publish the agent.
+3. Ask the questions below in fresh conversations, then inspect the retrieved material and run in **Activity**.
+
+```text
+Equipment requests go to the office manager.
+Include the item, reason and delivery location.
+```
+
+| Ask | Check against the source |
+|---|---|
+| Who handles an equipment request? | The office manager, with a citation to the handbook |
+| Which details should an equipment request include? | Item, reason and delivery location |
+| How much can I spend? | The spending allowance is not stated |
+
+Then follow the guide to replace the document with an updated policy and test a fresh conversation. Once the answers check out, grant a colleague access to the agent and the required resources, and have them try it from their own account. [Configure access](docs/permissions.md) before using private documents.
+
+The guide records a test on **v0.0.504, 25 September 2026**, including a retry and the answer after a document update. Treat it as a reproducible example; check your own model's answers against the source.
+
+</details>
+
+<details>
+<summary>Only checking the installation? Try a task without document setup</summary>
+
+In **Chat**, select **Getting Started** and paste this fictional brief. It needs nothing connected
+to Notion or GitHub.
+
+```text
+Turn this brief into a launch checklist. Use only the facts below.
+For each task, show the owner, deadline and missing information.
+Do not invent dates or responsibilities.
+
+Brief:
+- The customer webinar is on 15 October.
+- Maya owns the landing page; it must be ready by 8 October.
+- Leo owns the demo, but its review date is undecided.
+- Someone needs to send invitations by 10 October; no owner is assigned.
+```
+
+**Check the result:** the landing page should have Maya and 8 October; the demo should flag
+its missing review date; invitations should flag the missing owner. Then open **Activity**: the run is
+already there, with its model, tokens, duration and cost. Next, try your own brief or
+[configure an agent with tools and company knowledge](docs/first-agent.md).
+
+</details>
+
+<details>
+<summary>Inspect the installer or deploy another way</summary>
+
+Read the [installer](scripts/quickstart.sh) before running it. To check prerequisites without installing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- --check
+```
+
+For manual Docker Compose setup, pinned versions and troubleshooting, follow the [installation guide](docs/install.md).
+For development from source, see [Contributing](CONTRIBUTING.md).
+
+</details>
+
+## Build, share and operate
+
+### Configure the work once
+
+Choose the model, instructions and tools in the browser. Publish a version for colleagues to use; earlier versions remain available for inspection and rollback.
+
+[Knowledge bases](docs/file-processing.md) supply searchable documents. [Skills](docs/skills.md) hold reusable procedures; [context](docs/context.md) holds shared facts and guidelines. Update these resources as the work changes.
+
+Connect tools such as **GitHub, Notion, HubSpot or Linear** through [MCP](docs/mcp.md). The catalog combines curated connections with **5,700+ MCP server listings** mirrored from a registry. Registry entries are publisher-provided metadata, not tested integrations. Each connection needs its own setup and access review.
+
+### Make the agent and its results available
+
+Colleagues can use a published agent in web chat or through configured **Slack, Mattermost and Telegram** channels. Developers can call it through the API. [Connect a channel](docs/channels.md).
+
+Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates to the same artifact keep its link and earlier versions remain readable. [Share an artifact](docs/artifacts.md).
+
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports, access settings and versions." width="100%">
+</a>
+
+### Inspect runs and repeat useful work
+
+**Activity** brings run history, approvals and recorded spend together. Inspect tool calls, compare agent versions and export records. Some costs depend on provider usage and pricing data; external services can bill separately. [Read the accounting limits](docs/governance.md).
+
+<a href="docs/assets/screens/light/activity.webp">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity with version comparisons and run history, including a pending approval." width="100%">
+</a>
+
+Configure approval requirements for supported capability tools. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. Approval coverage depends on the tool and execution mode; enabling a connection alone does not require approval. [Approval modes and limits](docs/governance.md#how-much-one-conversation-wants-to-be-asked).
+
+When a task is ready to repeat, use [routines](docs/triggers.md) to run an agent on a schedule or an event. Test its tools, limits and approval policy before leaving it unattended.
+
+## Recorded integration example
+
+This demo shows a Notion brief becoming a sourced, interactive page after GitHub research. It uses Vstorm's own open-source projects as sample material: the useful sequence is **brief → research → shared result**. It is a product demonstration, not a customer outcome study.
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
+
+<details>
+<summary>Video not loading? Open the animated preview</summary>
+
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
+  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</a>
+
+*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
+
+</details>
+
+[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
 ## Connect the apps your team already uses
 
@@ -99,139 +237,6 @@ Bring documents, messages and work tools into your agents. Select an app below f
 **Conversations.** Let colleagues use a published agent in Slack, Mattermost or Telegram after configuring its channel.
 
 <sub>Google Drive is a trademark of Google LLC. App names and logos identify connection options, not partnerships. [Logo sources](docs/assets/integrations/ATTRIBUTION.txt).</sub>
-
-## Quick start
-
-All it needs is Docker with Compose. On macOS or Linux, run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
-```
-
-On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on.
-The installer asks for a model provider and key, your login and an organization name, pulls the
-published images and starts a deployment with a working agent in it.
-
-Open **http://localhost:3000** and sign in with the login you chose during installation.
-
-### Build an assistant from a document
-
-Start with the [equipment-policy walkthrough](docs/howto/first-document-agent.md). It includes a tiny fictional handbook, setup steps and a recorded test with its limitations. You need an embedding model for document search as well as the chat model.
-
-1. Save the two lines below as `equipment-handbook.md` and upload it to a knowledge collection. Configure embeddings and wait for processing.
-2. Create an agent, select its model and enable knowledge search for that collection. Instruct it to cite the handbook and say when an answer is missing. Publish the agent.
-3. Ask the questions below in fresh conversations, then inspect the retrieved material and run in **Activity**.
-
-```text
-Equipment requests go to the office manager.
-Include the item, reason and delivery location.
-```
-
-| Ask | Check against the source |
-|---|---|
-| Who handles an equipment request? | The office manager, with a citation to the handbook |
-| Which details should an equipment request include? | Item, reason and delivery location |
-| How much can I spend? | The spending allowance is not stated |
-
-Then follow the guide to replace the document with an updated policy and test a fresh conversation. Once the answers check out, grant a colleague access to the agent and the required resources, and have them try it from their own account. [Configure access](docs/permissions.md) before using private documents.
-
-The guide records a test on **v0.0.504, 25 September 2026**, including a retry and the answer after a document update. Treat it as a reproducible example; check your own model's answers against the source.
-
-<details>
-<summary>Only checking the installation? Try a task without document setup</summary>
-
-In **Chat**, select **Getting Started** and paste this fictional brief. It needs nothing connected
-to Notion or GitHub.
-
-```text
-Turn this brief into a launch checklist. Use only the facts below.
-For each task, show the owner, deadline and missing information.
-Do not invent dates or responsibilities.
-
-Brief:
-- The customer webinar is on 15 October.
-- Maya owns the landing page; it must be ready by 8 October.
-- Leo owns the demo, but its review date is undecided.
-- Someone needs to send invitations by 10 October; no owner is assigned.
-```
-
-**Check the result:** the landing page should have Maya and 8 October; the demo should flag
-its missing review date; invitations should flag the missing owner. Then open **Activity**: the run is
-already there, with its model, tokens, duration and cost. Next, try your own brief or
-[configure an agent with tools and company knowledge](docs/first-agent.md).
-
-</details>
-
-<details>
-<summary>Inspect the installer or deploy another way</summary>
-
-Read the [installer](scripts/quickstart.sh) before running it. To check prerequisites without installing:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- --check
-```
-
-For manual Docker Compose setup, pinned versions and troubleshooting, follow the [installation guide](docs/install.md).
-For development from source, see [Contributing](CONTRIBUTING.md).
-
-</details>
-
-## Recorded integration example
-
-This demo shows a Notion brief becoming a sourced, interactive page after GitHub research. It uses Vstorm's own open-source projects as sample material: the useful sequence is **brief → research → shared result**. It is a product demonstration, not a customer outcome study.
-
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
-
-<details>
-<summary>Video not loading? Open the animated preview</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</a>
-
-*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
-
-</details>
-
-[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
-
-## Build, share and operate
-
-### Configure the work once
-
-Choose the model, instructions and tools in the browser. Publish a version for colleagues to use; earlier versions remain available for inspection and rollback.
-
-[Knowledge bases](docs/file-processing.md) supply searchable documents. [Skills](docs/skills.md) hold reusable procedures; [context](docs/context.md) holds shared facts and guidelines. Update these resources as the work changes.
-
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder showing instructions, model selection and a published version." width="100%">
-</a>
-
-Connect tools such as **GitHub, Notion, HubSpot or Linear** through [MCP](docs/mcp.md). The catalog combines curated connections with **5,700+ MCP server listings** mirrored from a registry. Registry entries are publisher-provided metadata, not tested integrations. Each connection needs its own setup and access review.
-
-### Make the agent and its results available
-
-Colleagues can use a published agent in web chat or through configured **Slack, Mattermost and Telegram** channels. Developers can call it through the API. [Connect a channel](docs/channels.md).
-
-Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates to the same artifact keep its link and earlier versions remain readable. [Share an artifact](docs/artifacts.md).
-
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports, access settings and versions." width="100%">
-</a>
-
-### Inspect runs and repeat useful work
-
-**Activity** brings run history, approvals and recorded spend together. Inspect tool calls, compare agent versions and export records. Some costs depend on provider usage and pricing data; external services can bill separately. [Read the accounting limits](docs/governance.md).
-
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity with version comparisons and run history, including a pending approval." width="100%">
-</a>
-
-Configure approval requirements for supported capability tools. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. Approval coverage depends on the tool and execution mode; enabling a connection alone does not require approval. [Approval modes and limits](docs/governance.md#how-much-one-conversation-wants-to-be-asked).
-
-When a task is ready to repeat, use [routines](docs/triggers.md) to run an agent on a schedule or an event. Test its tools, limits and approval policy before leaving it unattended.
 
 ## Is AgenticOS the right fit?
 
