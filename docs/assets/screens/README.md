@@ -1,154 +1,97 @@
 # README media and capture inventory
 
-## Original demo source
+## Current README captures
 
-- Video: https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953
-- Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5937226436
-- Poster: `oss-launch-planner-poster.webp`, extracted at 24 seconds from the user-provided edited demo.
-- Content: the Claude Code like agent prepares the OSS Launch Planner, the user changes its audience selection and creates a sharing link.
-- The video is edited: waiting time is removed. Repository metrics are a snapshot, not live data.
+Captured from the authenticated AgenticOS test deployment on 2 October 2026 using
+Chromium through Playwright. Every current README screenshot is a native **3200 × 2000
+PNG** from a **1600 × 1000 CSS-pixel viewport at device scale factor 2**. The application
+uses its light theme and expanded navigation. The organization-selection reminder is dismissed.
+The authored OSS Launch Planner retains its own dark styling.
 
-The four root READMEs share the shortened demo and animated preview described below. Upcoming screenshots are visibly marked as
-placeholders rather than using old UI captures or missing image paths. Each slot has a stable HTML
-comment (`MEDIA: <id>`) to find it across translations. Capture light-mode views with expanded navigation, then replace the corresponding blockquote
-with a linked screenshot. Keep the UI and displayed data unchanged.
+The PNGs are lossless browser captures: no upscaling, recomposition, generated UI or text
+replacement. All fourteen files are below the repository's 1 MiB per-file limit. Open the linked
+images in the README to inspect them at full resolution. `readme-captures.json` records paths,
+dimensions, byte sizes, hashes and capture states.
 
-| Slot | Capture |
+| File in `light/` | View and preparation |
 |---|---|
-| `agent-builder` | Complete: demo agent instructions, selected model, current published version (v6) |
-| `skills` | Complete: library and the artifact-pages procedure with instructions and templates |
-| `context` | Complete: library and glossary content with linked mode for on-demand reading |
-| `knowledge-bases` | Complete: personal and organization collections |
-| `knowledge-collection` | Complete: vstorm collection with document name, processing status and chunk count |
-| `mcp-connections` | Complete: connected server catalog including GitHub and Notion; no credentials shown |
-| `artifacts` | Complete: library and the OSS Launch Planner from the demo |
-| `activity` | Complete: filtered run history and agent version comparison; status, tokens, duration and recorded cost |
-| `run-detail` | The demo execution, tool calls and recorded cost |
-| `approval` | Complete: actual pending execute action and decision controls |
-| `routines` | Complete: existing weekly schedule editor, Monday at 06:00 UTC, message in Preview |
+| `agent-builder.png` | Claude Code like agent, published v6, Build tab, instructions in Source and model selection visible |
+| `chat.png` | User-selected existing sales CSV conversation; regional revenue chart and analysis; conversation list collapsed |
+| `sandboxes.png` | Existing container-service connections and runtime selections; vault values are not exposed |
+| `agents.png` | Existing agent catalog with descriptions and version states |
+| `skills.png` | Design, Engineering, Finance and Research selected; six matching skills |
+| `context-detail.png` | Existing Glossary open in Preview, enabled, linked for on-demand reading |
+| `knowledge-collection.png` | User-selected vstorm collection, completed document with parser and chunk count |
+| `artifact-detail.png` | Existing OSS Launch Planner v2; authored interactive page and sharing controls |
+| `artifacts.png` | Existing library with previews, versions and visibility |
+| `dashboard.png` | Saved custom layout: blue Usage & cost section, compact summary, bars for run trends and wider outcomes widget |
+| `activity.png` | Existing last-30-days run history, statuses, tokens and recorded costs |
+| `groups.png` | New empty Engineering, Finance, Operations and Research groups, alongside the pre-existing test group |
+| `members.png` | Organization scrolled to its members and assigned roles |
+| `roles.png` | Existing permission matrix, including all six built-in roles |
 
-Ten screenshot slots are complete; `run-detail` remains pending.
+The dashboard layout and four example groups were saved through the application UI at the
+user's request. Group descriptions explain departmental uses; no members or resource grants
+were added. The chat composer selects Claude Code like for the next message. No message was
+sent, agent run started, agent specification published or access policy changed for these captures.
+The displayed metrics and results are existing test-deployment records, not a benchmark.
 
-## Previous capture provenance
+Directory mappings were inspected but not configured. That empty view is described in README
+text rather than added as another screenshot. It maps external directory groups to an organization
+role and optional local group at sign-in; it is not a department directory.
 
-The following records describe earlier captures. The light-mode refresh below supersedes their
-dimensions and sidebar states for the eleven replaced light images; dark alternates are unchanged.
-The pair was supplied on 2026-10-01 at 110% browser zoom with the sidebar collapsed,
-and stored as lossless WebP at the original 3502 × 2000 resolution.
-Files: `light/agent-builder.webp` and `dark/agent-builder.webp`. The poster is a frame from the supplied video, not a new UI capture.
-The Skills captures were supplied on 2026-10-01 and stored as lossless WebP at
-3502 × 2000: `light/skills.webp`, `dark/skills.webp`, `light/skill-detail.webp`
-and `dark/skill-detail.webp`. They show the library and the artifact-pages procedure in Preview.
+Authentication state and temporary capture tooling stay outside the repository. No password,
+session token or browser storage is part of the media bundle.
 
-The Context captures were supplied on 2026-10-01 and stored as lossless WebP at
-3502 × 2000: `light/context.webp`, `dark/context.webp`, `light/context-detail.webp`
-and `dark/context-detail.webp`. They show the library and the Glossary file in Preview,
-with linked mode and the enabled setting visible.
+## Earlier captures
 
-The knowledge captures were supplied on 2026-10-01 and stored as lossless WebP at
-3502 × 2000: `light/knowledge-bases.webp`, `dark/knowledge-bases.webp`,
-`light/knowledge-collection.webp` and `dark/knowledge-collection.webp`. They show
-the collection list and the vstorm document list with a completed processing status.
+Earlier captures mixed original 3502 × 2000 screenshots, 1751 × 1000 captures and a later
+1600 × 1000 refresh. Some browser-tool output was scaled JPEG before conversion to WebP;
+lossless WebP encoding cannot restore detail lost in that source. The current PNG captures
+replace the README references rather than enlarging those files.
 
-The MCP, Artifacts and Approval pairs were captured from the authenticated application on
-2026-10-02 at 1751 × 1000, with the sidebar collapsed, and encoded as lossless WebP without
-resizing or altering the UI. Files in both theme directories: `mcp-connections.webp`,
-`artifacts.webp`, `artifact-detail.webp`, `approval.webp`.
+Existing light/dark WebP assets remain historical media. The README uses the fourteen PNGs
+above in both GitHub themes. Dark alternates and additional earlier views were not recaptured
+in this revision. Documentation and presentation placeholders are outside this capture refresh.
 
-The MCP view shows connected servers, not the tools enabled for a particular agent.
-The OSS Launch Planner keeps its own dark styling in both application themes; its data is
-explicitly labeled as a 1 October snapshot. Approval shows a real pending action; no approval
-or rejection was performed to prepare the capture. Narrow preliminary captures are not committed.
+## Recorded integration example
 
-The Routines capture shows configuration of an existing schedule, not a completed execution or result.
-It contains the generic reconciliation procedure; no schedule was saved or run for the screenshot.
+- Original recording: https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953
+- Original upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5937226436
+- Current shortened recording: https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512
+- Current upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5942800375
+- Static poster: `oss-launch-planner-poster.webp`, extracted at 24 seconds from the supplied edited demo.
 
-Previous UI screenshots, the old CSV demo and its poster/animation were removed from the repository.
-The documentation and presentation use explicit placeholders until new captures are ready.
-Earlier assets remain recoverable from Git history; do not reuse them for the refreshed interface.
+The recording shows a Notion brief becoming the OSS Launch Planner after GitHub research,
+then audience selection and sharing. It uses Vstorm projects as demonstration material; the
+repository metrics are a dated snapshot, not a live feed or customer outcome study.
 
-## Placement and positioning
+The shortened cut retains source 00:00–00:30 and 00:39–00:46.466667: 37.466667 seconds total.
+Audio has 30 ms fades around the cut. The local `oss-launch-planner-demo.mp4` derivative is
+960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The README embeds the uploaded shortened
+attachment and keeps direct video and static-poster links. There is **no expandable GIF fallback**.
+Historical GIF files are not displayed by the README.
 
-The README positions AgenticOS as the “Sovereign Agentic AI Layer”, retaining this exact category
-name in every language. Sovereignty means control over deployment, models, data flows and access.
-The company benefits remain shared agents, knowledge,
-automation and control over deployment and models. Use AI agent harness and Claude Code-like
-only where they explain the execution model or a concrete example. Do not label the product a platform
-or imply live multiplayer sessions, absolute data isolation, model parity or guaranteed search rankings.
+Earlier validation covered full MP4 decoding, duration and sampled frames around the cut.
+Full-speed listening and physical mobile-device playback were not verified. This screenshot
+refresh does not alter or re-record the video.
 
-The main reading path shows the demo followed by a visible feature table. Results, the MCP catalog, company knowledge and Activity
-use full-width screenshots, interleaved with compact text-and-image rows for configuration, skills
-and context. Approvals and routines close the gallery as compact rows. Additional library and collection views and the pending run-detail
-capture sit in a collapsed supplement. The Routines row shows the existing weekly schedule editor. Team access,
-installation and deployment controls follow the gallery; terminology remains defined in the feature copy.
-The layout takes inspiration from stablyai/orca, using AgenticOS copy and original product captures.
+## Presentation and claims
 
-## Paths and video embedding
+Keep **Sovereign Agentic AI Layer** verbatim in all README heroes. Lead with the actual product:
+builder, capabilities, installation and concrete work in chat, then knowledge, artifacts,
+operations and organization access. Put the recording and glass integration collage after
+that product tour. Main screenshots are linked at full width; supplementary views use expandable
+sections. Do not add decorative browser frames that reduce the readable interface area.
 
-Use relative paths for repository images (`docs/assets/screens/...`) so the README can be reviewed
-on a feature branch. Check the light screenshots and their full-resolution links on GitHub.
+The Claude Code/Codex comparison concerns file and command workflows, not feature parity.
+Command execution requires a configured execution-capable sandbox. Groups add resource access
+alongside roles and individual grants; they do not reduce the access a role already gives.
+Enterprise login requires deployment configuration. Self-hosting does not make external models
+or tools local.
 
-The README leads with the shortened GitHub-hosted attachment in a video element. An independently expandable GIF
-preview is available below it when playback is unavailable. The fallback is manually opened, not
-automatically selected by device. Direct video and still-image links remain available.
-
-## Activity and integration scale
-
-The Activity light/dark pair was captured on 2026-10-02 at 1751 × 1000 with the sidebar
-collapsed, filtered to Claude Code like and Owner. Version summaries and individual run records
-are visible. These are observed demo records, not a performance benchmark. The captures do not
-replace the pending run-detail view of tool calls. Both files use lossless WebP without UI edits.
-
-The README headline “5,700+ integrations through MCP” refers to discoverable server entries.
-At revision `d76c6d597`, `backend/app/core/catalog/mcp_registry.json` contains 5,703 entries;
-`mcp_servers.json` separately contains 99 curated entries. Do not add the two counts as unique
-services or imply that all entries are connected, tested or first-party integrations. The public
-copy names server entries and the need to configure credentials and tool access beside the claim.
-
-## Current light-mode screenshots
-
-The README displays light screenshots in both GitHub themes. Eleven light screenshots were
-recaptured on 2026-10-02 at 1600 × 1000 with the sidebar expanded; dialogs retain navigation behind
-the modal. The artifact detail remains the original full-screen product view with its authored dark
-design. Lossless WebP conversions were verified pixel-for-pixel. Dark captures remain prior alternates.
-The latest builder is current with v6; skill detail shows Source. The MCP page displayed 5,805 catalog
-entries; the public claim stays at 5,700+ and describes discoverable server entries.
-
-The user-provided Notion/GitHub demo remains the primary video, visible above the feature gallery.
-The experimental overview films were rejected and are not included in the repository.
-
-The Routines light screenshot was captured on 2026-10-02 with expanded navigation behind the native
-modal. It shows Monday at 06:00 UTC and the message in Preview; it is a lossless WebP conversion.
-
-The MCP catalog now spans both columns of the feature table for legibility. Its current light asset
-is `light/mcp-catalog.webp` (formerly `light/mcp-connections.webp`): All categories, Any state,
-5,805 server entries and a mix of connected and available services. Historical dark paths are unchanged.
-
-## Shortened demo and mobile preview
-
-The original hosted demo was downloaded on 2026-10-02. Remove source 00:30–00:39 from both video
-and audio, retaining 00:00–00:30 and 00:39–00:46.466667. The result is 37.466667 seconds.
-Audio has 30 ms fades around the cut; existing music and effects are otherwise retained.
-
-- `oss-launch-planner-demo.mp4`: 960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes.
-- `oss-launch-planner-preview.gif`: 640 × 364, 3 fps, 56 frames, 18.66 seconds, 925,508 bytes.
-  It shows the shortened demo at 2× speed without sound, disclosed below the image in each language.
-- Both files fit the repository's 1 MiB asset limit. The GIF links to the shortened MP4.
-- GitHub strips repository-hosted video embeds when rendering in repository context. The player,
-  direct video links and GIF now point to the user's uploaded full-resolution shortened attachment:
-  https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512
-- Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5942800375
-
-- Original-resolution edited master and downloaded source remain in the local
-  `Desktop/agenticos-demo-short` production folder.
-- Validated full MP4 decoding, duration, GIF frame timing and sampled frames around the cut.
-  Full-speed listening and physical mobile-device playback were not verified.
-
-## Screenshot presentation
-
-The original lossless screenshots remain unchanged. A separate vector window title bar with
-macOS-style controls appears above each linked screenshot; it is decorative, not captured application UI.
-Compact gallery rows use 30% text / 70% image to improve legibility. The four full-width highlights
-remain unchanged. The frame is a separate SVG so it does not resample or regenerate screenshot text.
-Current captures are mostly 1600 × 1000; higher pixel density requires new native-resolution captures,
-not enlarging these files. Earlier 3502 × 2000 screenshots have collapsed navigation and are not substituted.
+Describe the MCP figure as **server listings**, not tested integrations or unique apps. At
+revision `d76c6d597`, the registry snapshot contained 5,703 entries and the curated catalog
+contained 99 entries; do not add these as distinct services. Each connection still needs its own
+setup and access review. The selected integration graphic and logo sources live in
+`../integrations/`; the README does not repeat their attribution inventory.

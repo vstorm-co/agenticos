@@ -1,0 +1,113 @@
+{
+  "captured_on": "2026-10-02",
+  "source": "Authenticated AgenticOS test deployment",
+  "viewport_css_pixels": {
+    "width": 1600,
+    "height": 1000
+  },
+  "device_scale_factor": 2,
+  "format": "PNG",
+  "theme": "light",
+  "resized": false,
+  "capture_states": "README.md#current-readme-captures",
+  "files": [
+    {
+      "path": "light/activity.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 582971,
+      "sha256": "fe7055ce2aab06d755f248b1b5259c30b729300218fd15469a2eef6e7db996b6"
+    },
+    {
+      "path": "light/agent-builder.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 411890,
+      "sha256": "1bc6fc5bf248ed8826f8094d275a6c95bfa9dd31872c9ffa71c0cc1ad8a99762"
+    },
+    {
+      "path": "light/agents.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 504310,
+      "sha256": "ab0d8ffbefb49c2c626b5bd6ba74c303f20c49c80c399347f55d7882286448c1"
+    },
+    {
+      "path": "light/artifact-detail.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 386778,
+      "sha256": "5490466e95afc4d4b845c35541ca2418689dd7ef7170483ad0d684542a93a5e1"
+    },
+    {
+      "path": "light/artifacts.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 432015,
+      "sha256": "9236d60a8c78a4be39f8ac546c45abdc314e802cb9da075f46fa6c581339a0ee"
+    },
+    {
+      "path": "light/chat.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 451685,
+      "sha256": "65a983e6ab35f9fe5acdbb0c5e9a293587eae13bd125d6fc33ca1984e0b82339"
+    },
+    {
+      "path": "light/context-detail.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 564900,
+      "sha256": "c31a12916960441fdf42072c91d36955a9650d34383af052ab731cee8b7e537b"
+    },
+    {
+      "path": "light/dashboard.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 401643,
+      "sha256": "32efe91d59f61101691c1a3a7756456bb19d7c974e1c2d198e690b191d1fd307"
+    },
+    {
+      "path": "light/groups.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 282023,
+      "sha256": "28cc92321e7afaec5891b668e420a9e56b354d72cf42d1a94db6cc120afaa5db"
+    },
+    {
+      "path": "light/knowledge-collection.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 217484,
+      "sha256": "d7eb851556d6cc2815b3c376c0e36a2409eac1494ecc9d16c64fbc9a0fc6d84c"
+    },
+    {
+      "path": "light/members.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 432080,
+      "sha256": "34fc62631a1163fd33547b5809963c6365f19323a65d375634e7391a358275e3"
+    },
+    {
+      "path": "light/roles.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 415633,
+      "sha256": "18ba6ea95eccdf20fbaaa80aa79d0ff84ef5b5fb7f99a6393306d3eb135bbade"
+    },
+    {
+      "path": "light/sandboxes.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 278553,
+      "sha256": "28bb30621a73634d6d8bed28e2e684fe8413926a7e5061ac063302346bfd01bb"
+    },
+    {
+      "path": "light/skills.png",
+      "width": 3200,
+      "height": 2000,
+      "bytes": 502264,
+      "sha256": "2c0fec690bc2829ee08956123cfbb284e474f31caa2bb6859f98e205603bd53d"
+    }
+  ]
+}

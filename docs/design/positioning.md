@@ -13,6 +13,8 @@ Promise: **AI agents your whole team can use and improve.** Explain it with: con
 
 Lead with a task and a checkable result. Use the equipment-policy tutorial as the first substantive task, including a missing-answer check and a document update. A prompt-only task can check the installation but does not demonstrate team adoption. Explain the platform and OS architecture after the reader understands the work. Distinguish documented capabilities from executed demonstrations and proposals.
 
+Show the file-and-command workflow with an execution-capable sandbox and an existing chat result. Explain how reusable skills, company context, searchable collections, artifacts and the customizable dashboard support that work. Distinguish roles from department groups and explain configured OIDC, LDAP and Kerberos sign-in. Use the Claude Code/Codex comparison for the workflow, without promising feature parity.
+
 The OSS Launch Planner recording is an integration example using Vstorm projects, not customer evidence. Keep its caption faithful to the recording. Show selected views for configuring, sharing and inspecting work; link to the full feature documentation instead of reproducing its taxonomy.
 
 Describe registry scale as MCP server listings, not tested integrations. Compare the nearest adoption decisions and acknowledge deployment ownership. Do not imply that another product lacks team features merely because its primary audience differs.

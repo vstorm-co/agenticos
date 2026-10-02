@@ -31,19 +31,22 @@
 
 </div>
 
-AgenticOS is a self-hosted workspace for building and running shared AI agents. Give an agent a task, connect company documents and tools, and publish it for your team. Engineers extend its capabilities; domain experts maintain its instructions and knowledge.
+AgenticOS is a self-hosted workspace for building and running shared AI agents. Give agents files, company knowledge and tools to work with. Let them run code, produce documents and publish results, then make the agents available to your team. Engineers extend its capabilities; domain experts maintain its instructions and knowledge.
 
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder showing instructions, model selection and a published version." width="100%">
+<a href="docs/assets/screens/light/agent-builder.png">
+  <img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder showing instructions, model selection and a published version." width="100%">
 </a>
 
 ## What you can do
 
-- **Build in the browser:** configure an agent's model, instructions, knowledge and tools, then publish a version.
-- **Work as a team:** let experts maintain the instructions and documents, and give colleagues access to the published agent.
-- **Share useful results:** publish reports, comparisons and dashboards as artifacts with controlled access.
-- **Inspect and repeat runs:** review tool calls and recorded costs in Activity; trigger agents on schedules or events.
-- **Choose your infrastructure:** self-host, connect hosted or local models, and extend capabilities in Python.
+| For your team | What AgenticOS provides |
+|---|---|
+| Build agents | Browser builder, model choice, tools and published versions |
+| Get work done | Chat, file handling, code execution in sandboxes and connected apps |
+| Reuse knowledge | Shared skills, context, searchable documents and sync sources |
+| Deliver results | Downloadable files and shareable, versioned artifacts |
+| Operate agents | Customizable dashboards, run history, approvals, budgets and routines |
+| Organize access | Organizations, roles, department groups and company sign-in |
 
 ## Quick start
 
@@ -77,35 +80,119 @@ For development from source, see [Contributing](https://vstorm-co.github.io/agen
 
 ## Build, share and operate
 
-### Configure the work once
+### Give agents files, tools and a sandbox
 
-Choose the model, instructions and tools in the browser. Publish a version for colleagues to use; earlier versions remain available for inspection and rollback.
+Ask an agent to analyze a spreadsheet, produce a chart, prepare a document or work on a repository. With a container-backed sandbox configured and command execution enabled, it can **read and edit files, run shell commands, and execute Python or JavaScript**. The bundled workbench includes data, charting and document tools, including LibreOffice.
 
-[Knowledge bases](https://vstorm-co.github.io/agenticos/file-processing/) supply searchable documents. [Skills](https://vstorm-co.github.io/agenticos/skills/) hold reusable procedures; [context](https://vstorm-co.github.io/agenticos/context/) holds shared facts and guidelines. Update these resources as the work changes.
+If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted workspace with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions.
 
-Connect tools such as **GitHub, Notion, HubSpot or Linear** through [MCP](https://vstorm-co.github.io/agenticos/mcp/). The catalog combines curated connections with **5,700+ MCP server listings** mirrored from a registry. Registry entries are publisher-provided metadata, not tested integrations. Each connection needs its own setup and access review.
-
-### Make the agent and its results available
-
-Colleagues can use a published agent in web chat or through configured **Slack, Mattermost and Telegram** channels. Developers can call it through the API. [Connect a channel](https://vstorm-co.github.io/agenticos/channels/).
-
-Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates to the same artifact keep its link and earlier versions remain readable. [Share an artifact](https://vstorm-co.github.io/agenticos/artifacts/).
-
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports, access settings and versions." width="100%">
+<a href="docs/assets/screens/light/chat.png">
+  <img src="docs/assets/screens/light/chat.png" alt="Existing conversation analyzing a sales CSV, with a regional revenue chart and the agent's findings." width="100%">
 </a>
 
-### Inspect runs and repeat useful work
+The conversation above shows a CSV analysis and a chart from an existing run. Open tool calls to inspect the commands behind an answer, and use the file panel to reach its inputs and outputs.
 
-**Activity** brings run history, approvals and recorded spend together. Inspect tool calls, compare agent versions and export records. Some costs depend on provider usage and pricing data; external services can bill separately. [Read the accounting limits](https://vstorm-co.github.io/agenticos/governance/).
+Run container sandboxes on your own infrastructure or configure a supported remote backend. Choose the workspace lifetime and execution limits for the job. [Sandbox configuration](https://vstorm-co.github.io/agenticos/sandbox/).
 
-<a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity with version comparisons and run history, including a pending approval." width="100%">
+<details>
+<summary>See sandbox connections</summary>
+
+<img src="docs/assets/screens/light/sandboxes.png" alt="Sandbox connections with local container hosts, vault-backed credentials and runtime selection." width="100%">
+
+</details>
+
+### Build an agent your colleagues can reuse
+
+Choose its model, instructions and tools in the browser. Publish a version for colleagues to use; inspect earlier versions and roll back when needed. Keep specialized agents for research, reporting, coding or operations in one catalog.
+
+<details>
+<summary>See the agent catalog</summary>
+
+<img src="docs/assets/screens/light/agents.png" alt="Agent catalog with published agents, their descriptions and version status." width="100%">
+
+</details>
+
+Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegram** when those channels are configured. Developers can call it through the API. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/).
+
+### Give agents your team's knowledge and ways of working
+
+- **Skills** hold reusable procedures: how to review code, write a report or research a market. Maintain them once and reuse them across agents.
+- **Context** holds standing knowledge such as a glossary, policy or brand voice. Include it in the prompt or let the agent read it on demand.
+- **Knowledge bases (RAG)** make uploaded documents searchable. Inspect processing status and chunks, choose parsing options, or configure sync sources such as Google Drive and S3.
+
+<a href="docs/assets/screens/light/skills.png">
+  <img src="docs/assets/screens/light/skills.png" alt="Skills library filtered to Design, Engineering, Finance and Research." width="100%">
 </a>
 
-Configure approval requirements for supported capability tools. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. Approval coverage depends on the tool and execution mode; enabling a connection alone does not require approval. [Approval modes and limits](https://vstorm-co.github.io/agenticos/governance/#how-much-one-conversation-wants-to-be-asked).
+[Skills](https://vstorm-co.github.io/agenticos/skills/) · [Context](https://vstorm-co.github.io/agenticos/context/) · [Document processing](https://vstorm-co.github.io/agenticos/file-processing/) · [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/).
 
-When a task is ready to repeat, use [routines](https://vstorm-co.github.io/agenticos/triggers/) to run an agent on a schedule or an event. Test its tools, limits and approval policy before leaving it unattended.
+<details>
+<summary>See the open glossary and a knowledge collection</summary>
+
+<img src="docs/assets/screens/light/context-detail.png" alt="Glossary open in Preview, enabled and configured for on-demand reading." width="100%">
+
+<img src="docs/assets/screens/light/knowledge-collection.png" alt="The vstorm knowledge collection with an indexed document, parser and processing status." width="100%">
+
+</details>
+
+### Turn results into pages people can use
+
+Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is the OSS Launch Planner, built from a Notion brief and GitHub research.
+
+<a href="docs/assets/screens/light/artifact-detail.png">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="OSS Launch Planner artifact with audience selection, project recommendations and source links." width="100%">
+</a>
+
+[Share an artifact](https://vstorm-co.github.io/agenticos/artifacts/).
+
+<details>
+<summary>See the artifacts library</summary>
+
+<img src="docs/assets/screens/light/artifacts.png" alt="Artifacts library with page previews, versions and sharing visibility." width="100%">
+
+</details>
+
+### See what is running, what it costs and what needs attention
+
+Customize the **dashboard** around your work: arrange and resize widgets, color sections and save layouts. Track usage, outcomes, recorded spend, approvals and sandbox capacity. Permissions determine which data a person can see.
+
+<a href="docs/assets/screens/light/dashboard.png">
+  <img src="docs/assets/screens/light/dashboard.png" alt="Customized dashboard with usage totals, recorded spend, run trends and outcomes." width="100%">
+</a>
+
+**Activity** lets you inspect runs and tool calls, compare agent versions and export records. Configure approval policies for supported tools, then use **routines** to repeat work on schedules or events. Some costs depend on provider usage and pricing data; external services can bill separately.
+
+[Run history, budgets and approvals](https://vstorm-co.github.io/agenticos/governance/) · [Routines](https://vstorm-co.github.io/agenticos/triggers/).
+
+<details>
+<summary>See Activity and approval controls</summary>
+
+<img src="docs/assets/screens/light/activity.png" alt="Activity showing recorded runs, statuses, model usage and costs." width="100%">
+
+Approval coverage depends on the tool and execution mode. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. [Approval modes and limits](https://vstorm-co.github.io/agenticos/governance/#how-much-one-conversation-wants-to-be-asked).
+
+</details>
+
+### Organize access around your company
+
+**Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as **Operations, Engineering, Finance and Research**. Share an agent, skill, collection, context file or artifact with a group in one step. Group grants add access alongside a person's role and individual grants.
+
+<a href="docs/assets/screens/light/groups.png">
+  <img src="docs/assets/screens/light/groups.png" alt="Organization groups for Engineering, Finance, Operations and Research, with descriptions and membership controls." width="100%">
+</a>
+
+Bring existing company accounts through **OIDC single sign-on, LDAP directory login or Kerberos integrated Windows sign-in**, with the appropriate deployment configuration. **Directory mappings** connect external directory groups to an organization role and optional AgenticOS group; membership is reconciled at sign-in.
+
+[Roles and resource permissions](https://vstorm-co.github.io/agenticos/permissions/) · [Groups, LDAP, Kerberos and directory mappings](https://vstorm-co.github.io/agenticos/directory/).
+
+<details>
+<summary>See organization members and the role matrix</summary>
+
+<img src="docs/assets/screens/light/members.png" alt="Organization members with assigned roles and membership management controls." width="100%">
+
+<img src="docs/assets/screens/light/roles.png" alt="Permission matrix comparing Owner, Admin, Builder, Operator, Member and Viewer roles." width="100%">
+
+</details>
 
 ## Recorded integration example
 
@@ -120,6 +207,8 @@ This demo shows a Notion brief becoming a sourced, interactive page after GitHub
 ## Connect the apps your team already uses
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
+
+Connect tools through **MCP**, alongside built-in sync sources and chat channels. The catalog includes curated connections and **5,700+ MCP server listings** mirrored from a registry. Listings are publisher-provided metadata; each connection needs its own setup and access review.
 
 [Google Drive™ sync](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) · [Gmail triggers](https://vstorm-co.github.io/agenticos/triggers/) · [MCP tools: Notion, GitHub, Linear and more](https://vstorm-co.github.io/agenticos/mcp/) · [Chat channels: Slack, Mattermost, Telegram](https://vstorm-co.github.io/agenticos/channels/).
 
