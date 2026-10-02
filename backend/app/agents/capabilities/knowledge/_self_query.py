@@ -40,6 +40,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.models import AbstractModel, Model
 from pydantic_ai.models.instrumented import InstrumentationSettings
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities._metered import MeteredModel
@@ -160,6 +161,7 @@ async def infer_filters_from_query(
     *,
     organizational_units: Sequence[str],
     instrument: InstrumentationSettings | bool | None,
+    model_settings: ModelSettings | None,
     today: date | None = None,
 ) -> RetrievalFilters | None:
     """Infer narrowing-only business filters from a natural-language query.
@@ -179,6 +181,12 @@ async def infer_filters_from_query(
             the inference - whose prompt is the user's question - goes to the
             host's Logfire project under its content setting rather than the
             global, content-on default. Required so no caller forgets it.
+        model_settings: The host run's model settings (`run_model_settings`), so
+            the agent's `timeout`, `max_tokens` and temperature bound this request
+            as they bound the run's own (agenticos#1810). `ctx.model` carries the
+            model but not the settings the factory merged onto the host agent, so
+            an agent built on it alone runs on the provider's defaults. Required
+            for the same reason `instrument` is.
         today: The date relative dates resolve against; today in UTC by default.
 
     Returns:
@@ -214,7 +222,9 @@ async def infer_filters_from_query(
     )
     agent.instrument = instrument
     try:
-        result = await agent.run(query, usage_limits=_INFERENCE_LIMITS)
+        result = await agent.run(
+            query, usage_limits=_INFERENCE_LIMITS, model_settings=model_settings
+        )
     except _INFERENCE_FAILURES:
         # An inferred value that fails the shared validation lands here too, after
         # the model's own retries - rejected exactly as a caller's would be, never
