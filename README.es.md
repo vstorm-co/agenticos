@@ -1,4 +1,4 @@
-<!-- source_sha: 6ae81923567f -->
+<!-- source_sha: 832979651f3f -->
 
 <div align="center">
 
@@ -116,17 +116,6 @@ Esta demo muestra cómo un brief de Notion se convierte en una página interacti
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%">
 </video>
-
-<details>
-<summary>¿No se carga el vídeo? Abre la vista previa animada</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%">
-</a>
-
-*Vista previa animada a velocidad 2×. Haz clic para ver el vídeo de 37 segundos con sonido a velocidad normal.*
-
-</details>
 
 [Ver el vídeo abreviado (37 segundos)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Ver una captura](docs/assets/screens/oss-launch-planner-poster.webp)
 

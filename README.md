@@ -115,17 +115,6 @@ This demo shows a Notion brief becoming a sourced, interactive page after GitHub
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
 </video>
 
-<details>
-<summary>Video not loading? Open the animated preview</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</a>
-
-*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
-
-</details>
-
 [Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
 ## Connect the apps your team already uses

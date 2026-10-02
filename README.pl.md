@@ -1,4 +1,4 @@
-<!-- source_sha: 6ae81923567f -->
+<!-- source_sha: 832979651f3f -->
 
 <div align="center">
 
@@ -116,17 +116,6 @@ Demo pokazuje, jak brief z Notion po analizie repozytoriów na GitHubie staje si
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
 </video>
-
-<details>
-<summary>Film się nie wyświetla? Otwórz animowany podgląd</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
-</a>
-
-*Animowany podgląd przyspieszony 2×. Kliknij, aby obejrzeć 37-sekundowy film z dźwiękiem w normalnym tempie.*
-
-</details>
 
 [Obejrzyj skrócony film (37 sekund)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Zobacz zrzut ekranu](docs/assets/screens/oss-launch-planner-poster.webp)
 

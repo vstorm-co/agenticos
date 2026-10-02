@@ -1,4 +1,4 @@
-<!-- source_sha: 6ae81923567f -->
+<!-- source_sha: 832979651f3f -->
 
 <div align="center">
 
@@ -116,17 +116,6 @@ Diese Demo zeigt, wie aus einem Notion-Briefing nach einer GitHub-Recherche eine
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
 </video>
-
-<details>
-<summary>Video wird nicht geladen? Animierte Vorschau öffnen</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
-</a>
-
-*Animierte Vorschau in doppelter Geschwindigkeit. Klicke, um das 37-sekündige Video mit Ton in normaler Geschwindigkeit anzusehen.*
-
-</details>
 
 [Das gekürzte Video ansehen (37 Sekunden)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
 
