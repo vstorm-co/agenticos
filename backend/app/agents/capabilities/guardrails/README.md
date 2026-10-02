@@ -10,7 +10,10 @@ made executable.
 Three edges, each configured independently:
 
 - **input** — the user's prompt, before the first model request.
-- **output** — the agent's final answer.
+- **output** — the agent's final answer, and everything a streaming surface shows
+  on the way to it. `ScreenedStream` holds each text and reasoning part back until
+  it is complete and runs the same detector over it, so a redacted key is never on
+  screen or in a stored turn (#1900). Such an agent streams a step at a time.
 - **tool result** — what a tool returned, before the model reads it. This is the
   only guard on untrusted content entering the loop: a fetched page, a file, an MCP
   server's response.

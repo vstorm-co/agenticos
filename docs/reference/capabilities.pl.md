@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "39e9aeedd77c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1754,6 +1754,25 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
+powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
+w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
+tekst. Gdy skonfigurowane jest jakiekolwiek sprawdzenie wyjścia, każdy fragment
+tekstu i rozumowania jest wstrzymywany, aż będzie kompletny, sprawdzany tymi samymi
+detektorami i dopiero wtedy wysyłany. Klucz rozdzielony na dwa kawałki nadal zostaje
+wychwycony. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
+częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
+to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
+Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym
+kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie pokazana lub
+zapisana, a rozumowanie podlega tej samej regule co odpowiedź: zablokowane słowo
+kluczowe w rozumowaniu modelu też kończy run.
+
+**Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
+dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
+osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
+wiadomość.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

@@ -1,5 +1,5 @@
 ---
-source_sha: "570a2d302580"
+source_sha: "7b81165e9bf5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1322,7 +1322,10 @@ może się między nimi rozjechać.
   narzędzia nie produkuje tekstu, kiedy trwa. Edytowana mniej więcej raz na
   sekundę: po tokenie byłyby to setki zapisów na sekundę do serwera, który często
   jest czyjś własny. Platforma, która nie potrafi edytować wysłanej wiadomości,
-  po prostu dostaje gotową odpowiedź, jak wcześniej.
+  po prostu dostaje gotową odpowiedź, jak wcześniej. Agent z
+  [guardrailem na wyjściu](reference/capabilities.md#guardrails) jest za to
+  przepisywany krok po kroku, a każdy krok trafia na kanał dopiero po
+  sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
   instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten
   klient faktycznie renderuje: Slack nie rysuje Markdowna i zapisuje link jako
