@@ -23,16 +23,36 @@ The raise escapes `agent.run()` cleanly from every edge - `wrap_model_request`
 (input), `after_output_process` (output) and `after_tool_execute` (tool result) all
 propagate a guard's exception rather than converting it, which is what makes one
 `GuardrailBlocked` type serve all three.
+
+**The output edge also screens the stream.** The harness's `OutputGuardrail` reads
+the finished answer, and every surface here streams it first - the web chat sends
+each delta to the socket and a channel bot edits its reply as the text arrives - so
+a redacted key was on screen, and in the stored turn, before the redaction ran
+(agenticos#1900). :class:`ScreenedStream` holds each text and reasoning part back
+from whoever consumes the stream until the part is complete, and releases it
+through the same detector the output guardrail runs.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import AsyncIterable, Callable
+from dataclasses import dataclass, replace
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+)
+from pydantic_ai.tools import RunContext
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
@@ -175,11 +195,67 @@ def _edge_detector(
     return detect
 
 
+@dataclass
+class ScreenedStream(AbstractCapability[object]):
+    """Release the answer to a streaming consumer only once the output check has read it.
+
+    Text and reasoning parts are held back whole: their start and delta events are
+    dropped, and when a part ends it is released as one start event carrying the
+    screened content, followed by its end event carrying the same. Screening a
+    complete part is what makes this safe - a key split across two deltas is
+    whole by the time the detector reads it - and it covers text the harness
+    guardrail never reads at all: what the model writes before calling a tool is
+    not the run's output, but a streaming surface shows it and stores it.
+
+    A blocked keyword raises :class:`GuardrailBlocked` out of the stream before any
+    of the part has been released, so the run ends as `GUARDRAIL_BLOCKED` with
+    nothing of the answer shown or written down.
+
+    The cost falls only on an agent that configured an output check: its answer
+    arrives a part at a time rather than token by token. The run's own messages
+    and output are untouched - the library applies this hook to the consumer's
+    view only - so the final answer is still redacted by the output guardrail.
+    """
+
+    screen: TextDetector
+
+    async def wrap_run_event_stream(
+        self,
+        ctx: RunContext[object],
+        *,
+        stream: AsyncIterable[AgentStreamEvent],
+    ) -> AsyncIterable[AgentStreamEvent]:
+        """Drop text and reasoning as they stream, and release each part screened."""
+        async for event in stream:
+            if isinstance(event, PartStartEvent) and isinstance(
+                event.part, TextPart | ThinkingPart
+            ):
+                continue
+            if isinstance(event, PartDeltaEvent) and isinstance(
+                event.delta, TextPartDelta | ThinkingPartDelta
+            ):
+                continue
+            if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart | ThinkingPart):
+                verdict = self.screen(event.part.content)
+                # A detector here only allows or replaces; a block has raised.
+                content = (
+                    str(verdict.replacement) if verdict.action == "replace" else event.part.content
+                )
+                part = replace(event.part, content=content)
+                yield PartStartEvent(index=event.index, part=part)
+                yield replace(event, part=part)
+                continue
+            yield event
+
+
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
     """The harness capabilities this configuration asks for, combined into one.
 
     One capability per configured edge, wrapped in a `CombinedCapability` so a
-    single binding attaches all of them. `None` when no edge is configured - the
+    single binding attaches all of them. The output edge brings a second,
+    :class:`ScreenedStream`, sharing its detector: the guardrail screens the answer
+    the run ends with and the stream screen what a surface shows while it is
+    written, and neither is safe without the other. `None` when no edge is configured - the
     "enabled but inert" state does not exist, which is the "pays nothing when
     absent" contract every capability owes.
     """
@@ -202,6 +278,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     )
     if output_detector is not None:
         edges.append(OutputGuardrail(guard=for_text(output_detector, on_other="allow")))
+        edges.append(ScreenedStream(screen=output_detector))
 
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,

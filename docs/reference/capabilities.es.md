@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "39e9aeedd77c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1793,6 +1793,25 @@ trabajo igualmente. Un bloqueo por palabra clave, en cambio, termina el run con 
 es la plataforma funcionando y un operador que filtre buscando problemas debería poder
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
+
+**Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
+las superficies transmiten en streaming: el chat web y el widget incrustado envían la
+respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
+texto. Cuando hay configurada cualquier comprobación de salida, cada fragmento de
+texto y de razonamiento se retiene hasta que está completo, se comprueba con los
+mismos detectores y solo entonces se envía. Una clave partida en dos trozos se detecta
+igualmente. También el texto que el modelo escribe antes de llamar a una herramienta,
+que no forma parte de la respuesta final pero aun así se muestra y se guarda. El coste
+es que la respuesta de un agent así llega paso a paso en lugar de palabra a palabra.
+Un agent sin comprobación de salida transmite como antes. Un bloqueo por palabra clave
+termina el run antes de que se muestre o se guarde nada del texto bloqueado, y el
+razonamiento sigue la misma regla que la respuesta: una palabra clave bloqueada en el
+razonamiento del modelo también termina el run.
+
+**El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
+censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
+escribió la persona, datos personales incluidos. Quien pueda leer la conversación
+puede leer ese mensaje.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

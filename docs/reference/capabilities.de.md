@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "39e9aeedd77c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1887,6 +1887,25 @@ neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, u
 ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
+
+**Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
+streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie
+geschrieben wird, und ein Channel-Bot bearbeitet seine Antwort, während der Text
+ankommt. Ist irgendeine Ausgabeprüfung konfiguriert, wird jedes Stück Text und
+Reasoning zurückgehalten, bis es vollständig ist, mit denselben Detektoren geprüft und
+erst dann gesendet. Ein Schlüssel, der auf zwei Chunks verteilt ist, wird trotzdem
+erkannt. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er gehört
+nicht zur endgültigen Antwort, wird aber trotzdem angezeigt und gespeichert. Der Preis
+ist, dass die Antwort eines solchen Agents Schritt für Schritt statt Wort für Wort
+ankommt. Ein Agent ohne Ausgabeprüfung streamt wie bisher. Eine Schlagwort-Blockade
+beendet den Run, bevor irgendetwas vom blockierten Text angezeigt oder gespeichert
+wird, und das Reasoning folgt derselben Regel wie die Antwort: Ein blockiertes
+Schlagwort im Reasoning des Modells beendet den Run ebenfalls.
+
+**Die Eingabekante ändert, was das Modell liest, nicht das Transkript.** Ein
+geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speichert die
+Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
+Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

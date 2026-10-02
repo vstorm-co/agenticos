@@ -2019,6 +2019,86 @@ class TestDrivingTheRun:
         )
 
 
+_SECRET = "sk-ant-api03-ABCDEFGHIJKLMNOPQR"
+
+
+def _guarded_agent(config: dict[str, Any], *responses: list[str | DeltaToolCalls]) -> Any:
+    """An agent with the guardrails capability built from `config`, streaming `responses`.
+
+    Built through the registry, the way the factory builds it, so what is tested is
+    the capability a published spec actually gets.
+    """
+
+    async def stream(
+        messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        for chunk in responses[sum(isinstance(m, ModelResponse) for m in messages)]:
+            yield chunk
+
+    return PydanticAgent(
+        FunctionModel(stream_function=stream),
+        output_type=[str, DeferredToolRequests],
+        tools=[count_open],
+        capabilities=build([CapabilityBinding(capability_id="guardrails", config=config)]),
+    )
+
+
+class TestAScreenedAnswerOnTheWire:
+    """An agent with an output check, through the chat's own frames (#1900).
+
+    The output guardrail redacted the finished answer, but `text_delta` had already
+    carried the raw text to the socket, and the timeline - what the turn is stored
+    as - had recorded it. Both read what the stream screen releases now.
+    """
+
+    @pytest.mark.security
+    async def test_no_frame_and_no_stored_part_carries_a_redacted_secret(self):
+        session = _session()
+        timeline = TurnTimeline()
+        agent = _guarded_agent(
+            {"redact_secrets_out": True},
+            [
+                "Your old key was sk-ant-api03-ABC",
+                "DEFGHIJKLMNOPQR.",
+                {1: DeltaToolCall(name="count_open", json_args='{"team": "sales"}')},
+            ],
+            ["The new one is ", "sk-ant-api03-ABCDEFGHIJKLMNOPQR."],
+        )
+
+        async with agent.iter("rotate my key") as agent_run:
+            await _frames(session, timeline=timeline).drive(agent_run)
+
+        assert _SECRET not in str(_sent_events(session))
+        assert _sent_events(session)[-1] == (
+            "final_result",
+            {"output": "The new one is [redacted:anthropic_key]."},
+        )
+        stored = timeline.stored()
+        assert stored is not None
+        assert [part.text for part in stored if part.type == "text"] == [
+            "Your old key was [redacted:anthropic_key].",
+            "The new one is [redacted:anthropic_key].",
+        ]
+
+    async def test_a_blocked_answer_sends_no_text_and_leaves_none_to_store(self):
+        """`_persist_partial_turn` writes `timeline.text` on a turn that raised, so a
+        block that arrived after the stream stored the very answer it refused."""
+        session = _session()
+        timeline = TurnTimeline()
+        agent = _guarded_agent(
+            {"blocked_keywords_out": "confidential"},
+            ["Strictly confidential: ", "Acme is buying Initech."],
+        )
+
+        with pytest.raises(GuardrailBlocked):
+            async with agent.iter("any news?") as agent_run:
+                await _frames(session, timeline=timeline).drive(agent_run)
+
+        assert "text_delta" not in _frame_types(session)
+        assert "Initech" not in str(_sent_events(session))
+        assert timeline.text == ""
+
+
 class TestForwardingToolEvents:
     """What a tool call looks like on the wire, read off real event objects.
 
