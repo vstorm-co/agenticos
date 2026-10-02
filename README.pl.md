@@ -1,4 +1,4 @@
-<!-- source_sha: 832979651f3f -->
+<!-- source_sha: 1cdad3786611 -->
 
 <div align="center">
 
@@ -121,16 +121,13 @@ Demo pokazuje, jak brief z Notion po analizie repozytoriów na GitHubie staje si
 
 ## Podłącz aplikacje, których Twój zespół już używa
 
-<picture>
-  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.png">
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/integrations/connections-light.png">
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.gif">
-  <img src="docs/assets/integrations/connections-light.gif" alt="Ilustracja połączeń AgenticOS z Google Drive, Gmailem, Outlookiem, Notion, GitHubem, Linear, Slackiem, Mattermost i Telegramem." width="960" height="300">
-</picture>
+<img src="docs/assets/integrations/apps-glass.svg" alt="Szesnaście logotypów aplikacji na ciemnych szklanych kafelkach: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
 [Synchronizacja Google Drive™](docs/howto/configure-sync-sources.pl.md) · [Zdarzenia Gmail](docs/triggers.pl.md) · [Narzędzia MCP: Notion, GitHub, Linear i inne](docs/mcp.pl.md) · [Kanały rozmowy: Slack, Mattermost, Telegram](docs/channels.pl.md).
 
 [Poczta i kalendarz Outlook](docs/mcp.pl.md#outlook-setup) łączą się przez zewnętrzną usługę MCP, która wymaga osobnego konta i uprawnień.
+
+Część połączeń korzysta z zewnętrznych usług MCP i wymaga osobnej konfiguracji, kont oraz uprawnień.
 
 <sub>Google Drive jest znakiem towarowym Google LLC. Nazwy i logotypy wskazują możliwości połączenia, a nie partnerstwa. [Źródła logotypów](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 

@@ -119,16 +119,13 @@ This demo shows a Notion brief becoming a sourced, interactive page after GitHub
 
 ## Connect the apps your team already uses
 
-<picture>
-  <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.png">
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/integrations/connections-light.png">
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/integrations/connections-dark.gif">
-  <img src="docs/assets/integrations/connections-light.gif" alt="Illustration of AgenticOS connected to Google Drive, Gmail, Outlook, Notion, GitHub, Linear, Slack, Mattermost and Telegram." width="960" height="300">
-</picture>
+<img src="docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
 [Google Drive™ sync](docs/howto/configure-sync-sources.md) · [Gmail triggers](docs/triggers.md) · [MCP tools: Notion, GitHub, Linear and more](docs/mcp.md) · [Chat channels: Slack, Mattermost, Telegram](docs/channels.md).
 
 [Outlook email and calendar](docs/mcp.md#outlook-setup) connect through a third-party MCP service with its own account and permissions.
+
+Some connections use third-party MCP services and require separate setup, accounts and permissions.
 
 <sub>Google Drive is a trademark of Google LLC. App names and logos identify connection options, not partnerships. [Logo sources](docs/assets/integrations/ATTRIBUTION.txt).</sub>
 
