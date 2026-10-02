@@ -1,4 +1,4 @@
-<!-- source_sha: 49d79991622a -->
+<!-- source_sha: 5517463ff18f -->
 
 <div align="center">
 
@@ -137,14 +137,14 @@ Alles Folgende läuft in der Konsole im Browser; nichts davon braucht Code.
 <tr>
 <td colspan="2" valign="top">
 
-### 📄 Ergebnisse außerhalb des Chats aufbewahren
+### 🤖 Einen Agenten konfigurieren
 
-**Artifacts** sind Seiten, die ein Agent erstellt: Berichte, interaktive Vergleiche oder kleine Dashboards.
-Öffne sie aus der Bibliothek, prüfe Versionen und lege fest, wer Zugriff hat. Wird dasselbe Artifact aktualisiert,
-bleibt sein Link erhalten; eine Unterhaltung kann auf eine bestimmte Version verweisen. [Artifacts erstellen und teilen](docs/artifacts.de.md).
+Unter **Agents** erstellst du einen Assistenten für eine Aufgabe, wählst sein Modell, schreibst Anweisungen und aktivierst Werkzeuge.
+Veröffentliche eine Version, sobald er einsatzbereit ist. Jede frühere Version bleibt lesbar, und ein Rollback ist ein Klick.
+[Einen Agenten bauen](docs/first-agent.de.md).
 
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifact-Bibliothek mit gespeicherten Berichten und Versionen." width="100%">
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Builder mit Anweisungen, ausgewähltem Modell und aktuell veröffentlichter Version." width="100%">
 </a>
 
 </td>
@@ -152,17 +152,17 @@ bleibt sein Link erhalten; eine Unterhaltung kann auf eine bestimmte Version ver
 <tr>
 <td width="30%" valign="middle">
 
-### 🤖 Einen Agenten konfigurieren
+### 📄 Ergebnisse außerhalb des Chats aufbewahren
 
-Unter **Agents** erstellst du einen Assistenten für eine Aufgabe, wählst sein Modell, schreibst Anweisungen und aktivierst Werkzeuge.
-Veröffentliche eine Version, sobald er einsatzbereit ist. Jede frühere Version bleibt lesbar, und ein Rollback ist ein Klick.
-[Einen Agenten bauen](docs/first-agent.de.md).
+**Artifacts** sind Seiten, die ein Agent erstellt: Berichte, interaktive Vergleiche oder kleine Dashboards.
+Öffne sie aus der Bibliothek, prüfe Versionen und lege fest, wer Zugriff hat. Wird dasselbe Artifact aktualisiert,
+bleibt sein Link erhalten; eine Unterhaltung kann auf eine bestimmte Version verweisen. [Artifacts erstellen und teilen](docs/artifacts.de.md).
 
 </td>
 <td width="70%">
 
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent-Builder mit Anweisungen, ausgewähltem Modell und aktuell veröffentlichter Version." width="100%">
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifact-Bibliothek mit gespeicherten Berichten und Versionen." width="100%">
 </a>
 
 </td>

@@ -1,4 +1,4 @@
-<!-- source_sha: 49d79991622a -->
+<!-- source_sha: 5517463ff18f -->
 
 <div align="center">
 
@@ -136,14 +136,14 @@ Wszystko poniżej działa w konsoli w przeglądarce; nic z tego nie wymaga kodu.
 <tr>
 <td colspan="2" valign="top">
 
-### 📄 Zachowaj wyniki poza czatem
+### 🤖 Skonfiguruj agenta
 
-**Artifacts** to strony tworzone przez agenta: raporty, interaktywne porównania lub niewielkie dashboardy.
-Otwierasz je z biblioteki, sprawdzasz wersje i wybierasz, kto ma do nich dostęp. Aktualizacja tego samego
-artefaktu zachowuje jego link; rozmowa może odsyłać do konkretnej wersji. [Tworzenie i udostępnianie artefaktów](docs/artifacts.pl.md).
+W **Agents** tworzysz asystenta do zadania, wybierasz model, piszesz instrukcje i włączasz narzędzia.
+Gdy jest gotowy do użycia, publikujesz wersję. Każda wcześniejsza wersja pozostaje do wglądu, a powrót do niej to jedno kliknięcie.
+[Zbuduj agenta](docs/first-agent.pl.md).
 
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z zapisanymi raportami i wersjami." width="100%">
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Edytor agenta z instrukcjami, wybranym modelem i aktualnie opublikowaną wersją." width="100%">
 </a>
 
 </td>
@@ -151,17 +151,17 @@ artefaktu zachowuje jego link; rozmowa może odsyłać do konkretnej wersji. [Tw
 <tr>
 <td width="30%" valign="middle">
 
-### 🤖 Skonfiguruj agenta
+### 📄 Zachowaj wyniki poza czatem
 
-W **Agents** tworzysz asystenta do zadania, wybierasz model, piszesz instrukcje i włączasz narzędzia.
-Gdy jest gotowy do użycia, publikujesz wersję. Każda wcześniejsza wersja pozostaje do wglądu, a powrót do niej to jedno kliknięcie.
-[Zbuduj agenta](docs/first-agent.pl.md).
+**Artifacts** to strony tworzone przez agenta: raporty, interaktywne porównania lub niewielkie dashboardy.
+Otwierasz je z biblioteki, sprawdzasz wersje i wybierasz, kto ma do nich dostęp. Aktualizacja tego samego
+artefaktu zachowuje jego link; rozmowa może odsyłać do konkretnej wersji. [Tworzenie i udostępnianie artefaktów](docs/artifacts.pl.md).
 
 </td>
 <td width="70%">
 
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Edytor agenta z instrukcjami, wybranym modelem i aktualnie opublikowaną wersją." width="100%">
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteka artefaktów z zapisanymi raportami i wersjami." width="100%">
 </a>
 
 </td>

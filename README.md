@@ -134,14 +134,14 @@ Everything below lives in the browser console; none of it needs code.
 <tr>
 <td colspan="2" valign="top">
 
-### 📄 Keep results outside the chat
+### 🤖 Configure an agent
 
-**Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
-Open them from the library, inspect versions and choose who can access them. Updating the same artifact
-keeps its link; a conversation can link to a particular version. [Create and share artifacts](docs/artifacts.md).
+In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
+Publish a version when it is ready for use. Every earlier version stays readable, and rolling back is a click.
+[Build an agent](docs/first-agent.md).
 
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and current published version." width="100%">
 </a>
 
 </td>
@@ -149,17 +149,17 @@ keeps its link; a conversation can link to a particular version. [Create and sha
 <tr>
 <td width="30%" valign="middle">
 
-### 🤖 Configure an agent
+### 📄 Keep results outside the chat
 
-In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
-Publish a version when it is ready for use. Every earlier version stays readable, and rolling back is a click.
-[Build an agent](docs/first-agent.md).
+**Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
+Open them from the library, inspect versions and choose who can access them. Updating the same artifact
+keeps its link; a conversation can link to a particular version. [Create and share artifacts](docs/artifacts.md).
 
 </td>
 <td width="70%">
 
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and current published version." width="100%">
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
 </a>
 
 </td>

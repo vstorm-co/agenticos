@@ -1,4 +1,4 @@
-<!-- source_sha: 49d79991622a -->
+<!-- source_sha: 5517463ff18f -->
 
 <div align="center">
 
@@ -136,14 +136,14 @@ Todo lo siguiente vive en la consola del navegador; nada de ello necesita códig
 <tr>
 <td colspan="2" valign="top">
 
-### 📄 Guarda los resultados fuera del chat
+### 🤖 Configura un agente
 
-Los **Artifacts** son páginas que crea un agente: informes, comparativas interactivas o pequeños paneles.
-Ábrelos desde la biblioteca, consulta sus versiones y decide quién puede acceder. Actualizar el mismo artifact
-conserva su enlace; una conversación puede enlazar a una versión concreta. [Crea y comparte artifacts](docs/artifacts.es.md).
+En **Agents**, crea un asistente para una tarea, elige su modelo, escribe las instrucciones y activa sus herramientas.
+Publica una versión cuando esté listo. Cada versión anterior sigue disponible, y volver a ella es un clic.
+[Crea un agente](docs/first-agent.es.md).
 
-<a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteca de artifacts con informes guardados y versiones." width="100%">
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Editor de agentes con instrucciones, modelo seleccionado y versión publicada actual." width="100%">
 </a>
 
 </td>
@@ -151,17 +151,17 @@ conserva su enlace; una conversación puede enlazar a una versión concreta. [Cr
 <tr>
 <td width="30%" valign="middle">
 
-### 🤖 Configura un agente
+### 📄 Guarda los resultados fuera del chat
 
-En **Agents**, crea un asistente para una tarea, elige su modelo, escribe las instrucciones y activa sus herramientas.
-Publica una versión cuando esté listo. Cada versión anterior sigue disponible, y volver a ella es un clic.
-[Crea un agente](docs/first-agent.es.md).
+Los **Artifacts** son páginas que crea un agente: informes, comparativas interactivas o pequeños paneles.
+Ábrelos desde la biblioteca, consulta sus versiones y decide quién puede acceder. Actualizar el mismo artifact
+conserva su enlace; una conversación puede enlazar a una versión concreta. [Crea y comparte artifacts](docs/artifacts.es.md).
 
 </td>
 <td width="70%">
 
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Editor de agentes con instrucciones, modelo seleccionado y versión publicada actual." width="100%">
+<a href="docs/assets/screens/light/artifacts.webp">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Biblioteca de artifacts con informes guardados y versiones." width="100%">
 </a>
 
 </td>
