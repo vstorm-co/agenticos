@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Knowledge self-query and query expansion run under the agent's model
+  settings.** Both make a model request of their own inside a search, and
+  both inherited the run's model without the `timeout`, `max_tokens` and
+  `temperature` the agent set, so a query rewrite or a filter inference could
+  outlive the agent's timeout or generate more than it permits. They now run
+  under the same settings as the run's own requests, as compaction summaries
+  and system reminders have since 0.0.507. The tool-output summary is
+  unchanged: the harness it builds on exposes no settings knob (#1810).
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed

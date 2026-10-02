@@ -24,6 +24,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
@@ -304,6 +305,35 @@ class TestQueryAnalysisWiring:
         assert spans
         recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
         assert ("my salary review" in recorded) is include_content
+
+    @pytest.mark.anyio
+    async def test_the_expansion_runs_under_the_runs_model_settings(self):
+        """`ctx.model` carries the model but not the settings the factory merged onto
+        the host agent, so an expansion built on it alone ran on the provider's
+        defaults: past the agent's `timeout`, beyond its `max_tokens` (agenticos#1810).
+        The settings have to reach the request itself, not just the agent."""
+        seen: list[dict[str, Any] | None] = []
+
+        def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(dict(info.model_settings) if info.model_settings else None)
+            return ModelResponse(
+                parts=[TextPart("a variant")],
+                usage=RequestUsage(input_tokens=10, output_tokens=3),
+            )
+
+        settings = ModelSettings(timeout=12.5, max_tokens=64, temperature=0.1)
+        ctx = RunContext(
+            deps=None,
+            model=FunctionModel(respond),
+            usage=RunUsage(),
+            model_settings=settings,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        assert await generate("rephrase") == "a variant"
+        assert seen == [dict(settings)]
 
     @pytest.mark.anyio
     async def test_parallel_expansions_book_exactly_what_each_spent(self):
