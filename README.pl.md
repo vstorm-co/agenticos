@@ -1,4 +1,4 @@
-<!-- source_sha: ae331dd9e708 -->
+<!-- source_sha: b4a163cbb989 -->
 
 <div align="center">
 
@@ -397,11 +397,11 @@ edytuje pliki, uruchamia komendy, przekazuje części specjalistom i sprawdza wy
 w Slacku lub przez API, na wybranym przez Ciebie modelu, z zatwierdzeniem przed wszystkim, co działa
 na zewnątrz. Zobacz [porównanie z Claude Code](docs/about/claude-code.pl.md).
 
-### Co mogą współdzielić członkowie zespołu?
+### Czy da się go uruchomić w całości na własnej infrastrukturze?
 
-Zespoły mogą współdzielić agentów, skills, kontekst, kolekcje wiedzy i artefakty zgodnie z uprawnieniami
-do zasobów. Wspólny agent może obsługiwać różne osoby, a udostępniony artefakt daje im wynik dostępny
-poza czatem.
+Tak. Modele serwujesz przez Ollama lub vLLM, dokumenty osadzasz przez Ollamę we własnej sieci, a PDF-y
+czyta wbudowany PyMuPDF lub samodzielnie hostowany LiteParse z OCR. Nic nie opuszcza wdrożenia, dopóki
+żadne ustawienie nie wskaże miejsca docelowego. Zobacz [ochronę danych](docs/data-protection.pl.md).
 
 </details>
 

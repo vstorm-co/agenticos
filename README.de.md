@@ -1,4 +1,4 @@
-<!-- source_sha: ae331dd9e708 -->
+<!-- source_sha: b4a163cbb989 -->
 
 <div align="center">
 
@@ -396,11 +396,11 @@ führt Befehle aus, gibt Teile an Spezialisten ab und prüft das Ergebnis. Er an
 die API, auf dem Modell deiner Wahl, mit Freigabe vor allem, was nach außen handelt. Siehe den
 [Vergleich mit Claude Code](docs/about/claude-code.de.md).
 
-### Was können Kollegen gemeinsam nutzen?
+### Lässt es sich vollständig auf eigener Infrastruktur betreiben?
 
-Teams können Agenten, Skills, Context, Wissenssammlungen und Artifacts gemäß den Ressourcenberechtigungen teilen.
-Ein gemeinsamer Agent kann verschiedenen Personen dienen; ein geteiltes Artifact gibt Kollegen ein Ergebnis,
-das sie außerhalb des Chats öffnen können.
+Ja. Modelle laufen über Ollama oder vLLM, Dokumente werden über ein Ollama im eigenen Netz eingebettet, und
+PDFs liest der eingebaute PyMuPDF-Reader oder ein selbst gehostetes LiteParse mit OCR. Nichts verlässt die
+Bereitstellung, solange keine Einstellung ein Ziel nennt. Siehe [Datenschutz](docs/data-protection.de.md).
 
 </details>
 

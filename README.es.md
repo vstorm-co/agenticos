@@ -1,4 +1,4 @@
-<!-- source_sha: ae331dd9e708 -->
+<!-- source_sha: b4a163cbb989 -->
 
 <div align="center">
 
@@ -395,11 +395,11 @@ ejecuta comandos, delega partes en especialistas y comprueba el resultado. Respo
 de la API, con el modelo que elijas y con aprobación delante de todo lo que actúa fuera. Consulta la
 [comparativa con Claude Code](docs/about/claude-code.es.md).
 
-### ¿Qué pueden compartir los compañeros?
+### ¿Puede funcionar por completo en nuestra propia infraestructura?
 
-Los equipos pueden compartir agentes, skills, contexto, colecciones de conocimiento y artifacts según los permisos sobre
-los recursos. Un agente compartido puede atender a distintas personas; un artifact compartido da a los compañeros un
-resultado que pueden abrir fuera del chat.
+Sí. Sirve los modelos con Ollama o vLLM, genera los embeddings con un Ollama en tu propia red y lee los PDF
+con el lector PyMuPDF integrado o con LiteParse con OCR autoalojado. Nada sale del despliegue salvo que una
+configuración indique un destino. Consulta la [protección de datos](docs/data-protection.es.md).
 
 </details>
 

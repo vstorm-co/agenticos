@@ -393,11 +393,11 @@ runs commands, hands parts to specialists and checks the result. It answers in w
 the API, on the model you choose, with approval in front of anything that acts. See the
 [Claude Code comparison](docs/about/claude-code.md).
 
-### What can colleagues share?
+### Can it run entirely on our own infrastructure?
 
-Teams can share agents, skills, context, knowledge collections and artifacts under resource permissions.
-A shared agent can serve different people; a shared artifact gives colleagues a result they can open
-outside the chat.
+Yes. Serve models through Ollama or vLLM, embed documents through an Ollama on your own network, and
+read PDFs with the built-in PyMuPDF reader or self-hosted LiteParse OCR. Nothing leaves the deployment
+unless a setting names a destination. See [data protection](docs/data-protection.md).
 
 </details>
 
