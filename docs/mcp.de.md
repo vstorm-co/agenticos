@@ -1,5 +1,5 @@
 ---
-source_sha: "51315ca719eb"
+source_sha: "90a6ac952954"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -772,10 +772,12 @@ Um einen Eintrag zur Liste hinzuzufügen, siehe
 
 - **Eine Abdeckungsgarantie.** Katalogeinträge sind Metadaten. Die Tools gehören
   dem Anbieter, und sie können sich unter Ihnen von einem Zug zum nächsten ändern.
-- **Freigabe-Tore.** Freigabe je Tool wird von Capabilities im Code deklariert.
-  Die Tools eines MCP-Servers werden zur Laufzeit entdeckt, es gibt also nichts,
-  was sie deklariert hätte; halten Sie wirklich gefährliche Server aus den
-  Connections einer Organisation heraus, statt ein Tor anzunehmen.
+- **Automatische Freigabeabdeckung.** Freigabeeinstellungen einer Capability
+  decken MCP-Tools nicht ab. Im Webchat erfasst **Ask about everything**
+  (`ask_all`) auch MCP-Aufrufe, die der Runner ausführt; der Standardmodus
+  **Follow the agent** ergänzt dieses Gate nicht. Beschränken Sie die
+  verfügbaren Tools und prüfen Sie den Ausführungsmodus vor dem Aktivieren
+  einer Verbindung. Siehe [Freigabemodi](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Kostenzuordnung.** Was ein Server auf seiner eigenen Seite tut, steht nicht im
   [Budget](governance.md#budgets) dieser Plattform. Nur die Modell-Token stehen
   darin.

@@ -1,5 +1,5 @@
 ---
-source_sha: "51315ca719eb"
+source_sha: "90a6ac952954"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -757,11 +757,12 @@ Para añadir una entrada a la lista, ver
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Puertas de aprobación.** La aprobación por herramienta la declaran las
-  capabilities en código. Las herramientas de un servidor MCP se descubren en
-  tiempo de ejecución, así que no hay nada que las haya declarado; mantén los
-  servidores genuinamente peligrosos fuera de las conexiones de una organización en
-  lugar de dar por hecha una puerta.
+- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
+  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
+  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
+  predeterminado **Follow the agent** no añade esa puerta. Restringe las
+  herramientas disponibles y revisa el modo de ejecución antes de activar una
+  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

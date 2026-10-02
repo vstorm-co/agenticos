@@ -3,16 +3,15 @@
 <h1><img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="64" valign="middle"> AgenticOS</h1>
 
 <p>
-  <b>Put AI to work across your company.</b><br>
   <strong>Sovereign Agentic AI Layer</strong><br>
-  Open source. Shared agents, company knowledge and automation — on infrastructure you control.
+  <b>AI agents your whole team can use and improve.</b><br>
+  Open source. Build shared agents in your browser, on infrastructure you control.
 </p>
 
 <p>
-  <a href="#see-it-in-action">Watch the demo</a> &middot;
   <a href="#quick-start">Quick start</a> &middot;
-  <a href="#explore-the-agent-layer">Explore the agent layer</a> &middot;
-  <a href="#why-an-operating-system">Why an OS</a> &middot;
+  <a href="#build-share-and-operate">Build, share and operate</a> &middot;
+  <a href="#is-agenticos-the-right-fit">Is it a fit?</a> &middot;
   <a href="docs/index.md">Documentation</a>
 </p>
 
@@ -32,34 +31,17 @@
 
 </div>
 
-Give an agent a brief, your documents and your tools. It researches, writes the report and publishes a page your team can open. Instructions, access and every run stay in one place, on cloud or local models.
+AgenticOS is a self-hosted workspace for building and running shared AI agents. Give an agent a task, connect company documents and tools, and publish it for your team. Engineers extend its capabilities; domain experts maintain its instructions and knowledge.
 
-<h3 align="center">🔌 5,700+ integrations via MCP &nbsp;·&nbsp; 🤝 Shared agents and knowledge<br>
-📊 Built-in observability &nbsp;·&nbsp; 🏠 Self-hosted</h3>
+## Give your team a shared way to work
 
-## See it in action
+An equipment-policy assistant needs someone who knows the policy, someone who configures the agent and colleagues who can use it. AgenticOS gives each of them a part in the same workflow:
 
-**From a Notion brief and GitHub research to an interactive decision page.**
+1. **An expert maintains the method:** write instructions, reusable procedures and source documents.
+2. **A builder publishes the agent:** choose its model and tools, set limits and grant access.
+3. **Colleagues use and check it:** ask questions, review sources and share results. Operators inspect runs in Activity.
 
-The agent reads the brief in Notion, researches the candidate repositories on GitHub and publishes an artifact
-that recommends one project for each audience, with its sources.
-
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
-
-<details>
-<summary>Video not loading? Open the animated preview</summary>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
-  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</a>
-
-*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
-
-</details>
-
-[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
+Changes to instructions and knowledge happen in the console. New capabilities are added in Python. [How to build an agent](docs/first-agent.md) · [Team access](docs/permissions.md).
 
 ## Quick start
 
@@ -76,7 +58,31 @@ published images and starts a deployment with a working agent in it.
 Open **http://localhost:3000** and sign in with the login you chose. If you accepted the defaults,
 that is `admin@example.com` / `admin123`.
 
-### Try your first task
+### Build an assistant from a document
+
+Start with the [equipment-policy walkthrough](docs/howto/first-document-agent.md). It includes a tiny fictional handbook, setup steps and a recorded test with its limitations. You need an embedding model for document search as well as the chat model.
+
+1. Save the two lines below as `equipment-handbook.md` and upload it to a knowledge collection. Configure embeddings and wait for processing.
+2. Create an agent, select its model and enable knowledge search for that collection. Instruct it to cite the handbook and say when an answer is missing. Publish the agent.
+3. Ask the questions below in fresh conversations, then inspect the retrieved material and run in **Activity**.
+
+```text
+Equipment requests go to the office manager.
+Include the item, reason and delivery location.
+```
+
+| Ask | Check against the source |
+|---|---|
+| Who handles an equipment request? | The office manager, with a citation to the handbook |
+| Which details should an equipment request include? | Item, reason and delivery location |
+| How much can I spend? | The spending allowance is not stated |
+
+Then follow the guide to replace the document with an updated policy and test a fresh conversation. Once the answers check out, grant a colleague access to the agent and the required resources, and have them try it from their own account. [Configure access](docs/permissions.md) before using private documents.
+
+The guide records a test on **v0.0.504, 25 September 2026**, including a retry and the answer after a document update. Treat it as a reproducible example; check your own model's answers against the source.
+
+<details>
+<summary>Only checking the installation? Try a task without document setup</summary>
 
 In **Chat**, select **Getting Started** and paste this fictional brief. It needs nothing connected
 to Notion or GitHub.
@@ -98,6 +104,8 @@ its missing review date; invitations should flag the missing owner. Then open **
 already there, with its model, tokens, duration and cost. Next, try your own brief or
 [configure an agent with tools and company knowledge](docs/first-agent.md).
 
+</details>
+
 <details>
 <summary>Inspect the installer or deploy another way</summary>
 
@@ -112,7 +120,44 @@ For development from source, see [Contributing](CONTRIBUTING.md).
 
 </details>
 
-## 💬 Bring agents to where your team already works
+## Recorded integration example
+
+This demo shows a Notion brief becoming a sourced, interactive page after GitHub research. It uses Vstorm's own open-source projects as sample material: the useful sequence is **brief → research → shared result**. It is a product demonstration, not a customer outcome study.
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
+
+<details>
+<summary>Video not loading? Open the animated preview</summary>
+
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">
+  <img src="docs/assets/screens/oss-launch-planner-preview.gif" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</a>
+
+*Animated preview at 2× speed. Click to watch the 37-second video with sound at normal speed.*
+
+</details>
+
+[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
+
+## Build, share and operate
+
+### Configure the work once
+
+Choose the model, instructions and tools in the browser. Publish a version for colleagues to use; earlier versions remain available for inspection and rollback.
+
+[Knowledge bases](docs/file-processing.md) supply searchable documents. [Skills](docs/skills.md) hold reusable procedures; [context](docs/context.md) holds shared facts and guidelines. Update these resources as the work changes.
+
+<a href="docs/assets/screens/light/agent-builder.webp">
+  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder showing instructions, model selection and a published version." width="100%">
+</a>
+
+Connect tools such as **GitHub, Notion, HubSpot or Linear** through [MCP](docs/mcp.md). The catalog combines curated connections with **5,700+ MCP server listings** mirrored from a registry. Registry entries are publisher-provided metadata, not tested integrations. Each connection needs its own setup and access review.
+
+### Make the agent and its results available
+
+Colleagues can use a published agent in web chat or through configured **Slack, Mattermost and Telegram** channels. Developers can call it through the API. [Connect a channel](docs/channels.md).
 
 <p align="center">
   <a href="docs/channels.md"><img src="docs/assets/channels/slack.svg" alt="Slack" width="176" height="64"></a>
@@ -120,347 +165,51 @@ For development from source, see [Contributing](CONTRIBUTING.md).
   <a href="docs/channels.md"><img src="docs/assets/channels/telegram.svg" alt="Telegram" width="176" height="64"></a>
 </p>
 
-Use your published agent in **Slack, Mattermost or Telegram**. Colleagues ask for help in the tools they already use, and the agent answers with its instructions, knowledge and tools. An `@mention` runs as the person who sent it, not as the bot.
-
-The same published agent also answers in web chat, a website widget, a hosted page and your own application through the API, with one set of limits and one run history.
-
-[Connect Slack, Mattermost and other channels](docs/channels.md).
-
-## Explore the agent layer
-
-Everything below lives in the browser console; none of it needs code.
-
-<table>
-<tr>
-<td colspan="2" valign="top">
-
-### 🤖 Configure an agent
-
-In **Agents**, create an assistant for a task, choose its model, write instructions and enable its tools.
-Publish a version when it is ready for use. Every earlier version stays readable, and rolling back is a click.
-[Build an agent](docs/first-agent.md).
-
-<a href="docs/assets/screens/light/agent-builder.webp">
-  <img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, selected model and current published version." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 📄 Keep results outside the chat
-
-**Artifacts** are pages an agent creates: reports, interactive comparisons or small dashboards.
-Open them from the library, inspect versions and choose who can access them. Updating the same artifact
-keeps its link; a conversation can link to a particular version. [Create and share artifacts](docs/artifacts.md).
-
-</td>
-<td width="70%">
+Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates to the same artifact keep its link and earlier versions remain readable. [Share an artifact](docs/artifacts.md).
 
 <a href="docs/assets/screens/light/artifacts.webp">
-  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports and versions." width="100%">
+  <img src="docs/assets/screens/light/artifacts.webp" alt="Artifacts library with saved reports, access settings and versions." width="100%">
 </a>
 
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
+### Inspect runs and repeat useful work
 
-### 🔌 5,700+ integrations through MCP
-
-Connect agents to the tools your company already uses: **GitHub, Notion, HubSpot, Linear and n8n**.
-**MCP** (Model Context Protocol) is the standard that lets agents call external tools and data sources.
-
-Search the catalog by name, or add a compatible server by URL.
-Connect the services you need and choose which tools each agent can use. [Connect your tools](docs/mcp.md).
-
-<a href="docs/assets/screens/light/mcp-catalog.webp">
-  <img src="docs/assets/screens/light/mcp-catalog.webp" alt="MCP catalog showing GitHub, Notion, Slack and other services, with connection status." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🧩 Teach a reusable procedure
-
-**Skills** are written procedures an agent can load when relevant: how to review a proposal,
-reconcile a report or follow your writing style. Write a procedure once and attach it to the agents
-that need it. Edit it, and the next answer uses it, with no release. [Learn about skills](docs/skills.md).
-
-</td>
-<td width="70%">
-
-<a href="docs/assets/screens/light/skill-detail.webp">
-  <img src="docs/assets/screens/light/skill-detail.webp" alt="The artifact-pages procedure with instructions and page templates." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 📚 Give it documents to search
-
-**Knowledge bases** organize documents into collections you attach to agents. The agent searches these
-sources for relevant passages when answering. This is often called **RAG**, or retrieval-augmented generation.
-Choose the PDF reader, chunking and OCR per collection. [Add and process documents](docs/file-processing.md).
-
-<a href="docs/assets/screens/light/knowledge-bases.webp">
-  <img src="docs/assets/screens/light/knowledge-bases.webp" alt="Knowledge bases with personal and organization collections." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### 🧠 Shared context
-
-**Context** holds standing information such as product names, a glossary or communication guidelines.
-Use it for facts and rules shared across tasks; choose whether the agent receives it automatically
-or reads it on demand. [Learn about context](docs/context.md).
-
-</td>
-<td width="70%">
-
-<a href="docs/assets/screens/light/context-detail.webp">
-  <img src="docs/assets/screens/light/context-detail.webp" alt="Glossary content in Preview with linked mode for reading on demand." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### 📊 Built-in observability: see what ran and what it cost
-
-**Activity** brings run history, approvals and spend into one place. Every run records its status,
-model, tokens, duration and cost. Filter by agent, person or version, compare versions and export the
-records as CSV. Open a run to see its conversation and every tool call.
-[Explore Activity and cost controls](docs/governance.md).
+**Activity** brings run history, approvals and recorded spend together. Inspect tool calls, compare agent versions and export records. Some costs depend on provider usage and pricing data; external services can bill separately. [Read the accounting limits](docs/governance.md).
 
 <a href="docs/assets/screens/light/activity.webp">
-  <img src="docs/assets/screens/light/activity.webp" alt="Activity with agent version comparisons and filtered run history showing status, tokens, duration and recorded cost." width="100%">
+  <img src="docs/assets/screens/light/activity.webp" alt="Activity with version comparisons and run history, including a pending approval." width="100%">
 </a>
 
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
+Configure approval requirements for supported capability tools. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. Approval coverage depends on the tool and execution mode; enabling a connection alone does not require approval. [Approval modes and limits](docs/governance.md#how-much-one-conversation-wants-to-be-asked).
 
-### 🛡️ Human approval
-
-Anything that sends, files or changes something can wait for a person. The approval request shows
-the intended operation and its arguments, and the action runs only once someone approves it.
-Access to agents and resources is controlled through [roles and permissions](docs/permissions.md).
-
-</td>
-<td width="70%">
-
-<a href="docs/assets/screens/light/approval.webp">
-  <img src="docs/assets/screens/light/approval.webp" alt="A pending tool action with its arguments and approval controls." width="100%">
-</a>
-
-</td>
-</tr>
-<tr>
-<td width="30%" valign="middle">
-
-### ⏱️ Schedule repeat work
-
-**Routines** run an agent on a schedule or in response to an event: the Monday brief, the recurring
-report. A routine run has the same limits and the same record as anything a person asked for.
-[Set up a routine](docs/triggers.md).
-
-</td>
-<td width="70%">
-
-<a href="docs/assets/screens/light/routines.webp">
-  <img src="docs/assets/screens/light/routines.webp" alt="Schedule editor with weekly repetition on Monday at 06:00 UTC and the agent message in Preview." width="100%">
-</a>
-
-</td>
-</tr>
-</table>
-
-<details>
-<summary>More views</summary>
-
-<a href="docs/assets/screens/light/skills.webp">
-  <img src="docs/assets/screens/light/skills.webp" alt="Skills library with reusable procedures." width="100%">
-</a>
-
-<a href="docs/assets/screens/light/context.webp">
-  <img src="docs/assets/screens/light/context.webp" alt="Context library with shared glossary files." width="100%">
-</a>
-
-<a href="docs/assets/screens/light/knowledge-collection.webp">
-  <img src="docs/assets/screens/light/knowledge-collection.webp" alt="The vstorm collection with adding_features.md processed successfully." width="100%">
-</a>
-
-<a href="docs/assets/screens/light/artifact-detail.webp">
-  <img src="docs/assets/screens/light/artifact-detail.webp" alt="OSS Launch Planner from the demo with audience selection and recommendation." width="100%">
-</a>
-
-</details>
-
-## Why an operating system
-
-The name is a claim, so here are the criteria. An operating system does seven jobs; each row is a
-mechanism you can read in the source.
-
-| An operating system… | AgenticOS |
-|---|---|
-| **Runs and isolates processes** | Runs agents, isolates tenants in the schema and keeps every run with what it cost |
-| **Enforces resource limits** | Monthly budgets per agent, checked *before* each model request |
-| **Controls access** | A [permission catalog](docs/permissions.md) in code, roles composed from it, per-resource grants; an approval is the `sudo` |
-| **Reaches hardware through drivers** | [27 model providers](docs/models.md) and [MCP servers](docs/mcp.md) behind one interface |
-| **Keeps a filesystem** | [Collections, skills and context](docs/file-processing.md) in your own Postgres |
-| **Gives many interfaces one shell** | One runner behind web chat, the API, Slack, Telegram, Mattermost, a widget, a hosted page and a schedule |
-| **Writes an audit log** | Who ran what, when, what it cost and who approved it, written even when the run failed |
-
-Apply the same seven to anything else in the category, us included:
-[what makes something an operating system for agents](docs/about/index.md).
-
-## Why it exists
-
-Most agent frameworks give you a library. You write Python, you deploy it, and every change to an
-agent's behaviour is a pull request, a review and a release. That is the right shape for a product
-feature and the wrong shape for the forty small agents a company actually wants — because the person
-who knows what the agent should say is not the person with commit access.
-
-**Code defines, configuration composes.** A business team assembles agents in a browser and never
-opens Python; engineers extend what there is to assemble, and configuration can only reach what code
-registered. The ceiling is the capability registry, not a config file.
-
-## Turn individual AI work into a team capability
-
-For a recurring report, the team can divide the work:
-
-1. **A subject expert defines the method:** maintain the instructions, skills and source knowledge.
-2. **A builder makes the agent available:** configure its tools, publish a version and grant colleagues access.
-3. **Colleagues use the results:** run the agent, review its output and share an artifact with the people who need it.
-
-The agent and its know-how belong to the organization, not to whoever wrote the first prompt.
-[Set up team access](docs/permissions.md).
-
-## Own your deployment, models and access
-
-**Sovereign means control over your deployment, model providers, data flows and agent access.** Choose which components run locally and which external services receive data.
-
-**Run it on your infrastructure.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
-Choose hosted model providers or local models through Ollama and compatible endpoints such as vLLM.
-[Model configuration](docs/models.md).
-
-**Decide what an agent may do.** Configure resource permissions, store credentials in the encrypted vault and
-put a person's approval in front of tools that act. [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md).
-
-[Deploy and operate](docs/rollout.md) · [Execution and cost controls](docs/governance.md) · [Security and data flows](docs/security.md)
+When a task is ready to repeat, use [routines](docs/triggers.md) to run an agent on a schedule or an event. Test its tools, limits and approval policy before leaving it unattended.
 
 ## Is AgenticOS the right fit?
 
-Choose AgenticOS when your company wants shared agents, reusable knowledge and automation with control
-over the source code, models and deployment. If you only need an agent library inside an existing
-application, start with a framework.
+Choose it when a team has repeated document or tool-based work, subject experts who can maintain the instructions, and someone responsible for operating a self-hosted deployment.
 
-Each comparison guide cites the vendor's own pages, shows where AgenticOS goes further, and names what it does not do yet.
+| Your starting point | What to evaluate |
+|---|---|
+| You want colleagues to use and maintain shared agents | Try AgenticOS's builder, knowledge and publishing workflow. If a shared chat interface is enough, also evaluate [Open WebUI](https://github.com/open-webui/open-webui). |
+| You mainly need to design workflows or AI applications | Compare the authoring workflow with [Dify](docs/about/dify.md) and [n8n](docs/about/n8n.md), using one of your real tasks. |
+| You are building agents as part of a software product | Start with an SDK or runtime such as [Pydantic AI](https://ai.pydantic.dev) or [Agno](https://github.com/agno-agi/agno); decide whether you also need AgenticOS's team console. |
 
-- **Assistant apps:** [Claude](docs/about/claude-apps.md) · [ChatGPT](docs/about/chatgpt.md). Seats for employees, or agents your organization owns on any model.
-- **Cloud-suite builders:** [Copilot Studio](docs/about/copilot-studio.md) · [Gemini Enterprise](docs/about/gemini-enterprise.md). A vendor's cloud and meter, or your infrastructure and your provider's prices.
-- **Self-hosted builders:** [Dify](docs/about/dify.md) · [n8n](docs/about/n8n.md). Licence conditions and enterprise tiers, or Apache-2.0 with governance included.
-- **Teammate service:** [Viktor](docs/about/viktor.md). One shared AI employee, or many agents with their own access and budgets.
-- **Delivered agent layer:** [Wonderful](docs/about/wonderful.md). A system a vendor delivers, or one you own from day one.
-- **Coding agents:** [Claude Code](docs/about/claude-code.md) · [Codex](docs/about/codex.md) · [OpenCode](docs/about/opencode.md). Built for developers; AgenticOS is for everyone else, and developers extend it.
+Self-hosting gives you an operating responsibility: upgrades, backups, credentials and provider bills. If nobody will own that work, settle the deployment and support arrangement before a pilot. [Rollout guide](docs/rollout.md) · [Detailed comparisons and gaps](docs/about/comparison.md).
 
-[All comparisons, and the gaps](docs/about/comparison.md).
+## Own your deployment, models and access
 
-<details>
-<summary>Questions about the agent layer</summary>
+**Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate. Choose hosted providers or local models through Ollama and compatible endpoints such as vLLM. [Configure models](docs/models.md).
 
-### Is AgenticOS an AI agent harness?
+Self-hosting the console does not make every model, parser or tool local. Review the destinations you configure and the data they receive. Assign resource permissions, store credentials in the encrypted vault and test the approval policy for the tools you enable.
 
-Yes, with a team interface around it. The harness is the loop that runs a model with tools: retrieval
-over your documents, web search and a real browser, Python in a sandbox with files and a shell, charts,
-images, delegation to subagents, a task list and conversation compaction. Each is a capability you switch
-on per agent in the browser, alongside skills, context, MCP servers, budgets and approvals. Developers add
-new capabilities in typed Python. See the [capabilities reference](docs/reference/capabilities.md).
-
-### Can I create a Claude Code-like agent for business tasks?
-
-Yes. Give an agent a sandbox with files and a shell, web search, a browser, delegation and a task list,
-then attach the skills and context it needs. It plans multi-step work, reads before it acts, edits files,
-runs commands, hands parts to specialists and checks the result. It answers in web chat, Slack or through
-the API, on the model you choose, with approval in front of anything that acts. See the
-[Claude Code comparison](docs/about/claude-code.md).
-
-### Can it run entirely on our own infrastructure?
-
-Yes. Serve models through Ollama or vLLM, embed documents through an Ollama on your own network, and
-read PDFs with the built-in PyMuPDF reader or self-hosted LiteParse OCR. Nothing leaves the deployment
-unless a setting names a destination. See [data protection](docs/data-protection.md).
-
-</details>
-
-## On the desktop, if you like
-
-The console is a web app, and a browser is all it needs. The optional [desktop app](docs/desktop.md)
-is the same console in a window of its own, with a pet on the desktop and a global shortcut (`⌘⇧A`)
-that screenshots any region straight into a new chat.
+[Security and data flows](docs/security.md) · [Access controls](docs/permissions.md) · [Secrets](docs/secrets.md) · [Execution and cost controls](docs/governance.md).
 
 ## For developers and operators
 
-Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js.
-Every published agent is also an endpoint, behind the same budget, approvals and run history as the console:
+Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities in typed Python; teams compose agents from the registered capabilities in the console.
 
-```bash
-curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Summarize the open support tickets"}'
-```
+[Architecture](docs/architecture.md) · [Capabilities](docs/reference/capabilities.md) · [API](docs/api.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md).
 
-| Start here | What it covers |
-|---|---|
-| [Architecture](docs/architecture.md) | Services, storage and execution |
-| [Capabilities](docs/reference/capabilities.md) | Available tools and configuration |
-| [API](docs/api.md) | Integration with your applications |
-| [Models](docs/models.md) | Model providers and profiles |
-| [Security](docs/security.md) | Data flows and deployment boundaries |
-| [Testing](docs/testing.md) | Test suites and coverage scope |
-
-`make check` before a pull request: every CI job except e2e. New behaviour ships with a test; a bug
-ships with a regression test. The core is held at 100% coverage and CI fails below it.
-
-Three things that trip up a first change: a tool is code and an agent is not (there is no
-`@agent.tool` — a capability registers, and then it is a switch in everybody's Builder);
-`require(...)` gates go on collection routes only; and if the tool already exists as an MCP server,
-write none. [Contributing](CONTRIBUTING.md) has the rest, [`.claude/`](.claude/README.md) has the
-same conventions written for a machine, the [roadmap](docs/ROADMAP.md) shows planned work, and good
-first issues are [labelled here](https://github.com/vstorm-co/agenticos/labels/good%20first%20issue).
-
-<details>
-<summary><b>The rest of the Vstorm OSS ecosystem</b></summary>
-
-Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
-
-| Project | What it is | |
-|---|---|---|
-| **[full-stack-ai-agent-template](https://github.com/vstorm-co/full-stack-ai-agent-template)** | The generator AgenticOS was built from — FastAPI + Next.js, RAG, streaming, auth, 20+ integrations | [![Stars](https://img.shields.io/github/stars/vstorm-co/full-stack-ai-agent-template?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/full-stack-ai-agent-template) |
-| **[pydantic-deepagents](https://github.com/vstorm-co/pydantic-deepagents)** | Open-source, self-hosted Claude Code — a terminal assistant and the framework behind it | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-deepagents?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-deepagents) |
-| **[pydantic-ai-shields](https://github.com/vstorm-co/pydantic-ai-shields)** | Guardrails — cost tracking, prompt-injection detection, PII filtering, secret redaction | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-shields?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-shields) |
-| **[subagents-pydantic-ai](https://github.com/vstorm-co/subagents-pydantic-ai)** | Nested subagent delegation, parallel execution, task cancellation | [![Stars](https://img.shields.io/github/stars/vstorm-co/subagents-pydantic-ai?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/subagents-pydantic-ai) |
-| **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** | File storage and Docker-isolated sandboxes, with a permission system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-backend?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-backend) |
-| **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** | Hierarchical task planning with PostgreSQL storage and an event system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-todo?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-todo) |
-| **[production-stack-skills](https://github.com/vstorm-co/production-stack-skills)** | Skill pack that turns a coding agent into a senior production engineer | [![Stars](https://img.shields.io/github/stars/vstorm-co/production-stack-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/production-stack-skills) |
-| **[content-skills](https://github.com/vstorm-co/content-skills)** | Content studio skill pack for coding agents — brand-aware, with built-in anti-slop | [![Stars](https://img.shields.io/github/stars/vstorm-co/content-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/content-skills) |
-
-Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
-
-</details>
+The [operating-system analogy](docs/about/index.md) explains the architecture. The optional [desktop app](docs/desktop.md) adds a dedicated window, a pet and a macOS screenshot shortcut. Explore [Vstorm's open-source projects](https://github.com/vstorm-co) for the libraries and tools around AgenticOS.
 
 ## License
 
@@ -472,4 +221,4 @@ for attribution and bundled components.
 Vstorm deploys AgenticOS in client infrastructure, writes the documentation, defines the processes
 and builds custom capabilities. Maintenance and support are agreed per engagement.
 
-Built with care by [**Vstorm**](https://vstorm.co) · [oss.vstorm.co](https://oss.vstorm.co)
+Built with care by [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https://github.com/vstorm-co)
