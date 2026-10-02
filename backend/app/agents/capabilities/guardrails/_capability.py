@@ -227,25 +227,23 @@ class ScreenedStream(AbstractCapability[object]):
     ) -> AsyncIterable[AgentStreamEvent]:
         """Drop text and reasoning as they stream, and release each part screened."""
         async for event in stream:
-            if isinstance(event, PartStartEvent) and isinstance(
-                event.part, TextPart | ThinkingPart
-            ):
-                continue
-            if isinstance(event, PartDeltaEvent) and isinstance(
-                event.delta, TextPartDelta | ThinkingPartDelta
-            ):
-                continue
-            if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart | ThinkingPart):
-                verdict = self.screen(event.part.content)
-                # A detector here only allows or replaces; a block has raised.
-                content = (
-                    str(verdict.replacement) if verdict.action == "replace" else event.part.content
-                )
-                part = replace(event.part, content=content)
-                yield PartStartEvent(index=event.index, part=part)
-                yield replace(event, part=part)
-                continue
-            yield event
+            match event:
+                case (
+                    PartStartEvent(part=TextPart() | ThinkingPart())
+                    | PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta())
+                ):
+                    pass
+                case PartEndEvent(part=TextPart() | ThinkingPart() as part):
+                    verdict = self.screen(part.content)
+                    # A detector here only allows or replaces; a block has raised.
+                    content = (
+                        str(verdict.replacement) if verdict.action == "replace" else part.content
+                    )
+                    screened = replace(part, content=content)
+                    yield PartStartEvent(index=event.index, part=screened)
+                    yield replace(event, part=screened)
+                case _:
+                    yield event
 
 
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
