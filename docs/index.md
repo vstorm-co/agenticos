@@ -188,8 +188,7 @@ live stays readable, so *what did this agent look like in March* has an answer.
 
 === "What somebody edits"
 
-    ![Agents — every one with the version that is live and who may reach it](assets/screens/light/agents.webp#only-light)
-    ![Agents — every one with the version that is live and who may reach it](assets/screens/dark/agents.webp#only-dark)
+    > **Screenshot pending — Agents.** New light and dark captures will replace the previous interface images.
 
 === "What it becomes"
 

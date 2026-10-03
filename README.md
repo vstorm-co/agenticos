@@ -1,30 +1,26 @@
 <div align="center">
 
-<img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet, walking" width="288">
-
-<h1>AgenticOS</h1>
+<h1><img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="64" valign="middle"> AgenticOS</h1>
 
 <p>
-  <b>Put AI agents to work on your team's tasks.</b><br>
-  Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
+  <strong>Sovereign Agentic AI Layer</strong><br>
+  <b>AI agents your whole team can use and improve.</b><br>
+  Open source. Build shared agents in your browser, on infrastructure you control.
 </p>
 
 <p>
   <a href="#-quick-start">Quick start</a> &middot;
-  <a href="#what-it-looks-like">Screens</a> &middot;
-  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentation</a> &middot;
-  <a href="docs/index.md">Docs</a> &middot;
-  <a href="#the-best-agentic-os-you-can-run-yourself">Why an OS</a> &middot;
-  <a href="#compared-with-the-alternatives">Comparison</a>
+  <a href="#-build-share-and-operate">Build, share and operate</a> &middot;
+  <a href="#-is-agenticos-the-right-fit">Is it a fit?</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Guided tour</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
 
 <p>
   <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
-  <a href="docs/testing.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence"></a>
-  <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
-  <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0"></a>
+  <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Built with Pydantic AI"></a>
 </p>
 
 <p>
@@ -36,532 +32,221 @@
 
 </div>
 
----
+AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company’s tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access and results in one place.
 
-A company ends up with agents in five places and cannot answer four questions:
-**what do we run, what did it cost, what did it touch, and who said it could.**
-AgenticOS is one place to build them and one set of books for all of them.
+**New here?** Click through the [guided introduction](https://vstorm-co.github.io/agenticos/presentation/): 44 slides on the real product screens, from what AgenticOS is to how a first project starts. Arrow keys step through it; `O` lists every slide.
 
-**The harness, as a product**: skills, context files — `AGENTS.md` as a page —
-MCP at registry scale, automations on a schedule or a trigger, and a budget that
-stops a run *before* the model call.
+<a href="docs/assets/screens/light/agent-builder.png">
+  <img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder showing instructions, model selection and a published version." width="100%">
+</a>
 
-Below: a spreadsheet dropped into the chat, one sentence asking for charts. The
-agent writes the code, runs it in a locked box, and answers.
+## ✨ What you can do
 
-<div align="center">
+| For your team | What AgenticOS provides |
+|---|---|
+| [Work with files and code](#-work-with-files-and-code) | Analyze CSVs, produce charts and documents, work on repositories |
+| [Build reusable agents](#-build-agents-your-team-can-reuse) | Choose models and tools, publish versions, share agents with colleagues |
+| [Connect company knowledge](#-teach-agents-how-your-team-works) | Reuse skills, context and searchable documents across agents |
+| [Share the results](#-publish-results-as-interactive-pages) | Publish interactive pages with stable links and version history |
+| [Run and monitor](#-track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
+| [Organize company access](#-organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
-<video src="https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc" controls muted loop playsinline width="100%">
-  <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
-</video>
+## 🚀 Quick start
 
-</div>
-
-**[Build your first document agent](docs/howto/first-document-agent.md)** · [Choose a task](docs/use-cases.md) · [Compare platforms](docs/about/comparison.md) · [Deploy and operate](docs/rollout.md) · [Get help](docs/help.md)
-
-Start with a handbook answer you can check. Then try a request draft or a CSV chart, keeping the source and actual output together.
-
-Your team owns operation. Models, parsing, embeddings, tools and tracing can use external services depending on configuration.
-
-
-And the same console on the desktop, with company: the optional
-[desktop app](#on-the-desktop-if-you-like), its pet, and a shortcut that screenshots
-straight into a new chat.
-
-<div align="center">
-
-<video src="https://github.com/user-attachments/assets/b82867ae-3543-406e-a552-e3a8b61f1d10" controls muted loop playsinline width="100%">
-  <img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
-</video>
-
-</div>
-
-<div align="center">
-<sub>
-Not a reader? <a href="https://vstorm-co.github.io/agenticos/presentation/"><b>The whole thing in twenty slides</b></a> — what the problem is, what a spec holds, where it answers, and what it refuses.
-</sub>
-</div>
-
-## ⚡ Quick start
-
-One command, and Docker is all it needs. It downloads one compose file, pulls the
-published images, asks four questions, and hands back a console with a working
-agent in it. Your team owns operation. Models, parsing, embeddings, tools and tracing can use external services depending on configuration.
+Start with Docker Compose and access to a model provider. On macOS or Linux, run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
+On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on.
+The installer asks for a model provider and key, your login and an organization name, pulls the
+published images and starts a deployment with a working agent in it.
+
+Open **http://localhost:3000** and sign in with the login you chose during installation.
+
+**Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources. Then test an updated document. Document search requires an embedding model. For other tasks, see [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/).
+
 <details>
-<summary><b>macOS</b></summary>
+<summary>Inspect the installer or deploy another way</summary>
 
-Docker Desktop or [OrbStack](https://orbstack.dev). Nothing else.
-
-</details>
-
-<details>
-<summary><b>Linux</b></summary>
+Read the [installer](scripts/quickstart.sh) before running it. To check prerequisites without installing:
 
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo apt install docker-compose-plugin
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- --check
 ```
+
+For manual Docker Compose setup, pinned versions and troubleshooting, follow the [installation guide](https://vstorm-co.github.io/agenticos/install/).
+For development from source, see [Contributing](https://vstorm-co.github.io/agenticos/help/).
 
 </details>
 
-<details>
-<summary><b>Windows</b></summary>
+## 🎬 Recorded integration example
 
-Through WSL2. In an administrator PowerShell:
+Watch an agent turn a Notion brief into the interactive **OSS Launch Planner**, using GitHub research on Vstorm’s open-source projects: **brief → research → shared result**.
 
-```powershell
-wsl --install
-```
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
 
-Then Docker Desktop with WSL2 integration on, and run the installer inside the
-Ubuntu shell it gives you.
+[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
-</details>
+## 🧩 Build, share and operate
 
-### What it asks
+### 📂 Work with files and code
 
-| | |
-|---|---|
-| **Which model** | OpenAI, Anthropic, Google, OpenRouter — or *decide later*, which creates everything and lets you paste a key in the console |
-| **Your key** | Typed hidden, stored encrypted in your own database, never printed back |
-| **Your login and organization name** | Defaults are fine for a look around |
-| **One switch** | Mirror the public MCP registry so all 5,802 tool servers are searchable by name |
+Ask an agent to analyze a spreadsheet, produce a chart, prepare a document or work on a repository. With a container-backed sandbox configured and command execution enabled, it can **read and edit files, run shell commands, and execute Python or JavaScript**. The bundled workbench includes data, charting and document tools, including LibreOffice.
 
-Add `--check` to only find out what is missing, `--dry-run` to see every command
-it would run without running one, or drive it unattended:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- \
-  --yes --provider anthropic --api-key sk-ant-... --org "Acme"
-```
-
-### Or type the three commands yourself
-
-The installer is a wrapper around these, and there is no step it takes that you
-cannot take by hand:
-
-```bash
-mkdir agenticos && cd agenticos
-curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-compose.yml
-docker compose up -d                                          # postgres (pgvector), redis, api, prefect, console
-docker compose exec -T -e BOOTSTRAP_API_KEY=sk-... app \
-  agenticos cmd bootstrap                                    # an org, an owner, a key, a model, a published agent
-open http://localhost:3000                                   # sign in as admin@example.com / admin123
-```
-
-The images are `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend`,
-published for amd64 and arm64 by every release; `AGENTICOS_VERSION=x.y.z` in a
-`.env` beside the file pins one. There is no `.env` to write first: every
-compose variable has a default. To change the code, `git clone` and `make dev`
-instead - a clone builds the same images from the tree.
-
-If something does not come up, `docker compose exec app agenticos cmd doctor`
-answers the only question that matters — can this deployment actually run an
-agent — and [docs/install.md](docs/install.md) has the rest.
-
-## What you get
-
-- 🧰 **The harness, as configuration.** Retrieval over your documents, a real browser,
-  Python in a sandbox with files and a shell, charts, images, delegation —
-  switched on per agent, not wired into code.
-- 📄 **Context files.** `AGENTS.md` and `CLAUDE.md` as a page: standing
-  instructions written once, attached to every agent that needs them.
-- 🎓 **Skills.** A procedure written once in plain language, loaded when the
-  agent decides it is relevant. Edit it; live on the next answer, no release.
-- 🔌 **MCP, at registry scale.** **5,802 servers** in the catalogue, searchable
-  by name — 99 of them checked by hand with their OAuth wired. Or a compatible endpoint.
-- 📚 **Documents read properly.** Pick the PDF reader per collection, or for one
-  file: PyMuPDF built in, LlamaParse where the tables carry the meaning,
-  self-hosted LiteParse OCR for scans. Plus how it is split, and OCR language.
-- ⏰ **Automations.** Schedules and event triggers — the 07:00 triage, the Monday
-  summary. Same limits and same record as anything a person asked for.
-- 📡 **One runner, eight surfaces.** Web chat, a hosted page, a widget, the HTTP
-  API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
-- 🖥️ **A browser is all it needs; a desktop app if you want one.** The console is
-  a web app. The [desktop app](docs/desktop.md) is the same console in a window of
-  its own - plus a pet on the desktop and a shortcut that screenshots straight into
-  a new chat. An add-on, never a requirement.
-- 🛡️ Configurable human approval for supported tools, recorded spend checks before model requests, an audit trail and tenant-scoped access.
-- 📊 **A dashboard each person arranges.** 35 cards — runs, spend, service
-  health, answer quality, sandbox capacity — each gated on what that reader may
-  see. A finance lead and an engineer keep different ones on one deployment.
-
-**Code defines, configuration composes.** A business team assembles agents in a
-browser and never opens Python; engineers extend what there is to assemble, and
-configuration can only ever reach what code registered. The ceiling is the
-registry, not a config file — and it is Apache-2.0, on your hardware.
-
-## What it looks like
-
-### Inside one agent
-
-An agent is a **spec**: instructions, a model, the capabilities it may reach,
-the knowledge bound to it, a budget, and where it answers. Nothing ships until
-**Publish**, and every publish is a version.
-
-<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
-
-<table>
-<tr>
-<td width="50%">
-
-**Toolbox** — What the agent may do, as switches — your documents, a browser, Python, charts, delegation. Each one can require a person's approval first. This is the **AI harness**, assembled in a form.
-
-<img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
-
-</td>
-<td width="50%">
-
-**Visual map** — The agent as a graph: what reaches it, what it reaches for. A dashed box is something nobody attached.
-
-<img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Limits** — A monthly cap per agent, checked *before* each model call rather than added up after — plus a step limit, for the loop that is cheap and never stops.
-
-<img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
-
-</td>
-<td width="50%">
-
-**History** — Every version it has had, still readable. Rolling back is a click.
-
-<img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
-
-</td>
-</tr>
-</table>
-
-<sub>These four are dark only — the light half has not been captured.</sub>
-
-### The first screen
-
-**Dashboard** — 35 cards, laid out by whoever is reading: runs, spend, service
-health, answer quality, sync freshness, sandbox capacity. Each one gated on what
-that person is allowed to see, so a finance lead and an engineer keep different
-dashboards on the same deployment.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
-  <img alt="The dashboard: 35 arrangeable cards" src="docs/assets/screens/light/dashboard.webp" width="100%">
-</picture>
-
-### Running forty of them
-
-<table>
-<tr>
-<td width="50%">
-
-**Agents** — Every agent you run, with the version that is live and who may use it.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
-  <img alt="Agents" src="docs/assets/screens/light/agents.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Templates** — Start from one built for your industry; you get a draft to adjust and publish.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
-  <img alt="Templates" src="docs/assets/screens/light/agents-templates-dialog.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**One answer, opened up** — Every answer recorded: the question, what it looked at, every tool call, the duration, the cost to a fraction of a cent.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
-  <img alt="One answer, opened up" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**How your documents are read** — Three PDF readers — PyMuPDF, LiteParse, LlamaParse — plus chunking and OCR. Per collection, overridable on the next file. A scanned price list and a contract do not want the same one.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
-  <img alt="How your documents are read" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Context** — Standing facts — product names, policy, house tone — in one place instead of forty prompts.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
-  <img alt="Context" src="docs/assets/screens/light/context.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**It asks before it acts** — Anything that sends, files or refunds waits for a person, with the intended action written out. Decided exactly once.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
-  <img alt="It asks before it acts" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**What it costs** — Recorded spend is checked before model requests. A request already in progress or concurrent runs can exceed the cap. See [budget limits](docs/governance.md#budgets).
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
-  <img alt="What it costs" src="docs/assets/screens/light/activity-spend.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Keys and credentials** — Keys are encrypted at rest and scoped by owner. Ordinary console/API responses do not return their plaintext. The deployment operator remains part of the trust boundary.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
-  <img alt="Keys and credentials" src="docs/assets/screens/light/vault.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**The tools you already pay for** — Connect compatible MCP servers using supported transports, credentials and permitted destinations. See [MCP setup](docs/mcp.md).
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
-  <img alt="The tools you already pay for" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Where people meet it** — Slack, Telegram, Mattermost, a website widget, your own software over the API. Published once; same limits everywhere.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
-  <img alt="Where people meet it" src="docs/assets/screens/light/channels.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-</table>
-
-
-<sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
-
-## The best agentic OS you can run yourself
-
-That is a claim, and the only honest way to make one is to hand over the criteria
-and let you count. An operating system does seven things. Each row below is a
-mechanism you can read in the source, not a promise.
-
-| What an operating system does | What AgenticOS does |
-|---|---|
-| **Runs and isolates processes** | Runs agents, stops one at its budget, isolates tenants in the schema rather than in service code, and keeps every run with what it cost |
-| **Enforces resource limits** - quota, cgroups | Monthly budgets per agent, checked *before* each model request rather than tallied afterwards. A run that fails still records what it spent |
-| **Controls access** - users, permissions, `sudo` | A [permission catalog](docs/permissions.md) in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo`: a tool that acts on the outside world waits for a person |
-| **Reaches hardware through drivers** | One interface to [27 model providers](docs/models.md) and to [compatible MCP servers](docs/mcp.md). Change a model profile and every agent using it moves, without one of them being republished |
-| **Keeps a filesystem** | [Collections, skills and attached context](docs/file-processing.md) in your own Postgres, with embeddings keyed per organization |
-| **Gives many interfaces one shell** | One runner behind web chat, the HTTP API, Slack, Telegram, a widget, a hosted page and a schedule. Same budget, same approval gate, same audit trail |
-| **Writes an audit log** - syslog, auditd | Who ran what, when, what it cost and who approved it. Written even when the run failed |
-
-Apply the same seven to anything else in the category. That is the test we would
-like to be judged on, and
-[When to use something else](docs/about/comparison.md) is where we run it against
-the alternatives - including the rows where the honest answer here is "not yet".
-
-**Now apply the same seven to anything else in the category** — including the
-ones with a thousand times our stars. None of them explains why it is an
-operating system, because most of them are a workspace with the letters on the
-box. That is the whole claim: not that we have the most users, but that we are
-the only one that states the criteria and then meets them in code you can read.
-
-Where the honest answer here is still "not yet", it is a row in the comparison
-below and a line on the [roadmap](docs/ROADMAP.md).
-[When to use something else](docs/about/comparison.md) is the long version,
-including where this one loses, and
-[what makes something an operating system for agents](docs/about/index.md) is the
-criteria on their own — take them and score anybody, us included.
-
-## What an agent can do
-
-Switched on per agent, in the Builder. Each carries its own settings, its own
-permission scope and — where it acts on the outside world — its own approval gate.
-
-| | |
-|---|---|
-| **Answer from your documents** | Retrieval over collections in your own Postgres, plus [skills](docs/skills.md) it loads on demand and [context files](docs/context.md) bound across agents |
-| **Go and find out** | Web search, fetch one page properly, or drive a **real browser** through a site that needs clicking |
-| **Do the work** | Run Python, keep a [sandbox](docs/sandbox.md) with files and a shell, draw charts, generate images |
-| **Handle what is too big for one answer** | Delegate to subagents, keep a task list, think longer, compact a long conversation |
-| **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
-| **Anything else** | [Compatible MCP servers](docs/mcp.md) - 5,802 in the catalogue, 99 of them checked with their OAuth flows wired, and no connector to write |
-
-## Where it answers
-
-Publish once. The same runner serves all of these, so an answer does not depend
-on where the question came from.
-
-| | |
-|---|---|
-| **Web chat** | In the console, with attachments and slash commands |
-| **The desktop app** | The same console in a window of its own, with a pet and a screenshot shortcut - an [optional shell](docs/desktop.md), not a second product |
-| **A hosted page** | `/e/{key}` - send somebody a link, no account needed |
-| **An embeddable widget** | On your own site, with variables from the address bar |
-| **The HTTP API** | [One POST and you have an answer](docs/api.md) |
-| **A raw WebSocket** | Stream tokens into a frontend you built yourself |
-| **Slack, Telegram, Mattermost** | Where an `@mention` runs as **the person who sent it**, not as the bot |
-| **Schedules and triggers** | A clock, a webhook, or a mailbox we poll - [routines](docs/triggers.md) |
-
-## On the desktop, if you like
-
-Everything above runs in a browser, and that is how most people use it. For those
-who want it on the dock there is a [desktop app](docs/desktop.md): a thin shell
-around the same console - same sign-in, same permissions, nothing bundled - with
-two things a browser tab cannot do. A pet that lives on the desktop while you work,
-and a global shortcut (`⌘⇧A`) that takes a screenshot of any region and opens a new
-chat with it attached.
-
-<div align="center">
-
-<img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
-
-<sub>Amigo, one of five pets. Drag it, click it, stroke it; right-click for its menu. <b>No more caramba in your AI.</b></sub>
-
-</div>
-
-## Compared with the alternatives
-
-Choose by the task and by who operates it. Each guide cites the vendor's own pages, shows where AgenticOS goes further, and names what it does not do yet.
-
-- **Assistant apps:** [Claude](docs/about/claude-apps.md) · [ChatGPT](docs/about/chatgpt.md). Seats for employees, or agents your organization owns on any model.
-- **Cloud-suite builders:** [Copilot Studio](docs/about/copilot-studio.md) · [Gemini Enterprise](docs/about/gemini-enterprise.md). A vendor's cloud and meter, or your infrastructure and your provider's prices.
-- **Self-hosted builders:** [Dify](docs/about/dify.md) · [n8n](docs/about/n8n.md). Licence conditions and enterprise tiers, or Apache-2.0 with governance included.
-- **Teammate service:** [Viktor](docs/about/viktor.md). One shared AI employee, or many agents with their own access and budgets.
-- **Delivered platform:** [Wonderful](docs/about/wonderful.md). A platform a vendor delivers, or one you own from day one.
-- **Coding agents:** [Claude Code](docs/about/claude-code.md) · [Codex](docs/about/codex.md) · [OpenCode](docs/about/opencode.md). Built for developers; AgenticOS is for everyone else, and they help extend it.
-
-[All comparisons, and the gaps](docs/about/comparison.md).
-
-## Why it exists
-
-Most agent frameworks give you a library. You write Python, you deploy it, and
-every change to an agent's behaviour is a pull request, a review and a release.
-That is the right shape for a product feature and the wrong shape for the forty
-small agents a company actually wants — because the person who knows what the
-agent should say is not the person with commit access.
-
-AgenticOS moves the agent out of the code and puts governance around it instead.
-[Secrets](docs/secrets.md) are sealed per organization: a key copied from one
-tenant's database row cannot be decrypted for another, and no API response ever
-returns one.
-
-## Docs
-
-| | |
-|---|---|
-| [Install](docs/install.md) · [Your first agent](docs/first-agent.md) | From nothing to an agent that answers |
-| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run — the five nouns |
-| [Permissions](docs/permissions.md) · [Governance](docs/governance.md) | Who may do what; budgets, approvals, audit |
-| [Capabilities](docs/reference/capabilities.md) · [MCP](docs/mcp.md) | What an agent can do, and how to add a tool |
-| [Models](docs/models.md) · [Secrets](docs/secrets.md) | Providers, profiles, cost; the vault |
-| [Knowledge](docs/file-processing.md) · [Skills](docs/skills.md) | Parsers, chunking, OCR; written know-how |
-| [Channels](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, widget, WebSocket, HTTP |
-| [Desktop app](docs/desktop.md) | The optional shell: the console in a window, the pet, the screenshot shortcut |
-| [Architecture](docs/architecture.md) · [Testing](docs/testing.md) | How it is built, and how it is verified |
-
-Built with MkDocs: `make docs` serves them on :8001. Stack, in one line: FastAPI
-+ Pydantic v2, PostgreSQL with pgvector, Redis, Prefect,
-[Pydantic AI](https://ai.pydantic.dev), Next.js 15. External destinations depend on model, parser, embedding, tool, channel, sandbox and tracing configuration. Review the [data-flow statement](docs/security.md).
-
-## Contributing
-
-`make check` before a pull request: every CI job except e2e, about five minutes.
-New behaviour ships with a test; a bug ships with a regression test. The
-**platform layer is held at 100% coverage** and CI fails below it.
-
-Three things that trip up a first change: a tool is code and an agent is not
-(there is no `@agent.tool` — a capability registers, and then it is a switch in
-everybody's Builder); `require(...)` gates go on collection routes only; and if
-the tool already exists as an MCP server, write none.
-[CONTRIBUTING.md](CONTRIBUTING.md) has the rest, [`.claude/`](.claude/README.md)
-has the same conventions written for a machine, and good first issues are
-[labelled here](https://github.com/vstorm-co/agenticos/labels/good%20first%20issue).
-
-<details>
-<summary><b>The rest of the Vstorm OSS ecosystem</b></summary>
-
-Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
-
-| Project | What it is | |
-|---|---|---|
-| **[full-stack-ai-agent-template](https://github.com/vstorm-co/full-stack-ai-agent-template)** | The generator AgenticOS was built from — FastAPI + Next.js 15, RAG, streaming, auth, 20+ integrations | [![Stars](https://img.shields.io/github/stars/vstorm-co/full-stack-ai-agent-template?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/full-stack-ai-agent-template) |
-| **[pydantic-deepagents](https://github.com/vstorm-co/pydantic-deepagents)** | Open-source, self-hosted Claude Code — a terminal assistant and the framework behind it | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-deepagents?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-deepagents) |
-| **[pydantic-ai-shields](https://github.com/vstorm-co/pydantic-ai-shields)** | Guardrails — cost tracking, prompt-injection detection, PII filtering, secret redaction | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-shields?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-shields) |
-| **[subagents-pydantic-ai](https://github.com/vstorm-co/subagents-pydantic-ai)** | Nested subagent delegation, parallel execution, task cancellation | [![Stars](https://img.shields.io/github/stars/vstorm-co/subagents-pydantic-ai?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/subagents-pydantic-ai) |
-| **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** | File storage and Docker-isolated sandboxes, with a permission system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-backend?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-backend) |
-| **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** | Hierarchical task planning with PostgreSQL storage and an event system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-todo?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-todo) |
-| **[production-stack-skills](https://github.com/vstorm-co/production-stack-skills)** | Skill pack that turns a coding agent into a senior production engineer | [![Stars](https://img.shields.io/github/stars/vstorm-co/production-stack-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/production-stack-skills) |
-| **[content-skills](https://github.com/vstorm-co/content-skills)** | Content studio skill pack for coding agents — brand-aware, with built-in anti-slop | [![Stars](https://img.shields.io/github/stars/vstorm-co/content-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/content-skills) |
-
-Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
-
-Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
-
-</details>
-
-## Licence
-
-Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every component the
-images ship and its licence; the review of what those licences oblige, and the
-findings still open, is in [the documentation](https://vstorm-co.github.io/agenticos/licenses/).
-
-Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside other
-companies: the explicit patent grant is the part their legal review asks about,
-and MIT is silent on it.
-
----
-
-<div align="center">
-
-### Need help putting agents into production?
-
-<p>
-Vstorm can help deploy AgenticOS in client infrastructure, write documentation, define processes and build custom elements. Maintenance and support are agreed for the project.
-</p>
-
-<a href="https://vstorm.co/">
-  <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
+<a href="docs/assets/screens/light/chat.png">
+  <img src="docs/assets/screens/light/chat.png" alt="Existing conversation analyzing a sales CSV, with a regional revenue chart and the agent's findings." width="100%">
 </a>
 
-<br><br>
+**Sales CSV → revenue chart and findings.** Open tool calls to inspect the commands behind an answer, and use the file panel to reach its inputs and outputs.
 
-Built with care by <a href="https://vstorm.co"><b>Vstorm</b></a> ·
-<a href="https://oss.vstorm.co">oss.vstorm.co</a>
+If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted workspace with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions.
 
-</div>
+Run container sandboxes on your own infrastructure or configure a supported remote backend. Choose the workspace lifetime and execution limits for the job. [Sandbox configuration](https://vstorm-co.github.io/agenticos/sandbox/).
+
+<details>
+<summary>See sandbox connections</summary>
+
+<img src="docs/assets/screens/light/sandboxes.png" alt="Sandbox connections with local container hosts, vault-backed credentials and runtime selection." width="100%">
+
+</details>
+
+### 🤖 Build agents your team can reuse
+
+Choose its model, instructions and tools in the browser. Publish a version for colleagues to use; inspect earlier versions and roll back when needed. Keep specialized agents for research, reporting, coding or operations in one catalog.
+
+<details>
+<summary>See the agent catalog</summary>
+
+<img src="docs/assets/screens/light/agents.png" alt="Agent catalog with published agents, their descriptions and version status." width="100%">
+
+</details>
+
+Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegram** when those channels are configured. Developers can call it through the API. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/).
+
+### 🧠 Teach agents how your team works
+
+- **Skills** hold reusable procedures: how to review code, write a report or research a market. Maintain them once and reuse them across agents.
+- **Context** holds standing knowledge such as a glossary, policy or brand voice. Include it in the prompt or let the agent read it on demand.
+- **Knowledge bases (RAG)** make uploaded documents searchable. Inspect processing status and chunks, choose parsing options, or configure sync sources such as Google Drive and S3.
+
+<a href="docs/assets/screens/light/skills.png">
+  <img src="docs/assets/screens/light/skills.png" alt="Skills library filtered to Design, Engineering, Finance and Research." width="100%">
+</a>
+
+[Skills](https://vstorm-co.github.io/agenticos/skills/) · [Context](https://vstorm-co.github.io/agenticos/context/) · [Document processing](https://vstorm-co.github.io/agenticos/file-processing/) · [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/).
+
+<details>
+<summary>See the open glossary and a knowledge collection</summary>
+
+<img src="docs/assets/screens/light/context-detail.png" alt="Glossary open in Preview, enabled and configured for on-demand reading." width="100%">
+
+<img src="docs/assets/screens/light/knowledge-collection.png" alt="The vstorm knowledge collection with an indexed document, parser and processing status." width="100%">
+
+</details>
+
+### 🎨 Publish results as interactive pages
+
+Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is **Meridian**, a sales dashboard built by an agent, with working period and region filters and clearly labeled demo data.
+
+<a href="docs/assets/screens/light/artifact-detail.png">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="Light-themed Meridian sales dashboard with revenue KPIs, target comparison, regional and product charts, and interactive filters." width="100%">
+</a>
+
+[Share an artifact](https://vstorm-co.github.io/agenticos/artifacts/).
+
+<details>
+<summary>See the artifacts library</summary>
+
+<img src="docs/assets/screens/light/artifacts.png" alt="Artifacts library with page previews, versions and sharing visibility." width="100%">
+
+</details>
+
+### 📊 Track runs, costs and approvals
+
+Customize the **dashboard** around your work: arrange and resize widgets, color sections and save layouts. Track usage, outcomes, recorded spend, approvals and sandbox capacity. Permissions determine which data a person can see.
+
+<a href="docs/assets/screens/light/dashboard.png">
+  <img src="docs/assets/screens/light/dashboard.png" alt="Customized dashboard with usage totals, recorded spend, run trends and outcomes." width="100%">
+</a>
+
+**Activity** lets you inspect runs and tool calls, compare agent versions and export records. Configure approval policies for supported tools, then use **routines** to repeat work on schedules or events. Some costs depend on provider usage and pricing data; external services can bill separately.
+
+[Run history, budgets and approvals](https://vstorm-co.github.io/agenticos/governance/) · [Routines](https://vstorm-co.github.io/agenticos/triggers/).
+
+<details>
+<summary>See Activity and approval controls</summary>
+
+<img src="docs/assets/screens/light/activity.png" alt="Activity showing recorded runs, statuses, model usage and costs." width="100%">
+
+Approval coverage depends on the tool and execution mode. In web chat, **Ask about everything** also gates MCP tool calls handled by the runner. [Approval modes and limits](https://vstorm-co.github.io/agenticos/governance/#how-much-one-conversation-wants-to-be-asked).
+
+</details>
+
+### 👥 Organize teams with roles and groups
+
+**Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as **Operations, Engineering, Finance and Research**. Share an agent, skill, collection, context file or artifact with a group in one step. Group grants add access alongside a person's role and individual grants.
+
+<a href="docs/assets/screens/light/groups.png">
+  <img src="docs/assets/screens/light/groups.png" alt="Organization groups for Engineering, Finance, Operations and Research, with descriptions and membership controls." width="100%">
+</a>
+
+Bring existing company accounts through **OIDC single sign-on, LDAP directory login or Kerberos integrated Windows sign-in**, with the appropriate deployment configuration. **Directory mappings** connect external directory groups to an organization role and optional AgenticOS group; membership is reconciled at sign-in.
+
+[Roles and resource permissions](https://vstorm-co.github.io/agenticos/permissions/) · [Groups, LDAP, Kerberos and directory mappings](https://vstorm-co.github.io/agenticos/directory/).
+
+<details>
+<summary>See organization members and the role matrix</summary>
+
+<img src="docs/assets/screens/light/members.png" alt="Organization members with assigned roles and membership management controls." width="100%">
+
+<img src="docs/assets/screens/light/roles.png" alt="Permission matrix comparing Owner, Admin, Builder, Operator, Member and Viewer roles." width="100%">
+
+</details>
+
+## 🔌 Connect the apps your team already uses
+
+<img src="docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
+
+Connect tools through **MCP**, alongside built-in sync sources and chat channels. The catalog includes curated connections and **5,700+ MCP server listings** mirrored from a registry. Listings are publisher-provided metadata; each connection needs its own setup and access review.
+
+[Google Drive™ sync](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) · [Gmail triggers](https://vstorm-co.github.io/agenticos/triggers/) · [MCP tools: Notion, GitHub, Linear and more](https://vstorm-co.github.io/agenticos/mcp/) · [Chat channels: Slack, Mattermost, Telegram](https://vstorm-co.github.io/agenticos/channels/).
+
+[Outlook email and calendar](https://vstorm-co.github.io/agenticos/mcp/) connect through a third-party MCP service with its own account and permissions.
+
+## 🎯 Is AgenticOS the right fit?
+
+Choose it when a team has repeated document or tool-based work, subject experts who can maintain the instructions, and someone responsible for operating a self-hosted deployment.
+
+Evaluate it with one of your own tasks. [Compare approaches](https://vstorm-co.github.io/agenticos/about/comparison/) · [Plan a rollout](https://vstorm-co.github.io/agenticos/rollout/).
+
+## 🔐 Own your deployment, models and access
+
+**Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate. Choose hosted providers or local models through Ollama and compatible endpoints such as vLLM. [Configure models](https://vstorm-co.github.io/agenticos/models/).
+
+Self-hosting the console does not make every model, parser or tool local. Review the destinations you configure and the data they receive. Assign resource permissions, store credentials in the encrypted vault and test the approval policy for the tools you enable.
+
+[Security and data flows](https://vstorm-co.github.io/agenticos/security/) · [Access controls](https://vstorm-co.github.io/agenticos/permissions/) · [Secrets](https://vstorm-co.github.io/agenticos/secrets/) · [Execution and cost controls](https://vstorm-co.github.io/agenticos/governance/).
+
+## 🛠️ For developers and operators
+
+Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities in typed Python; teams compose agents from the registered capabilities in the console.
+
+[Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Contributing](https://vstorm-co.github.io/agenticos/help/).
+
+The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds a dedicated window, a pet and a macOS screenshot shortcut. Explore [Vstorm's open-source projects](https://github.com/vstorm-co) for the libraries and tools around AgenticOS.
+
+## 📄 License
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md)
+for attribution and bundled components.
+
+## 🤝 Need help putting agents into production?
+
+Vstorm deploys AgenticOS in client infrastructure, writes the documentation, defines the processes
+and builds custom capabilities. Maintenance and support are agreed per engagement.
+
+Built with care by [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https://github.com/vstorm-co)
