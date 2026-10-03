@@ -31,7 +31,7 @@
 
 </div>
 
-AgenticOS is a self-hosted workspace for building and running shared AI agents. Give agents files, company knowledge and tools to work with. Let them run code, produce documents and publish results, then make the agents available to your team. Engineers extend its capabilities; domain experts maintain its instructions and knowledge.
+AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company’s tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access and results in one place.
 
 <a href="docs/assets/screens/light/agent-builder.png">
   <img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder showing instructions, model selection and a published version." width="100%">
@@ -41,16 +41,16 @@ AgenticOS is a self-hosted workspace for building and running shared AI agents. 
 
 | For your team | What AgenticOS provides |
 |---|---|
-| Build agents | Browser builder, model choice, tools and published versions |
-| Get work done | Chat, file handling, code execution in sandboxes and connected apps |
-| Reuse knowledge | Shared skills, context, searchable documents and sync sources |
-| Deliver results | Downloadable files and shareable, versioned artifacts |
-| Operate agents | Customizable dashboards, run history, approvals, budgets and routines |
-| Organize access | Organizations, roles, department groups and company sign-in |
+| [Work with files and code](#work-with-files-and-code) | Analyze CSVs, produce charts and documents, work on repositories |
+| [Build reusable agents](#build-agents-your-team-can-reuse) | Choose models and tools, publish versions, share agents with colleagues |
+| [Connect company knowledge](#teach-agents-how-your-team-works) | Reuse skills, context and searchable documents across agents |
+| [Share the results](#publish-results-as-interactive-pages) | Publish interactive pages with stable links and version history |
+| [Run and monitor](#track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
+| [Organize company access](#organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
 ## Quick start
 
-All it needs is Docker with Compose. On macOS or Linux, run:
+Start with Docker Compose and access to a model provider. On macOS or Linux, run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
@@ -62,7 +62,7 @@ published images and starts a deployment with a working agent in it.
 
 Open **http://localhost:3000** and sign in with the login you chose during installation.
 
-**Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources and test an updated document. Document search requires an embedding model. For other tasks, see [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/).
+**Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources. Then test an updated document. Document search requires an embedding model. For other tasks, see [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/).
 
 <details>
 <summary>Inspect the installer or deploy another way</summary>
@@ -78,19 +78,29 @@ For development from source, see [Contributing](https://vstorm-co.github.io/agen
 
 </details>
 
+## Recorded integration example
+
+Watch an agent turn a Notion brief into the interactive **OSS Launch Planner**, using GitHub research on Vstorm’s open-source projects: **brief → research → shared result**.
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
+
+[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
+
 ## Build, share and operate
 
-### Give agents files, tools and a sandbox
+### Work with files and code
 
 Ask an agent to analyze a spreadsheet, produce a chart, prepare a document or work on a repository. With a container-backed sandbox configured and command execution enabled, it can **read and edit files, run shell commands, and execute Python or JavaScript**. The bundled workbench includes data, charting and document tools, including LibreOffice.
-
-If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted workspace with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions.
 
 <a href="docs/assets/screens/light/chat.png">
   <img src="docs/assets/screens/light/chat.png" alt="Existing conversation analyzing a sales CSV, with a regional revenue chart and the agent's findings." width="100%">
 </a>
 
-The conversation above shows a CSV analysis and a chart from an existing run. Open tool calls to inspect the commands behind an answer, and use the file panel to reach its inputs and outputs.
+**Sales CSV → revenue chart and findings.** Open tool calls to inspect the commands behind an answer, and use the file panel to reach its inputs and outputs.
+
+If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted workspace with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions.
 
 Run container sandboxes on your own infrastructure or configure a supported remote backend. Choose the workspace lifetime and execution limits for the job. [Sandbox configuration](https://vstorm-co.github.io/agenticos/sandbox/).
 
@@ -101,7 +111,7 @@ Run container sandboxes on your own infrastructure or configure a supported remo
 
 </details>
 
-### Build an agent your colleagues can reuse
+### Build agents your team can reuse
 
 Choose its model, instructions and tools in the browser. Publish a version for colleagues to use; inspect earlier versions and roll back when needed. Keep specialized agents for research, reporting, coding or operations in one catalog.
 
@@ -114,7 +124,7 @@ Choose its model, instructions and tools in the browser. Publish a version for c
 
 Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegram** when those channels are configured. Developers can call it through the API. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/).
 
-### Give agents your team's knowledge and ways of working
+### Teach agents how your team works
 
 - **Skills** hold reusable procedures: how to review code, write a report or research a market. Maintain them once and reuse them across agents.
 - **Context** holds standing knowledge such as a glossary, policy or brand voice. Include it in the prompt or let the agent read it on demand.
@@ -135,7 +145,7 @@ Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegra
 
 </details>
 
-### Turn results into pages people can use
+### Publish results as interactive pages
 
 Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is the OSS Launch Planner, built from a Notion brief and GitHub research.
 
@@ -152,7 +162,7 @@ Agents can publish reports, interactive comparisons and small dashboards as **ar
 
 </details>
 
-### See what is running, what it costs and what needs attention
+### Track runs, costs and approvals
 
 Customize the **dashboard** around your work: arrange and resize widgets, color sections and save layouts. Track usage, outcomes, recorded spend, approvals and sandbox capacity. Permissions determine which data a person can see.
 
@@ -173,7 +183,7 @@ Approval coverage depends on the tool and execution mode. In web chat, **Ask abo
 
 </details>
 
-### Organize access around your company
+### Organize teams with roles and groups
 
 **Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as **Operations, Engineering, Finance and Research**. Share an agent, skill, collection, context file or artifact with a group in one step. Group grants add access alongside a person's role and individual grants.
 
@@ -194,16 +204,6 @@ Bring existing company accounts through **OIDC single sign-on, LDAP directory lo
 
 </details>
 
-## Recorded integration example
-
-This demo shows a Notion brief becoming a sourced, interactive page after GitHub research. It uses Vstorm's own open-source projects as sample material: the useful sequence is **brief → research → shared result**. It is a product demonstration, not a customer outcome study.
-
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
-
-[Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
-
 ## Connect the apps your team already uses
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
@@ -213,8 +213,6 @@ Connect tools through **MCP**, alongside built-in sync sources and chat channels
 [Google Drive™ sync](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) · [Gmail triggers](https://vstorm-co.github.io/agenticos/triggers/) · [MCP tools: Notion, GitHub, Linear and more](https://vstorm-co.github.io/agenticos/mcp/) · [Chat channels: Slack, Mattermost, Telegram](https://vstorm-co.github.io/agenticos/channels/).
 
 [Outlook email and calendar](https://vstorm-co.github.io/agenticos/mcp/) connect through a third-party MCP service with its own account and permissions.
-
-Some connections use third-party MCP services and require separate setup, accounts and permissions.
 
 ## Is AgenticOS the right fit?
 

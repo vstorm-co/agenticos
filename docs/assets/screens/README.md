@@ -69,7 +69,9 @@ repository metrics are a dated snapshot, not a live feed or customer outcome stu
 The shortened cut retains source 00:00–00:30 and 00:39–00:46.466667: 37.466667 seconds total.
 Audio has 30 ms fades around the cut. The local `oss-launch-planner-demo.mp4` derivative is
 960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The README embeds the uploaded shortened
-attachment and keeps direct video and static-poster links. There is **no expandable GIF fallback**.
+attachment with a `#t=1` start offset and keeps direct full-video and static-poster links. GitHub
+strips the `poster` attribute; the offset shows a decoded frame after the opening transition
+instead of a blank player. The recording file is unchanged. There is **no expandable GIF fallback**.
 Historical GIF files are not displayed by the README.
 
 Earlier validation covered full MP4 decoding, duration and sampled frames around the cut.
@@ -79,9 +81,9 @@ refresh does not alter or re-record the video.
 ## Presentation and claims
 
 Keep **Sovereign Agentic AI Layer** verbatim in all README heroes. Lead with the actual product:
-builder, capabilities, installation and concrete work in chat, then knowledge, artifacts,
-operations and organization access. Put the recording and glass integration collage after
-that product tour. Main screenshots are linked at full width; supplementary views use expandable
+builder, a linked task overview, installation and the recorded example. Follow with concrete
+work in chat, knowledge, artifacts, operations and organization access. Keep the glass integration
+collage after that product tour. Main screenshots are linked at full width; supplementary views use expandable
 sections. Do not add decorative browser frames that reduce the readable interface area.
 
 The Claude Code/Codex comparison concerns file and command workflows, not feature parity.

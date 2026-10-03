@@ -1,4 +1,4 @@
-<!-- source_sha: 1123b4d86b58 -->
+<!-- source_sha: 3bf5cdf03c03 -->
 
 <div align="center">
 
@@ -33,7 +33,7 @@
 
 </div>
 
-AgenticOS ist eine selbst gehostete Arbeitsumgebung zum Erstellen und Betreiben gemeinsamer KI-Agenten. Gib Agenten Dateien, Unternehmenswissen und Werkzeuge. Lass sie Code ausführen, Dokumente erstellen und Ergebnisse veröffentlichen und stelle die Agenten deinem Team zur Verfügung. Entwickler erweitern die Fähigkeiten des Systems; Fachexperten pflegen Anweisungen und Wissen.
+AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Dateien arbeiten, Code ausführen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff und Ergebnisse an einem Ort.
 
 <a href="docs/assets/screens/light/agent-builder.png">
   <img src="docs/assets/screens/light/agent-builder.png" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version." width="100%">
@@ -43,16 +43,16 @@ AgenticOS ist eine selbst gehostete Arbeitsumgebung zum Erstellen und Betreiben 
 
 | Für dein Team | Was AgenticOS bereitstellt |
 |---|---|
-| Agenten erstellen | Browser-Builder, Modellauswahl, Werkzeuge und veröffentlichte Versionen |
-| Aufgaben erledigen | Chat, Dateiverarbeitung, Codeausführung in Sandboxes und verbundene Apps |
-| Wissen wiederverwenden | Gemeinsame Skills, Kontext, durchsuchbare Dokumente und Synchronisationsquellen |
-| Ergebnisse bereitstellen | Herunterladbare Dateien und teilbare, versionierte Artefakte |
-| Agenten betreiben | Anpassbare Dashboards, Laufhistorie, Freigaben, Budgets und Routinen |
-| Zugriff organisieren | Organisationen, Rollen, Abteilungsgruppen und Unternehmensanmeldung |
+| [Dateien und Code](#mit-dateien-und-code-arbeiten) | CSVs analysieren, Diagramme und Dokumente erstellen, an Repositories arbeiten |
+| [Wiederverwendbare Agenten](#agenten-für-dein-team-erstellen) | Modelle und Werkzeuge wählen, Versionen veröffentlichen, Agenten mit Kollegen teilen |
+| [Unternehmenswissen](#agenten-die-arbeitsweise-deines-teams-vermitteln) | Skills, Kontext und durchsuchbare Dokumente in mehreren Agenten nutzen |
+| [Ergebnisse teilen](#ergebnisse-als-interaktive-seiten-veröffentlichen) | Interaktive Seiten mit festen Links und Versionshistorie veröffentlichen |
+| [Betrieb und Übersicht](#läufe-kosten-und-freigaben-verfolgen) | Dashboards anpassen, Läufe prüfen, Aufgaben planen und Budgets festlegen |
+| [Unternehmenszugriff](#teams-mit-rollen-und-gruppen-organisieren) | Rollen, Abteilungsgruppen und Unternehmensanmeldung kombinieren |
 
 ## Schnellstart
 
-Du brauchst nur Docker mit Compose. Unter macOS oder Linux führst du aus:
+Du brauchst Docker Compose und Zugang zu einem Modellanbieter. Unter macOS oder Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
@@ -64,7 +64,7 @@ veröffentlichten Images und startet eine Bereitstellung mit einem funktionieren
 
 Öffne **http://localhost:3000** und melde dich mit dem bei der Installation gewählten Login an.
 
-**Dein erster Agent:** Folge der [Anleitung für einen Dokumentassistenten](https://vstorm-co.github.io/agenticos/de/howto/first-document-agent/), um ein Handbuch hochzuladen, Fragen zu stellen, Antworten anhand der zitierten Quellen zu prüfen und ein aktualisiertes Dokument zu testen. Die Dokumentsuche benötigt ein Embedding-Modell. Weitere Aufgaben behandelt [Einen Agenten erstellen](https://vstorm-co.github.io/agenticos/de/first-agent/).
+**Dein erster Agent:** Folge der [Anleitung für einen Dokumentassistenten](https://vstorm-co.github.io/agenticos/de/howto/first-document-agent/), lade ein Handbuch hoch, stelle Fragen und prüfe Antworten anhand der zitierten Quellen. Teste anschließend ein aktualisiertes Dokument. Die Dokumentsuche benötigt ein Embedding-Modell. Für andere Aufgaben: [Agent erstellen](https://vstorm-co.github.io/agenticos/de/first-agent/).
 
 <details>
 <summary>Installer prüfen oder eine andere Bereitstellung wählen</summary>
@@ -80,19 +80,29 @@ Für die Entwicklung am Quellcode siehe [Mitwirken](https://vstorm-co.github.io/
 
 </details>
 
+## Aufgezeichnetes Integrationsbeispiel
+
+Sieh, wie ein Agent aus einem Notion-Briefing den interaktiven **OSS Launch Planner** erstellt und dafür Vstorms Open-Source-Projekte auf GitHub untersucht: **Briefing → Recherche → gemeinsames Ergebnis**.
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
+</video>
+
+[Das gekürzte Video ansehen (37 Sekunden)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
+
 ## Erstellen, teilen und betreiben
 
-### Gib Agenten Dateien, Werkzeuge und eine Sandbox
+### Mit Dateien und Code arbeiten
 
 Bitte einen Agenten, eine Tabelle zu analysieren, ein Diagramm oder Dokument zu erstellen oder an einem Repository zu arbeiten. Mit einer konfigurierten Container-Sandbox und aktivierter Befehlsausführung kann er **Dateien lesen und bearbeiten, Shell-Befehle ausführen und Python- oder JavaScript-Code ausführen**. Die mitgelieferte Workbench enthält Werkzeuge für Daten, Diagramme und Dokumente, darunter LibreOffice.
-
-Wenn du [Claude Code](https://code.claude.com/docs/en/overview) oder [Codex](https://developers.openai.com/codex/cli/) nutzt, wird dir die Arbeit mit Dateien und Befehlen vertraut vorkommen. AgenticOS bringt diese Arbeitsweise in eine gemeinsame, selbst gehostete Umgebung mit Unternehmenswissen, wiederverwendbaren Agenten und Zugriffskontrollen für die Organisation. Was ein Agent leisten kann, hängt von seinem Modell, den aktivierten Werkzeugen und seinen Anweisungen ab.
 
 <a href="docs/assets/screens/light/chat.png">
   <img src="docs/assets/screens/light/chat.png" alt="Bestehende Unterhaltung zur Analyse einer Umsatz-CSV mit einem Diagramm nach Region und den Ergebnissen des Agenten." width="100%">
 </a>
 
-Die Unterhaltung oben zeigt eine CSV-Analyse und ein Diagramm aus einem bestehenden Lauf. Öffne Werkzeugaufrufe, um die Befehle hinter einer Antwort zu prüfen, und greife über die Dateiansicht auf Eingaben und Ergebnisse zu.
+**Umsatz-CSV → Umsatzdiagramm und Erkenntnisse.** Öffne Werkzeugaufrufe, um die Befehle hinter einer Antwort zu prüfen, und greife über die Dateiansicht auf Eingaben und Ergebnisse zu.
+
+Wenn du [Claude Code](https://code.claude.com/docs/en/overview) oder [Codex](https://developers.openai.com/codex/cli/) nutzt, wird dir die Arbeit mit Dateien und Befehlen vertraut vorkommen. AgenticOS bringt diese Arbeitsweise in eine gemeinsame, selbst gehostete Umgebung mit Unternehmenswissen, wiederverwendbaren Agenten und Zugriffskontrollen für die Organisation. Was ein Agent leisten kann, hängt von seinem Modell, den aktivierten Werkzeugen und seinen Anweisungen ab.
 
 Betreibe Container-Sandboxes auf deiner eigenen Infrastruktur oder konfiguriere ein unterstütztes Remote-Backend. Wähle die Lebensdauer der Arbeitsumgebung und die Ausführungslimits passend zur Aufgabe. [Sandbox-Konfiguration](https://vstorm-co.github.io/agenticos/de/sandbox/).
 
@@ -103,7 +113,7 @@ Betreibe Container-Sandboxes auf deiner eigenen Infrastruktur oder konfiguriere 
 
 </details>
 
-### Erstelle einen Agenten, den Kollegen wiederverwenden können
+### Agenten für dein Team erstellen
 
 Wähle Modell, Anweisungen und Werkzeuge im Browser. Veröffentliche eine Version für Kollegen; prüfe frühere Versionen und stelle sie bei Bedarf wieder her. Halte spezialisierte Agenten für Recherche, Berichte, Programmierung oder operative Aufgaben in einem Katalog bereit.
 
@@ -116,7 +126,7 @@ Wähle Modell, Anweisungen und Werkzeuge im Browser. Veröffentliche eine Versio
 
 Kollegen können einen veröffentlichten Agenten über **Webchat, Slack, Mattermost oder Telegram** nutzen, wenn diese Kanäle eingerichtet sind. Entwickler können ihn über die API aufrufen. [Agent erstellen](https://vstorm-co.github.io/agenticos/de/first-agent/) · [Kanal verbinden](https://vstorm-co.github.io/agenticos/de/channels/).
 
-### Gib Agenten das Wissen und die Arbeitsweisen deines Teams
+### Agenten die Arbeitsweise deines Teams vermitteln
 
 - **Skills** enthalten wiederverwendbare Abläufe: Code prüfen, Berichte schreiben oder einen Markt untersuchen. Pflege sie einmal und nutze sie in mehreren Agenten.
 - **Kontext** enthält dauerhaftes Wissen wie ein Glossar, Richtlinien oder die Markensprache. Füge ihn dem Prompt hinzu oder lasse den Agenten bei Bedarf darauf zugreifen.
@@ -137,7 +147,7 @@ Kollegen können einen veröffentlichten Agenten über **Webchat, Slack, Matterm
 
 </details>
 
-### Mache Ergebnisse zu nutzbaren Seiten
+### Ergebnisse als interaktive Seiten veröffentlichen
 
 Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Artefakte** veröffentlichen. Wähle, wer sie öffnen darf; Aktualisierungen behalten denselben Link und frühere Versionen bleiben lesbar. Das Beispiel unten ist der OSS Launch Planner, erstellt aus einem Notion-Briefing und einer GitHub-Recherche.
 
@@ -154,7 +164,7 @@ Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Art
 
 </details>
 
-### Sieh, was läuft, was es kostet und was Aufmerksamkeit braucht
+### Läufe, Kosten und Freigaben verfolgen
 
 Passe das **Dashboard** an deine Arbeit an: Ordne Widgets an, ändere ihre Größe, färbe Bereiche ein und speichere Layouts. Verfolge Nutzung, Ergebnisse, erfasste Ausgaben, Freigaben und Sandbox-Kapazität. Berechtigungen bestimmen, welche Daten eine Person sehen darf.
 
@@ -175,7 +185,7 @@ Die Freigabeabdeckung hängt vom Werkzeug und Ausführungsmodus ab. Im Webchat e
 
 </details>
 
-### Organisiere Zugriff passend zu deinem Unternehmen
+### Teams mit Rollen und Gruppen organisieren
 
 **Rollen bestimmen, was Personen tun dürfen. Gruppen bestimmen, mit wem du teilst.** Nutze Rollen wie Builder, Operator, Member und Viewer und erstelle Abteilungen oder Arbeitsgruppen wie **Operations, Engineering, Finance und Research**. Teile einen Agenten, Skill, eine Sammlung, Kontextdatei oder ein Artefakt mit einer Gruppe in einem Schritt. Gruppenfreigaben ergänzen den Zugriff aus der Rolle und individuellen Freigaben einer Person.
 
@@ -196,16 +206,6 @@ Nutze bestehende Unternehmenskonten über **OIDC Single Sign-on, LDAP-Verzeichni
 
 </details>
 
-## Aufgezeichnetes Integrationsbeispiel
-
-Diese Demo zeigt, wie aus einem Notion-Briefing nach einer GitHub-Recherche eine interaktive Seite mit Quellen wird. Als Beispielmaterial dienen Vstorms eigene Open-Source-Projekte: Der relevante Ablauf ist **Briefing → Recherche → gemeinsames Ergebnis**. Dies ist eine Produktdemonstration, keine Untersuchung eines Kundeneinsatzes.
-
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
-</video>
-
-[Das gekürzte Video ansehen (37 Sekunden)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Screenshot ansehen](docs/assets/screens/oss-launch-planner-poster.webp)
-
 ## Verbinde die Apps, die dein Team bereits nutzt
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Sechzehn App-Logos auf dunklen Glaskacheln: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
@@ -215,8 +215,6 @@ Verbinde Werkzeuge über **MCP**, neben integrierten Synchronisationsquellen und
 [Google Drive™ synchronisieren](https://vstorm-co.github.io/agenticos/de/howto/configure-sync-sources/) · [Gmail-Ereignisse](https://vstorm-co.github.io/agenticos/de/triggers/) · [MCP-Werkzeuge: Notion, GitHub, Linear und mehr](https://vstorm-co.github.io/agenticos/de/mcp/) · [Chatkanäle: Slack, Mattermost, Telegram](https://vstorm-co.github.io/agenticos/de/channels/).
 
 [Outlook-E-Mail und -Kalender](https://vstorm-co.github.io/agenticos/de/mcp/) werden über einen externen MCP-Dienst mit eigenem Konto und Berechtigungen angebunden.
-
-Einige Verbindungen nutzen externe MCP-Dienste und erfordern eine separate Einrichtung, Konten und Berechtigungen.
 
 ## Passt AgenticOS zu deinem Team?
 
