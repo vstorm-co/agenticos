@@ -1,4 +1,4 @@
-<!-- source_sha: 0e53063d169a -->
+<!-- source_sha: 89e2b243f4de -->
 
 <div align="center">
 
@@ -14,6 +14,7 @@
   <a href="#-inicio-rápido">Inicio rápido</a> &middot;
   <a href="#-crea-comparte-y-opera">Crea, comparte y opera</a> &middot;
   <a href="#-encaja-agenticos-con-tu-equipo">¿Encaja con nosotros?</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentación</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/es/">Documentación</a>
 </p>
 
@@ -34,6 +35,8 @@
 </div>
 
 AgenticOS es un espacio de trabajo autoalojado donde los agentes de IA trabajan con archivos, ejecutan código y usan las herramientas y el conocimiento de tu empresa. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso y sus resultados en un mismo lugar.
+
+**¿Primera vez aquí?** Recorre la [presentación guiada](https://vstorm-co.github.io/agenticos/presentation/) (en inglés): 44 diapositivas sobre las pantallas reales del producto, desde qué es AgenticOS hasta cómo empieza un primer proyecto. Las flechas avanzan paso a paso; `O` muestra todas las diapositivas.
 
 <a href="docs/assets/screens/light/agent-builder.png">
   <img src="docs/assets/screens/light/agent-builder.png" alt="Builder del agente con instrucciones, selección de modelo y una versión publicada." width="100%">

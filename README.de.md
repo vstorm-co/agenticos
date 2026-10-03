@@ -1,4 +1,4 @@
-<!-- source_sha: 0e53063d169a -->
+<!-- source_sha: 89e2b243f4de -->
 
 <div align="center">
 
@@ -14,6 +14,7 @@
   <a href="#-schnellstart">Schnellstart</a> &middot;
   <a href="#-erstellen-teilen-und-betreiben">Erstellen, teilen und betreiben</a> &middot;
   <a href="#-passt-agenticos-zu-deinem-team">Passt es zu uns?</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Präsentation</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/de/">Dokumentation</a>
 </p>
 
@@ -34,6 +35,8 @@
 </div>
 
 AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Dateien arbeiten, Code ausführen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff und Ergebnisse an einem Ort.
+
+**Neu hier?** Klicke dich durch die [geführte Einführung](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): 44 Folien mit echten Produktbildschirmen, von der Frage, was AgenticOS ist, bis zum Start des ersten Projekts. Die Pfeiltasten blättern, `O` zeigt alle Folien.
 
 <a href="docs/assets/screens/light/agent-builder.png">
   <img src="docs/assets/screens/light/agent-builder.png" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version." width="100%">
