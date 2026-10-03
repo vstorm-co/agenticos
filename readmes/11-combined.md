@@ -323,7 +323,7 @@ AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, P
 | Data | PostgreSQL with pgvector |
 | Code execution | Containers started by `sandboxd` |
 
-Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member; stream tokens over the WebSocket. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python. One host with Docker Compose today; there are no Kubernetes manifests.
+Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member, or stream tokens over the WebSocket. Today it runs on one host with Docker Compose; there are no Kubernetes manifests.
 
 [Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) · [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
 
