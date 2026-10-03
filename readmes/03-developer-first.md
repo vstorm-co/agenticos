@@ -29,6 +29,8 @@ Docker Compose ≥ 2.24 (WSL2 on Windows). The installer asks for a provider key
 | Data | PostgreSQL with pgvector (one vector table per collection) |
 | Code execution | `sandboxd` starts containers; the API holds no Docker socket |
 
+<img src="assets/sizing.webp" alt="Sizing: 4 vCPU and 8 GB, two workers for a team of ten, five background runs by default, about 1 GB API memory at idle; streaming, load test and topology." width="100%">
+
 Topology today: one host, Docker Compose, a reverse proxy. There are no Kubernetes manifests. [Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [Deployment](https://vstorm-co.github.io/agenticos/deploy/)
 
 ## Capabilities

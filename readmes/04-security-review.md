@@ -31,6 +31,8 @@ Each outbound destination is a configuration choice, made per deployment, organi
 - **Sessions:** 30-minute access tokens, 7-day refresh tokens with reuse detection, revocable sessions and "sign out everywhere".
 - **Directory mappings:** a directory group becomes an organisation role and a group at every LDAP, Kerberos or OIDC sign-in.
 
+<img src="assets/sign-in.webp" alt="Sign-in options: email and password, Google, OIDC single sign-on, LDAP, Windows sign-in, and directory mappings." width="100%">
+
 <img src="assets/organisation-model.webp" alt="Three layers of access: deployment, organisation with six roles, and resources with visibility and read/use/edit grants." width="100%">
 
 Six built-in roles are defined in code. Effective access is the wider of a person's role and any grant; a grant only adds. [Permissions](https://vstorm-co.github.io/agenticos/permissions/) · [Directory sign-in](https://vstorm-co.github.io/agenticos/directory/)
