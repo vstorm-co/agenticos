@@ -16,6 +16,7 @@
   <a href="#-build-share-and-operate">Product tour</a> &middot;
   <a href="#-find-your-path">Find your path</a> &middot;
   <a href="#-what-ships-today">What ships</a> &middot;
+  <a href="#-frequently-asked-questions">FAQ</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
 
@@ -329,6 +330,50 @@ Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Ne
 [Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
 
 The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds a dedicated window, a pet and a macOS screenshot shortcut.
+
+## ❓ Frequently asked questions
+
+<details>
+<summary><b>Is AgenticOS free for commercial use?</b></summary>
+
+Yes. AgenticOS is licensed under Apache-2.0, which allows commercial use, modification and private deployment. You pay for the infrastructure you run it on and for the model providers and external services you choose. The AgenticOS name and logo are not covered by the licence.
+
+</details>
+
+<details>
+<summary><b>Can AgenticOS run with local models only?</b></summary>
+
+Yes. Configure Ollama, LiteLLM or an OpenAI-compatible server such as vLLM or LM Studio as the model provider, use local embedding models through Ollama, and parse documents with PyMuPDF or LiteParse. Self-hosting the console alone does not make every model, parser or tool local: check each destination you configure. [Models](https://vstorm-co.github.io/agenticos/models/) · [Data flows](https://vstorm-co.github.io/agenticos/security/)
+
+</details>
+
+<details>
+<summary><b>Which sign-in methods and roles does it support?</b></summary>
+
+Email and password with magic links, Google, generic OIDC single sign-on (Entra ID, Okta, Keycloak, Auth0, Authentik, Google Workspace), LDAP and Kerberos. Six built-in roles (Owner, Admin, Builder, Operator, Member, Viewer) combine with department groups and per-resource sharing. Multi-factor authentication comes from your identity provider; there is no native MFA, SAML or SCIM yet. [Permissions](https://vstorm-co.github.io/agenticos/permissions/)
+
+</details>
+
+<details>
+<summary><b>How does AgenticOS keep agents under control?</b></summary>
+
+Monthly budgets per agent and per organisation are checked before each model request. Sensitive tools wait for a person's approval. Optional guardrails redact secrets and personal data, and every run is recorded with its agent version, tools, tokens and cost. [Governance](https://vstorm-co.github.io/agenticos/governance/)
+
+</details>
+
+<details>
+<summary><b>How is it different from ChatGPT Enterprise, Copilot Studio or n8n?</b></summary>
+
+AgenticOS runs on your infrastructure with any of 27 model providers and has no seat or credit fee of its own. It builds agents for the organisation, published to chat, websites and APIs, rather than assistant seats for individual employees. Compared with n8n it starts from the agent rather than a workflow canvas, and many teams use both. [Comparisons](https://vstorm-co.github.io/agenticos/about/comparison/)
+
+</details>
+
+<details>
+<summary><b>What does it take to run?</b></summary>
+
+Docker Compose on one host. A machine with 4 vCPU and 8 GB of RAM runs it, and two API workers suit a team of ten. Someone needs to own updates, backups (including the vault key), access and the external services you connect. [Deploy](https://vstorm-co.github.io/agenticos/deploy/) · [Rollout](https://vstorm-co.github.io/agenticos/rollout/)
+
+</details>
 
 ## 📄 License
 
