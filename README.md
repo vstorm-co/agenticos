@@ -147,10 +147,10 @@ Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegra
 
 ### Publish results as interactive pages
 
-Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is the OSS Launch Planner, built from a Notion brief and GitHub research.
+Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is **Meridian**, a sales dashboard built by an agent, with working period and region filters and clearly labeled demo data.
 
 <a href="docs/assets/screens/light/artifact-detail.png">
-  <img src="docs/assets/screens/light/artifact-detail.png" alt="OSS Launch Planner artifact with audience selection, project recommendations and source links." width="100%">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="Light-themed Meridian sales dashboard with revenue KPIs, target comparison, regional and product charts, and interactive filters." width="100%">
 </a>
 
 [Share an artifact](https://vstorm-co.github.io/agenticos/artifacts/).

@@ -36,15 +36,17 @@
       "path": "light/artifact-detail.png",
       "width": 3200,
       "height": 2000,
-      "bytes": 386778,
-      "sha256": "5490466e95afc4d4b845c35541ca2418689dd7ef7170483ad0d684542a93a5e1"
+      "bytes": 426887,
+      "sha256": "42ce81f3521cc9199eabd82a5cc994d301d11fee174ff048d86159be006e26ac",
+      "captured_on": "2026-10-03"
     },
     {
       "path": "light/artifacts.png",
       "width": 3200,
       "height": 2000,
-      "bytes": 432015,
-      "sha256": "9236d60a8c78a4be39f8ac546c45abdc314e802cb9da075f46fa6c581339a0ee"
+      "bytes": 520868,
+      "sha256": "a27df77647ccb02d2c1a5189639364eb27d942e6621f0ba03c2e16c54ad1dc68",
+      "captured_on": "2026-10-03"
     },
     {
       "path": "light/chat.png",
@@ -109,5 +111,6 @@
       "bytes": 502264,
       "sha256": "2c0fec690bc2829ee08956123cfbb284e474f31caa2bb6859f98e205603bd53d"
     }
-  ]
+  ],
+  "refreshed_on": "2026-10-03"
 }

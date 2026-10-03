@@ -1,4 +1,4 @@
-<!-- source_sha: 3bf5cdf03c03 -->
+<!-- source_sha: d875ce03823f -->
 
 <div align="center">
 
@@ -149,10 +149,10 @@ Kollegen können einen veröffentlichten Agenten über **Webchat, Slack, Matterm
 
 ### Ergebnisse als interaktive Seiten veröffentlichen
 
-Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Artefakte** veröffentlichen. Wähle, wer sie öffnen darf; Aktualisierungen behalten denselben Link und frühere Versionen bleiben lesbar. Das Beispiel unten ist der OSS Launch Planner, erstellt aus einem Notion-Briefing und einer GitHub-Recherche.
+Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Artefakte** veröffentlichen. Wähle, wer sie öffnen darf; Aktualisierungen behalten denselben Link und frühere Versionen bleiben lesbar. Das Beispiel unten ist **Meridian**, ein von einem Agenten erstelltes Vertriebsdashboard mit funktionierenden Filtern für Zeitraum und Region sowie klar gekennzeichneten Demodaten.
 
 <a href="docs/assets/screens/light/artifact-detail.png">
-  <img src="docs/assets/screens/light/artifact-detail.png" alt="OSS Launch Planner als Artefakt mit Zielgruppenauswahl, Projektempfehlungen und Quellenlinks." width="100%">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="Helles Meridian-Vertriebsdashboard mit Umsatzkennzahlen, Zielvergleich, Regional- und Produktdiagrammen sowie interaktiven Filtern." width="100%">
 </a>
 
 [Artefakt teilen](https://vstorm-co.github.io/agenticos/de/artifacts/).

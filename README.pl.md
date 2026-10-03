@@ -1,4 +1,4 @@
-<!-- source_sha: 3bf5cdf03c03 -->
+<!-- source_sha: d875ce03823f -->
 
 <div align="center">
 
@@ -149,10 +149,10 @@ Współpracownicy mogą korzystać z opublikowanego agenta w **czacie internetow
 
 ### Publikuj wyniki jako interaktywne strony
 
-Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Poniższy przykład to OSS Launch Planner, zbudowany na podstawie briefu z Notion i researchu na GitHubie.
+Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Poniższy przykład to **Meridian** — dashboard sprzedażowy zbudowany przez agenta, z działającymi filtrami okresu i regionu oraz wyraźnie oznaczonymi danymi demonstracyjnymi.
 
 <a href="docs/assets/screens/light/artifact-detail.png">
-  <img src="docs/assets/screens/light/artifact-detail.png" alt="Artefakt OSS Launch Planner z wyborem odbiorców, rekomendacjami projektów i linkami do źródeł." width="100%">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="Jasny dashboard sprzedażowy Meridian z KPI, porównaniem przychodów z celem, wykresami regionów i produktów oraz interaktywnymi filtrami." width="100%">
 </a>
 
 [Udostępnij artefakt](https://vstorm-co.github.io/agenticos/pl/artifacts/).

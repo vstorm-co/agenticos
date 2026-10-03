@@ -2,13 +2,14 @@
 
 ## Current README captures
 
-Captured from the authenticated AgenticOS test deployment on 2 October 2026 using
+Captured from the authenticated AgenticOS test deployment on 2 October 2026, with the artifact
+detail and library refreshed on 3 October 2026, using
 Chromium through Playwright. Every current README screenshot is a native **3200 × 2000
 PNG** from a **1600 × 1000 CSS-pixel viewport at device scale factor 2**. The application
 uses its light theme and expanded navigation. The organization-selection reminder is dismissed.
-The authored OSS Launch Planner retains its own dark styling.
+The featured artifact is now Meridian, a light-theme sales dashboard with clearly labeled demo data.
 
-The PNGs are lossless browser captures: no upscaling, recomposition, generated UI or text
+The PNGs are lossless browser captures: no upscaling, recomposition, image-generation edits or text
 replacement. All fourteen files are below the repository's 1 MiB per-file limit. Open the linked
 images in the README to inspect them at full resolution. `readme-captures.json` records paths,
 dimensions, byte sizes, hashes and capture states.
@@ -22,8 +23,8 @@ dimensions, byte sizes, hashes and capture states.
 | `skills.png` | Design, Engineering, Finance and Research selected; six matching skills |
 | `context-detail.png` | Existing Glossary open in Preview, enabled, linked for on-demand reading |
 | `knowledge-collection.png` | User-selected vstorm collection, completed document with parser and chunk count |
-| `artifact-detail.png` | Existing OSS Launch Planner v2; authored interactive page and sharing controls |
-| `artifacts.png` | Existing library with previews, versions and visibility |
+| `artifact-detail.png` | Meridian · Revenue overview v1; agent-generated light dashboard, H1 / All regions, private visibility |
+| `artifacts.png` | Refreshed library including Meridian, with previews, versions and visibility |
 | `dashboard.png` | Saved custom layout: blue Usage & cost section, compact summary, bars for run trends and wider outcomes widget |
 | `activity.png` | Existing last-30-days run history, statuses, tokens and recorded costs |
 | `groups.png` | New empty Engineering, Finance, Operations and Research groups, alongside the pre-existing test group |
@@ -33,8 +34,8 @@ dimensions, byte sizes, hashes and capture states.
 The dashboard layout and four example groups were saved through the application UI at the
 user's request. Group descriptions explain departmental uses; no members or resource grants
 were added. The chat composer selects Claude Code like for the next message. No message was
-sent, agent run started, agent specification published or access policy changed for these captures.
-The displayed metrics and results are existing test-deployment records, not a benchmark.
+sent, agent run started, agent specification published or access policy changed for the 2 October
+capture batch. Dashboard and Activity figures are existing test-deployment records, not a benchmark.
 
 Directory mappings were inspected but not configured. That empty view is described in README
 text rather than added as another screenshot. It maps external directory groups to an organization
@@ -42,6 +43,28 @@ role and optional local group at sign-in; it is not a department directory.
 
 Authentication state and temporary capture tooling stay outside the repository. No password,
 session token or browser storage is part of the media bundle.
+
+## Meridian artifact refresh — 3 October 2026
+
+At the user's request, the Claude Code like agent built and published a new private artifact,
+`meridian-revenue-overview`, titled **Meridian · Revenue overview**, version 1. It replaces the
+OSS Launch Planner screenshot in the artifact section; the separate integration recording is unchanged.
+
+- Conversation: `6f32affd-1845-4610-ac46-cdedf63438c9`.
+- Artifact: `b2b4c685-8075-4011-b6d6-1266b69cc79f` in the user-selected Vstorm organization.
+- Source: a supplied design brief requesting a light executive sales dashboard, deterministic
+  illustrative data, three charts, four KPI cards and functioning period/region filters.
+- Data: Meridian is fictional. Figures are generated demonstration data, not customer results or
+  a claim about AgenticOS revenue, performance or adoption. The page labels them visibly.
+- Implementation: a self-contained page using the deployment's bundled Chart.js. The agent
+  reported calculation and DOM checks; its sandbox had no browser, so browser checks were performed
+  separately against the published artifact.
+
+Verified all 12 period/region combinations in Chromium: trend and product-mix totals agree with
+corresponding regional totals, and Q1 + Q2 equals H1 for every region. Checked filter-driven KPI
+changes, Reset, a visible chart tooltip and mobile layout without horizontal page overflow.
+The final capture uses H1 / All regions at the same native PNG 2× settings as the other images.
+No image editing was used. Existing artifacts and their sharing settings were not changed.
 
 ## Earlier captures
 

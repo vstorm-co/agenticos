@@ -1,4 +1,4 @@
-<!-- source_sha: 3bf5cdf03c03 -->
+<!-- source_sha: d875ce03823f -->
 
 <div align="center">
 
@@ -149,10 +149,10 @@ Tus compañeros pueden usar un agente publicado en **chat web, Slack, Mattermost
 
 ### Publica resultados como páginas interactivas
 
-Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **artefactos**. Elige quién puede abrirlos; las actualizaciones conservan el mismo enlace y las versiones anteriores siguen disponibles. El ejemplo siguiente es OSS Launch Planner, creado a partir de un brief de Notion y una investigación en GitHub.
+Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **artefactos**. Elige quién puede abrirlos; las actualizaciones conservan el mismo enlace y las versiones anteriores siguen disponibles. El ejemplo siguiente es **Meridian**, un dashboard de ventas creado por un agente, con filtros funcionales de período y región y datos de demostración claramente identificados.
 
 <a href="docs/assets/screens/light/artifact-detail.png">
-  <img src="docs/assets/screens/light/artifact-detail.png" alt="Artefacto OSS Launch Planner con selección de audiencia, recomendaciones de proyectos y enlaces a fuentes." width="100%">
+  <img src="docs/assets/screens/light/artifact-detail.png" alt="Dashboard de ventas Meridian en tema claro con indicadores de ingresos, comparación con objetivos, gráficos regionales y de productos y filtros interactivos." width="100%">
 </a>
 
 [Compartir un artefacto](https://vstorm-co.github.io/agenticos/es/artifacts/).
