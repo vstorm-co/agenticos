@@ -9,9 +9,9 @@
 </p>
 
 <p>
-  <a href="#quick-start">Quick start</a> &middot;
-  <a href="#build-share-and-operate">Build, share and operate</a> &middot;
-  <a href="#is-agenticos-the-right-fit">Is it a fit?</a> &middot;
+  <a href="#-quick-start">Quick start</a> &middot;
+  <a href="#-build-share-and-operate">Build, share and operate</a> &middot;
+  <a href="#-is-agenticos-the-right-fit">Is it a fit?</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
 
@@ -37,18 +37,18 @@ AgenticOS is a self-hosted workspace where AI agents work with files, run code a
   <img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder showing instructions, model selection and a published version." width="100%">
 </a>
 
-## What you can do
+## ✨ What you can do
 
 | For your team | What AgenticOS provides |
 |---|---|
-| [Work with files and code](#work-with-files-and-code) | Analyze CSVs, produce charts and documents, work on repositories |
-| [Build reusable agents](#build-agents-your-team-can-reuse) | Choose models and tools, publish versions, share agents with colleagues |
-| [Connect company knowledge](#teach-agents-how-your-team-works) | Reuse skills, context and searchable documents across agents |
-| [Share the results](#publish-results-as-interactive-pages) | Publish interactive pages with stable links and version history |
-| [Run and monitor](#track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
-| [Organize company access](#organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
+| [Work with files and code](#-work-with-files-and-code) | Analyze CSVs, produce charts and documents, work on repositories |
+| [Build reusable agents](#-build-agents-your-team-can-reuse) | Choose models and tools, publish versions, share agents with colleagues |
+| [Connect company knowledge](#-teach-agents-how-your-team-works) | Reuse skills, context and searchable documents across agents |
+| [Share the results](#-publish-results-as-interactive-pages) | Publish interactive pages with stable links and version history |
+| [Run and monitor](#-track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
+| [Organize company access](#-organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
-## Quick start
+## 🚀 Quick start
 
 Start with Docker Compose and access to a model provider. On macOS or Linux, run:
 
@@ -78,7 +78,7 @@ For development from source, see [Contributing](https://vstorm-co.github.io/agen
 
 </details>
 
-## Recorded integration example
+## 🎬 Recorded integration example
 
 Watch an agent turn a Notion brief into the interactive **OSS Launch Planner**, using GitHub research on Vstorm’s open-source projects: **brief → research → shared result**.
 
@@ -88,9 +88,9 @@ Watch an agent turn a Notion brief into the interactive **OSS Launch Planner**, 
 
 [Watch the shortened video (37 seconds)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [View a screenshot](docs/assets/screens/oss-launch-planner-poster.webp)
 
-## Build, share and operate
+## 🧩 Build, share and operate
 
-### Work with files and code
+### 📂 Work with files and code
 
 Ask an agent to analyze a spreadsheet, produce a chart, prepare a document or work on a repository. With a container-backed sandbox configured and command execution enabled, it can **read and edit files, run shell commands, and execute Python or JavaScript**. The bundled workbench includes data, charting and document tools, including LibreOffice.
 
@@ -111,7 +111,7 @@ Run container sandboxes on your own infrastructure or configure a supported remo
 
 </details>
 
-### Build agents your team can reuse
+### 🤖 Build agents your team can reuse
 
 Choose its model, instructions and tools in the browser. Publish a version for colleagues to use; inspect earlier versions and roll back when needed. Keep specialized agents for research, reporting, coding or operations in one catalog.
 
@@ -124,7 +124,7 @@ Choose its model, instructions and tools in the browser. Publish a version for c
 
 Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegram** when those channels are configured. Developers can call it through the API. [Build an agent](https://vstorm-co.github.io/agenticos/first-agent/) · [Connect a channel](https://vstorm-co.github.io/agenticos/channels/).
 
-### Teach agents how your team works
+### 🧠 Teach agents how your team works
 
 - **Skills** hold reusable procedures: how to review code, write a report or research a market. Maintain them once and reuse them across agents.
 - **Context** holds standing knowledge such as a glossary, policy or brand voice. Include it in the prompt or let the agent read it on demand.
@@ -145,7 +145,7 @@ Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegra
 
 </details>
 
-### Publish results as interactive pages
+### 🎨 Publish results as interactive pages
 
 Agents can publish reports, interactive comparisons and small dashboards as **artifacts**. Choose who can open them; updates keep the same link and earlier versions remain readable. The example below is **Meridian**, a sales dashboard built by an agent, with working period and region filters and clearly labeled demo data.
 
@@ -162,7 +162,7 @@ Agents can publish reports, interactive comparisons and small dashboards as **ar
 
 </details>
 
-### Track runs, costs and approvals
+### 📊 Track runs, costs and approvals
 
 Customize the **dashboard** around your work: arrange and resize widgets, color sections and save layouts. Track usage, outcomes, recorded spend, approvals and sandbox capacity. Permissions determine which data a person can see.
 
@@ -183,7 +183,7 @@ Approval coverage depends on the tool and execution mode. In web chat, **Ask abo
 
 </details>
 
-### Organize teams with roles and groups
+### 👥 Organize teams with roles and groups
 
 **Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as **Operations, Engineering, Finance and Research**. Share an agent, skill, collection, context file or artifact with a group in one step. Group grants add access alongside a person's role and individual grants.
 
@@ -204,7 +204,7 @@ Bring existing company accounts through **OIDC single sign-on, LDAP directory lo
 
 </details>
 
-## Connect the apps your team already uses
+## 🔌 Connect the apps your team already uses
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
@@ -214,13 +214,13 @@ Connect tools through **MCP**, alongside built-in sync sources and chat channels
 
 [Outlook email and calendar](https://vstorm-co.github.io/agenticos/mcp/) connect through a third-party MCP service with its own account and permissions.
 
-## Is AgenticOS the right fit?
+## 🎯 Is AgenticOS the right fit?
 
 Choose it when a team has repeated document or tool-based work, subject experts who can maintain the instructions, and someone responsible for operating a self-hosted deployment.
 
 Evaluate it with one of your own tasks. [Compare approaches](https://vstorm-co.github.io/agenticos/about/comparison/) · [Plan a rollout](https://vstorm-co.github.io/agenticos/rollout/).
 
-## Own your deployment, models and access
+## 🔐 Own your deployment, models and access
 
 **Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate. Choose hosted providers or local models through Ollama and compatible endpoints such as vLLM. [Configure models](https://vstorm-co.github.io/agenticos/models/).
 
@@ -228,7 +228,7 @@ Self-hosting the console does not make every model, parser or tool local. Review
 
 [Security and data flows](https://vstorm-co.github.io/agenticos/security/) · [Access controls](https://vstorm-co.github.io/agenticos/permissions/) · [Secrets](https://vstorm-co.github.io/agenticos/secrets/) · [Execution and cost controls](https://vstorm-co.github.io/agenticos/governance/).
 
-## For developers and operators
+## 🛠️ For developers and operators
 
 Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities in typed Python; teams compose agents from the registered capabilities in the console.
 
@@ -236,12 +236,12 @@ Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Ne
 
 The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds a dedicated window, a pet and a macOS screenshot shortcut. Explore [Vstorm's open-source projects](https://github.com/vstorm-co) for the libraries and tools around AgenticOS.
 
-## License
+## 📄 License
 
 [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md)
 for attribution and bundled components.
 
-## Need help putting agents into production?
+## 🤝 Need help putting agents into production?
 
 Vstorm deploys AgenticOS in client infrastructure, writes the documentation, defines the processes
 and builds custom capabilities. Maintenance and support are agreed per engagement.

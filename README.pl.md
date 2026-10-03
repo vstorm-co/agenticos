@@ -1,4 +1,4 @@
-<!-- source_sha: d875ce03823f -->
+<!-- source_sha: 0e53063d169a -->
 
 <div align="center">
 
@@ -11,9 +11,9 @@
 </p>
 
 <p>
-  <a href="#szybki-start">Szybki start</a> &middot;
-  <a href="#twórz-udostępniaj-i-nadzoruj">Twórz, udostępniaj i nadzoruj</a> &middot;
-  <a href="#czy-agenticos-pasuje-do-twojego-zespołu">Czy to dla nas?</a> &middot;
+  <a href="#-szybki-start">Szybki start</a> &middot;
+  <a href="#-twórz-udostępniaj-i-nadzoruj">Twórz, udostępniaj i nadzoruj</a> &middot;
+  <a href="#-czy-agenticos-pasuje-do-twojego-zespołu">Czy to dla nas?</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/pl/">Dokumentacja</a>
 </p>
 
@@ -39,18 +39,18 @@ AgenticOS to środowisko na własnej infrastrukturze, w którym agenci AI pracuj
   <img src="docs/assets/screens/light/agent-builder.png" alt="Builder agenta z instrukcjami, wyborem modelu i opublikowaną wersją." width="100%">
 </a>
 
-## Co możesz zrobić
+## ✨ Co możesz zrobić
 
 | Dla Twojego zespołu | Co zapewnia AgenticOS |
 |---|---|
-| [Praca z plikami i kodem](#pracuj-z-plikami-i-kodem) | Analizuj CSV, twórz wykresy i dokumenty, pracuj nad repozytoriami |
-| [Agenci wielokrotnego użytku](#twórz-agentów-do-wspólnego-użytku) | Wybieraj modele i narzędzia, publikuj wersje, udostępniaj agentów zespołowi |
-| [Wiedza firmowa](#naucz-agentów-sposobu-pracy-zespołu) | Wykorzystuj skills, kontekst i przeszukiwalne dokumenty w wielu agentach |
-| [Udostępnianie wyników](#publikuj-wyniki-jako-interaktywne-strony) | Publikuj interaktywne strony ze stałymi linkami i historią wersji |
-| [Uruchamianie i nadzór](#śledź-wykonania-koszty-i-zatwierdzenia) | Dostosuj dashboardy, sprawdzaj wykonania, planuj zadania i ustalaj budżety |
-| [Dostęp w firmie](#organizuj-zespoły-za-pomocą-ról-i-grup) | Łącz role, grupy działów i logowanie firmowe |
+| [Praca z plikami i kodem](#-pracuj-z-plikami-i-kodem) | Analizuj CSV, twórz wykresy i dokumenty, pracuj nad repozytoriami |
+| [Agenci wielokrotnego użytku](#-twórz-agentów-do-wspólnego-użytku) | Wybieraj modele i narzędzia, publikuj wersje, udostępniaj agentów zespołowi |
+| [Wiedza firmowa](#-naucz-agentów-sposobu-pracy-zespołu) | Wykorzystuj skills, kontekst i przeszukiwalne dokumenty w wielu agentach |
+| [Udostępnianie wyników](#-publikuj-wyniki-jako-interaktywne-strony) | Publikuj interaktywne strony ze stałymi linkami i historią wersji |
+| [Uruchamianie i nadzór](#-śledź-wykonania-koszty-i-zatwierdzenia) | Dostosuj dashboardy, sprawdzaj wykonania, planuj zadania i ustalaj budżety |
+| [Dostęp w firmie](#-organizuj-zespoły-za-pomocą-ról-i-grup) | Łącz role, grupy działów i logowanie firmowe |
 
-## Szybki start
+## 🚀 Szybki start
 
 Na początek potrzebujesz Dockera z Compose i dostępu do dostawcy modelu. Na macOS lub Linuksie uruchom:
 
@@ -80,7 +80,7 @@ Pracę nad kodem opisuje [poradnik dla współtwórców](https://vstorm-co.githu
 
 </details>
 
-## Nagrany przykład integracji
+## 🎬 Nagrany przykład integracji
 
 Zobacz, jak agent zamienia brief z Notion w interaktywny **OSS Launch Planner**, korzystając z researchu projektów open source Vstorm na GitHubie: **brief → analiza → wspólny wynik**.
 
@@ -90,9 +90,9 @@ Zobacz, jak agent zamienia brief z Notion w interaktywny **OSS Launch Planner**,
 
 [Obejrzyj skrócony film (37 sekund)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Zobacz zrzut ekranu](docs/assets/screens/oss-launch-planner-poster.webp)
 
-## Twórz, udostępniaj i nadzoruj
+## 🧩 Twórz, udostępniaj i nadzoruj
 
-### Pracuj z plikami i kodem
+### 📂 Pracuj z plikami i kodem
 
 Poproś agenta o analizę arkusza, wykres, dokument lub pracę nad repozytorium. Po skonfigurowaniu sandboxa opartego na kontenerach i włączeniu wykonywania komend agent może **czytać i edytować pliki, uruchamiać polecenia powłoki oraz wykonywać kod Pythona i JavaScriptu**. Dołączony workbench zawiera narzędzia do danych, wykresów i dokumentów, w tym LibreOffice.
 
@@ -113,7 +113,7 @@ Uruchamiaj sandboxy kontenerowe na własnej infrastrukturze lub skonfiguruj obs�
 
 </details>
 
-### Twórz agentów do wspólnego użytku
+### 🤖 Twórz agentów do wspólnego użytku
 
 Wybierz model, instrukcje i narzędzia w przeglądarce. Opublikuj wersję dla współpracowników; przeglądaj wcześniejsze wersje i przywracaj je w razie potrzeby. Trzymaj agentów do researchu, raportowania, programowania i operacji w jednym katalogu.
 
@@ -126,7 +126,7 @@ Wybierz model, instrukcje i narzędzia w przeglądarce. Opublikuj wersję dla ws
 
 Współpracownicy mogą korzystać z opublikowanego agenta w **czacie internetowym, Slacku, Mattermost lub Telegramie**, gdy te kanały są skonfigurowane. Programiści mogą wywoływać go przez API. [Zbuduj agenta](https://vstorm-co.github.io/agenticos/pl/first-agent/) · [Podłącz kanał](https://vstorm-co.github.io/agenticos/pl/channels/).
 
-### Naucz agentów sposobu pracy zespołu
+### 🧠 Naucz agentów sposobu pracy zespołu
 
 - **Skills** przechowują procedury wielokrotnego użytku: jak przeglądać kod, napisać raport lub zbadać rynek. Utrzymuj je w jednym miejscu i wykorzystuj w wielu agentach.
 - **Kontekst** przechowuje stałą wiedzę, np. słownik pojęć, politykę firmy lub styl komunikacji marki. Dodaj go do promptu albo pozwól agentowi czytać go na żądanie.
@@ -147,7 +147,7 @@ Współpracownicy mogą korzystać z opublikowanego agenta w **czacie internetow
 
 </details>
 
-### Publikuj wyniki jako interaktywne strony
+### 🎨 Publikuj wyniki jako interaktywne strony
 
 Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Poniższy przykład to **Meridian** — dashboard sprzedażowy zbudowany przez agenta, z działającymi filtrami okresu i regionu oraz wyraźnie oznaczonymi danymi demonstracyjnymi.
 
@@ -164,7 +164,7 @@ Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy ja
 
 </details>
 
-### Śledź wykonania, koszty i zatwierdzenia
+### 📊 Śledź wykonania, koszty i zatwierdzenia
 
 Dostosuj **dashboard** do swojej pracy: układaj i skaluj widżety, nadaj sekcjom kolory i zapisuj układy. Śledź wykorzystanie, wyniki, zarejestrowane wydatki, zatwierdzenia i zasoby sandboxów. Uprawnienia określają, jakie dane widzi dana osoba.
 
@@ -185,7 +185,7 @@ Zakres zatwierdzeń zależy od narzędzia i trybu wykonania. W czacie internetow
 
 </details>
 
-### Organizuj zespoły za pomocą ról i grup
+### 👥 Organizuj zespoły za pomocą ról i grup
 
 **Role określają, co ludzie mogą robić. Grupy określają, komu udostępniasz zasoby.** Korzystaj z ról takich jak Builder, Operator, Member i Viewer, a następnie utwórz działy lub grupy robocze, np. **Operations, Engineering, Finance i Research**. Udostępnij grupie agenta, skill, kolekcję, plik kontekstu lub artefakt w jednym kroku. Dostęp przyznany grupie uzupełnia uprawnienia wynikające z roli i indywidualnych nadań.
 
@@ -206,7 +206,7 @@ Wykorzystaj istniejące konta firmowe przez **SSO z OIDC, logowanie katalogowe L
 
 </details>
 
-## Podłącz aplikacje, których Twój zespół już używa
+## 🔌 Podłącz aplikacje, których Twój zespół już używa
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Szesnaście logotypów aplikacji na ciemnych szklanych kafelkach: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
@@ -216,13 +216,13 @@ Podłączaj narzędzia przez **MCP**, obok wbudowanych źródeł synchronizacji 
 
 [Poczta i kalendarz Outlook](https://vstorm-co.github.io/agenticos/pl/mcp/) łączą się przez zewnętrzną usługę MCP, która wymaga osobnego konta i uprawnień.
 
-## Czy AgenticOS pasuje do Twojego zespołu?
+## 🎯 Czy AgenticOS pasuje do Twojego zespołu?
 
 Wybierz go, gdy zespół ma powtarzalne zadania związane z dokumentami lub narzędziami, ekspertów utrzymujących instrukcje oraz osobę odpowiedzialną za działanie wdrożenia na własnej infrastrukturze.
 
 Sprawdź go na jednym z własnych zadań. [Porównaj podejścia](https://vstorm-co.github.io/agenticos/pl/about/comparison/) · [Zaplanuj wdrożenie](https://vstorm-co.github.io/agenticos/pl/rollout/).
 
-## Kontroluj wdrożenie, modele i dostęp
+## 🔐 Kontroluj wdrożenie, modele i dostęp
 
 **Sovereign oznacza kontrolę nad wdrożeniem, dostawcami modeli, przepływami danych i dostępem do agentów.** AgenticOS jest oprogramowaniem na licencji Apache-2.0, które możesz sprawdzać, modyfikować i utrzymywać. Wybierz modele hostowane lub lokalne przez Ollama i kompatybilne endpointy, takie jak vLLM. [Konfiguracja modeli](https://vstorm-co.github.io/agenticos/pl/models/).
 
@@ -230,7 +230,7 @@ Uruchomienie konsoli na własnej infrastrukturze nie sprawia, że każdy model, 
 
 [Bezpieczeństwo i przepływy danych](https://vstorm-co.github.io/agenticos/pl/security/) · [Uprawnienia](https://vstorm-co.github.io/agenticos/pl/permissions/) · [Sekrety](https://vstorm-co.github.io/agenticos/pl/secrets/) · [Kontrola wykonań i kosztów](https://vstorm-co.github.io/agenticos/pl/governance/).
 
-## Dla programistów i administratorów
+## 🛠️ Dla programistów i administratorów
 
 Zbudowany z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.js. Inżynierowie dodają capabilities w typowanym Pythonie; zespoły składają z zarejestrowanych capabilities agentów w konsoli.
 
@@ -238,12 +238,12 @@ Zbudowany z FastAPI, Pydantic AI, PostgreSQL z pgvector, Redis, Prefect i Next.j
 
 [Analogia systemu operacyjnego](https://vstorm-co.github.io/agenticos/pl/about/) wyjaśnia architekturę. Opcjonalna [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dodaje osobne okno, zwierzaka i skrót do zrzutów ekranu na macOS. [Projekty open source Vstorm](https://github.com/vstorm-co) zawierają biblioteki i narzędzia wokół AgenticOS.
 
-## Licencja
+## 📄 Licencja
 
 [Apache License 2.0](LICENSE). Zobacz [NOTICE](NOTICE) i [informacje o komponentach zewnętrznych](THIRD_PARTY_NOTICES.md),
 aby poznać atrybucje i skład dystrybucji.
 
-## Potrzebujesz pomocy we wdrożeniu agentów na produkcję?
+## 🤝 Potrzebujesz pomocy we wdrożeniu agentów na produkcję?
 
 Vstorm wdraża AgenticOS w infrastrukturze klienta, przygotowuje dokumentację, definiuje procesy
 i buduje możliwości na zamówienie. Zakres utrzymania i wsparcia ustalamy dla każdej współpracy.

@@ -1,4 +1,4 @@
-<!-- source_sha: d875ce03823f -->
+<!-- source_sha: 0e53063d169a -->
 
 <div align="center">
 
@@ -11,9 +11,9 @@
 </p>
 
 <p>
-  <a href="#inicio-rápido">Inicio rápido</a> &middot;
-  <a href="#crea-comparte-y-opera">Crea, comparte y opera</a> &middot;
-  <a href="#encaja-agenticos-con-tu-equipo">¿Encaja con nosotros?</a> &middot;
+  <a href="#-inicio-rápido">Inicio rápido</a> &middot;
+  <a href="#-crea-comparte-y-opera">Crea, comparte y opera</a> &middot;
+  <a href="#-encaja-agenticos-con-tu-equipo">¿Encaja con nosotros?</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/es/">Documentación</a>
 </p>
 
@@ -39,18 +39,18 @@ AgenticOS es un espacio de trabajo autoalojado donde los agentes de IA trabajan 
   <img src="docs/assets/screens/light/agent-builder.png" alt="Builder del agente con instrucciones, selección de modelo y una versión publicada." width="100%">
 </a>
 
-## Qué puedes hacer
+## ✨ Qué puedes hacer
 
 | Para tu equipo | Qué ofrece AgenticOS |
 |---|---|
-| [Archivos y código](#trabaja-con-archivos-y-código) | Analiza CSV, genera gráficos y documentos, trabaja en repositorios |
-| [Agentes reutilizables](#crea-agentes-que-tu-equipo-pueda-reutilizar) | Elige modelos y herramientas, publica versiones, comparte agentes con tus compañeros |
-| [Conocimiento de la empresa](#enseña-a-los-agentes-cómo-trabaja-tu-equipo) | Reutiliza skills, contexto y documentos consultables en distintos agentes |
-| [Resultados compartidos](#publica-resultados-como-páginas-interactivas) | Publica páginas interactivas con enlaces estables e historial de versiones |
-| [Ejecución y supervisión](#supervisa-ejecuciones-costes-y-aprobaciones) | Personaliza dashboards, revisa ejecuciones, programa tareas y fija presupuestos |
-| [Acceso en la empresa](#organiza-equipos-con-roles-y-grupos) | Combina roles, grupos de departamentos e inicio de sesión de empresa |
+| [Archivos y código](#-trabaja-con-archivos-y-código) | Analiza CSV, genera gráficos y documentos, trabaja en repositorios |
+| [Agentes reutilizables](#-crea-agentes-que-tu-equipo-pueda-reutilizar) | Elige modelos y herramientas, publica versiones, comparte agentes con tus compañeros |
+| [Conocimiento de la empresa](#-enseña-a-los-agentes-cómo-trabaja-tu-equipo) | Reutiliza skills, contexto y documentos consultables en distintos agentes |
+| [Resultados compartidos](#-publica-resultados-como-páginas-interactivas) | Publica páginas interactivas con enlaces estables e historial de versiones |
+| [Ejecución y supervisión](#-supervisa-ejecuciones-costes-y-aprobaciones) | Personaliza dashboards, revisa ejecuciones, programa tareas y fija presupuestos |
+| [Acceso en la empresa](#-organiza-equipos-con-roles-y-grupos) | Combina roles, grupos de departamentos e inicio de sesión de empresa |
 
-## Inicio rápido
+## 🚀 Inicio rápido
 
 Necesitas Docker Compose y acceso a un proveedor de modelos. En macOS o Linux, ejecuta:
 
@@ -80,7 +80,7 @@ Para desarrollar a partir del código fuente, consulta [Contribuir](https://vsto
 
 </details>
 
-## Ejemplo de integración grabado
+## 🎬 Ejemplo de integración grabado
 
 Mira cómo un agente convierte un brief de Notion en el **OSS Launch Planner** interactivo, investigando los proyectos de código abierto de Vstorm en GitHub: **brief → investigación → resultado compartido**.
 
@@ -90,9 +90,9 @@ Mira cómo un agente convierte un brief de Notion en el **OSS Launch Planner** i
 
 [Ver el vídeo abreviado (37 segundos)](https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512) · [Ver una captura](docs/assets/screens/oss-launch-planner-poster.webp)
 
-## Crea, comparte y opera
+## 🧩 Crea, comparte y opera
 
-### Trabaja con archivos y código
+### 📂 Trabaja con archivos y código
 
 Pide a un agente que analice una hoja de cálculo, genere un gráfico, prepare un documento o trabaje en un repositorio. Con un sandbox basado en contenedores configurado y la ejecución de comandos habilitada, puede **leer y editar archivos, ejecutar comandos de shell y ejecutar código Python o JavaScript**. El entorno workbench incluido contiene herramientas para datos, gráficos y documentos, entre ellas LibreOffice.
 
@@ -113,7 +113,7 @@ Ejecuta sandboxes en contenedores en tu propia infraestructura o configura un ba
 
 </details>
 
-### Crea agentes que tu equipo pueda reutilizar
+### 🤖 Crea agentes que tu equipo pueda reutilizar
 
 Elige su modelo, instrucciones y herramientas en el navegador. Publica una versión para tus compañeros; consulta versiones anteriores y restáuralas cuando sea necesario. Mantén agentes especializados en investigación, informes, programación u operaciones en un mismo catálogo.
 
@@ -126,7 +126,7 @@ Elige su modelo, instrucciones y herramientas en el navegador. Publica una versi
 
 Tus compañeros pueden usar un agente publicado en **chat web, Slack, Mattermost o Telegram** cuando esos canales estén configurados. Los desarrolladores pueden llamarlo mediante la API. [Crear un agente](https://vstorm-co.github.io/agenticos/es/first-agent/) · [Conectar un canal](https://vstorm-co.github.io/agenticos/es/channels/).
 
-### Enseña a los agentes cómo trabaja tu equipo
+### 🧠 Enseña a los agentes cómo trabaja tu equipo
 
 - **Skills** contienen procedimientos reutilizables: cómo revisar código, escribir un informe o investigar un mercado. Mantenlos una vez y reutilízalos en distintos agentes.
 - **Contexto** contiene conocimiento permanente, como un glosario, una política o la voz de la marca. Inclúyelo en el prompt o permite que el agente lo lea cuando lo necesite.
@@ -147,7 +147,7 @@ Tus compañeros pueden usar un agente publicado en **chat web, Slack, Mattermost
 
 </details>
 
-### Publica resultados como páginas interactivas
+### 🎨 Publica resultados como páginas interactivas
 
 Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **artefactos**. Elige quién puede abrirlos; las actualizaciones conservan el mismo enlace y las versiones anteriores siguen disponibles. El ejemplo siguiente es **Meridian**, un dashboard de ventas creado por un agente, con filtros funcionales de período y región y datos de demostración claramente identificados.
 
@@ -164,7 +164,7 @@ Los agentes pueden publicar informes, comparaciones interactivas y pequeños pan
 
 </details>
 
-### Supervisa ejecuciones, costes y aprobaciones
+### 📊 Supervisa ejecuciones, costes y aprobaciones
 
 Personaliza el **dashboard** según tu trabajo: organiza y redimensiona widgets, asigna colores a las secciones y guarda diseños. Supervisa uso, resultados, gasto registrado, aprobaciones y capacidad de los sandboxes. Los permisos determinan qué datos puede ver cada persona.
 
@@ -185,7 +185,7 @@ La cobertura de aprobaciones depende de la herramienta y del modo de ejecución.
 
 </details>
 
-### Organiza equipos con roles y grupos
+### 👥 Organiza equipos con roles y grupos
 
 **Los roles definen qué pueden hacer las personas. Los grupos definen con quién compartes.** Usa roles como Builder, Operator, Member y Viewer y crea departamentos o grupos de trabajo como **Operations, Engineering, Finance y Research**. Comparte un agente, skill, colección, archivo de contexto o artefacto con un grupo en un solo paso. Los permisos de grupo amplían el acceso que una persona recibe por su rol y por asignaciones individuales.
 
@@ -206,7 +206,7 @@ Usa las cuentas existentes de la empresa mediante **inicio de sesión único con
 
 </details>
 
-## Conecta las aplicaciones que tu equipo ya usa
+## 🔌 Conecta las aplicaciones que tu equipo ya usa
 
 <img src="docs/assets/integrations/apps-glass.svg" alt="Dieciséis logotipos de aplicaciones sobre tarjetas oscuras de cristal: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
 
@@ -216,13 +216,13 @@ Conecta herramientas mediante **MCP**, junto con fuentes de sincronización y ca
 
 [El correo y calendario de Outlook](https://vstorm-co.github.io/agenticos/es/mcp/) se conectan mediante un servicio MCP externo con su propia cuenta y permisos.
 
-## ¿Encaja AgenticOS con tu equipo?
+## 🎯 ¿Encaja AgenticOS con tu equipo?
 
 Elígelo si el equipo tiene tareas recurrentes con documentos o herramientas, expertos que mantengan las instrucciones y una persona responsable de operar el despliegue en infraestructura propia.
 
 Evalúalo con una de tus tareas. [Compara enfoques](https://vstorm-co.github.io/agenticos/es/about/comparison/) · [Planifica el despliegue](https://vstorm-co.github.io/agenticos/es/rollout/).
 
-## Controla tu despliegue, modelos y acceso
+## 🔐 Controla tu despliegue, modelos y acceso
 
 **Sovereign significa controlar el despliegue, los proveedores de modelos, los flujos de datos y el acceso a los agentes.** AgenticOS es software Apache-2.0 que puedes inspeccionar, modificar y operar. Elige proveedores alojados o modelos locales mediante Ollama y endpoints compatibles como vLLM. [Configura los modelos](https://vstorm-co.github.io/agenticos/es/models/).
 
@@ -230,7 +230,7 @@ Autoalojar la consola no hace que todos los modelos, parsers o herramientas sean
 
 [Seguridad y flujos de datos](https://vstorm-co.github.io/agenticos/es/security/) · [Control de acceso](https://vstorm-co.github.io/agenticos/es/permissions/) · [Secretos](https://vstorm-co.github.io/agenticos/es/secrets/) · [Control de ejecución y costes](https://vstorm-co.github.io/agenticos/es/governance/).
 
-## Para desarrolladores y operadores
+## 🛠️ Para desarrolladores y operadores
 
 Creado con FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis, Prefect y Next.js. Los ingenieros añaden capabilities en Python tipado; los equipos componen agentes con las capabilities registradas en la consola.
 
@@ -238,12 +238,12 @@ Creado con FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis, Prefect y Next.
 
 La [analogía del sistema operativo](https://vstorm-co.github.io/agenticos/es/about/) explica la arquitectura. La [aplicación de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) opcional añade una ventana propia, una mascota y un atajo de captura de pantalla en macOS. Explora los [proyectos de código abierto de Vstorm](https://github.com/vstorm-co) para encontrar las bibliotecas y herramientas que rodean a AgenticOS.
 
-## Licencia
+## 📄 Licencia
 
 [Apache License 2.0](LICENSE). Consulta [NOTICE](NOTICE) y los [avisos de terceros](THIRD_PARTY_NOTICES.md)
 para las atribuciones y los componentes incluidos.
 
-## ¿Necesitas ayuda para llevar agentes a producción?
+## 🤝 ¿Necesitas ayuda para llevar agentes a producción?
 
 Vstorm despliega AgenticOS en la infraestructura del cliente, escribe la documentación, define los procesos
 y construye capacidades a medida. El mantenimiento y el soporte se acuerdan en cada proyecto.
