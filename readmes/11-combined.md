@@ -40,16 +40,7 @@ AgenticOS is a self-hosted workspace where AI agents work with files, run code a
 
 <p align="center"><sub><b>How it fits into your company.</b> People and systems reach shared agents; every request passes roles, budgets, approvals, guardrails and the run record; data stays inside unless you choose a destination outside.</sub></p>
 
-<table>
-<tr>
-<td align="center" width="16%"><h3>26</h3><sub>built-in capabilities</sub></td>
-<td align="center" width="16%"><h3>8</h3><sub>agent surfaces</sub></td>
-<td align="center" width="17%"><h3>27</h3><sub>model providers</sub></td>
-<td align="center" width="17%"><h3>5</h3><sub>sync sources</sub></td>
-<td align="center" width="17%"><h3>5,700+</h3><sub>MCP listings</sub></td>
-<td align="center" width="17%"><h3>29</h3><sub>tutorials</sub></td>
-</tr>
-</table>
+<img src="assets/figures.webp" alt="26 built-in capabilities, 8 agent surfaces, 27 model providers, 5 document sync sources, 5,700+ MCP server listings plus 99 curated, 29 tutorials." width="100%">
 
 ## ✨ What you can do
 
