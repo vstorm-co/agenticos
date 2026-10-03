@@ -10,6 +10,7 @@
 
 <p>
   <a href="#-quick-start">Quick start</a> &middot;
+  <a href="#-connect-the-apps-your-team-already-uses">Integrations</a> &middot;
   <a href="#-see-it-in-action">See it</a> &middot;
   <a href="#-build-share-and-operate">Product tour</a> &middot;
   <a href="#-find-your-path">Find your path</a> &middot;
@@ -35,20 +36,18 @@
 
 AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="../docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="../docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
+<a href="assets/company-architecture-diagram.webp"><img src="assets/company-architecture-diagram.webp" alt="AgenticOS inside your company: departments and systems on the left; AgenticOS with example agents and the controls every request passes in the middle; your data, sandboxes, vault and optional local models inside; hosted models, SaaS tools and document sources outside, only if you choose." width="100%"></a>
 
-<p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
+<p align="center"><sub><b>How it fits into your company.</b> People and systems reach shared agents; every request passes roles, budgets, approvals, guardrails and the run record; data stays inside unless you choose a destination outside.</sub></p>
 
 <table>
 <tr>
-<td align="center" width="16%"><b>26</b><br><sub>built-in capabilities</sub></td>
-<td align="center" width="16%"><b>8</b><br><sub>places an agent answers</sub></td>
-<td align="center" width="17%"><b>27</b><br><sub>model providers, or local</sub></td>
-<td align="center" width="17%"><b>5</b><br><sub>document sync sources</sub></td>
-<td align="center" width="17%"><b>6</b><br><sub>roles, plus groups</sub></td>
-<td align="center" width="17%"><b>29</b><br><sub>tutorials with checks</sub></td>
+<td align="center" width="16%"><h3>26</h3><sub>built-in capabilities</sub></td>
+<td align="center" width="16%"><h3>8</h3><sub>agent surfaces</sub></td>
+<td align="center" width="17%"><h3>27</h3><sub>model providers</sub></td>
+<td align="center" width="17%"><h3>5</h3><sub>sync sources</sub></td>
+<td align="center" width="17%"><h3>5,700+</h3><sub>MCP listings</sub></td>
+<td align="center" width="17%"><h3>29</h3><sub>tutorials</sub></td>
 </tr>
 </table>
 
@@ -63,7 +62,27 @@ AgenticOS is a self-hosted workspace where AI agents work with files, run code a
 | [Run and monitor](#-track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
 | [Organize company access](#-organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
+## 🔌 Connect the apps your team already uses
+
+<a href="assets/integrations-hub.webp"><img src="assets/integrations-hub.webp" alt="AgenticOS as a hub: models it thinks with on top; where people reach it and what starts it on the left; tools it can use through MCP on the right; documents it reads at the bottom." width="100%"></a>
+
+| Connect | How | Read |
+|---|---|---|
+| **Chat tools** | Publish an agent to Slack, Mattermost or Telegram, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
+| **Business tools** | 99 curated MCP servers (Notion, GitHub, Jira, HubSpot, Stripe…) plus **5,700+ registry listings** and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
+| **Documents** | Sync Google Drive, S3/MinIO, Git repositories, websites, SharePoint and OneDrive into knowledge bases | [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) |
+| **Events** | Start agents on a schedule, a new GitHub issue, a Gmail message or a signed webhook | [Routines](https://vstorm-co.github.io/agenticos/triggers/) |
+| **Models** | 27 providers, your cloud contract (Azure, Bedrock, Vertex) or local models (Ollama, vLLM) | [Models](https://vstorm-co.github.io/agenticos/models/) |
+
+<sub>Registry listings are publisher-provided metadata; each connection needs its own setup and access review. Outlook email and calendar connect through a third-party MCP service. Logos identify connection options and do not imply a partnership.</sub>
+
 ## 📸 See it in action
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="../docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="../docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
+
+<p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
 
 <table>
 <tr>
@@ -155,10 +174,6 @@ Customize the **dashboard** around your work. **Activity** lets you inspect runs
 
 Bring existing company accounts through **OIDC single sign-on** (Entra ID, Okta, Keycloak and others), **LDAP directory login** or **Kerberos integrated Windows sign-in**. **Directory mappings** connect directory groups to a role and a group at sign-in. [Roles and permissions](https://vstorm-co.github.io/agenticos/permissions/) · [Directory sign-in](https://vstorm-co.github.io/agenticos/directory/)
 
-## 🏢 How it fits into your company
-
-<img src="assets/company-architecture.webp" alt="AgenticOS inside your company: departments and systems on the left; AgenticOS with example agents and controls in the middle; your data, sandboxes, vault and optional local models inside; hosted models, SaaS tools and document sources outside, only if you choose." width="100%">
-
 ## 🧭 Find your path
 
 <details>
@@ -246,12 +261,6 @@ Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated m
 <img src="assets/model-providers.webp" alt="27 model providers: hosted, your cloud contract, or on your hardware." width="100%">
 
 </details>
-
-## 🔌 Connect the apps your team already uses
-
-<img src="../docs/assets/integrations/apps-glass.svg" alt="Sixteen app logos on dark glass tiles: Google Drive, Gmail, Outlook, Notion, GitHub, Slack, Telegram, Figma, Linear, Airtable, Dropbox, Mattermost, HubSpot, Stripe, Shopify, Supabase." width="1140">
-
-Connect tools through **MCP**, alongside built-in sync sources and chat channels. The catalog includes curated connections and **5,700+ MCP server listings** mirrored from a registry. Listings are publisher-provided metadata; each connection needs its own setup and access review. [Outlook email and calendar](https://vstorm-co.github.io/agenticos/mcp/) connect through a third-party MCP service with its own account and permissions.
 
 ## 🎯 Is AgenticOS the right fit?
 
