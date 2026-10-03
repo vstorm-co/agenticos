@@ -1311,7 +1311,9 @@ body.presenter{background:#14120F;color:#F4F0E8;overflow:auto;display:flex;flex-
     }
     if (presenter && !presenter.closed) presenter.postMessage({deck: 'state', at: i, ...describe(i)}, '*');
     at = i;
-    history.replaceState(null, '', `#${si + 1}.${k + 1}`);
+    // An absolute URL: a page shown through a previewer carries a <base> on another origin, and a bare '#x' would
+    // resolve against that and be refused.
+    history.replaceState(null, '', `${location.href.split('#')[0]}#${si + 1}.${k + 1}`);
   }
 
   function fromHash() {
