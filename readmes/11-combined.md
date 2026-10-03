@@ -194,6 +194,8 @@ Bring existing company accounts through **OIDC single sign-on** (Entra ID, Okta,
 
 ## 🧭 Find your path
 
+Building on it? Go to [For developers and operators](#-for-developers-and-operators).
+
 <details>
 <summary><b>Deciding whether to adopt it</b>: the problem it solves, what it takes, how to start</summary>
 
@@ -239,25 +241,6 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 
 </details>
 
-<details>
-<summary><b>Building on it</b>: architecture, API, extending it</summary>
-
-<br>
-
-| Layer | What runs there |
-|---|---|
-| Console | Next.js |
-| API | FastAPI |
-| Agent runtime | Pydantic AI, one runner behind every surface |
-| Background work | Prefect workers, Redis or Valkey |
-| Data | PostgreSQL with pgvector |
-| Code execution | Containers started by `sandboxd` |
-
-Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member; stream tokens over the WebSocket. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python. One host with Docker Compose today; there are no Kubernetes manifests.
-
-[Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) · [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/)
-
-</details>
 
 <details>
 <summary><b>Looking for a first task</b>: 29 tutorials, each with a check you can run</summary>
@@ -321,13 +304,28 @@ Choose it when a team has repeated document or tool-based work, subject experts 
 
 ## 🔐 Own your deployment, models and access
 
-**Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate. Choose hosted providers or local models through Ollama and compatible endpoints such as vLLM. Self-hosting the console does not make every model, parser or tool local: review the destinations you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/)
+**Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
+
+<img src="assets/sovereignty.webp" alt="Two deployment options: a self-hosted platform with hosted models under your own contract, or fully local with open models through Ollama or vLLM." width="100%">
+
+There are two common setups. **Self-hosted platform with hosted models:** AgenticOS, documents, vectors and logs run on your servers, and models come from a provider under your own contract and keys. **Fully local:** the same platform with open models through Ollama or vLLM on your hardware, plus local parsers and tools. Self-hosting the console does not make every model, parser or tool local, so review each destination you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/) · [Security and data flows](https://vstorm-co.github.io/agenticos/security/)
 
 ## 🛠️ For developers and operators
 
-Built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities in typed Python; teams compose agents from the registered capabilities in the console.
+AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, Prefect and Next.js. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python; teams compose agents from the registered capabilities in the console.
 
-[Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
+| Layer | What runs there |
+|---|---|
+| Console | Next.js |
+| API | FastAPI |
+| Agent runtime | Pydantic AI, one runner behind every surface |
+| Background work | Prefect workers, Redis or Valkey |
+| Data | PostgreSQL with pgvector |
+| Code execution | Containers started by `sandboxd` |
+
+Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member; stream tokens over the WebSocket. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python. One host with Docker Compose today; there are no Kubernetes manifests.
+
+[Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) · [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
 
 The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds a dedicated window, a pet and a macOS screenshot shortcut.
 
