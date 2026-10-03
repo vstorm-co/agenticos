@@ -1,9 +1,12 @@
 # README proposals
 
-Ten alternative READMEs for review. Each one opens on GitHub with its images, so you can judge it as a visitor would. None replaces the root `README.md` yet. Pick what works, and the chosen ideas get merged into the real README and its three translations.
+**Start with [11 · Combined](11-combined.md)**, the candidate for the root README. It keeps the current README's positioning and product tour and adds the visual gallery's recording-first opening and captioned screen grid. It also has a "Find your path" section with collapsible parts for decision makers, security reviewers, developers and teams looking for a first task, plus a summary of what ships and where it stops.
+
+The ten alternatives below were the input, one per reader. Each one opens on GitHub with its images, so you can judge it as a visitor would. None replaces the root `README.md` yet. Pick what works, and the chosen ideas get merged into the real README and its three translations.
 
 | # | Proposal | Written for | Idea |
 |---|---|---|---|
+| 11 | [**Combined**](11-combined.md) | Everyone | Current README + gallery + a path per reader, in one page |
 | 01 | [Product tour plus](01-product-tour-plus.md) | Everyone | The current README, extended with an "at a glance" table, annotated screens, the full capability list and a limits section |
 | 02 | [For decision makers](02-for-decision-makers.md) | CEO, head of operations | The four questions nobody can answer today, how it fits into the company, what it takes and how to start |
 | 03 | [Developer first](03-developer-first.md) | Engineers | Install, architecture table, capabilities, API, models, retrieval, and what to know before building on it |
