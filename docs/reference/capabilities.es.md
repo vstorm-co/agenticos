@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "c6b49553d1cf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -724,7 +724,9 @@ ejecuta con el modelo del run anfitrión — aquel cuya credencial se resolvió 
 vault — y cada uno de sus pasos es una petición al modelo, anotada contra el budget
 del run a través del mismo libro de uso ambiental que usa un resumen de compactación.
 No es el modelo alojado propio de browser-use, y no es gasto que el guardián del
-budget no pueda ver.
+budget no pueda ver. Cada paso consulta el budget antes de enviarse, así que, agotado
+el budget del run, el siguiente paso del agente de navegador se rechaza en lugar de
+pagarse.
 
 **`browser-use` es un extra opcional.** Arrastra un árbol pesado (Chromium vía
 Playwright) y fija dependencias una versión menor por debajo del resto de la

@@ -95,12 +95,13 @@ own request limit. A bug propagates.
 **Cost.** One inference is one extra model request per unfiltered search (two
 when its output needs correcting). It reuses the run's own model - the one whose
 credential the vault resolved - wrapped in `MeteredModel`, so each response is
-booked against the run's ledger exactly once, and it checks
-`assert_ambient_budget()` first, so an exhausted budget raises `BudgetExceeded`
-before the request rather than after it. The host agent's `BudgetGuard` never sees
-this request. The nested run counts on its own usage under a two-request limit
-rather than on the host run's `ctx.usage`: parallel searches in one turn then
-neither race for the host run's last request slot nor book each other's tokens.
+booked against the run's ledger exactly once. `MeteredModel` also checks
+`assert_ambient_budget()` before each request, the corrected attempt included, so
+an exhausted budget raises `BudgetExceeded` before a request rather than after
+it. The host agent's `BudgetGuard` never sees this request. The nested run
+counts on its own usage under a two-request limit rather than on the host run's
+`ctx.usage`: parallel searches in one turn then neither race for the host run's
+last request slot nor book each other's tokens.
 It is traced as the host run is (`inherited_instrumentation`), so an agent set
 to `content: none` does not export the question through the inference prompt.
 

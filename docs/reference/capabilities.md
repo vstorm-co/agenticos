@@ -682,7 +682,9 @@ event loop the run assembles on).
 model — the one whose credential was resolved from the vault — and each of its steps
 is one model request, booked against the run's budget through the same ambient-usage
 ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
-not spend the budget guard cannot see.
+not spend the budget guard cannot see. Each step asks the budget before it is sent, so
+once the run's budget is spent the browser agent's next step is refused rather than
+paid for.
 
 **`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
 Playwright) and pins dependencies a minor lower than the rest of the platform, so it

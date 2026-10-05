@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A capability's own model requests check the budget before each one, not
+  only the first.** Knowledge self-query, query expansion and both browser
+  capabilities run model requests through an agent of their own, which the
+  run's budget guard does not wrap. Self-query, query expansion and browser
+  choice checked the budget once before each nested run, and a browser-use
+  step did not check it at all. A corrected self-query attempt, an expansion
+  retry or the next browser-use step could therefore still be sent after an
+  earlier request took the run to its cap. Every such request is now refused
+  before it is sent once a cap is reached. Self-query still stops the run with
+  the budget refusal, and query expansion still falls back to the query as
+  written (#1808).
+
 ## [0.0.522] - 2026-10-06
 
 ### Fixed

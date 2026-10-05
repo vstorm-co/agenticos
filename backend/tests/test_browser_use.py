@@ -9,7 +9,9 @@ a browser or makes a model request.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -28,7 +30,15 @@ from app.agents.capabilities.browser_use._toolset import (
     build_toolset,
     harness_kwargs,
 )
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.core.sanitize import SSRFBlockedError
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
@@ -263,6 +273,27 @@ class TestMetering:
         model = MeteredModel(_UsageModel(RequestUsage(input_tokens=10)))
         response = await model.request([], None, ModelRequestParameters())
         assert response.usage.input_tokens == 10
+
+    @pytest.mark.security
+    async def test_a_step_the_run_cannot_afford_is_refused_before_it_is_sent(self):
+        """A browse makes one request per step inside one tool call, so each step
+        asks the guard first rather than only the host's next turn (agenticos#1808)."""
+        wrapped = _UsageModel(RequestUsage(input_tokens=10))
+        ledger = SpendLedger()
+        exhausted = BudgetGuard(
+            ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
+        )
+
+        with (
+            patch.object(wrapped, "request", new=AsyncMock()) as sent,
+            metered_by(ledger),
+            guarded_by(exhausted),
+            pytest.raises(BudgetExceeded),
+        ):
+            await MeteredModel(wrapped).request([], None, ModelRequestParameters())
+
+        sent.assert_not_awaited()
+        assert ledger.entries == []
 
     async def test_a_step_from_a_nameless_model_is_booked_as_unknown(self):
         """A blank name prices against nothing rather than reading as an absent field."""

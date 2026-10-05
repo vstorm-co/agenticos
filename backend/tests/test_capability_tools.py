@@ -30,6 +30,7 @@ from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
 from app.agents.capabilities.budget import (
+    BudgetExceeded,
     BudgetGuard,
     BudgetScope,
     SpendLedger,
@@ -424,6 +425,35 @@ class TestQueryAnalysisWiring:
         with pytest.raises(QueryExpansionFailed) as failure:
             await generate("prompt")
         assert isinstance(failure.value.__cause__, ModelHTTPError)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_retry_after_the_first_request_reached_the_cap_is_refused(self):
+        """The first request is affordable but takes the run to its cap and answers
+        nothing, which the nested run retries. The retry is refused before it is
+        sent, and the refusal is an expected failure so the plain query is searched
+        (agenticos#1808)."""
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        model_calls: list[str] = []
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            model_calls.append("called")
+            # What this request cost: $2.00 of input on gpt-4.1, over the $1.00 cap.
+            guard.ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+            return ModelResponse(parts=[])
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(respond), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with guarded_by(guard), pytest.raises(QueryExpansionFailed) as failure:
+            await generate("prompt")
+        assert isinstance(failure.value.__cause__, BudgetExceeded)
+        assert model_calls == ["called"]
 
     @pytest.mark.anyio
     async def test_a_bug_in_the_expansion_call_is_not_reported_as_expected(self):
