@@ -1,5 +1,5 @@
 ---
-source_sha: "32ecd84a00b7"
+source_sha: "1e3b2a5423dd"
 ---
 
 # Sandbox { #the-sandbox }
@@ -80,6 +80,11 @@ xc-4f2a91c8-7b3e5d10-9c1f…      backend · scope · organization · host · su
 **Zasięg** jest polem speca agenta — `run`, `conversation`, `channel`, `user`
 albo `agent`. Zatem `conversation`, czyli zwykły wybór, oznacza jeden kontener
 i jeden katalog na czat; `agent` oznacza, że każdy run tego agenta dzieli jeden.
+
+Klucz jest też **nazwą** sesji na hoście — id sesji `sandboxd`, nazwą sandboksa
+Daytona — więc każdy run danego zasięgu otwiera ją po tej nazwie: pierwszy ją
+tworzy, a pozostałe się podłączają, także te równoległe, i nic nie musi zapisywać
+id nadanego przez dostawcę, zanim drugi run będzie mógł ją znaleźć.
 
 W klucz wpisane jest też, **jakiego rodzaju backend** i **jaki host** trzyma
 workspace. Dokument `state` i wolumen kontenera to nie ta sama rzecz pod różnymi
@@ -353,11 +358,12 @@ log na hoście. Nic poza tamtym procesem nigdy tych wpisów nie widziało (#1061
 Każde wywołanie workspace'u i tak przechodzi przez tę aplikację — run woła nas, my
 wołamy usługę — więc to nasz zapis do zrobienia.
 
-`RecordingBackend` opakowuje backend, do którego sięgają narzędzia tej capability,
-i dlatego dodanie dziewiątego narzędzia nie może zapomnieć o zapisaniu. Wrapper
-zapisuje osiem nazwanych operacji (`write`, `edit`, `read`, `read_bytes`,
-`ls_info`, `glob_info`, `grep_raw`, `execute`), a wszystko inne deleguje
-nietknięte. `exists` i `is_alive` są pytaniami, a nie operacjami, a log pełen ich
+`RecordingWorkspace` opakowuje workspace, w którym pracuje run, i dlatego dodanie
+dziewiątego narzędzia nie może zapomnieć o zapisaniu. Zapisuje to, co dotarło do
+sandboksa — `read`, `write`, `ls_info`, `mkdir`, `remove` i `execute` — więc
+narzędzie złożone z kilku operacji widać jako każdą z nich: `edit_file` to `read`
+i `write`, a `glob` czy `grep` to `execute` polecenia `find` albo `grep`, które
+uruchomiło. `exists` i `stat` są pytaniami, a nie operacjami, a log pełen ich
 przykryłby zapisy, po które ktoś przyszedł.
 
 Niesie dwa fakty, których usługa nigdy nie mogła, i są to dokładnie te dwa,

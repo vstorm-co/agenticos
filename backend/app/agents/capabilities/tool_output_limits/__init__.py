@@ -7,7 +7,7 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.tool_output_limits._capability import (
     DEFAULT_MAX_CHARS,
     DEFAULT_SUMMARY_PROMPT,
@@ -74,7 +74,7 @@ def _build(ctx: CapabilityBuildContext) -> MeteredToolOutputLimits[object]:
     return MeteredToolOutputLimits(
         wrapped=build_limits(
             config,
-            workspace=ctx.resources.get(WORKSPACE_BACKEND_RESOURCE),
+            workspace=ctx.resources.get(WORKSPACE_RESOURCE),
             spill_log=ctx.resources.get(SPILL_LOG_RESOURCE),
         )
     )

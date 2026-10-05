@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "292ec188edcf"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -863,7 +863,7 @@ Was jedes Backend im Betrieb kostet:
 
 | Backend | Braucht | Shell | Wo die Dateien liegen |
 |---|---|---|---|
-| `state` | nichts | nein | diese Datenbank, gedeckelt bei `SANDBOX_STATE_MAX_BYTES` |
+| `state` | nichts | nein | diese Datenbank — die Dateien und die Verzeichnisse, die der Agent angelegt hat —, gedeckelt bei `SANDBOX_STATE_MAX_BYTES` |
 | `service` | eine registrierte Verbindung | ja | ein Container auf diesem Host, oder Daytonas Cloud auf dem eigenen Konto der Organisation |
 
 Ein Betreiber kann sehen, was läuft: Sandboxes listet die offenen Sandboxes dieser

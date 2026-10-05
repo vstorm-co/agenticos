@@ -8,7 +8,7 @@ and secrets are rows, and every one of them has to be reached through
 tree while it still has a session and an auth context, and hands the capability
 this - closures it can call and data it can read, with no way to ask for more.
 
-The same shape, and the same reason, as `WORKSPACE_BACKEND_RESOURCE`: opening a
+The same shape, and the same reason, as `WORKSPACE_RESOURCE`: opening a
 workspace reads and writes rows, so the runner opens it and the capability
 receives what was opened.
 

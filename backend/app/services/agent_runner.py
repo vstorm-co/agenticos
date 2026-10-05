@@ -106,7 +106,7 @@ from app.agents.capabilities.planning import (
     open_plan_store,
     still_open,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
@@ -2391,7 +2391,7 @@ class AgentRunnerService:
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
-            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.workspace
+            resources[WORKSPACE_RESOURCE] = workspace.workspace
             resources[SPILL_LOG_RESOURCE] = workspace.spills
             spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
@@ -3083,7 +3083,7 @@ class AgentRunnerService:
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
-            resources[WORKSPACE_BACKEND_RESOURCE] = parent_resources.get(WORKSPACE_BACKEND_RESOURCE)
+            resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             # And the spill log with it: a delegate spilling to the shared
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).

@@ -32,7 +32,7 @@ from app.agents.capabilities.budget import (
     guarded_by,
     metered_by,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.tool_output_limits import (
     DEFAULT_SUMMARY_PROMPT,
     SPILL_LOG_RESOURCE,
@@ -416,7 +416,7 @@ class TestRegistration:
         workspace = document_workspace()
         built = build(
             [CapabilityBinding(capability_id=CAPABILITY_ID)],
-            resources={WORKSPACE_BACKEND_RESOURCE: workspace},
+            resources={WORKSPACE_RESOURCE: workspace},
         )
         limits = built[0].wrapped
         assert limits.store.workspace is workspace
@@ -427,7 +427,7 @@ class TestRegistration:
         log: list[str] = []
         built = build(
             [CapabilityBinding(capability_id=CAPABILITY_ID, config={"threshold": 500})],
-            resources={WORKSPACE_BACKEND_RESOURCE: document_workspace(), SPILL_LOG_RESOURCE: log},
+            resources={WORKSPACE_RESOURCE: document_workspace(), SPILL_LOG_RESOURCE: log},
         )
         out = await built[0].after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000

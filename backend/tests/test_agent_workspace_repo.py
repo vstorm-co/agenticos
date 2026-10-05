@@ -225,12 +225,13 @@ class TestWriting:
         row = _workspace(version=3)
 
         saved = await agent_workspace_repo.save_files(
-            session, workspace=row, files={"/a.txt": {}}, bytes_total=42
+            session, workspace=row, files={"/a.txt": {}}, directories=["/out"], bytes_total=42
         )
 
         assert saved.version == 4
         assert saved.bytes_total == 42
         assert saved.files == {"/a.txt": {}}
+        assert saved.directories == ["/out"]
 
     async def test_touching_records_use_without_changing_the_files(self):
         session = _RecordingSession()

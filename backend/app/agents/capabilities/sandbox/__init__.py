@@ -36,7 +36,7 @@ from app.agents.capabilities.sandbox._identity import (
 )
 
 __all__ = [
-    "WORKSPACE_BACKEND_RESOURCE",
+    "WORKSPACE_RESOURCE",
     "BackendKind",
     "SandboxConfig",
     "SessionScope",
@@ -45,17 +45,18 @@ __all__ = [
     "scope_key",
 ]
 
-WORKSPACE_BACKEND_RESOURCE = "workspace_backend"
+WORKSPACE_RESOURCE = "workspace"
 """Where the runner leaves the workspace it opened for this run.
 
 Resolved outside the capability because opening one reads and writes the
 database - loading a stored `state` document, recording which session id belongs
 to which conversation - and a capability must never reach the database itself.
-The tools work in `ctx.workspace`, which the runner sets by passing this same
-workspace to the run; the resource is for what happens around the tools -
-staging skills and attachments into it, an artifact read out of it.
-Absent for a preview or a unit test, where an in-memory workspace that lives and
-dies with the run is the honest answer rather than an error.
+Tools work in `ctx.workspace`, which the runner sets by passing this same
+workspace to the run. The resource is for what is built before the run starts
+and so has no `ctx` to ask - the spill store of `tool_output_limits` - and for
+handing a delegate its parent's workspace. Absent for a preview or a unit test,
+where an in-memory workspace that lives and dies with the run is the honest
+answer rather than an error.
 """
 
 

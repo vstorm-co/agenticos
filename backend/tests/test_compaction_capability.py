@@ -76,8 +76,14 @@ def _response(*, input_tokens: int) -> ModelResponse:
     )
 
 
-def _run_context(usage: RunUsage | None = None) -> RunContext[None]:
-    return RunContext(deps=None, model=TestModel(), usage=usage or RunUsage())
+def _run_context(
+    usage: RunUsage | None = None, messages: list[ModelMessage] | None = None
+) -> RunContext[None]:
+    """The run a request belongs to. `messages` is its history - the harness
+    measures what to compact from the run, not from the request it edits."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=usage or RunUsage(), messages=list(messages or [])
+    )
 
 
 @dataclass
@@ -346,7 +352,7 @@ class TestMetering:
         messages = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
 
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(messages))
+            _run_context(messages=messages), _request_context(list(messages))
         )
 
         assert len(request_context.messages) < len(messages)
@@ -374,10 +380,10 @@ class TestSwitchingToASmallerModel:
             )
 
         roomy = await on(1_000_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
         cramped = await on(128_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(roomy.messages) == len(history)
@@ -428,7 +434,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(10_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -439,7 +445,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -454,7 +460,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.gauge = ContextGauge(overhead=3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -465,7 +471,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, None)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -539,7 +545,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.wrapped.context_window = 5_000
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -828,7 +834,7 @@ class TestToolPairingSurvives:
             wrapped=build_strategy(_triggers_immediately("sliding_window", keep_messages=3))
         )
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(request_context.messages) < len(history)

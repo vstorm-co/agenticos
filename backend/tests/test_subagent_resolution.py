@@ -36,7 +36,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCall
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.agents.capabilities.budget import SpendLedger
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import (
     AgentSpec,
@@ -311,7 +311,9 @@ async def _prepare(
         patch.object(
             service.workspaces,
             "open",
-            new=AsyncMock(return_value=None if workspace is None else MagicMock(backend=workspace)),
+            new=AsyncMock(
+                return_value=None if workspace is None else MagicMock(workspace=workspace)
+            ),
         ),
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
         patch(
@@ -507,29 +509,29 @@ class TestSharingACapabilityWithADelegate:
     work."""
 
     async def test_a_shared_workspace_is_the_parents_own_session(self):
-        backend = MagicMock(name="workspace-backend")
+        workspace = MagicMock(name="workspace")
         spec = _delegating(
             inline=[_specialist()],
             share=["sandbox"],
             capabilities=[{"id": "sandbox", "config": {}}],
         )
 
-        prepared = await _prepare(spec, workspace=backend)
+        prepared = await _prepare(spec, workspace=workspace)
 
         built = prepared.built("summariser")
-        assert built["resources"][WORKSPACE_BACKEND_RESOURCE] is backend
+        assert built["resources"][WORKSPACE_RESOURCE] is workspace
         # The binding travels as it stands, so the delegate reads and writes with
         # the configuration the parent was published with.
         assert [binding.id for binding in built["spec"].capabilities] == ["sandbox"]
 
     async def test_a_capability_that_is_not_shared_does_not_travel(self):
-        backend = MagicMock(name="workspace-backend")
+        workspace = MagicMock(name="workspace")
         spec = _delegating(inline=[_specialist()], capabilities=[{"id": "sandbox", "config": {}}])
 
-        prepared = await _prepare(spec, workspace=backend)
+        prepared = await _prepare(spec, workspace=workspace)
 
         built = prepared.built("summariser")
-        assert WORKSPACE_BACKEND_RESOURCE not in built["resources"]
+        assert WORKSPACE_RESOURCE not in built["resources"]
         assert built["spec"].capabilities == []
 
     async def test_a_delegates_own_binding_wins_over_a_shared_one(self):
