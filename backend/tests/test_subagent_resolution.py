@@ -524,6 +524,32 @@ class TestSharingACapabilityWithADelegate:
         # the configuration the parent was published with.
         assert [binding.id for binding in built["spec"].capabilities] == ["sandbox"]
 
+    @pytest.mark.parametrize(
+        ("share", "own", "expected"),
+        [
+            (["sandbox"], [], "parent"),
+            ([], [{"id": "sandbox", "config": {}}], "own"),
+            ([], [], "none"),
+        ],
+        ids=["shared", "binds-its-own", "binds-none"],
+    )
+    async def test_the_share_list_decides_which_workspace_a_delegation_runs_in(
+        self, share, own, expected
+    ):
+        """The delegation library hands every delegation the parent's workspace,
+        so this decision is what keeps a delegate nobody shared `sandbox` with out
+        of the parent's files."""
+        spec = _delegating(
+            inline=[_specialist(capabilities=own)],
+            share=share,
+            capabilities=[{"id": "sandbox", "config": {}}],
+        )
+
+        prepared = await _prepare(spec, workspace=MagicMock(name="workspace"))
+
+        [entry] = prepared.runtime.subagents
+        assert entry.workspace == expected
+
     async def test_a_capability_that_is_not_shared_does_not_travel(self):
         workspace = MagicMock(name="workspace")
         spec = _delegating(inline=[_specialist()], capabilities=[{"id": "sandbox", "config": {}}])

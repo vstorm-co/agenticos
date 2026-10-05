@@ -401,8 +401,8 @@ class _LazyAgent:
     handed over as `SubAgentConfig["agent"]` would mean building all of them for
     every run that binds this capability. This stands in until one is needed.
 
-    *Run on the deps this platform decides, not the ones the library cloned.* See
-    `_own_deps`.
+    *Run on the deps and in the workspace this platform decides, not the ones the
+    library handed over.* See `_own_deps` and `_own_workspace`.
 
     *Continued rather than restarted, when this delegation already stopped for a
     person.* See `_continued`. Both entry points, because which one the library
@@ -430,15 +430,15 @@ class _LazyAgent:
         """Run the delegate once, on its own deps. Returns the library's coroutine."""
         resumed = self._journal.resuming()
         if resumed is None:
-            return self._built().run(*args, **self._own_deps(kwargs))
-        return self._built().run(None, **self._own_deps(self._continuing(kwargs, resumed)))
+            return self._built().run(*args, **self._own_run(kwargs))
+        return self._built().run(None, **self._own_run(self._continuing(kwargs, resumed)))
 
     def iter(self, *args: Any, **kwargs: Any) -> Any:
         """The same, for the streamed path. Returns the library's async context manager."""
         resumed = self._journal.resuming()
         if resumed is None:
-            return self._built().iter(*args, **self._own_deps(kwargs))
-        return self._built().iter(None, **self._own_deps(self._continuing(kwargs, resumed)))
+            return self._built().iter(*args, **self._own_run(kwargs))
+        return self._built().iter(None, **self._own_run(self._continuing(kwargs, resumed)))
 
     @staticmethod
     def _continuing(kwargs: dict[str, Any], resumed: ResumedDelegation) -> dict[str, Any]:
@@ -468,6 +468,29 @@ class _LazyAgent:
         if self._agent is None:
             self._agent = self._delegate.build()
         return self._agent
+
+    def _own_run(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """The library's arguments, with what this platform decides put back."""
+        return self._own_workspace(self._own_deps(kwargs))
+
+    def _own_workspace(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """The workspace this delegation runs in, as `share_with_delegates` says.
+
+        The library passes the parent's workspace to every delegation whenever one
+        is attached. Only a delegate the parent shared `sandbox` with keeps it; one
+        that binds `sandbox` itself gets a fresh in-memory workspace - `"new"`, so a
+        ref an earlier turn of it left in its history is not looked up either - and
+        one that binds none gets none. Left as the library has it, a delegate
+        nobody shared the sandbox with ran its own `execute` in the parent's
+        container.
+        """
+        match self._delegate.workspace:
+            case "parent":
+                return kwargs
+            case "own":
+                return {**kwargs, "workspace": "new"}
+            case "none":
+                return {**kwargs, "workspace": None}
 
     def _own_deps(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """The two fields this platform decides about the deps a delegation runs with.

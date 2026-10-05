@@ -134,7 +134,7 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.31",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.32",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be

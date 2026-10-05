@@ -135,6 +135,7 @@ from app.agents.spec import (
 )
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
+    DelegateWorkspace,
     DelegationOutcome,
     DelegationRecorder,
     DelegationSpend,
@@ -268,6 +269,23 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
+    """Which workspace a delegate with this effective spec runs in.
+
+    The parent's only when `sandbox` was shared - `_with_shared` has put the
+    parent's binding on `spec` then too, so the share list is what tells the two
+    apart. A delegate binding `sandbox` of its own works in a fresh one, and one
+    binding none in none.
+    """
+    if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
+        return "parent"
+    if any(
+        binding.id == SANDBOX_CAPABILITY_ID and binding.enabled for binding in spec.capabilities
+    ):
+        return "own"
+    return "none"
 
 
 def _with_shared(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSpec:
@@ -2845,6 +2863,7 @@ class AgentRunnerService:
             ),
             max_steps=specialist.max_steps,
             preferred_mode=specialist.preferred_mode,
+            workspace=_delegate_workspace(spec, shared),
             collection_names=tuple(own_resources["kb_collection_names"]),
         )
 
@@ -3036,6 +3055,7 @@ class AgentRunnerService:
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
+            workspace=_delegate_workspace(runnable, shared),
             agent_id=ref.agent_id,
             agent_version_id=ref.agent_version_id,
             # Beside the agent as well as inside its deps, because the library
@@ -3062,18 +3082,18 @@ class AgentRunnerService:
         precisely because it does not look like an agent.
 
         What does travel is the state a shared capability's instance depends on.
-        In practice that is one entry, the workspace backend, and it is the whole
-        point of sharing `sandbox`: without it a delegate builds a workspace of
-        its own and finds the file the parent wrote missing. `None` if the parent
-        opened none, which the capability answers with an in-memory workspace
-        exactly as it does for a preview.
+        For `sandbox` that is the workspace and the spill log, for the one
+        capability built before the run starts - the spill store of
+        `tool_output_limits` - so a delegate's spills land in the files it shares.
+        The delegation runs in the parent's workspace itself because
+        `ResolvedSubagent.workspace` says `parent` (`_delegate_workspace`).
 
         Two consequences worth stating, because both are silent. A delegate that
         binds `sandbox` itself *and* is shared the parent's gets its own tool
         configuration over the parent's session - sharing a workspace means
         sharing the files, and a delegate reading a different filesystem is the
         thing sharing exists to prevent. And a delegate that binds `sandbox`
-        without being shared one gets the in-memory workspace, because no
+        without being shared one gets a fresh in-memory workspace, because no
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
