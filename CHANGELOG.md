@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The Workspaces page no longer sits on its loading state for a long time before
+  it draws. Its landing view, every file at once, read up to twenty-five
+  container-backed workspaces one after another and then fetched their image
+  thumbnails one after another, so the page waited for the sum of all those round
+  trips; it now reads up to eight hosts at a time. A host that does not answer is
+  reported after ten seconds instead of the archive's sixty-second default. The
+  "Count files" switch on the per-workspace view gets the same treatment.
+
 ## [0.0.517] - 2026-10-05
 
 ### Changed
