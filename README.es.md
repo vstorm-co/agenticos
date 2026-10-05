@@ -1,4 +1,4 @@
-<!-- source_sha: 263ab1395e98 -->
+<!-- source_sha: 231a09ce4f91 -->
 
 <div align="center">
 
@@ -46,6 +46,12 @@ AgenticOS es un espacio de trabajo autoalojado donde los agentes de IA trabajan 
 **¿Primera vez aquí?** Recorre la [introducción en 14 diapositivas](https://vstorm-co.github.io/agenticos/presentation/) (en inglés): el problema, la idea, el producto en pantallas reales, sus controles y sus límites, y cómo empezar. Para ver cada pantalla en detalle, abre el [recorrido del producto en 44 diapositivas](https://vstorm-co.github.io/agenticos/presentation/tour/). Las flechas avanzan paso a paso en ambas; `O` muestra todas las diapositivas.
 
 ## 📸 Míralo en acción
+
+<video src="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c" controls playsinline width="100%" poster="docs/assets/screens/agenticos-intro-poster.webp">
+  <img src="docs/assets/screens/agenticos-intro-poster.webp" alt="AgenticOS: agentes de IA que todo tu equipo puede usar y mejorar, Sovereign Agentic AI Layer" width="100%">
+</video>
+
+<p align="center"><sub><b>AgenticOS en 45 segundos.</b> Crea cualquier agente en el navegador, publícalo donde trabaja tu equipo, deja que funcione por su cuenta y somete cada solicitud a los mismos controles. Narrado con voz sintética. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Ver (46 s, 4K)</a></sub></p>
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%">

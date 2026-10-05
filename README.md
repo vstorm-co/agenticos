@@ -45,6 +45,12 @@ AgenticOS is a self-hosted workspace where AI agents work with files, run code a
 
 ## 📸 See it in action
 
+<video src="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c" controls playsinline width="100%" poster="docs/assets/screens/agenticos-intro-poster.webp">
+  <img src="docs/assets/screens/agenticos-intro-poster.webp" alt="AgenticOS: AI agents your whole team can use and improve, Sovereign Agentic AI Layer" width="100%">
+</video>
+
+<p align="center"><sub><b>AgenticOS in 45 seconds.</b> Build any agent in the browser, publish it where your team works, let it run on its own, and keep every request under the same controls. Narrated with a synthetic voice. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Watch (46 s, 4K)</a></sub></p>
+
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
 </video>

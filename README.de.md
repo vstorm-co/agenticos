@@ -1,4 +1,4 @@
-<!-- source_sha: 263ab1395e98 -->
+<!-- source_sha: 231a09ce4f91 -->
 
 <div align="center">
 
@@ -46,6 +46,12 @@ AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Datei
 **Neu hier?** Klicke dich durch die [Einführung in 14 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 44 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
 
 ## 📸 AgenticOS in Aktion
+
+<video src="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c" controls playsinline width="100%" poster="docs/assets/screens/agenticos-intro-poster.webp">
+  <img src="docs/assets/screens/agenticos-intro-poster.webp" alt="AgenticOS: KI-Agenten, die Ihr ganzes Team nutzen und verbessern kann, Sovereign Agentic AI Layer" width="100%">
+</video>
+
+<p align="center"><sub><b>AgenticOS in 45 Sekunden.</b> Beliebige Agenten im Browser bauen, dort veröffentlichen, wo Ihr Team arbeitet, selbstständig laufen lassen, und jede Anfrage durchläuft dieselben Kontrollen. Mit synthetischer Stimme vertont. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Ansehen (46 s, 4K)</a></sub></p>
 
 <video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
