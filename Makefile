@@ -543,9 +543,18 @@ audit:
 # target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
 # forward through their parents.
 AUDIT_LEVEL ?= high
+# The one other case is a finding with no fixed release anywhere in its chain: it
+# is named here with the path it arrives by and the condition that removes it,
+# and the audit ignores that advisory only.
+#   GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 has no patched release.
+#   It reaches the tree only through eslint-config-next > @next/eslint-plugin-next
+#   > fast-glob > micromatch, a lint-time dependency that the built console does
+#   not ship. Remove when braces publishes a fix or @next/eslint-plugin-next
+#   drops fast-glob. bun matches advisories by their GHSA id, not the CVE.
+AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm
 
 audit-frontend:
-	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
+	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL) $(addprefix --ignore=,$(AUDIT_IGNORE))
 
 # A CycloneDX inventory of what the *source tree* declares, written to `sbom/`.
 #
