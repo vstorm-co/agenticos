@@ -374,10 +374,15 @@ def test_a_root_translation_of_a_deleted_file_is_orphaned(repository: Path) -> N
 
 
 def test_the_github_slug_answers_the_fragments_the_readme_links_to() -> None:
-    """Every in-page README link resolves to a current GitHub heading anchor."""
+    """GitHub's rule, checked against the fragments `README.md` links to.
+
+    The one that matters is `#-quick-start`: its heading opens on an emoji, and
+    the space the emoji leaves behind becomes a leading hyphen. Derive the anchor
+    the way the site does and you get `quick-start`, which is a link to nowhere.
+    """
     readme = REPO_ROOT / "README.md"
     available = set(docs_i18n.github_anchors(readme))
-    assert "quick-start" in available
+    assert "-quick-start" in available
     assert set(docs_i18n.own_fragments(readme)) <= available
 
 
