@@ -922,7 +922,7 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
         slide.append(dots);
       }
     }
-    if (presenter && !presenter.closed) presenter.postMessage({deck: 'state', at: i, ...describe(i)}, '*');
+    if (presenter && !presenter.closed) presenter.postMessage({deck: 'state', at: i, ...describe(i)}, '/');
     at = i;
     // Keeping the step in the address is a convenience: a page shown through a previewer (another origin in its
     // <base>, a rewritten location) may refuse it, and the deck must go on without it.
