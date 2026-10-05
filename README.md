@@ -11,10 +11,10 @@
 </p>
 
 <p>
+  <a href="#-see-it-in-action">See it</a> &middot;
   <a href="#-what-is-agenticos">What is it?</a> &middot;
   <a href="#-quick-start">Quick start</a> &middot;
   <a href="#-connect-the-apps-your-team-already-uses">Integrations</a> &middot;
-  <a href="#-see-it-in-action">See it</a> &middot;
   <a href="#-build-share-and-operate">Product tour</a> &middot;
   <a href="#-find-your-path">Find your path</a> &middot;
   <a href="#-what-ships-today">What ships</a> &middot;
@@ -42,6 +42,35 @@
 AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
 **New here?** Click through the [14-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [44-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.
+
+## 📸 See it in action
+
+<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
+  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
+</video>
+
+<p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
+
+<table>
+<tr>
+<td width="50%"><a href="docs/assets/screens/light/agent-builder.png"><img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder with instructions, model selection and a published version"></a><br><b>Build in the browser.</b> Instructions, model and tools; publish versions.</td>
+<td width="50%"><a href="docs/assets/screens/light/chat.png"><img src="docs/assets/screens/light/chat.png" alt="A sales CSV analysed in chat with a regional revenue chart"></a><br><b>Work with files and code.</b> A CSV in, a chart and findings out.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/skills.png"><img src="docs/assets/screens/light/skills.png" alt="Skills library filtered to Design, Engineering, Finance and Research"></a><br><b>Teach how your team works.</b> Skills written once, reused by every agent.</td>
+<td><a href="docs/assets/screens/light/knowledge-collection.png"><img src="docs/assets/screens/light/knowledge-collection.png" alt="A knowledge collection with an indexed document and its parser"></a><br><b>Answer from your documents.</b> Upload or sync, then cite.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/artifact-detail.png"><img src="docs/assets/screens/light/artifact-detail.png" alt="Meridian sales dashboard built by an agent, labelled as demo data"></a><br><b>Publish results as pages.</b> Stable links and versions. Demo data.</td>
+<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard with usage totals, recorded spend, run trends and outcomes"></a><br><b>See usage and spend.</b> Runs, outcomes and budgets in one view.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/agents.png"><img src="docs/assets/screens/light/agents.png" alt="Agent catalog with published agents and their visibility"></a><br><b>A catalog of agents.</b> Private, shared with a group, or company-wide.</td>
+<td><a href="docs/assets/screens/light/groups.png"><img src="docs/assets/screens/light/groups.png" alt="Organization groups for Engineering, Finance, Operations and Research"></a><br><b>Access follows your organization.</b> Roles, groups and company sign-in.</td>
+</tr>
+</table>
+
+<p align="center"><sub>Captured from a test deployment. Figures are test records, not benchmarks.</sub></p>
 
 ## 💡 What is AgenticOS?
 
@@ -79,51 +108,6 @@ It runs on your own infrastructure with Docker Compose and works with 27 model p
 | [Run and monitor](#-track-runs-costs-and-approvals) | Customize dashboards, inspect runs, schedule tasks and set budgets |
 | [Organize company access](#-organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
-## 🔌 Connect the apps your team already uses
-
-AgenticOS connects agents to the models, chat tools, business apps and document stores a company already uses, so an agent can read a Notion brief, search SharePoint documents or answer in Slack under the same access rules and budget.
-
-<a href="docs/assets/readme/integrations-hub.webp"><img src="docs/assets/readme/integrations-hub.webp" alt="AgenticOS as a hub: models it thinks with on top; where people reach it and what starts it on the left; tools it can use through MCP on the right; documents it reads at the bottom." width="100%"></a>
-
-| Connect | How | Read |
-|---|---|---|
-| **Chat tools** | Publish an agent to Slack, Mattermost or Telegram, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
-| **Business tools** | 99 curated MCP servers (Notion, GitHub, Jira, HubSpot, Stripe…) plus **5,700+ registry listings** and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
-| **Documents** | Sync Google Drive, S3/MinIO, Git repositories, websites, SharePoint and OneDrive into knowledge bases | [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) |
-| **Events** | Start agents on a schedule, a new GitHub issue, a Gmail message or a signed webhook | [Routines](https://vstorm-co.github.io/agenticos/triggers/) |
-| **Models** | 27 providers, your cloud contract (Azure, Bedrock, Vertex) or local models (Ollama, vLLM) | [Models](https://vstorm-co.github.io/agenticos/models/) |
-
-<sub>Registry listings are publisher-provided metadata; each connection needs its own setup and access review. Outlook email and calendar connect through a third-party MCP service. Logos identify connection options and do not imply a partnership.</sub>
-
-## 📸 See it in action
-
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%">
-</video>
-
-<p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
-
-<table>
-<tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.png"><img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder with instructions, model selection and a published version"></a><br><b>Build in the browser.</b> Instructions, model and tools; publish versions.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.png"><img src="docs/assets/screens/light/chat.png" alt="A sales CSV analysed in chat with a regional revenue chart"></a><br><b>Work with files and code.</b> A CSV in, a chart and findings out.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/skills.png"><img src="docs/assets/screens/light/skills.png" alt="Skills library filtered to Design, Engineering, Finance and Research"></a><br><b>Teach how your team works.</b> Skills written once, reused by every agent.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.png"><img src="docs/assets/screens/light/knowledge-collection.png" alt="A knowledge collection with an indexed document and its parser"></a><br><b>Answer from your documents.</b> Upload or sync, then cite.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/artifact-detail.png"><img src="docs/assets/screens/light/artifact-detail.png" alt="Meridian sales dashboard built by an agent, labelled as demo data"></a><br><b>Publish results as pages.</b> Stable links and versions. Demo data.</td>
-<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard with usage totals, recorded spend, run trends and outcomes"></a><br><b>See usage and spend.</b> Runs, outcomes and budgets in one view.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/agents.png"><img src="docs/assets/screens/light/agents.png" alt="Agent catalog with published agents and their visibility"></a><br><b>A catalog of agents.</b> Private, shared with a group, or company-wide.</td>
-<td><a href="docs/assets/screens/light/groups.png"><img src="docs/assets/screens/light/groups.png" alt="Organization groups for Engineering, Finance, Operations and Research"></a><br><b>Access follows your organization.</b> Roles, groups and company sign-in.</td>
-</tr>
-</table>
-
-<p align="center"><sub>Captured from a test deployment. Figures are test records, not benchmarks.</sub></p>
-
 ## 🚀 Quick start
 
 Start with Docker Compose and access to a model provider. On macOS or Linux, run:
@@ -148,6 +132,22 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 For manual Docker Compose setup, pinned versions and troubleshooting, follow the [installation guide](https://vstorm-co.github.io/agenticos/install/). For development from source, see [Contributing](https://vstorm-co.github.io/agenticos/help/).
 
 </details>
+
+## 🔌 Connect the apps your team already uses
+
+AgenticOS connects agents to the models, chat tools, business apps and document stores a company already uses, so an agent can read a Notion brief, search SharePoint documents or answer in Slack under the same access rules and budget.
+
+<a href="docs/assets/readme/integrations-hub.webp"><img src="docs/assets/readme/integrations-hub.webp" alt="AgenticOS as a hub: models it thinks with on top; where people reach it and what starts it on the left; tools it can use through MCP on the right; documents it reads at the bottom." width="100%"></a>
+
+| Connect | How | Read |
+|---|---|---|
+| **Chat tools** | Publish an agent to Slack, Mattermost or Telegram, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
+| **Business tools** | 99 curated MCP servers (Notion, GitHub, Jira, HubSpot, Stripe…) plus **5,700+ registry listings** and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
+| **Documents** | Sync Google Drive, S3/MinIO, Git repositories, websites, SharePoint and OneDrive into knowledge bases | [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) |
+| **Events** | Start agents on a schedule, a new GitHub issue, a Gmail message or a signed webhook | [Routines](https://vstorm-co.github.io/agenticos/triggers/) |
+| **Models** | 27 providers, your cloud contract (Azure, Bedrock, Vertex) or local models (Ollama, vLLM) | [Models](https://vstorm-co.github.io/agenticos/models/) |
+
+<sub>Registry listings are publisher-provided metadata; each connection needs its own setup and access review. Outlook email and calendar connect through a third-party MCP service. Logos identify connection options and do not imply a partnership.</sub>
 
 ## 🧩 Build, share and operate
 
