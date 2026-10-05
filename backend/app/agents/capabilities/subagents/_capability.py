@@ -484,13 +484,9 @@ class _LazyAgent:
         nobody shared the sandbox with ran its own `execute` in the parent's
         container.
         """
-        match self._delegate.workspace:
-            case "parent":
-                return kwargs
-            case "own":
-                return {**kwargs, "workspace": "new"}
-            case "none":
-                return {**kwargs, "workspace": None}
+        if self._delegate.workspace == "parent":
+            return kwargs
+        return {**kwargs, "workspace": "new" if self._delegate.workspace == "own" else None}
 
     def _own_deps(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """The two fields this platform decides about the deps a delegation runs with.

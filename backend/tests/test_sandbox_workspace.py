@@ -2482,6 +2482,22 @@ class TestASessionAcrossRuns:
         [listing] = answered
         assert "no longer exists" in listing
 
+    async def test_a_conversation_deleted_mid_run_records_no_session(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Its row went with it; there is nothing left to record a session on."""
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, None)
+        mock_db_session.get = AsyncMock(return_value=None)
+        service = SandboxWorkspaceService(mock_db_session)
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        await workspace.workspace.write_text("notes.txt", "kept")
+
+        await service.close(workspace)
+
+        recorded.assert_not_awaited()
+
     async def test_a_lost_session_is_forgotten_so_the_next_run_starts_afresh(
         self, monkeypatch, mock_db_session, sandboxes, caplog
     ):
