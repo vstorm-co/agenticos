@@ -7,7 +7,7 @@
 <p>
   <sub><b>Sovereign Agentic AI Layer</b> &middot; Apache-2.0 &middot; zbudowany na Pydantic AI</sub><br>
   <b>Agenci AI, z których cały zespół może korzystać i których może ulepszać.</b><br>
-  Na infrastrukturze, którą kontrolujesz, z budżetami, zatwierdzeniami i zapisem każdego wykonania.
+  Na infrastrukturze, którą kontrolujesz, z budżetami, zatwierdzeniami i zapisem każdego runa.
 </p>
 
 <p>
@@ -45,7 +45,7 @@ AgenticOS to środowisko na własnej infrastrukturze, w którym agenci AI pracuj
 
 ## 💡 Czym jest AgenticOS?
 
-**AgenticOS to otwarta (Apache-2.0) platforma na własnej infrastrukturze do tworzenia, udostępniania i nadzorowania agentów AI w całej firmie.** Zespoły konfigurują agenta w przeglądarce: piszą jego instrukcje, wybierają model i włączają narzędzia. Łączą go z firmowymi dokumentami i aplikacjami, a potem publikują w czacie internetowym, Slacku, Mattermost, Telegramie, w widżecie na stronie lub przez API. Administratorzy decydują, kto może korzystać z każdego agenta, ile może wydać i które działania wymagają zatwierdzenia przez człowieka. Każde wykonanie jest zapisywane.
+**AgenticOS to otwarta (Apache-2.0) platforma na własnej infrastrukturze do tworzenia, udostępniania i nadzorowania agentów AI w całej firmie.** Zespoły konfigurują agenta w przeglądarce: piszą jego instrukcje, wybierają model i włączają narzędzia. Łączą go z firmowymi dokumentami i aplikacjami, a potem publikują w czacie internetowym, Slacku, Mattermost, Telegramie, w widżecie na stronie lub przez API. Administratorzy decydują, kto może korzystać z każdego agenta, ile może wydać i które działania wymagają zatwierdzenia przez człowieka. Każdy run jest zapisywany.
 
 Większość frameworków agentowych daje bibliotekę, więc każda zmiana zachowania agenta oznacza pull request, review i wydanie. To zły kształt dla małych agentów, których firma naprawdę potrzebuje, bo osoba, która wie, co agent powinien odpowiadać, zwykle nie ma uprawnień do commitów. **Kod definiuje, konfiguracja składa:** inżynierowie poszerzają zestaw elementów do złożenia, a konfiguracja może sięgnąć wyłącznie po to, co zarejestrował kod.
 
@@ -58,11 +58,11 @@ Działa na Twojej infrastrukturze z Docker Compose i współpracuje z 27 dostawc
 - Działy IT i bezpieczeństwa, które potrzebują dla agentów AI **suwerenności danych, logowania firmowego, budżetów, zatwierdzeń i ścieżki audytu**.
 - Inżynierowie, którzy chcą **typowanych punktów rozszerzeń w Pythonie** i konsoli, z której skorzystają ich nietechniczni współpracownicy.
 
-<a href="docs/assets/readme/company-architecture-diagram.webp"><img src="docs/assets/readme/company-architecture-diagram.webp" alt="AgenticOS w Twojej firmie: po lewej działy i systemy; pośrodku AgenticOS z przykładowymi agentami i kontrolami, przez które przechodzi każde żądanie; wewnątrz Twoje dane, sandboxy, sejf i opcjonalne modele lokalne; na zewnątrz modele hostowane, narzędzia SaaS i źródła dokumentów, tylko jeśli je wybierzesz." width="100%"></a>
+<a href="docs/assets/readme/company-architecture-diagram.webp"><img src="docs/assets/readme/company-architecture-diagram.webp" alt="AgenticOS w Twojej firmie: po lewej działy i systemy; pośrodku AgenticOS z przykładowymi agentami i kontrolami, przez które przechodzi każde żądanie; wewnątrz Twoje dane, sandboxy, vault i opcjonalne modele lokalne; na zewnątrz modele hostowane, narzędzia SaaS i źródła dokumentów, tylko jeśli je wybierzesz." width="100%"></a>
 
 <p align="center"><sub><b>Jak to pasuje do Twojej firmy.</b> Postacie są ilustracjami; agenci to przykłady.</sub></p>
 
-**Jak AgenticOS wpisuje się w firmę:** działy takie jak finanse, operacje czy zarząd korzystają ze wspólnych agentów w czacie internetowym, Slacku lub prywatnym workspace. Twoje systemy wywołują agentów przez API, a zdarzenia lub harmonogramy uruchamiają ich automatycznie. Każde żądanie przechodzi przez te same kontrole: role, budżety, zatwierdzenia, guardraile i zapis wykonania. Twoje dane, wektory, sandboxy kodu, sejf poświadczeń i opcjonalne modele lokalne pozostają na Twojej infrastrukturze. Modele hostowane, narzędzia SaaS i zewnętrzne źródła dokumentów są używane tylko wtedy, gdy je skonfigurujesz.
+**Jak AgenticOS wpisuje się w firmę:** działy takie jak finanse, operacje czy zarząd korzystają ze wspólnych agentów w czacie internetowym, Slacku lub prywatnym workspace. Twoje systemy wywołują agentów przez API, a zdarzenia lub harmonogramy uruchamiają ich automatycznie. Każde żądanie przechodzi przez te same kontrole: role, budżety, zatwierdzenia, guardraile i zapis runa. Twoje dane, wektory, sandboxy kodu, vault z poświadczeniami i opcjonalne modele lokalne pozostają na Twojej infrastrukturze. Modele hostowane, narzędzia SaaS i zewnętrzne źródła dokumentów są używane tylko wtedy, gdy je skonfigurujesz.
 
 <img src="docs/assets/readme/figures.webp" alt="26 wbudowanych capabilities, włączanych dla każdego agenta osobno; 8 miejsc, w których agent odpowiada; 27 dostawców modeli: hostowanych, w Twojej chmurze lub lokalnych; 5 źródeł synchronizacji dokumentów; ponad 5700 wpisów serwerów MCP oraz 99 wybranych serwerów; 29 poradników, każdy ze sprawdzianem, który możesz uruchomić." width="100%">
 
@@ -76,7 +76,7 @@ Działa na Twojej infrastrukturze z Docker Compose i współpracuje z 27 dostawc
 | [Agenci wielokrotnego użytku](#-twórz-agentów-do-wspólnego-użytku) | Wybieraj modele i narzędzia, publikuj wersje, udostępniaj agentów zespołowi |
 | [Wiedza firmowa](#-naucz-agentów-sposobu-pracy-zespołu) | Wykorzystuj skills, kontekst i przeszukiwalne dokumenty w wielu agentach |
 | [Udostępnianie wyników](#-publikuj-wyniki-jako-interaktywne-strony) | Publikuj interaktywne strony ze stałymi linkami i historią wersji |
-| [Uruchamianie i nadzór](#-śledź-wykonania-koszty-i-zatwierdzenia) | Dostosuj dashboardy, sprawdzaj wykonania, planuj zadania i ustalaj budżety |
+| [Uruchamianie i nadzór](#-śledź-runy-koszty-i-zatwierdzenia) | Dostosuj dashboardy, sprawdzaj runy, planuj zadania i ustalaj budżety |
 | [Dostęp w firmie](#-organizuj-zespoły-za-pomocą-ról-i-grup) | Łącz role, grupy działów i logowanie firmowe |
 
 ## 🔌 Podłącz aplikacje, których Twój zespół już używa
@@ -101,7 +101,7 @@ AgenticOS łączy agentów z modelami, komunikatorami, aplikacjami biznesowymi i
   <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%">
 </video>
 
-<p align="center"><sub><b>Brief → research → wspólny wynik.</b> Nagrane wykonanie: agent czyta brief kampanii w Notion, analizuje repozytoria na GitHubie i publikuje interaktywny planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Obejrzyj (37 s)</a></sub></p>
+<p align="center"><sub><b>Brief → research → wspólny wynik.</b> Nagrany run: agent czyta brief kampanii w Notion, analizuje repozytoria na GitHubie i publikuje interaktywny planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Obejrzyj (37 s)</a></sub></p>
 
 <table>
 <tr>
@@ -114,7 +114,7 @@ AgenticOS łączy agentów z modelami, komunikatorami, aplikacjami biznesowymi i
 </tr>
 <tr>
 <td><a href="docs/assets/screens/light/artifact-detail.png"><img src="docs/assets/screens/light/artifact-detail.png" alt="Dashboard sprzedażowy Meridian zbudowany przez agenta, oznaczony jako dane demonstracyjne"></a><br><b>Publikuj wyniki jako strony.</b> Stałe linki i wersje. Dane demonstracyjne.</td>
-<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard z sumami wykorzystania, zarejestrowanymi wydatkami, trendami wykonań i ich wynikami"></a><br><b>Wykorzystanie i wydatki.</b> Wykonania, wyniki i budżety w jednym widoku.</td>
+<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard z sumami wykorzystania, zarejestrowanymi wydatkami, trendami runów i ich wynikami"></a><br><b>Wykorzystanie i wydatki.</b> Runy, wyniki i budżety w jednym widoku.</td>
 </tr>
 <tr>
 <td><a href="docs/assets/screens/light/agents.png"><img src="docs/assets/screens/light/agents.png" alt="Katalog agentów z opublikowanymi agentami i ich widocznością"></a><br><b>Katalog agentów.</b> Prywatni, udostępnieni grupie lub całej firmie.</td>
@@ -183,13 +183,13 @@ Jeśli używasz [Claude Code](https://code.claude.com/docs/en/overview) lub [Cod
 
 Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Linki publiczne mogą wygasać, wymagać hasła lub ograniczać, na których stronach można je osadzić. [Udostępnij artefakt](https://vstorm-co.github.io/agenticos/pl/artifacts/)
 
-### 📊 Śledź wykonania, koszty i zatwierdzenia
+### 📊 Śledź runy, koszty i zatwierdzenia
 
-<img src="docs/assets/readme/dashboard-annotated.webp" alt="Dashboard z sześcioma ponumerowanymi sekcjami: zakres czasu, podsumowanie, wykonania w czasie, wyniki, źródła wykonań i adopcja." width="100%">
+<img src="docs/assets/readme/dashboard-annotated.webp" alt="Dashboard z sześcioma ponumerowanymi sekcjami: zakres czasu, podsumowanie, runy w czasie, wyniki, źródła runów i adopcja." width="100%">
 
-Dashboard odpowiada na sześć pytań dla wybranego okresu: ile było wykonań, ile się zakończyło, ile kosztowały i ile osób korzystało z agentów; jak wykonania zmieniały się w czasie; co się nie powiodło, czekało na zatwierdzenie lub zostało zatrzymane przez budżet; skąd pochodziły wykonania; oraz z których agentów ludzie faktycznie korzystają.
+Dashboard odpowiada na sześć pytań dla wybranego okresu: ile było runów, ile się zakończyło, ile kosztowały i ile osób korzystało z agentów; jak runy zmieniały się w czasie; co się nie powiodło, czekało na zatwierdzenie lub zostało zatrzymane przez budżet; skąd pochodziły runy; oraz z których agentów ludzie faktycznie korzystają.
 
-Dostosuj **dashboard** do swojej pracy. **Activity** pozwala sprawdzać wykonania i wywołania narzędzi, porównywać wersje agentów i eksportować dane. **Budżety** agentów i organizacji są sprawdzane przed każdym żądaniem do modelu. **Zasady zatwierdzania** sprawiają, że wrażliwe narzędzia czekają na decyzję człowieka, a **rutyny** powtarzają pracę według harmonogramu lub po zdarzeniach, takich jak nowe issue na GitHubie, wiadomość w Gmailu lub podpisany webhook. [Historia wykonań, budżety i zatwierdzenia](https://vstorm-co.github.io/agenticos/pl/governance/) · [Rutyny](https://vstorm-co.github.io/agenticos/pl/triggers/)
+Dostosuj **dashboard** do swojej pracy. **Activity** pozwala sprawdzać runy i wywołania narzędzi, porównywać wersje agentów i eksportować dane. **Budżety** agentów i organizacji są sprawdzane przed każdym żądaniem do modelu. **Zasady zatwierdzania** sprawiają, że wrażliwe narzędzia czekają na decyzję człowieka, a **rutyny** powtarzają pracę według harmonogramu lub po zdarzeniach, takich jak nowe issue na GitHubie, wiadomość w Gmailu lub podpisany webhook. [Historia runów, budżety i zatwierdzenia](https://vstorm-co.github.io/agenticos/pl/governance/) · [Rutyny](https://vstorm-co.github.io/agenticos/pl/triggers/)
 
 ### 👥 Organizuj zespoły za pomocą ról i grup
 
@@ -224,24 +224,24 @@ Budujesz na AgenticOS? Przejdź do sekcji [Dla programistów i administratorów]
 
 <br>
 
-<img src="docs/assets/readme/security-layers.webp" alt="Sześć warstw bezpieczeństwa: sejf, sandboxy, artefakty, dziennik audytu, sesje i ruch, higiena danych." width="100%">
+<img src="docs/assets/readme/security-layers.webp" alt="Sześć warstw bezpieczeństwa: vault, sandboxy, artefakty, dziennik audytu, sesje i ruch, higiena danych." width="100%">
 
-Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w sejfie z szyfrowaniem kopertowym. Kod działa w izolowanych sandboxach. Opublikowane strony też działają w sandboxie. Każda organizacja ma dziennik audytu z łańcuchem skrótów. Sesje są krótkotrwałe i można je unieważnić, a ruch podlega limitom. Logi są redagowane, a dane usuwane zgodnie z harmonogramem retencji.
+Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szyfrowaniem kopertowym. Kod działa w izolowanych sandboxach. Opublikowane strony też działają w sandboxie. Każda organizacja ma dziennik audytu z łańcuchem skrótów. Sesje są krótkotrwałe i można je unieważnić, a ruch podlega limitom. Logi są redagowane, a dane usuwane zgodnie z harmonogramem retencji.
 
 | Wychodzący ruch do | Kiedy | Lokalna alternatywa |
 |---|---|---|
-| Dostawca modelu | Przy każdym wykonaniu agenta | Ollama, vLLM lub LM Studio na Twoim sprzęcie |
+| Dostawca modelu | Przy każdym runie agenta | Ollama, vLLM lub LM Studio na Twoim sprzęcie |
 | Dostawca embeddingów | Indeksowanie i przeszukiwanie dokumentów | Lokalne modele embeddingów w Ollama |
 | LlamaParse | Kolekcje ustawione na ten parser | PyMuPDF lub LiteParse, oba lokalne |
 | Wyszukiwanie w sieci | Agenci z włączonym wyszukiwaniem w sieci | Wyłącz tę capability |
 | Serwery MCP, kanały czatu | Tylko te, które podłączysz | Serwery na własnej infrastrukturze, czat internetowy |
-| Tracing Logfire | Tylko gdy skonfigurowano token | Wbudowana historia wykonań |
+| Tracing Logfire | Tylko gdy skonfigurowano token | Wbudowana historia runów |
 
-- **Sejf:** osobny klucz danych dla każdego sekretu, opakowany kluczem organizacji w danej wersji; klucze główne podlegają rotacji; wartości nigdy nie są ponownie wyświetlane.
+- **Vault:** osobny klucz danych dla każdego sekretu, opakowany kluczem organizacji w danej wersji; klucze główne podlegają rotacji; wartości nigdy nie są ponownie wyświetlane.
 - **Sandboxy:** API nie ma dostępu do gniazda Dockera; kontenery nie dostają sieci, chyba że jest potrzebna, i działają z limitami CPU, procesów i czasu; gVisor opcjonalnie.
 - **Dziennik audytu:** łańcuch skrótów dla każdej organizacji, z możliwością weryfikacji i eksportu.
 - **Profil HIPAA:** [`deploy/profiles/hipaa/`](deploy/profiles/hipaa/) i `agenticos cmd doctor --profile hipaa` sprawdzają działające wdrożenie pod kątem zabezpieczeń technicznych z §164.312. To kontrola konfiguracji, nie certyfikacja. [Czego profil nie deklaruje](https://vstorm-co.github.io/agenticos/pl/security/#the-hipaa-profile-and-what-it-does-not-claim)
-- **Zostaje po stronie Twojego IT:** szyfrowanie danych na dyskach, firewall dla ruchu wychodzącego, MFA przez dostawcę tożsamości (bez natywnego MFA, SAML i SCIM) oraz kopie zapasowe obejmujące klucz sejfu.
+- **Zostaje po stronie Twojego IT:** szyfrowanie danych na dyskach, firewall dla ruchu wychodzącego, MFA przez dostawcę tożsamości (bez natywnego MFA, SAML i SCIM) oraz kopie zapasowe obejmujące klucz vaulta.
 
 [Bezpieczeństwo i przepływy danych](https://vstorm-co.github.io/agenticos/pl/security/) · [Ochrona danych](https://vstorm-co.github.io/agenticos/pl/data-protection/) · [Sekrety](https://vstorm-co.github.io/agenticos/pl/secrets/) · [Polityka bezpieczeństwa](SECURITY.pl.md)
 
@@ -254,7 +254,7 @@ Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w sejfie z szyf
 
 <img src="docs/assets/readme/first-tasks.webp" alt="29 poradników w grupach: dokumenty, obsługa klienta, research i analiza, automatyzacja, treści i produktywność, inżynieria oraz bezpieczeństwo." width="100%">
 
-[Wszystkie poradniki](https://vstorm-co.github.io/agenticos/pl/use-cases/). 24 z nich mają referencyjne wykonanie przygotowane przez opiekunów projektu; to punkty wyjścia, nie wyniki klientów.
+[Wszystkie poradniki](https://vstorm-co.github.io/agenticos/pl/use-cases/). 24 z nich mają referencyjny run przygotowany przez opiekunów projektu; to punkty wyjścia, nie wyniki klientów.
 
 </details>
 
@@ -304,7 +304,7 @@ Wybierz go, gdy zespół ma powtarzalne zadania związane z dokumentami lub narz
 - Nie ma natywnego MFA, SAML ani SCIM. Korzystaj z dostawcy tożsamości przez OIDC.
 - Nie ma rerankera.
 - AgenticOS działa na jednym hoście z Docker Compose. Nie ma manifestów Kubernetes.
-- Równoległe wykonania mogą przekroczyć budżet.
+- Równoległe runy mogą przekroczyć budżet.
 - Wyniki zależą od modelu, narzędzi i instrukcji, więc oceń je na własnym zadaniu.
 
 ## 🔐 Kontroluj wdrożenie, modele i dostęp
@@ -360,7 +360,7 @@ E-mail i hasło z magic linkami, Google, ogólne SSO z OIDC (Entra ID, Okta, Key
 <details>
 <summary><b>Jak AgenticOS utrzymuje agentów pod kontrolą?</b></summary>
 
-Miesięczne budżety agentów i organizacji są sprawdzane przed każdym żądaniem do modelu. Wrażliwe narzędzia czekają na zatwierdzenie przez człowieka. Opcjonalne guardraile redagują sekrety i dane osobowe, a każde wykonanie jest zapisywane wraz z wersją agenta, narzędziami, tokenami i kosztem. [Nadzór](https://vstorm-co.github.io/agenticos/pl/governance/)
+Miesięczne budżety agentów i organizacji są sprawdzane przed każdym żądaniem do modelu. Wrażliwe narzędzia czekają na zatwierdzenie przez człowieka. Opcjonalne guardraile redagują sekrety i dane osobowe, a każdy run jest zapisywany wraz z wersją agenta, narzędziami, tokenami i kosztem. [Nadzór](https://vstorm-co.github.io/agenticos/pl/governance/)
 
 </details>
 
@@ -374,7 +374,7 @@ AgenticOS działa na Twojej infrastrukturze z dowolnym z 27 dostawców modeli i 
 <details>
 <summary><b>Czego wymaga uruchomienie?</b></summary>
 
-Docker Compose na jednym hoście. Wystarczy maszyna z 4 vCPU i 8 GB RAM, a dwa workery API obsłużą zespół dziesięciu osób. Ktoś musi odpowiadać za aktualizacje, kopie zapasowe (w tym klucza sejfu), dostęp i podłączone usługi zewnętrzne. [Wdrożenie](https://vstorm-co.github.io/agenticos/pl/deploy/) · [Plan wdrożenia](https://vstorm-co.github.io/agenticos/pl/rollout/)
+Docker Compose na jednym hoście. Wystarczy maszyna z 4 vCPU i 8 GB RAM, a dwa workery API obsłużą zespół dziesięciu osób. Ktoś musi odpowiadać za aktualizacje, kopie zapasowe (w tym klucza vaulta), dostęp i podłączone usługi zewnętrzne. [Wdrożenie](https://vstorm-co.github.io/agenticos/pl/deploy/) · [Plan wdrożenia](https://vstorm-co.github.io/agenticos/pl/rollout/)
 
 </details>
 
