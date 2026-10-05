@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.517] - 2026-10-05
+
+### Changed
+
+- **A new README, in four languages.** It opens on what AgenticOS is for
+  ("AI agents your whole team can use and improve"), a 45-second intro film and
+  a product tour with current screenshots in light and dark, and keeps the list
+  of what AgenticOS does not do yet. The Polish, German and Spanish READMEs
+  follow it, and their links to the documentation site open the page in the
+  same language where a translation exists.
+- **Two presentations on the documentation site.** `/presentation/` is a
+  14-slide introduction to the open-source project and `/presentation/tour/`
+  the 44-slide product tour. Both use the new type (Instrument Serif, DM Sans,
+  DM Mono) on warm white, and show the marks of the stack and the model
+  providers. `make presentation` checks both decks and their assets.
+- **`make audit-frontend` skips one advisory with no fix.**
+  GHSA-vfj7-8cjw-p6xm (braces <= 3.0.3) has no patched release and reaches the
+  tree only through a lint-time dependency of `eslint-config-next` that the
+  built console does not ship. The exception is named in the `Makefile`, with
+  the condition for removing it.
+
+### Fixed
+
+- **The presentation's presenter view talks only to its own origin.** The deck
+  and the presenter window send their messages to the page's origin and ignore
+  messages from any other, so a presenter window navigated elsewhere no longer
+  receives slide state or speaker notes. Speaker notes and the slide list are
+  written as text, not HTML.
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed
