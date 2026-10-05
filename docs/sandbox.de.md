@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3b2a5423dd"
+source_sha: "28df8e05f4b0"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -89,6 +89,14 @@ Der Schlüssel ist auch der **Name** der Session auf dem Host — die Session-ID
 sie über diesen Namen: Der erste legt sie an, die anderen hängen sich an,
 gleichzeitige eingeschlossen, und nichts muss erst die eigene ID eines Anbieters
 speichern, bevor der zweite Run sie finden kann.
+
+**Ist eine Session einmal geöffnet, hängt sich ein späterer Run nur noch an sie an.**
+Die Workspace-Zeile hält sie fest, wenn der Run endet, der sie geöffnet hat, und der
+nächste Run fragt den Host nach dieser Session statt nach dem Namen. Eine Session,
+deren Dateien gelöscht wurden — durch `SANDBOXD_WORKSPACE_TTL` entfernt, ein Host neu
+aufgesetzt —, wird dem Agenten dann als verloren gemeldet, statt stillschweigend durch
+eine leere ersetzt zu werden, in der er weiterarbeiten würde. Die Zeile vergisst sie am
+Ende dieses Runs, sodass der nächste Turn eine frische Session beginnt.
 
 Ebenfalls in den Schlüssel eingefaltet: welche **Backend-Art** und welcher **Host**
 den Workspace trägt. Ein `state`-Dokument und das Volume eines Containers sind nicht

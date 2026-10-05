@@ -80,6 +80,13 @@ Daytona sandbox's name — so every run of a scope opens it by that name: the fi
 creates it and the others attach, concurrent ones included, and nothing has to
 record a provider's own id before the second run can find it.
 
+**Once a session has been opened, a later run only attaches to it.** The workspace
+row records it when the run that opened it ends, and the next run asks the host for
+that session rather than for the name. A session whose files were purged — swept by
+`SANDBOXD_WORKSPACE_TTL`, a host rebuilt — is then reported to the agent as gone,
+instead of being quietly replaced by an empty one it would carry on in. The row
+forgets it at the end of that run, so the turn after starts a fresh session.
+
 Folded into the key as well: which **backend kind** and which **host** the
 workspace lives on. A `state` document and a container's volume are not the same
 thing wearing different names, and neither are two `sandboxd` installations —

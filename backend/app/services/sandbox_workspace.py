@@ -298,6 +298,11 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     return None
 
 
+def _provider(sandbox: SandboxdWorkspace | DaytonaWorkspace) -> str:
+    """The provider name the refs of `sandbox`'s workspaces carry."""
+    return sandbox.provider if isinstance(sandbox, SandboxdWorkspace) else "daytona"
+
+
 def _is_spill(path: str) -> bool:
     """Whether a path in the stored document is a `tool_output_limits` spill (#803).
 
@@ -482,6 +487,13 @@ class SandboxWorkspaceService:
         granted a workspace it never touches costs no container and not even a
         round trip.
 
+        **Once a session was opened, a later run only attaches.** The row records
+        the session at close (`_settle_session`), and from then on the workspace
+        is opened by that ref, which the provider answers with the session or with
+        `WorkspaceUnavailableError` - never with a new, empty one under the same
+        name. A conversation whose files were purged on the host is told so,
+        rather than carrying on in an empty directory as if nothing happened.
+
         The connection arrives resolved rather than being read from settings,
         which is what makes two hosts possible and what keeps the credential in
         the vault. It is resolved by the caller because the key depends on it -
@@ -498,8 +510,11 @@ class SandboxWorkspaceService:
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
 
-        row = await self._row(
-            config, identity, key, scope, session_id=key, connection_id=resolved.row.id
+        row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
+        opened = (
+            None
+            if row is None or row.session_id is None
+            else WorkspaceRef(provider=_provider(sandbox), id=row.session_id)
         )
         # Wrapped so what the agent does in this sandbox is recorded on our side.
         # The service keeps its own log and it is 200 entries in that process's
@@ -507,7 +522,7 @@ class SandboxWorkspaceService:
         # had no audit at all (#1061). Wrapping here rather than calling from each
         # tool is what makes it impossible to forget for the ninth tool.
         recorder = RecordingWorkspace(
-            Workspace(sandbox.backend()),
+            Workspace(sandbox.backend(opened)),
             db=self.db,
             organization_id=identity.organization_id,
             session_key=key,
@@ -582,7 +597,6 @@ class SandboxWorkspaceService:
         key: str,
         scope: SessionScope,
         *,
-        session_id: str | None = None,
         connection_id: UUID | None = None,
     ) -> AgentWorkspace | None:
         """The bookkeeping row for this workspace, created on first use.
@@ -609,7 +623,6 @@ class SandboxWorkspaceService:
             scope=scope,
             scope_key=key,
             backend=config.backend,
-            session_id=session_id,
             connection_id=connection_id,
         )
 
@@ -637,7 +650,7 @@ class SandboxWorkspaceService:
                 await self._flush_state(workspace, keep_spills=keep_spills)
             elif workspace.scope == "run":
                 await self._release(workspace)
-            elif not keep_spills:
+            elif not await self._settle_session(workspace) and not keep_spills:
                 await self._prune_spills(workspace)
         except Exception:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
@@ -703,6 +716,41 @@ class SandboxWorkspaceService:
                 "paths_lost": overwritten,
             },
         )
+
+    async def _settle_session(self, workspace: OpenWorkspace) -> bool:
+        """Record which session this workspace is now, and whether it was lost.
+
+        A session the run opened is recorded on the row, so the next run attaches
+        to it rather than opening one by name - which is what lets a purged one
+        be noticed at all. A session the run found gone is forgotten, so the next
+        run starts a fresh one: this run has already reported the loss, through
+        the tool or the staging that hit it, and the turn after it should not hit
+        it again.
+
+        Returns:
+            Whether the session was lost, in which case there is nothing on the
+            host to prune.
+        """
+        row = (
+            None
+            if workspace.row_id is None
+            else await self.db.get(AgentWorkspace, workspace.row_id, populate_existing=True)
+        )
+        recorder = workspace.workspace
+        lost = isinstance(recorder, RecordingWorkspace) and recorder.lost
+        if row is None:
+            return lost
+        if lost:
+            logger.warning(
+                "workspace_session_lost",
+                extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
+            )
+            await workspace_repo.record_session(self.db, workspace=row, session_id=None)
+            return True
+        ref = workspace.workspace.ref
+        if ref is not None and ref.id != row.session_id:
+            await workspace_repo.record_session(self.db, workspace=row, session_id=ref.id)
+        return False
 
     async def _prune_spills(self, workspace: OpenWorkspace) -> None:
         """Delete this run's spilled tool returns off a workspace that outlives it.
@@ -795,9 +843,8 @@ class SandboxWorkspaceService:
             sandbox = self._service_capability(resolved, row.scope_key)
             # By the name it was opened under; attach-only, so a session already
             # gone is fine rather than one opened just to delete it.
-            provider = sandbox.provider if isinstance(sandbox, SandboxdWorkspace) else "daytona"
             await sandbox.destroy(
-                WorkspaceRef(provider=provider, id=row.session_id or row.scope_key)
+                WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
             )
         except Exception:
             # A service that is down must not stop a user deleting their chat.

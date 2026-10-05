@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3b2a5423dd"
+source_sha: "28df8e05f4b0"
 ---
 
 # Sandbox { #the-sandbox }
@@ -85,6 +85,13 @@ Klucz jest też **nazwą** sesji na hoście — id sesji `sandboxd`, nazwą sand
 Daytona — więc każdy run danego zasięgu otwiera ją po tej nazwie: pierwszy ją
 tworzy, a pozostałe się podłączają, także te równoległe, i nic nie musi zapisywać
 id nadanego przez dostawcę, zanim drugi run będzie mógł ją znaleźć.
+
+**Gdy sesja raz zostanie otwarta, kolejny run już tylko się do niej podłącza.**
+Wiersz workspace'u zapisuje ją, gdy kończy się run, który ją otworzył, a następny run
+prosi host o tę sesję, a nie o nazwę. Sesja, której pliki usunięto — wymiecione przez
+`SANDBOXD_WORKSPACE_TTL`, po przebudowie hosta — zostaje wtedy zgłoszona agentowi
+jako utracona, zamiast po cichu zastąpić ją pustą, w której pracowałby dalej. Wiersz
+zapomina ją na końcu tego runu, więc kolejna tura zaczyna świeżą sesję.
 
 W klucz wpisane jest też, **jakiego rodzaju backend** i **jaki host** trzyma
 workspace. Dokument `state` i wolumen kontenera to nie ta sama rzecz pod różnymi

@@ -22,7 +22,10 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic_ai import Agent
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.workspaces import (
@@ -30,6 +33,7 @@ from pydantic_ai.workspaces import (
     LocalWorkspaceBackend,
     WorkspaceCommand,
     WorkspaceRef,
+    WorkspaceUnavailableError,
 )
 from pydantic_ai_backends import ConsoleCapability, FileInfo, StateBackend
 
@@ -38,6 +42,7 @@ from app.agents.capabilities import get as get_capability
 from app.agents.capabilities._registry import CapabilityBinding
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.sandbox import SandboxConfig
+from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._capped import CappedStateBackend, document_size
 from app.agents.capabilities.sandbox._identity import (
     MAX_SESSION_ID,
@@ -1876,6 +1881,10 @@ class _Sandboxes:
         self.destroyed: list[WorkspaceRef] = []
         self.failing: CommandResult | None = None
         self.unreachable: Exception | None = None
+        self.attached: list[WorkspaceRef | None] = []
+        """The ref each backend was asked for: `None` opens by name, a ref only attaches."""
+        self.gone = False
+        """Whether the session a ref names was purged on the host."""
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from app.services import sandbox_workspace
@@ -1883,18 +1892,21 @@ class _Sandboxes:
         sandboxes = self
 
         class _Backend(LocalWorkspaceBackend):
-            def __init__(self, ref: WorkspaceRef) -> None:
+            def __init__(self, named: WorkspaceRef, *, attach_only: bool) -> None:
                 super().__init__(sandboxes.root)
-                self._named = ref
-                self._opened = False
+                self._named = named
+                self._attach_only = attach_only
+                self._opened = attach_only
 
             @property
             def ref(self) -> WorkspaceRef | None:
-                # As a provider's backend: no ref until the first operation
-                # opened the session.
+                # As a provider's backend: a ref it was given from the start, one
+                # it opens by name only after the first operation.
                 return self._named if self._opened else None
 
             async def working_dir(self) -> str:
+                if self._attach_only and sandboxes.gone:
+                    raise WorkspaceUnavailableError(f"session {self._named.id!r} no longer exists")
                 self._opened = True
                 return await super().working_dir()
 
@@ -1919,8 +1931,10 @@ class _Sandboxes:
             def __init__(self, **kwargs: object) -> None:
                 sandboxes.made.append(kwargs)
 
-            def backend(self) -> _Backend:
-                return _Backend(WorkspaceRef(provider=self.provider, id=self.name))
+            def backend(self, ref: WorkspaceRef | None = None) -> _Backend:
+                sandboxes.attached.append(ref)
+                named = ref or WorkspaceRef(provider=self.provider, id=self.name)
+                return _Backend(named, attach_only=ref is not None)
 
             async def destroy(self, ref: WorkspaceRef) -> None:
                 if sandboxes.unreachable is not None:
@@ -1986,9 +2000,10 @@ class TestContainerBackedWorkspaces:
         # One provider name per connection, so a ref from one host is never
         # read as a session on another.
         assert made["provider"] == f"sandboxd:{resolved.row.id}"
-        # The row records the session and the connection: deleting the
-        # conversation purges the sandbox by them, and nothing later has the spec.
-        assert created.await_args.kwargs["session_id"] == workspace.scope_key
+        # Opened by name: nothing has been opened for this scope yet.
+        assert sandboxes.attached == [None]
+        # The row records the connection: deleting the conversation purges the
+        # sandbox through it, and nothing later has the spec.
         assert created.await_args.kwargs["connection_id"] == resolved.row.id
 
     async def test_what_the_agent_does_there_is_recorded(
@@ -2361,6 +2376,133 @@ class TestContainerBackedWorkspaces:
         [record] = [r for r in caplog.records if r.message == "workspace_spill_prune_failed"]
         assert record.handles == 1
         assert "Permission denied" in record.output
+
+
+class TestASessionAcrossRuns:
+    """A session is opened once, by name, and only ever attached to after.
+
+    So a session purged on the host - its files swept by a TTL, the host
+    rebuilt - is reported to the run that finds it gone, rather than replaced
+    by an empty one under the same name that the agent would carry on in.
+    """
+
+    def _row_with(self, monkeypatch, mock_db_session, session_id: str | None) -> AsyncMock:
+        row = _row(backend="service", session_id=session_id, connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+        mock_db_session.get = AsyncMock(return_value=row)
+        recorded = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "record_session", recorded)
+        return recorded
+
+    async def test_the_session_a_run_opened_is_recorded_for_the_next(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, None)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        await workspace.workspace.write_text("notes.txt", "kept")
+        await service.close(workspace)
+
+        assert recorded.await_args.kwargs["session_id"] == workspace.scope_key
+
+    async def test_a_run_that_opened_nothing_records_nothing(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Nothing is on the host yet, so there is nothing for the next run to
+        insist on attaching to."""
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, None)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        await service.close(workspace)
+
+        recorded.assert_not_awaited()
+
+    async def test_a_recorded_session_is_attached_to_rather_than_opened(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert sandboxes.attached == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="xc-recorded")
+        ]
+
+    async def test_a_purged_session_is_reported_rather_than_replaced(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        sandboxes.gone = True
+        _serve(monkeypatch, _resolved())
+        self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert workspace is not None
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.write_text("notes.txt", "into an empty directory")
+        assert not (sandboxes.root / "notes.txt").exists()
+
+    async def test_the_model_is_told_its_files_are_gone(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """What the run reports: the console answers the tool call with the loss,
+        so the agent says so instead of working on as if the files were there."""
+        sandboxes.gone = True
+        _serve(monkeypatch, _resolved())
+        self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        answered: list[str] = []
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            returns = [p for p in messages[-1].parts if isinstance(p, ToolReturnPart)]
+            if returns:
+                answered.append(str(returns[0].content))
+                return ModelResponse(parts=[TextPart("done")])
+            return ModelResponse(parts=[ToolCallPart("ls", {"path": "."})])
+
+        await Agent(
+            FunctionModel(model), capabilities=[build_workspace(include_execute=False)]
+        ).run("what is there?", workspace=workspace.workspace)
+
+        [listing] = answered
+        assert "no longer exists" in listing
+
+    async def test_a_lost_session_is_forgotten_so_the_next_run_starts_afresh(
+        self, monkeypatch, mock_db_session, sandboxes, caplog
+    ):
+        """The run that found it gone has reported it; the turn after should not
+        hit it again. Nothing is pruned on a host that holds nothing."""
+        sandboxes.gone = True
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+        service = SandboxWorkspaceService(mock_db_session)
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        workspace.spills.append("tool_output/run-1/call-1.0")
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.read_text("notes.txt")
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        assert recorded.await_args.kwargs["session_id"] is None
+        assert sandboxes.commands == []
+        assert [r for r in caplog.records if r.message == "workspace_session_lost"]
 
 
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:

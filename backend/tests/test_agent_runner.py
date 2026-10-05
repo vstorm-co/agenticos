@@ -31,7 +31,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
-from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
@@ -1212,6 +1212,40 @@ class TestTheRunWorksInTheWorkspaceItOpened:
                 pass
 
         assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("elsewhere", ["another-organization", "another-connection"])
+    async def test_a_history_naming_someone_else_s_workspace_never_reaches_it(
+        self, tmp_path, elsewhere
+    ):
+        """A transcript can carry any ref - copied, restored, or written while the
+        agent ran on another host - and the run must still work only where the
+        runner opened it: another organization's document and another
+        connection's session are left exactly as they were."""
+        theirs = StateBackend()
+        if elsewhere == "another-organization":
+            foreign: Workspace = document_workspace(theirs, key="dc-another-organization")
+        else:
+
+            class _OtherHost(LocalWorkspaceBackend):
+                @property
+                def ref(self) -> WorkspaceRef:
+                    return WorkspaceRef(provider=f"sandboxd:{uuid.uuid4()}", id="xc-theirs")
+
+            foreign = Workspace(_OtherHost(tmp_path))
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = (await agent.run("first", workspace=foreign)).all_messages()
+        before = (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir()))
+        ours = StateBackend()
+
+        await self._prepared_with(agent, ours).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert ours.read_bytes("/notes.txt") == b"kept"
+        assert (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir())) == before
 
     @pytest.mark.anyio
     async def test_without_one_the_history_is_refused_rather_than_silently_rehomed(self, tmp_path):

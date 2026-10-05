@@ -25,6 +25,10 @@ Two things are versioned separately from this file and worth knowing about:
   `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
   opened, so a conversation that continues on another host, or in another
   environment, works in the workspace it has now.
+- **A sandbox whose files were purged is reported, not replaced.** Once a
+  conversation's container or Daytona sandbox has been opened, later turns attach
+  to that session; if its files were swept on the host, the agent is told they are
+  gone instead of carrying on in an empty one, and the next turn starts afresh.
 - **The activity log names what reached the sandbox.** Operations are `read`,
   `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
   `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded

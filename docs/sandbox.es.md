@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3b2a5423dd"
+source_sha: "28df8e05f4b0"
 ---
 
 # La sandbox { #the-sandbox }
@@ -88,6 +88,14 @@ La clave es también el **nombre** de la sesión en el host —el id de una sesi
 abre por ese nombre: el primero la crea y los demás se conectan a ella, también los
 concurrentes, y nada tiene que guardar el id propio de un proveedor antes de que el
 segundo run pueda encontrarla.
+
+**Una vez abierta una sesión, un run posterior solo se conecta a ella.** La fila del
+workspace la registra cuando termina el run que la abrió, y el siguiente run pide al
+host esa sesión y no el nombre. Una sesión cuyos archivos se purgaron —barridos por
+`SANDBOXD_WORKSPACE_TTL`, un host reconstruido— se notifica entonces al agente como
+perdida, en lugar de sustituirse en silencio por una vacía en la que seguiría
+trabajando. La fila la olvida al final de ese run, así que el turno siguiente empieza
+una sesión nueva.
 
 También se agrupan en la clave: qué **tipo de backend** y qué **host** alojan el
 workspace. Un documento `state` y el volumen de un contenedor no son la misma

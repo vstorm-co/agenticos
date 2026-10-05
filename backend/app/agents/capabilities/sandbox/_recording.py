@@ -46,6 +46,7 @@ from pydantic_ai.workspaces import (
     FileEntry,
     Workspace,
     WorkspaceCommand,
+    WorkspaceUnavailableError,
     WrapperWorkspace,
 )
 
@@ -97,6 +98,10 @@ class RecordingWorkspace(WrapperWorkspace):
         # in hand at construction - without it every row said `run_id=null` and
         # "which execution did this" had no answer (the attribution #1061 is for).
         self.run_id = run_id
+        # Whether an operation found the session gone. Noted here because every
+        # operation passes through, and the close needs it: a lost session is
+        # forgotten, so the next run opens a fresh one instead of failing again.
+        self.lost = False
 
     async def read_bytes(self, path: str) -> bytes:
         return await self._recorded(
@@ -145,6 +150,8 @@ class RecordingWorkspace(WrapperWorkspace):
         try:
             result = await call
         except Exception as exc:
+            if isinstance(exc, WorkspaceUnavailableError):
+                self.lost = True
             # The class, never the message: a shell's message is the command's
             # own output and an HTTP client's carries the failing request (#423).
             self._record(op, target, ok=False, detail=exc.__class__.__name__, started=started)
