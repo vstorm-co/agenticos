@@ -23,6 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pydantic_ai.workspaces import WorkspaceError
+
 if TYPE_CHECKING:
     from pydantic_ai.workspaces import Workspace
 
@@ -76,7 +78,7 @@ class WorkspaceOverflowStore:
         handle = await self.workspace.resolve(f"{self.prefix}/{key}")
         try:
             await self.workspace.write_bytes(handle, data)
-        except OSError as refused:
+        except (OSError, WorkspaceError) as refused:
             raise OverflowWriteError(str(refused)) from refused
         if self.spill_log is not None:
             self.spill_log.append(handle)

@@ -1,5 +1,5 @@
 ---
-source_sha: "292ec188edcf"
+source_sha: "65adefd66779"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -828,7 +828,7 @@ Lo que cuesta ejecutar cada backend:
 
 | Backend | Necesita | Shell | Dónde viven los archivos |
 |---|---|---|---|
-| `state` | nada | no | esta base de datos —los archivos y los directorios que creó el agente—, con tope en `SANDBOX_STATE_MAX_BYTES` |
+| `state` | nada | no | esta base de datos, con tope en `SANDBOX_STATE_MAX_BYTES` |
 | `service` | una conexión registrada | sí | un contenedor en ese host, o la nube de Daytona en la cuenta propia de la organización |
 
 Un operador puede ver qué hay en marcha: Sandboxes lista las sandboxes abiertas de

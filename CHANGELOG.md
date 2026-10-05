@@ -25,8 +25,6 @@ Two things are versioned separately from this file and worth knowing about:
   `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
   opened, so a conversation that continues on another host, or in another
   environment, works in the workspace it has now.
-- **An empty directory an agent made is kept.** A stored workspace records the
-  directories beside the files, so `mkdir out` is still there next turn.
 - **The activity log names what reached the sandbox.** Operations are `read`,
   `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
   `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded

@@ -221,8 +221,10 @@ async def _read_tree(workspace: Workspace) -> dict[str, dict[str, str]]:
         for entry in sorted(await workspace.list_dir(skill.path), key=lambda e: e.path):
             if entry.is_dir:
                 continue
-            # `or 0`: a host that did not measure the file lists its size as `None`.
-            if (entry.size or 0) > MAX_PROPOSED_BYTES:
+            # A container's listing does not measure its files - its shell lists
+            # names - so an unmeasured one is asked, rather than read whole first.
+            size = entry.size if entry.size is not None else (await workspace.stat(entry.path)).size
+            if size is not None and size > MAX_PROPOSED_BYTES:
                 logger.warning("skill_proposal_too_large", extra={"path": entry.path})
                 continue
             tree.setdefault(skill.name, {})[entry.path] = (

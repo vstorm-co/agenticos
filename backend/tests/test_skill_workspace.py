@@ -215,6 +215,16 @@ class TestCollectingWhatTheAgentChanged:
 
         assert change.content == "rewritten"
 
+    async def test_an_unmeasured_file_past_the_ceiling_is_still_dropped(self):
+        """A container's listing carries no sizes, so the ceiling is checked
+        against what the file measures - or a file of any size became a proposal."""
+        document, workspace = _document()
+        state = await materialise(workspace, [_Skill()])
+
+        _write(document, f"{SKILLS_ROOT}/refunds/huge.md", "x" * (300 * 1024))
+
+        assert await collect_changes(_Unmeasured(workspace), state) == []
+
     async def test_frontmatter_the_model_mangled_is_refused_rather_than_guessed_at(self):
         """The description is what other agents read first; a guess at it is a
         guess at what this skill claims to be."""

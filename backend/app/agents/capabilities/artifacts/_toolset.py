@@ -24,6 +24,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
@@ -262,6 +263,11 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
                     return f"Reading {path!r} was refused: {exc}"
                 except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
                     data = b""
+                except WorkspaceError as exc:
+                    # A container's shell could not produce the file - the
+                    # session went away, its output came back damaged. The
+                    # model can retry or publish inline; the run goes on.
+                    return f"Reading {path!r} failed: {exc}"
                 if not data:
                     return steer(
                         ctx,

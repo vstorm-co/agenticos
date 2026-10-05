@@ -1,5 +1,5 @@
 ---
-source_sha: "292ec188edcf"
+source_sha: "65adefd66779"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -815,7 +815,7 @@ Co kosztuje uruchomienie każdego z backendów:
 
 | Backend | Wymaga | Powłoka | Gdzie leżą pliki |
 |---|---|---|---|
-| `state` | niczego | nie | ta baza danych — pliki i katalogi utworzone przez agenta — z limitem `SANDBOX_STATE_MAX_BYTES` |
+| `state` | niczego | nie | ta baza danych, z limitem `SANDBOX_STATE_MAX_BYTES` |
 | `service` | zarejestrowanego połączenia | tak | kontener na tym hoście albo chmura Daytony na własnym koncie organizacji |
 
 Operator widzi, co działa: Sandboxes wypisuje otwarte sandboksy tej organizacji na

@@ -3,9 +3,9 @@
 The capability cannot do this. Opening a workspace reads and writes the database
 — loading a stored document, recording which session belongs to which
 conversation — and a capability is built inside `build_agent`, which holds no
-session and must not acquire one. So the runner opens one here, hands the
-backend through `resources`, and closes it in the `finally` that already records
-what the run cost.
+session and must not acquire one. So the runner opens one here, passes the
+workspace to the run - where every tool reaches it as `ctx.workspace` - and closes
+it in the `finally` that already records what the run cost.
 
 What "closing" means differs by backend, and the difference is the reason this
 module exists rather than a helper on the capability:
@@ -666,12 +666,13 @@ class SandboxWorkspaceService:
             return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
 
         files = {path: data for path, data in document.files.items() if not dropped(path)}
+        directories = sorted(path for path in document.directories if not dropped(path))
         await workspace_repo.save_files(
             self.db,
             workspace=row,
             files=files,
-            directories=sorted(path for path in document.directories if not dropped(path)),
-            bytes_total=document_size(files),
+            directories=directories,
+            bytes_total=document_size(files, directories),
         )
 
     @staticmethod

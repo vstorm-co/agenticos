@@ -18,6 +18,7 @@ from pydantic_ai import ModelRetry
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import _registry as registry
@@ -178,6 +179,21 @@ class TestRefusals:
             )
         publish.assert_not_awaited()
         assert result == "Reading 'secrets/x.html' was refused: secrets/ is not readable"
+
+
+class TestAFailedRead:
+    async def test_a_container_that_cannot_produce_the_file_is_a_result_not_a_crash(self) -> None:
+        """The shell under a container's file read can fail - the session gone,
+        its output cut short. The model is told and can publish inline instead."""
+        with patch(PUBLISH, new=AsyncMock()) as publish:
+            result = await _tool()(
+                _ctx(_deps(), workspace=_workspace(WorkspaceError("the sandbox is gone"))),
+                name="r",
+                title="R",
+                path="report.html",
+            )
+        publish.assert_not_awaited()
+        assert result == "Reading 'report.html' failed: the sandbox is gone"
 
 
 class TestSteering:

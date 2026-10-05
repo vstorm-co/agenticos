@@ -28,7 +28,7 @@ from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.core.secret_kinds import ApiKeySecret
-from tests.workspaces import document_workspace
+from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -162,6 +162,21 @@ async def test_a_full_workspace_names_no_path_for_the_image():
     )
 
     image = parse_generated_image(await _generate(toolset, _ctx(uuid4(), workspace=workspace)))
+
+    assert image is not None and image.url is not None
+    assert image.workspace_path is None
+
+
+async def test_a_container_that_cannot_take_the_image_names_no_path_for_it():
+    """A container's shell fails with `WorkspaceError` where a full document
+    raises `OSError`; the image was generated and paid for either way."""
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    image = parse_generated_image(
+        await _generate(toolset, _ctx(uuid4(), workspace=ShellFailing(document_workspace())))
+    )
 
     assert image is not None and image.url is not None
     assert image.workspace_path is None

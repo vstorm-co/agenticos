@@ -22,14 +22,19 @@ from collections.abc import Iterable
 from pydantic_ai_backends import FileData, StateBackend
 
 
-def document_size(files: dict[str, FileData]) -> int:
+def document_size(files: dict[str, FileData], directories: Iterable[str] = ()) -> int:
     """How many bytes storing this document costs.
 
     Measured as the serialised form because that is what the cap protects - the
-    column - rather than the length of the content, which ignores base64
-    expansion and the per-file bookkeeping.
+    columns - rather than the length of the content, which ignores base64
+    expansion and the per-file bookkeeping. The directories are stored beside the
+    files and count too: every parent of a deep path is one, so a path nested a
+    few thousand levels would otherwise grow the row past the ceiling uncounted.
     """
-    return len(json.dumps(files, ensure_ascii=False).encode("utf-8"))
+    stored = json.dumps(files, ensure_ascii=False) + json.dumps(
+        sorted(directories), ensure_ascii=False
+    )
+    return len(stored.encode("utf-8"))
 
 
 class CappedStateBackend(StateBackend):
@@ -63,7 +68,7 @@ class CappedStateBackend(StateBackend):
         files_before = dict(self.files)
         directories_before = set(self.directories)
         super().write_bytes(path, data)
-        size = document_size(self.files)
+        size = document_size(self.files, self.directories)
         if size <= self._max_bytes:
             return
         self.files.clear()

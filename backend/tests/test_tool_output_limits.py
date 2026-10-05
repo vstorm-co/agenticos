@@ -47,7 +47,7 @@ from app.agents.capabilities.tool_output_limits._capability import (
     _build_store,
     readable_return,
 )
-from tests.workspaces import document_workspace
+from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -177,6 +177,13 @@ class TestStore:
         first = await store.write("run-1/call-1.0", b"payload")
         second = await store.write("run-1/call-2.0", b"payload")
         assert log == [first, second]
+
+    async def test_a_container_s_failed_transfer_falls_back_too(self):
+        """A container moves the bytes through its shell, whose failure is a
+        `WorkspaceError` rather than the `OSError` of a full document."""
+        store = WorkspaceOverflowStore(ShellFailing(document_workspace()))
+        with pytest.raises(OverflowWriteError):
+            await store.write("run-1/call-1.0", b"payload")
 
     async def test_a_refused_write_records_nothing(self):
         log: list[str] = []

@@ -19,7 +19,7 @@ from pydantic_ai.messages import BinaryContent
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.services import attachments as attachments_module
 from app.services.attachments import AttachmentRouter, safe_name, workspace_path
-from tests.workspaces import document_workspace
+from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -252,6 +252,40 @@ class TestWithAWorkspace:
         assert "month,total" in prompt
         assert chat_file.filename in prompt
         assert not document.exists(workspace_path(chat_file))
+
+    async def test_a_container_that_cannot_take_the_file_still_names_it(self, storage):
+        """A container moves the bytes through its shell, which fails with
+        `WorkspaceError` - a full disk, an image missing `base64` - rather than the
+        `OSError` of a full document. Either way the turn goes on without the file
+        in the workspace, rather than failing before the model is asked."""
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(ShellFailing(document_workspace())).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        assert isinstance(prompt, str)
+        assert chat_file.filename in prompt
+        assert "could not be written" in prompt
+
+    async def test_a_parse_a_container_cannot_take_is_not_named(self, storage):
+        """The sibling write fails the same way, on its own."""
+
+        class _OnlyTheOriginal(ShellFailing):
+            async def write_bytes(self, path: str, data: bytes) -> None:
+                if path.endswith(".txt"):
+                    await super().write_bytes(path, data)
+                await self.wrapped.write_bytes(path, data)
+
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        document = _document()
+
+        prompt = await AttachmentRouter(
+            _OnlyTheOriginal(document_workspace(document))
+        ).build_prompt("read it", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+        assert "beside it at" not in prompt
 
     async def test_a_file_too_large_to_store_is_not_pasted_whole(self, storage):
         """The degradation used to run backwards.

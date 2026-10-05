@@ -28,7 +28,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai.workspaces import Workspace
+from pydantic_ai.workspaces import Workspace, WorkspaceError
 
 from app.core.blocking import run_blocking
 from app.core.config import settings
@@ -506,7 +506,7 @@ class AttachmentRouter:
             data = await get_file_storage().load(chat_file.storage_path)
             try:
                 await workspace.write_bytes(path, data)
-            except OSError as refused:
+            except (OSError, WorkspaceError) as refused:
                 # A full workspace, most likely - and that is exactly why this
                 # must not fall back to pasting the file. The write is refused
                 # when the document has no room for it, so this branch only ever
@@ -583,7 +583,7 @@ class AttachmentRouter:
             return
         try:
             await workspace.write_text(sibling, chat_file.parsed_content)
-        except OSError as refused:
+        except (OSError, WorkspaceError) as refused:
             # Not raised and not reported to the model here: `_sibling_present`
             # asks the workspace what is actually there, so a refused write simply
             # goes unnamed. The line is what tells an operator why.

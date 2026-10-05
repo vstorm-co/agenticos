@@ -38,6 +38,7 @@ from pydantic_ai.native_tools import ImageGenerationTool
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import record_ambient_usage
@@ -201,9 +202,11 @@ def build_image_toolset(
             try:
                 await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", image.data)
                 workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-            except OSError:
-                # A full workspace: the image is still stored and linked above,
-                # and naming a path that holds nothing would send the model to it.
+            except (OSError, WorkspaceError):
+                # A full workspace - a `state` document past its ceiling raises
+                # `OSError`, a container's shell `WorkspaceError` - the image is
+                # still stored and linked above, and naming a path that holds
+                # nothing would send the model to it.
                 logger.info("generated_image_not_written", extra={"leaf": leaf})
 
         return GeneratedImage(

@@ -369,6 +369,18 @@ class TestTheStorageCeiling:
 
         assert not await workspace.exists("/huge.txt")
 
+    def test_directories_count_against_the_ceiling(self):
+        """Every parent of a path is a directory stored beside the files, so a
+        path nested deep enough would otherwise grow the row uncounted."""
+        document = CappedStateBackend(max_bytes=4096)
+        deep = "/" + "/".join(f"level{n}" for n in range(200)) + "/f.txt"
+
+        with pytest.raises(OSError, match="workspace is full"):
+            document.write_bytes(deep, b"x")
+
+        assert document.files == {}
+        assert document.directories == set()
+
     def test_size_is_measured_as_the_document_that_gets_stored(self):
         document = StateBackend()
         document.write_bytes("/a.txt", b"x")

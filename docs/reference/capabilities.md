@@ -778,7 +778,7 @@ What each backend costs to run:
 
 | Backend | Needs | Shell | Where files live |
 |---|---|---|---|
-| `state` | nothing | no | this database — the files and the directories the agent made — capped at `SANDBOX_STATE_MAX_BYTES` |
+| `state` | nothing | no | this database, capped at `SANDBOX_STATE_MAX_BYTES` |
 | `service` | a registered connection | yes | a container on that host, or Daytona's cloud on the organization's own account |
 
 An operator can see what is running: Sandboxes lists this organization's open
