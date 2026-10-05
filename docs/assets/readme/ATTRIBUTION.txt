@@ -1,10 +1,10 @@
-Graphics in readmes/assets/
+Graphics in docs/assets/readme/, shown by README.md and its translations
 
 The diagrams and annotated overviews were rendered from the AgenticOS pre-sales
 deck (Vstorm). Product screens inside them are captures from a test deployment;
 figures are test records, not benchmarks.
 
-People avatars in company-architecture*.webp:
+People avatars in company-architecture-diagram.webp:
   "Notionists" by Zoish, remixed by DiceBear (https://www.dicebear.com/styles/notionists/),
   licensed under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
   Seeds: Kenji, Priya, Aneka, Hanna, Nora, Amara, Mila, Leo. Illustrations, not real people.
