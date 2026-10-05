@@ -17,7 +17,7 @@
   <a href="#-find-your-path">Find your path</a> &middot;
   <a href="#-what-ships-today">What ships</a> &middot;
   <a href="#-frequently-asked-questions">FAQ</a> &middot;
-  <a href="https://vstorm-co.github.io/agenticos/presentation/">Guided tour</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Introduction deck</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
 
@@ -39,7 +39,7 @@
 
 AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
-**New here?** Click through the [guided introduction](https://vstorm-co.github.io/agenticos/presentation/): 44 slides on the real product screens, from what AgenticOS is to how a first project starts. Arrow keys step through it; `O` lists every slide.
+**New here?** Click through the [14-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [44-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.
 
 ## 💡 What is AgenticOS?
 

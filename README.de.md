@@ -1,4 +1,4 @@
-<!-- source_sha: 25951a597b2f -->
+<!-- source_sha: f6a90173e627 -->
 
 <div align="center">
 
@@ -19,7 +19,7 @@
   <a href="#-finde-deinen-weg">Dein Weg</a> &middot;
   <a href="#-was-heute-enthalten-ist">Was enthalten ist</a> &middot;
   <a href="#-häufige-fragen">FAQ</a> &middot;
-  <a href="https://vstorm-co.github.io/agenticos/presentation/">Präsentation</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Einführungsfolien</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/de/">Dokumentation</a>
 </p>
 
@@ -41,7 +41,7 @@
 
 AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Dateien arbeiten, Code ausführen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff, Kosten und Ergebnisse an einem Ort.
 
-**Neu hier?** Klicke dich durch die [geführte Einführung](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): 44 Folien mit echten Produktbildschirmen, von der Frage, was AgenticOS ist, bis zum Start des ersten Projekts. Die Pfeiltasten blättern, `O` zeigt alle Folien.
+**Neu hier?** Klicke dich durch die [Einführung in 14 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 44 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
 
 ## 💡 Was ist AgenticOS?
 

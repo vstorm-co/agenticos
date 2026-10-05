@@ -1,4 +1,4 @@
-<!-- source_sha: 25951a597b2f -->
+<!-- source_sha: f6a90173e627 -->
 
 <div align="center">
 
@@ -19,7 +19,7 @@
   <a href="#-encuentra-tu-camino">Encuentra tu camino</a> &middot;
   <a href="#-qué-incluye-hoy">Qué incluye</a> &middot;
   <a href="#-preguntas-frecuentes">Preguntas frecuentes</a> &middot;
-  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentación</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentación introductoria</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/es/">Documentación</a>
 </p>
 
@@ -41,7 +41,7 @@
 
 AgenticOS es un espacio de trabajo autoalojado donde los agentes de IA trabajan con archivos, ejecutan código y usan las herramientas y el conocimiento de tu empresa. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso, su coste y sus resultados en un mismo lugar.
 
-**¿Primera vez aquí?** Recorre la [presentación guiada](https://vstorm-co.github.io/agenticos/presentation/) (en inglés): 44 diapositivas sobre las pantallas reales del producto, desde qué es AgenticOS hasta cómo empieza un primer proyecto. Las flechas avanzan paso a paso; `O` muestra todas las diapositivas.
+**¿Primera vez aquí?** Recorre la [introducción en 14 diapositivas](https://vstorm-co.github.io/agenticos/presentation/) (en inglés): el problema, la idea, el producto en pantallas reales, sus controles y sus límites, y cómo empezar. Para ver cada pantalla en detalle, abre el [recorrido del producto en 44 diapositivas](https://vstorm-co.github.io/agenticos/presentation/tour/). Las flechas avanzan paso a paso en ambas; `O` muestra todas las diapositivas.
 
 ## 💡 ¿Qué es AgenticOS?
 

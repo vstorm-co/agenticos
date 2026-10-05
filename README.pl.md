@@ -1,4 +1,4 @@
-<!-- source_sha: 25951a597b2f -->
+<!-- source_sha: f6a90173e627 -->
 
 <div align="center">
 
@@ -19,7 +19,7 @@
   <a href="#-znajdź-swoją-ścieżkę">Twoja ścieżka</a> &middot;
   <a href="#-co-jest-dostępne-już-dziś">Co jest dostępne</a> &middot;
   <a href="#-najczęściej-zadawane-pytania">FAQ</a> &middot;
-  <a href="https://vstorm-co.github.io/agenticos/presentation/">Prezentacja</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Prezentacja wprowadzająca</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/pl/">Dokumentacja</a>
 </p>
 
@@ -41,7 +41,7 @@
 
 AgenticOS to środowisko na własnej infrastrukturze, w którym agenci AI pracują z plikami, wykonują kod i korzystają z firmowych narzędzi oraz wiedzy. Twórz i publikuj agentów w przeglądarce, udostępniaj ich współpracownikom oraz zarządzaj ich dostępem, kosztami i wynikami w jednym miejscu.
 
-**Pierwszy raz tutaj?** Przejdź przez [prezentację wprowadzającą](https://vstorm-co.github.io/agenticos/presentation/) (po angielsku): 44 slajdy na prawdziwych ekranach produktu, od tego, czym jest AgenticOS, po start pierwszego projektu. Strzałki przełączają kroki, `O` pokazuje listę slajdów.
+**Pierwszy raz tutaj?** Przejdź przez [14-slajdowe wprowadzenie](https://vstorm-co.github.io/agenticos/presentation/) (po angielsku): problem, pomysł, produkt na prawdziwych ekranach, jego kontrole i ograniczenia oraz pierwsze kroki. Każdy ekran z bliska pokazuje [44-slajdowy przegląd produktu](https://vstorm-co.github.io/agenticos/presentation/tour/). Strzałki przełączają kroki w obu prezentacjach, `O` pokazuje listę slajdów.
 
 ## 💡 Czym jest AgenticOS?
 
