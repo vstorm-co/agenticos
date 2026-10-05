@@ -256,6 +256,16 @@ class TestCollectingWhatTheAgentChanged:
 
         assert await collect_changes(workspace, state) == []
 
+    async def test_a_loose_file_beside_the_skills_belongs_to_no_skill(self):
+        """A skill is a directory; a file the agent left directly under the skills
+        root has no name to be proposed under."""
+        document, workspace = _document()
+        state = await materialise(workspace, [_Skill()])
+
+        _write(document, f"{SKILLS_ROOT}/notes.md", "scratch")
+
+        assert await collect_changes(workspace, state) == []
+
     async def test_a_file_past_the_ceiling_is_dropped_rather_than_truncated(self):
         """Half a script is not a script, and storing it would offer a reviewer
         something that cannot be right."""

@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Agents work in Pydantic AI workspaces.** The sandbox, attachments, skills,
+  artifacts, generated images and spilled tool results all reach an agent's
+  files through the run's workspace, on Pydantic AI 2.54 and
+  `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
+  opened, so a conversation that continues on another host, or in another
+  environment, works in the workspace it has now.
+- **An empty directory an agent made is kept.** A stored workspace records the
+  directories beside the files, so `mkdir out` is still there next turn.
+- **The activity log names what reached the sandbox.** Operations are `read`,
+  `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
+  `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded
+  before keep their old names (`edit`, `glob_info`, `grep_raw`, `read_bytes`)
+  until retention removes them.
+- **An Anthropic agent with no `max_tokens` can answer at length.** Pydantic AI
+  now defaults it to the model's maximum output rather than 4,096 tokens. Set
+  `max_tokens` on the agent or its model profile to keep a ceiling.
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed

@@ -1874,10 +1874,17 @@ class _Sandboxes:
             def __init__(self, ref: WorkspaceRef) -> None:
                 super().__init__(sandboxes.root)
                 self._named = ref
+                self._opened = False
 
             @property
-            def ref(self) -> WorkspaceRef:
-                return self._named
+            def ref(self) -> WorkspaceRef | None:
+                # As a provider's backend: no ref until the first operation
+                # opened the session.
+                return self._named if self._opened else None
+
+            async def working_dir(self) -> str:
+                self._opened = True
+                return await super().working_dir()
 
             async def run(
                 self,
@@ -2147,10 +2154,27 @@ class TestContainerBackedWorkspaces:
             _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
         )
         assert workspace is not None
+        await workspace.workspace.write_text("notes.txt", "this run's")
         await service.close(workspace)
 
         assert sandboxes.destroyed == [workspace.workspace.ref]
         assert sandboxes.destroyed[0].id == workspace.scope_key
+
+    async def test_a_run_scoped_sandbox_nothing_touched_is_never_asked_for(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """The session opens on the first operation, so a run that never used its
+        workspace has nothing on the host, and removing it would be a round trip -
+        or, on Daytona, a lookup - for nothing."""
+        _serve(monkeypatch, _resolved())
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(backend="service", session_scope="run"), ctx=_ctx(), identity=_identity()
+        )
+        await service.close(workspace)
+
+        assert sandboxes.destroyed == []
 
     async def test_a_conversation_scoped_sandbox_outlives_the_run(
         self, monkeypatch, mock_db_session, sandboxes

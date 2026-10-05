@@ -186,7 +186,7 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
         return []
 
     changes: list[SkillChange] = []
-    for name, files in _by_skill(present).items():
+    for name, files in present.items():
         if files == {
             path: content for path, content in state.written.items() if _skill_of(path) == name
         }:
@@ -197,8 +197,8 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
     return changes
 
 
-async def _read_tree(workspace: Workspace) -> dict[str, str]:
-    """Every file one level inside a skill's directory under `SKILLS_ROOT`, by path.
+async def _read_tree(workspace: Workspace) -> dict[str, dict[str, str]]:
+    """Every file one level inside a skill's directory under `SKILLS_ROOT`, by skill and path.
 
     Two levels and no further, because that is the format: a skill is a directory
     of files, and `_skill_of` reads nothing deeper. Listed rather than globbed, so a
@@ -210,7 +210,7 @@ async def _read_tree(workspace: Workspace) -> dict[str, str]:
     script, and storing it as a proposal would offer a reviewer something that
     cannot be right.
     """
-    tree: dict[str, str] = {}
+    tree: dict[str, dict[str, str]] = {}
     try:
         skills = await workspace.list_dir(SKILLS_ROOT)
     except FileNotFoundError:
@@ -225,9 +225,9 @@ async def _read_tree(workspace: Workspace) -> dict[str, str]:
             if (entry.size or 0) > MAX_PROPOSED_BYTES:
                 logger.warning("skill_proposal_too_large", extra={"path": entry.path})
                 continue
-            tree[entry.path] = (await workspace.read_bytes(entry.path)).decode(
-                "utf-8", errors="replace"
-            )
+            tree.setdefault(skill.name, {})[entry.path] = (
+                await workspace.read_bytes(entry.path)
+            ).decode("utf-8", errors="replace")
     return tree
 
 
@@ -241,16 +241,6 @@ def _skill_of(path: str) -> str | None:
     rest = path[len(SKILLS_ROOT) + 1 :] if path.startswith(f"{SKILLS_ROOT}/") else ""
     parts = [part for part in rest.split("/") if part]
     return parts[0] if len(parts) == 2 else None
-
-
-def _by_skill(tree: dict[str, str]) -> dict[str, dict[str, str]]:
-    grouped: dict[str, dict[str, str]] = {}
-    for path, content in tree.items():
-        name = _skill_of(path)
-        if name is None:
-            continue
-        grouped.setdefault(name, {})[path] = content
-    return grouped
 
 
 def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillChange | None:
