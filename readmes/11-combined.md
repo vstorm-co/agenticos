@@ -3,9 +3,9 @@
 <h1><img src="../docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet" width="64" valign="middle"> AgenticOS</h1>
 
 <p>
-  <strong>Sovereign Agentic AI Layer</strong><br>
+  <sub><b>Sovereign Agentic AI Layer</b> &middot; Apache-2.0 &middot; built on Pydantic AI</sub><br>
   <b>AI agents your whole team can use and improve.</b><br>
-  Open source. Build shared agents in your browser, on infrastructure you control.
+  Self-hosted on infrastructure you control, with budgets, approvals and a recorded run.
 </p>
 
 <p>
@@ -17,7 +17,7 @@
   <a href="#-find-your-path">Find your path</a> &middot;
   <a href="#-what-ships-today">What ships</a> &middot;
   <a href="#-frequently-asked-questions">FAQ</a> &middot;
-  <a href="https://htmlpreview.github.io/?https://github.com/vstorm-co/agenticos/blob/codex/readme-product-tour/docs/presentation/index.html">Guided tour</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Guided tour</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
 
@@ -39,13 +39,15 @@
 
 AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
-**New here?** Click through the [guided introduction](https://htmlpreview.github.io/?https://github.com/vstorm-co/agenticos/blob/codex/readme-product-tour/docs/presentation/index.html): 44 slides on the real product screens, from what AgenticOS is to how a first project starts. Arrow keys step through it; `O` lists every slide.
+**New here?** Click through the [guided introduction](https://vstorm-co.github.io/agenticos/presentation/): 44 slides on the real product screens, from what AgenticOS is to how a first project starts. Arrow keys step through it; `O` lists every slide.
 
 ## 💡 What is AgenticOS?
 
 **AgenticOS is an open-source (Apache-2.0), self-hosted platform for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
 
-It runs on your own infrastructure with Docker Compose and works with 27 model providers, including local models through Ollama and vLLM. It is built on [Pydantic AI](https://ai.pydantic.dev), FastAPI, PostgreSQL with pgvector and Next.js, and maintained by [Vstorm](https://vstorm.co).
+Most agent frameworks give you a library, so every change to an agent's behaviour is a pull request, a review and a release. That is the wrong shape for the small agents a company actually wants, because the person who knows what the agent should say is not the person with commit access. **Code defines, configuration composes:** engineers extend what there is to assemble, and configuration can only ever reach what code registered.
+
+It runs on your own infrastructure with Docker Compose and works with 27 model providers, including local models through Ollama and vLLM. Agents run on [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); the platform around them uses FastAPI, PostgreSQL with pgvector and Next.js. It is maintained by [Vstorm](https://vstorm.co).
 
 **Who it is for:**
 
@@ -128,9 +130,7 @@ Start with Docker Compose and access to a model provider. On macOS or Linux, run
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on. The installer asks for a model provider and key, your login and an organization name, pulls the published images and starts a deployment with a working agent in it. A host with 4 vCPU and 8 GB of RAM runs it.
-
-Open **http://localhost:3000** and sign in with the login you chose during installation.
+On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on. The installer asks for a model provider and key, your login and an organization name, pulls the published images and starts a deployment with a working agent in it. A host with 4 vCPU and 8 GB of RAM runs it. Then open **http://localhost:3000** and sign in with the login you chose during installation.
 
 **Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources. Then pick a next task from [29 tutorials](https://vstorm-co.github.io/agenticos/use-cases/), each with a sample input and a check you can run.
 
@@ -169,7 +169,7 @@ If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](ht
 
 - **Skills** hold reusable procedures: how to review code, write a report or research a market. Maintain them once and reuse them across agents.
 - **Context** holds standing knowledge such as a glossary, policy or brand voice. Include it in the prompt or let the agent read it on demand.
-- **Knowledge bases (RAG)** make uploaded documents searchable. Choose parsing options, inspect processing status and chunks, or sync sources such as Google Drive, S3, Git, websites, SharePoint and OneDrive.
+- **Knowledge bases (RAG)** make uploaded documents searchable. Choose parsing options, inspect processing status and chunks, or sync them from a source listed below.
 
 <img src="assets/rag-pipeline.webp" alt="From a file to a cited answer: sources, read, split, embed, answer." width="100%">
 
@@ -238,12 +238,12 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 - **Vault:** a data key per secret, wrapped per organization and key version; master keys rotate; values are never shown again.
 - **Sandboxes:** the API holds no Docker socket; containers get no network unless needed, with CPU, process and time limits; gVisor optional.
 - **Audit log:** hash-chained per organization, verifiable and exportable.
+- **HIPAA profile:** [`deploy/profiles/hipaa/`](../deploy/profiles/hipaa/) and `agenticos cmd doctor --profile hipaa` check a running deployment against the §164.312 technical safeguards. It is a configuration check, not a certification. [What it does not claim](https://vstorm-co.github.io/agenticos/security/#the-hipaa-profile-and-what-it-does-not-claim)
 - **Stays with your IT:** disk encryption at rest, egress firewall, MFA through your identity provider (no native MFA, SAML or SCIM), and backups that include the vault key.
 
 [Security and data flows](https://vstorm-co.github.io/agenticos/security/) · [Data protection](https://vstorm-co.github.io/agenticos/data-protection/) · [Secrets](https://vstorm-co.github.io/agenticos/secrets/) · [SECURITY.md](../SECURITY.md)
 
 </details>
-
 
 <details>
 <summary><b>Looking for a first task</b>: 29 tutorials, each with a check you can run</summary>
@@ -321,12 +321,12 @@ AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis, P
 |---|---|
 | Console | Next.js |
 | API | FastAPI |
-| Agent runtime | Pydantic AI, one runner behind every surface |
+| Agent runtime | [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness), one runner behind every surface |
 | Background work | Prefect workers, Redis or Valkey |
 | Data | PostgreSQL with pgvector |
 | Code execution | Containers started by `sandboxd` |
 
-Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member, or stream tokens over the WebSocket. Today it runs on one host with Docker Compose; there are no Kubernetes manifests.
+Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated member, or stream tokens over the WebSocket.
 
 [Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) · [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
 
@@ -365,7 +365,7 @@ Monthly budgets per agent and per organisation are checked before each model req
 <details>
 <summary><b>How is it different from ChatGPT Enterprise, Copilot Studio or n8n?</b></summary>
 
-AgenticOS runs on your infrastructure with any of 27 model providers and has no seat or credit fee of its own. It builds agents for the organisation, published to chat, websites and APIs, rather than assistant seats for individual employees. Compared with n8n it starts from the agent rather than a workflow canvas, and many teams use both. [Comparisons](https://vstorm-co.github.io/agenticos/about/comparison/)
+AgenticOS runs on your infrastructure with any of 27 model providers and has no seat or credit fee of its own. It builds agents for the organisation, published to chat, websites and APIs, rather than assistant seats for individual employees. Compared with n8n it starts from the agent rather than a workflow canvas, and many teams use both. The guides also cover the self-hosted builder [Dify](https://vstorm-co.github.io/agenticos/about/dify/) and coding agents such as Claude Code. [Comparisons](https://vstorm-co.github.io/agenticos/about/comparison/)
 
 </details>
 
@@ -375,6 +375,13 @@ AgenticOS runs on your infrastructure with any of 27 model providers and has no 
 Docker Compose on one host. A machine with 4 vCPU and 8 GB of RAM runs it, and two API workers suit a team of ten. Someone needs to own updates, backups (including the vault key), access and the external services you connect. [Deploy](https://vstorm-co.github.io/agenticos/deploy/) · [Rollout](https://vstorm-co.github.io/agenticos/rollout/)
 
 </details>
+
+## 💬 Community
+
+- **Questions and ideas:** [GitHub Discussions](https://github.com/vstorm-co/agenticos/discussions).
+- **Bugs and requests:** [issues](https://github.com/vstorm-co/agenticos/issues); planned work is grouped into [milestones](https://github.com/vstorm-co/agenticos/milestones).
+- **Contributing:** read the [contributing guide](../CONTRIBUTING.md) and [code of conduct](../CODE_OF_CONDUCT.md). Report vulnerabilities privately as [SECURITY.md](../SECURITY.md) describes.
+- **Releases:** read the [release notes](https://vstorm-co.github.io/agenticos/release-notes/), or choose **Watch → Custom → Releases** on GitHub to be notified.
 
 ## 📄 License
 
