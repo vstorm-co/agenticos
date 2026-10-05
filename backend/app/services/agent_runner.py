@@ -71,6 +71,7 @@ from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience, derive_audience
@@ -1170,6 +1171,7 @@ class PreparedRun:
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
+                workspace=self._workspace(),
             )
 
     @asynccontextmanager
@@ -1208,8 +1210,19 @@ class PreparedRun:
                 deps=self.built.deps,
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
+                workspace=self._workspace(),
             ) as iteration:
                 yield iteration
+
+    def _workspace(self) -> Workspace | None:
+        """The workspace this run works in: the one the runner opened, if any.
+
+        Passed rather than left to a capability, so it also overrides the ref a
+        stored history names - the previous turn's, or one restored from another
+        environment. `None` leaves the agent's own, the in-memory fallback of a
+        spec run without the runner.
+        """
+        return None if self.workspace is None else self.workspace.workspace
 
 
 def _outcome(
@@ -2378,7 +2391,7 @@ class AgentRunnerService:
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
-            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.workspace
             resources[SPILL_LOG_RESOURCE] = workspace.spills
             spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
@@ -2393,12 +2406,12 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.backend, resources["skills"])
+            materialised = await materialise_skills(workspace.workspace, resources["skills"])
             if materialised.written:
                 spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as
             # the turn's own output.
-            started_with = await workspace_snapshot(workspace.backend)
+            started_with = await workspace_snapshot(workspace.workspace)
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -3326,7 +3339,7 @@ class AgentRunnerService:
         """
         if prepared.workspace is None:
             return
-        delivered = await files_written(prepared.workspace.backend, prepared.workspace_at_start)
+        delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
         prepared.outbound_refused.extend(delivered.refused)
 
@@ -3348,7 +3361,7 @@ class AgentRunnerService:
         if workspace is None or state is None or prepared.ctx is None:
             return
         try:
-            changes = await collect_changes(workspace.backend, state)
+            changes = await collect_changes(workspace.workspace, state)
             if changes:
                 await self.proposals.record(
                     prepared.ctx,
@@ -3676,7 +3689,7 @@ class AgentRunnerService:
         assembled: str | list[Any] = prompt
         if attachments:
             assembled = await AttachmentRouter(
-                prepared.workspace.backend if prepared.workspace is not None else None,
+                prepared.workspace.workspace if prepared.workspace is not None else None,
                 # Whether the workspace can read a PDF itself. Known, not inferred
                 # from the briefing: a briefing is a best effort and this decides
                 # whether the extracted text is written at all.

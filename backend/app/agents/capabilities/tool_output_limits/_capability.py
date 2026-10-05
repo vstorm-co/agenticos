@@ -51,7 +51,8 @@ from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
 from pydantic_ai.toolsets import AgentToolset
-from pydantic_ai_backends import StateBackend
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import StateWorkspace
 from pydantic_ai_harness.tool_output_limits import (
     READ_TOOL_NAME,
     Action,
@@ -72,7 +73,7 @@ from app.agents.capabilities.budget import (
     usage_counts,
     usage_delta,
 )
-from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
+from app.agents.capabilities.tool_output_limits._store import WorkspaceOverflowStore
 
 DEFAULT_THRESHOLD = 60_000
 """Characters at or above which a return is reduced, when a binding names none.
@@ -250,38 +251,43 @@ def _action(config: ToolOutputLimitsConfig) -> Action:
     return Summarize(then=spill)
 
 
-def _build_store(backend: Any, spill_log: list[str] | None = None) -> BackendOverflowStore:
-    """Where spills go: the run's own backend, or an ephemeral one built for it.
+def _build_store(
+    workspace: Workspace | None, spill_log: list[str] | None = None
+) -> WorkspaceOverflowStore:
+    """Where spills go: the run's own workspace, or an ephemeral one built for it.
 
-    An agent that binds `sandbox` has a backend the runner opened and keyed to the
-    organization; a spill lives and dies with that workspace, which on the default
-    `run` scope is exactly the run. On a longer-scoped workspace (`conversation`,
-    `user`, `agent`) a spill must not outlive the run either, and each backend
-    shape has its own mechanism: a `state` workspace has the reserved prefix
-    stripped at flush, so spills never enter the persisted document, and a
-    *container* workspace has this run's handles - recorded in `spill_log` -
-    deleted off its filesystem when the workspace closes (#803).
+    An agent that binds `sandbox` has a workspace the runner opened and keyed to
+    the organization; a spill lives and dies with it, which on the default `run`
+    scope is exactly the run. On a longer-scoped workspace (`conversation`,
+    `user`, `agent`) a spill must not outlive the run either, and each kind has
+    its own mechanism: a `state` workspace has the reserved prefix stripped at
+    flush, so spills never enter the persisted document, and a *container*
+    workspace has this run's handles - recorded in `spill_log` - deleted off its
+    filesystem when the workspace closes (#803).
 
-    An agent with no backend gets a fresh in-memory `StateBackend` here, so the
-    store is per-run and process-local rather than on shared disk. The fallback is
+    An agent with no workspace gets a fresh in-memory document here, so the store
+    is per-run and process-local rather than on shared disk. The fallback is
     uncapped: the store itself grows with each spill, but nothing is persisted and
     the run bounds how much it can accumulate before it is discarded whole. No
-    handles are recorded for it - there is nothing to delete from a backend that
+    handles are recorded for it - there is nothing to delete from a document that
     dies with the run.
     """
-    if backend is None:
-        return BackendOverflowStore(StateBackend())
-    return BackendOverflowStore(backend, spill_log=spill_log)
+    if workspace is None:
+        return WorkspaceOverflowStore(Workspace(StateWorkspace().backend()))
+    return WorkspaceOverflowStore(workspace, spill_log=spill_log)
 
 
 def build_limits(
-    config: ToolOutputLimitsConfig, *, backend: Any, spill_log: list[str] | None = None
+    config: ToolOutputLimitsConfig,
+    *,
+    workspace: Workspace | None,
+    spill_log: list[str] | None = None,
 ) -> ToolOutputLimits[object]:
-    """The harness capability this configuration asks for, spilling to `backend`."""
+    """The harness capability this configuration asks for, spilling into `workspace`."""
     return ToolOutputLimits(
         bands=[Band(over=config.threshold, action=_action(config))],
         over_tokens=config.over_tokens,
-        store=_build_store(backend, spill_log),
+        store=_build_store(workspace, spill_log),
         strip_ansi=config.strip_ansi,
         summary_prompt=config.summary_prompt,
         serializer=readable_return,

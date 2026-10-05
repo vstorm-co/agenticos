@@ -65,6 +65,7 @@ async def save_files(
     *,
     workspace: AgentWorkspace,
     files: dict[str, Any],
+    directories: list[str],
     bytes_total: int,
 ) -> AgentWorkspace:
     """Store the document this run produced, bumping the version.
@@ -81,6 +82,7 @@ async def save_files(
     can reach the race at all.
     """
     workspace.files = files
+    workspace.directories = directories
     workspace.bytes_total = bytes_total
     workspace.version += 1
     workspace.last_used_at = datetime.now(UTC)

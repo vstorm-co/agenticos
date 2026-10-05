@@ -114,6 +114,14 @@ class AgentWorkspace(Base, TimestampMixin):
     and storing it as a blob would give up every query a dashboard might want.
     """
 
+    directories: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    """The directories the `state` document created, beside `files`.
+
+    A directory holding a file exists anyway; this keeps one `make_dir` made, or
+    one the agent emptied - as the library persists a document. Null for a row
+    from before it was kept, which loads as none created.
+    """
+
     bytes_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     """Size of `files`, maintained on write so a cap can be enforced without
     measuring the document on every read."""

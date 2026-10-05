@@ -1,21 +1,29 @@
-"""A backend that records what was done to it, so the log outlives the service.
+"""A workspace that records what was done to it, so the log outlives the service.
 
 The sandbox service keeps its own activity log and it is a 200-entry ring buffer
 in that process's memory: what it dropped cannot be asked for, and restarting the
 service loses every log on the host (agenticos#1061). Every workspace call already
 passes through this application, so the record is ours to make.
 
-**A wrapper rather than a call in each tool.** The capability's tools reach the
-backend through this one object, so wrapping it records every operation exactly
-once and cannot be forgotten by whoever adds the ninth tool - the same reason
-`CappedStateBackend` is a wrapper and `ensure_async` is a wrapper.
+**A wrapper around the workspace rather than a call in each tool.** Every tool
+reaches the sandbox through the run's workspace - the console's seven, a
+harness capability's, a skill's script - so wrapping it records every operation
+exactly once and cannot be forgotten by whoever adds the next tool.
+
+**Recorded at the workspace's level, named as before.** An operation is what
+reached the sandbox: `read`, `write`, `ls_info`, `execute`, and now `mkdir` and
+`remove`. A tool that is several operations shows as each of them - an edit is a
+`read` and a `write`, a `glob` or a `grep` the `execute` of the `find` or `grep`
+it ran - which is what happened in the sandbox, and the filter keeps working on
+the names it already had. Checks (`exists`, `stat`) are questions rather than
+operations, and a log full of them would bury the writes somebody came to read.
 
 **What is written is a path, never a payload.** `write` records the path and how
-many bytes; `exec` records the command and never its output; `read` records the
-path and never the contents. These rows are readable by everyone who can see the
-sandbox, and a log that carried contents would be a way to read an agent's work
-rather than an audit of it - which is the line the service itself draws and the
-sentence the dialog already shows.
+many bytes; `execute` records the command and never its output; `read` records
+the path and never the contents. These rows are readable by everyone who can see
+the sandbox, and a log that carried contents would be a way to read an agent's
+work rather than an audit of it - which is the line the service itself draws and
+the sentence the dialog already shows.
 
 **And the rows land when the run's transaction commits**, because they are written
 into the run's own session rather than a connection per tool call. So a turn's
@@ -26,35 +34,32 @@ transaction that could commit a log for a run that then rolled back.
 
 from __future__ import annotations
 
-import inspect
 import logging
+import shlex
 import time
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, TypeVar
 from uuid import UUID
+
+from pydantic_ai.workspaces import (
+    CommandResult,
+    FileEntry,
+    Workspace,
+    WorkspaceCommand,
+    WrapperWorkspace,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# The methods worth recording, and what each one's `target` is. A method absent
-# here is delegated untouched: `exists` and `is_alive` are questions rather than
-# operations, and a log full of them would bury the writes somebody came to read.
-_TARGET_ARG = {
-    "write": 0,
-    "edit": 0,
-    "read": 0,
-    "read_bytes": 0,
-    "ls_info": 0,
-    "glob_info": 0,
-    "grep_raw": 0,
-    "execute": 0,
-}
-
 _MAX_TARGET = 512
 
+_T = TypeVar("_T")
 
-def _target(value: object) -> str:
+
+def _target(value: str) -> str:
     """One operation's subject, as a bounded string.
 
     A command is whatever the model wrote and a path is whatever it chose, so both
@@ -62,22 +67,19 @@ def _target(value: object) -> str:
     refused: a log that dropped an operation because its command was long would be
     missing exactly the entry somebody is looking for.
     """
-    text = value if isinstance(value, str) else repr(value)
-    return text[:_MAX_TARGET]
+    return value[:_MAX_TARGET]
 
 
-class RecordingBackend:
-    """Delegates every call, and records the ones that change or read a workspace.
+def _command_text(command: WorkspaceCommand) -> str:
+    return command if isinstance(command, str) else shlex.join(command)
 
-    `__getattr__` rather than a method per operation, deliberately: the backend
-    protocol has grown twice and a hand-written façade is a façade that silently
-    stops recording whatever was added. What is *not* recorded is a short list
-    above, which is the decision worth reading rather than eight identical methods.
-    """
+
+class RecordingWorkspace(WrapperWorkspace):
+    """Delegates every call, and records the ones that change or read a workspace."""
 
     def __init__(
         self,
-        backend: Any,
+        wrapped: Workspace,
         *,
         db: AsyncSession,
         organization_id: UUID,
@@ -85,7 +87,7 @@ class RecordingBackend:
         agent_id: UUID | None,
         run_id: UUID | None = None,
     ) -> None:
-        self._backend = backend
+        super().__init__(wrapped)
         self._db = db
         self._organization_id = organization_id
         self._session_key = session_key
@@ -96,109 +98,69 @@ class RecordingBackend:
         # "which execution did this" had no answer (the attribution #1061 is for).
         self.run_id = run_id
 
-    def __getattr__(self, name: str) -> Any:
-        attribute = getattr(self._backend, name)
-        if name not in _TARGET_ARG or not callable(attribute):
-            return attribute
-        # Transparent about *which* kind of callable it is, which is not a detail:
-        # a container's backend is synchronous and `_prune_spills` runs its
-        # `execute` through `asyncio.to_thread`. Return an async wrapper for it and
-        # `to_thread` hands back a coroutine nobody awaits - the command never runs,
-        # and its caller reads the missing `exit_code` as success. Recording needs
-        # no await of its own (`Session.add` is synchronous), so both shapes are
-        # available.
-        if inspect.iscoroutinefunction(attribute):
-
-            async def recorded_async(*args: Any, **kwargs: Any) -> Any:
-                started = time.monotonic()
-                try:
-                    result = await attribute(*args, **kwargs)
-                except Exception as exc:
-                    self._failed(name, args, exc, time.monotonic() - started)
-                    raise
-                self._finished(name, args, result, time.monotonic() - started)
-                return result
-
-            return recorded_async
-
-        def recorded(*args: Any, **kwargs: Any) -> Any:
-            started = time.monotonic()
-            try:
-                result = attribute(*args, **kwargs)
-            except Exception as exc:
-                self._failed(name, args, exc, time.monotonic() - started)
-                raise
-            self._finished(name, args, result, time.monotonic() - started)
-            return result
-
-        return recorded
-
-    def _failed(self, name: str, args: tuple[Any, ...], exc: Exception, elapsed: float) -> None:
-        self._record(name, args, ok=False, detail=exc.__class__.__name__, elapsed=elapsed)
-
-    def _finished(self, name: str, args: tuple[Any, ...], result: Any, elapsed: float) -> None:
-        self._record(
-            name,
-            args,
-            ok=self._succeeded(result),
-            detail=self._detail(name, result),
-            elapsed=elapsed,
+    async def read_bytes(self, path: str) -> bytes:
+        return await self._recorded(
+            "read", path, super().read_bytes(path), lambda data: (True, f"{len(data)} bytes")
         )
 
-    @staticmethod
-    def _succeeded(result: Any) -> bool:
-        """Whether the backend's own answer says the operation worked.
+    async def write_bytes(self, path: str, data: bytes) -> None:
+        await self._recorded(
+            "write", path, super().write_bytes(path, data), lambda _: (True, f"{len(data)} bytes")
+        )
 
-        A `WriteResult` carries an `error`, and a write refused by a full document
-        answers rather than raising - so a log that read every non-exception as a
-        success would record a write that never happened as one that did. A
-        command's failure is its exit code: `false`, a failing compiler or a
-        refused script exit nonzero without raising and without an `error`, and
-        an audit log that painted those green would say the sandbox did what it
-        visibly did not.
-        """
-        if getattr(result, "error", None) is not None:
-            return False
-        exit_code = getattr(result, "exit_code", None)
-        return exit_code is None or exit_code == 0
+    async def list_dir(self, path: str) -> Sequence[FileEntry]:
+        return await self._recorded(
+            "ls_info", path, super().list_dir(path), lambda found: (True, f"{len(found)} results")
+        )
 
-    @staticmethod
-    def _detail(name: str, result: Any) -> str:
-        """One line about the outcome, written here and never quoted from below.
+    async def make_dir(self, path: str) -> None:
+        await self._recorded("mkdir", path, super().make_dir(path), lambda _: (True, ""))
 
-        A shell's own message *is* the command's output and an HTTP client's
-        carries the failing request, so neither may be stored (#423). What is
-        stored is a size or a count - the fact somebody auditing wants, which
-        happens also to be the fact that reveals nothing.
-        """
-        error = getattr(result, "error", None)
-        if error is not None:
-            return "refused"
-        exit_code = getattr(result, "exit_code", None)
-        if exit_code is not None and exit_code != 0:
-            # The numeric status is the one safe fact about a failed command -
-            # its output is the command's own text and stays out (#423).
-            return f"exit {exit_code}"
-        if name in {"read", "read_bytes"}:
-            return f"{len(result)} bytes" if hasattr(result, "__len__") else ""
-        if name in {"ls_info", "glob_info", "grep_raw"}:
-            return f"{len(result)} results" if hasattr(result, "__len__") else ""
-        return ""
+    async def remove(self, path: str) -> None:
+        await self._recorded("remove", path, super().remove(path), lambda _: (True, ""))
 
-    def _record(
-        self, op: str, args: tuple[Any, ...], *, ok: bool, detail: str, elapsed: float
-    ) -> None:
+    async def run(
+        self,
+        command: WorkspaceCommand,
+        *,
+        shell: bool = False,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> CommandResult:
+        return await self._recorded(
+            "execute",
+            _command_text(command),
+            super().run(command, shell=shell, env=env, timeout=timeout),
+            _command_outcome,
+        )
+
+    async def _recorded(
+        self,
+        op: str,
+        target: str,
+        call: Awaitable[_T],
+        outcome: Callable[[_T], tuple[bool, str]],
+    ) -> _T:
+        started = time.monotonic()
+        try:
+            result = await call
+        except Exception as exc:
+            # The class, never the message: a shell's message is the command's
+            # own output and an HTTP client's carries the failing request (#423).
+            self._record(op, target, ok=False, detail=exc.__class__.__name__, started=started)
+            raise
+        ok, detail = outcome(result)
+        self._record(op, target, ok=ok, detail=detail, started=started)
+        return result
+
+    def _record(self, op: str, target: str, *, ok: bool, detail: str, started: float) -> None:
         """Add the row. A failure to record never fails the operation.
-
-        Synchronous, because `Session.add` is - which is what lets the wrapper stay
-        transparent about whether the method it wraps was a coroutine function.
 
         The log is an audit and the operation is the work: losing an entry is worth
         knowing about in a log line, and is not worth failing an agent's write for.
         """
         from app.db.models.sandbox_operation import SandboxOperation
 
-        index = _TARGET_ARG[op]
         try:
             self._db.add(
                 SandboxOperation(
@@ -207,11 +169,22 @@ class RecordingBackend:
                     run_id=self.run_id,
                     session_key=self._session_key,
                     op=op,
-                    target=_target(args[index]) if len(args) > index else "",
+                    target=_target(target),
                     detail=detail,
                     ok=ok,
-                    duration_ms=max(0, int(elapsed * 1000)),
+                    duration_ms=max(0, int((time.monotonic() - started) * 1000)),
                 )
             )
         except Exception:
             logger.warning("sandbox_operation_not_recorded", extra={"op": op})
+
+
+def _command_outcome(result: CommandResult) -> tuple[bool, str]:
+    """A command's failure is its exit code: `false`, a failing compiler or a
+    refused script exit nonzero without raising, and an audit log that painted
+    those green would say the sandbox did what it visibly did not. The numeric
+    status is the one safe fact about it - its output is the command's own text
+    and stays out (#423)."""
+    if result.exit_code == 0:
+        return True, ""
+    return False, f"exit {result.exit_code}"

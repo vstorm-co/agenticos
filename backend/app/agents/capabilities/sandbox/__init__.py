@@ -19,11 +19,11 @@ one whose entrypoint mounts the host.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from pydantic_ai_backends import ConsoleCapability
+from pydantic_ai.capabilities import CombinedCapability
 
 from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.sandbox._capability import WORKSPACE_TOOLS, build_workspace
@@ -46,11 +46,14 @@ __all__ = [
 ]
 
 WORKSPACE_BACKEND_RESOURCE = "workspace_backend"
-"""Where the runner leaves the backend it opened for this run.
+"""Where the runner leaves the workspace it opened for this run.
 
 Resolved outside the capability because opening one reads and writes the
 database - loading a stored `state` document, recording which session id belongs
 to which conversation - and a capability must never reach the database itself.
+The tools work in `ctx.workspace`, which the runner sets by passing this same
+workspace to the run; the resource is for what happens around the tools -
+staging skills and attachments into it, an artifact read out of it.
 Absent for a preview or a unit test, where an in-memory workspace that lives and
 dies with the run is the honest answer rather than an error.
 """
@@ -144,15 +147,12 @@ class SandboxConfig(BaseModel):
     # concept with the Daytona account an organization bills its cloud sandboxes
     # to. A connection carries both.
 )
-def _build(ctx: CapabilityBuildContext) -> ConsoleCapability:
-    """Wrap the backend the runner opened in the library's console toolset.
+def _build(ctx: CapabilityBuildContext) -> CombinedCapability[Any]:
+    """The library's console tools, working in the run's workspace.
 
-    The backend arrives through `resources` rather than being built here:
-    opening one reads the database, and this runs inside `build_agent`, which
-    has no session and must not acquire one.
+    The workspace is not built here: opening one reads the database, and this
+    runs inside `build_agent`, which has no session and must not acquire one.
+    The runner opens it and passes it to the run.
     """
     config = ctx.config if isinstance(ctx.config, SandboxConfig) else SandboxConfig()
-    return build_workspace(
-        backend=ctx.resources.get(WORKSPACE_BACKEND_RESOURCE),
-        include_execute=config.include_execute,
-    )
+    return build_workspace(include_execute=config.include_execute)

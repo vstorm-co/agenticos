@@ -11,7 +11,8 @@ from pydantic_ai.exceptions import ModelRetry, UserError
 from pydantic_ai.messages import BinaryImage
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from pydantic_ai_backends import StateBackend, ensure_async
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities import get
 from app.agents.capabilities._registry import CapabilityBinding
@@ -23,9 +24,11 @@ from app.agents.capabilities.image_generation._toolset import (
     build_image_toolset,
     parse_generated_image,
 )
+from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.core.secret_kinds import ApiKeySecret
+from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -69,14 +72,23 @@ def _fakes(monkeypatch: pytest.MonkeyPatch, tmp_path):
     _FakeAgent.raise_exc = None
 
 
-def _ctx(organization_id: Any, *, retry: int = 0, max_retries: int = 1) -> RunContext[AgentDeps]:
-    return RunContext(
+def _ctx(
+    organization_id: Any,
+    *,
+    retry: int = 0,
+    max_retries: int = 1,
+    workspace: Workspace | None = None,
+) -> RunContext[AgentDeps]:
+    ctx = RunContext(
         deps=AgentDeps(organization_id=organization_id),
         model=TestModel(),
         usage=RunUsage(),
         retry=retry,
         max_retries=max_retries,
     )
+    if workspace is not None:
+        ctx.workspace = workspace
+    return ctx
 
 
 async def _generate(toolset: Any, ctx: RunContext[AgentDeps], prompt: str = "a red bicycle") -> str:
@@ -112,7 +124,7 @@ def test_the_builder_reads_the_key_and_the_config():
 async def test_generating_an_image_stores_it_meters_it_and_returns_a_reference():
     organization_id = uuid4()
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}, workspace_backend=None
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
     )
     ledger = SpendLedger()
     with metered_by(ledger):
@@ -129,24 +141,35 @@ async def test_generating_an_image_stores_it_meters_it_and_returns_a_reference()
 
 
 async def test_a_generated_image_is_also_written_into_an_open_workspace():
-    backend = StateBackend()
+    document = StateBackend()
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4",
-        api_key="k",
-        tool_settings={},
-        workspace_backend=backend,
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
     )
-    result = await _generate(toolset, _ctx(uuid4()))
+    result = await _generate(toolset, _ctx(uuid4(), workspace=document_workspace(document)))
 
     image = parse_generated_image(result)
     assert image is not None and image.workspace_path is not None
     assert image.workspace_path.startswith(f"{WORKSPACE_OUTPUT_DIR}/")
-    assert await ensure_async(backend).read_bytes(image.workspace_path) == _IMAGE.data
+    assert document.read_bytes(image.workspace_path) == _IMAGE.data
+
+
+async def test_a_full_workspace_names_no_path_for_the_image():
+    """The image is still stored and linked; a path holding nothing would send the
+    model to read it."""
+    workspace = document_workspace(CappedStateBackend(max_bytes=10))
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
+    )
+
+    image = parse_generated_image(await _generate(toolset, _ctx(uuid4(), workspace=workspace)))
+
+    assert image is not None and image.url is not None
+    assert image.workspace_path is None
 
 
 async def test_without_an_organization_the_image_is_generated_but_not_stored():
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}, workspace_backend=None
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
     )
     ledger = SpendLedger()
     with metered_by(ledger):
@@ -162,7 +185,7 @@ async def test_without_an_organization_the_image_is_generated_but_not_stored():
 
 async def test_without_a_key_it_refuses_before_spending_or_storing():
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4", api_key=None, tool_settings={}, workspace_backend=None
+        model_id="openai-responses:gpt-5.4", api_key=None, tool_settings={}
     )
     ledger = SpendLedger()
     with metered_by(ledger), pytest.raises(ModelRetry):
@@ -173,7 +196,7 @@ async def test_without_a_key_it_refuses_before_spending_or_storing():
 async def test_a_failing_image_model_asks_the_model_to_retry():
     _FakeAgent.raise_exc = UserError("that prompt was rejected")
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}, workspace_backend=None
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
     )
     with pytest.raises(ModelRetry, match="Image generation failed"):
         await _generate(toolset, _ctx(uuid4()))
@@ -183,7 +206,7 @@ async def test_the_last_attempt_answers_rather_than_ending_the_run():
     """A `ModelRetry` past the tool's budget ends the conversation."""
     _FakeAgent.raise_exc = UserError("that prompt was rejected")
     toolset = build_image_toolset(
-        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}, workspace_backend=None
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}
     )
 
     answered = await _generate(toolset, _ctx(uuid4(), retry=1))

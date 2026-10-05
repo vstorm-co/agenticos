@@ -26,7 +26,6 @@ import asyncio
 import base64
 import contextlib
 import logging
-import shlex
 from binascii import Error as BinasciiError
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -37,7 +36,13 @@ from typing import Any
 from uuid import UUID
 
 from PIL import Image, ImageOps
-from pydantic_ai_backends import FileData, FileInfo
+from pydantic_ai.workspaces import Workspace, WorkspaceRef
+from pydantic_ai_backends import FileData, FileInfo, StateBackend
+from pydantic_ai_backends.workspaces import (
+    DaytonaWorkspace,
+    SandboxdWorkspace,
+    StateWorkspaceBackend,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
@@ -49,7 +54,7 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
-from app.agents.capabilities.sandbox._recording import RecordingBackend
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
 from app.core.config import settings
@@ -67,6 +72,9 @@ from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREF
 logger = logging.getLogger(__name__)
 
 SANDBOX_CAPABILITY_ID = "sandbox"
+
+STATE_PROVIDER = "state"
+"""`WorkspaceRef.provider` of a stored document, as `StateWorkspace` names it."""
 
 _MAX_LISTED_DEPTH = 6
 """How deep a workspace listing walks. A directory is a round trip to the host."""
@@ -215,7 +223,11 @@ class FlatFileListing:
 class OpenWorkspace:
     """A workspace a run is using, and what it takes to put it away."""
 
-    backend: Any
+    workspace: Workspace
+    """What the run works in. The runner passes it to the run as `workspace=`,
+    which is what every tool reaches as `ctx.workspace`, and stages skills and
+    attachments into it beforehand."""
+
     kind: BackendKind
     scope: SessionScope
     scope_key: str
@@ -255,6 +267,12 @@ class OpenWorkspace:
     container-backed one, which keeps its files on the host rather than here.
     """
 
+    document: CappedStateBackend | None = None
+    """The stored document a `state` workspace works in, flushed back at close."""
+
+    sandbox: SandboxdWorkspace | DaytonaWorkspace | None = None
+    """What supplies a container-backed workspace, for removing a `run`-scoped one."""
+
     spills: list[str] = field(default_factory=list)
     """Every spill handle `tool_output_limits` wrote to this workspace this run.
 
@@ -280,29 +298,25 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     return None
 
 
-def _without_spills(files: dict[str, FileData]) -> dict[str, FileData]:
-    """The workspace document with `tool_output_limits` spills stripped out (#803).
+def _is_spill(path: str) -> bool:
+    """Whether a path in the stored document is a `tool_output_limits` spill (#803).
 
-    A spilled tool return goes to the run's backend under the reserved
+    A spilled tool return goes to the run's workspace under the reserved
     `tool_output/` prefix so `read_tool_result` can page through it, but it is a
     within-run artefact and must never survive into the persisted document. On a
     longer-scoped state workspace it otherwise accumulates every run and counts
     against `SANDBOX_STATE_MAX_BYTES`, until the cap starts refusing the agent's
     own writes. Stripping it at flush keeps the invariant "the stored document
     holds the agent's files, never its spills", every run self-healing whatever a
-    prior one left. Backend keys are normalized with a leading slash; the
+    prior one left. Document keys are normalized with a leading slash; the
     `lstrip` tolerates both forms.
     """
-
-    def _is_spill(path: str) -> bool:
-        relative = path.lstrip("/")
-        return relative == OVERFLOW_PREFIX or relative.startswith(f"{OVERFLOW_PREFIX}/")
-
-    return {path: data for path, data in files.items() if not _is_spill(path)}
+    relative = path.lstrip("/")
+    return relative == OVERFLOW_PREFIX or relative.startswith(f"{OVERFLOW_PREFIX}/")
 
 
-def _without_legacy_skills(files: dict[str, FileData]) -> dict[str, FileData]:
-    """The same files without the skills tree that predates the move inside the workspace.
+def _is_legacy_skill(path: str) -> bool:
+    """Whether a path is in the skills tree that predates the move inside the workspace.
 
     A conversation-, user- or agent-scoped `state` workspace created before skills
     moved to `SKILLS_ROOT` still holds them under `LEGACY_SKILLS_ROOT`, and nothing
@@ -317,9 +331,8 @@ def _without_legacy_skills(files: dict[str, FileData]) -> dict[str, FileData]:
     `workspace/skills/...`, which is not under the legacy prefix.
     """
     legacy = LEGACY_SKILLS_ROOT.strip("/")
-    return {
-        path: data for path, data in files.items() if not path.lstrip("/").startswith(f"{legacy}/")
-    }
+    relative = path.lstrip("/")
+    return relative == legacy or relative.startswith(f"{legacy}/")
 
 
 def _under_overflow(path: str) -> bool:
@@ -433,16 +446,20 @@ class SandboxWorkspaceService:
         key: str,
         scope: SessionScope,
     ) -> OpenWorkspace:
-        from pydantic_ai_backends import StateBackend
-
         row = await self._row(config, identity, key, scope)
-        stored = dict(row.files or {}) if row is not None else {}
-        backend = CappedStateBackend(
-            StateBackend(files=stored),  # type: ignore[arg-type]
+        document = CappedStateBackend(
+            dict(row.files or {}) if row is not None else {},
+            row.directories or () if row is not None else (),
             max_bytes=settings.SANDBOX_STATE_MAX_BYTES,
         )
+        # Served under the scope key, so a history that names it - the ref the
+        # last run recorded - names this very document.
+        backend = StateWorkspaceBackend(
+            {key: document}, ref=WorkspaceRef(provider=STATE_PROVIDER, id=key)
+        )
         return OpenWorkspace(
-            backend=backend,
+            workspace=Workspace(backend),
+            document=document,
             kind="state",
             scope=scope,
             scope_key=key,
@@ -460,9 +477,10 @@ class SandboxWorkspaceService:
     ) -> OpenWorkspace:
         """A workspace on one of the organization's registered connections.
 
-        Nothing starts here. `RemoteSandbox` opens its session on the first
-        operation, so an agent granted a workspace it never touches costs no
-        container and not even a round trip.
+        Nothing starts here. The workspace opens its session on the first
+        operation - under the scope key, attaching when it exists - so an agent
+        granted a workspace it never touches costs no container and not even a
+        round trip.
 
         The connection arrives resolved rather than being read from settings,
         which is what makes two hosts possible and what keeps the credential in
@@ -472,10 +490,10 @@ class SandboxWorkspaceService:
         """
         briefing: str | None = None
         parses_documents = False
-        if resolved.kind == "daytona":
-            backend = self._daytona(key, resolved)
-        else:
-            backend = self._sandboxd(config, identity, key, resolved)
+        sandbox = self._service_capability(
+            resolved, key, runtime=config.runtime, tenant=str(identity.organization_id)
+        )
+        if resolved.kind != "daytona":
             alias = config.runtime or resolved.row.default_runtime or None
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
@@ -488,8 +506,8 @@ class SandboxWorkspaceService:
         # memory, gone on restart, so a sandbox that outlives the service's uptime
         # had no audit at all (#1061). Wrapping here rather than calling from each
         # tool is what makes it impossible to forget for the ninth tool.
-        recorder = RecordingBackend(
-            backend,
+        recorder = RecordingWorkspace(
+            Workspace(sandbox.backend()),
             db=self.db,
             organization_id=identity.organization_id,
             session_key=key,
@@ -497,7 +515,8 @@ class SandboxWorkspaceService:
             run_id=identity.run_id,
         )
         return OpenWorkspace(
-            backend=recorder,
+            workspace=recorder,
+            sandbox=sandbox,
             kind="service",
             scope=scope,
             scope_key=key,
@@ -508,41 +527,53 @@ class SandboxWorkspaceService:
         )
 
     @staticmethod
-    def _sandboxd(
-        config: SandboxConfig,
-        identity: WorkspaceIdentity,
-        key: str,
+    def _service_capability(
         resolved: ResolvedConnection,
-    ) -> Any:
-        from pydantic_ai_backends.remote import RemoteSandbox
+        key: str,
+        *,
+        runtime: str | None = None,
+        tenant: str | None = None,
+    ) -> SandboxdWorkspace | DaytonaWorkspace:
+        """What supplies the sandbox named `key` on one of the organization's connections.
 
-        return RemoteSandbox(
-            resolved.row.base_url or "",
+        Named by the key rather than by the provider: the key is where "who shares
+        files with whom" became mechanical (`scope_key`), so every run of a scope
+        opens the same session - and the first of two concurrent ones creates it
+        while the other attaches - without this database recording a provider's
+        id first.
+        """
+        if resolved.kind == "daytona":
+            from daytona import DaytonaConfig
+
+            # The organization's own key, from the connection, from the vault. Never
+            # the SDK's `DAYTONA_API_KEY` fallback, which would put every tenant's
+            # sandboxes on whichever account the deployment happens to have set.
+            return DaytonaWorkspace(config=DaytonaConfig(api_key=resolved.token), sandbox_name=key)
+        if not resolved.row.base_url:
+            # Without an address the client would post the organization's token
+            # at whatever a relative URL resolves to.
+            raise BadRequestError(
+                message="This sandbox connection has no address.",
+                details={"connection_id": str(resolved.row.id)},
+            )
+        return SandboxdWorkspace(
+            service_url=resolved.row.base_url,
             token=resolved.token,
-            session_id=key,
+            # One provider name per connection, so a ref from one host is never
+            # read as a session on another.
+            provider=f"sandboxd:{resolved.row.id}",
             # The spec's alias wins, then the connection's default, then whatever
             # the service itself defaults to. Three levels because each answers a
             # different question: what this agent needs, what this host prefers,
             # and what exists at all.
-            runtime=config.runtime or resolved.row.default_runtime,
+            runtime=runtime or resolved.row.default_runtime,
             # The organization, as a capacity label the service counts against
             # its per-tenant ceiling. It grants nothing - only the service token
             # opens a session at all - and it is what stops one talkative
             # organization occupying the pool of the whole installation.
-            tenant=str(identity.organization_id),
-            # Every scope but `run` is meant to be returned to, and even `run`
-            # reattaches within a turn when two tool calls race to open it.
-            reuse=True,
+            tenant=tenant,
+            session_name=key,
         )
-
-    @staticmethod
-    def _daytona(key: str, resolved: ResolvedConnection) -> Any:
-        from pydantic_ai_backends import DaytonaSandbox
-
-        # The organization's own key, from the connection, from the vault. Never
-        # the SDK's `DAYTONA_API_KEY` fallback, which would put every tenant's
-        # sandboxes on whichever account the deployment happens to have set.
-        return DaytonaSandbox(api_key=resolved.token, sandbox_id=key)
 
     async def _row(
         self,
@@ -626,15 +657,27 @@ class SandboxWorkspaceService:
             # The conversation was deleted while the run was in flight. The files
             # belonged to it, so there is nothing to keep.
             return
-        self._warn_if_overtaken(workspace, row)
-        kept = workspace.backend.files if keep_spills else _without_spills(workspace.backend.files)
-        files = _without_legacy_skills(kept)
+        document = workspace.document
+        if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
+            raise RuntimeError("A state workspace was opened without its document")
+        self._warn_if_overtaken(workspace, row, document.files)
+
+        def dropped(path: str) -> bool:
+            return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
+
+        files = {path: data for path, data in document.files.items() if not dropped(path)}
         await workspace_repo.save_files(
-            self.db, workspace=row, files=files, bytes_total=document_size(files)
+            self.db,
+            workspace=row,
+            files=files,
+            directories=sorted(path for path in document.directories if not dropped(path)),
+            bytes_total=document_size(files),
         )
 
     @staticmethod
-    def _warn_if_overtaken(workspace: OpenWorkspace, row: AgentWorkspace) -> None:
+    def _warn_if_overtaken(
+        workspace: OpenWorkspace, row: AgentWorkspace, files: dict[str, FileData]
+    ) -> None:
         """Say so when this flush is about to overwrite somebody else's.
 
         The write still happens - see `save_files` for why refusing it would lose
@@ -648,7 +691,7 @@ class SandboxWorkspaceService:
         opened = workspace.opened_version
         if opened is None or row.version == opened:
             return
-        overwritten = sorted(set(row.files or {}) - set(workspace.backend.files))
+        overwritten = sorted(set(row.files or {}) - set(files))
         logger.warning(
             "workspace_flush_overtaken",
             extra={
@@ -670,43 +713,37 @@ class SandboxWorkspaceService:
         the overflow store recorded. Another run's spills are untouched - its
         handles are in its own workspace's list.
 
-        Deleted through the backend's own `execute`, because the backend protocol
-        has no delete and growing one belongs upstream. The `rmdir` afterwards
-        clears the now-empty run directories; it fails silently where a concurrent
-        run still keeps files, which is the correct answer - which is why the
-        command exits with `rm`'s status, captured before the `rmdir`: a refused
-        `rm` is the failure the warning below exists for, and a trailing cleanup
-        must not mask it as success. Best-effort like `_release`: a run that
-        crashes before its `finally` leaves its spills for the next manual sweep,
-        and `close` already logs whatever raises here.
+        Two commands rather than a removal per handle, so a hundred spills are two
+        round trips, and argv rather than a shell line, so no path is ever parsed
+        as one. The `rmdir` afterwards clears the now-empty run directories; it
+        fails where a concurrent run still keeps files, which is the correct
+        answer - so only a refused `rm` is the failure the warning below exists
+        for. Best-effort like `_release`: a run that crashes before its `finally`
+        leaves its spills for the next manual sweep, and `close` already logs
+        whatever raises here.
         """
         handles = [handle for handle in workspace.spills if _under_overflow(handle)]
         if not handles:
-            return
-        execute = getattr(workspace.backend, "execute", None)
-        if execute is None:
             return
         directories = sorted(
             {parent for handle in handles for parent in _overflow_parents(handle)},
             key=lambda directory: directory.count("/"),
             reverse=True,
         )
-        files = " ".join(shlex.quote(handle) for handle in handles)
-        emptied = " ".join(shlex.quote(directory) for directory in directories)
-        command = f"rm -f -- {files}; status=$?; rmdir -- {emptied} 2>/dev/null; exit $status"
-        result = await asyncio.to_thread(execute, command)
-        if getattr(result, "exit_code", 0) != 0:
+        result = await workspace.workspace.run(["rm", "-f", "--", *handles])
+        await workspace.workspace.run(["rmdir", "--", *directories])
+        if result.exit_code != 0:
             logger.warning(
                 "workspace_spill_prune_failed",
                 extra={
                     "scope_key": workspace.scope_key,
                     "handles": len(handles),
-                    "output": getattr(result, "output", ""),
+                    "output": result.stderr,
                 },
             )
 
     async def _release(self, workspace: OpenWorkspace) -> None:
-        """Stop a run-scoped sandbox, as a courtesy rather than a guarantee.
+        """Remove a run-scoped sandbox, as a courtesy rather than a guarantee.
 
         `sandboxd` reaps idle sessions on its own, which is what makes this safe
         to be best-effort for a container: a run that crashes between opening a
@@ -717,19 +754,10 @@ class SandboxWorkspaceService:
         organization's own account, so the courtesy is the only thing that ends
         it, which is why the call has to actually land.
         """
-        stop = getattr(workspace.backend, "stop", None)
-        if stop is None:
-            return
-        # One signature across every backend as of pydantic-ai-backend 0.2.25
-        # (vstorm-co/pydantic-ai-backend#98). Before it, `RemoteSandbox.stop` took
-        # `purge` and `DaytonaSandbox.stop` took nothing, so this call raised a
-        # `TypeError` that `close` swallowed as `workspace_close_failed` - and the
-        # one backend with no idle reaper behind it was the one never released, a
-        # sandbox per run on somebody's invoice. An `inspect.signature` check stood
-        # here until the library stopped needing one.
-        #
-        # Off the loop: both are synchronous HTTP to somebody else.
-        await asyncio.to_thread(stop, purge=True)
+        ref = workspace.workspace.ref
+        if workspace.sandbox is None or ref is None:
+            return  # never opened: nothing to remove
+        await workspace.sandbox.destroy(ref)
 
     async def purge_for_conversation(self, ctx: AuthContext, *, conversation_id: UUID) -> int:
         """Drop every workspace belonging to a conversation being deleted.
@@ -763,41 +791,13 @@ class SandboxWorkspaceService:
 
         try:
             resolved = await self._connection(ctx, row.connection_id)
-            if resolved.kind == "daytona":
-                from pydantic_ai_backends import DaytonaSandbox
-
-                # The organization's own key, as everywhere else - never the SDK's
-                # `DAYTONA_API_KEY` fallback. `purge` is accepted and makes no
-                # difference here: Daytona has no "end it but keep the files" state,
-                # so stopping is deleting. Passed anyway, because this call site is
-                # about discarding the conversation's workspace and saying so is
-                # better than relying on the default meaning the same thing.
-                cloud = DaytonaSandbox(
-                    api_key=resolved.token, sandbox_id=row.session_id or row.scope_key
-                )
-                await asyncio.to_thread(cloud.stop, purge=True)
-                return
-
-            from pydantic_ai_backends.remote import RemoteSandbox
-
-            # Only the address is checked. The kind used to be too, which is how
-            # Daytona fell through here and was never purged at all; now that it
-            # returns above, `docker` is the only kind left - a connection is one
-            # or the other - and an address it has no value for is the one thing
-            # still worth refusing, because `RemoteSandbox("")` would post the
-            # organization's token at whatever a relative URL resolves to.
-            if not resolved.row.base_url:
-                return
-            sandbox = RemoteSandbox(
-                resolved.row.base_url,
-                token=resolved.token,
-                session_id=row.session_id or row.scope_key,
-                reuse=True,
+            sandbox = self._service_capability(resolved, row.scope_key)
+            # By the name it was opened under; attach-only, so a session already
+            # gone is fine rather than one opened just to delete it.
+            provider = sandbox.provider if isinstance(sandbox, SandboxdWorkspace) else "daytona"
+            await sandbox.destroy(
+                WorkspaceRef(provider=provider, id=row.session_id or row.scope_key)
             )
-            # A synchronous `DELETE`, so off the loop - and this runs in a loop over
-            # every workspace the conversation held, which is where one blocking
-            # round trip becomes several.
-            await asyncio.to_thread(sandbox.stop, purge=True)
         except Exception:
             # A service that is down must not stop a user deleting their chat.
             # The workspace TTL is the net under exactly this.
@@ -1456,12 +1456,11 @@ class SandboxWorkspaceService:
     @staticmethod
     def _state_bytes(row: AgentWorkspace, path: str) -> bytes | None:
         """One file's bytes out of a state-backed workspace, or None when absent."""
-        from pydantic_ai_backends import StateBackend
-
-        backend = StateBackend(files=dict(row.files or {}))
-        if not backend.exists(path):
+        document = StateBackend(files=dict(row.files or {}), directories=row.directories or ())
+        try:
+            return document.read_bytes(path)
+        except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
             return None
-        return backend.read_bytes(path)
 
     @asynccontextmanager
     async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> AsyncIterator[Any | None]:
@@ -1549,14 +1548,19 @@ def stored_entries(files: dict[str, FileData]) -> list[FileInfo]:
     one omission worth keeping: an agent that ran `git init` would otherwise fill the
     panel with object files nobody asked to see.
     """
-    from pydantic_ai_backends import StateBackend
-
-    backend = StateBackend(files=files)
-    seen: dict[str, FileInfo] = {}
-    for pattern in ("**/*", "**/.*"):
-        for entry in backend.glob_info(pattern):
-            seen[str(entry.get("path"))] = entry
-    return sorted(seen.values(), key=lambda entry: str(entry.get("path")))
+    document = StateBackend(files=files)
+    entries = [
+        FileInfo(
+            name=PurePosixPath(path).name,
+            path=path,
+            is_dir=False,
+            size=document.size(path),
+            modified_at=data.get("modified_at"),
+        )
+        for path, data in files.items()
+        if not any(part.startswith(".") for part in PurePosixPath(path).parent.parts)
+    ]
+    return sorted(entries, key=lambda entry: entry["path"])
 
 
 PREVIEW_CHARS = 200

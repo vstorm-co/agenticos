@@ -55,9 +55,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.45.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.52.0",
     "genai-prices>=0.1.4",
-    "pydantic-ai-slim[mcp]>=2.45.0",
+    "pydantic-ai-slim[mcp]>=2.52.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -83,7 +83,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.35.0",
+    "pydantic-ai-harness>=0.52.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -126,12 +126,15 @@ dependencies = [
     # own capability list, `load_capability` opens a skill, and only
     # `read_skill_resource` survives as a tool (#1658).
     "pydantic-ai-skills>=2.0.0",
-    # `console` for the toolset, `remote` for the sandboxd client. Deliberately
-    # not `docker`: this container never touches the socket, so the Docker SDK
-    # has no business in the image. The service runs beside us as `sandboxd`.
-    # Floors at 0.2.26 for `FileInfo.modified_at`, which the listings carry to
-    # the file viewer (#500).
-    "pydantic-ai-backend[console,remote]>=0.2.29",
+    # `console` for the tools, `workspaces` for the workspace capabilities,
+    # `remote` for the Files panel's archive client and `daytona` for Daytona
+    # connections (the `daytona` package; the old `daytona-sdk` never imported).
+    # Deliberately not `docker`: this container never touches the socket, so the
+    # Docker SDK has no business in the image. The service runs beside us as
+    # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
+    # sandboxes, which a workspace keyed on its scope opens or attaches by name
+    # (#2003).
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.31",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -149,8 +152,11 @@ dependencies = [
     # stored whole (#819). 0.2.22 puts the subagent's name on the delegation's
     # bound state, which is the only way a persisted `ask_user` part can say
     # which delegate asked - `ask_parent` hands the surface the question and
-    # nothing else (#1042). The floor is 0.2.22.
-    "subagents-pydantic-ai>=0.2.22",
+    # nothing else (#1042). 0.2.25 runs a delegate in its parent's workspace,
+    # which is how a delegate sharing the parent's `sandbox` reaches the same
+    # files now that the files live in `ctx.workspace` (#2003). The floor is
+    # 0.2.25.
+    "subagents-pydantic-ai>=0.2.25",
     "cryptography>=50.0.1",
     "aiogram>=3.31.0,<4.0",
     "slack-sdk>=3.44.1",
@@ -233,7 +239,7 @@ dependencies = [
 # there is no path where one library checks and the other requests.
 browser = [
     "cdp-use==1.4.5",
-    "pydantic-ai-slim[typesafe]>=2.45.0",
+    "pydantic-ai-slim[typesafe]>=2.52.0",
 ]
 # Integrated Windows sign-in (SPNEGO), the `KERBEROS_ENABLED` half of #1773.
 # `gssapi` publishes no Linux wheel: it compiles against the system Kerberos

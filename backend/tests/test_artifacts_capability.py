@@ -29,7 +29,6 @@ from app.agents.capabilities.artifacts._toolset import (
     build_artifacts_toolset,
     parse_published_artifact,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
 from app.db.models.artifact import ArtifactMediaType
@@ -53,13 +52,15 @@ def _deps(**overrides: Any) -> AgentDeps:
     return AgentDeps(**values)
 
 
-def _ctx(deps: AgentDeps, *, retry: int = 0) -> RunContext[AgentDeps]:
-    return RunContext(deps=deps, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=1)
+def _ctx(deps: AgentDeps, *, retry: int = 0, workspace: Any = None) -> RunContext[AgentDeps]:
+    ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=1)
+    if workspace is not None:
+        ctx.workspace = workspace
+    return ctx
 
 
-def _tool(workspace: Any = None) -> Any:
-    toolset = build_artifacts_toolset(workspace_backend=workspace)
-    return toolset.tools["publish_artifact"].function
+def _tool() -> Any:
+    return build_artifacts_toolset().tools["publish_artifact"].function
 
 
 def _published(**overrides: Any) -> PublishedArtifact:
@@ -80,12 +81,13 @@ def _published(**overrides: Any) -> PublishedArtifact:
 
 
 def _workspace(data: bytes | Exception) -> MagicMock:
-    backend = MagicMock()
+    """The run's workspace, holding `data` at every path - or raising it."""
+    workspace = MagicMock(attached=True)
     if isinstance(data, Exception):
-        backend.read_bytes = AsyncMock(side_effect=data)
+        workspace.read_bytes = AsyncMock(side_effect=data)
     else:
-        backend.read_bytes = AsyncMock(return_value=data)
-    return backend
+        workspace.read_bytes = AsyncMock(return_value=data)
+    return workspace
 
 
 class TestPublishing:
@@ -125,7 +127,9 @@ class TestPublishing:
     async def test_a_workspace_file_is_published_as_the_file_it_is(self) -> None:
         workspace = _workspace(b"# Report\n")
         with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
-            await _tool(workspace)(_ctx(_deps()), name="r", title="R", path="out/report.md")
+            await _tool()(
+                _ctx(_deps(), workspace=workspace), name="r", title="R", path="out/report.md"
+            )
 
         workspace.read_bytes.assert_awaited_once_with("out/report.md")
         assert publish.await_args.kwargs["media_type"] is ArtifactMediaType.MARKDOWN
@@ -169,8 +173,8 @@ class TestRefusals:
     async def test_a_refused_read_is_a_result_not_a_retry(self) -> None:
         workspace = _workspace(PermissionError("secrets/ is not readable"))
         with patch(PUBLISH, new=AsyncMock()) as publish:
-            result = await _tool(workspace)(
-                _ctx(_deps()), name="r", title="R", path="secrets/x.html"
+            result = await _tool()(
+                _ctx(_deps(), workspace=workspace), name="r", title="R", path="secrets/x.html"
             )
         publish.assert_not_awaited()
         assert result == "Reading 'secrets/x.html' was refused: secrets/ is not readable"
@@ -196,16 +200,19 @@ class TestSteering:
             patch(PUBLISH, new=AsyncMock()) as publish,
             pytest.raises(ModelRetry, match=says),
         ):
-            await _tool(_workspace(b"<p>x</p>"))(_ctx(_deps()), **call)
+            await _tool()(_ctx(_deps(), workspace=_workspace(b"<p>x</p>")), **call)
         publish.assert_not_awaited()
 
     async def test_a_path_with_no_workspace_asks_for_inline_content(self) -> None:
         with pytest.raises(ModelRetry, match="no workspace"):
             await _tool()(_ctx(_deps()), name="r", title="R", path="report.html")
 
-    async def test_a_missing_file_says_to_look(self) -> None:
+    @pytest.mark.parametrize("stored", [b"", FileNotFoundError("nope.html")])
+    async def test_a_missing_or_empty_file_says_to_look(self, stored: bytes | Exception) -> None:
         with pytest.raises(ModelRetry, match="Check the path"):
-            await _tool(_workspace(b""))(_ctx(_deps()), name="r", title="R", path="nope.html")
+            await _tool()(
+                _ctx(_deps(), workspace=_workspace(stored)), name="r", title="R", path="nope.html"
+            )
 
     async def test_on_the_last_attempt_the_steer_is_returned_rather_than_ending_the_run(
         self,
@@ -224,13 +231,8 @@ class TestRegistration:
     def test_the_capability_reads_the_run_s_workspace_and_is_not_side_effecting(self) -> None:
         definition = registry.get("artifacts")
         assert definition.side_effecting is False
-        workspace = object()
-        (built,) = registry.build(
-            [registry.CapabilityBinding(capability_id="artifacts")],
-            resources={WORKSPACE_BACKEND_RESOURCE: workspace},
-        )
+        (built,) = registry.build([registry.CapabilityBinding(capability_id="artifacts")])
         assert isinstance(built, Artifacts)
-        assert built.workspace_backend is workspace
         toolset = built.get_toolset()
         assert toolset is built.get_toolset()
         assert set(toolset.tools) == {"publish_artifact", "read_artifact"}
@@ -251,8 +253,8 @@ def _source(text: str = "<h1>Old</h1><p>body</p>", **overrides: Any) -> Artifact
     return ArtifactSource(**values)
 
 
-def _reader(workspace: Any = None) -> Any:
-    return build_artifacts_toolset(workspace_backend=workspace).tools["read_artifact"].function
+def _reader() -> Any:
+    return build_artifacts_toolset().tools["read_artifact"].function
 
 
 class TestEditing:

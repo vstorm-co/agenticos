@@ -14,12 +14,10 @@ sentence; two copies in two repositories drift, and nothing reports it.
 
 from __future__ import annotations
 
-from pydantic_ai_backends import (
-    AsyncBackendProtocol,
-    BackendProtocol,
-    ConsoleCapability,
-    StateBackend,
-)
+from typing import Any
+
+from pydantic_ai.capabilities import CombinedCapability
+from pydantic_ai_backends import ConsoleCapability, StateWorkspace
 from pydantic_ai_backends.toolsets.descriptions import TOOL_TEXT
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -68,28 +66,27 @@ looking. A binding that wants the stricter behaviour still gets it with one
 """
 
 
-def build_workspace(
-    *, backend: BackendProtocol | AsyncBackendProtocol | None, include_execute: bool
-) -> ConsoleCapability:
-    """The console capability this agent runs with.
+def build_workspace(*, include_execute: bool) -> CombinedCapability[Any]:
+    """The console tools this agent runs with, and where they work without a runner.
+
+    The tools work in the run's workspace, `ctx.workspace`. The runner opens the
+    agent's workspace - a stored document, a container, a cloud sandbox - and
+    passes it to the run, which overrides anything here. Where nobody opened
+    one - a preview, a test - the run gets an in-memory document that lives
+    exactly as long as it does: the honest answer there, rather than an error
+    about infrastructure the author did not ask for.
 
     Args:
-        backend: The workspace the runner opened, or `None` where there is
-            nowhere durable to put files - a preview, a test. An in-memory
-            workspace that lives exactly as long as the run is the honest
-            answer there, rather than an error about infrastructure the author
-            did not ask for.
         include_execute: Whether the shell is offered at all. Off removes it
             rather than gating it, which is a different decision from "ask
             first" and belongs to whoever configured the agent.
     """
+    return CombinedCapability([StateWorkspace(), _console(include_execute=include_execute)])
+
+
+def _console(*, include_execute: bool) -> ConsoleCapability:
     return ConsoleCapability(
-        backend=backend if backend is not None else StateBackend(),
         include_execute=include_execute,
-        # Four more tools, none of them declared above, and a process left
-        # running in a sandbox nobody watches finish. Not offered, so not a
-        # configuration somebody can arrive at by accident.
-        include_background=False,
         # So `read_file` on an image returns something a multimodal model can
         # see. Without it an agent cannot look at the chart it just rendered,
         # which is most of the reason to let it render one.

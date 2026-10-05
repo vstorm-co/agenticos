@@ -25,7 +25,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage, RunUsage
-from pydantic_ai_backends import StateBackend
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import ConsoleCapability, StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
 from app.agents.capabilities.budget import (
@@ -54,6 +55,7 @@ from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
 from app.services.rag.models import ParentContextMode
 from app.services.rag.query_analysis import QueryExpansionFailed
+from tests.workspaces import document_workspace
 
 
 def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
@@ -665,19 +667,26 @@ class TestTheWorkspaceRefusesAnOffLimitsPath:
     pytestmark = pytest.mark.anyio
 
     @staticmethod
-    def _workspace() -> StateBackend:
-        backend = StateBackend()
-        backend.write("/notes.txt", "ordinary work")
-        backend.write("/chart.png", "not really a png")
-        backend.write("/.env", "OPENAI_API_KEY=sk-live-secret")
-        backend.write("/sub/.env", "NESTED=sk-live-secret")
-        backend.write("/credentials.txt", "PASSWORD=hunter2")
-        backend.write("/etc/passwd", "root:x:0:0")
-        return backend
+    def _workspace() -> Workspace:
+        document = StateBackend()
+        for path, text in {
+            "/notes.txt": "ordinary work",
+            "/chart.png": "not really a png",
+            "/.env": "OPENAI_API_KEY=sk-live-secret",
+            "/sub/.env": "NESTED=sk-live-secret",
+            "/credentials.txt": "PASSWORD=hunter2",
+            "/etc/passwd": "root:x:0:0",
+        }.items():
+            document.write_bytes(path, text.encode())
+        return document_workspace(document)
 
     async def _call(self, name: str, **kwargs: Any) -> Any:
-        capability = build_workspace(backend=self._workspace(), include_execute=False)
-        result = capability._toolset.tools[name].function(MagicMock(), **kwargs)
+        capability = build_workspace(include_execute=False)
+        console = next(c for c in capability.capabilities if isinstance(c, ConsoleCapability))
+        ctx = RunContext(
+            deps=None, model=TestModel(), usage=RunUsage(), workspace=self._workspace()
+        )
+        result = console._toolset.tools[name].function(ctx, **kwargs)
         return await result if asyncio.iscoroutine(result) else result
 
     @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])

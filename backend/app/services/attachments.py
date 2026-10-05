@@ -28,7 +28,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
+from pydantic_ai.workspaces import Workspace
 
 from app.core.blocking import run_blocking
 from app.core.config import settings
@@ -372,18 +372,11 @@ class AttachmentRouter:
 
     def __init__(
         self,
-        backend: BackendProtocol | AsyncBackendProtocol | None = None,
+        workspace: Workspace | None = None,
         *,
         can_parse: bool = False,
     ) -> None:
-        # Wrapped here rather than at each `await` below, and rather than being the
-        # caller's problem. A container-backed workspace is a synchronous
-        # `httpx.Client`, so writing an upload into one from this coroutine blocked
-        # the whole worker for the length of the transfer - a 50 MB CSV stalling
-        # every other request in the process, which is the exact case a workspace
-        # exists to make possible. `ensure_async` is the library's own answer and is
-        # idempotent, so an already-async backend passes through untouched.
-        self._backend = None if backend is None else ensure_async(backend)
+        self._workspace = workspace
         # Whether the workspace can read a PDF, a `.docx` or a spreadsheet *itself*.
         # True only for a runtime this deployment describes, which is the same
         # condition as having told the model it has `lit` - so the caller passes
@@ -439,7 +432,7 @@ class AttachmentRouter:
         # a problem with the command it had just written and kept trying - in one
         # conversation `ls`, then a `curl` of a `data:` URI, then three workarounds
         # offered to the person, across two turns and 57k tokens (#1046).
-        if refused and self._backend is not None:
+        if refused and self._workspace is not None:
             text_parts.append(_WORKSPACE_REFUSED)
 
         full_text = user_message + "".join(text_parts)
@@ -465,10 +458,10 @@ class AttachmentRouter:
             return AttachmentPlan(reference=_unprocessable(chat_file), inline=[])
 
     async def _route(self, chat_file: ChatFile, inline_budget: int | None) -> AttachmentPlan:
-        backend = self._backend
-        if backend is None:
+        workspace = self._workspace
+        if workspace is None:
             return await self._without_workspace(chat_file, inline_budget)
-        return await self._into_workspace(backend, chat_file, inline_budget)
+        return await self._into_workspace(workspace, chat_file, inline_budget)
 
     async def _without_workspace(
         self, chat_file: ChatFile, inline_budget: int | None = None
@@ -502,17 +495,18 @@ class AttachmentRouter:
 
     async def _into_workspace(
         self,
-        backend: AsyncBackendProtocol,
+        workspace: Workspace,
         chat_file: ChatFile,
         inline_budget: int | None = None,
     ) -> AttachmentPlan:
         path = workspace_path(chat_file)
         data: bytes | None = None
 
-        if not await backend.exists(path):
+        if not await workspace.exists(path):
             data = await get_file_storage().load(chat_file.storage_path)
-            result = await backend.write(path, data)
-            if result.error is not None:
+            try:
+                await workspace.write_bytes(path, data)
+            except OSError as refused:
                 # A full workspace, most likely - and that is exactly why this
                 # must not fall back to pasting the file. The write is refused
                 # when the document has no room for it, so this branch only ever
@@ -524,7 +518,7 @@ class AttachmentRouter:
                 # An image is the exception, and the reason is the same one that
                 # makes images go both ways: the model can still *see* it, and
                 # `_inline_images` has its own, much smaller per-image ceiling.
-                logger.info("attachment_not_written", extra={"path": path, "reason": result.error})
+                logger.info("attachment_not_written", extra={"path": path, "reason": str(refused)})
                 if chat_file.file_type == "image":
                     plan = await self._without_workspace(chat_file)
                     return AttachmentPlan(
@@ -532,9 +526,9 @@ class AttachmentRouter:
                     )
                 return AttachmentPlan(reference=_unstored(chat_file), inline=[], refused=True)
 
-            await self._write_extracted_text(backend, chat_file, path)
+            await self._write_extracted_text(workspace, chat_file, path)
 
-        sibling = await self._sibling_present(backend, chat_file, path)
+        sibling = await self._sibling_present(workspace, chat_file, path)
         reference = _referenced(chat_file, path, sibling=sibling)
         if chat_file.file_type != "image":
             return AttachmentPlan(reference=reference, inline=[])
@@ -544,7 +538,7 @@ class AttachmentRouter:
         return AttachmentPlan(reference=reference, inline=result.images)
 
     async def _sibling_present(
-        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
+        self, workspace: Workspace, chat_file: ChatFile, path: str
     ) -> str | None:
         """The extracted text beside the original, where the workspace really has it.
 
@@ -560,7 +554,7 @@ class AttachmentRouter:
         sibling = _text_sibling(chat_file, path)
         if sibling is None:
             return None
-        return sibling if await backend.exists(sibling) else None
+        return sibling if await workspace.exists(sibling) else None
 
     def _skips_sibling(self, chat_file: ChatFile) -> bool:
         """Whether the extracted-text sibling is redundant for this file.
@@ -572,7 +566,7 @@ class AttachmentRouter:
         return self._can_parse and chat_file.file_type in _LIT_READABLE
 
     async def _write_extracted_text(
-        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
+        self, workspace: Workspace, chat_file: ChatFile, path: str
     ) -> None:
         """Put the parse beside the original, for a workspace that cannot read it.
 
@@ -587,13 +581,14 @@ class AttachmentRouter:
         sibling = _text_sibling(chat_file, path)
         if sibling is None or not chat_file.parsed_content:
             return
-        result = await backend.write(sibling, chat_file.parsed_content)
-        if result.error is not None:
+        try:
+            await workspace.write_text(sibling, chat_file.parsed_content)
+        except OSError as refused:
             # Not raised and not reported to the model here: `_sibling_present`
             # asks the workspace what is actually there, so a refused write simply
             # goes unnamed. The line is what tells an operator why.
             logger.info(
-                "attachment_text_not_written", extra={"path": sibling, "reason": result.error}
+                "attachment_text_not_written", extra={"path": sibling, "reason": str(refused)}
             )
 
     async def _inline_images(
