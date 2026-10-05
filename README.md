@@ -1,11 +1,13 @@
 <div align="center">
 
-<h1><img src="desktop/src-tauri/icons/128x128@2x.png" alt="" width="64" valign="middle"> AgenticOS</h1>
+<h1>AgenticOS</h1>
+
+<h3>Sovereign Agentic AI Layer</h3>
 
 <p>
-  <sub><b>Sovereign Agentic AI Layer</b> &middot; Apache-2.0 &middot; built on Pydantic AI</sub><br>
   <b>AI agents your whole team can use and improve.</b><br>
-  Self-hosted on infrastructure you control, with budgets, approvals and a recorded run.
+  Self-hosted on infrastructure you control, with budgets, approvals and a recorded run.<br>
+  <sub>Apache-2.0 &middot; built on Pydantic AI</sub>
 </p>
 
 <p>

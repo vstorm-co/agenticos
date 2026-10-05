@@ -1,13 +1,15 @@
-<!-- source_sha: f6a90173e627 -->
+<!-- source_sha: e9aa07c0a526 -->
 
 <div align="center">
 
-<h1><img src="desktop/src-tauri/icons/128x128@2x.png" alt="" width="64" valign="middle"> AgenticOS</h1>
+<h1>AgenticOS</h1>
+
+<h3>Sovereign Agentic AI Layer</h3>
 
 <p>
-  <sub><b>Sovereign Agentic AI Layer</b> &middot; Apache-2.0 &middot; gebaut auf Pydantic AI</sub><br>
   <b>KI-Agenten, die dein ganzes Team nutzen und verbessern kann.</b><br>
-  Selbst gehostet auf Infrastruktur, die du kontrollierst, mit Budgets, Freigaben und einem aufgezeichneten Run.
+  Selbst gehostet auf Infrastruktur, die du kontrollierst, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
+  <sub>Apache-2.0 &middot; gebaut auf Pydantic AI</sub>
 </p>
 
 <p>
