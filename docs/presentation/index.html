@@ -727,23 +727,25 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
     document.body.innerHTML = `<header><span id="pc"></span><span id="pt">00:00</span></header>
       <main><div id="pn" class="pnum"></div><h1 id="ph"></h1><div id="pnote"></div></main>
       <footer><button data-d="-1">← Back</button><div><small>Next</small><b id="px"></b></div><button data-d="1">Next →</button></footer>`;
-    const send = delta => opener && opener.postMessage({deck: 'go', delta}, '*');
+    // Messages go to, and are taken from, the opening deck on this origin only ('/' = this page's origin).
+    const send = delta => opener && opener.postMessage({deck: 'go', delta}, '/');
     document.querySelectorAll('button[data-d]').forEach(b => b.onclick = () => send(+b.dataset.d));
     addEventListener('keydown', e => {
       if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); send(1); }
       if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); send(-1); }
     });
     addEventListener('message', e => {
+      if (e.source !== opener || e.origin !== location.origin) return;
       const m = e.data || {}; if (m.deck !== 'state') return;
       document.getElementById('pc').textContent = `${m.chapter || 'Start'} · slide ${m.slide} · step ${m.step}`;
       document.getElementById('pn').textContent = `${m.at + 1} / ${m.total}`;
       document.getElementById('ph').textContent = m.title;
-      document.getElementById('pnote').innerHTML = (m.note || 'No notes for this step.').split('\n').map(l => `<p>${l}</p>`).join('');
+      document.getElementById('pnote').replaceChildren(...String(m.note || 'No notes for this step.').split('\n').map(l => { const p = document.createElement('p'); p.textContent = l; return p; }));
       document.getElementById('px').textContent = m.next;
     });
     const t0 = Date.now();
     setInterval(() => { const s2 = Math.floor((Date.now() - t0) / 1000); document.getElementById('pt').textContent = `${String(Math.floor(s2 / 60)).padStart(2, '0')}:${String(s2 % 60).padStart(2, '0')}`; }, 1000);
-    opener && opener.postMessage({deck: 'hello'}, '*');
+    opener && opener.postMessage({deck: 'hello'}, '/');
     return;
   }
   const slides = [...stage.querySelectorAll('.slide')];
@@ -978,14 +980,19 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
   }
   const jump = document.createElement('div'); jump.id = 'jump';
   (() => {
-    let html = '<div class="jw"><div class="jh"><span>Slides</span><small>O or Esc to close</small></div><div class="jc">';
-    let lastCh = null;
+    const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+    const jw = el('div', 'jw'), jh = el('div', 'jh'), jc = el('div', 'jc');
+    jh.append(el('span', null, 'Slides'), el('small', null, 'O or Esc to close'));
+    jw.append(jh, jc);
+    let lastCh = null, list = null;
     slides.forEach((slide, si) => {
       const ch = slide.dataset.chapter || (slide.classList.contains('closing') ? 'Close' : 'Start');
-      if (ch !== lastCh) { if (lastCh !== null) html += '</ol>'; html += `<h4>${ch}</h4><ol>`; lastCh = ch; }
-      html += `<li data-slide="${si}"><span>${String(si + 1).padStart(2, '0')}</span>${titleOf(slide) || '—'}</li>`;
+      if (ch !== lastCh) { jc.append(el('h4', null, ch)); list = el('ol'); jc.append(list); lastCh = ch; }
+      const li = el('li'); li.dataset.slide = String(si);
+      li.append(el('span', null, String(si + 1).padStart(2, '0')), document.createTextNode(titleOf(slide) || '—'));
+      list.append(li);
     });
-    jump.innerHTML = html + '</ol></div></div>';
+    jump.append(jw);
     stage.append(jump);
     jump.addEventListener('click', e => {
       const li = e.target.closest('li[data-slide]');
@@ -1004,9 +1011,10 @@ body.presenter{background:#141414;color:#FAFAF7;overflow:auto;display:flex;flex-
   // ---------- presenter window (presenter build only) ----------
   let presenter = null;
   addEventListener('message', e => {
+    if (!presenter || e.source !== presenter || e.origin !== location.origin) return;
     const m = e.data || {};
-    if (m.deck === 'go') go(at + m.delta);
-    if (m.deck === 'hello' && presenter) presenter.postMessage({deck: 'state', at, ...describe(at)}, '*');
+    if (m.deck === 'go') go(at + (+m.delta || 0));
+    if (m.deck === 'hello') presenter.postMessage({deck: 'state', at, ...describe(at)}, '/');
   });
 
   addEventListener('keydown', e => {
