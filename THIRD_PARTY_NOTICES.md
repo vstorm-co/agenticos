@@ -179,7 +179,7 @@ names no author is in the evidence column below.
 | mem0ai | 2.2.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.0/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
-| multidict | 6.8.0 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
+| multidict | 6.9.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
 | oauthlib | 4.0.0 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
 | odfpy | 1.4.1 | LGPL-2.1-or-later | https://github.com/eea/odfpy | override: odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later.; review accepted; no licence file, attributed to Soren Roug |
@@ -568,7 +568,7 @@ names no author is in the evidence column below.
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
 | sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
-| source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
+| source-map-js | 1.2.2 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
 | stringify-entities | 4.0.4 | MIT | https://github.com/wooorm/stringify-entities | package.json license |
 | style-to-js | 1.1.21 | MIT | https://github.com/remarkablemark/style-to-js | package.json license |

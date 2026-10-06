@@ -26,6 +26,15 @@ Two things are versioned separately from this file and worth knowing about:
   it showed this as the card vanishing under the cursor. The beam now sits
   inside its own wrapper.
 
+### Security
+
+- **`multidict` moves to 6.9.1 and `source-map-js` to 1.2.2.** 6.8.0, which
+  `aiohttp` and `yarl` pull in, is affected by CVE-2026-104874
+  (GHSA-54p9-h82j-f925), and `make audit` failed on it. 1.2.1, which `postcss`,
+  Tailwind and `css-tree` pull in at build and test time, is affected by
+  GHSA-68fv-2mgg-jv7q, and `make audit-frontend` failed on it. Only the
+  lockfiles change.
+
 ## [0.0.517] - 2026-10-05
 
 ### Changed
