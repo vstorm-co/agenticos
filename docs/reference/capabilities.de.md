@@ -1,5 +1,5 @@
 ---
-source_sha: "76c7bd9e879e"
+source_sha: "5f01b3c59363"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1891,7 +1891,10 @@ und wird geschwärzt, gleich was `phone_regions` aufführt. Eine nationale Numme
 `415-555-0132` wird gegen jedes aufgeführte Land gelesen, und jedes weitere Land
 erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige
 polnische Festnetznummer, also wird mit `PL` in der Liste auch eine neunstellige
-Bestellnummer geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
+Bestellnummer geschwärzt. Die Gruppierung wirkt in beide Richtungen: eine
+US-Postleitzahl im Format ZIP+4, die mit `0` beginnt, etwa `02134-1234`, ist wie
+eine deutsche Vorwahl mit Rufnummer gruppiert und wird mit `DE` in der Liste
+geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
 unbekannter Code (meist `UK` statt `GB`) oder eine Liste mit mehr als 16 Codes
 wird beim Veröffentlichen abgelehnt. Bei bis zu vier Ländern wird ein Text mit mehr
 als 200.000 Zeichen oder mehr als 10.000 Ziffern gar nicht gelesen. Jedes Land über

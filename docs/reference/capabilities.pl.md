@@ -1,5 +1,5 @@
 ---
-source_sha: "76c7bd9e879e"
+source_sha: "5f01b3c59363"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1759,7 +1759,10 @@ niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
 `415-555-0132`, jest czytany względem każdego wymienionego kraju, a każdy dodany
 kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski
 numer stacjonarny, więc z `PL` na liście redagowany jest też dziewięciocyfrowy
-numer zamówienia. Wymień kraje, które agent obsługuje. Nieznany kod (najczęściej
+numer zamówienia. Grupowanie działa w obie strony: amerykański kod pocztowy ZIP+4
+zaczynający się od `0`, np. `02134-1234`, jest pogrupowany jak niemiecki numer
+kierunkowy z numerem abonenta, więc z `DE` na liście jest redagowany. Wymień
+kraje, które agent obsługuje. Nieznany kod (najczęściej
 `UK` zamiast `GB`) albo lista dłuższa niż 16 kodów jest odrzucana przy publikacji.
 Przy najwyżej czterech krajach tekst dłuższy niż 200 000 znaków albo z więcej niż
 10 000 cyfr nie jest w ogóle czytany. Każdy kraj ponad cztery to kolejne przejście

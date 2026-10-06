@@ -181,6 +181,13 @@ def test_a_bare_digit_run_valid_in_a_listed_country_is_redacted():
     assert _redacted(("PL",), "order 123456789") == f"order {PHONE_PLACEHOLDER}"
 
 
+def test_a_zip_plus_four_starting_with_zero_is_redacted_when_de_is_listed():
+    """Documented limitation, pinned: `02134-1234` is grouped as a German area
+    code and subscriber number, so listing `DE` takes a New England ZIP+4."""
+    assert _redacted(("US",), "Boston, MA 02134-1234") == "Boston, MA 02134-1234"
+    assert _redacted(("DE",), "Boston, MA 02134-1234") == f"Boston, MA {PHONE_PLACEHOLDER}"
+
+
 def test_a_number_two_regions_both_match_is_replaced_once():
     """`+1` parses under every region; the spans merge rather than cut twice."""
     assert _redacted(("US", "CA"), "ring +1 415 555 0132.") == f"ring {PHONE_PLACEHOLDER}."

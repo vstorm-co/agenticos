@@ -1,5 +1,5 @@
 ---
-source_sha: "76c7bd9e879e"
+source_sha: "5f01b3c59363"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1795,7 +1795,10 @@ una regla por cantidad de dígitos tomaría pasan sin cambios. Un número escrit
 el contenido de `phone_regions`. Un número nacional, como `415-555-0132`, se lee
 frente a cada país de la lista, y cada país añadido amplía lo que puede ser una
 simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`
-en la lista también se censura un número de pedido de nueve dígitos. Incluye los
+en la lista también se censura un número de pedido de nueve dígitos. La agrupación
+funciona en ambos sentidos: un código postal ZIP+4 de EE. UU. que empieza por `0`,
+como `02134-1234`, está agrupado como un prefijo alemán con su número, así que con
+`DE` en la lista se censura. Incluye los
 países a los que atiende el agent. Un código desconocido (lo habitual es `UK` en
 lugar de `GB`), o una lista de más de 16, se rechaza al publicar. Con hasta cuatro
 países, un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee.

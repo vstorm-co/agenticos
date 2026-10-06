@@ -1680,7 +1680,9 @@ would take comes through. A number written with `+` names its
 country and is redacted whatever `phone_regions` lists. A national number, such as
 `415-555-0132`, is read against each listed country, and each one added widens what
 a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
-listed a nine-digit order id is redacted too. List the countries the agent serves.
+listed a nine-digit order id is redacted too. Grouping cuts both ways: a US ZIP+4
+that starts with `0`, such as `02134-1234`, is grouped as a German area code and
+number, so with `DE` listed it is redacted. List the countries the agent serves.
 An unknown code (`UK` for `GB` is the common one), or a list of more than 16, is
 refused at publish. With up to four countries, a text longer than 200,000 characters
 or with more than 10,000 digits is not read at all. Each country past four is another

@@ -32,7 +32,8 @@ read it rather than trusting a page.
 | `image_analysis` | FA-074 | — | prepared | None on this deployment |
 
 Two rows say no, and both say why. **Named entities** — a person's name, a
-postal address — are not pattern-shaped, so no regular expression finds them: that needs a named-entity model per language in scope.
+postal address — are not pattern-shaped, so no regular expression finds them:
+that needs a named-entity model per language in scope.
 The detection endpoint carries the extra categories the day one is provided, and
 until then it does not claim them. **Image analysis** is marked as future scope
 in the requirements themselves.
