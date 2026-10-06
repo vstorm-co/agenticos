@@ -17,6 +17,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **`multidict` moves to 6.9.1.** 6.8.0, which `aiohttp` and `yarl` pull in,
+  is affected by CVE-2026-104874 (GHSA-54p9-h82j-f925), and `make audit`
+  failed on it. Only the lockfile changes.
+
 ## [0.0.517] - 2026-10-05
 
 ### Changed
