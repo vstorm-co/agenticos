@@ -1,5 +1,5 @@
 ---
-source_sha: "51315ca719eb"
+source_sha: "0f382acc604e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -752,16 +752,38 @@ catálogo le ahorra a alguien buscar una URL; no es una puerta.
 Para añadir una entrada a la lista, ver
 [Añadir un servidor al catálogo de MCP](howto/add-mcp-server.md).
 
+<a id="outlook-setup"></a>
+
+### Correo y calendario de Outlook { #outlook-email-and-calendar }
+
+Outlook está disponible mediante servicios MCP de terceros, no mediante un
+conector de buzón integrado. El registro incluido contiene entradas de MintMCP
+para correo y calendario:
+
+| Entrada del registro | URL del servidor |
+|---|---|
+| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
+
+Busca la entrada en el catálogo MCP o añade su URL como servidor personalizado.
+Sigue las [instrucciones del proveedor](https://www.mintmcp.com/servers), configura
+la cuenta y la autorización, prueba la conexión y selecciona las herramientas
+del agente. La disponibilidad, los permisos y los posibles cargos dependen del
+proveedor. Una entrada del registro no equivale a una prueba completa de la
+integración con AgenticOS. Revisa los modos de aprobación descritos abajo antes
+de activar herramientas de escritura.
+
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Puertas de aprobación.** La aprobación por herramienta la declaran las
-  capabilities en código. Las herramientas de un servidor MCP se descubren en
-  tiempo de ejecución, así que no hay nada que las haya declarado; mantén los
-  servidores genuinamente peligrosos fuera de las conexiones de una organización en
-  lugar de dar por hecha una puerta.
+- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
+  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
+  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
+  predeterminado **Follow the agent** no añade esa puerta. Restringe las
+  herramientas disponibles y revisa el modo de ejecución antes de activar una
+  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

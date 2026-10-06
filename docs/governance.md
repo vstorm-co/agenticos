@@ -996,13 +996,12 @@ Four things make it a session setting rather than a hole in the model:
   trail quietly ceasing to be one. Nobody read those arguments before they ran;
   the row is where somebody reads them afterwards.
 
-**Asking about everything is the cheap half and needs none of that.** It only ever
-tightens, so it takes no permission, no ceiling and no surface check — and it
-reaches further than the spec's gate on purpose, to the tools no capability owns.
-An MCP tool's approval is a property of its connection, which is why the
-spec-driven gate leaves it alone; a person who does not trust an agent yet is
-asking about everything it can do, and being asked about a read is a nuisance
-where not being asked about a write is the failure the queue exists for.
+**Ask about everything tightens the session's policy.** Selecting this stricter
+mode needs no special permission. It includes MCP calls handled by the runner, even though those
+tools are not declared by capabilities. Connection and binding allowlists control
+which MCP tools are exposed; they do not themselves request approval. The default
+**Follow the agent** mode applies the agent's capability policy and does not add
+an approval gate to those MCP tools.
 
 ### A decision nobody makes
 
@@ -1120,12 +1119,15 @@ is kept even when the delegate's *place* could not be - the library's message hi
 is best-effort telemetry, and a delegation re-run from the start has still spent what
 it spent.
 
-!!! warning "MCP tools are outside the approval gate"
+!!! warning "MCP approval depends on the execution mode"
 
-    An approval set on a capability does not cover them. Anything an agent's bound
-    MCP servers can do, that agent can do without asking. Which of a server's
-    tools are exposed is set on the connection, so every agent bound to it gets
-    the same ones.
+    A capability's approval setting does not cover MCP tools. In web chat,
+    **Ask about everything** (`ask_all`) also gates MCP calls handled by the
+    runner; the default **Follow the agent** mode does not. Restrict tools on
+    the connection and its agent binding, and test the intended execution mode.
+    Do not assume a chat session's stricter setting applies to a schedule or
+    another entry point. Tools executed inside a model provider do not pass
+    through the local approval gate.
 
 ## Alerts
 

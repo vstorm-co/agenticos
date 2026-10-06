@@ -710,14 +710,34 @@ somebody a URL lookup; it is not a gate.
 To add an entry to the list, see
 [Add a server to the MCP catalog](howto/add-mcp-server.md).
 
+<a id="outlook-setup"></a>
+
+### Outlook email and calendar
+
+Outlook is available through third-party MCP services, not a built-in mailbox
+connector. The bundled registry includes MintMCP entries for email and calendar:
+
+| Registry entry | Server URL |
+|---|---|
+| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
+
+Search the MCP catalog for the entry or add its URL as a custom server. Follow
+the [provider's setup instructions](https://www.mintmcp.com/servers), configure
+the account and authorization, then test the connection and select the tools
+the agent may use. Availability, permissions and any service charges depend on
+that provider. A registry listing is not an AgenticOS end-to-end test of the
+service. Review the approval modes below before enabling write tools.
+
 ## What MCP does not get you
 
 - **A coverage guarantee.** Catalog entries are metadata. The tools are the
   vendor's, and they can change under you between one turn and the next.
-- **Approval gates.** Per-tool approval is declared by capabilities in code. An
-  MCP server's tools are discovered at run time, so there is nothing to have
-  declared them; keep genuinely dangerous servers out of an organization's
-  connections rather than assuming a gate.
+- **Automatic approval coverage.** Capability approval settings do not cover MCP
+  tools. In web chat, **Ask about everything** (`ask_all`) also gates MCP calls
+  handled by the runner; the default **Follow the agent** mode does not add that
+  gate. Restrict exposed tools and review the execution mode before enabling a
+  connection. See [approval modes](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Cost attribution.** What a server does on its own side is not in this
   platform's [budget](governance.md#budgets). Only the model tokens are.
 
