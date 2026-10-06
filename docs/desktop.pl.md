@@ -1,5 +1,5 @@
 ---
-source_sha: "04d344a0f5a0"
+source_sha: "8f92579bb015"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -9,10 +9,7 @@ desktopowa jest dodatkiem dla tych, którzy chcą mieć go w docku: konsola we
 własnym oknie plus zwierzak i skrót do zrzutu ekranu. Nic w samej platformie jej
 nie potrzebuje.
 
-<figure markdown>
-  ![Amigo, zwierzak z pulpitu, mówi: No more caramba.](assets/desktop_no_more_caramba_pet.png){ width="270" }
-  <figcaption>Amigo, jeden z pięciu zwierzaków. No more caramba in your AI.</figcaption>
-</figure>
+> **Miejsce na zrzut — aktualna aplikacja desktopowa i zwierzak.**
 
 Aplikacja wewnątrz okna to ta sama konsola w Next.js, którą serwer już serwuje,
 ładowana z serwera, więc niesie to samo logowanie, te same uprawnienia i te same

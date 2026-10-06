@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "c070f50e41ec"
 ---
 
 # Governance { #governance }
@@ -1071,14 +1071,12 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
   cichu przestałby nim być. Nikt nie przeczytał tych argumentów, zanim się
   wykonały; wiersz jest miejscem, w którym ktoś czyta je potem.
 
-**Pytanie o wszystko to ta tania połowa i nie potrzebuje niczego z powyższych.**
-Zawsze tylko zacieśnia, więc nie wymaga uprawnienia, pułapu ani sprawdzania
-powierzchni — i celowo sięga dalej niż bramka ze speca, do narzędzi, których nie
-posiada żadna capability. Zatwierdzanie narzędzia MCP jest właściwością jego
-połączenia, dlatego bramka sterowana specem zostawia je w spokoju; osoba, która
-jeszcze nie ufa agentowi, pyta o wszystko, co on potrafi, a bycie pytanym o
-odczyt jest uciążliwością tam, gdzie niebycie pytanym o zapis jest tą awarią, dla
-której istnieje kolejka.
+**Ask about everything zaostrza politykę sesji.** Wybranie tego surowszego trybu
+nie wymaga specjalnego uprawnienia. Obejmuje on wywołania MCP obsługiwane przez runner, choć
+narzędzia te nie są deklarowane przez capabilities. Listy dozwolonych narzędzi
+na połączeniu i powiązaniu z agentem określają, co jest dostępne; same nie
+wymuszają zatwierdzenia. Domyślny tryb **Follow the agent** stosuje politykę
+capabilities agenta i nie dodaje bramki zatwierdzeń do tych narzędzi MCP.
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
@@ -1208,12 +1206,15 @@ agenta. Wydatki są zachowywane nawet wtedy, gdy *miejsca* delegata zachować si
 nie dało — historia wiadomości z biblioteki jest telemetrią w miarę możliwości, a
 delegacja uruchomiona od nowa i tak wydała to, co wydała.
 
-!!! warning "Narzędzia MCP są poza bramką zatwierdzeń"
+!!! warning "Zatwierdzanie MCP zależy od trybu wykonania"
 
-    Zatwierdzenie ustawione na capability ich nie obejmuje. Wszystko, co potrafią
-    serwery MCP powiązane z agentem, ten agent może zrobić bez pytania. To, które
-    narzędzia serwera są wystawione, ustawia się na połączeniu, więc każdy agent
-    z nim powiązany dostaje te same.
+    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP. W czacie
+    internetowym **Ask about everything** (`ask_all`) obejmuje też wywołania MCP
+    obsługiwane przez runner; domyślny **Follow the agent** tego nie robi.
+    Ogranicz narzędzia na połączeniu i jego powiązaniu z agentem oraz przetestuj
+    docelowy tryb wykonania. Nie zakładaj, że surowsze ustawienie sesji czatu
+    obowiązuje też w harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane
+    po stronie dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
 
 ## Alerty { #alerts }
 
