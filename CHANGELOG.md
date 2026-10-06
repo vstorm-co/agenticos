@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.520] - 2026-10-06
+
 ### Fixed
 
 - **Knowledge self-query and query expansion run under the agent's model
