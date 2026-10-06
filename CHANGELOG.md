@@ -37,6 +37,17 @@ Two things are versioned separately from this file and worth knowing about:
   and refused `categories: ["phone"]`; a scan that includes `phone` refuses
   text with more than 10,000 digits.
 
+## [0.0.518] - 2026-10-06
+
+### Fixed
+
+- **An agent card no longer blinks out when the cursor leaves it.** The
+  gallery's entrance animation and the card's hover beam both set an
+  animation on the same element, so each time the beam went out the card
+  replayed its entrance from fully transparent. Firefox and browsers built on
+  it showed this as the card vanishing under the cursor. The beam now sits
+  inside its own wrapper.
+
 ### Security
 
 - **`multidict` moves to 6.9.1 and `source-map-js` to 1.2.2.** 6.8.0, which

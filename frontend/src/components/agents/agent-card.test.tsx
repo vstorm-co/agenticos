@@ -69,6 +69,27 @@ function mount(overrides: Partial<Agent> = {}, { canEdit = true, busy = false } 
  * the accessible names, which is the only way that stays true.
  */
 describe("AgentCard", () => {
+  it("keeps the beam off the element the gallery's entrance animates", () => {
+    // `rise-in` animates each grid child; on the beam's own wrapper, the beam's
+    // animation displaced it and handed it back at opacity 0 when the hover ended.
+    const { container } = render(
+      <AgentCard
+        agent={agent({})}
+        canEdit
+        actions={{
+          onDuplicate: vi.fn(),
+          onArchive: vi.fn(),
+          onRestore: vi.fn(),
+          onDelete: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.children).toHaveLength(1);
+    expect(container.firstElementChild).not.toHaveAttribute("data-beam");
+    expect(container.querySelector("[data-beam]")).not.toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 
