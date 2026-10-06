@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenticos"
-version = "0.0.517"
+version = "0.0.520"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -42,6 +42,7 @@ dependencies = [
     { name = "odfpy" },
     { name = "olefile" },
     { name = "openpyxl" },
+    { name = "phonenumberslite" },
     { name = "pillow" },
     { name = "prefect" },
     { name = "psycopg2-binary" },
@@ -137,6 +138,7 @@ requires-dist = [
     { name = "odfpy", specifier = ">=1.4.1" },
     { name = "olefile", specifier = ">=0.47" },
     { name = "openpyxl", specifier = ">=3.1.0" },
+    { name = "phonenumberslite", specifier = ">=9.0.40" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "prefect", specifier = ">=3.8.5" },
     { name = "psycopg2-binary", specifier = ">=2.9.13" },
@@ -3615,6 +3617,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/9e/567376582da58f5fe8e4f579db2bcfbf243cf619a5825bdf1023ad1436b3/pendulum-3.2.0-cp314-cp314-win_amd64.whl", hash = "sha256:e5bbb92b155cd5018b3cf70ee49ed3b9c94398caaaa7ed97fe41e5bb5a968418", size = 258817, upload-time = "2026-01-30T11:21:53.074Z" },
     { url = "https://files.pythonhosted.org/packages/95/67/dfffd7eb50d67fa821cd4d92cf71575ead6162930202bc40dfcedf78c38c/pendulum-3.2.0-cp314-cp314-win_arm64.whl", hash = "sha256:d53134418e04335c3029a32e9341cccc9b085a28744fb5ee4e6a8f5039363b1a", size = 253292, upload-time = "2026-01-30T11:21:54.484Z" },
     { url = "https://files.pythonhosted.org/packages/02/fb/d65db067a67df7252f18b0cb7420dda84078b9e8bfb375215469c14a50be/pendulum-3.2.0-py3-none-any.whl", hash = "sha256:f3a9c18a89b4d9ef39c5fa6a78722aaff8d5be2597c129a3b16b9f40a561acf3", size = 114111, upload-time = "2026-01-30T11:22:22.361Z" },
+]
+
+[[package]]
+name = "phonenumberslite"
+version = "9.0.40"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/d9/24781f4593a1d3ede8f8bd3847539c80ebeb3cddc687d4c4e8aecd84c11c/phonenumberslite-9.0.40.tar.gz", hash = "sha256:b12d16ae17aae2a0638d11bf10ae23484f01292500a9ceaea203cf5e7bd98a0c", size = 292835, upload-time = "2026-09-24T06:58:23.45Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/08/0adc94b36dc18858e3327f8d52600dca3d301e9cef32a32d64e194901f62/phonenumberslite-9.0.40-py2.py3-none-any.whl", hash = "sha256:e504bb005cc6a94fefedc89dfcad614378848a42b15f7ac03a7639838849b5ca", size = 473080, upload-time = "2026-09-24T06:58:22.075Z" },
 ]
 
 [[package]]

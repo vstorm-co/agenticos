@@ -16,7 +16,11 @@ things wrong, because each built its own `Agent(ctx.model, ...)`:
   double-counts under a concurrent fan-out (agenticos#1811).
 
 :func:`run_ambient_agent` is the one place those four are handled, so a site
-adopts them by calling it instead of building its own agent.
+adopts them by calling it instead of building its own agent. The two knowledge
+sites keep their own agent: each holds its nested run to a request limit of its
+own, meters per response through `MeteredModel`, and lets a budget refusal reach
+the runner rather than degrading - so they take only :func:`run_model_settings`
+from here.
 """
 
 from __future__ import annotations

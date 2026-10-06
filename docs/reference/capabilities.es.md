@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "5f01b3c59363"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1767,9 +1767,9 @@ que llamara él mismo a un modelo o a un embedding — deliberadamente no se exp
 
 Sin herramientas. Inspecciona el texto que circula por un run en tres bordes y o bien
 **censura** una coincidencia o bien **bloquea** el run. Las comprobaciones son
-detectores ya hechos de `pydantic-ai-harness`; un agent son datos, así que la
-configuración los selecciona y los parametriza en lugar de llevar una guarda en
-Python.
+detectores ya hechos de `pydantic-ai-harness`, más un detector de números de
+teléfono que el harness no incluye; un agent son datos, así que la configuración
+los selecciona y los parametriza en lugar de llevar una guarda en Python.
 
 | Borde | Lee | Censura | Bloqueo |
 |---|---|---|---|
@@ -1780,11 +1780,32 @@ Python.
 | Configuración | Valor por defecto | |
 |---|---|---|
 | `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT y bloques PEM |
-| `redact_pii_*` | `false` | limpia correos, IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
+| `redact_pii_*` | `false` | limpia correos, números de teléfono (válidos en su plan de numeración), IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
 | `blocked_keywords_*` | `""` | términos separados por comas o saltos de línea; una coincidencia termina el run |
+| `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII, como mucho 16 |
 
-Todos los campos vienen apagados por defecto, y una capability activada sin ningún
-borde configurado no adjunta nada: un agent que no la usa no paga nada.
+Todos los campos de borde vienen apagados por defecto, y una capability activada
+sin ningún borde configurado no adjunta nada: un agent que no la usa no paga nada.
+
+**Un número de teléfono solo se censura cuando es un número real.** El detector es
+el de libphonenumber, con su nivel `STRICT_GROUPING`: un candidato se acepta solo
+cuando encaja en el plan de numeración de su país y sus separadores caen donde ese
+país agrupa los dígitos, así que una fecha, un importe o un número de pedido que
+una regla por cantidad de dígitos tomaría pasan sin cambios. Un número escrito con `+` indica su propio país y se censura sea cual sea
+el contenido de `phone_regions`. Un número nacional, como `415-555-0132`, se lee
+frente a cada país de la lista, y cada país añadido amplía lo que puede ser una
+simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`
+en la lista también se censura un número de pedido de nueve dígitos. La agrupación
+funciona en ambos sentidos: un código postal ZIP+4 de EE. UU. que empieza por `0`,
+como `02134-1234`, está agrupado como un prefijo alemán con su número, así que con
+`DE` en la lista se censura. Incluye los
+países a los que atiende el agent. Un código desconocido (lo habitual es `UK` en
+lugar de `GB`), o una lista de más de 16, se rechaza al publicar. Con hasta cuatro
+países, un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee.
+Cada país por encima de cuatro es otra pasada sobre el texto, así que ambos límites
+bajan en proporción, a 50.000 caracteres y 2.500 dígitos con dieciséis. Un texto por
+encima del límite termina el run con `guardrail_blocked`, porque pasarlo sin leer
+pasaría también cada número que contiene.
 
 **La censura reescribe; un bloqueo es un desenlace del run.** Un censor limpia la
 coincidencia y el run termina: una respuesta que devolvía una clave citada ha hecho el
