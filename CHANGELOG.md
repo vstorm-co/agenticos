@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.521] - 2026-10-06
+
 ### Fixed
 
 - A burst of refreshes on one cookie no longer signs the person out. The reuse
