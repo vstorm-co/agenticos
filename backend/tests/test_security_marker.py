@@ -110,6 +110,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_rag_parent_context.py::TestExpandingResults::test_the_per_search_budget_is_shared_and_stops_expansion": "'budget' names the per-search parent-context character cap, not a spend budget; a size bound, no refusal",
     "tests/test_sandbox_workspace.py::TestContainerBackedWorkspaces::test_a_docker_workspace_labels_its_tenant_and_reattaches": "a docker workspace labels its tenant for accounting and reattaches, feature, no isolation refusal",
     "tests/test_sandbox_workspace.py::TestDrawingAHostsImages::test_the_budget_bounds_a_page_of_photographs": "a thumbnail budget bounds image reads, resource limit, not a spend budget",
+    "tests/test_sandbox_workspace.py::TestDrawingAHostsImages::test_the_budget_goes_to_the_first_workspaces_listed": "thumbnail fetch budget ordering, not a spend budget",
     "tests/test_services_organizations.py::TestOrganizationService::test_a_new_team_org_starts_with_the_default_monthly_budget": "a new team org gets the default monthly budget, default config, no refusal",
     "tests/test_services_organizations.py::TestOrganizationService::test_a_personal_org_starts_with_the_default_monthly_budget": "a personal org gets the default monthly budget, default config, no refusal",
     "tests/test_services_organizations.py::TestOrganizationService::test_the_default_budget_can_be_disabled": "the default budget can be disabled, config, no refusal",

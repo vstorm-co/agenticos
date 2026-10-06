@@ -28,7 +28,7 @@ import contextlib
 import logging
 import shlex
 from binascii import Error as BinasciiError
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -39,6 +39,7 @@ from uuid import UUID
 
 from PIL import Image, ImageOps
 from pydantic_ai_backends import FileData, FileInfo
+from pydantic_ai_backends.remote.client import DEFAULT_TIMEOUT_SECONDS
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
@@ -77,9 +78,12 @@ _MAX_LISTED_ENTRIES = 2000
 workspace into ten thousand rows on a page about twenty-five of them."""
 
 _HOST_READS_AT_ONCE = 8
-"""How many host round trips one listing has in flight. The listings that read
-more than one workspace used to read them one after another, so the page waited
-for the sum of twenty-five walks; with this it waits for the slowest few."""
+"""How many host calls one request has in flight - a workspace's walk or one
+thumbnail's `read_bytes` each count as one. The listings that read more than one
+workspace used to read them one after another, so the page waited for the sum of
+twenty-five walks; with this it waits for the slowest few. Each call holds a
+thread of the default executor, which the rest of the process shares, so the
+bound is per request rather than per host."""
 
 _BROWSE_TIMEOUT_SECONDS = 10.0
 """How long a listing waits on a host. The archive's own default is sixty seconds,
@@ -87,15 +91,27 @@ and a host that has gone away held the whole Workspaces page for that long befor
 it could say "this host did not answer". A download keeps the default."""
 
 
-async def _bounded[T](calls: Sequence[Callable[[], Awaitable[T]]]) -> list[T]:
-    """Every call's result in order, with at most `_HOST_READS_AT_ONCE` running."""
-    gate = asyncio.Semaphore(_HOST_READS_AT_ONCE)
+async def _concurrently[T](
+    calls: Sequence[Callable[[], Coroutine[object, object, T]]],
+    *,
+    gate: asyncio.Semaphore | None = None,
+) -> list[T]:
+    """Every call's result in the order given, run side by side, each under `gate`.
 
-    async def _one(call: Callable[[], Awaitable[T]]) -> T:
+    A `TaskGroup` rather than `gather`: a call that raises cancels the others and
+    the group waits for them, so none keeps running after the request has failed
+    and reaches its database session afterwards.
+    """
+
+    async def _one(call: Callable[[], Coroutine[object, object, T]]) -> T:
+        if gate is None:
+            return await call()
         async with gate:
             return await call()
 
-    return list(await asyncio.gather(*(_one(call) for call in calls)))
+    async with asyncio.TaskGroup() as group:
+        tasks = [group.create_task(_one(call)) for call in calls]
+    return [task.result() for task in tasks]
 
 
 @dataclass(frozen=True)
@@ -388,6 +404,10 @@ class SandboxWorkspaceService:
         # query on the one session this service holds - which must not be used by
         # two coroutines at once.
         self._resolving = asyncio.Lock()
+        # Shared by every host call this request makes - the listings' walks and
+        # the thumbnails' reads alike - and taken only around a single call, never
+        # around a fan-out of them, so a holder never waits on another permit.
+        self._host_calls = asyncio.Semaphore(_HOST_READS_AT_ONCE)
 
     async def open(
         self,
@@ -1049,7 +1069,7 @@ class SandboxWorkspaceService:
                 continue
             picked, budget = thumbnail_picks(entries, budget)
             shares.append(len(picked))
-        tiled = await _bounded(
+        tiled = await _concurrently(
             [
                 partial(self._tiles, ctx, overview.row, entries, share)
                 for (overview, entries), share in zip(readable, shares, strict=True)
@@ -1083,7 +1103,9 @@ class SandboxWorkspaceService:
         anything. A host that will not answer still comes back as
         `unreadable_reason`, never as a raise, so one of them cannot fail the rest.
         """
-        return await _bounded([partial(self._entries, ctx, row) for row in rows])
+        return await _concurrently(
+            [partial(self._entries, ctx, row) for row in rows], gate=self._host_calls
+        )
 
     async def _host_thumbnails(
         self,
@@ -1105,7 +1127,10 @@ class SandboxWorkspaceService:
         glyph every container-backed image had before this existed.
         """
         paths, budget = thumbnail_picks(entries, budget)
-        tiles = await _bounded([partial(self._host_thumbnail, ctx, row, path) for path in paths])
+        tiles = await _concurrently(
+            [partial(self._host_thumbnail, ctx, row, path) for path in paths],
+            gate=self._host_calls,
+        )
         drawn = {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
         return drawn, budget
 
@@ -1517,7 +1542,7 @@ class SandboxWorkspaceService:
 
     @asynccontextmanager
     async def _archive(
-        self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float | None = None
+        self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
     ) -> AsyncIterator[Any | None]:
         """A reader for the host volume behind a container-backed workspace.
 
@@ -1542,11 +1567,7 @@ class SandboxWorkspaceService:
         if resolved.kind != "docker" or not resolved.row.base_url:
             yield None
             return
-        archive = (
-            WorkspaceArchive(resolved.row.base_url, token=resolved.token)
-            if timeout is None
-            else WorkspaceArchive(resolved.row.base_url, token=resolved.token, timeout=timeout)
-        )
+        archive = WorkspaceArchive(resolved.row.base_url, token=resolved.token, timeout=timeout)
         try:
             yield archive
         finally:
