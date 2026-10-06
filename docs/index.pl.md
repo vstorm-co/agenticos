@@ -1,5 +1,5 @@
 ---
-source_sha: "89439dd9f4e7"
+source_sha: "42ec3d82641d"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -194,8 +194,7 @@ odpowiedź.
 
 === "Co się edytuje"
 
-    ![Agents — każdy z wersją, która jest na żywo, i z tym, kto może do niego sięgnąć](assets/screens/light/agents.webp#only-light)
-    ![Agents — każdy z wersją, która jest na żywo, i z tym, kto może do niego sięgnąć](assets/screens/dark/agents.webp#only-dark)
+    > **Miejsce na zrzut — Agents.** Nowe ujęcia w jasnym i ciemnym motywie zastąpią obrazy poprzedniego interfejsu.
 
 === "Czym się to staje"
 
