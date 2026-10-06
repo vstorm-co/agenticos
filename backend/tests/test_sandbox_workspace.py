@@ -3934,25 +3934,39 @@ class TestDrawingAHostsImages:
         assert sum(path.startswith("slow-") for path in drawn) == first
         assert sum(path.startswith("quick-") for path in drawn) == 4
 
-    async def test_one_request_has_a_bounded_number_of_host_calls_in_flight(
+    async def test_host_calls_are_bounded_across_requests_on_their_own_threads(
         self, monkeypatch, mock_db_session
     ):
-        """Thumbnails are fetched side by side within a host and across hosts, and
-        every fetch holds a thread of the executor the whole process shares. The
-        bound is the request's, so two hosts of images still make at most
-        `_HOST_READS_AT_ONCE` reads at once, not that many per host. The budget
-        is split between them, so both hosts are fetching at the same time."""
+        """Every host call holds a thread until the host answers, and a request
+        builds its own service - so a per-request limit lets a few people opening
+        the page at once take every thread of the default executor, which sign-in
+        hashes passwords on. Two page loads at once still make at most
+        `_HOST_CALLS_AT_ONCE` calls together, and none of them on that executor."""
+        import asyncio
         import time
 
         from pydantic_ai_backends import remote as remote_module
 
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import _HOST_READS_AT_ONCE, HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, HOST_THUMBNAIL_BUDGET
 
         png = self._png()
         counter = threading.Lock()
         in_flight = 0
         most = 0
+        threads: set[str] = set()
+
+        def _enter() -> None:
+            nonlocal in_flight, most
+            with counter:
+                in_flight += 1
+                most = max(most, in_flight)
+                threads.add(threading.current_thread().name)
+
+        def _leave() -> None:
+            nonlocal in_flight
+            with counter:
+                in_flight -= 1
 
         class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
@@ -3961,35 +3975,41 @@ class TestDrawingAHostsImages:
             def ls(self, session_id, path="."):
                 if path != ".":
                     return []
+                _enter()
+                time.sleep(0.02)
+                _leave()
                 return [
                     {"path": f"{session_id}-{n}.png", "is_dir": False, "size": 120}
                     for n in range(HOST_THUMBNAIL_BUDGET // 2)
                 ]
 
             def read_bytes(self, session_id, file_path):
-                nonlocal in_flight, most
-                with counter:
-                    in_flight += 1
-                    most = max(most, in_flight)
+                _enter()
                 time.sleep(0.02)
-                with counter:
-                    in_flight -= 1
+                _leave()
                 return png
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
         _serve(monkeypatch, _resolved())
         rows = [
             _row(backend="service", session_id=name, connection_id=uuid4())
-            for name in ("one", "two")
+            for name in ("one", "two", "three", "four")
         ]
         monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
         monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
         _no_conversations(monkeypatch)
 
-        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+        listings = await asyncio.gather(
+            SandboxWorkspaceService(mock_db_session).flat_files(_ctx()),
+            SandboxWorkspaceService(mock_db_session).flat_files(_ctx()),
+        )
 
-        assert sum(file.thumbnail is not None for file in listing.files) == HOST_THUMBNAIL_BUDGET
-        assert 1 < most <= _HOST_READS_AT_ONCE
+        for listing in listings:
+            assert sum(file.thumbnail is not None for file in listing.files) == (
+                HOST_THUMBNAIL_BUDGET
+            )
+        assert 1 < most <= _HOST_CALLS_AT_ONCE
+        assert threads and all(name.startswith("workspace-host") for name in threads)
 
     async def test_a_host_that_stops_answering_leaves_the_glyph(self, monkeypatch, mock_db_session):
         """Failure is silence, and the rest of the grid still draws. A thumbnail is

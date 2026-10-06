@@ -23,9 +23,11 @@ Two things are versioned separately from this file and worth knowing about:
   Its landing view, every file at once, read up to twenty-five container-backed
   workspaces one after another and then fetched their image thumbnails one after
   another, so the page waited for the sum of all those round trips. Workspaces
-  and thumbnails are now read side by side, at most eight host calls at a time
-  for one page load. A listing waits ten seconds for each call to a host instead
-  of the archive's sixty-second default, so a host that does not answer at all is
+  and thumbnails are now read side by side, on eight threads of their own shared
+  by the whole process, so several people opening the page against a host that
+  has stopped answering cannot hold up sign-in or anything else on the default
+  thread pool. A listing waits ten seconds for each call to a host instead of the
+  archive's sixty-second default, so a host that does not answer at all is
   reported as unreadable after ten seconds; one that answers slowly can still
   take longer over a deep walk. The "Count files" switch reads hosts the same way.
 

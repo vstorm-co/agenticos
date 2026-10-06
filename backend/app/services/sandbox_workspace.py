@@ -25,10 +25,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import contextvars
 import logging
 import shlex
 from binascii import Error as BinasciiError
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -77,13 +79,39 @@ _MAX_LISTED_ENTRIES = 2000
 """Where a listing stops. A host holding a `node_modules` must not turn one
 workspace into ten thousand rows on a page about twenty-five of them."""
 
-_HOST_READS_AT_ONCE = 8
-"""How many host calls one request has in flight - a workspace's walk or one
-thumbnail's `read_bytes` each count as one. The listings that read more than one
+_HOST_CALLS_AT_ONCE = 8
+"""How many calls to sandbox hosts the whole process has in flight - one `ls` of
+a walk or one `read_bytes` each count as one. The listings that read more than one
 workspace used to read them one after another, so the page waited for the sum of
-twenty-five walks; with this it waits for the slowest few. Each call holds a
-thread of the default executor, which the rest of the process shares, so the
-bound is per request rather than per host."""
+twenty-five walks; with this it waits for the slowest few."""
+
+_HOST_CALLS = ThreadPoolExecutor(
+    max_workers=_HOST_CALLS_AT_ONCE, thread_name_prefix="workspace-host"
+)
+"""The threads host calls run on, and the bound on them.
+
+Not the loop's default executor, which `to_thread` uses: that one also carries
+`bcrypt` and pinned-host DNS, and it has `min(32, cpus + 4)` threads - six on a
+two-core host. A host that stops answering holds a thread for the browse timeout,
+or sixty seconds for a read, so a few people opening the Workspaces page at once
+would leave sign-in queueing behind them. A per-request limit does not prevent
+that, since every request brings its own; a pool of the process's own does, and
+a dead host then slows only other host calls.
+
+Unlike `app.core.blocking`, which carries file work, there is no admission gate:
+what waits in this queue is a bound method and two strings rather than an upload
+buffer, and a cancelled caller's call that has not started is dropped from it.
+Threads start on first use and are joined at interpreter exit."""
+
+
+async def _on_host_thread[T](call: Callable[..., T], *args: object) -> T:
+    """Run a blocking host call on `_HOST_CALLS`, carrying the caller's context as
+    `to_thread` would, so its spans stay under the request's trace."""
+    context = contextvars.copy_context()
+    return await asyncio.get_running_loop().run_in_executor(
+        _HOST_CALLS, partial(context.run, call, *args)
+    )
+
 
 _BROWSE_TIMEOUT_SECONDS = 10.0
 """How long a listing waits on a host. The archive's own default is sixty seconds,
@@ -91,26 +119,16 @@ and a host that has gone away held the whole Workspaces page for that long befor
 it could say "this host did not answer". A download keeps the default."""
 
 
-async def _concurrently[T](
-    calls: Sequence[Callable[[], Coroutine[object, object, T]]],
-    *,
-    gate: asyncio.Semaphore | None = None,
-) -> list[T]:
-    """Every call's result in the order given, run side by side, each under `gate`.
+async def _concurrently[T](calls: Sequence[Callable[[], Coroutine[object, object, T]]]) -> list[T]:
+    """Every call's result in the order given, run side by side.
 
     A `TaskGroup` rather than `gather`: a call that raises cancels the others and
     the group waits for them, so none keeps running after the request has failed
-    and reaches its database session afterwards.
+    and reaches its database session afterwards. How many reach a host at once is
+    `_HOST_CALLS`'s to bound, not this.
     """
-
-    async def _one(call: Callable[[], Coroutine[object, object, T]]) -> T:
-        if gate is None:
-            return await call()
-        async with gate:
-            return await call()
-
     async with asyncio.TaskGroup() as group:
-        tasks = [group.create_task(_one(call)) for call in calls]
+        tasks = [group.create_task(call()) for call in calls]
     return [task.result() for task in tasks]
 
 
@@ -404,10 +422,6 @@ class SandboxWorkspaceService:
         # query on the one session this service holds - which must not be used by
         # two coroutines at once.
         self._resolving = asyncio.Lock()
-        # Shared by every host call this request makes - the listings' walks and
-        # the thumbnails' reads alike - and taken only around a single call, never
-        # around a fan-out of them, so a holder never waits on another permit.
-        self._host_calls = asyncio.Semaphore(_HOST_READS_AT_ONCE)
 
     async def open(
         self,
@@ -1103,9 +1117,7 @@ class SandboxWorkspaceService:
         anything. A host that will not answer still comes back as
         `unreadable_reason`, never as a raise, so one of them cannot fail the rest.
         """
-        return await _concurrently(
-            [partial(self._entries, ctx, row) for row in rows], gate=self._host_calls
-        )
+        return await _concurrently([partial(self._entries, ctx, row) for row in rows])
 
     async def _host_thumbnails(
         self,
@@ -1128,8 +1140,7 @@ class SandboxWorkspaceService:
         """
         paths, budget = thumbnail_picks(entries, budget)
         tiles = await _concurrently(
-            [partial(self._host_thumbnail, ctx, row, path) for path in paths],
-            gate=self._host_calls,
+            [partial(self._host_thumbnail, ctx, row, path) for path in paths]
         )
         drawn = {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
         return drawn, budget
@@ -1351,7 +1362,7 @@ class SandboxWorkspaceService:
             if archive is None:
                 return None
             try:
-                return await asyncio.to_thread(
+                return await _on_host_thread(
                     archive.read_bytes, row.session_id or row.scope_key, path
                 )
             except Exception as exc:
@@ -1411,9 +1422,11 @@ class SandboxWorkspaceService:
         not available here: it needs a running session, and browsing deliberately
         never starts one.
 
-        `to_thread`, because `WorkspaceArchive` is a synchronous `httpx.Client`.
+        Off the loop, because `WorkspaceArchive` is a synchronous `httpx.Client`:
         `flat_files` runs this for up to 25 workspaces in one request, so a blocking
-        call would hold the loop for all 25 - and not only for that request.
+        call would hold the loop for all 25 - and not only for that request. On
+        `_HOST_CALLS` rather than `to_thread`, so a host that stops answering cannot
+        take the default executor's threads; see there.
 
         Returns:
             What was found, and whether either bound stopped it - because a
@@ -1426,7 +1439,7 @@ class SandboxWorkspaceService:
         while queue:
             path, depth = queue.pop(0)
             try:
-                entries = await asyncio.to_thread(archive.ls, session, path)
+                entries = await _on_host_thread(archive.ls, session, path)
             except Exception:
                 # The root's failure is the host's and belongs to the caller, which
                 # turns it into `unreadable_reason`. One directory below it refusing
