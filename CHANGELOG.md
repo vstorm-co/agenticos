@@ -29,6 +29,67 @@ Two things are versioned separately from this file and worth knowing about:
   reported as unreadable after ten seconds; one that answers slowly can still
   take longer over a deep walk. The "Count files" switch reads hosts the same way.
 
+## [0.0.521] - 2026-10-06
+
+### Fixed
+
+- A burst of refreshes on one cookie no longer signs the person out. The reuse
+  grace window rotated the session again on every grace refresh, so the third
+  request of a burst matched nothing, got a 401, and its response cleared the
+  cookie the other two had just set. Within `REFRESH_REUSE_GRACE_SECONDS` a spent
+  token is now answered with the successor the session already holds - the same
+  token for every request in the burst - so the cookie converges whichever
+  response lands last.
+- A session that has ended sends the person to sign in. A refused refresh left the
+  console signed in, with every request answering 401 and the chat socket
+  reconnecting on a dead token, until a full reload.
+
+## [0.0.520] - 2026-10-06
+
+### Fixed
+
+- **Knowledge self-query and query expansion run under the agent's model
+  settings.** Both make a model request of their own inside a search, and
+  both inherited the run's model without the `timeout`, `max_tokens` and
+  `temperature` the agent set, so a query rewrite or a filter inference could
+  outlive the agent's timeout or generate more than it permits. They now run
+  under the same settings as the run's own requests, as compaction summaries
+  and system reminders have since 0.0.507. The tool-output summary is
+  unchanged: the harness it builds on exposes no settings knob (#1810).
+
+## [0.0.519] - 2026-10-06
+
+### Fixed
+
+- **PII redaction covers phone numbers.** The `redact_pii_*` guardrails
+  scrubbed email, IBAN, card and US SSN, and a phone number in the same
+  message reached the model and the reader unchanged. They now also redact a
+  phone number as `[redacted:phone]` when it is valid in its country's
+  numbering plan and grouped the way that country writes it, so a date, an
+  amount or an order id such as `ORD-2026-000417` comes through. A number
+  written with `+` is caught for any country; a national one for the countries
+  in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
+  code, or more than 16 of them, is refused at publish. A text longer than
+  200,000 characters or with more than 10,000 digits is not read: it ends the
+  run with `guardrail_blocked` rather than reach the model unredacted. Each
+  country past four shrinks both limits in proportion, since each is another
+  pass over the text. An agent with no PII toggle on is unchanged.
+  `POST /api/v1/ml/privacy/pii` finds the same numbers as a `phone`
+  category, against the default countries, where it returned them unchanged
+  and refused `categories: ["phone"]`; a scan that includes `phone` refuses
+  text with more than 10,000 digits.
+
+## [0.0.518] - 2026-10-06
+
+### Fixed
+
+- **An agent card no longer blinks out when the cursor leaves it.** The
+  gallery's entrance animation and the card's hover beam both set an
+  animation on the same element, so each time the beam went out the card
+  replayed its entrance from fully transparent. Firefox and browsers built on
+  it showed this as the card vanishing under the cursor. The beam now sits
+  inside its own wrapper.
+
 ### Security
 
 - **`multidict` moves to 6.9.1 and `source-map-js` to 1.2.2.** 6.8.0, which

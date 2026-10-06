@@ -1,5 +1,5 @@
 ---
-source_sha: "0c537f0b37b2"
+source_sha: "130cbafc773f"
 ---
 
 # Konfiguration { #configuration }
@@ -107,7 +107,7 @@ terminiert; die Compose-Dateien starten uvicorn ohne eine eigene solche Grenze.
 | `SECRET_KEY` | (insecure default) | Signierschlüssel für JWT. **Muss** in der Produktion geändert werden. Erzeugen mit: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Lebensdauer des Access Tokens |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Lebensdauer des Refresh Tokens (7 Tage) |
-| `REFRESH_REUSE_GRACE_SECONDS` | `60` | Wie lange nach einer Rotation der verbrauchte Refresh Token noch einmal refreshen darf, damit eine verlorene Antwort oder ein zweiter Tab die Session nicht beendet; `0` schaltet es ab |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | Wie lange nach einer Rotation der verbrauchte Refresh Token noch beantwortet wird, jedes Mal mit demselben Nachfolger, damit eine verlorene Antwort oder eine Serie von Refreshes die Session nicht beendet; `0` schaltet es ab |
 | `ALGORITHM` | `HS256` | Signaturalgorithmus für JWT |
 
 Prüfung für die Produktion: `SECRET_KEY` muss mindestens 32 Zeichen lang sein und

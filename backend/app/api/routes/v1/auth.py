@@ -36,6 +36,7 @@ from app.schemas.password_reset import (
 from app.schemas.token import MagicLinkToken, RefreshTokenRequest, Token
 from app.schemas.user import MeRead, UserCreate, UserRead
 from app.services.email.service import get_email_service
+from app.services.session import refresh_expiry, successor_refresh_token
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,11 @@ async def refresh_token(
     """Exchange a refresh token for a new access token."""
     await enforce_auth_limit(request, surface="auth_refresh")
 
-    session = await session_service.validate_refresh_token(
-        body.refresh_token
-    ) or await session_service.claim_refresh_grace(body.refresh_token)
+    session = await session_service.validate_refresh_token(body.refresh_token)
+    within_grace = False
+    if not session:
+        session = await session_service.claim_refresh_grace(body.refresh_token)
+        within_grace = session is not None
     if not session:
         # Before the refusal, and only on the path where one is already certain:
         # a token that validated no live session may be a typo, an expired one, a
@@ -133,20 +136,35 @@ async def refresh_token(
     if payload is None or payload.get("cv", 0) != user.credential_version:
         raise AuthenticationError(message="Invalid or expired refresh token")
 
-    new_refresh_token = create_refresh_token(
-        subject=str(user.id), credential_version=user.credential_version
-    )
-
-    # Rotate the refresh token in place, keeping the row's id: the new access
-    # token names the same `sid`, so a live socket or a second tab holding the
-    # old access token is not cut off by a routine refresh (#1437, #1501). The
-    # old refresh token's hash is replaced, which is what makes it unusable.
-    await session_service.rotate_session(
-        session,
-        new_refresh_token,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("User-Agent"),
-    )
+    if within_grace:
+        # A token this row spent seconds ago - a lost response, or one request of
+        # a burst on the same cookie. Answered with the successor the row already
+        # holds, not a new rotation, so every request in the burst gets the same
+        # token and the cookie jar converges on it.
+        new_refresh_token = session_service.reissue_within_grace(
+            session, body.refresh_token, credential_version=user.credential_version
+        )
+    else:
+        # Rotate the refresh token in place, keeping the row's id: the new access
+        # token names the same `sid`, so a live socket or a second tab holding the
+        # old access token is not cut off by a routine refresh (#1437, #1501). The
+        # old refresh token's hash is replaced, which is what makes it unusable.
+        # The successor is derived from the spent token, so a grace-window reissue
+        # can rebuild it byte for byte.
+        expires_at = refresh_expiry()
+        new_refresh_token = successor_refresh_token(
+            body.refresh_token,
+            subject=str(user.id),
+            credential_version=user.credential_version,
+            expires_at=expires_at,
+        )
+        await session_service.rotate_session(
+            session,
+            new_refresh_token,
+            expires_at=expires_at,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("User-Agent"),
+        )
     access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
