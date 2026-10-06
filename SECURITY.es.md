@@ -27,7 +27,7 @@ El modelo de amenazas, la declaración de flujo de datos (qué sale del deployme
 y hacia quién), qué se cifra y dónde, y la matriz de controles — cada control
 mapeado al mecanismo que lo satisface y al test que lo sostiene — viven en una
 sola copia en la página
-[Seguridad](https://vstorm-co.github.io/agenticos/security/) (`docs/security.md`).
+[Seguridad](https://vstorm-co.github.io/agenticos/es/security/) (`docs/security.md`).
 Este archivo conserva solo las dos cosas para las que se lee el `SECURITY.md` de
 un repositorio: cómo informar de una vulnerabilidad, arriba, y la lista de
 endurecimiento para producción, abajo. Dónde viven los datos personales y qué
