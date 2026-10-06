@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.522] - 2026-10-06
+
 ### Fixed
 
 - **The Workspaces page no longer sits on its loading state before it draws.**
