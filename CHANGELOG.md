@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.518] - 2026-10-06
+
 ### Fixed
 
 - **An agent card no longer blinks out when the cursor leaves it.** The
