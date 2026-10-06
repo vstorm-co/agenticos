@@ -26,7 +26,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.1.0",
-    "sqlalchemy[asyncio]>=2.1.0",
+    "sqlalchemy[asyncio]>=2.1.3",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
@@ -35,7 +35,7 @@ dependencies = [
     "psycopg2-binary>=2.9.13",
     "alembic>=1.19.2",
     "greenlet>=3.5.5",
-    "pyjwt>=2.15.0",
+    "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
     "authlib>=1.8.0",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
@@ -48,7 +48,7 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.5",
+    "prefect>=3.8.7",
     # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
     # feature of any particular release, and stating it is what keeps a resolver
     # from picking a slim the harness cannot run on. Dependabot raises it to
@@ -75,7 +75,7 @@ dependencies = [
     # wherever an object crosses into or out of a vendor SDK, and nothing else
     # here does: the portals, the channels, `model_catalog` and the web-research
     # search all build and send their own requests.
-    "mcp>=2",
+    "mcp>=2.3.0",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -83,7 +83,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.35.0",
+    "pydantic-ai-harness>=0.54.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -97,10 +97,10 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.16.0",
-    "liteparse>=2.14.7",
-    "google-api-python-client>=2.200.0",
-    "google-auth>=2.58.1",
-    "boto3>=1.43.102",
+    "liteparse>=2.15.1",
+    "google-api-python-client>=2.201.0",
+    "google-auth>=2.59.1",
+    "boto3>=1.43.108",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -151,9 +151,9 @@ dependencies = [
     # which delegate asked - `ask_parent` hands the surface the question and
     # nothing else (#1042). The floor is 0.2.22.
     "subagents-pydantic-ai>=0.2.22",
-    "cryptography>=50.0.1",
+    "cryptography>=50.0.2",
     "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.44.1",
+    "slack-sdk>=3.45.0",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -171,7 +171,7 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
-    "mem0ai>=2.2.0",
+    "mem0ai>=2.2.1",
     "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
@@ -259,7 +259,7 @@ dev = [
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.9",
+    "ruff>=0.16.10",
     "ty>=0.0.84",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
