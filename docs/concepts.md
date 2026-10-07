@@ -157,10 +157,10 @@ rather than retrying a refusal for ever.
 
 ### It is not that person's conversation
 
-The creator lends a fire their **authority**: their role, their grants and their
-budget. They do not lend it their **identity**. Nobody is listening to an
-unattended run, so it answers to no identified person, the same as an embedded
-widget visitor. Everything kept per person is closed to it:
+The creator lends a fire their **authority**: their role and their grants. They
+do not lend it their **identity**. Nobody is listening to an unattended run, so
+it answers to no identified person, the same as an embedded widget visitor. These
+per-person stores are closed to it:
 
 - [Memory files](reference/capabilities.md#memory-files) and
   [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
@@ -172,7 +172,17 @@ widget visitor. Everything kept per person is closed to it:
 
 This is deliberate. A store kept for a person is read back to that person, and a
 fire nobody started must not write into it on their behalf. No setting changes it
-today. It decides how you design an agent that runs on a trigger:
+today.
+
+!!! warning "A user-scoped sandbox is the exception"
+
+    A [sandbox](sandbox.md) with `session_scope: user` is not closed. A fire
+    opens the creator's own workspace for that agent, and it can read and write
+    the creator's files there. A member without `agents:edit` cannot edit or fire
+    a trigger that another member created, because a changed prompt could copy
+    those files out on the next fire.
+
+The rule decides how you design an agent that runs on a trigger:
 
 | An unattended run needs | Use |
 |---|---|

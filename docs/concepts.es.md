@@ -1,5 +1,5 @@
 ---
-source_sha: "d3f5a6c6cf19"
+source_sha: "582492d866d3"
 ---
 
 # Conceptos { #concepts }
@@ -164,10 +164,10 @@ qué**, en vez de reintentar un rechazo eternamente.
 
 ### No es la conversación de esa persona { #it-is-not-that-persons-conversation }
 
-El creador presta a un disparo su **autoridad**: su rol, sus grants y su budget.
-No le presta su **identidad**. Nadie escucha un run desatendido, así que no
-responde a ninguna persona identificada, igual que un visitante de un widget
-embebido. Todo lo que se guarda por persona le está cerrado:
+El creador presta a un disparo su **autoridad**: su rol y sus grants. No le
+presta su **identidad**. Nadie escucha un run desatendido, así que no responde a
+ninguna persona identificada, igual que un visitante de un widget embebido. Estos
+almacenes que se guardan por persona le están cerrados:
 
 - [Archivos de memoria](reference/capabilities.md#memory-files) y
   [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
@@ -179,8 +179,17 @@ embebido. Todo lo que se guarda por persona le está cerrado:
 
 Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
 un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún
-ajuste lo cambia. Esto decide cómo diseñas un agent que se ejecuta con un
-trigger:
+ajuste lo cambia.
+
+!!! warning "Una sandbox con alcance de usuario es la excepción"
+
+    Una [sandbox](sandbox.md) con `session_scope: user` no está cerrada. Un
+    disparo abre el workspace propio del creador para ese agent, y puede leer y
+    escribir allí los archivos del creador. Un miembro sin `agents:edit` no puede
+    editar ni disparar un trigger que creó otro miembro, porque un prompt
+    cambiado podría copiar esos archivos fuera en el siguiente disparo.
+
+La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
 | Un run desatendido necesita | Usa |
 |---|---|

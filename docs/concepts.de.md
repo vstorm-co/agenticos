@@ -1,5 +1,5 @@
 ---
-source_sha: "d3f5a6c6cf19"
+source_sha: "582492d866d3"
 ---
 
 # Begriffe { #concepts }
@@ -172,10 +172,10 @@ wiederholen.
 
 ### Es ist nicht die Unterhaltung dieser Person { #it-is-not-that-persons-conversation }
 
-Der Ersteller leiht einem Auslösen seine **Befugnisse**: seine Rolle, seine Grants
-und sein Budget. Seine **Identität** leiht er ihm nicht. Einem unbeaufsichtigten
-Run hört niemand zu, also antwortet er keiner identifizierten Person, genau wie
-ein Besucher eines eingebetteten Widgets. Alles, was pro Person geführt wird, ist
+Der Ersteller leiht einem Auslösen seine **Befugnisse**: seine Rolle und seine
+Grants. Seine **Identität** leiht er ihm nicht. Einem unbeaufsichtigten Run hört
+niemand zu, also antwortet er keiner identifizierten Person, genau wie ein
+Besucher eines eingebetteten Widgets. Diese pro Person geführten Speicher sind
 für ihn verschlossen:
 
 - [Gedächtnisdateien](reference/capabilities.md#memory-files) und
@@ -189,8 +189,19 @@ für ihn verschlossen:
 
 Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
 Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in
-ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas. Es
-entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger läuft:
+ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas.
+
+!!! warning "Eine Sandbox mit Benutzer-Scope ist die Ausnahme"
+
+    Eine [Sandbox](sandbox.md) mit `session_scope: user` ist nicht verschlossen.
+    Ein Auslösen öffnet den eigenen Workspace des Erstellers für diesen Agent und
+    kann dort die Dateien des Erstellers lesen und schreiben. Ein Mitglied ohne
+    `agents:edit` kann einen Trigger, den ein anderes Mitglied angelegt hat,
+    weder bearbeiten noch auslösen, denn ein geänderter Prompt könnte diese
+    Dateien beim nächsten Auslösen hinauskopieren.
+
+Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
+läuft:
 
 | Ein unbeaufsichtigter Run braucht | Verwenden Sie |
 |---|---|

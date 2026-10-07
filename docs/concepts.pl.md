@@ -1,5 +1,5 @@
 ---
-source_sha: "d3f5a6c6cf19"
+source_sha: "582492d866d3"
 ---
 
 # Koncepcje { #concepts }
@@ -161,11 +161,10 @@ zamiast w nieskończoność ponawiać odmowę.
 
 ### To nie jest rozmowa tej osoby { #it-is-not-that-persons-conversation }
 
-Twórca pożycza odpaleniu swoje **uprawnienia**: rolę, granty i budżet. Nie
-pożycza mu swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie
-odpowiada on żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym
-widgecie. Wszystko, co jest trzymane dla konkretnej osoby, jest dla niego
-zamknięte:
+Twórca pożycza odpaleniu swoje **uprawnienia**: rolę i granty. Nie pożycza mu
+swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada on
+żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
+magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
 - [Pliki pamięci](reference/capabilities.md#memory-files) i
   [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
@@ -177,8 +176,17 @@ zamknięte:
 
 Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
 odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.
-Dziś żadne ustawienie tego nie zmienia. To decyduje o tym, jak projektujesz
-agenta uruchamianego przez trigger:
+Dziś żadne ustawienie tego nie zmienia.
+
+!!! warning "Wyjątkiem jest sandbox o zakresie użytkownika"
+
+    [Sandbox](sandbox.md) z `session_scope: user` nie jest zamknięty. Odpalenie
+    otwiera własny workspace twórcy dla tego agenta i może czytać oraz zapisywać
+    tam pliki twórcy. Członek bez `agents:edit` nie może edytować ani odpalić
+    triggera utworzonego przez innego członka, bo zmieniony prompt mógłby
+    wynieść te pliki przy następnym odpaleniu.
+
+Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
 | Run bez nadzoru potrzebuje | Użyj |
 |---|---|
