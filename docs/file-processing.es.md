@@ -1,5 +1,5 @@
 ---
-source_sha: "44dae3302f97"
+source_sha: "7b41c1457192"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -162,6 +162,12 @@ listan por nombre, no se extraen. Un TIFF de varias páginas muestra al modelo h
 `CHAT_TIFF_MAX_INLINE_PAGES` páginas; un agent con workspace abre el resto desde el
 original en disco. El texto extraído se limita a `CHAT_PARSED_TEXT_MAX_CHARS`, y los
 presupuestos por archivo y por turno acotan lo que se pega a un agent sin workspace.
+El límite es un presupuesto que gastan los parsers, no un corte después del
+análisis: un PDF se detiene en la página que lo supera y tras 2.000 páginas, un
+documento de oficina en el párrafo, la fila o la diapositiva, así que un archivo
+comprimido que se expande a mucho más texto no cuesta más que lo que se conserva.
+El texto que alcanza el límite termina con una marca que indica que el resto del
+documento no se leyó.
 
 **Una escritura rechazada se dice una vez, sobre el workspace.** Un run cuyo
 workspace no admite un archivo es un run cuyo shell y herramientas de archivo

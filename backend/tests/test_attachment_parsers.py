@@ -22,6 +22,9 @@ pytestmark = pytest.mark.anyio
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+LIMIT = 1_000_000
+"""The parse budget the readers are handed, the default `CHAT_PARSED_TEXT_MAX_CHARS`."""
+
 
 def _odt(paragraphs: list[str]) -> bytes:
     from odf.opendocument import OpenDocumentText
@@ -95,19 +98,22 @@ def _pptx() -> bytes:
 
 class TestOpenDocument:
     def test_an_odt_yields_its_paragraphs(self):
-        text = FileUploadService._parse_odt_content(_odt(["Hello world", "Second para"]))
+        text = FileUploadService._parse_odt_content(_odt(["Hello world", "Second para"]), LIMIT)
 
         assert text == "Hello world\nSecond para"
 
     def test_an_ods_yields_tab_separated_sheets(self):
         text = FileUploadService._parse_ods_content(
-            _ods("Prices", [["item", "cost"], ["kawa", "1,5"]])
+            _ods("Prices", [["item", "cost"], ["kawa", "1,5"]]), LIMIT
         )
 
         assert text == "Sheet: Prices\nitem\tcost\nkawa\t1,5"
 
     def test_an_odp_yields_its_slide_text(self):
-        assert FileUploadService._parse_odp_content(_odp("Slide text here")) == "Slide text here"
+        assert (
+            FileUploadService._parse_odp_content(_odp("Slide text here"), LIMIT)
+            == "Slide text here"
+        )
 
     @pytest.mark.parametrize(
         "parser",
@@ -118,12 +124,12 @@ class TestOpenDocument:
         ],
     )
     def test_malformed_opendocument_is_none(self, parser):
-        assert parser(b"not an opendocument file at all") is None
+        assert parser(b"not an opendocument file at all", LIMIT) is None
 
 
 class TestPresentation:
     def test_a_pptx_yields_shape_text_table_cells_and_notes(self):
-        text = FileUploadService._parse_pptx_content(_pptx())
+        text = FileUploadService._parse_pptx_content(_pptx(), LIMIT)
 
         assert text is not None
         assert "Quarterly" in text  # shape text
@@ -131,14 +137,14 @@ class TestPresentation:
         assert "Notes: Speaker note" in text  # slide notes
 
     def test_malformed_pptx_is_none(self):
-        assert FileUploadService._parse_pptx_content(b"still not a zip") is None
+        assert FileUploadService._parse_pptx_content(b"still not a zip", LIMIT) is None
 
 
 class TestLegacyXls:
     def test_a_committed_xls_reads_like_a_workbook(self):
         data = (FIXTURES / "legacy.xls").read_bytes()
 
-        text = FileUploadService._parse_xls_content(data)
+        text = FileUploadService._parse_xls_content(data, LIMIT)
 
         assert text is not None
         assert "Sheet: Cover" in text
@@ -146,7 +152,7 @@ class TestLegacyXls:
         assert "kawa\t42\t1.5\t2024-03-01" in text  # int, float and ISO date
 
     def test_something_that_is_not_a_workbook_is_none(self):
-        assert FileUploadService._parse_xls_content(b"not a workbook") is None
+        assert FileUploadService._parse_xls_content(b"not a workbook", LIMIT) is None
 
 
 class _Stream:
@@ -422,10 +428,12 @@ class TestZipBackedFormatsRunThroughTheGuard:
         return buffer.getvalue()
 
     def test_a_valid_docx_still_parses(self):
-        assert FileUploadService._parse_docx_content(self._docx("Hello world")) == "Hello world"
+        assert (
+            FileUploadService._parse_docx_content(self._docx("Hello world"), LIMIT) == "Hello world"
+        )
 
     def test_a_valid_xlsx_still_parses(self):
-        text = FileUploadService._parse_spreadsheet_content(self._xlsx("hi"))
+        text = FileUploadService._parse_spreadsheet_content(self._xlsx("hi"), LIMIT)
         assert text is not None and "hi" in text
 
     def test_a_docx_tripping_the_member_cap_is_refused(self, monkeypatch):
@@ -434,7 +442,7 @@ class TestZipBackedFormatsRunThroughTheGuard:
         docx = self._docx("Hello world")
         monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 1)
 
-        assert FileUploadService._parse_docx_content(docx) is None
+        assert FileUploadService._parse_docx_content(docx, LIMIT) is None
 
     def test_an_xlsx_tripping_the_member_cap_is_refused(self, monkeypatch):
         from app.core import config as config_module
@@ -442,7 +450,7 @@ class TestZipBackedFormatsRunThroughTheGuard:
         xlsx = self._xlsx("hi")
         monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 1)
 
-        assert FileUploadService._parse_spreadsheet_content(xlsx) is None
+        assert FileUploadService._parse_spreadsheet_content(xlsx, LIMIT) is None
 
 
 class TestOdsRepetitionIsBounded:
@@ -469,27 +477,22 @@ class TestOdsRepetitionIsBounded:
     def test_a_billion_column_repeat_does_not_allocate_a_billion_cells(self):
         # Returns bounded text rather than exhausting memory; the cap is far below a
         # billion, so the extraction is capped, not the process.
-        text = FileUploadService._parse_ods_content(self._ods_repeated(1_000_000_000))
+        text = FileUploadService._parse_ods_content(self._ods_repeated(1_000_000_000), LIMIT)
 
         assert text is not None
         # ~1M cells of "x" joined by tabs, not a billion: bounded by the cell budget
         # (the "Sheet: S" header and the absent trailing tab account for the slack).
         assert len(text) <= fu._ODS_MAX_CELLS * 2 + 100
 
-    def test_a_large_cell_value_repeated_is_bounded_by_output_size_not_cell_count(
-        self, monkeypatch
-    ):
+    def test_a_large_cell_value_repeated_is_bounded_by_output_size_not_cell_count(self):
         """The cell budget bounds the *list* of references, but `"\\t".join(cells)`
         materialises the value once per reference: a large value with a huge repeat is
         a multi-gigabyte string the cell budget alone does not stop. The character
         budget bounds the join (#1591, §7 finding 3)."""
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "CHAT_PARSED_TEXT_MAX_CHARS", 100_000)
         # A 10 KB value with a million repeats would be ~10 GB under the cell budget
         # alone; the character budget caps the built string near the parsed-text cap.
         text = FileUploadService._parse_ods_content(
-            self._ods_repeated(1_000_000, value="v" * 10_000)
+            self._ods_repeated(1_000_000, value="v" * 10_000), 100_000
         )
 
         assert text is not None
@@ -601,28 +604,28 @@ class TestOdfSpaceBombIsBounded:
         return buffer.getvalue()
 
     def test_an_odt_space_bomb_is_bounded(self):
-        text = FileUploadService._parse_odt_content(self._odt_with_spaces(10_000_000_000))
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(10_000_000_000), LIMIT)
 
         assert text is not None
         assert "END" in text
-        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+        assert len(text) <= LIMIT + 100
 
     def test_an_odp_space_bomb_is_bounded(self):
-        text = FileUploadService._parse_odp_content(self._odp_with_spaces(10_000_000_000))
+        text = FileUploadService._parse_odp_content(self._odp_with_spaces(10_000_000_000), LIMIT)
 
         assert text is not None
         assert "SLIDE" in text
-        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+        assert len(text) <= LIMIT + 100
 
     def test_an_ods_cell_space_bomb_is_bounded(self):
-        text = FileUploadService._parse_ods_content(self._ods_with_spaces(10_000_000_000))
+        text = FileUploadService._parse_ods_content(self._ods_with_spaces(10_000_000_000), LIMIT)
 
         assert text is not None
         assert "V" in text
-        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+        assert len(text) <= LIMIT + 100
 
     def test_a_modest_space_run_is_preserved(self):
-        text = FileUploadService._parse_odt_content(self._odt_with_spaces(4))
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(4), LIMIT)
 
         assert text == "    END"
 
@@ -639,12 +642,12 @@ class TestOdfSpaceBombIsBounded:
         buffer = io.BytesIO()
         document.save(buffer)
 
-        text = FileUploadService._parse_odt_content(buffer.getvalue())
+        text = FileUploadService._parse_odt_content(buffer.getvalue(), LIMIT)
 
         assert text == "A B"
 
     def test_a_zero_count_space_run_clamps_to_nothing(self):
-        text = FileUploadService._parse_odt_content(self._odt_with_spaces(0, tail="END"))
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(0, tail="END"), LIMIT)
 
         assert text == "END"
 
@@ -672,17 +675,15 @@ class TestOdsRowRepetitionIsExpandedAndBounded:
         return buffer.getvalue()
 
     def test_a_repeated_nonempty_row_is_emitted_each_time(self):
-        text = FileUploadService._parse_ods_content(self._ods_rows(3))
+        text = FileUploadService._parse_ods_content(self._ods_rows(3), LIMIT)
 
         assert text is not None
         assert text.count("hi") == 3
 
-    def test_a_colossal_row_repeat_is_bounded(self, monkeypatch):
-        from app.core import config as config_module
-
-        monkeypatch.setattr(config_module.settings, "CHAT_PARSED_TEXT_MAX_CHARS", 10_000)
-
-        text = FileUploadService._parse_ods_content(self._ods_rows(1_000_000_000, value="row"))
+    def test_a_colossal_row_repeat_is_bounded(self):
+        text = FileUploadService._parse_ods_content(
+            self._ods_rows(1_000_000_000, value="row"), 10_000
+        )
 
         assert text is not None
         # Bounded near the char budget rather than a billion rows; the newline joins
@@ -748,7 +749,7 @@ class TestLegacyXlsIsBounded:
             xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
         )
 
-        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything")
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything", LIMIT)
 
         assert text is not None
         # Bounded near the cell budget rather than the full 16.8M-cell rectangle.
@@ -762,7 +763,7 @@ class TestLegacyXlsIsBounded:
             xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
         )
 
-        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything")
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything", LIMIT)
 
         assert text == "Sheet: Cover\na\tb\nc"
 
@@ -774,7 +775,7 @@ class TestLegacyXlsIsBounded:
             xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
         )
 
-        assert FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything") is None
+        assert FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything", LIMIT) is None
 
 
 class TestReviewFixesFA013:
@@ -804,11 +805,11 @@ class TestReviewFixesFA013:
         sheet = _BigCellSheet()
         monkeypatch.setattr(xlrd, "open_workbook", lambda **_k: TestLegacyXlsIsBounded._Book(sheet))
 
-        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0x")
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0x", LIMIT)
 
         assert text is not None
         # ~CHAT_PARSED_TEXT_MAX_CHARS / 100_000 cells read, not the million-row budget.
-        assert sheet.reads <= (fu.settings.CHAT_PARSED_TEXT_MAX_CHARS // 100_000) + 2
+        assert sheet.reads <= (LIMIT // 100_000) + 2
 
     def test_ods_covered_cells_keep_the_following_columns_aligned(self):
         from odf.opendocument import OpenDocumentSpreadsheet
@@ -830,7 +831,7 @@ class TestReviewFixesFA013:
         buffer = io.BytesIO()
         document.save(buffer)
 
-        text = FileUploadService._parse_ods_content(buffer.getvalue())
+        text = FileUploadService._parse_ods_content(buffer.getvalue(), LIMIT)
 
         # C stays in the third column: A, <covered placeholder>, C.
         assert text == "Sheet: Merged\nA\t\tC"
@@ -847,7 +848,7 @@ class TestReviewFixesFA013:
         buffer = io.BytesIO()
         document.save(buffer)
 
-        text = FileUploadService._parse_odt_content(buffer.getvalue())
+        text = FileUploadService._parse_odt_content(buffer.getvalue(), LIMIT)
 
         assert text == "Section One\nFirst paragraph.\nSection Two\nSecond paragraph."
 
@@ -884,3 +885,182 @@ class TestReviewFixesFA013:
         assert fu._charset_param("text/plain") is None
         assert fu._charset_param(None) is None
         assert fu._charset_param("text/plain; format=flowed") is None
+
+
+def _pdf(pages: list[str]) -> bytes:
+    import pymupdf
+
+    document = pymupdf.open()
+    for text in pages:
+        page = document.new_page()
+        if text:
+            page.insert_text((72, 72), text)
+    return document.tobytes()
+
+
+def _docx_paragraphs(paragraphs: list[str]) -> bytes:
+    from docx import Document
+
+    document = Document()
+    for text in paragraphs:
+        document.add_paragraph(text)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def _xlsx_rows(rows: list[str]) -> bytes:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    for value in rows:
+        workbook.active.append([value])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _odp_slides(texts: list[str]) -> bytes:
+    from odf.draw import Frame, Page, TextBox
+    from odf.opendocument import OpenDocumentPresentation
+    from odf.style import MasterPage, PageLayout
+    from odf.text import P
+
+    document = OpenDocumentPresentation()
+    document.automaticstyles.addElement(PageLayout(name="pl1"))
+    document.masterstyles.addElement(MasterPage(name="m1", pagelayoutname="pl1"))
+    for text in texts:
+        page = Page(masterpagename="m1")
+        frame = Frame()
+        box = TextBox()
+        box.addElement(P(text=text))
+        frame.addElement(box)
+        page.addElement(frame)
+        document.presentation.addElement(page)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def _pptx_slides(texts: list[str]) -> bytes:
+    from pptx import Presentation
+
+    presentation = Presentation()
+    for text in texts:
+        presentation.slides.add_slide(presentation.slide_layouts[5]).shapes.title.text = text
+    buffer = io.BytesIO()
+    presentation.save(buffer)
+    return buffer.getvalue()
+
+
+class TestTheParseStopsAtItsLimit:
+    """A compressed file under the download limit can expand to far more text than
+    anything keeps, so each reader stops once it has enough rather than reading to
+    the end and cutting afterwards (#1990)."""
+
+    @pytest.fixture
+    def pages_read(self, monkeypatch: pytest.MonkeyPatch) -> list[int]:
+        """The number of every PDF page whose text was extracted, in order."""
+        import pymupdf
+
+        read: list[int] = []
+        get_text = pymupdf.Page.get_text
+
+        def counted(page: pymupdf.Page, *args: object, **kwargs: object) -> object:
+            read.append(page.number)
+            return get_text(page, *args, **kwargs)
+
+        monkeypatch.setattr(pymupdf.Page, "get_text", counted)
+        return read
+
+    async def test_a_pdf_stops_at_the_page_that_crosses_the_limit(self, pages_read):
+        pages = [f"page {n:02d} " + "x" * 40 for n in range(50)]
+
+        text = await fu.DocumentText().parse_content(_pdf(pages), "pdf", max_chars=100)
+
+        # 48 characters a page: two pages and their separator are 98, the third crosses.
+        assert pages_read == [0, 1, 2]
+        assert text == "\n\n".join(pages[:3])[:100] + fu.PARSE_CUT_MARKER.format(max_chars=100)
+
+    async def test_a_pdf_within_the_limit_is_read_whole_and_unmarked(self, pages_read):
+        text = await fu.DocumentText().parse_content(
+            _pdf(["first", "", "second"]), "pdf", max_chars=100
+        )
+
+        assert pages_read == [0, 1, 2]
+        assert text == "first\n\nsecond"
+
+    async def test_a_pdf_past_the_page_cap_says_where_it_stopped(
+        self, monkeypatch: pytest.MonkeyPatch, pages_read
+    ):
+        monkeypatch.setattr(fu, "_PDF_MAX_PAGES", 3)
+
+        text = await fu.DocumentText().parse_content(
+            _pdf(["a", "b", "c", "d", "e"]), "pdf", max_chars=1_000
+        )
+
+        assert pages_read == [0, 1, 2]
+        assert text == "a\n\nb\n\nc\n\n" + fu.PDF_PAGES_CUT_MARKER.format(read=3, total=5)
+
+    async def test_blank_pages_spend_the_page_cap_and_say_so(
+        self, monkeypatch: pytest.MonkeyPatch, pages_read
+    ):
+        """A page with no text never brings the character budget closer, so only the
+        page cap stops a PDF of them - and the model hears that pages were left
+        unread, not that the document has no text."""
+        monkeypatch.setattr(fu, "_PDF_MAX_PAGES", 3)
+
+        text = await fu.DocumentText().parse_content(
+            _pdf(["", "", "", "", "late text"]), "pdf", max_chars=1_000
+        )
+
+        assert pages_read == [0, 1, 2]
+        assert text == fu.PDF_PAGES_CUT_MARKER.format(read=3, total=5)
+
+    @pytest.mark.parametrize(
+        ("build", "file_type", "filename", "separator"),
+        [
+            (_docx_paragraphs, "docx", "a.docx", "\n"),
+            (_xlsx_rows, "spreadsheet", "a.xlsx", "\n"),
+            (lambda items: _odt(items), "document", "a.odt", "\n"),
+            (_odp_slides, "presentation", "a.odp", "\n"),
+            (_pptx_slides, "presentation", "a.pptx", "\n\n"),
+        ],
+    )
+    async def test_an_office_document_is_cut_at_the_limit(
+        self, build, file_type: str, filename: str, separator: str
+    ):
+        items = [f"item {n:03d}" for n in range(500)]
+
+        text = await fu.DocumentText().parse_content(
+            build(items), file_type, filename=filename, max_chars=60
+        )
+
+        assert text is not None
+        assert text.endswith(fu.PARSE_CUT_MARKER.format(max_chars=60))
+        assert len(text) == 60 + len(fu.PARSE_CUT_MARKER.format(max_chars=60))
+        assert "item 000" in text
+        assert "item 499" not in text
+
+    async def test_the_caller_cannot_raise_the_deployment_cap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(fu.settings, "CHAT_PARSED_TEXT_MAX_CHARS", 10)
+
+        text = await fu.DocumentText().parse_content(b"a" * 50, "text", max_chars=1_000)
+
+        assert text == "a" * 10 + fu.PARSE_CUT_MARKER.format(max_chars=10)
+
+    def test_text_exactly_at_the_limit_is_not_cut(self):
+        assert fu._join_within(["abc", "de"], "\n", 6) == "abc\nde"
+
+    def test_the_join_stops_pulling_once_past_the_limit(self):
+        pulled: list[str] = []
+
+        def parts():
+            for part in ["aaaa", "bbbb", "cccc"]:
+                pulled.append(part)
+                yield part
+
+        assert fu._join_within(parts(), "\n", 5) == "aaaa\nbbbb"
+        assert pulled == ["aaaa", "bbbb"]

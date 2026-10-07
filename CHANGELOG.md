@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A document stops being read once its text is past the limit.** A chat
+  attachment and a document `web_fetch` downloads were parsed to the last page and
+  only then cut, so a compressed PDF under the 10 MiB download limit could cost
+  far more worker time and memory than the text the model was shown. The readers
+  now stop at the limit: a PDF at the page that crosses it and after 2,000 pages,
+  an office document at the paragraph, row or slide. `web_fetch` passes its
+  `max_content_chars` as that limit; attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`.
+  Text that reaches the limit says the rest of the document was not read, in
+  place of a total length that is no longer counted.
+
 ## [0.0.522] - 2026-10-06
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "44dae3302f97"
+source_sha: "7b41c1457192"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -166,7 +166,13 @@ namentlich aufgelistet, nicht extrahiert. Ein mehrseitiges TIFF zeigt dem Modell
 bis zu `CHAT_TIFF_MAX_INLINE_PAGES` Seiten; ein Agent mit Workspace öffnet den Rest
 aus dem Original auf der Festplatte. Der extrahierte Text ist auf
 `CHAT_PARSED_TEXT_MAX_CHARS` begrenzt, und Budgets pro Datei und pro Runde begrenzen,
-was einem Agent ohne Workspace eingefügt wird.
+was einem Agent ohne Workspace eingefügt wird. Die Grenze ist ein Budget, das die
+Parser verbrauchen, kein Schnitt nach dem Parsen: Ein PDF stoppt an der Seite, die
+sie überschreitet, und nach 2.000 Seiten, ein Office-Dokument am Absatz, an der
+Zeile oder an der Folie. Eine komprimierte Datei, die zu weit mehr Text entpackt,
+kostet daher nicht mehr als das, was behalten wird. Text, der die Grenze erreicht,
+endet mit einer Markierung, die sagt, dass der Rest des Dokuments nicht gelesen
+wurde.
 
 **Ein abgelehnter Schreibvorgang wird einmal gesagt, über den Workspace.** Ein
 Run, dessen Workspace eine Datei nicht annimmt, ist ein Run, dessen Shell- und

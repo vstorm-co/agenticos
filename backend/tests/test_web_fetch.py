@@ -32,7 +32,7 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities.web_fetch import WebFetchConfig
-from app.agents.capabilities.web_fetch._capability import FETCH_TEXT
+from app.agents.capabilities.web_fetch._capability import FETCH_TEXT, TRUNCATION_MARKER
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -343,7 +343,35 @@ class TestWhatADocumentBecomes:
         fetched = await fetcher("https://example.com/a.pdf")
 
         assert isinstance(fetched, dict)
-        assert fetched["content"] == "y" * 20 + "\n\n[Content truncated]"
+        assert fetched["content"] == "y" * 20 + TRUNCATION_MARKER
+
+    async def test_a_long_document_is_read_only_as_far_as_the_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The content limit is the parse budget, not a cut after a whole parse: a
+        PDF that inflates past it stops being read at the page that crosses it
+        (#1990)."""
+        document = pymupdf.open()
+        for n in range(50):
+            document.new_page().insert_text((72, 72), f"page {n:02d} " + "x" * 40)
+        _serving(monkeypatch, "application/pdf", document.tobytes())
+        read: list[int] = []
+        get_text = pymupdf.Page.get_text
+
+        def counted(page: pymupdf.Page, *args: object, **kwargs: object) -> object:
+            read.append(page.number)
+            return get_text(page, *args, **kwargs)
+
+        monkeypatch.setattr(pymupdf.Page, "get_text", counted)
+        fetcher = _local_tool(_built()).function.__self__
+        fetcher.max_content_length = 100
+
+        fetched = await fetcher("https://example.com/a.pdf")
+
+        assert isinstance(fetched, dict)
+        assert read == [0, 1, 2]
+        assert fetched["content"].endswith(TRUNCATION_MARKER)
+        assert len(fetched["content"]) == 100 + len(TRUNCATION_MARKER)
 
     async def test_an_image_stays_an_image(self, monkeypatch: pytest.MonkeyPatch):
         """A model that reads pictures is the only reason to fetch one."""
