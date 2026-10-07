@@ -22,7 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
   optimization, bundles a `librsvg` affected by CVE-2026-96889
   (GHSA-wq5f-xc86-pv6w), and `make audit-frontend` failed on it. 0.35.5 is
-  inside the range `next` already asks for, so only the lockfile changes.
+  inside the range `next` already asks for, so only the lockfile and the
+  third-party notices change.
 
 ## [0.0.522] - 2026-10-06
 
