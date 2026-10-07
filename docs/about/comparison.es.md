@@ -1,13 +1,13 @@
 ---
-source_sha: "eeabd2250add"
+source_sha: "b3b8eecaf44d"
 title: "Compara AgenticOS"
-seo_title: "Comparativas de AgenticOS: plataforma de agents autoalojada"
-description: "Compara AgenticOS, plataforma de agents de IA open source y autoalojada, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
+seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
+description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
 ---
 
 # Compara AgenticOS { #compare-agenticos }
 
-La mayoría de los productos de este ámbito son una de cinco cosas: una app de asistente, un builder de agents, un servicio de compañero de equipo, una plataforma empresarial entregada o un agent de programación. AgenticOS es una plataforma para los agents de una empresa que operas tú mismo. Estas guías muestran dónde encaja cada opción y qué añade AgenticOS.
+La mayoría de los productos de este ámbito son una de cinco cosas: una app de asistente, un builder de agents, un servicio de compañero de equipo, una plataforma empresarial entregada o un agent de programación. AgenticOS es una capa soberana para los agents de una empresa que operas tú mismo. Estas guías muestran dónde encaja cada opción y qué añade AgenticOS.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2026. Versión de referencia de AgenticOS: v0.0.504. Revisar antes del 25 de octubre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
 
@@ -26,7 +26,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 
 | Producto | Qué es | Dónde se ejecuta | Código fuente | Modelos |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Una plataforma para los agents de la empresa, construida en un navegador | Tu infraestructura | Apache-2.0 | 27 providers, incluidos los locales |
+| **AgenticOS** | Una capa soberana para los agents de la empresa, construida en un navegador | Tu infraestructura | Apache-2.0 | 27 providers, incluidos los locales |
 | Claude Team / Enterprise | El workspace de asistente de Anthropic | La nube de Anthropic | Propietario | Solo Claude |
 | ChatGPT Business / Enterprise | El workspace de asistente de OpenAI, con agents de workspace | La nube de OpenAI | Propietario | Solo OpenAI |
 | Copilot Studio | Un builder de agents low-code sobre Power Platform | La nube de Microsoft | Propietario | Modelos de OpenAI y Anthropic, además de Azure Foundry |
@@ -40,6 +40,26 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | OpenCode | Un agent de programación de código abierto | Máquinas de los desarrolladores | MIT | Más de 75 providers |
 
 Cada celda procede de las propias páginas del proveedor; las guías las enlazan. "Propietario" describe la licencia, no la calidad.
+
+## Cuánto queda en tus manos { #how-much-stays-yours }
+
+Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el producto, qué modelos puede usar, qué te permite hacer la licencia y si los controles que pide una revisión de TI y seguridad están disponibles sin un plan de pago. Cada celda procede de la guía de ese producto, que cita sus fuentes.
+
+| Producto | Dónde se ejecuta | Qué modelos puedes usar | Qué te permite la licencia | Inicio de sesión, auditoría y control del gasto |
+| --- | --- | --- | --- | --- |
+| **AgenticOS** | Tu infraestructura; una instalación nueva no envía nada a ninguna parte | Cualquiera de los 27 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros | En cada despliegue |
+| Claude Team / Enterprise | La nube de Anthropic | Solo Claude | Propietaria | Registro de auditoría en Enterprise, 180 días de eventos |
+| ChatGPT Business / Enterprise | La nube de OpenAI; en Enterprise, residencia del almacenamiento en diez regiones | Solo OpenAI | Propietaria | SCIM y roles personalizados en Enterprise; Compliance API en Enterprise y Edu |
+| Copilot Studio | La nube de Microsoft, en entornos de Power Platform | Modelos GPT por defecto, modelos Claude, modelos de Azure Foundry facturados aparte | Propietaria | Entra ID, directivas de datos de Power Platform y auditoría de Purview |
+| Gemini Enterprise | Google Cloud, en las regiones global, US, EU y algunas nacionales | Gemini; otros modelos solo en agents personalizados de Agent Platform | Propietaria | Límites de gasto mensuales en la cuenta de facturación |
+| Dify | Autoalojado o Dify Cloud | Muchos, incluido Ollama | Apache 2.0 con condiciones: un servicio multiinquilino necesita permiso por escrito y el logotipo no se puede cambiar | SSO, roles personalizados, varios workspaces y registros de auditoría son de Enterprise |
+| n8n | Autoalojado o n8n Cloud en Fráncfort | Muchos, incluido Ollama | Sustainable Use License: uso empresarial interno, no comercial o personal; las funciones de pago necesitan una clave de licencia que contacta a diario con el servidor de licencias de n8n | SSO, roles, entornos y log streaming en planes de pago |
+| Viktor | La nube de Viktor, en AWS us-east-1 | Presets de OpenAI, Anthropic, Google y Kimi, o tu propia clave de OpenRouter | Propietaria | Límites a medida en Enterprise |
+| Wonderful | SaaS multiinquilino, single-tenant, tu nube o on-premises aislado de la red | Enrutados por tarea por la plataforma | Propietaria; los agents y la configuración se exportan desde su UI o su API | AI Gateway con topes de presupuesto por equipo y registros de auditoría |
+
+Dify y n8n también funcionan en tus propios servidores con modelos locales, y Wonderful ofrece un despliegue on-premises aislado de la red. Entre los productos de esta página, AgenticOS es el único en el que las cuatro respuestas quedan en tus manos con Apache-2.0.
+
+Operar AgenticOS tú mismo no hace locales todos los modelos, parsers y herramientas. Cada servicio externo lo añades tú; consulta [por defecto no sale nada](../data-protection.md#nothing-leaves-by-default).
 
 ## Lo que AgenticOS aporta a cada comparación { #what-agenticos-brings-to-every-comparison }
 

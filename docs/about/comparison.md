@@ -1,12 +1,12 @@
 ---
 title: "Compare AgenticOS"
-seo_title: "AgenticOS comparisons: self-hosted AI agent platform"
-description: "Compare AgenticOS, the open-source, self-hosted AI agent platform, with Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n and coding agents."
+seo_title: "AgenticOS comparisons: sovereign agentic AI layer"
+description: "Compare AgenticOS, the open-source Sovereign Agentic AI Layer, with Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n and coding agents."
 ---
 
 # Compare AgenticOS
 
-Most products in this space are one of five things: an assistant app, an agent builder, a teammate service, a delivered enterprise platform or a coding agent. AgenticOS is a platform for a company's agents that you run yourself. These guides show where each option fits and what AgenticOS adds.
+Most products in this space are one of five things: an assistant app, an agent builder, a teammate service, a delivered enterprise platform or a coding agent. AgenticOS is a sovereign layer for a company's agents that you run yourself. These guides show where each option fits and what AgenticOS adds.
 
 Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS baseline: v0.0.504. Review by 25 October 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
 
@@ -25,7 +25,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 
 | Product | What it is | Where it runs | Source | Models |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | A platform for company agents, built in a browser | Your infrastructure | Apache-2.0 | 27 providers, including local ones |
+| **AgenticOS** | A sovereign layer for company agents, built in a browser | Your infrastructure | Apache-2.0 | 27 providers, including local ones |
 | Claude Team / Enterprise | Anthropic's assistant workspace | Anthropic's cloud | Proprietary | Claude only |
 | ChatGPT Business / Enterprise | OpenAI's assistant workspace, with workspace agents | OpenAI's cloud | Proprietary | OpenAI only |
 | Copilot Studio | A low-code agent builder on Power Platform | Microsoft's cloud | Proprietary | OpenAI and Anthropic models, plus Azure Foundry |
@@ -39,6 +39,26 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | OpenCode | An open-source coding agent | Developer machines | MIT | 75+ providers |
 
 Each cell is taken from the vendor's own pages; the guides link them. "Proprietary" describes the licence, not the quality.
+
+## How much stays yours
+
+Sovereignty here means four things you decide: where the product runs, which models it may use, what the licence lets you do with it, and whether the controls an IT and security review asks for come without a paid tier. Each cell is taken from the guide for that product, which names its sources.
+
+| Product | Where it runs | Models you may use | What the licence lets you do | Sign-in, audit and spend controls |
+| --- | --- | --- | --- | --- |
+| **AgenticOS** | Your infrastructure; a fresh install sends nothing anywhere | Any of 27 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others | In every deployment |
+| Claude Team / Enterprise | Anthropic's cloud | Claude only | Proprietary | Audit log on Enterprise, 180 days of events |
+| ChatGPT Business / Enterprise | OpenAI's cloud; storage residency in ten regions on Enterprise | OpenAI only | Proprietary | SCIM and custom roles on Enterprise; Compliance API on Enterprise and Edu |
+| Copilot Studio | Microsoft's cloud, in Power Platform environments | GPT models by default, Claude models, Azure Foundry models billed separately | Proprietary | Entra ID, Power Platform data policies and Purview audit |
+| Gemini Enterprise | Google Cloud, in global, US, EU and some national regions | Gemini; other models only in custom agents on Agent Platform | Proprietary | Monthly spend limits on the billing account |
+| Dify | Self-hosted or Dify Cloud | Many, including Ollama | Apache 2.0 with conditions: a multi-tenant service needs written permission, and the logo may not be changed | SSO, custom roles, several workspaces and audit logs are Enterprise |
+| n8n | Self-hosted or n8n Cloud in Frankfurt | Many, including Ollama | Sustainable Use License: internal business, non-commercial or personal use; paid features need a licence key that contacts n8n's licence server daily | SSO, roles, environments and log streaming on paid plans |
+| Viktor | Viktor's cloud, on AWS us-east-1 | OpenAI, Anthropic, Google and Kimi presets, or your own OpenRouter key | Proprietary | Limits tailored on Enterprise |
+| Wonderful | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Routed per task by the platform | Proprietary; agents and configuration export through its UI or API | AI Gateway with budget caps per team and audit logs |
+
+Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products on this page, AgenticOS is the one where all four answers stay with you under Apache-2.0.
+
+Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
 
 ## What AgenticOS brings to every comparison
 
