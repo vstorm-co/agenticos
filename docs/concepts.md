@@ -155,6 +155,35 @@ When that member can no longer run the agent — they left the organization, or
 their grant on it was revoked — the trigger **disables itself and records why**,
 rather than retrying a refusal for ever.
 
+### It is not that person's conversation
+
+The creator lends a fire their **authority**: their role, their grants and their
+budget. They do not lend it their **identity**. Nobody is listening to an
+unattended run, so it answers to no identified person, the same as an embedded
+widget visitor. Everything kept per person is closed to it:
+
+- [Memory files](reference/capabilities.md#memory-files) and
+  [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
+  conversation has no memory.
+- [Conversation search](reference/capabilities.md#conversation-search): both
+  tools refuse.
+- A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the
+  creator's own Notion or mailbox is absent, and the agent is told why.
+
+This is deliberate. A store kept for a person is read back to that person, and a
+fire nobody started must not write into it on their behalf. No setting changes it
+today. It decides how you design an agent that runs on a trigger:
+
+| An unattended run needs | Use |
+|---|---|
+| Standing facts or preferences | The trigger's own prompt, or a [context file](context.md) bound to the agent |
+| State kept from one fire to the next | A [sandbox](sandbox.md) with `session_scope: conversation`: every fire of one trigger appends to the same run-log conversation |
+| A mailbox or another external service | A connection bound with the organization's account, not each person's |
+
+[Competitor monitoring](howto/competitor-monitoring.md) and
+[a personal assistant](howto/personal-assistant.md) both meet this rule and show
+the workaround.
+
 ### Everything else is an ordinary run
 
 Because it goes through the same runner: the budget is enforced the same way, an

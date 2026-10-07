@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "8fb98ae78b16"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -278,6 +278,11 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+- W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
+  wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
+  nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
+  runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
+  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -412,6 +417,9 @@ którym mógłby to sprawdzić.
 narzędzia odmawiają i mówią dlaczego: korpus jest osobisty, więc odpowiadanie z
 niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. To
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
+
+Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
 
 ### Jak działa dopasowanie { #how-it-matches }
 

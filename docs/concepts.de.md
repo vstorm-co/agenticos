@@ -1,5 +1,5 @@
 ---
-source_sha: "aad00e7657d4"
+source_sha: "d3f5a6c6cf19"
 ---
 
 # Begriffe { #concepts }
@@ -169,6 +169,38 @@ Wenn dieses Mitglied den Agent nicht mehr ausführen darf — es hat die
 Organisation verlassen, oder sein Grant darauf wurde entzogen —, **deaktiviert
 sich der Trigger selbst und hält fest, warum**, statt eine Ablehnung ewig zu
 wiederholen.
+
+### Es ist nicht die Unterhaltung dieser Person { #it-is-not-that-persons-conversation }
+
+Der Ersteller leiht einem Auslösen seine **Befugnisse**: seine Rolle, seine Grants
+und sein Budget. Seine **Identität** leiht er ihm nicht. Einem unbeaufsichtigten
+Run hört niemand zu, also antwortet er keiner identifizierten Person, genau wie
+ein Besucher eines eingebetteten Widgets. Alles, was pro Person geführt wird, ist
+für ihn verschlossen:
+
+- [Gedächtnisdateien](reference/capabilities.md#memory-files) und
+  [mem0](reference/capabilities.md#memory-mem0): Jedes Tool antwortet, dass die
+  Unterhaltung kein Gedächtnis hat.
+- [Unterhaltungssuche](reference/capabilities.md#conversation-search): Beide
+  Tools verweigern.
+- Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
+  Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
+  warum.
+
+Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
+Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in
+ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas. Es
+entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger läuft:
+
+| Ein unbeaufsichtigter Run braucht | Verwenden Sie |
+|---|---|
+| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers oder eine an den Agent gebundene [Context-Datei](context.md) |
+| Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an |
+| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, nicht mit dem jeder Person |
+
+[Webseiten auf Änderungen prüfen](howto/competitor-monitoring.md) und
+[ein persönlicher Assistent](howto/personal-assistant.md) treffen beide auf diese
+Regel und zeigen den Ausweg.
 
 ### Alles Weitere ist ein gewöhnlicher Run { #everything-else-is-an-ordinary-run }
 

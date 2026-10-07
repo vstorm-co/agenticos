@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "8fb98ae78b16"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -289,6 +289,12 @@ Agent falsch machen könnte.
 - Auf einem öffentlichen Widget oder in einem Embed gibt es niemanden, dem sich
   etwas zuordnen ließe, also gibt es keinen Speicher, und die Tools sagen das,
   statt irgendwohin zu speichern.
+- Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
+  Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
+  Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
+  niemand zu und die Tools verweigern. Legen Sie einen Fakt, den ein geplanter
+  Run braucht, in den Prompt des Triggers oder in eine gebundene Kontextdatei.
+  Siehe [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
 Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
@@ -435,6 +441,10 @@ verweigern beide Tools und sagen warum: Der Korpus ist persönlich, also würde 
 Antwort daraus in einem Kanal die privaten Unterhaltungen einer Person allen im
 Raum vorlesen. Es ist dieselbe Linie, die der Gedächtnisindex zieht, eine Schicht
 weiter außen.
+
+Ein Zeitplan oder ein Ereignis-Trigger antwortet niemandem, also verweigern beide
+Tools auch dort, aus demselben Grund wie die
+[Gedächtnisdateien](#whose-notes-and-who-may-hear-them).
 
 ### Wie gesucht wird { #how-it-matches }
 
