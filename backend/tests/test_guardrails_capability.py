@@ -423,8 +423,9 @@ def _released_text(events: list[AgentStreamEvent]) -> str:
 
 
 @pytest.mark.security
-async def test_a_key_split_around_a_tool_call_is_redacted_where_it_completes():
-    """Each half is harmless on its own; a surface that joins the parts shows both."""
+async def test_a_key_split_around_a_tool_call_blocks_before_its_second_half():
+    """Each half is harmless on its own, and a surface joins the parts: the half
+    already shown cannot be taken back, so the half that completes it is never sent."""
     agent = _agent(
         GuardrailsConfig(redact_secrets_out=True),
         _streams(
@@ -438,11 +439,48 @@ async def test_a_key_split_around_a_tool_call_is_redacted_where_it_completes():
     )
     events: list[AgentStreamEvent] = []
 
-    await _streamed(agent, events)
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
 
     assert "GHIJKLMNOPQR" not in _released_text(events)
-    assert "[redacted:anthropic_key]" in _released_text(events)
-    assert _released_text(events).endswith(". Keep it safe.")
+
+
+@pytest.mark.security
+async def test_a_part_that_breaks_a_redaction_already_shown_blocks():
+    """A key redacted at the end of one part stops matching once the next part
+    extends it; releasing the joined screen would send the key itself."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [
+                "The key is AKIAIOSFODNN7EXAMPLE",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["X and that is all."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "AKIAIOSFODNN7EXAMPLE" not in _shown(events)
+
+
+@pytest.mark.security
+async def test_a_key_begun_in_reasoning_and_finished_in_the_answer_blocks():
+    """A surface shows and stores reasoning and answer in order, so they share a tail."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams([{0: DeltaThinkingPart(content="It is sk-ant-api03-ABCDEF")}, "GHIJKLMNOPQR."]),
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _shown(events)
 
 
 @pytest.mark.security

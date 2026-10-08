@@ -1,5 +1,5 @@
 ---
-source_sha: "f2a3c606f56d"
+source_sha: "c57de35c211d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1922,8 +1922,9 @@ geschrieben wird, und ein Channel-Bot bearbeitet seine Antwort, während der Tex
 ankommt. Ist irgendeine Ausgabeprüfung konfiguriert, wird jedes Stück Text und
 Reasoning zurückgehalten, bis es vollständig ist, mit denselben Detektoren geprüft und
 erst dann gesendet. Ein Schlüssel, der auf zwei Chunks verteilt ist, wird trotzdem
-erkannt, ebenso einer, der auf zwei Teile verteilt ist, etwa Text vor einem
-Tool-Aufruf und Text danach. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er gehört
+erkannt. Einer, der auf zwei Teile verteilt ist, etwa Text vor einem Tool-Aufruf
+und Text danach oder Reasoning und dann die Antwort, beendet den Run, bevor seine
+zweite Hälfte gesendet wird, weil die erste schon angezeigt wird. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er gehört
 nicht zur endgültigen Antwort, wird aber trotzdem angezeigt und gespeichert. Der Preis
 ist, dass die Antwort eines solchen Agents Schritt für Schritt statt Wort für Wort
 ankommt. Ein Agent ohne Ausgabeprüfung streamt wie bisher. Eine Schlagwort-Blockade

@@ -318,13 +318,13 @@ class ScreenedStream(AbstractCapability[object]):
     `_BOUNDARY_CHARS`, and longer when a blocked keyword is, so a keyword split
     across two parts is never cut off at its start."""
 
-    _released: dict[type[TextPart | ThinkingPart], str] = field(
-        default_factory=dict, init=False, repr=False
-    )
-    """The raw tail of what this run has released, per kind of part, for `_screened`.
+    _released: str = field(default="", init=False, repr=False)
+    """The raw tail of what this run has released, text and reasoning in order.
 
-    Held on the instance because the stream hook runs once per node, and a part
-    that completes a value is usually in the response after the tool call."""
+    One tail for both, because a surface shows and stores them in order, so a
+    key begun in reasoning and finished in the answer is one key on screen. Held
+    on the instance because the stream hook runs once per node, and a part that
+    completes a value is usually in the response after the tool call."""
 
     async def for_run(self, ctx: RunContext[object]) -> ScreenedStream:
         """A fresh instance per run, so one run's released tail never meets another's."""
@@ -347,11 +347,11 @@ class ScreenedStream(AbstractCapability[object]):
                 case PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta()):
                     pass
                 case PartEndEvent(part=TextPart() | ThinkingPart() as part):
-                    before = self._released.get(type(part), "")
+                    before = self._released
                     content = self._screened(part, before)
                     # A withheld part is not shown, so nothing can complete it.
                     tail = "" if content == WITHHELD_REASONING else before + part.content
-                    self._released[type(part)] = tail[-self.tail_chars :]
+                    self._released = tail[-self.tail_chars :]
                     screened = replace(part, content=content)
                     yield replace(held.pop(event.index), part=screened)
                     yield replace(event, part=screened)
@@ -361,30 +361,33 @@ class ScreenedStream(AbstractCapability[object]):
     def _screened(self, part: TextPart | ThinkingPart, before: str) -> str:
         """The part's content as a consumer may see it; a blocked text part raises.
 
-        Screened after `before`, the raw tail of the same kind of text already
-        released, and only what follows the screen of `before` alone is returned:
-        a value that began in an earlier part is redacted in this one, which
-        completes it, and a keyword only the two parts spell together is blocked.
+        Screened after `before`, the raw tail already released, and released only
+        while the screen of `before` stays exactly what was shown: what follows it
+        is then this part's own text, screened. When this part changes how the
+        tail screens - a key begun there and finished here, or a match there that
+        this part breaks - the value crosses the boundary, and half of it is
+        already on screen: the text part blocks, a reasoning part is withheld. A
+        keyword only the two parts spell together blocks the same way.
 
         A part too long to screen with its tail under `fits` is screened alone,
-        after its start is screened with the tail on a window that fits. Anything
-        that window changes in the tail - a value that began there and continues
-        here - cannot be released as part of this part alone, so it blocks.
+        after its start is screened with the tail on a window that fits.
         """
         try:
             shown = self._cleaned(before)
             if self.fits is None or self.fits(before + part.content):
                 both = self._cleaned(before + part.content)
-                return both[_common_prefix(shown, both) :]
-            window = self._cleaned(before + part.content[: self.tail_chars])
-            crossed = _common_prefix(shown, window) < len(shown)
-            alone = self._cleaned(part.content)
+                crossed = not both.startswith(shown)
+                released = both[len(shown) :]
+            else:
+                window = self._cleaned(before + part.content[: self.tail_chars])
+                crossed = not window.startswith(shown)
+                released = self._cleaned(part.content)
         except GuardrailBlocked:
             if isinstance(part, TextPart):
                 raise
             return WITHHELD_REASONING
         if not crossed:
-            return alone
+            return released
         if isinstance(part, TextPart):
             raise GuardrailBlocked(edge="output", message=_BLOCK_MESSAGE["output"])
         return WITHHELD_REASONING
@@ -393,14 +396,6 @@ class ScreenedStream(AbstractCapability[object]):
         verdict = self.screen(text)
         # A detector here only allows or replaces; a block has raised.
         return str(verdict.replacement) if verdict.action == "replace" else text
-
-
-def _common_prefix(a: str, b: str) -> int:
-    """How many leading characters `a` and `b` share."""
-    return next(
-        (i for i, (x, y) in enumerate(zip(a, b, strict=False)) if x != y),
-        min(len(a), len(b)),
-    )
 
 
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "f2a3c606f56d"
+source_sha: "c57de35c211d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1823,9 +1823,10 @@ las superficies transmiten en streaming: el chat web y el widget incrustado env�
 respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
 texto. Cuando hay configurada cualquier comprobación de salida, cada fragmento de
 texto y de razonamiento se retiene hasta que está completo, se comprueba con los
-mismos detectores y solo entonces se envía. Una clave partida en dos trozos se detecta igualmente, y
-también una partida en dos partes, como el texto antes de una llamada a herramienta
-y el texto después. También el texto que el modelo escribe antes de llamar a una herramienta,
+mismos detectores y solo entonces se envía. Una clave partida en dos trozos se detecta igualmente. Una
+partida en dos partes, como el texto antes de una llamada a herramienta y el texto
+después, o el razonamiento y luego la respuesta, termina el run antes de enviar su
+segunda mitad, porque la primera ya está en pantalla. También el texto que el modelo escribe antes de llamar a una herramienta,
 que no forma parte de la respuesta final pero aun así se muestra y se guarda. El coste
 es que la respuesta de un agent así llega paso a paso en lugar de palabra a palabra.
 Un agent sin comprobación de salida transmite como antes. Un bloqueo por palabra clave
