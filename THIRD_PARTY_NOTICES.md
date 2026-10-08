@@ -320,10 +320,10 @@ names no author is in the evidence column below.
 | @formatjs/icu-skeleton-parser | 2.1.11 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @formatjs/intl-localematcher | 0.8.13 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour | package.json license |
-| @img/sharp-libvips-linux-arm64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-libvips-linux-x64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-linux-arm64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @img/sharp-linux-x64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-libvips-linux-arm64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @next/env | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
@@ -567,7 +567,7 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.28.0 | MIT | https://github.com/react/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
 | source-map-js | 1.2.2 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
