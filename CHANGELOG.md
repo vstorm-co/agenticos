@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.523] - 2026-10-08
+
 ### Security
 
 - **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
