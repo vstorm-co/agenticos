@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.529] - 2026-10-08
+
 ### Changed
 
 - **Agents work in Pydantic AI workspaces.** The sandbox, attachments, skills,
