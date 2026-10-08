@@ -477,7 +477,9 @@ async def test_the_released_tail_never_pushes_a_part_past_a_size_limit():
             ["a" * 20, {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
             ["b" * 30],
         ),
-        capabilities=[ScreenedStream(screen=screen, fits=lambda text: len(text) <= 30)],
+        capabilities=[
+            ScreenedStream(screen=screen, fits=lambda text: len(text) <= 30, tail_chars=10)
+        ],
     )
 
     async def fetch() -> str:
@@ -489,6 +491,88 @@ async def test_the_released_tail_never_pushes_a_part_past_a_size_limit():
     await _streamed(agent, events)
 
     assert _released_text(events) == "a" * 20 + "b" * 30
+
+
+@pytest.mark.security
+async def test_a_key_split_into_a_part_too_long_for_its_tail_still_blocks():
+    """A part at the size ceiling is screened alone, so the key's completion is
+    checked on a window with the tail - and since it cannot be redacted inside
+    this part alone, it is not released at all."""
+    detector = _edge_detector(
+        redact_secrets_on=True, redact_pii_on=False, phone_regions=(), keywords=[], edge="output"
+    )
+    assert detector is not None
+    agent = Agent(
+        _streams(
+            [
+                "Here it is: sk-ant-api03-ABCDEF",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["GHIJKLMNOPQR. " + "z" * 46],
+        ),
+        capabilities=[
+            ScreenedStream(screen=detector, fits=lambda text: len(text) <= 60, tail_chars=30)
+        ],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _released_text(events)
+
+
+async def test_reasoning_that_completes_a_key_in_a_part_too_long_for_its_tail_is_withheld():
+    detector = _edge_detector(
+        redact_secrets_on=True, redact_pii_on=False, phone_regions=(), keywords=[], edge="output"
+    )
+    assert detector is not None
+    agent = Agent(
+        _streams(
+            [
+                {0: DeltaThinkingPart(content="It was sk-ant-api03-ABCDEF")},
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            [{0: DeltaThinkingPart(content="GHIJKLMNOPQR " + "z" * 47)}, "Done."],
+        ),
+        capabilities=[
+            ScreenedStream(screen=detector, fits=lambda text: len(text) <= 60, tail_chars=30)
+        ],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _shown(events)
+    assert WITHHELD_REASONING in _shown(events)
+    assert "Done." in _shown(events)
+
+
+@pytest.mark.security
+async def test_a_blocked_keyword_longer_than_the_tail_is_still_caught_across_parts():
+    keyword = "x" * 1_500
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out=keyword),
+        _streams(
+            [keyword[:-1], {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["x."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
 
 
 async def test_with_pii_redaction_the_stream_knows_the_phone_size_limit():
