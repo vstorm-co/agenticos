@@ -306,6 +306,12 @@ class ScreenedStream(AbstractCapability[object]):
     """
 
     screen: TextDetector
+    fits: Callable[[str], bool] | None = None
+    """Whether a text is within the screen's size limit, when it has one.
+
+    The phone detector refuses a text past its character or digit ceiling. The
+    released tail is context, not the part, so it must not push a part that is
+    within the ceiling past it: it is trimmed from the front until it fits."""
 
     _released: dict[type[TextPart | ThinkingPart], str] = field(
         default_factory=dict, init=False, repr=False
@@ -317,7 +323,7 @@ class ScreenedStream(AbstractCapability[object]):
 
     async def for_run(self, ctx: RunContext[object]) -> ScreenedStream:
         """A fresh instance per run, so one run's released tail never meets another's."""
-        return ScreenedStream(screen=self.screen)
+        return ScreenedStream(screen=self.screen, fits=self.fits)
 
     async def wrap_run_event_stream(
         self,
@@ -355,6 +361,9 @@ class ScreenedStream(AbstractCapability[object]):
         a value that began in an earlier part is redacted in this one, which
         completes it, and a keyword only the two parts spell together is blocked.
         """
+        if self.fits is not None:
+            while before and not self.fits(before + part.content):
+                before = before[(len(before) + 1) // 2 :]
         try:
             shown = self._cleaned(before)
             both = self._cleaned(before + part.content)
@@ -407,7 +416,16 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     )
     if output_detector is not None:
         edges.append(OutputGuardrail(guard=for_text(output_detector, on_other="allow")))
-        edges.append(ScreenedStream(screen=output_detector))
+        edges.append(
+            ScreenedStream(
+                screen=output_detector,
+                fits=(
+                    (lambda text: phone_text_error(text, phone_regions) is None)
+                    if config.redact_pii_out
+                    else None
+                ),
+            )
+        )
 
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,

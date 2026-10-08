@@ -40,7 +40,12 @@ from pydantic_ai.models.function import (
     DeltaToolCalls,
     FunctionModel,
 )
-from pydantic_ai_harness.guardrails import InputGuardrail, OutputGuardrail, ToolGuardrail
+from pydantic_ai_harness.guardrails import (
+    GuardrailResult,
+    InputGuardrail,
+    OutputGuardrail,
+    ToolGuardrail,
+)
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get, load_builtins
 from app.agents.capabilities.guardrails import (
@@ -456,6 +461,44 @@ async def test_a_keyword_only_two_parts_spell_together_is_blocked():
         await _streamed(agent, events)
 
     assert _released_text(events) == "This is confi"
+
+
+async def test_the_released_tail_never_pushes_a_part_past_a_size_limit():
+    """The tail is context: a part within the PII size ceiling is released even
+    when the tail added to it would not be."""
+
+    def screen(text: str) -> GuardrailResult:
+        if len(text) > 30:
+            raise GuardrailBlocked(edge="output", message="too long")
+        return GuardrailResult.allow()
+
+    agent = Agent(
+        _streams(
+            ["a" * 20, {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["b" * 30],
+        ),
+        capabilities=[ScreenedStream(screen=screen, fits=lambda text: len(text) <= 30)],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert _released_text(events) == "a" * 20 + "b" * 30
+
+
+async def test_with_pii_redaction_the_stream_knows_the_phone_size_limit():
+    capability = build_guardrails(GuardrailsConfig(redact_pii_out=True))
+    assert capability is not None
+    [screened] = [c for c in capability.capabilities if isinstance(c, ScreenedStream)]
+
+    assert screened.fits is not None
+    assert screened.fits("short")
+    assert not screened.fits("1" * 20_000)
 
 
 async def test_a_blocked_keyword_in_reasoning_withholds_the_reasoning_not_the_run():
