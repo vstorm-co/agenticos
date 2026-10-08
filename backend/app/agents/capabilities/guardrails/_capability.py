@@ -73,6 +73,9 @@ TextDetector = Callable[[str], GuardrailResult]
 """A detector reads text and returns a verdict. The harness's own signature."""
 
 _KEYWORD_SPLIT = re.compile(r"[,\n]")
+
+WITHHELD_REASONING = "[reasoning withheld by the output guardrail]"
+"""What a reasoning part the output check refused shows in its place."""
 """Blocked keywords arrive as one string, comma- or newline-separated.
 
 A string rather than a `list[str]` because the Builder's generated form renders
@@ -207,9 +210,12 @@ class ScreenedStream(AbstractCapability[object]):
     guardrail never reads at all: what the model writes before calling a tool is
     not the run's output, but a streaming surface shows it and stores it.
 
-    A blocked keyword raises :class:`GuardrailBlocked` out of the stream before any
-    of the part has been released, so the run ends as `GUARDRAIL_BLOCKED` with
-    nothing of the answer shown or written down.
+    A blocked keyword in a text part raises :class:`GuardrailBlocked` out of the
+    stream before any of that part has been released, so the run ends as
+    `GUARDRAIL_BLOCKED` with none of the blocked text shown or written down. A
+    refused reasoning part is replaced by `WITHHELD_REASONING` instead: reasoning
+    routinely restates the question, and ending a run whose answer is clean over
+    a word the model only thought would refuse ordinary questions.
 
     The cost falls only on an agent that configured an output check: its answer
     arrives a part at a time rather than token by token. The run's own messages
@@ -226,24 +232,32 @@ class ScreenedStream(AbstractCapability[object]):
         stream: AsyncIterable[AgentStreamEvent],
     ) -> AsyncIterable[AgentStreamEvent]:
         """Drop text and reasoning as they stream, and release each part screened."""
+        # The start events held back, by part index: released with the screened
+        # part so `previous_part_kind` survives.
+        held: dict[int, PartStartEvent] = {}
         async for event in stream:
             match event:
-                case (
-                    PartStartEvent(part=TextPart() | ThinkingPart())
-                    | PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta())
-                ):
+                case PartStartEvent(part=TextPart() | ThinkingPart()):
+                    held[event.index] = event
+                case PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta()):
                     pass
                 case PartEndEvent(part=TextPart() | ThinkingPart() as part):
-                    verdict = self.screen(part.content)
-                    # A detector here only allows or replaces; a block has raised.
-                    content = (
-                        str(verdict.replacement) if verdict.action == "replace" else part.content
-                    )
-                    screened = replace(part, content=content)
-                    yield PartStartEvent(index=event.index, part=screened)
+                    screened = replace(part, content=self._screened(part))
+                    yield replace(held.pop(event.index), part=screened)
                     yield replace(event, part=screened)
                 case _:
                     yield event
+
+    def _screened(self, part: TextPart | ThinkingPart) -> str:
+        """The part's content as a consumer may see it; a blocked text part raises."""
+        try:
+            verdict = self.screen(part.content)
+        except GuardrailBlocked:
+            if isinstance(part, TextPart):
+                raise
+            return WITHHELD_REASONING
+        # A detector here only allows or replaces; a block has raised.
+        return str(verdict.replacement) if verdict.action == "replace" else part.content
 
 
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:

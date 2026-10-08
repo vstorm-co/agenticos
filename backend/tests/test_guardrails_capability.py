@@ -49,6 +49,7 @@ from app.agents.capabilities.guardrails import (
     build_guardrails,
 )
 from app.agents.capabilities.guardrails._capability import (
+    WITHHELD_REASONING,
     ScreenedStream,
     _edge_detector,
     _keywords,
@@ -71,10 +72,10 @@ def _answers(text: str) -> FunctionModel:
     makes `agent.run()` stream the model's response under the hood.
     """
 
-    def respond(messages, info):  # type: ignore[no-untyped-def]
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(parts=[TextPart(text)])
 
-    async def stream(messages, info):  # type: ignore[no-untyped-def]
+    async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
         yield text
 
     return FunctionModel(respond, stream_function=stream)
@@ -374,6 +375,45 @@ async def test_reasoning_is_screened_like_the_answer():
     assert "The key was [redacted:anthropic_key], I should not repeat it." in _shown(events)
 
 
+async def test_a_blocked_keyword_in_reasoning_withholds_the_reasoning_not_the_run():
+    """Reasoning routinely restates the question. Ending a run whose answer is
+    clean over a word the model only thought would refuse ordinary questions."""
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out="acme"),
+        _streams(
+            [
+                {0: DeltaThinkingPart(content="The user asks about Acme.")},
+                "I can only talk about our own product.",
+            ]
+        ),
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert "Acme" not in _shown(events)
+    assert WITHHELD_REASONING in _shown(events)
+    assert "I can only talk about our own product." in _shown(events)
+
+
+async def test_a_released_part_keeps_what_came_before_it():
+    """The held start event is the one released, so `previous_part_kind` survives."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams([{0: DeltaThinkingPart(content="Thinking.")}, "Answer."]),
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    starts = [event for event in events if isinstance(event, PartStartEvent)]
+    assert [(type(e.part), e.previous_part_kind) for e in starts] == [
+        (ThinkingPart, None),
+        (TextPart, "thinking"),
+    ]
+
+
+@pytest.mark.security
 async def test_a_blocked_answer_ends_the_run_before_any_of_it_is_shown():
     """The block used to arrive after the whole answer had streamed - and been
     stored as the turn - so the refusal refused nothing."""
