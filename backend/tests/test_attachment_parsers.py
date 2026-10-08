@@ -1018,17 +1018,17 @@ class TestTheParseStopsAtItsLimit:
         assert text == fu.PDF_PAGES_CUT_MARKER.format(read=3, total=5)
 
     @pytest.mark.parametrize(
-        ("build", "file_type", "filename", "separator"),
+        ("build", "file_type", "filename"),
         [
-            (_docx_paragraphs, "docx", "a.docx", "\n"),
-            (_xlsx_rows, "spreadsheet", "a.xlsx", "\n"),
-            (_odt, "document", "a.odt", "\n"),
-            (_odp_slides, "presentation", "a.odp", "\n"),
-            (_pptx_slides, "presentation", "a.pptx", "\n\n"),
+            (_docx_paragraphs, "docx", "a.docx"),
+            (_xlsx_rows, "spreadsheet", "a.xlsx"),
+            (_odt, "document", "a.odt"),
+            (_odp_slides, "presentation", "a.odp"),
+            (_pptx_slides, "presentation", "a.pptx"),
         ],
     )
     async def test_an_office_document_is_cut_at_the_limit(
-        self, build, file_type: str, filename: str, separator: str
+        self, build, file_type: str, filename: str
     ):
         items = [f"item {n:03d}" for n in range(500)]
 
