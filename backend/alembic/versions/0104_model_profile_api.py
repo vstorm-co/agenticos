@@ -37,7 +37,17 @@ def upgrade() -> None:
         "ELSE 'chat' END WHERE provider = 'openai'"
     )
     op.execute("UPDATE model_profiles SET api = 'chat' WHERE provider = 'azure'")
+    # A value the service never wrote fails the profile listing and any run that
+    # falls back to the row, so the schema refuses it rather than the read path.
+    op.create_check_constraint(
+        op.f("model_profiles_ck_model_profile_api_check"),
+        "model_profiles",
+        "api IN ('chat', 'responses')",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(
+        op.f("model_profiles_ck_model_profile_api_check"), "model_profiles", type_="check"
+    )
     op.drop_column("model_profiles", "api")

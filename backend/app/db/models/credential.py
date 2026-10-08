@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
+    CheckConstraint,
     ForeignKey,
     Integer,
     String,
@@ -94,6 +95,7 @@ class ModelProfile(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
+        CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
     )
 
     def __repr__(self) -> str:

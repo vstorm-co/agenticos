@@ -29,7 +29,10 @@ Two things are versioned separately from this file and worth knowing about:
   existing `openai` profiles without an endpoint Responses, and the rest Chat
   Completions. A Responses model sends `store: false`, so moving to Responses
   does not start keeping conversations on OpenAI's side; a profile can set
-  `openai_store` to opt back in. Replaces #2033.
+  `openai_store` to opt back in. A profile moved to Responses loses the
+  Chat-only settings in its `params` (`seed`, `stop_sequences`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
+  not send there. Replaces #2033.
 
 ## [0.0.524] - 2026-10-08
 
