@@ -511,7 +511,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       )}
 
       {provider !== undefined && api !== null && (
-        <FormField htmlFor="add-model-api" label={t("modelApi")} description={t("modelApiHint")}>
+        <FormField
+          htmlFor="add-model-api"
+          label={t("modelApi")}
+          description={providerId === "azure" ? t("modelApiHintAzure") : t("modelApiHint")}
+        >
           <Select
             value={api}
             onValueChange={(value) => {

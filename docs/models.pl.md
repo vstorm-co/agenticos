@@ -1,5 +1,5 @@
 ---
-source_sha: "b029e718208f"
+source_sha: "0b5ae075ae8b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -69,6 +69,12 @@ wiadomość jako punkty cache i czyta poprzednie żądanie z cache. Profil wył�
 dowolny z nich, ustawiając go na `false` - `anthropic_cache_messages`,
 `openrouter_cache_instructions` i tak dalej.
 
+Nakładu rozumowania **nie** ma tutaj. Jest nim
+[capability `thinking`](reference/capabilities.md#thinking), bo „myśl mocniej” to
+decyzja o tym, do *czego* agent służy, a nie pokrętło na połączeniu — i dlatego,
+że spec, który ustawia to jako ustawienie modelu, przestaje być przenośny przy
+zmianie modelu.
+
 ### Responses czy Chat Completions { #responses-or-chat-completions }
 
 OpenAI publikuje dwa API dla tych samych modeli, a profil na `openai` lub `azure`
@@ -98,12 +104,6 @@ Completions domyślnie nie zapisuje niczego, więc model na Responses wysyła
 `store: false`. Rozumowanie przechodzi między turami jako zaszyfrowana treść, a nie
 przez zapisany identyfikator odpowiedzi, więc nic nie potrzebuje zapisanej kopii.
 Profil, który jej chce, ustawia w swoich ustawieniach `openai_store` na `true`.
-
-Nakładu rozumowania **nie** ma tutaj. Jest nim
-[capability `thinking`](reference/capabilities.md#thinking), bo „myśl mocniej” to
-decyzja o tym, do *czego* agent służy, a nie pokrętło na połączeniu — i dlatego,
-że spec, który ustawia to jako ustawienie modelu, przestaje być przenośny przy
-zmianie modelu.
 
 ## Providery { #providers }
 

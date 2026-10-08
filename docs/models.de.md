@@ -1,5 +1,5 @@
 ---
-source_sha: "b029e718208f"
+source_sha: "0b5ae075ae8b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -73,6 +73,12 @@ letzte Nachricht als Cache-Breakpoints und liest den vorigen Request aus dem Cac
 Ein Profile schaltet jeden davon ab, indem es ihn auf `false` setzt -
 `anthropic_cache_messages`, `openrouter_cache_instructions` und so weiter.
 
+Der Reasoning-Aufwand steht **nicht** hier. Er ist die
+[`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
+gründlicher" ist eine Entscheidung darüber, wofür der Agent *da ist*, und kein
+Regler an einer Verbindung — und weil ein Spec, der das als Model Setting setzt,
+über einen Modellwechsel hinweg aufhört, portabel zu sein.
+
 ### Responses oder Chat Completions { #responses-or-chat-completions }
 
 OpenAI veröffentlicht zwei APIs für dieselben Modelle, und ein Profile auf `openai`
@@ -103,12 +109,6 @@ Responses-Modell sendet daher `store: false`. Reasoning wird zwischen den Zügen
 verschlüsselter Inhalt weitergegeben und nicht über eine gespeicherte Response-Id,
 also braucht nichts die gespeicherte Kopie. Ein Profile, das sie will, setzt
 `openai_store` in seinen Settings auf `true`.
-
-Der Reasoning-Aufwand steht **nicht** hier. Er ist die
-[`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
-gründlicher" ist eine Entscheidung darüber, wofür der Agent *da ist*, und kein
-Regler an einer Verbindung — und weil ein Spec, der das als Model Setting setzt,
-über einen Modellwechsel hinweg aufhört, portabel zu sein.
 
 ## Provider { #providers }
 

@@ -63,6 +63,12 @@ as cache breakpoints and reads the one before it from cache. A profile turns any
 of them off by setting it to `false` - `anthropic_cache_messages`,
 `openrouter_cache_instructions` and so on.
 
+Reasoning effort is **not** here. It is the
+[`thinking` capability](reference/capabilities.md#thinking), because "reason
+harder" is a decision about what the agent is *for* rather than a knob on a
+connection — and because a spec that sets it as a model setting stops being
+portable across a model swap.
+
 ### Responses or Chat Completions
 
 OpenAI publishes two APIs for the same models, and a profile on `openai` or
@@ -92,12 +98,6 @@ Completions stores nothing by default, so a Responses model sends
 `store: false`. Reasoning is carried between turns as encrypted content rather
 than by a stored response id, so nothing needs the stored copy. A profile that
 wants it sets `openai_store` to `true` in its settings.
-
-Reasoning effort is **not** here. It is the
-[`thinking` capability](reference/capabilities.md#thinking), because "reason
-harder" is a decision about what the agent is *for* rather than a knob on a
-connection — and because a spec that sets it as a model setting stops being
-portable across a model swap.
 
 ## Providers
 

@@ -948,6 +948,16 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     expect(sent()).toEqual(expect.objectContaining({ api: "responses" }));
   });
 
+  it("keeps that choice while the endpoint is still being edited", async () => {
+    await fillOpenAi();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.openai.com");
+    await pickApi("Responses");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "/v1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "responses" }));
+  });
+
   it("forgets that choice when the provider changes", async () => {
     state.catalog = [
       capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
@@ -956,13 +966,15 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     state.purposes = [purpose("openai", "OpenAI"), purpose("azure", "Azure OpenAI")];
     mount();
     await pickProvider("^OpenAI");
-    await pickApi("Chat Completions");
+    // With an endpoint OpenAI starts on Chat, so Responses is a real choice - and
+    // the opposite of Azure's default, so carrying it across would show.
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.openai.com/v1");
+    await pickApi("Responses");
     await pickProvider("Azure OpenAI");
 
     expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
-    await pickApi("Responses");
-    await pickProvider("^OpenAI");
-    expect(screen.getByLabelText("API")).toHaveTextContent("Responses");
+    // Azure's Responses API depends on the key's api_version, so its hint says so.
+    expect(screen.getByText(/recent api_version on the Azure key/)).toBeInTheDocument();
   });
 });
 

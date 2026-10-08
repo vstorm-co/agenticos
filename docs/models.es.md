@@ -1,5 +1,5 @@
 ---
-source_sha: "b029e718208f"
+source_sha: "0b5ae075ae8b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -69,6 +69,12 @@ las herramientas y su último mensaje como puntos de caché y lee la anterior de
 la caché. Un perfil desactiva cualquiera de ellos poniéndolo a `false` -
 `anthropic_cache_messages`, `openrouter_cache_instructions`, etcétera.
 
+El esfuerzo de razonamiento **no** está aquí. Es
+[la capability `thinking`](reference/capabilities.md#thinking), porque «razona
+más» es una decisión sobre para qué *sirve* el agent y no un mando de una
+conexión — y porque un spec que lo fija como ajuste del modelo deja de ser
+portable al cambiar de modelo.
+
 ### Responses o Chat Completions { #responses-or-chat-completions }
 
 OpenAI publica dos APIs para los mismos modelos, y un perfil en `openai` o
@@ -99,12 +105,6 @@ mientras que Chat Completions no guarda nada por defecto, así que un modelo en
 Responses envía `store: false`. El razonamiento pasa entre turnos como contenido
 cifrado y no mediante un id de respuesta guardado, así que nada necesita la copia
 guardada. Un perfil que la quiera pone `openai_store` a `true` en sus ajustes.
-
-El esfuerzo de razonamiento **no** está aquí. Es
-[la capability `thinking`](reference/capabilities.md#thinking), porque «razona
-más» es una decisión sobre para qué *sirve* el agent y no un mando de una
-conexión — y porque un spec que lo fija como ajuste del modelo deja de ser
-portable al cambiar de modelo.
 
 ## Providers { #providers }
 

@@ -605,6 +605,7 @@
     "modelApiResponses": "Responses",
     "modelApiChat": "Chat Completions",
     "modelApiHint": "OpenAI's own API serves every model on Responses, and its newest models on nothing else. Most OpenAI-compatible servers (vLLM, LM Studio) implement only Chat Completions.",
+    "modelApiHintAzure": "Responses needs a recent api_version on the Azure key; Chat Completions works with any.",
     "usingKey": "Using <strong>{name}</strong>",
     "variableDescription": "Variable {index} description",
     "variableDescriptionPlaceholder": "Which plan this visitor is on",
