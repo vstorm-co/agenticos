@@ -1022,7 +1022,7 @@ class TestTheParseStopsAtItsLimit:
         [
             (_docx_paragraphs, "docx", "a.docx", "\n"),
             (_xlsx_rows, "spreadsheet", "a.xlsx", "\n"),
-            (lambda items: _odt(items), "document", "a.odt", "\n"),
+            (_odt, "document", "a.odt", "\n"),
             (_odp_slides, "presentation", "a.odp", "\n"),
             (_pptx_slides, "presentation", "a.pptx", "\n\n"),
         ],
