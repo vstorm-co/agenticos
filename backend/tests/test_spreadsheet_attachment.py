@@ -27,6 +27,9 @@ pytestmark = pytest.mark.anyio
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 XLSM = "application/vnd.ms-excel.sheet.macroEnabled.12"
 
+LIMIT = 1_000_000
+"""The parse budget the reader is handed, the default `CHAT_PARSED_TEXT_MAX_CHARS`."""
+
 
 def _workbook(sheets: dict[str, list[list[Any]]]) -> bytes:
     """A real `.xlsx`, because the parser is openpyxl and a fake proves nothing."""
@@ -82,7 +85,7 @@ class TestReadingAWorkbook:
             }
         )
 
-        text = FileUploadService._parse_spreadsheet_content(data)
+        text = FileUploadService._parse_spreadsheet_content(data, LIMIT)
 
         assert text == (
             "Sheet: Cover\nHiszpanski od zera do B1\n\n"
@@ -95,7 +98,7 @@ class TestReadingAWorkbook:
         and disappears down the page."""
         data = _workbook({"Prices": [["item", "cost"], ["kawa", "1,50"]]})
 
-        text = FileUploadService._parse_spreadsheet_content(data)
+        text = FileUploadService._parse_spreadsheet_content(data, LIMIT)
 
         assert text is not None
         assert "kawa\t1,50" in text
@@ -103,7 +106,7 @@ class TestReadingAWorkbook:
     def test_an_empty_row_is_dropped(self):
         data = _workbook({"S": [["a"], [None], ["b"]]})
 
-        assert FileUploadService._parse_spreadsheet_content(data) == "Sheet: S\na\nb"
+        assert FileUploadService._parse_spreadsheet_content(data, LIMIT) == "Sheet: S\na\nb"
 
     def test_trailing_empty_cells_are_dropped(self):
         """A sheet whose used range is wider than its data - which is most of
@@ -111,19 +114,19 @@ class TestReadingAWorkbook:
         of tabs, and those cost tokens to say nothing."""
         data = _workbook({"S": [["a", None, None]]})
 
-        assert FileUploadService._parse_spreadsheet_content(data) == "Sheet: S\na"
+        assert FileUploadService._parse_spreadsheet_content(data, LIMIT) == "Sheet: S\na"
 
     def test_a_gap_inside_a_row_is_kept(self):
         """Only the trailing ones go. A hole in the middle is which column the
         value is in, and closing it moves every cell after it left."""
         data = _workbook({"S": [["a", None, "c"]]})
 
-        assert FileUploadService._parse_spreadsheet_content(data) == "Sheet: S\na\t\tc"
+        assert FileUploadService._parse_spreadsheet_content(data, LIMIT) == "Sheet: S\na\t\tc"
 
     def test_numbers_and_dates_come_through_as_text(self):
         data = _workbook({"S": [["count", 42], ["ratio", 1.5]]})
 
-        text = FileUploadService._parse_spreadsheet_content(data)
+        text = FileUploadService._parse_spreadsheet_content(data, LIMIT)
 
         assert text is not None
         assert "count\t42" in text
@@ -133,13 +136,13 @@ class TestReadingAWorkbook:
         """None, not "Sheet: S" - `make_preview` and the attachment planner both
         read this as "nothing was extracted", and a heading alone would be
         attached to a model as though it were content."""
-        assert FileUploadService._parse_spreadsheet_content(_workbook({"S": []})) is None
+        assert FileUploadService._parse_spreadsheet_content(_workbook({"S": []}), LIMIT) is None
 
     def test_something_that_is_not_a_workbook_is_not_an_error(self):
         """A file whose name says `.xlsx` and whose bytes disagree. The upload has
         already been accepted by then, so raising here would lose the file rather
         than the parse."""
-        assert FileUploadService._parse_spreadsheet_content(b"not a workbook at all") is None
+        assert FileUploadService._parse_spreadsheet_content(b"not a workbook at all", LIMIT) is None
 
 
 class TestTheDispatch:

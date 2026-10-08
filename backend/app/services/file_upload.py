@@ -5,8 +5,10 @@ import io
 import logging
 import re
 import zipfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
+from xml.dom import Node
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,6 +76,42 @@ opened, and this budget bounds the read loop so a handful of such sheets cannot
 occupy the bounded file pool before the central text cap runs (#1591).
 """
 
+_XLSX_MAX_CELLS = 1_000_000
+"""How many cells of one `.xlsx` workbook are read, whatever text they hold.
+
+openpyxl's `read_only` reader pads every row to the sheet's declared width, and a
+row of empty cells never brings the character budget closer: a 1.5 KB workbook that
+declares `A1:XFD1048576`, or that places one empty `XFD` cell on each row, would hold
+a file-pool thread for minutes while yielding nothing (#1990).
+"""
+
+_PDF_MAX_PAGES = 2_000
+"""How many pages of one PDF are read, whatever text they hold.
+
+The character budget stops a reader once it has enough text, and a page with no
+text never brings it closer: a PDF of image-only or empty pages would otherwise be
+walked to its last page for nothing (#1990).
+"""
+
+PARSE_CUT_MARKER = "\n…[cut at {max_chars} chars; the rest of the document is left out]"
+"""What ends extracted text that reached the parse budget.
+
+It names no total, unlike `cap_text`: most readers stop at the budget rather than
+reading to the end, so the length of the whole text is not known (#1990). It says
+the rest is left out rather than unread because plain text, `.msg` and `.doc` are
+still read whole before the cut.
+"""
+
+PDF_PAGES_CUT_MARKER = "…[stopped at page {read} of {total}; the rest of the document was not read]"
+"""What ends a PDF cut at `_PDF_MAX_PAGES` while its text was still within budget.
+
+It stands alone when the pages read held no text, so a model is told the rest was
+skipped rather than that the document has nothing in it.
+"""
+
+XLSX_CELLS_CUT_MARKER = "…[stopped after {cells} cells; the rest of the workbook was not read]"
+"""What ends an `.xlsx` cut at `_XLSX_MAX_CELLS` while its text was still within budget."""
+
 
 def make_preview(parsed_content: str | None) -> str | None:
     """The head of a file's extracted text, for a client to render beside its name.
@@ -94,16 +132,33 @@ def make_preview(parsed_content: str | None) -> str | None:
 
 
 def cap_text(text: str | None, max_chars: int) -> str | None:
-    """Bound extracted text with an explicit truncation marker.
+    """Bound text pasted into a prompt with an explicit truncation marker.
 
-    A small ZIP or OLE upload can expand to very large text; the stored column, the
-    preview and the no-workspace paste all read this, so it is capped once here,
-    before any of them. The marker names both counts so the model knows the rest
-    exists (#1591, §5 #6).
+    The per-file cap on what a no-workspace agent is pasted. The parsed text it
+    reads is already bounded by the parse budget, so this text is known whole, and
+    the marker names both counts so the model knows the rest exists (#1591, §5 #6).
     """
     if text is None or len(text) <= max_chars:
         return text
     return text[:max_chars] + f"\n…[truncated {max_chars} of {len(text)} chars]"
+
+
+def _join_within(parts: Iterable[str], separator: str, max_chars: int) -> str:
+    """Join `parts` lazily, and stop pulling them once the text is past `max_chars`.
+
+    `parts` is a generator over the document, so stopping here is what stops the
+    reader: nothing after the part that crossed the limit is extracted. The result
+    is longer than `max_chars` exactly when something was cut, which is what
+    `parse_content` then marks.
+    """
+    taken: list[str] = []
+    length = -len(separator)
+    for part in parts:
+        taken.append(part)
+        length += len(separator) + len(part)
+        if length > max_chars:
+            break
+    return separator.join(taken)
 
 
 def _decode_declared(data: bytes) -> str | None:
@@ -181,48 +236,94 @@ def safe_unzip(data: bytes) -> io.BytesIO:
     return io.BytesIO(data)
 
 
-def _clamp_odf_space_runs(document: Any, budget: int) -> None:
-    """Clamp every `<text:s text:c=N>` repeat so a walk cannot allocate a bomb.
+def _clamp_odf_space_runs(node: Any, budget: int) -> int:
+    """Clamp every `<text:s text:c=N>` under `node` so a walk cannot allocate a bomb.
 
     odfpy's own `extractText` expands `<text:s>` to `" " * int(text:c)` before any
     character cap is applied, so a sub-kilobyte ODF declaring `text:c="10000000000"`
     allocates gigabytes of spaces inside the extraction — a post-decompression bomb
     `safe_unzip` cannot see, because the XML member itself is tiny (#1591, §7 finding
     3). The count is attacker-controlled, so each run is clamped in place to what is
-    left of `budget` before extraction; the bound is the parsed-text cap, far above
-    any real run of spaces, and the cell/paragraph budgets narrow it further.
+    left of `budget` before extraction. Returns what is left of `budget`.
     """
     from odf.text import S
 
     remaining = budget
-    for element in document.getElementsByType(S):
+    for element in node.getElementsByType(S):
         count = int(element.getAttribute("c") or 1)
         clamped = max(0, min(count, remaining))
         element.setAttribute("c", str(clamped))
         remaining -= clamped
+    return remaining
 
 
-def _odf_text_blocks(document: Any, qnames: set[tuple[str, str]]) -> list[str]:
-    """`extractText` of every element whose qname is in `qnames`, in document order.
+def _odf_blocks(document: Any, qnames: set[tuple[str, str]]) -> Iterator[Any]:
+    """Every element whose qname is in `qnames`, in document order.
 
     A pre-order walk of the body that does not descend into a collected block, so
     the paragraphs and headings interleave in reading order and nothing is
     extracted twice. `getElementsByType` per type would lose that interleaving,
     which is exactly the structure a heading carries (#1654 review).
     """
-    from odf.teletype import extractText
 
-    lines: list[str] = []
-
-    def walk(node: Any) -> None:
+    def walk(node: Any) -> Iterator[Any]:
         for child in getattr(node, "childNodes", ()):
             if getattr(child, "qname", None) in qnames:
-                lines.append(extractText(child))
+                yield child
             else:
-                walk(child)
+                yield from walk(child)
 
-    walk(document.body)
-    return lines
+    return walk(document.body)
+
+
+def _has_visible_text(node: Any) -> bool:
+    """Whether `extractText(node)` would hold anything but whitespace.
+
+    Only text nodes carry visible characters; `<text:s>`, `<text:tab>` and
+    `<text:line-break>` expand to whitespace, so a block is judged without
+    expanding a single space run.
+    """
+    for child in getattr(node, "childNodes", ()):
+        if child.nodeType == Node.TEXT_NODE:
+            if child.data.strip():
+                return True
+        elif _has_visible_text(child):
+            return True
+    return False
+
+
+def _odf_kept_text(blocks: Iterable[Any], max_chars: int) -> Iterator[str]:
+    """The text of every block with visible text, its space runs paid from one budget.
+
+    Each kept block's `<text:s>` runs are clamped to what is left of `max_chars`
+    just before it is extracted (#1591). A whitespace-only block is skipped unread
+    and spends nothing: clamping the whole document up front let a blank spacer
+    paragraph, dropped from the output anyway, use up the budget and silently zero
+    the spacing of the text after it. A generator, so a caller that has enough
+    text stops the extraction (#1990).
+    """
+    from odf.teletype import extractText
+
+    remaining = max_chars
+    for block in blocks:
+        if _has_visible_text(block):
+            remaining = _clamp_odf_space_runs(block, remaining)
+            yield extractText(block)
+
+
+@dataclass(frozen=True)
+class _ReadText:
+    """A document's text, and the note on what a reader's own cap left unread.
+
+    `_PDF_MAX_PAGES` and `_XLSX_MAX_CELLS` stop a read that the character budget
+    never would. The note is apart because it is not document text:
+    `parse_content` spends the character budget on `text` alone and adds `unread`
+    after any cut, so a text that fits the budget is never reported as cut
+    because of the note (#1990).
+    """
+
+    text: str
+    unread: str
 
 
 @dataclass(frozen=True)
@@ -353,46 +454,80 @@ class DocumentText:
         mime_type: str = "",
         filename: str = "",
         charset: str | None = None,
+        *,
+        max_chars: int | None = None,
+        cut_marker: str | None = None,
     ) -> str | None:
         """Parse file content into text, dispatched by the canonical format.
 
-        Returns extracted text (bounded by `CHAT_PARSED_TEXT_MAX_CHARS`) or `None`
-        when parsing fails or the type carries no text (an image).
+        Returns extracted text or `None` when parsing fails or the type carries no
+        text (an image). The text is bounded by `max_chars`, and never by more than
+        `CHAT_PARSED_TEXT_MAX_CHARS`; past it, the text is cut and ends with
+        `cut_marker`, or `PARSE_CUT_MARKER` when none is given. A PDF that
+        `_PDF_MAX_PAGES` stopped within the budget ends with `PDF_PAGES_CUT_MARKER`
+        instead, and an `.xlsx` that `_XLSX_MAX_CELLS` stopped with
+        `XLSX_CELLS_CUT_MARKER`, after the budgeted text rather than inside it.
 
-        Every in-process branch is blocking CPU work — pymupdf over every page,
+        The bound is a budget the readers spend, not a cut applied afterwards. A
+        PDF is loaded a page at a time and stops at the page that crosses it, and an
+        `.xlsx` streams its rows and stops at the row, so for those two the cost of
+        a parse follows what is kept (#1990). DOCX, PPTX, ODT and ODP stop
+        extracting at the paragraph or slide, but their libraries decompress and
+        parse the whole archive first, which `safe_unzip`'s size limits bound
+        instead. Plain text, `.msg` and `.doc` are read whole: their text is no
+        larger than the bytes that hold it.
+
+        Raises:
+            ValueError: `max_chars` is negative.
+
+        Every in-process branch is blocking CPU work — pymupdf over the pages,
         openpyxl over every cell, odfpy/python-pptx over a decompressed archive — with
         no suspension point, so it runs on the dedicated file pool rather than the
         request loop (#1108). DOC is the exception: it is an `await` on a managed
         `soffice` subprocess (`office_convert.py`), already off the loop and bounded
         by its own semaphore.
         """
+        limit = settings.CHAT_PARSED_TEXT_MAX_CHARS
+        if max_chars is not None:
+            if max_chars < 0:
+                raise ValueError(f"max_chars must not be negative, got {max_chars}")
+            limit = min(limit, max_chars)
         fmt = resolve_format(mime_type, filename)
-        text = await self._parse_by_format(data, file_type, fmt, charset)
-        return cap_text(text, settings.CHAT_PARSED_TEXT_MAX_CHARS)
+        parsed = await self._parse_by_format(data, file_type, fmt, limit, charset)
+        text: str | None
+        if isinstance(parsed, _ReadText):
+            text, unread = parsed.text, parsed.unread
+        else:
+            text, unread = parsed, ""
+        if text is not None and len(text) > limit:
+            text = text[:limit] + (cut_marker or PARSE_CUT_MARKER.format(max_chars=limit))
+        if not unread:
+            return text
+        return f"{text}\n\n{unread}" if text else unread
 
     async def _parse_by_format(
-        self, data: bytes, file_type: str, fmt: str, charset: str | None = None
-    ) -> str | None:
+        self, data: bytes, file_type: str, fmt: str, max_chars: int, charset: str | None = None
+    ) -> str | _ReadText | None:
         if file_type == "text":
             return await run_blocking(self._parse_text_content, data, charset)
         if file_type == "pdf":
-            return await run_blocking(self._parse_pdf_content, data)
+            return await run_blocking(self._parse_pdf_content, data, max_chars)
         if file_type == "docx":
-            return await run_blocking(self._parse_docx_content, data)
+            return await run_blocking(self._parse_docx_content, data, max_chars)
         if file_type == "spreadsheet":
             if fmt == "xls":
-                return await run_blocking(self._parse_xls_content, data)
+                return await run_blocking(self._parse_xls_content, data, max_chars)
             if fmt == "ods":
-                return await run_blocking(self._parse_ods_content, data)
-            return await run_blocking(self._parse_spreadsheet_content, data)
+                return await run_blocking(self._parse_ods_content, data, max_chars)
+            return await run_blocking(self._parse_spreadsheet_content, data, max_chars)
         if file_type == "document":
             if fmt == "doc":
                 return await self._parse_doc_content(data)
-            return await run_blocking(self._parse_odt_content, data)
+            return await run_blocking(self._parse_odt_content, data, max_chars)
         if file_type == "presentation":
             if fmt == "odp":
-                return await run_blocking(self._parse_odp_content, data)
-            return await run_blocking(self._parse_pptx_content, data)
+                return await run_blocking(self._parse_odp_content, data, max_chars)
+            return await run_blocking(self._parse_pptx_content, data, max_chars)
         if file_type == "email":
             return await run_blocking(self._parse_msg_content, data)
         return None
@@ -422,24 +557,34 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_pdf_pymupdf(data: bytes) -> str | None:
-        """Extract text from PDF using PyMuPDF."""
+    def _parse_pdf_pymupdf(data: bytes, max_chars: int) -> _ReadText | None:
+        """Extract text from PDF using PyMuPDF, page by page within `max_chars`.
+
+        A compressed PDF under the download limit can inflate to far more text than
+        anything keeps, so the pages are read only until the text is past the budget,
+        and never beyond `_PDF_MAX_PAGES` (#1990).
+        """
         try:
             import pymupdf
 
             doc: Any = pymupdf.open(stream=data, filetype="pdf")  # type: ignore[no-untyped-call]
-            text_parts = []
-            for page in doc:
-                text = page.get_text("text")
-                if text.strip():
-                    text_parts.append(text.strip())
-            doc.close()
-            return "\n\n".join(text_parts) if text_parts else None
+            try:
+                total = doc.page_count
+                read = min(total, _PDF_MAX_PAGES)
+                pages = (doc[index].get_text("text").strip() for index in range(read))
+                text = _join_within((page for page in pages if page), "\n\n", max_chars)
+            finally:
+                doc.close()
+            # Text past the budget stopped the read before the page cap could.
+            unread = ""
+            if read < total and len(text) <= max_chars:
+                unread = PDF_PAGES_CUT_MARKER.format(read=read, total=total)
+            return _ReadText(text, unread) if text or unread else None
         except Exception as e:
             logger.warning("PyMuPDF PDF parsing failed: %s", e)
             return None
 
-    def _parse_pdf_content(self, data: bytes) -> str | None:
+    def _parse_pdf_content(self, data: bytes, max_chars: int) -> _ReadText | None:
         """Read a PDF attached to a chat message.
 
         PyMuPDF, and only PyMuPDF. A chat attachment belongs to no collection,
@@ -451,10 +596,10 @@ class DocumentText:
         LiteParse branch could not have worked at all: it called a `parse_async`
         method the binding does not define.
         """
-        return self._parse_pdf_pymupdf(data)
+        return self._parse_pdf_pymupdf(data, max_chars)
 
     @staticmethod
-    def _parse_docx_content(data: bytes) -> str | None:
+    def _parse_docx_content(data: bytes, max_chars: int) -> str | None:
         """Extract text from DOCX."""
         try:
             from docx import Document as DOCXDocument
@@ -465,13 +610,14 @@ class DocumentText:
             # total-size and member-count guards the ODF/PPTX parsers already apply
             # (#1591, §7 finding 1).
             doc: Any = DOCXDocument(safe_unzip(data))
-            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            paragraphs = (p.text for p in doc.paragraphs)
+            return _join_within((text for text in paragraphs if text.strip()), "\n", max_chars)
         except Exception as e:
             logger.warning("DOCX parsing failed: %s", e)
             return None
 
     @staticmethod
-    def _parse_spreadsheet_content(data: bytes) -> str | None:
+    def _parse_spreadsheet_content(data: bytes, max_chars: int) -> str | _ReadText | None:
         """Extract a workbook as tab-separated rows, one block per sheet.
 
         Every sheet, named. A workbook's second sheet is where the data usually
@@ -488,6 +634,13 @@ class DocumentText:
         is wider than its data - which is most of them, after a column has been
         cleared - otherwise contributes rows of tabs, and those cost tokens to say
         nothing.
+
+        The rows are pulled one at a time and stop once the text is past
+        `max_chars`: `read_only` streams them, so the rest are never read (#1990).
+        The declared dimensions are dropped first and every cell read is charged
+        to `_XLSX_MAX_CELLS`, because empty cells never spend the character budget;
+        a row costs at least one, since a sparse sheet yields an empty tuple for
+        every row it skips.
         """
         try:
             from openpyxl import load_workbook
@@ -497,29 +650,55 @@ class DocumentText:
             # the decompression of shared strings or workbook metadata, so a small
             # upload could still expand without limit (#1591, §7 finding 1).
             workbook: Any = load_workbook(safe_unzip(data), read_only=True, data_only=True)
-            try:
-                blocks: list[str] = []
+
+            capped = False
+
+            def lines() -> Iterator[str]:
+                # One line per row, a sheet's name before its first row and a blank
+                # line between sheets: joined with "\n", the same blocks as one
+                # "\n\n"-joined string per sheet, without building a sheet whole.
+                nonlocal capped
+                first = True
+                cells_left = _XLSX_MAX_CELLS
                 for sheet in workbook.worksheets:
-                    rows: list[str] = []
+                    # A sheet's `<dimension>` is attacker-chosen, and openpyxl pads
+                    # each row to it; without it, a row is as wide as its last cell.
+                    sheet.reset_dimensions()
+                    named = False
                     for row in sheet.iter_rows(values_only=True):
+                        cells_left -= max(len(row), 1)
+                        if cells_left < 0:
+                            capped = True
+                            return
                         cells = ["" if value is None else str(value) for value in row]
                         while cells and cells[-1] == "":
                             cells.pop()
-                        if cells:
-                            rows.append("\t".join(cells))
-                    if rows:
-                        blocks.append(f"Sheet: {sheet.title}\n" + "\n".join(rows))
-                return "\n\n".join(blocks) or None
+                        if not cells:
+                            continue
+                        if not named:
+                            if not first:
+                                yield ""
+                            yield f"Sheet: {sheet.title}"
+                            named = True
+                            first = False
+                        yield "\t".join(cells)
+
+            try:
+                text = _join_within(lines(), "\n", max_chars)
             finally:
                 # `read_only` keeps file handles open until it is closed, and this
                 # runs inside a request.
                 workbook.close()
+            # Text past the budget stopped the read before the cell cap could.
+            if capped and len(text) <= max_chars:
+                return _ReadText(text, XLSX_CELLS_CUT_MARKER.format(cells=_XLSX_MAX_CELLS))
+            return text or None
         except Exception as e:
             logger.warning("Spreadsheet parsing failed: %s", e)
             return None
 
     @staticmethod
-    def _parse_xls_content(data: bytes) -> str | None:
+    def _parse_xls_content(data: bytes, max_chars: int) -> str | None:
         """Extract a legacy `.xls` workbook, mirroring the openpyxl output shape.
 
         `xlrd` reads the old BIFF format openpyxl cannot. Dates arrive as serial
@@ -541,9 +720,9 @@ class DocumentText:
             # `"\t".join` below. A BIFF shared string can be reused by up to a million
             # LABELSST cells at a few bytes each, so the cell count alone does not stop
             # a single ~32 KB string from materialising a multi-GB join long before
-            # `cap_text` runs - the same bound the ODS parser already carries (#1654
-            # review).
-            char_budget = settings.CHAT_PARSED_TEXT_MAX_CHARS
+            # the cut in `parse_content` runs - the same bound the ODS parser already
+            # carries (#1654 review).
+            char_budget = max_chars
             for sheet in book.sheets():
                 rows: list[str] = []
                 for r in range(sheet.nrows):
@@ -571,7 +750,7 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_ods_content(data: bytes) -> str | None:
+    def _parse_ods_content(data: bytes, max_chars: int) -> str | None:
         """Extract an OpenDocument spreadsheet as tab-separated sheets."""
         try:
             from odf.namespaces import TABLENS
@@ -583,10 +762,10 @@ class DocumentText:
             document: Any = load(safe_unzip(data))
             # `extractText` below expands `<text:s>` before any cap, so the space
             # runs are clamped in the DOM first (#1591, §7 finding 3).
-            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
+            _clamp_odf_space_runs(document, max_chars)
             blocks: list[str] = []
             budget = _ODS_MAX_CELLS
-            char_budget = settings.CHAT_PARSED_TEXT_MAX_CHARS
+            char_budget = max_chars
             for table in document.getElementsByType(Table):
                 name = table.getAttribute("name") or "Sheet"
                 rows: list[str] = []
@@ -607,7 +786,7 @@ class DocumentText:
                         # allocates an unbounded list (the cell budget), and the later
                         # `"\t".join(cells)` then materialises the value once per
                         # reference - a single 10 KB cell repeated a million times is a
-                        # ~10 GB string built before `cap_text` is reached, which the
+                        # ~10 GB string built before the final cut is reached, which the
                         # cell budget alone does not stop (the character budget)
                         # (#1591, §7 finding 3).
                         repeat = max(
@@ -651,64 +830,65 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_odt_content(data: bytes) -> str | None:
+    def _parse_odt_content(data: bytes, max_chars: int) -> str | None:
         """Extract the paragraphs and headings of an OpenDocument text document."""
         try:
             from odf.namespaces import TEXTNS
             from odf.opendocument import load
 
             document: Any = load(safe_unzip(data))
-            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
-            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
             # Headings are `text:h`, not `text:p`; collecting only paragraphs dropped
             # every title and section heading and the structure they carry (#1654
             # review).
-            lines = _odf_text_blocks(document, {(TEXTNS, "p"), (TEXTNS, "h")})
-            return "\n".join(line for line in lines if line.strip()) or None
+            blocks = _odf_blocks(document, {(TEXTNS, "p"), (TEXTNS, "h")})
+            return _join_within(_odf_kept_text(blocks, max_chars), "\n", max_chars) or None
         except Exception as e:
             logger.warning("ODT parsing failed: %s", e)
             return None
 
     @staticmethod
-    def _parse_odp_content(data: bytes) -> str | None:
+    def _parse_odp_content(data: bytes, max_chars: int) -> str | None:
         """Extract the text frames of an OpenDocument presentation."""
         try:
             from odf.opendocument import load
-            from odf.teletype import extractText
             from odf.text import P
 
             document: Any = load(safe_unzip(data))
-            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
-            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
-            lines = [extractText(p) for p in document.getElementsByType(P)]
-            return "\n".join(line for line in lines if line.strip()) or None
+            lines = _odf_kept_text(document.getElementsByType(P), max_chars)
+            return _join_within(lines, "\n", max_chars) or None
         except Exception as e:
             logger.warning("ODP parsing failed: %s", e)
             return None
 
     @staticmethod
-    def _parse_pptx_content(data: bytes) -> str | None:
-        """Extract a PPTX: shape text, table cells and slide notes, per slide."""
+    def _parse_pptx_content(data: bytes, max_chars: int) -> str | None:
+        """Extract a PPTX: shape text, table cells and slide notes, per slide.
+
+        The slides are read one at a time and stop once the text is past
+        `max_chars` (#1990).
+        """
         try:
             from pptx import Presentation
 
             presentation: Any = Presentation(safe_unzip(data))
-            slides: list[str] = []
-            for index, slide in enumerate(presentation.slides, start=1):
-                lines: list[str] = []
-                for shape in slide.shapes:
-                    if shape.has_text_frame and shape.text_frame.text.strip():
-                        lines.append(shape.text_frame.text)
-                    if shape.has_table:
-                        for row in shape.table.rows:
-                            lines.append("\t".join(cell.text for cell in row.cells))
-                if slide.has_notes_slide:
-                    notes = slide.notes_slide.notes_text_frame.text
-                    if notes.strip():
-                        lines.append(f"Notes: {notes}")
-                if lines:
-                    slides.append(f"Slide {index}\n" + "\n".join(lines))
-            return "\n\n".join(slides) or None
+
+            def slides() -> Iterator[str]:
+                for index, slide in enumerate(presentation.slides, start=1):
+                    lines: list[str] = []
+                    for shape in slide.shapes:
+                        if shape.has_text_frame and shape.text_frame.text.strip():
+                            lines.append(shape.text_frame.text)
+                        if shape.has_table:
+                            for row in shape.table.rows:
+                                lines.append("\t".join(cell.text for cell in row.cells))
+                    if slide.has_notes_slide:
+                        notes = slide.notes_slide.notes_text_frame.text
+                        if notes.strip():
+                            lines.append(f"Notes: {notes}")
+                    if lines:
+                        yield f"Slide {index}\n" + "\n".join(lines)
+
+            return _join_within(slides(), "\n\n", max_chars) or None
         except Exception as e:
             logger.warning("PPTX parsing failed: %s", e)
             return None
@@ -753,15 +933,29 @@ class DocumentText:
             return None
 
 
-async def extract_text(data: bytes, mime_type: str, filename: str) -> str | None:
+async def extract_text(
+    data: bytes,
+    mime_type: str,
+    filename: str,
+    *,
+    max_chars: int | None = None,
+    cut_marker: str | None = None,
+) -> str | None:
     """The text of a document that did not arrive as an upload, or `None`.
 
     Dispatched exactly as an attachment is - `classify_file` over the declared
-    type and the name - and capped the same way, so a PDF read from a URL reaches
-    the model as the same text it would have had attached.
+    type and the name - so a PDF read from a URL reaches the model as the same
+    text it would have had attached. `max_chars` is how much of it the caller
+    keeps; the parse stops there rather than reading the rest, and ends text cut
+    there with `cut_marker` (#1990).
     """
     return await DocumentText().parse_content(
-        data, classify_file(mime_type, filename), mime_type, filename
+        data,
+        classify_file(mime_type, filename),
+        mime_type,
+        filename,
+        max_chars=max_chars,
+        cut_marker=cut_marker,
     )
 
 

@@ -2525,6 +2525,18 @@ describe("useChat - the socket it opens", () => {
     expect(useAuthStore.getState().accessToken).toBe("t-1");
   });
 
+  it("keeps the token when the refresh answers with nothing at all", async () => {
+    renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue(null);
+
+    await act(async () => {
+      socket.onClose?.();
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().accessToken).toBe("t-1");
+  });
+
   it("closes the socket when the chat goes away", () => {
     const { unmount } = renderHook(() => useChat(), { wrapper });
 

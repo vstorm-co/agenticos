@@ -146,13 +146,15 @@ def test_keywords_split_on_comma_and_newline_and_drop_blanks():
 
 def test_an_edge_with_nothing_configured_is_not_built():
     detector = _edge_detector(
-        redact_secrets_on=False, redact_pii_on=False, keywords=[], edge="input"
+        redact_secrets_on=False, redact_pii_on=False, phone_regions=(), keywords=[], edge="input"
     )
     assert detector is None
 
 
 def test_a_redactor_rewrites_a_match_and_allows_clean_text():
-    detect = _edge_detector(redact_secrets_on=True, redact_pii_on=False, keywords=[], edge="input")
+    detect = _edge_detector(
+        redact_secrets_on=True, redact_pii_on=False, phone_regions=(), keywords=[], edge="input"
+    )
     assert detect is not None
 
     hit = detect(f"my key {SECRET} ok")
@@ -165,7 +167,11 @@ def test_a_redactor_rewrites_a_match_and_allows_clean_text():
 
 def test_a_blocked_keyword_raises_naming_the_edge():
     detect = _edge_detector(
-        redact_secrets_on=False, redact_pii_on=False, keywords=["forbidden"], edge="output"
+        redact_secrets_on=False,
+        redact_pii_on=False,
+        phone_regions=(),
+        keywords=["forbidden"],
+        edge="output",
     )
     assert detect is not None
     with pytest.raises(GuardrailBlocked) as exc:
@@ -183,7 +189,11 @@ def test_the_keyword_check_reads_already_redacted_text():
     the run is allowed with the redaction applied rather than blocked.
     """
     detect = _edge_detector(
-        redact_secrets_on=True, redact_pii_on=True, keywords=[SECRET], edge="input"
+        redact_secrets_on=True,
+        redact_pii_on=True,
+        phone_regions=(),
+        keywords=[SECRET],
+        edge="input",
     )
     assert detect is not None
     verdict = detect(f"leaking {SECRET} now")
@@ -226,6 +236,29 @@ async def test_input_redaction_rewrites_the_prompt_the_model_sees():
     result = await agent.run(f"here is {SECRET} keep it")
     assert SECRET not in result.output
     assert "[redacted:anthropic_key]" in result.output
+
+
+async def test_input_pii_redaction_hides_a_phone_number_from_the_model():
+    """The issue's message, run through the input edge on the default regions:
+    the model is handed the placeholder, never the number."""
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _echoes_prompt())
+    result = await agent.run(
+        "My email is jane.doe@example.com, my card number is 4111 1111 1111 1111, "
+        "my SSN is 123-45-6789, and my phone number is 415-555-0132."
+    )
+    assert result.output == (
+        "My email is [redacted:email], my card number is [redacted:credit_card], "
+        "my SSN is [redacted:us_ssn], and my phone number is [redacted:phone]."
+    )
+
+
+async def test_output_pii_redaction_removes_a_phone_number_from_the_answer():
+    agent = _agent(
+        GuardrailsConfig(redact_pii_out=True, phone_regions="US"),
+        _answers("Call us on 415-555-0132."),
+    )
+    result = await agent.run("how do I reach you?")
+    assert result.output == "Call us on [redacted:phone]."
 
 
 async def test_a_blocked_prompt_stops_the_run():

@@ -318,37 +318,36 @@ class TestReusingASpentRefreshToken:
 
 class TestTheReuseGraceWindow:
     """A spent refresh token presented seconds after its rotation is a lost
-    response or a second tab, not a thief. Ending the session for it signed people
-    out several times a day, so inside `REFRESH_REUSE_GRACE_SECONDS` it refreshes
-    once more through the real route."""
+    response or one request of a burst on the same cookie, not a thief. Ending the
+    session for it signed people out several times a day, so inside
+    `REFRESH_REUSE_GRACE_SECONDS` it is answered again, through the real route,
+    with the successor the row already holds."""
 
-    async def _rotated(self, db, email: str) -> tuple[UUID, UUID, str, str]:
+    async def _rotated(self, db, api: AsyncClient, email: str) -> tuple[UUID, str, str]:
+        """A session whose first token has been spent by a real refresh."""
         user = await _user(db, email)
         spent = create_refresh_token(subject=str(user.id), credential_version=0)
-        current = create_refresh_token(subject=str(user.id), credential_version=0)
         session = await session_repo.create(
             db, user_id=user.id, refresh_token_hash=hash_token(spent), expires_at=_in_a_day()
         )
-        await SessionService(db).rotate_session(session, current)
-        return user.id, session.id, spent, current
-
-    async def test_a_lost_response_does_not_sign_the_person_out(self, db, api: AsyncClient):
-        user_id, session_id, spent, _ = await self._rotated(db, "grace-http@example.com")
+        session_id = session.id
+        first = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+        assert first.status_code == 200
         db.expire_all()
+        return session_id, spent, first.json()["refresh_token"]
 
-        response = await api.post(
-            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent}
-        )
+    async def test_a_lost_response_gets_back_the_token_it_missed(self, db, api: AsyncClient):
+        session_id, spent, successor = await self._rotated(db, api, "grace-lost@example.com")
 
-        assert response.status_code == 200
+        retry = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+
+        assert retry.status_code == 200
+        assert retry.json()["refresh_token"] == successor
         db.expire_all()
         reread = await session_repo.get_by_id(db, session_id)
         assert reread is not None
         assert reread.is_active is True
-        # The token it answered with is the live one now.
-        service = SessionService(db)
-        assert await service.validate_refresh_token(response.json()["refresh_token"]) is not None
-        assert await session_repo.count_user_sessions(db, user_id, open_only=True) == 1
+        assert reread.refresh_token_hash == hash_token(successor)
         recorded = (
             await db.execute(
                 select(func.count())
@@ -358,25 +357,61 @@ class TestTheReuseGraceWindow:
         ).scalar_one()
         assert recorded == 0
 
-    async def test_the_spent_token_refreshes_only_once(self, db, api: AsyncClient):
-        """The grace rotation moves the previous hash on, so the same spent token
-        a second time matches nothing: a plain 401, and nothing to revoke."""
-        _, session_id, spent, _ = await self._rotated(db, "grace-once@example.com")
+    async def test_every_request_in_a_burst_gets_the_same_token(self, db, api: AsyncClient):
+        """The first version of the window rotated again on each grace refresh, so
+        the third request of a burst matched nothing, got a 401, and its response
+        cleared the cookie the others had just set. The session stayed active and
+        the browser lost it."""
+        _, spent, successor = await self._rotated(db, api, "grace-burst@example.com")
+
+        answers = [
+            await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+            for _ in range(3)
+        ]
+
+        assert [answer.status_code for answer in answers] == [200, 200, 200]
+        assert {answer.json()["refresh_token"] for answer in answers} == {successor}
+        db.expire_all()
+        assert await SessionService(db).validate_refresh_token(successor) is not None
+
+    async def test_once_the_successor_has_rotated_the_spent_token_is_refused(
+        self, db, api: AsyncClient
+    ):
+        """A later refresh on the new token moves the chain on; the old one no
+        longer names the token the row holds. A plain 401, and nothing revoked."""
+        session_id, spent, successor = await self._rotated(db, api, "grace-moved-on@example.com")
+        onward = await api.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": successor}
+        )
+        assert onward.status_code == 200
         db.expire_all()
 
-        first = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
-        again = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+        late = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
 
-        assert first.status_code == 200
-        assert again.status_code == 401
+        assert late.status_code == 401
         db.expire_all()
         reread = await session_repo.get_by_id(db, session_id)
         assert reread is not None
         assert reread.is_active is True
 
-    async def test_rotation_records_when_it_happened(self, db):
-        _, session_id, _, _ = await self._rotated(db, "grace-stamp@example.com")
+    async def test_a_password_change_closes_the_window(self, db, api: AsyncClient):
+        """The spent token carries the old credential version, so the route
+        refuses it before any successor is rebuilt (#1517)."""
+        session_id, spent, _ = await self._rotated(db, api, "grace-password@example.com")
+        reread = await session_repo.get_by_id(db, session_id)
+        assert reread is not None
+        user = await user_repo.get_by_id(db, reread.user_id)
+        assert user is not None
+        user.credential_version = 1
+        await db.flush()
         db.expire_all()
+
+        late = await api.post(f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": spent})
+
+        assert late.status_code == 401
+
+    async def test_rotation_records_when_it_happened(self, db, api: AsyncClient):
+        session_id, _, _ = await self._rotated(db, api, "grace-stamp@example.com")
 
         reread = await session_repo.get_by_id(db, session_id)
         assert reread is not None

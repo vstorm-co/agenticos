@@ -31,6 +31,7 @@ from pydantic_ai.models import AbstractModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.capabilities.budget import (
@@ -68,7 +69,11 @@ _TOOLSET = "app.agents.capabilities.knowledge._toolset"
 
 
 def _sq_ctx(
-    model: Any, *, retry: int = 0, host: Agent[Any, Any] | None = None
+    model: Any,
+    *,
+    retry: int = 0,
+    host: Agent[Any, Any] | None = None,
+    model_settings: ModelSettings | None = None,
 ) -> RunContext[AgentDeps]:
     """A tool context carrying the model self-query will run its inference on."""
     return RunContext(
@@ -77,6 +82,7 @@ def _sq_ctx(
         usage=RunUsage(),
         usage_limits=UsageLimits(request_limit=5),
         agent=host,
+        model_settings=model_settings,
         retry=retry,
         max_retries=1,
     )
@@ -128,9 +134,19 @@ class _RealtimeModel(AbstractModel):
         return "test"
 
 
-async def _infer(model: Any, query: str = "x", units: list[str] | None = None) -> Any:
+async def _infer(
+    model: Any,
+    query: str = "x",
+    units: list[str] | None = None,
+    model_settings: ModelSettings | None = None,
+) -> Any:
     return await infer_filters_from_query(
-        model, query, organizational_units=units or [], instrument=None, today=TODAY
+        model,
+        query,
+        organizational_units=units or [],
+        instrument=None,
+        model_settings=model_settings,
+        today=TODAY,
     )
 
 
@@ -225,6 +241,28 @@ class TestInferFilters:
             await _infer(_answering({"document_type": ["pdf"]}))
         assert len(ledger.entries) == 1
         assert ledger.input_tokens == 100
+
+    async def test_the_inference_runs_under_the_runs_model_settings(self):
+        """`ctx.model` carries the model but not the settings the factory merged onto
+        the host agent, so an inference built on it alone ran on the provider's
+        defaults: past the agent's `timeout`, beyond its `max_tokens` (agenticos#1810).
+        The settings have to reach the request itself, not just the agent."""
+        seen: list[dict[str, Any] | None] = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(dict(info.model_settings) if info.model_settings else None)
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name=info.output_tools[0].name, args={"document_type": ["pdf"]}
+                    )
+                ],
+                usage=RequestUsage(input_tokens=100, output_tokens=10),
+            )
+
+        settings = ModelSettings(timeout=12.5, max_tokens=64, temperature=0.1)
+        assert await _infer(FunctionModel(respond), model_settings=settings) is not None
+        assert seen == [dict(settings)]
 
     @pytest.mark.security
     async def test_an_exhausted_budget_refuses_before_the_request(self):
@@ -434,6 +472,33 @@ class TestSelfQueryWiring:
         ):
             await self._search()(_sq_ctx(_raising(TypeError("a defect"))), query="pdfs")
         backend.assert_not_awaited()
+
+    async def test_the_inference_runs_under_the_runs_model_settings(self):
+        """The settings on the tool's `RunContext` - the ones the factory merged for
+        the host run - are the ones the inference request is made with
+        (agenticos#1810)."""
+        seen: list[dict[str, Any] | None] = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(dict(info.model_settings) if info.model_settings else None)
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name=info.output_tools[0].name, args={"document_type": ["pdf"]}
+                    )
+                ],
+                usage=RequestUsage(input_tokens=100, output_tokens=10),
+            )
+
+        settings = ModelSettings(timeout=12.5, max_tokens=64)
+        with (
+            patch(f"{_TOOLSET}.search_knowledge_base", new=AsyncMock(return_value="")),
+            patch(f"{_TOOLSET}.organizational_units_in_scope", new=AsyncMock(return_value=[])),
+        ):
+            await self._search()(
+                _sq_ctx(FunctionModel(respond), model_settings=settings), query="pdfs"
+            )
+        assert seen == [dict(settings)]
 
     async def test_parallel_searches_book_each_inference_once(self):
         """Two tool calls in one model turn share `ctx.usage`. Diffing a snapshot

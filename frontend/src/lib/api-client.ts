@@ -77,6 +77,12 @@ function refreshAccessToken(): Promise<boolean> {
         if (!res.ok) {
           if (await refusedAsEndedImpersonation(res)) {
             useAuthStore.getState().setImpersonationRevoked(true);
+          } else if (res.status === 401) {
+            // The session is over. Only the store tells `AuthGuard` so: left
+            // signed in, the page stays up with every request refused and
+            // nothing sends the person to sign in again until a full reload.
+            // A rate limit or a 5xx is not a verdict on the session.
+            useAuthStore.getState().logout();
           }
           return false;
         }

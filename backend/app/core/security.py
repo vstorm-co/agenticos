@@ -59,6 +59,8 @@ def create_refresh_token(
     expires_delta: timedelta | None = None,
     *,
     credential_version: int = 0,
+    jti: str | None = None,
+    expires_at: datetime | None = None,
 ) -> str:
     """Create a JWT refresh token.
 
@@ -69,11 +71,19 @@ def create_refresh_token(
     next refresh's `scalar_one_or_none` lookup raises rather than resolving (#1501
     review).
 
+    A rotation passes `jti` and `expires_at` instead, derived from the token it
+    spends, so the same spent token always mints the same successor - which is
+    what lets `SessionService.reissue_within_grace` hand every request in a burst
+    the one token the row now holds. The payload has no `iat`, so equal inputs
+    encode to equal bytes.
+
     Carries the account's `credential_version` as `cv`: a password change bumps
     the user's version, and the refresh path refuses a token whose `cv` is behind
     it, so a token minted before the change cannot be rotated past it (#1517).
     """
-    if expires_delta:
+    if expires_at is not None:
+        expire = expires_at
+    elif expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
@@ -82,7 +92,7 @@ def create_refresh_token(
         "exp": expire,
         "sub": str(subject),
         "type": "refresh",
-        "jti": uuid4().hex,
+        "jti": jti or uuid4().hex,
         "cv": credential_version,
     }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

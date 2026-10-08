@@ -81,6 +81,13 @@ _TIMEOUT_SECONDS = 30
 # what the largest page worth sending to a model weighs.
 _MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024
 
+TRUNCATION_MARKER = "\n\n[Content truncated]"
+"""What ends a document cut at the content limit.
+
+The library's own words for a page it cut, so a document and a page read the same
+to the model.
+"""
+
 
 def a_label(hostname: str) -> str:
     """One hostname as DNS will be asked for it: lower case, no root dot, ASCII.
@@ -147,11 +154,17 @@ class _ReadableFetch(WebFetchLocalTool):
         if not isinstance(fetched, BinaryContent) or fetched.media_type.startswith("image/"):
             return fetched
         filename = urlparse(url).path.rsplit("/", 1)[-1]
-        text = await extract_text(fetched.data, fetched.media_type, filename)
+        # The parse cuts at the content limit itself. A second cut here would also
+        # cut the note on pages a PDF's page cap left unread (#1990).
+        text = await extract_text(
+            fetched.data,
+            fetched.media_type,
+            filename,
+            max_chars=self.max_content_length,
+            cut_marker=TRUNCATION_MARKER,
+        )
         if not text or not text.strip():
             raise ModelRetry(f"{url} returned {fetched.media_type}, which has no readable text")
-        if self.max_content_length is not None and len(text) > self.max_content_length:
-            text = text[: self.max_content_length] + "\n\n[Content truncated]"
         return WebFetchResult(url=url, title="", content=text)
 
 

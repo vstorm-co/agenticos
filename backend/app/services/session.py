@@ -1,7 +1,9 @@
 """Session service (PostgreSQL async)."""
 
 import hashlib
+import hmac
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -11,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.core.security import read_uuid_claim
+from app.core.security import create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
@@ -22,6 +24,29 @@ logger = logging.getLogger(__name__)
 def hash_token(token: str) -> str:
     """The fingerprint a session row holds for its credential; never the credential."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def successor_refresh_token(
+    spent_token: str, *, subject: str, credential_version: int, expires_at: datetime
+) -> str:
+    """The refresh token a rotation of `spent_token` issues - the same bytes every time.
+
+    The `jti` is an HMAC of the spent token's hash and `exp` is the row's own
+    expiry, so the successor can be rebuilt later from what the row stores, without
+    the row ever holding a credential. Unique along a chain because every spent
+    token is.
+    """
+    jti = hmac.new(
+        settings.SECRET_KEY.encode(), hash_token(spent_token).encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    return create_refresh_token(
+        subject=subject, credential_version=credential_version, jti=jti, expires_at=expires_at
+    )
+
+
+def refresh_expiry() -> datetime:
+    """When a refresh token minted now stops refreshing."""
+    return datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
 
 def _parse_user_agent(user_agent: str | None) -> tuple[str | None, str | None]:
@@ -93,6 +118,7 @@ class SessionService:
         session: Session,
         new_refresh_token: str,
         *,
+        expires_at: datetime | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> Session:
@@ -108,8 +134,13 @@ class SessionService:
         recreating the row used to: the sessions list is what a person revokes an
         unfamiliar device from, so it has to show where the credential is being used
         now, not only where the login began (#1501 review).
+
+        `expires_at` must be the `exp` the new token was minted with when it came
+        from `successor_refresh_token`, or a reissue within the grace window would
+        rebuild a different token than the row holds.
         """
-        expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        if expires_at is None:
+            expires_at = refresh_expiry()
         device_name, device_type = _parse_user_agent(user_agent)
         return await session_repo.rotate(
             self.db,
@@ -207,8 +238,8 @@ class SessionService:
         closed mid-request - or when a second tab refreshed on the same cookie a
         moment after the first. Treating that as a replay ended the session and
         signed the person out several times a day. So inside the window the spent
-        token refreshes once more, and the route rotates the row again; the next
-        presentation of it finds a different previous hash and is refused.
+        token is answered again - by `reissue_within_grace`, with the successor the
+        row already holds, never with a new rotation.
 
         The window is the cost: a stolen refresh token replayed within seconds of
         the victim's own refresh is accepted rather than detected. Outside it,
@@ -221,8 +252,8 @@ class SessionService:
         grace = settings.REFRESH_REUSE_GRACE_SECONDS
         if grace <= 0:
             return None
-        # Locked like the ordinary lookup, so two grace refreshes on the same
-        # spent token serialize: the second finds the previous hash moved on.
+        # Locked like the ordinary lookup, so a grace answer never interleaves
+        # with a rotation of the same row.
         session = await session_repo.get_by_previous_refresh_token_hash(
             self.db, hash_token(refresh_token), for_update=True
         )
@@ -240,6 +271,34 @@ class SessionService:
             return None
         logger.info("refresh_token_grace_reuse", extra={"session_id": str(session.id)})
         return session
+
+    def reissue_within_grace(
+        self, session: Session, spent_token: str, *, credential_version: int
+    ) -> str:
+        """The successor a grace-window refresh answers with: the token the row holds now.
+
+        Rotating again here, as the first version of the window did, moved the
+        previous hash on - so in a burst of three refreshes on one cookie the third
+        matched nothing, got a 401, and its response cleared the cookie the other
+        two had just set. The session stayed active and the browser lost it.
+        Answering every request in the burst with the *same* token lets the cookie
+        jar converge whichever response lands last, and a client whose response
+        was lost gets back exactly the token it missed.
+
+        Raises:
+            AuthenticationError: The row has rotated past that successor since - a
+                later refresh on the new token - or the account's credential
+                version has moved, so the rebuilt token is not the one it holds.
+        """
+        successor = successor_refresh_token(
+            spent_token,
+            subject=str(session.user_id),
+            credential_version=credential_version,
+            expires_at=session.expires_at,
+        )
+        if not secrets.compare_digest(hash_token(successor), session.refresh_token_hash):
+            raise AuthenticationError(message="Invalid or expired refresh token")
+        return successor
 
     async def detect_refresh_reuse(
         self, refresh_token: str, *, ip_address: str | None = None

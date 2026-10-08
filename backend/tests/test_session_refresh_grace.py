@@ -15,7 +15,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.core.config import settings
-from app.services.session import SessionService
+from app.core.exceptions import AuthenticationError
+from app.core.security import verify_token
+from app.services.session import SessionService, hash_token, successor_refresh_token
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -82,3 +84,71 @@ class TestClaimRefreshGrace:
         with patch(_REPO, AsyncMock(return_value=_row())) as lookup:
             assert await SessionService(MagicMock()).claim_refresh_grace("spent") is None
         lookup.assert_not_awaited()
+
+
+class TestTheSuccessorToken:
+    """Every request in a grace burst must be answered with the one token the row
+    holds, so the successor has to be rebuildable from what the row stores."""
+
+    def test_the_same_spent_token_mints_the_same_successor(self) -> None:
+        expires_at = datetime.now(UTC) + timedelta(days=7)
+        first = successor_refresh_token(
+            "spent", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        again = successor_refresh_token(
+            "spent", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        assert first == again
+
+    def test_different_spent_tokens_mint_different_successors(self) -> None:
+        expires_at = datetime.now(UTC) + timedelta(days=7)
+        first = successor_refresh_token(
+            "a", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        second = successor_refresh_token(
+            "b", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        assert first != second
+
+    def test_the_successor_carries_the_expiry_and_version_it_was_given(self) -> None:
+        expires_at = datetime.now(UTC) + timedelta(days=7)
+        token = successor_refresh_token(
+            "s", subject="u-1", credential_version=3, expires_at=expires_at
+        )
+        payload = verify_token(token)
+        assert payload is not None
+        assert payload["cv"] == 3
+        assert payload["exp"] == int(expires_at.timestamp())
+
+
+class TestReissueWithinGrace:
+    def _row(self, *, holds: str, expires_at: datetime) -> MagicMock:
+        return MagicMock(user_id="u-1", expires_at=expires_at, refresh_token_hash=hash_token(holds))
+
+    def test_answers_with_the_token_the_row_holds(self) -> None:
+        expires_at = datetime.now(UTC) + timedelta(days=7)
+        successor = successor_refresh_token(
+            "spent", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        row = self._row(holds=successor, expires_at=expires_at)
+
+        assert (
+            SessionService(MagicMock()).reissue_within_grace(row, "spent", credential_version=0)
+            == successor
+        )
+
+    def test_refuses_once_the_row_has_rotated_past_it(self) -> None:
+        row = self._row(holds="a-later-token", expires_at=datetime.now(UTC) + timedelta(days=7))
+
+        with pytest.raises(AuthenticationError):
+            SessionService(MagicMock()).reissue_within_grace(row, "spent", credential_version=0)
+
+    def test_refuses_after_the_credential_version_moved(self) -> None:
+        expires_at = datetime.now(UTC) + timedelta(days=7)
+        successor = successor_refresh_token(
+            "spent", subject="u-1", credential_version=0, expires_at=expires_at
+        )
+        row = self._row(holds=successor, expires_at=expires_at)
+
+        with pytest.raises(AuthenticationError):
+            SessionService(MagicMock()).reissue_within_grace(row, "spent", credential_version=1)

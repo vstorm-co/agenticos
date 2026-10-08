@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "c070f50e41ec"
 ---
 
 # Governance { #governance }
@@ -1141,15 +1141,13 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
   still aufhört, eine zu sein. Niemand hat diese Argumente gelesen, bevor sie
   liefen; die Zeile ist der Ort, an dem sie jemand hinterher liest.
 
-**Nach allem zu fragen ist die billige Hälfte und braucht nichts davon.** Es
-verschärft immer nur, also nimmt es keine Berechtigung, keine Obergrenze und keine
-Oberflächenprüfung — und es reicht absichtlich weiter als das Gate des Specs, bis
-zu den Tools, die keiner Capability gehören. Die Freigabe eines MCP-Tools ist eine
-Eigenschaft seiner Verbindung, und deshalb lässt das spec-getriebene Gate sie in
-Ruhe; wer einem Agent noch nicht traut, fragt nach allem, was er kann, und wegen
-eines Lesevorgangs gefragt zu werden ist eine Lästigkeit, während wegen eines
-Schreibvorgangs nicht gefragt zu werden der Fehlschlag ist, für den es die Queue
-gibt.
+**Ask about everything verschärft die Regeln der Sitzung.** Für die Auswahl dieses
+strengeren Modus ist keine besondere Berechtigung nötig. Der Modus erfasst MCP-Aufrufe,
+die der Runner ausführt, obwohl diese Tools nicht von Capabilities deklariert
+werden. Erlaubnislisten an Verbindung und Agent-Bindung bestimmen, welche
+MCP-Tools verfügbar sind; sie fordern selbst keine Freigabe an. Der Standardmodus
+**Follow the agent** wendet die Capability-Regeln des Agenten an und ergänzt
+für diese MCP-Tools kein Freigabe-Gate.
 
 ### Eine Entscheidung, die niemand trifft { #a-decision-nobody-makes }
 
@@ -1289,12 +1287,16 @@ des Delegates es nicht konnte — die Message-Historie der Bibliothek ist Teleme
 nach bestem Bemühen, und eine von vorn ausgeführte Delegation hat trotzdem
 ausgegeben, was sie ausgegeben hat.
 
-!!! warning "MCP-Tools liegen außerhalb des Freigabe-Gates"
+!!! warning "MCP-Freigaben hängen vom Ausführungsmodus ab"
 
-    Eine auf einer Capability gesetzte Freigabe deckt sie nicht ab. Alles, was die
-    gebundenen MCP-Server eines Agents können, kann dieser Agent tun, ohne zu
-    fragen. Welche Tools eines Servers freigelegt sind, wird auf der Verbindung
-    gesetzt, also bekommt jeder daran gebundene Agent dieselben.
+    Die Freigabeeinstellung einer Capability deckt MCP-Tools nicht ab. Im
+    Webchat erfasst **Ask about everything** (`ask_all`) auch MCP-Aufrufe,
+    die der Runner ausführt; der Standardmodus **Follow the agent** nicht.
+    Beschränken Sie Tools an der Verbindung und ihrer Agent-Bindung und testen
+    Sie den vorgesehenen Ausführungsmodus. Die strengere Einstellung einer
+    Chatsitzung gilt nicht automatisch für einen Zeitplan oder einen anderen
+    Zugang. Beim Modellanbieter ausgeführte Tools durchlaufen das lokale
+    Freigabe-Gate nicht.
 
 ## Alerts { #alerts }
 

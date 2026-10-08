@@ -374,7 +374,7 @@ def test_a_root_translation_of_a_deleted_file_is_orphaned(repository: Path) -> N
 
 
 def test_the_github_slug_answers_the_fragments_the_readme_links_to() -> None:
-    """GitHub's rule, checked against the six fragments `README.md` already uses.
+    """GitHub's rule, checked against the fragments `README.md` links to.
 
     The one that matters is `#-quick-start`: its heading opens on an emoji, and
     the space the emoji leaves behind becomes a leading hyphen. Derive the anchor
@@ -440,3 +440,30 @@ def test_the_guard_asks_about_every_locale_the_site_builds() -> None:
     )
     built = {language["locale"] for language in i18n["languages"]}
     assert built == {docs_i18n.DEFAULT_LOCALE, *docs_i18n.LOCALES}
+
+
+def test_published_documentation_links_follow_the_readme_locale(docs: Path) -> None:
+    for name in ("index.md", "mcp.md", "about/index.md"):
+        page = docs / name
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text("# Page\n", encoding="utf-8")
+        page.with_name(f"{page.stem}.pl.md").write_text("# Strona\n", encoding="utf-8")
+    readme = docs.parent / "README.md"
+    base = "https://vstorm-co.github.io/agenticos/"
+    targets = [
+        base,
+        base + "mcp/#tools",
+        base + "about/",
+        base + "pl/mcp/",
+        base + "missing/",
+        "https://example.com/mcp/",
+    ]
+    readme.write_text("\n".join(f"[Link]({url})" for url in targets), encoding="utf-8")
+    assert docs_i18n.linked_targets(readme, into="pl") == [
+        base + "pl/",
+        base + "pl/mcp/#tools",
+        base + "pl/about/",
+        base + "pl/mcp/",
+        base + "missing/",
+        "https://example.com/mcp/",
+    ]
