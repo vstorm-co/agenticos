@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.524] - 2026-10-08
+
 ### Fixed
 
 - **A document's text is extracted only up to the limit.** A chat attachment and
