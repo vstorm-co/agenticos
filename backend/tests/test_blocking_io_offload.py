@@ -25,7 +25,7 @@ async def test_parsing_an_upload_runs_off_the_request_loop(monkeypatch: pytest.M
     loop_thread = threading.get_ident()
     ran_on: list[int] = []
 
-    def record(_self: FileUploadService, _data: bytes) -> str:
+    def record(_self: FileUploadService, _data: bytes, _max_chars: int) -> str:
         ran_on.append(threading.get_ident())
         return "parsed"
 

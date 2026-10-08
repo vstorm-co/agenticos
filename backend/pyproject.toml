@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.516"
+version = "0.0.528"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -190,6 +190,10 @@ dependencies = [
     # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
     # decision is recorded in `licenses/policy.toml`.
     "ldap3>=2.9.1",
+    # The `guardrails` phone detector, which the harness's PII patterns lack. The
+    # lite build: the same `phonenumbers` module and numbering-plan metadata,
+    # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
+    "phonenumberslite>=9.0.40",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -658,6 +662,7 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    "app/core/phone.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).
@@ -1018,6 +1023,7 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    "app/core/phone.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).

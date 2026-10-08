@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "c070f50e41ec"
 ---
 
 # Governance { #governance }
@@ -1048,14 +1048,13 @@ Cuatro cosas hacen de esto un ajuste de sesión y no un agujero en el modelo:
   este rastro entero dejando calladamente de serlo. Nadie leyó esos argumentos antes de
   que se ejecutaran; la fila es donde alguien los lee después.
 
-**Preguntar por todo es la mitad barata y no necesita nada de eso.** Solo aprieta, así
-que no requiere permiso, ni techo, ni comprobación de superficie — y llega más lejos
-que la puerta del spec a propósito, hasta las herramientas que no pertenecen a ninguna
-capability. La aprobación de una herramienta MCP es una propiedad de su conexión, y
-por eso la puerta guiada por el spec la deja en paz; una persona que todavía no se fía
-de un agent pregunta por todo lo que puede hacer, y que te pregunten por una lectura
-es una molestia donde que no te pregunten por una escritura es el fallo para el que
-existe la cola.
+**Ask about everything hace más estricta la política de la sesión.** Seleccionar
+este modo más estricto no requiere permisos especiales. Incluye las llamadas MCP que ejecuta el
+runner, aunque sus herramientas no estén declaradas por capabilities. Las listas
+de herramientas permitidas de la conexión y del vínculo con el agente controlan
+qué herramientas MCP están disponibles; no solicitan aprobación por sí mismas.
+El modo predeterminado **Follow the agent** aplica la política de capabilities
+del agente y no añade una puerta de aprobación a esas herramientas MCP.
 
 ### Una decisión que nadie toma { #a-decision-nobody-makes }
 
@@ -1179,12 +1178,16 @@ agent. El gasto se guarda incluso cuando el *sitio* del delegado no se pudo guar
 el historial de mensajes de la librería es telemetría de mejor esfuerzo, y una
 delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
 
-!!! warning "Las herramientas MCP están fuera de la puerta de aprobación"
+!!! warning "La aprobación de MCP depende del modo de ejecución"
 
-    Una aprobación puesta en una capability no las cubre. Todo lo que puedan hacer los
-    servidores MCP enlazados a un agent, ese agent lo puede hacer sin preguntar. Qué
-    herramientas de un servidor quedan expuestas se fija en la conexión, así que cada
-    agent enlazado a ella recibe las mismas.
+    El ajuste de aprobación de una capability no cubre herramientas MCP. En el
+    chat web, **Ask about everything** (`ask_all`) también controla las llamadas
+    MCP que ejecuta el runner; el modo predeterminado **Follow the agent** no.
+    Restringe las herramientas en la conexión y en su vínculo con el agente y
+    prueba el modo de ejecución previsto. No supongas que el ajuste más estricto
+    de una sesión de chat se aplica a una programación u otro punto de entrada.
+    Las herramientas ejecutadas dentro del proveedor del modelo no pasan por
+    la puerta de aprobación local.
 
 ## Alertas { #alerts }
 

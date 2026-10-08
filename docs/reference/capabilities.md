@@ -476,7 +476,10 @@ What a response turns into is decided here:
   The library would hand back the raw bytes for the model to read natively. A model
   served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
   request (`Unsupported chat content part type: 'file'`), and the agent then fetches
-  the same document again.
+  the same document again. Only the text up to `max_content_chars` is extracted, and
+  a PDF is read for at most 2,000 pages: one longer than that ends with a note
+  naming the page it stopped at, and when the pages read held no text the note is
+  all that comes back.
 - A binary with no readable text (a scanned PDF, an archive) reaches the model as a
   retryable error that names what came back.
 
@@ -682,7 +685,9 @@ event loop the run assembles on).
 model — the one whose credential was resolved from the vault — and each of its steps
 is one model request, booked against the run's budget through the same ambient-usage
 ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
-not spend the budget guard cannot see.
+not spend the budget guard cannot see. Each step asks the budget before it is sent, so
+once the run's budget is spent the browser agent's next step is refused rather than
+paid for.
 
 **`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
 Playwright) and pins dependencies a minor lower than the rest of the platform, so it
@@ -1652,8 +1657,9 @@ deliberately not exposed.
 
 No tools. Inspects the text flowing through a run at three edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
-`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
-them rather than carrying a Python guard.
+`pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
+agent is data, so the config selects and parameterises them rather than carrying a
+Python guard.
 
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
@@ -1664,11 +1670,30 @@ them rather than carrying a Python guard.
 | Config | Default | |
 |---|---|---|
 | `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
-| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+| `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
 
-Every field defaults off, and a capability enabled with no edge configured attaches
+Every edge field defaults off, and a capability enabled with no edge configured attaches
 nothing — an agent that does not use it pays nothing.
+
+**A phone number is redacted only when it is a real number.** The detector is
+libphonenumber's, at its `STRICT_GROUPING` leniency: a candidate is accepted only
+when it fits the numbering plan of its country and its separators fall where that
+country groups digits, so a date, an amount or an order id that a digit-count rule
+would take comes through. A number written with `+` names its
+country and is redacted whatever `phone_regions` lists. A national number, such as
+`415-555-0132`, is read against each listed country, and each one added widens what
+a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
+listed a nine-digit order id is redacted too. Grouping cuts both ways: a US ZIP+4
+that starts with `0`, such as `02134-1234`, is grouped as a German area code and
+number, so with `DE` listed it is redacted. List the countries the agent serves.
+An unknown code (`UK` for `GB` is the common one), or a list of more than 16, is
+refused at publish. With up to four countries, a text longer than 200,000 characters
+or with more than 10,000 digits is not read at all. Each country past four is another
+pass over the text, so both limits shrink in proportion, to 50,000 characters and
+2,500 digits at sixteen. A text over the limit ends the run with
+`guardrail_blocked`, because passing it on unread would pass on every number in it.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
 the run finishes — an answer that quoted a key back has still done the work. A
@@ -1676,6 +1701,32 @@ keyword block instead ends the run with status `guardrail_blocked`, its own outc
 beside `budget_exceeded`, because a refusal is the platform working and an operator
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
+
+**An output check screens the answer before anyone sees it.** Every surface
+streams: the web chat and the embedded widget send the answer as it is written, and
+a channel bot edits its reply as the text arrives. When any output check is
+configured, each piece of text and reasoning is held back until it is complete,
+checked with the same detectors, and only then sent. A key split across two chunks is still caught. One split across two parts, such as
+text before a tool call and text after it, or reasoning and then the answer, ends
+the run before its second half is sent, because the first is already on screen. So is text the model writes before it calls a tool, which is not
+part of the final answer but is still shown and stored. The cost is that such an
+agent's answer arrives one step at a time rather than word by word. An agent with
+no output check streams as before. A keyword block in the
+answer ends the run before any of the blocked text is shown or stored. Reasoning is
+not the answer, so a blocked keyword there does not end the run: that reasoning step
+shows `[reasoning withheld by the output guardrail]` instead.
+
+**What the stream screen does not cover yet.** Two streamed paths are not screened:
+a tool call's arguments as they stream, and a delegate's own streamed answer in the
+delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
+size limits, so an answer part too long for it ends the run as the final answer
+would. Because the screen hooks the run's event stream, a guarded agent's model
+requests stream even through the HTTP API, so its model must support streaming.
+
+**The input edge changes what the model reads, not the transcript.** A redacted
+prompt reaches the model scrubbed, but the conversation stores the message as the
+person typed it, personal data included. Anyone who can read the conversation can
+read that message.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

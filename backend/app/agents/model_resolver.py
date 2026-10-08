@@ -38,7 +38,7 @@ Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic_ai.models import Model, infer_model
@@ -56,6 +56,9 @@ from app.core.secret_kinds import (
     SecretValue,
 )
 
+ModelApi = Literal["chat", "responses"]
+"""Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
+
 
 @dataclass(frozen=True)
 class ProviderSpec:
@@ -64,8 +67,15 @@ class ProviderSpec:
     `model_prefix` is what goes in front of the model id for
     :func:`infer_model`, and is only different from `id` where the two
     disagree about which wrapper we want: `openai` infers the Responses API,
-    which OpenAI-compatible servers (vLLM, LM Studio, a LiteLLM proxy) do not
-    implement, so an `openai` profile is built as `openai-chat`.
+    which a profile has to choose rather than inherit, so the prefix names
+    the Chat Completions wrapper and the Responses one is built by
+    :func:`build_model` when the profile asks for it.
+
+    `native_api` is set for a provider that serves both of OpenAI's APIs, and
+    names the one its own endpoint gets when a profile does not say. Neither is
+    right everywhere: OpenAI's newest models answer Chat Completions with a 400,
+    while most OpenAI-compatible servers behind a `base_url` implement only Chat
+    Completions. So a profile on such a provider stores which one it uses.
     """
 
     id: str
@@ -74,6 +84,7 @@ class ProviderSpec:
     base_url_param: str | None = None
     keyless: bool = False
     model_prefix: str = ""
+    native_api: ModelApi | None = None
 
     @property
     def prefix(self) -> str:
@@ -83,6 +94,23 @@ class ProviderSpec:
     def supports_base_url(self) -> bool:
         return self.base_url_param is not None
 
+    @property
+    def apis(self) -> tuple[ModelApi, ...]:
+        """The APIs a profile may choose between; empty where there is no choice."""
+        return ("responses", "chat") if self.native_api is not None else ()
+
+    def default_api(self, base_url: str | None) -> ModelApi | None:
+        """The API a profile gets when it names none.
+
+        The provider's own endpoint gets `native_api`. A `base_url` gets Chat
+        Completions, which is the API every OpenAI-compatible server implements;
+        a gateway or a regional OpenAI endpoint that serves Responses is a choice
+        the profile makes explicitly.
+        """
+        if self.native_api is None:
+            return None
+        return self.native_api if base_url is None else "chat"
+
 
 def _api_key(
     id: str,  # noqa: A002 - the field is called `id` everywhere it is read
@@ -91,6 +119,7 @@ def _api_key(
     base_url_param: str | None = None,
     keyless: bool = False,
     model_prefix: str = "",
+    native_api: ModelApi | None = None,
 ) -> ProviderSpec:
     """A provider whose whole credential is one token."""
     return ProviderSpec(
@@ -100,6 +129,7 @@ def _api_key(
         base_url_param=base_url_param,
         keyless=keyless,
         model_prefix=model_prefix,
+        native_api=native_api,
     )
 
 
@@ -109,7 +139,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # Hosted providers reached at a fixed endpoint, or at a gateway of the
         # organization's choosing where the SDK allows one.
         _api_key(
-            "openai", "OpenAI", base_url_param="base_url", keyless=True, model_prefix="openai-chat"
+            "openai",
+            "OpenAI",
+            base_url_param="base_url",
+            keyless=True,
+            model_prefix="openai-chat",
+            native_api="responses",
         ),
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
@@ -144,6 +179,9 @@ PROVIDERS: dict[str, ProviderSpec] = {
             id="azure",
             name="Azure OpenAI",
             secret_kind=SecretKind.AZURE_OPENAI,
+            # Chat Completions unless a profile chooses otherwise: the Responses
+            # API needs a recent `api_version`, and the secret may pin an older one.
+            native_api="chat",
         ),
         ProviderSpec(
             id="bedrock",
@@ -191,6 +229,9 @@ class ResolvedCredential:
     provider: str
     secret: SecretValue
     base_url: str | None = None
+    # The profile's, like `base_url`: which API the request goes to on a
+    # provider that serves two. `None` for every provider that serves one.
+    api: ModelApi | None = None
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -308,6 +349,24 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
         BadRequestError: If the provider has no catalog entry.
     """
     spec = get_provider(credential.provider)
+    if credential.api == "responses":
+        # Local for the reason `_build_provider`'s are: a deployment that never
+        # configures OpenAI should not import its SDK at startup.
+        from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+
+        # The Responses API stores each response on OpenAI's side unless told
+        # not to, while Chat Completions stores nothing by default - so moving a
+        # profile to Responses would otherwise start keeping its conversations
+        # with the provider. Pydantic AI carries reasoning between turns as
+        # encrypted content rather than by a stored response id, so nothing here
+        # needs the stored copy. These are the model's own settings, under the
+        # profile's and the agent's: a profile that wants stored responses sets
+        # `openai_store` to true.
+        return OpenAIResponsesModel(
+            model,
+            provider=_build_provider(spec, credential),
+            settings=OpenAIResponsesModelSettings(openai_store=False),
+        )
     return infer_model(
         f"{spec.prefix}:{model}",
         provider_factory=lambda _: _build_provider(spec, credential),

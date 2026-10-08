@@ -15,6 +15,7 @@ from __future__ import annotations
 import errno
 import logging
 import os
+import threading
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -1073,7 +1074,7 @@ class TestServingAFileAsBytes:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1106,7 +1107,7 @@ class TestServingAFileAsBytes:
         png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1136,7 +1137,7 @@ class TestServingAFileAsBytes:
         reads: list[str] = []
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1193,7 +1194,7 @@ class TestServingAFileAsBytes:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1220,7 +1221,7 @@ class TestServingAFileAsBytes:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1267,7 +1268,7 @@ class TestServingAFileAsBytes:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1331,7 +1332,7 @@ class TestServingAConversationsFileAsBytes:
         png = b"\x89PNG\r\n\x1a\n"
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -1442,6 +1443,128 @@ class TestOneFlatListOfFiles:
         assert [str(file.info.get("path")) for file in listing.files] == ["/report.csv"]
         assert listing.unreadable == 1
         assert listing.workspaces_read == 1
+
+    async def test_host_workspaces_are_read_side_by_side(self, monkeypatch, mock_db_session):
+        """The Workspaces page opens on this listing, and it read each host in turn -
+        so the page waited for twenty-five walks end to end. Each `ls` here waits at
+        a barrier for the other two; read one at a time, all three time out there
+        and the listing comes back unreadable."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        meeting = threading.Barrier(3, timeout=5)
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def ls(self, session_id, path="."):
+                if path != ".":
+                    return []
+                meeting.wait()
+                return [{"path": f"/{session_id}.csv", "is_dir": False, "size": 1}]
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id=f"xc-{n}", connection_id=uuid4()) for n in range(3)
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.unreadable == 0
+        assert [str(file.info.get("path")) for file in listing.files] == [
+            "/xc-0.csv",
+            "/xc-1.csv",
+            "/xc-2.csv",
+        ]
+
+    async def test_a_silent_host_is_given_up_on_before_the_archive_default(
+        self, monkeypatch, mock_db_session
+    ):
+        """The archive waits sixty seconds by default, and a host that had gone away
+        held the whole page that long before it could say so."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import _BROWSE_TIMEOUT_SECONDS
+
+        timeouts: list[float | None] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                timeouts.append(timeout)
+
+            def ls(self, session_id, path="."):
+                return []
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert timeouts == [_BROWSE_TIMEOUT_SECONDS]
+        assert _BROWSE_TIMEOUT_SECONDS < 60
+
+    async def test_workspaces_read_side_by_side_resolve_their_connection_one_at_a_time(
+        self, monkeypatch, mock_db_session
+    ):
+        """Resolving a connection is a query on the request's one session, and the
+        listings now read hosts concurrently. Two workspaces on one connection
+        resolve it once, and no two resolves are ever in progress together."""
+        import asyncio
+
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def ls(self, session_id, path="."):
+                return []
+
+        shared = uuid4()
+        resolved: list[UUID] = []
+        in_progress = 0
+        most = 0
+
+        async def _resolve(self, ctx, connection_id):
+            nonlocal in_progress, most
+            in_progress += 1
+            most = max(most, in_progress)
+            # Yield to the loop so an unserialised second resolve would start here.
+            await asyncio.sleep(0.01)
+            in_progress -= 1
+            resolved.append(connection_id)
+            return _resolved()
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        monkeypatch.setattr(SandboxConnectionService, "resolve", _resolve)
+        rows = [
+            _row(backend="service", session_id="xc-1", connection_id=shared),
+            _row(backend="service", session_id="xc-2", connection_id=shared),
+            _row(backend="service", session_id="xc-3", connection_id=uuid4()),
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.unreadable == 0
+        assert most == 1
+        assert resolved.count(shared) == 1
+        assert len(resolved) == 2
 
     async def test_each_file_names_the_workspace_it_came_from(self, monkeypatch, mock_db_session):
         """`/report.csv` exists in several workspaces, so a path on its own is
@@ -1746,7 +1869,7 @@ class TestWhatReadingAHostCosts:
         made: list = []
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 made.append(self)
 
             def ls(self, session_id, path="."):
@@ -2807,7 +2930,7 @@ class TestShowingTheFilesToAPerson:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -2858,7 +2981,7 @@ class TestShowingTheFilesToAPerson:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -2898,7 +3021,7 @@ class TestShowingTheFilesToAPerson:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -2932,7 +3055,7 @@ class TestShowingTheFilesToAPerson:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive(_ClosesItsClient):
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3453,7 +3576,7 @@ class TestWalkingAHostsDirectories:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3573,7 +3696,7 @@ class TestWalkingAHostsDirectories:
         }
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3605,7 +3728,7 @@ class TestWalkingAHostsDirectories:
         from pydantic_ai_backends import remote as remote_module
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3654,7 +3777,7 @@ class TestDrawingAHostsImages:
         png = self._png()
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3765,6 +3888,135 @@ class TestDrawingAHostsImages:
             HOST_THUMBNAIL_BUDGET
         )
 
+    async def test_the_budget_goes_to_the_first_workspaces_listed(
+        self, monkeypatch, mock_db_session
+    ):
+        """Hosts are read side by side, so the one listed first may answer last. The
+        budget is still shared out in listing order: which tiles are drawn must not
+        change from one page load to the next with whichever host was quicker. The
+        first host's listing waits until the second has answered, so it lands last."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+
+        png = self._png()
+        first = HOST_THUMBNAIL_BUDGET - 4
+        quick_listed = threading.Event()
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def ls(self, session_id, path="."):
+                if path != ".":
+                    return []
+                if session_id == "slow":
+                    assert quick_listed.wait(timeout=5)
+                else:
+                    quick_listed.set()
+                count = first if session_id == "slow" else 10
+                return [
+                    {"path": f"{session_id}-{n}.png", "is_dir": False, "size": 120}
+                    for n in range(count)
+                ]
+
+            def read_bytes(self, session_id, file_path):
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id="slow", connection_id=uuid4()),
+            _row(backend="service", session_id="quick", connection_id=uuid4()),
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        drawn = [str(file.info.get("path")) for file in listing.files if file.thumbnail]
+        assert sum(path.startswith("slow-") for path in drawn) == first
+        assert sum(path.startswith("quick-") for path in drawn) == 4
+
+    async def test_host_calls_are_bounded_across_requests_on_their_own_threads(
+        self, monkeypatch, mock_db_session
+    ):
+        """Every host call holds a thread until the host answers, and a request
+        builds its own service - so a per-request limit lets a few people opening
+        the page at once take every thread of the default executor, which sign-in
+        hashes passwords on. Two page loads at once still make at most
+        `_HOST_CALLS_AT_ONCE` calls together, and none of them on that executor."""
+        import asyncio
+        import time
+
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, HOST_THUMBNAIL_BUDGET
+
+        png = self._png()
+        counter = threading.Lock()
+        in_flight = 0
+        most = 0
+        threads: set[str] = set()
+
+        def _enter() -> None:
+            nonlocal in_flight, most
+            with counter:
+                in_flight += 1
+                most = max(most, in_flight)
+                threads.add(threading.current_thread().name)
+
+        def _leave() -> None:
+            nonlocal in_flight
+            with counter:
+                in_flight -= 1
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def ls(self, session_id, path="."):
+                if path != ".":
+                    return []
+                _enter()
+                time.sleep(0.02)
+                _leave()
+                return [
+                    {"path": f"{session_id}-{n}.png", "is_dir": False, "size": 120}
+                    for n in range(HOST_THUMBNAIL_BUDGET // 2)
+                ]
+
+            def read_bytes(self, session_id, file_path):
+                _enter()
+                time.sleep(0.02)
+                _leave()
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        rows = [
+            _row(backend="service", session_id=name, connection_id=uuid4())
+            for name in ("one", "two", "three", "four")
+        ]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listings = await asyncio.gather(
+            SandboxWorkspaceService(mock_db_session).flat_files(_ctx()),
+            SandboxWorkspaceService(mock_db_session).flat_files(_ctx()),
+        )
+
+        for listing in listings:
+            assert sum(file.thumbnail is not None for file in listing.files) == (
+                HOST_THUMBNAIL_BUDGET
+            )
+        assert 1 < most <= _HOST_CALLS_AT_ONCE
+        assert threads and all(name.startswith("workspace-host") for name in threads)
+
     async def test_a_host_that_stops_answering_leaves_the_glyph(self, monkeypatch, mock_db_session):
         """Failure is silence, and the rest of the grid still draws. A thumbnail is
         decoration: refusing the listing over one unreadable image would take the
@@ -3774,7 +4026,7 @@ class TestDrawingAHostsImages:
         from app.repositories import agent as agent_repo
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):
@@ -3813,7 +4065,7 @@ class TestDrawingAHostsImages:
         from app.repositories import agent as agent_repo
 
         class _Archive:
-            def __init__(self, url, token=""):
+            def __init__(self, url, token="", timeout=None):
                 pass
 
             def ls(self, session_id, path="."):

@@ -1,5 +1,5 @@
 ---
-source_sha: "65adefd66779"
+source_sha: "41d9eec9e333"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -534,6 +534,10 @@ Was aus einer Antwort wird, entscheidet sich hier:
   damit das Modell sie nativ liest. Ein Modell hinter einem OpenAI-kompatiblen Endpunkt,
   das das nicht kann, lehnt die ganze Anfrage ab (`Unsupported chat content part type:
   'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
+  Extrahiert wird nur der Text bis `max_content_chars`, und ein PDF wird höchstens
+  2.000 Seiten weit gelesen: Ein längeres endet mit einem Hinweis, der die Seite
+  nennt, an der das Lesen stoppte, und wenn die gelesenen Seiten keinen Text hatten,
+  kommt nur dieser Hinweis zurück.
 - Eine Binärdatei ohne lesbaren Text (ein gescanntes PDF, ein Archiv) erreicht das Modell
   als wiederholbarer Fehler, der nennt, was zurückkam.
 
@@ -756,7 +760,9 @@ aufgelöst wurden —, und jeder seiner Schritte ist eine Modellanfrage, die üb
 dasselbe Konto für Umgebungsverbrauch gegen das Budget des Runs gebucht wird, das
 auch eine Compaction-Zusammenfassung nutzt. Es ist nicht das eigene gehostete
 Modell von browser-use, und es sind keine Ausgaben, die der Budget-Guard nicht
-sehen kann.
+sehen kann. Jeder Schritt prüft das Budget, bevor er gesendet wird: Ist das Budget
+des Runs aufgebraucht, wird der nächste Schritt des Browser-Agents abgelehnt statt
+bezahlt.
 
 **`browser-use` ist ein optionales Extra.** Es zieht einen schweren Baum nach sich
 (Chromium über Playwright) und pinnt Abhängigkeiten eine Minor-Version tiefer als
@@ -1861,7 +1867,8 @@ selbst ein Modell oder ein Embedding aufruft —, ist bewusst nicht freigegeben.
 
 Keine Tools. Prüft den Text, der durch einen Run fließt, an drei Kanten und
 **schwärzt** entweder einen Treffer oder **blockiert** den Run. Die Prüfungen sind
-fertige Detektoren aus `pydantic-ai-harness`; ein Agent ist Daten, deshalb wählt und
+fertige Detektoren aus `pydantic-ai-harness` und ein Detektor für Telefonnummern,
+den der Harness nicht mitbringt; ein Agent ist Daten, deshalb wählt und
 parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 
 | Kante | Liest | Schwärzen | Blockieren |
@@ -1873,11 +1880,34 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Konfiguration | Standard | |
 |---|---|---|
 | `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen |
-| `redact_pii_*` | `false` | E-Mail, IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
+| `redact_pii_*` | `false` | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
 | `blocked_keywords_*` | `""` | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run |
+| `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest, höchstens 16 |
 
-Jedes Feld ist standardmäßig aus, und eine Capability, die ohne konfigurierte Kante
-aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
+Jedes Kantenfeld ist standardmäßig aus, und eine Capability, die ohne konfigurierte
+Kante aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
+
+**Eine Telefonnummer wird nur geschwärzt, wenn sie eine echte Nummer ist.** Der
+Detektor stammt aus libphonenumber und läuft mit der Stufe `STRICT_GROUPING`: Ein
+Kandidat wird nur angenommen, wenn er zum Nummerierungsplan seines Landes passt und
+seine Trennzeichen dort stehen, wo dieses Land Ziffern gruppiert, sodass ein Datum,
+ein Betrag oder eine Bestellnummer, die eine Regel nach Ziffernzahl treffen würde,
+durchkommt. Eine mit `+` geschriebene Nummer nennt ihr Land selbst
+und wird geschwärzt, gleich was `phone_regions` aufführt. Eine nationale Nummer wie
+`415-555-0132` wird gegen jedes aufgeführte Land gelesen, und jedes weitere Land
+erweitert, was eine bloße Ziffernfolge sein kann: `123456789` ist eine gültige
+polnische Festnetznummer, also wird mit `PL` in der Liste auch eine neunstellige
+Bestellnummer geschwärzt. Die Gruppierung wirkt in beide Richtungen: eine
+US-Postleitzahl im Format ZIP+4, die mit `0` beginnt, etwa `02134-1234`, ist wie
+eine deutsche Vorwahl mit Rufnummer gruppiert und wird mit `DE` in der Liste
+geschwärzt. Führen Sie die Länder auf, die der Agent bedient. Ein
+unbekannter Code (meist `UK` statt `GB`) oder eine Liste mit mehr als 16 Codes
+wird beim Veröffentlichen abgelehnt. Bei bis zu vier Ländern wird ein Text mit mehr
+als 200.000 Zeichen oder mehr als 10.000 Ziffern gar nicht gelesen. Jedes Land über
+vier ist ein weiterer Durchlauf über den Text, daher sinken beide Grenzen im selben
+Verhältnis, bei sechzehn auf 50.000 Zeichen und 2.500 Ziffern. Ein Text über der
+Grenze beendet den Run mit `guardrail_blocked`, denn ihn ungelesen weiterzugeben,
+gäbe jede Nummer darin weiter.
 
 **Das Schwärzen schreibt um; eine Blockade ist ein Run-Ergebnis.** Ein Schwärzer
 entfernt den Treffer, und der Run läuft zu Ende — eine Antwort, die einen Schlüssel
@@ -1887,6 +1917,37 @@ neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, u
 ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
+
+**Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
+streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie
+geschrieben wird, und ein Channel-Bot bearbeitet seine Antwort, während der Text
+ankommt. Ist irgendeine Ausgabeprüfung konfiguriert, wird jedes Stück Text und
+Reasoning zurückgehalten, bis es vollständig ist, mit denselben Detektoren geprüft und
+erst dann gesendet. Ein Schlüssel, der auf zwei Chunks verteilt ist, wird trotzdem
+erkannt. Einer, der auf zwei Teile verteilt ist, etwa Text vor einem Tool-Aufruf
+und Text danach oder Reasoning und dann die Antwort, beendet den Run, bevor seine
+zweite Hälfte gesendet wird, weil die erste schon angezeigt wird. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er gehört
+nicht zur endgültigen Antwort, wird aber trotzdem angezeigt und gespeichert. Der Preis
+ist, dass die Antwort eines solchen Agents Schritt für Schritt statt Wort für Wort
+ankommt. Ein Agent ohne Ausgabeprüfung streamt wie bisher. Eine Schlagwort-Blockade
+in der Antwort beendet den Run, bevor irgendetwas vom blockierten Text angezeigt oder
+gespeichert wird. Reasoning ist nicht die Antwort, daher beendet ein blockiertes
+Schlagwort dort den Run nicht: Dieser Reasoning-Schritt zeigt stattdessen
+`[reasoning withheld by the output guardrail]`.
+
+**Was der Stream-Filter noch nicht abdeckt.** Zwei gestreamte Pfade werden nicht
+geprüft: die Argumente eines Tool-Aufrufs, während sie gestreamt werden, und die
+eigene gestreamte Antwort eines Delegaten im Delegationspanel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Der
+Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
+Antwortteil, der dafür zu lang ist, den Run so beendet, wie es die endgültige Antwort
+täte. Weil sich der Filter in den Event-Stream des Runs einhängt, streamen die
+Modellanfragen eines Agents mit Guardrail auch über die HTTP-API, sein Modell muss
+also Streaming unterstützen.
+
+**Die Eingabekante ändert, was das Modell liest, nicht das Transkript.** Ein
+geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speichert die
+Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
+Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

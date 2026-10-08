@@ -24,7 +24,7 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 121 | 241 |
-| Apache-2.0 | 69 | 24 |
+| Apache-2.0 | 70 | 24 |
 | BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
@@ -52,7 +52,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-262 distributions.
+263 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -191,7 +191,7 @@ names no author is in the evidence column below.
 | mem0ai | 2.2.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.0/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
-| multidict | 6.8.0 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
+| multidict | 6.9.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
 | oauthlib | 4.0.0 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
 | obstore | 0.11.1 | MIT | https://developmentseed.org/obstore | classifier; no licence file, attributed to Development Seed |
@@ -217,6 +217,7 @@ names no author is in the evidence column below.
 | packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
 | pathspec | 1.1.1 | MPL-2.0 | https://github.com/cpburnz/python-pathspec | classifier; review accepted |
 | pendulum | 3.2.0 | MIT | https://github.com/sdispater/pendulum | License field |
+| phonenumberslite | 9.0.40 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 12.3.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.11.8 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
 | pluggy | 1.6.0 | MIT | https://pypi.org/project/pluggy/1.6.0/ | License field |
@@ -338,10 +339,10 @@ names no author is in the evidence column below.
 | @formatjs/icu-skeleton-parser | 2.1.11 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @formatjs/intl-localematcher | 0.8.13 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour | package.json license |
-| @img/sharp-libvips-linux-arm64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-libvips-linux-x64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-linux-arm64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @img/sharp-linux-x64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-libvips-linux-arm64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @next/env | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
@@ -585,9 +586,9 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.28.0 | MIT | https://github.com/react/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
-| source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
+| source-map-js | 1.2.2 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
 | stringify-entities | 4.0.4 | MIT | https://github.com/wooorm/stringify-entities | package.json license |
 | style-to-js | 1.1.21 | MIT | https://github.com/remarkablemark/style-to-js | package.json license |

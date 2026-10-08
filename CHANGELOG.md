@@ -46,6 +46,211 @@ Two things are versioned separately from this file and worth knowing about:
   now defaults it to the model's maximum output rather than 4,096 tokens. Set
   `max_tokens` on the agent or its model profile to keep a ceiling.
 
+## [0.0.528] - 2026-10-08
+
+### Fixed
+
+- **OpenAI's newest models run.** Every `openai` profile was built on Chat
+  Completions, so a model served on the Responses API only, such as
+  `gpt-6-luna`, failed at its first request with a 400. A profile on `openai`
+  or `azure` now stores which API it uses, chosen under **Agents → add a model
+  → API**. The form starts on Responses for OpenAI's own endpoint and on Chat
+  Completions for an endpoint of your own or for Azure; a regional OpenAI
+  endpoint can pick Responses. Migration `0104_model_profile_api` gives
+  existing `openai` profiles without an endpoint Responses, and the rest Chat
+  Completions. A Responses model sends `store: false`, so moving to Responses
+  does not start keeping conversations on OpenAI's side; a profile can set
+  `openai_store` to opt back in. A profile moved to Responses loses the
+  Chat-only settings in its `params` (`seed`, `stop_sequences`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
+  not send there. Replaces #2033.
+
+## [0.0.527] - 2026-10-08
+
+### Fixed
+
+- **Local services work from the console.** Knowledge → Integrations and a
+  collection's embedding and OCR server pickers called `/api/local-services`,
+  which had no proxy route in the console, so listing, registering or removing
+  an Ollama or OCR server returned the console's 404 page and no collection
+  could be pointed at one. The route now forwards to `/api/v1/local-services`
+  like every other resource.
+
+## [0.0.526] - 2026-10-08
+
+### Fixed
+
+- **A capability's own model requests check the budget before each one, not
+  only the first.** Knowledge self-query, query expansion and both browser
+  capabilities run model requests through an agent of their own, which the
+  run's budget guard does not wrap. Self-query, query expansion and browser
+  choice checked the budget once before each nested run, and a browser-use
+  step did not check it at all. A corrected self-query attempt, an expansion
+  retry or the next browser-use step could therefore still be sent after an
+  earlier request took the run to its cap. Every such request is now refused
+  before it is sent once a cap is reached. Self-query still stops the run with
+  the budget refusal, and query expansion still falls back to the query as
+  written (#1808).
+
+## [0.0.525] - 2026-10-08
+
+### Fixed
+
+- **An output guardrail screens the answer before anyone sees it.** The web
+  chat, the embedded widget and the channel bots stream an answer as it is
+  written, and the output guardrail read only the finished one, so a key it
+  redacted, or a term it blocked, had already been shown and stored. With any
+  output check configured, each piece of text and reasoning is now held until
+  it is complete, run through the same detectors and only then sent. Text the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
+  unredacted text in their parts.
+
+## [0.0.524] - 2026-10-08
+
+### Fixed
+
+- **A document's text is extracted only up to the limit.** A chat attachment and
+  a document `web_fetch` downloads were parsed to the last page and only then cut,
+  so a compressed PDF under the 10 MiB download limit could cost far more worker
+  time and memory than the text the model was shown. The readers now stop at the
+  limit: a PDF loads pages until one crosses it, and stops after 2,000 pages; an
+  `.xlsx` streams rows until one crosses it, and reads at most a million cells
+  whatever range the sheet declares, ending with a note when that count stopped
+  it. DOCX, PPTX, ODT and ODP stop extracting at the paragraph or slide, but are still decompressed and parsed whole, within the
+  archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
+  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
+  with a note that the rest of the document is left out (`web_fetch` keeps its
+  `[Content truncated]`), in place of a total length that is no longer counted.
+
+## [0.0.523] - 2026-10-08
+
+### Security
+
+- **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
+  optimization, bundles a `librsvg` affected by CVE-2026-96889
+  (GHSA-wq5f-xc86-pv6w), and `make audit-frontend` failed on it. 0.35.5 is
+  inside the range `next` already asks for, so only the lockfile and the
+  third-party notices change.
+
+## [0.0.522] - 2026-10-06
+
+### Fixed
+
+- **The Workspaces page no longer sits on its loading state before it draws.**
+  Its landing view, every file at once, read up to twenty-five container-backed
+  workspaces one after another and then fetched their image thumbnails one after
+  another, so the page waited for the sum of all those round trips. Workspaces
+  and thumbnails are now read side by side, on eight threads of their own shared
+  by the whole process, so several people opening the page against a host that
+  has stopped answering cannot hold up sign-in or anything else on the default
+  thread pool. A listing waits ten seconds for each call to a host instead of the
+  archive's sixty-second default, so a host that does not answer at all is
+  reported as unreadable after ten seconds; one that answers slowly can still
+  take longer over a deep walk. The "Count files" switch reads hosts the same way.
+
+## [0.0.521] - 2026-10-06
+
+### Fixed
+
+- A burst of refreshes on one cookie no longer signs the person out. The reuse
+  grace window rotated the session again on every grace refresh, so the third
+  request of a burst matched nothing, got a 401, and its response cleared the
+  cookie the other two had just set. Within `REFRESH_REUSE_GRACE_SECONDS` a spent
+  token is now answered with the successor the session already holds - the same
+  token for every request in the burst - so the cookie converges whichever
+  response lands last.
+- A session that has ended sends the person to sign in. A refused refresh left the
+  console signed in, with every request answering 401 and the chat socket
+  reconnecting on a dead token, until a full reload.
+
+## [0.0.520] - 2026-10-06
+
+### Fixed
+
+- **Knowledge self-query and query expansion run under the agent's model
+  settings.** Both make a model request of their own inside a search, and
+  both inherited the run's model without the `timeout`, `max_tokens` and
+  `temperature` the agent set, so a query rewrite or a filter inference could
+  outlive the agent's timeout or generate more than it permits. They now run
+  under the same settings as the run's own requests, as compaction summaries
+  and system reminders have since 0.0.507. The tool-output summary is
+  unchanged: the harness it builds on exposes no settings knob (#1810).
+
+## [0.0.519] - 2026-10-06
+
+### Fixed
+
+- **PII redaction covers phone numbers.** The `redact_pii_*` guardrails
+  scrubbed email, IBAN, card and US SSN, and a phone number in the same
+  message reached the model and the reader unchanged. They now also redact a
+  phone number as `[redacted:phone]` when it is valid in its country's
+  numbering plan and grouped the way that country writes it, so a date, an
+  amount or an order id such as `ORD-2026-000417` comes through. A number
+  written with `+` is caught for any country; a national one for the countries
+  in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
+  code, or more than 16 of them, is refused at publish. A text longer than
+  200,000 characters or with more than 10,000 digits is not read: it ends the
+  run with `guardrail_blocked` rather than reach the model unredacted. Each
+  country past four shrinks both limits in proportion, since each is another
+  pass over the text. An agent with no PII toggle on is unchanged.
+  `POST /api/v1/ml/privacy/pii` finds the same numbers as a `phone`
+  category, against the default countries, where it returned them unchanged
+  and refused `categories: ["phone"]`; a scan that includes `phone` refuses
+  text with more than 10,000 digits.
+
+## [0.0.518] - 2026-10-06
+
+### Fixed
+
+- **An agent card no longer blinks out when the cursor leaves it.** The
+  gallery's entrance animation and the card's hover beam both set an
+  animation on the same element, so each time the beam went out the card
+  replayed its entrance from fully transparent. Firefox and browsers built on
+  it showed this as the card vanishing under the cursor. The beam now sits
+  inside its own wrapper.
+
+### Security
+
+- **`multidict` moves to 6.9.1 and `source-map-js` to 1.2.2.** 6.8.0, which
+  `aiohttp` and `yarl` pull in, is affected by CVE-2026-104874
+  (GHSA-54p9-h82j-f925), and `make audit` failed on it. 1.2.1, which `postcss`,
+  Tailwind and `css-tree` pull in at build and test time, is affected by
+  GHSA-68fv-2mgg-jv7q, and `make audit-frontend` failed on it. Only the
+  lockfiles change.
+
+## [0.0.517] - 2026-10-05
+
+### Changed
+
+- **A new README, in four languages.** It opens on what AgenticOS is for
+  ("AI agents your whole team can use and improve"), a 45-second intro film and
+  a product tour with current screenshots in light and dark, and keeps the list
+  of what AgenticOS does not do yet. The Polish, German and Spanish READMEs
+  follow it, and their links to the documentation site open the page in the
+  same language where a translation exists.
+- **Two presentations on the documentation site.** `/presentation/` is a
+  14-slide introduction to the open-source project and `/presentation/tour/`
+  the 44-slide product tour. Both use the new type (Instrument Serif, DM Sans,
+  DM Mono) on warm white, and show the marks of the stack and the model
+  providers. `make presentation` checks both decks and their assets.
+- **`make audit-frontend` skips one advisory with no fix.**
+  GHSA-vfj7-8cjw-p6xm (braces <= 3.0.3) has no patched release and reaches the
+  tree only through a lint-time dependency of `eslint-config-next` that the
+  built console does not ship. The exception is named in the `Makefile`, with
+  the condition for removing it.
+
+### Fixed
+
+- **The presentation's presenter view talks only to its own origin.** The deck
+  and the presenter window send their messages to the page's origin and ignore
+  messages from any other, so a presenter window navigated elsewhere no longer
+  receives slide state or speaker notes. Speaker notes and the slide list are
+  written as text, not HTML.
+
 ## [0.0.516] - 2026-10-01
 
 ### Changed

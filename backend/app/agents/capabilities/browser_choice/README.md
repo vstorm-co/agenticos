@@ -251,8 +251,8 @@ checks inside `wrap_model_request`, which wraps the *agent's* requests - a brows
 makes up to a hundred of its own inside one tool call and goes nowhere near it,
 so an exhausted budget stopped the turn's next request and not the browse.
 `assert_ambient_budget()` is the sibling of `record_ambient_usage`: the runner
-opens `guarded_by(...)` beside `metered_by(...)`, and a capability running its
-own model can refuse before spending rather than report after.
+opens `guarded_by(...)` beside `metered_by(...)`, and `MeteredModel` calls both,
+so every request it wraps is refused before spending rather than reported after.
 
 **Tokens, though, are not cost.** `price_request` prices a response through
 `genai-prices`, and a decision model the snapshot does not know prices as `None`.

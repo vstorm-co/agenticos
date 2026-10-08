@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.agents.model_resolver import ModelApi
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
 
@@ -34,6 +35,18 @@ class ProviderInfo(BaseSchema):
         description=(
             "Whether this provider can run with no credential at all. True only for "
             "self-hosted servers, and a keyless credential still has to carry a base_url."
+        )
+    )
+    apis: list[ModelApi] = Field(
+        description=(
+            "The APIs a profile on this provider chooses between - `responses` and `chat` "
+            "for the providers that serve both of OpenAI's, empty for every other"
+        )
+    )
+    native_api: ModelApi | None = Field(
+        description=(
+            "The API a profile gets on the provider's own endpoint when it names none. "
+            "With a `base_url` the default is `chat`. Null where `apis` is empty."
         )
     )
 
@@ -67,6 +80,16 @@ class ModelProfileCreate(BaseSchema):
             "API to fall back on."
         ),
     )
+    api: ModelApi | None = Field(
+        default=None,
+        description=(
+            "Which API the requests go to: `responses` or `chat`. Accepted only for a "
+            "provider whose catalog entry lists `apis`, and stored for every profile on "
+            "one. Omitted, it is `native_api` without a `base_url` and `chat` with one - "
+            "set it for an endpoint that serves the other, such as a regional OpenAI "
+            "endpoint, which serves Responses."
+        ),
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[UUID] = Field(default_factory=list)
 
@@ -85,6 +108,8 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     #: Absent for every profile aimed at the provider's own public API, which is
     #: most of them.
     base_url: str | None = None
+    #: Null for every provider that serves one API.
+    api: ModelApi | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(

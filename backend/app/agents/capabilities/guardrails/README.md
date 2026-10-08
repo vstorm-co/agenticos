@@ -10,7 +10,13 @@ made executable.
 Three edges, each configured independently:
 
 - **input** — the user's prompt, before the first model request.
-- **output** — the agent's final answer.
+- **output** — the agent's final answer, and everything a streaming surface shows
+  on the way to it. `ScreenedStream` holds each text and reasoning part back until
+  it is complete and runs the same detector over it, so a redacted key never reaches the screen or the transcript's parts (#1900).
+  A refused reasoning part is withheld rather than ending the run. Two copies of
+  the raw messages remain: a run parked on an approval, and a conversation's
+  summarised history. Streamed tool arguments and a delegate's own streamed text are
+  not screened yet (#2000). Such an agent streams a step at a time.
 - **tool result** — what a tool returned, before the model reads it. This is the
   only guard on untrusted content entering the loop: a fetched page, a file, an MCP
   server's response.
@@ -19,9 +25,36 @@ On each edge, two kinds of check, drawn from `pydantic-ai-harness`'s ready-made
 detectors:
 
 - **redact** secrets (API keys, tokens, JWTs, PEM blocks) and/or personal data
-  (email, IBAN with mod-97, card with Luhn, US SSN). A match is rewritten in place
-  and the run carries on — an agent that quoted a key back has still done the work.
+  (email, IBAN with mod-97, card with Luhn, US SSN, phone number). A match is
+  rewritten in place and the run carries on — an agent that quoted a key back has
+  still done the work.
+
 - **block** on a keyword list. A match ends the run.
+
+Phone matching lives in `app/core/phone.py`, shared with the ML PII service.
+It uses libphonenumber (`phonenumberslite`) with strict grouping to avoid matching
+IDs such as `ORD-2026-000417`. National formats use `phone_regions`; international
+(`+`) formats work regardless of that list. Bare digits remain ambiguous:
+`123456789` is a valid Polish landline, so listing PL also redacts that order ID.
+Grouping cuts both ways: a US ZIP+4 starting with `0`, such as `02134-1234`,
+reads as a German area code and number, so listing DE redacts it.
+The region setting is limited to 256 characters before splitting or normalizing,
+so repeated codes and empty entries cannot cause unbounded parser allocations
+when validating a stored draft.
+
+Each region scans the whole text. `phone_limits` allows 200,000 characters and
+10,000 digits for up to four regions, reducing both proportionally beyond four;
+at the maximum 16 regions, the limits are 50,000 characters and 2,500 digits.
+These bounds address both duplicate-match memory use and synchronous CPU work:
+the original four-region measurements were about 0.7 seconds for digit-heavy
+text at the digit limit or repeated full-width brackets at the character limit.
+The matcher's rejected-candidate cutoff is disabled so it cannot silently skip
+numbers near the end of a text.
+
+Guardrails check raw length before any redaction, then length and digits after
+the harness redactors, raising `GuardrailBlocked` on refusal. The ML endpoint
+checks the original input against its character limit and the shared phone
+limits, returning a field error. Neither passes an unchecked input to the matcher.
 
 ## Why a block *stops* the run
 

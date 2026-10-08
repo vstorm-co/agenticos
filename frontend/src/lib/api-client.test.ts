@@ -222,6 +222,45 @@ describe("recovering from an expired token", () => {
     });
   });
 
+  it("signs the store out when the refresh is refused, so the guard sends them to sign in", async () => {
+    // Left signed in, the page stayed up with every request answering 401 and
+    // nothing redirecting until a full reload.
+    useAuthStore.setState({ isAuthenticated: true });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "SESSION_EXPIRED" }));
+
+    await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("keeps the store signed in when the refresh failed for a reason that is not the session", async () => {
+    useAuthStore.setState({ isAuthenticated: true });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(502, { code: "INTERNAL_SERVER_ERROR" }))
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(429, {}));
+
+    await expect(apiClient.get("/a")).rejects.toMatchObject({ status: 401 });
+    await expect(apiClient.get("/b")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it("leaves an ended impersonation to its own exit rather than signing out", async () => {
+    useAuthStore.setState({ isAuthenticated: true, impersonationRevoked: false });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "IMPERSONATION_ENDED" }));
+
+    await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().impersonationRevoked).toBe(true);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
   it("survives a refresh whose body is not JSON, because the cookie still rotated", async () => {
     fetchMock
       .mockResolvedValueOnce(refused(401, {}))

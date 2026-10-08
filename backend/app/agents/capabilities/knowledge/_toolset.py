@@ -17,9 +17,10 @@ from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import UsageLimits
 
+from app.agents.capabilities._ambient import run_model_settings
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._metered import MeteredModel
-from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
+from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.knowledge._search import (
     organizational_units_in_scope,
     search_knowledge_base,
@@ -72,8 +73,13 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
     The nested call runs on its own usage, not the host run's: the host's request
     wrapper never sees it, so `MeteredModel` books each response to the run's
     ledger itself, once, whatever else is in flight - two parallel searches each
-    book exactly what they spent. The budget is checked before every call, since
-    the host guard only refuses the host's *next* request.
+    book exactly what they spent. `MeteredModel` also checks the budget before
+    every request, since the host guard only refuses the host's *next* request.
+
+    It runs under the host run's model settings, which `ctx.model` does not carry:
+    the factory merges them onto the host agent, so an agent built on the bare model
+    would run on the provider's defaults and could outlive the agent's `timeout` or
+    exceed its `max_tokens` (agenticos#1810).
 
     Returns `None` for a realtime model, which cannot serve a request-response
     call; `plan_queries` then degrades to the plain query.
@@ -86,11 +92,13 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
     # global, content-on default.
     agent: Agent[None, str] = Agent(MeteredModel(model), output_type=str)
     agent.instrument = inherited_instrumentation(ctx.agent)
+    model_settings = run_model_settings(ctx)
 
     async def generate(prompt: str) -> str:
         try:
-            await assert_ambient_budget()
-            result = await agent.run(prompt, usage_limits=_EXPANSION_LIMITS)
+            result = await agent.run(
+                prompt, usage_limits=_EXPANSION_LIMITS, model_settings=model_settings
+            )
         except _EXPECTED_EXPANSION_FAILURES as exc:
             raise QueryExpansionFailed(type(exc).__name__) from exc
         return result.output
@@ -225,6 +233,7 @@ def build_knowledge_toolset(
                 query,
                 organizational_units=units,
                 instrument=inherited_instrumentation(ctx.agent),
+                model_settings=run_model_settings(ctx),
             )
             if inferred is not None:
                 filters = inferred

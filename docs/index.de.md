@@ -1,5 +1,5 @@
 ---
-source_sha: "89439dd9f4e7"
+source_sha: "42ec3d82641d"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -202,8 +202,7 @@ eine Antwort.
 
 === "Was jemand bearbeitet"
 
-    ![Agents — jeder mit der Version, die live ist, und wer ihn erreichen darf](assets/screens/light/agents.webp#only-light)
-    ![Agents — jeder mit der Version, die live ist, und wer ihn erreichen darf](assets/screens/dark/agents.webp#only-dark)
+    > **Screenshot ausstehend — Agents.** Neue helle und dunkle Aufnahmen ersetzen die Bilder der früheren Oberfläche.
 
 === "Was daraus wird"
 

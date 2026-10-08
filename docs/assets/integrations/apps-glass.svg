@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="400" viewBox="0 0 1140 400" role="img" aria-label="Sixteen app connection options for AgenticOS">
+<defs>
+<clipPath id="bounds"><rect width="1140" height="400" rx="24"/></clipPath>
+<radialGradient id="aura"><stop stop-color="#6755d9" stop-opacity=".22"/><stop offset="1" stop-color="#6755d9" stop-opacity="0"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2=".4" y2="1"><stop stop-color="#fff" stop-opacity=".11"/><stop offset="1" stop-color="#fff" stop-opacity=".025"/></linearGradient>
+<linearGradient id="edge" x2=".3" y2="1"><stop stop-color="#fff" stop-opacity=".24"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient>
+</defs><g clip-path="url(#bounds)"><rect width="1140" height="400" fill="#0d1117"/>
+<ellipse cx="590" cy="185" rx="590" ry="350" fill="url(#aura)"/>
+<g transform="rotate(-2 173 77)">
+<rect x="58" y="47" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="58.5" y="42.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="79" y="60" width="32" height="32" viewBox="0 0 192 192" fill="none"><mask id="drive-a" width="168" height="154" x="12" y="18" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#b43333" d="M63.09 37c14.626-25.333 51.193-25.334 65.819 0l45.033 78c14.626 25.334-3.657 57.001-32.91 57.001H50.967c-29.253 0-47.536-31.667-32.91-57.001z" /></mask><g mask="url(#drive-a)"><path fill="url(#drive-b)" d="M206.905 172.02h-91.888l-19.015-32.934 45.944-79.578z" /><path fill="url(#drive-c)" d="M-14.919 172.006 50.04 59.494v.002L31.032 92.422h38.02L115 172.004l-129.918.001z" /><path fill="url(#drive-d)" d="M96.007-20.085 141.954 59.5l-19.011 32.928H31.048z" /></g><defs><linearGradient id="drive-b" x1="193.6" x2="103.09" y1="165.6" y2="111.21" gradientUnits="userSpaceOnUse"><stop offset=".09" stop-color="#ffe921" /><stop offset="1" stop-color="#fec700" /></linearGradient><linearGradient id="drive-c" x1="114.4" x2="15.53" y1="181.61" y2="121.8" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="#a9a8ff" /><stop offset=".33" stop-color="#6d97ff" /><stop offset=".48" stop-color="#3186ff" /></linearGradient><linearGradient id="drive-d" x1="128.88" x2="28.7" y1="37.88" y2="84.64" gradientUnits="userSpaceOnUse"><stop offset=".55" stop-color="#0ebc5f" /><stop offset=".85" stop-color="#78c9ff" /></linearGradient></defs></svg>
+
+<text x="126" y="84" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Google Drive</text>
+</g>
+<g transform="rotate(-2 173 163)">
+<rect x="58" y="133" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="58.5" y="128.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="79" y="146" width="32" height="32" viewBox="0 0 48 48" fill="none">
+<path d="M30.9322 9.34307L7.97588 23.8943L6.00165 20.7797V18.0959C6.00165 17.1188 6.49634 16.2081 7.31603 15.6762L20.6606 7.01716C22.6937 5.69792 25.3125 5.69771 27.3458 7.01665L30.9322 9.34307Z" fill="url(#outlook-paint0_linear_76780_14576)" />
+<path d="M27.1402 6.88928C27.2092 6.93033 27.2777 6.97284 27.3455 7.01682L37.76 13.7724L11.9375 30.1404L7.97498 23.8891L26.9262 11.8533C28.7213 10.7133 28.7999 8.14871 27.1402 6.88928Z" fill="url(#outlook-paint1_linear_76780_14576)" />
+<path d="M27.1402 6.88928C27.2092 6.93033 27.2777 6.97284 27.3455 7.01682L37.76 13.7724L11.9375 30.1404L7.97498 23.8891L26.9262 11.8533C28.7213 10.7133 28.7999 8.14871 27.1402 6.88928Z" fill="url(#outlook-paint2_linear_76780_14576)" fill-opacity="0.2" />
+<path d="M22.2402 33.2659L11.9377 30.1406L33.842 16.2557C35.6868 15.0864 35.682 12.3932 33.8331 11.2304L33.7344 11.1684L34.0185 11.3451L40.685 15.6695C41.5049 16.2014 41.9998 17.1122 41.9998 18.0895V20.687L22.2402 33.2659Z" fill="url(#outlook-paint3_linear_76780_14576)" />
+<path d="M22.2402 33.2659L11.9377 30.1406L33.842 16.2557C35.6868 15.0864 35.682 12.3932 33.8331 11.2304L33.7344 11.1684L34.0185 11.3451L40.685 15.6695C41.5049 16.2014 41.9998 17.1122 41.9998 18.0895V20.687L22.2402 33.2659Z" fill="url(#outlook-paint4_linear_76780_14576)" fill-opacity="0.2" />
+<path d="M27.3458 7.01665C25.3125 5.69771 22.6937 5.69792 20.6605 7.01716L7.31603 15.6762C6.49634 16.2081 6.00165 17.1188 6.00165 18.0959V18.2272C6.03382 19.208 6.55002 20.1121 7.38373 20.6378L23.9764 31.0985L40.6108 20.6537C41.4747 20.1112 41.999 19.1628 41.999 18.1427V20.6873L41.9994 18.0896C41.9994 17.1123 41.5045 16.2015 40.6846 15.6696L27.3458 7.01665Z" fill="url(#outlook-paint5_radial_76780_14576)" />
+<path d="M21.0513 42.0035H35.748C39.1998 42.0035 41.998 39.2053 41.998 35.7535L41.998 18.1426C41.998 19.1627 41.4736 20.1111 40.6098 20.6536L18.7495 34.3798C17.5703 35.1202 16.8546 36.4149 16.8547 37.8073C16.8549 40.1248 18.7337 42.0035 21.0513 42.0035Z" fill="url(#outlook-paint6_linear_76780_14576)" />
+<path d="M21.0513 42.0035H35.748C39.1998 42.0035 41.998 39.2053 41.998 35.7535L41.998 18.1426C41.998 19.1627 41.4736 20.1111 40.6098 20.6536L18.7495 34.3798C17.5703 35.1202 16.8546 36.4149 16.8547 37.8073C16.8549 40.1248 18.7337 42.0035 21.0513 42.0035Z" fill="url(#outlook-paint7_radial_76780_14576)" fill-opacity="0.4" />
+<path d="M21.0513 42.0035H35.748C39.1998 42.0035 41.998 39.2053 41.998 35.7535L41.998 18.1426C41.998 19.1627 41.4736 20.1111 40.6098 20.6536L18.7495 34.3798C17.5703 35.1202 16.8546 36.4149 16.8547 37.8073C16.8549 40.1248 18.7337 42.0035 21.0513 42.0035Z" fill="url(#outlook-paint8_radial_76780_14576)" fill-opacity="0.5" />
+<path d="M27.0268 42.0023H12.2492C8.79745 42.0023 5.99923 39.2041 5.99923 35.7523V18.1297C5.99923 19.1478 6.52165 20.0948 7.38292 20.6377L29.2215 34.4058C30.4171 35.1595 31.1423 36.4741 31.1421 37.8874C31.1419 40.1601 29.2995 42.0023 27.0268 42.0023Z" fill="url(#outlook-paint9_radial_76780_14576)" />
+<path d="M27.0268 42.0023H12.2492C8.79745 42.0023 5.99923 39.2041 5.99923 35.7523V18.1297C5.99923 19.1478 6.52165 20.0948 7.38292 20.6377L29.2215 34.4058C30.4171 35.1595 31.1423 36.4741 31.1421 37.8874C31.1419 40.1601 29.2995 42.0023 27.0268 42.0023Z" fill="url(#outlook-paint10_linear_76780_14576)" />
+<rect x="4" y="23" width="16" height="16" rx="3.25" fill="url(#outlook-paint11_radial_76780_14576)" />
+<rect x="4" y="23" width="16" height="16" rx="3.25" fill="url(#outlook-paint12_radial_76780_14576)" fill-opacity="0.5" />
+<path d="M11.959 35.5999C10.636 35.5999 9.54994 35.186 8.70069 34.3583C7.85144 33.5306 7.42682 32.4505 7.42682 31.1179C7.42682 29.7107 7.85785 28.5726 8.7199 27.7035C9.58195 26.8345 10.7107 26.3999 12.1062 26.3999C13.4249 26.3999 14.4982 26.8158 15.3261 27.6477C16.1583 28.4795 16.5744 29.5762 16.5744 30.9378C16.5744 32.3367 16.1433 33.4644 15.2813 34.3211C14.4235 35.1736 13.3161 35.5999 11.959 35.5999ZM11.9974 33.8431C12.7186 33.8431 13.299 33.5968 13.7386 33.1044C14.1781 32.6119 14.3979 31.9269 14.3979 31.0496C14.3979 30.1349 14.1845 29.4231 13.7578 28.9141C13.331 28.405 12.7613 28.1505 12.0486 28.1505C11.3146 28.1505 10.7235 28.4133 10.2754 28.9389C9.82733 29.4604 9.60328 30.1515 9.60328 31.0123C9.60328 31.8856 9.82733 32.5767 10.2754 33.0857C10.7235 33.5906 11.2975 33.8431 11.9974 33.8431Z" fill="white" />
+<path d="M11.9554 35.7233C10.6375 35.7233 9.55551 35.2982 8.7095 34.448C7.8635 33.5977 7.44049 32.4881 7.44049 31.1192C7.44049 29.6737 7.86987 28.5046 8.72864 27.6119C9.5874 26.7191 10.7119 26.2727 12.102 26.2727C13.4157 26.2727 14.4849 26.7 15.3097 27.5545C16.1387 28.409 16.5532 29.5356 16.5532 30.9343C16.5532 32.3712 16.1238 33.5297 15.265 34.4097C14.4105 35.2855 13.3073 35.7233 11.9554 35.7233ZM11.9936 33.9187C12.7121 33.9187 13.2903 33.6657 13.7282 33.1598C14.1661 32.6539 14.385 31.9503 14.385 31.049C14.385 30.1095 14.1724 29.3783 13.7473 28.8554C13.3222 28.3325 12.7546 28.071 12.0447 28.071C11.3134 28.071 10.7246 28.341 10.2782 28.8809C9.83185 29.4165 9.60865 30.1265 9.60865 31.0108C9.60865 31.9078 9.83185 32.6178 10.2782 33.1407C10.7246 33.6593 11.2964 33.9187 11.9936 33.9187Z" fill="white" />
+<defs>
+<linearGradient id="outlook-paint0_linear_76780_14576" x1="9.98908" y1="22.3649" x2="30.9322" y2="9.37495" gradientUnits="userSpaceOnUse">
+<stop stop-color="#20A7FA" />
+<stop offset="0.4" stop-color="#3BD5FF" />
+<stop offset="1" stop-color="#C4B0FF" />
+</linearGradient>
+<linearGradient id="outlook-paint1_linear_76780_14576" x1="17.1972" y1="26.7945" x2="28.8562" y2="8.12575" gradientUnits="userSpaceOnUse">
+<stop stop-color="#165AD9" />
+<stop offset="0.5008" stop-color="#1880E5" />
+<stop offset="1" stop-color="#8587FF" />
+</linearGradient>
+<linearGradient id="outlook-paint2_linear_76780_14576" x1="25.7005" y1="27.0484" x2="12.7563" y2="16.5013" gradientUnits="userSpaceOnUse">
+<stop offset="0.236946" stop-color="#448AFF" stop-opacity="0" />
+<stop offset="0.792113" stop-color="#0032B1" />
+</linearGradient>
+<linearGradient id="outlook-paint3_linear_76780_14576" x1="24.0534" y1="31.1099" x2="44.51" y2="18.0177" gradientUnits="userSpaceOnUse">
+<stop stop-color="#1A43A6" />
+<stop offset="0.492267" stop-color="#2052CB" />
+<stop offset="1" stop-color="#5F20CB" />
+</linearGradient>
+<linearGradient id="outlook-paint4_linear_76780_14576" x1="29.8281" y1="30.3273" x2="17.3975" y2="19.5708" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0045B9" stop-opacity="0" />
+<stop offset="0.669859" stop-color="#0D1F69" />
+</linearGradient>
+<radialGradient id="outlook-paint5_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24.0018 6.81788) rotate(-90) scale(27.0027 29.2262)">
+<stop offset="0.568182" stop-color="#275FF0" stop-opacity="0" />
+<stop offset="0.992424" stop-color="#002177" />
+</radialGradient>
+<linearGradient id="outlook-paint6_linear_76780_14576" x1="41.998" y1="29.9431" x2="23.8517" y2="29.9431" gradientUnits="userSpaceOnUse">
+<stop stop-color="#4DC4FF" />
+<stop offset="0.196145" stop-color="#0FAFFF" />
+</linearGradient>
+<radialGradient id="outlook-paint7_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(28.0928 37.9117) rotate(-45) scale(11.572)">
+<stop offset="0.259477" stop-color="#0060D1" />
+<stop offset="0.908166" stop-color="#0383F1" stop-opacity="0" />
+</radialGradient>
+<radialGradient id="outlook-paint8_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(10.6314 46.472) rotate(-52.6577) scale(39.2814 35.5204)">
+<stop offset="0.732317" stop-color="#F4A7F7" stop-opacity="0" />
+<stop offset="1" stop-color="#F4A7F7" />
+</radialGradient>
+<radialGradient id="outlook-paint9_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(18.5708 27.5319) rotate(123.339) scale(20.7258 53.7859)">
+<stop stop-color="#49DEFF" />
+<stop offset="0.724349" stop-color="#29C3FF" />
+</radialGradient>
+<linearGradient id="outlook-paint10_linear_76780_14576" x1="3.45756" y1="37.8723" x2="20.9291" y2="37.8597" gradientUnits="userSpaceOnUse">
+<stop offset="0.205882" stop-color="#6CE0FF" />
+<stop offset="0.535" stop-color="#50D5FF" stop-opacity="0" />
+</linearGradient>
+<radialGradient id="outlook-paint11_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(3.94291 23.6154) rotate(46.9242) scale(21.0618)">
+<stop offset="0.038877" stop-color="#0091FF" />
+<stop offset="0.919119" stop-color="#183DAD" />
+</radialGradient>
+<radialGradient id="outlook-paint12_radial_76780_14576" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12 32.7439) rotate(90) scale(11.2 12.9188)">
+<stop offset="0.557796" stop-color="#0FA5F7" stop-opacity="0" />
+<stop offset="1" stop-color="#74C6FF" />
+</radialGradient>
+</defs>
+</svg>
+
+<text x="126" y="170" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Outlook</text>
+</g>
+<g transform="rotate(-2 173 249)">
+<rect x="58" y="219" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="58.5" y="214.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="79" y="232" width="32" height="32" viewBox="0 0 192 192" fill="none"><path fill="url(#gmail-a)" d="M146 44h38v110c0 6.627-5.373 12-12 12h-20a6 6 0 0 1-6-6z" /><path fill="#fc413d" d="M46 44H8v110c0 6.627 5.373 12 12 12h20a6 6 0 0 0 6-6z" /><path fill="url(#gmail-b)" d="M39.226 30.456c-8.033-6.752-20.018-5.714-26.77 2.319-6.752 8.032-5.714 20.017 2.319 26.77l76.078 63.949a8 8 0 0 0 10.295 0l76.078-63.95c8.032-6.752 9.07-18.737 2.318-26.77-6.752-8.032-18.737-9.07-26.769-2.318L96 78.18z" /><defs><linearGradient id="gmail-a" x1="165" x2="165" y1="44" y2="166" gradientUnits="userSpaceOnUse"><stop stop-color="#60d673" /><stop offset=".17" stop-color="#42c868" /><stop offset=".39" stop-color="#0ebc5f" /><stop offset=".62" stop-color="#00a9bb" /><stop offset=".86" stop-color="#3c90ff" /><stop offset="1" stop-color="#3186ff" /></linearGradient><linearGradient id="gmail-b" x1="8" x2="184" y1="46.13" y2="46.13" gradientUnits="userSpaceOnUse"><stop offset=".08" stop-color="#ff63a0" /><stop offset=".3" stop-color="#fc413d" /><stop offset=".5" stop-color="#fc413d" /><stop offset=".65" stop-color="#fc413d" /><stop offset=".72" stop-color="#fc5c30" /><stop offset=".86" stop-color="#feb10c" /><stop offset=".91" stop-color="#fec700" /><stop offset=".96" stop-color="#ffdb0f" /></linearGradient></defs></svg>
+
+<text x="126" y="256" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Gmail</text>
+</g>
+<g transform="rotate(-2 173 335)">
+<rect x="58" y="305" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="58.5" y="300.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="79" y="318" width="32" height="32" viewBox="0 0 24 24" fill="#3984ff"><path d="M6 1.807L0 5.629l6 3.822 6.001-3.822L6 1.807zM18 1.807l-6 3.822 6 3.822 6-3.822-6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452l-6 3.822zM18 9.452l-6 3.822 6 3.822 6-3.822-6-3.822zM6 18.371l6.001 3.822 6-3.822-6-3.822L6 18.371z" /></svg>
+
+<text x="126" y="342" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Dropbox</text>
+</g>
+<g transform="rotate(1.5 433 65)">
+<rect x="318" y="35" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="318.5" y="30.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="339" y="48" width="32" height="32" viewBox="0 0 54 54" fill="none">
+<g clip-path="url(#slack-clip0_4127_70105)">
+<path d="M11.379 33.9993C11.379 37.1358 8.84512 39.6507 5.7276 39.6507C2.61008 39.6507 0.0572205 37.1168 0.0572205 33.9993C0.0572205 30.8817 2.5911 28.3479 5.70862 28.3479H11.36V33.9993H11.379Z" fill="#E3066A" />
+<path d="M14.1962 33.9997C14.1962 30.8632 16.7301 28.3483 19.8476 28.3483C22.9651 28.3483 25.499 30.8822 25.499 33.9997V48.1353C25.499 51.2718 22.9651 53.7867 19.8476 53.7867C16.7301 53.7867 14.1962 51.2718 14.1962 48.1353V33.9997Z" fill="#E3066A" />
+<path d="M19.8662 11.2673C16.7296 11.2673 14.2148 8.73347 14.2148 5.61594C14.2148 2.49842 16.7486 -0.0354538 19.8662 -0.0354538C22.9837 -0.0354538 25.5175 2.49842 25.5175 5.61594V11.2673H19.8662Z" fill="#00B3FF" />
+<path d="M19.8682 14.1334C23.0047 14.1334 25.5196 16.6673 25.5196 19.7848C25.5196 22.9023 22.9857 25.4362 19.8682 25.4362H5.67566C2.53916 25.4362 0.0242615 22.9023 0.0242615 19.7848C0.0242615 16.6673 2.55814 14.1334 5.67566 14.1334H19.8682Z" fill="#00B3FF" />
+<path d="M42.5323 19.7853C42.5323 16.6488 45.0662 14.1339 48.1837 14.1339C51.3012 14.1339 53.8351 16.6678 53.8351 19.7853C53.8351 22.9028 51.3012 25.4367 48.1837 25.4367H42.5323V19.7853Z" fill="#41B658" />
+<path d="M39.7126 19.7934C39.7126 22.9299 37.1787 25.4448 34.0612 25.4448C30.9436 25.4448 28.4098 22.911 28.4098 19.7934V5.61986C28.4098 2.48336 30.9436 -0.0315399 34.0612 -0.0315399C37.1787 -0.0315399 39.7126 2.48336 39.7126 5.61986V19.7934Z" fill="#41B658" />
+<path d="M34.0376 42.482C37.1741 42.482 39.689 45.0158 39.689 48.1334C39.689 51.2509 37.1552 53.7848 34.0376 53.7848C30.9201 53.7848 28.3862 51.2509 28.3862 48.1334V42.482H34.0376Z" fill="#FCC003" />
+<path d="M34.0381 39.6507C30.9016 39.6507 28.3867 37.1168 28.3867 33.9993C28.3867 30.8818 30.9206 28.3479 34.0381 28.3479H48.2306C51.3671 28.3479 53.882 30.8818 53.882 33.9993C53.882 37.1168 51.3482 39.6507 48.2306 39.6507H34.0381Z" fill="#FCC003" />
+</g>
+<defs>
+<clipPath id="slack-clip0_4127_70105">
+<rect width="54" height="54" fill="white" />
+</clipPath>
+</defs>
+</svg>
+
+<text x="386" y="72" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Slack</text>
+</g>
+<g transform="rotate(1.5 433 151)">
+<rect x="318" y="121" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="318.5" y="116.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<rect x="338" y="133" width="34" height="34" rx="5" fill="white"/><svg xmlns="http://www.w3.org/2000/svg" x="339" y="134" width="32" height="32" viewBox="0 0 24 24" fill="#191919"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" /></svg>
+
+<text x="386" y="158" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Notion</text>
+</g>
+<g transform="rotate(1.5 433 237)">
+<rect x="318" y="207" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="318.5" y="202.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="339" y="220" width="32" height="32" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg>
+
+<text x="386" y="244" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">GitHub</text>
+</g>
+<g transform="rotate(1.5 433 323)">
+<rect x="318" y="293" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="318.5" y="288.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="339" y="306" width="32" height="32" viewBox="0 0 24 24" fill="#a88bfa"><path d="M15.852 8.981h-4.588V0h4.588c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.491-4.49 4.491zM12.735 7.51h3.117c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-3.117V7.51zm0 1.471H8.148c-2.476 0-4.49-2.014-4.49-4.49S5.672 0 8.148 0h4.588v8.981zm-4.587-7.51c-1.665 0-3.019 1.355-3.019 3.019s1.354 3.02 3.019 3.02h3.117V1.471H8.148zm4.587 15.019H8.148c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h4.588v8.98zM8.148 8.981c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h3.117V8.981H8.148zM8.172 24c-2.489 0-4.515-2.014-4.515-4.49s2.014-4.49 4.49-4.49h4.588v4.441c0 2.503-2.047 4.539-4.563 4.539zm-.024-7.51a3.023 3.023 0 0 0-3.019 3.019c0 1.665 1.365 3.019 3.044 3.019 1.705 0 3.093-1.376 3.093-3.068v-2.97H8.148zm7.704 0h-.098c-2.476 0-4.49-2.014-4.49-4.49s2.014-4.49 4.49-4.49h.098c2.476 0 4.49 2.014 4.49 4.49s-2.014 4.49-4.49 4.49zm-.097-7.509c-1.665 0-3.019 1.355-3.019 3.019s1.355 3.019 3.019 3.019h.098c1.665 0 3.019-1.355 3.019-3.019s-1.355-3.019-3.019-3.019h-.098z" /></svg>
+
+<text x="386" y="330" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Figma</text>
+</g>
+<g transform="rotate(-1.5 693 82)">
+<rect x="578" y="52" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="578.5" y="47.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="599" y="65" width="32" height="32" viewBox="0 0 24 24" fill="#5E6AD2"><path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z" /></svg>
+
+<text x="646" y="89" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Linear</text>
+</g>
+<g transform="rotate(-1.5 693 168)">
+<rect x="578" y="138" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="578.5" y="133.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="599" y="151" width="32" height="32" viewBox="0 0 24 24" fill="#f5bb38"><path d="M11.992 1.966c-.434 0-.87.086-1.28.257L1.779 5.917c-.503.208-.49.908.012 1.116l8.982 3.558a3.266 3.266 0 0 0 2.454 0l8.982-3.558c.503-.196.503-.908.012-1.116l-8.957-3.694a3.255 3.255 0 0 0-1.272-.257zM23.4 8.056a.589.589 0 0 0-.222.045l-10.012 3.877a.612.612 0 0 0-.38.564v8.896a.6.6 0 0 0 .821.552L23.62 18.1a.583.583 0 0 0 .38-.551V8.653a.6.6 0 0 0-.6-.596zM.676 8.095a.644.644 0 0 0-.48.19C.086 8.396 0 8.53 0 8.69v8.355c0 .442.515.737.908.54l6.27-3.006.307-.147 2.969-1.436c.466-.22.43-.908-.061-1.092L.883 8.138a.57.57 0 0 0-.207-.044z" /></svg>
+
+<text x="646" y="175" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Airtable</text>
+</g>
+<g transform="rotate(-1.5 693 254)">
+<rect x="578" y="224" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="578.5" y="219.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="599" y="237" width="32" height="32" viewBox="0 0 24 24" fill="#ff7a59"><path d="M18.164 7.93V5.084a2.198 2.198 0 001.267-1.978v-.067A2.2 2.2 0 0017.238.845h-.067a2.2 2.2 0 00-2.193 2.193v.067a2.196 2.196 0 001.252 1.973l.013.006v2.852a6.22 6.22 0 00-2.969 1.31l.012-.01-7.828-6.095A2.497 2.497 0 104.3 4.656l-.012.006 7.697 5.991a6.176 6.176 0 00-1.038 3.446c0 1.343.425 2.588 1.147 3.607l-.013-.02-2.342 2.343a1.968 1.968 0 00-.58-.095h-.002a2.033 2.033 0 102.033 2.033 1.978 1.978 0 00-.1-.595l.005.014 2.317-2.317a6.247 6.247 0 104.782-11.134l-.036-.005zm-.964 9.378a3.206 3.206 0 113.215-3.207v.002a3.206 3.206 0 01-3.207 3.207z" /></svg>
+
+<text x="646" y="261" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">HubSpot</text>
+</g>
+<g transform="rotate(-1.5 693 340)">
+<rect x="578" y="310" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="578.5" y="305.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="599" y="323" width="32" height="32" viewBox="0 0 24 24" fill="#8274ff"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" /></svg>
+
+<text x="646" y="347" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Stripe</text>
+</g>
+<g transform="rotate(2 953 70)">
+<rect x="838" y="40" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="838.5" y="35.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="859" y="53" width="32" height="32" viewBox="0 0 24 24" fill="#229ed9"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+
+<text x="906" y="77" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Telegram</text>
+</g>
+<g transform="rotate(2 953 156)">
+<rect x="838" y="126" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="838.5" y="121.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="859" y="139" width="32" height="32" viewBox="0 0 24 24" fill="#0058cc"><path d="M12.081 0C7.048-.034 2.339 3.125.637 8.153c-2.125 6.276 1.24 13.086 7.516 15.21 6.276 2.125 13.086-1.24 15.21-7.516 1.727-5.1-.172-10.552-4.311-13.557l.126 2.547c2.065 2.282 2.88 5.512 1.852 8.549-1.534 4.532-6.594 6.915-11.3 5.321-4.708-1.593-7.28-6.559-5.745-11.092 1.031-3.046 3.655-5.121 6.694-5.67l1.642-1.94A4.87 4.87 0 0 0 12.08 0zm3.528 1.094a.284.284 0 0 0-.123.024l-.004.001a.33.33 0 0 0-.109.071c-.145.142-.657.828-.657.828L13.6 3.4l-1.3 1.585-2.232 2.776s-1.024 1.278-.798 2.851c.226 1.574 1.396 2.34 2.304 2.648.907.307 2.302.408 3.438-.704 1.135-1.112 1.098-2.75 1.098-2.75l-.087-3.56-.07-2.05-.047-1.775s.01-.856-.02-1.057a.33.33 0 0 0-.035-.107l-.006-.012-.007-.011a.277.277 0 0 0-.229-.14z" /></svg>
+
+<text x="906" y="163" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Mattermost</text>
+</g>
+<g transform="rotate(2 953 242)">
+<rect x="838" y="212" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="838.5" y="207.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="859" y="225" width="32" height="32" viewBox="0 0 24 24" fill="#95bf47"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z" /></svg>
+
+<text x="906" y="249" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Shopify</text>
+</g>
+<g transform="rotate(2 953 328)">
+<rect x="838" y="298" width="238" height="68" rx="17" fill="#000" opacity=".15"/>
+<rect x="838.5" y="293.5" width="237" height="67" rx="17" fill="url(#glass)" stroke="url(#edge)"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="859" y="311" width="32" height="32" viewBox="0 0 24 24" fill="#3ecf8e"><path d="M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C-.33 13.427.65 15.455 2.409 15.455h9.579l.113 7.51c.014.985 1.259 1.408 1.873.636l9.262-11.653c1.093-1.375.113-3.403-1.645-3.403h-9.642z" /></svg>
+
+<text x="906" y="335" text-anchor="start" fill="#e8edf6" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="500">Supabase</text>
+</g>
+</g></svg>
