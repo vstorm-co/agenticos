@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.526] - 2026-10-08
+
 ### Fixed
 
 - **A capability's own model requests check the budget before each one, not
