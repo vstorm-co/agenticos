@@ -38,6 +38,7 @@ from pydantic_ai_harness.compaction import (
 
 from app.agents.capabilities import CapabilityBinding, build, get
 from app.agents.capabilities.budget import (
+    BudgetExceeded,
     BudgetGuard,
     BudgetScope,
     SpendLedger,
@@ -289,6 +290,32 @@ class TestMetering:
 
         assert len(ledger.entries) == 1
         assert (ledger.input_tokens, ledger.output_tokens) == (1_200, 300)
+
+    @pytest.mark.security
+    async def test_a_summary_that_reaches_a_cap_refuses_the_request_after_it(self):
+        """`BudgetGuard.wrap_model_request` encloses this hook since pydantic-ai 2.54,
+        so its check ran before the summary was bought. Without a second one, the
+        request the summary was made for would go out past the cap and be billed."""
+        ledger = SpendLedger()
+        exhausted = BudgetGuard(
+            ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
+        )
+        capability = MeteredCompaction(wrapped=_Spender(input_tokens=1_200, output_tokens=300))
+
+        with metered_by(ledger), guarded_by(exhausted), pytest.raises(BudgetExceeded):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
+        assert ledger.input_tokens == 1_200
+
+    @pytest.mark.security
+    async def test_a_strategy_that_paid_nothing_does_not_ask_the_budget_again(self):
+        """A cap is the next request's to refuse, through `BudgetGuard`: a strategy
+        that spent nothing has changed nothing the guard already checked."""
+        exhausted = BudgetGuard(limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))])
+        capability = MeteredCompaction(wrapped=_Spender())
+
+        with guarded_by(exhausted):
+            await capability.before_model_request(_run_context(), _request_context([]))
 
     async def test_a_strategy_that_calls_no_model_books_nothing(self):
         """The zero-LLM strategies are wrapped too, and must stay free."""
