@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.531] - 2026-10-08
+
 ### Documentation
 
 - **AgenticOS is described as a sovereign agentic AI layer.** The README, the
