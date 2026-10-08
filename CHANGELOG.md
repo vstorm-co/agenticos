@@ -25,10 +25,11 @@ Two things are versioned separately from this file and worth knowing about:
   redacted, or a term it blocked, had already been shown and stored. With any
   output check configured, each piece of text and reasoning is now held until
   it is complete, run through the same detectors and only then sent. Text the
-  model writes before a tool call is screened too, and a blocked keyword ends
-  the run before any of the answer is shown. Such an agent's answer arrives a
-  step at a time rather than word by word, and its model requests stream even
-  through the HTTP API. Turns stored before this change may still hold the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
   unredacted text in their parts.
 
 ## [0.0.524] - 2026-10-08

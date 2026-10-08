@@ -1,5 +1,5 @@
 ---
-source_sha: "c1ad086c293f"
+source_sha: "dd986533920a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1828,9 +1828,19 @@ igualmente. También el texto que el modelo escribe antes de llamar a una herram
 que no forma parte de la respuesta final pero aun así se muestra y se guarda. El coste
 es que la respuesta de un agent así llega paso a paso en lugar de palabra a palabra.
 Un agent sin comprobación de salida transmite como antes. Un bloqueo por palabra clave
-termina el run antes de que se muestre o se guarde nada del texto bloqueado, y el
-razonamiento sigue la misma regla que la respuesta: una palabra clave bloqueada en el
-razonamiento del modelo también termina el run.
+en la respuesta termina el run antes de que se muestre o se guarde nada del texto
+bloqueado. El razonamiento no es la respuesta, así que una palabra clave bloqueada
+en él no termina el run: ese paso de razonamiento muestra
+`[reasoning withheld by the output guardrail]` en su lugar.
+
+**Lo que el filtro del stream aún no cubre.** Dos rutas transmitidas no se filtran:
+los argumentos de una llamada a herramienta mientras se transmiten y la respuesta
+transmitida de un delegado en el panel de delegación ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). El filtro del
+stream hereda los límites de tamaño del detector de teléfonos, así que una parte de
+la respuesta demasiado larga para él termina el run igual que lo haría la respuesta
+final. Como el filtro se engancha al flujo de eventos del run, las peticiones al
+modelo de un agent con guardrail se transmiten en streaming incluso a través de la
+API HTTP, así que su modelo debe admitir streaming.
 
 **El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
 censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo

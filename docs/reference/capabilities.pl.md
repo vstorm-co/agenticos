@@ -1,5 +1,5 @@
 ---
-source_sha: "c1ad086c293f"
+source_sha: "dd986533920a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1791,9 +1791,18 @@ wychwycony. Tak samo tekst, który model pisze przed wywołaniem narzędzia — 
 częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
 to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
 Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym
-kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie pokazana lub
-zapisana, a rozumowanie podlega tej samej regule co odpowiedź: zablokowane słowo
-kluczowe w rozumowaniu modelu też kończy run.
+w odpowiedzi kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie
+pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane słowo
+kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
+`[reasoning withheld by the output guardrail]`.
+
+**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
+sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
+streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
+dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
+długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
+podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
+streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
 
 **Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
 dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją

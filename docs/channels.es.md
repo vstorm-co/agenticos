@@ -1,5 +1,5 @@
 ---
-source_sha: "7b81165e9bf5"
+source_sha: "c0858ab0af15"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1335,7 +1335,7 @@ así que la política no puede desviarse entre ellas.
   produce texto mientras se ejecuta. Editado más o menos una vez por segundo: por
   token serían cientos de escrituras por segundo contra un servidor que a menudo es
   de alguien. Una plataforma que no puede editar un mensaje enviado recibe
-  simplemente la respuesta terminada, como antes. Un agent con un
+  simplemente la respuesta terminada, como antes. La respuesta de un agent con un
   [guardrail de salida](reference/capabilities.md#guardrails) se reescribe en
   cambio paso a paso, y cada paso se publica solo después de comprobarse.
 - **Cada vinculación lleva sus propias instrucciones extra**, añadidas a las del

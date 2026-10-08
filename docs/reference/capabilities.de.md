@@ -1,5 +1,5 @@
 ---
-source_sha: "c1ad086c293f"
+source_sha: "dd986533920a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1926,9 +1926,19 @@ erkannt. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er 
 nicht zur endgültigen Antwort, wird aber trotzdem angezeigt und gespeichert. Der Preis
 ist, dass die Antwort eines solchen Agents Schritt für Schritt statt Wort für Wort
 ankommt. Ein Agent ohne Ausgabeprüfung streamt wie bisher. Eine Schlagwort-Blockade
-beendet den Run, bevor irgendetwas vom blockierten Text angezeigt oder gespeichert
-wird, und das Reasoning folgt derselben Regel wie die Antwort: Ein blockiertes
-Schlagwort im Reasoning des Modells beendet den Run ebenfalls.
+in der Antwort beendet den Run, bevor irgendetwas vom blockierten Text angezeigt oder
+gespeichert wird. Reasoning ist nicht die Antwort, daher beendet ein blockiertes
+Schlagwort dort den Run nicht: Dieser Reasoning-Schritt zeigt stattdessen
+`[reasoning withheld by the output guardrail]`.
+
+**Was der Stream-Filter noch nicht abdeckt.** Zwei gestreamte Pfade werden nicht
+geprüft: die Argumente eines Tool-Aufrufs, während sie gestreamt werden, und die
+eigene gestreamte Antwort eines Delegaten im Delegationspanel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Der
+Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
+Antwortteil, der dafür zu lang ist, den Run so beendet, wie es die endgültige Antwort
+täte. Weil sich der Filter in den Event-Stream des Runs einhängt, streamen die
+Modellanfragen eines Agents mit Guardrail auch über die HTTP-API, sein Modell muss
+also Streaming unterstützen.
 
 **Die Eingabekante ändert, was das Modell liest, nicht das Transkript.** Ein
 geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speichert die

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7531729ae8e"
+source_sha: "421b416a5a36"
 ---
 
 # API HTTP { #the-http-api }
@@ -120,8 +120,9 @@ Dwa endpointy WebSocket, dla dwóch odbiorców.
 - **`/api/v1/embed/{public_key}/ws`** — publiczny, stojący za
   [embedem](channels.md), dla odwiedzającego, który nie ma konta.
 
-Oba strumieniują tokeny w miarę ich napływania i oba tworzą zwyczajny run, z
-tymi samymi księgami co wszystko inne.
+Oba strumieniują tokeny w miarę ich napływania (agent z guardrailem na wyjściu
+streamuje krok po kroku, zobacz [Guardrails](reference/capabilities.md#guardrails))
+i oba tworzą zwyczajny run, z tymi samymi księgami co wszystko inne.
 
 ## Błędy { #errors }
 

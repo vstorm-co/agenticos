@@ -1,5 +1,5 @@
 ---
-source_sha: "7b81165e9bf5"
+source_sha: "c0858ab0af15"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1322,9 +1322,9 @@ może się między nimi rozjechać.
   narzędzia nie produkuje tekstu, kiedy trwa. Edytowana mniej więcej raz na
   sekundę: po tokenie byłyby to setki zapisów na sekundę do serwera, który często
   jest czyjś własny. Platforma, która nie potrafi edytować wysłanej wiadomości,
-  po prostu dostaje gotową odpowiedź, jak wcześniej. Agent z
+  po prostu dostaje gotową odpowiedź, jak wcześniej. Odpowiedź agenta z
   [guardrailem na wyjściu](reference/capabilities.md#guardrails) jest za to
-  przepisywany krok po kroku, a każdy krok trafia na kanał dopiero po
+  przepisywana krok po kroku, a każdy krok trafia na kanał dopiero po
   sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
   instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten

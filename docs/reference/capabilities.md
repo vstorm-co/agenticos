@@ -1708,9 +1708,17 @@ checked with the same detectors, and only then sent. A key split across two chun
 is still caught. So is text the model writes before it calls a tool, which is not
 part of the final answer but is still shown and stored. The cost is that such an
 agent's answer arrives one step at a time rather than word by word. An agent with
-no output check streams as before. A keyword block ends the run before any of the
-blocked text is shown or stored, and reasoning follows the same rule as the answer:
-a blocked keyword in the model's reasoning also ends the run.
+no output check streams as before. A keyword block in the
+answer ends the run before any of the blocked text is shown or stored. Reasoning is
+not the answer, so a blocked keyword there does not end the run: that reasoning step
+shows `[reasoning withheld by the output guardrail]` instead.
+
+**What the stream screen does not cover yet.** Two streamed paths are not screened:
+a tool call's arguments as they stream, and a delegate's own streamed answer in the
+delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
+size limits, so an answer part too long for it ends the run as the final answer
+would. Because the screen hooks the run's event stream, a guarded agent's model
+requests stream even through the HTTP API, so its model must support streaming.
 
 **The input edge changes what the model reads, not the transcript.** A redacted
 prompt reaches the model scrubbed, but the conversation stores the message as the
