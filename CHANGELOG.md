@@ -25,8 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
   time and memory than the text the model was shown. The readers now stop at the
   limit: a PDF loads pages until one crosses it, and stops after 2,000 pages; an
   `.xlsx` streams rows until one crosses it, and reads at most a million cells
-  whatever range the sheet declares. DOCX, PPTX, ODT and ODP stop extracting at the
-  paragraph or slide, but are still decompressed and parsed whole, within the
+  whatever range the sheet declares, ending with a note when that count stopped
+  it. DOCX, PPTX, ODT and ODP stop extracting at the paragraph or slide, but are still decompressed and parsed whole, within the
   archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
   attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
   with a note that the rest of the document is left out (`web_fetch` keeps its

@@ -1281,15 +1281,52 @@ class TestTheParseStopsAtItsLimit:
         assert text == "Sheet: Sheet\ntop\nbottom"
 
     @pytest.mark.security
-    def test_an_xlsx_stops_at_its_cell_budget(self, monkeypatch: pytest.MonkeyPatch):
+    async def test_an_xlsx_stops_at_its_cell_budget(self, monkeypatch: pytest.MonkeyPatch):
         """Empty cells never spend the character budget, so a cell count bounds them."""
         monkeypatch.setattr(fu, "_XLSX_MAX_CELLS", 5)
 
-        text = FileUploadService._parse_spreadsheet_content(
-            _xlsx_rows([f"r{n}" for n in range(10)]), LIMIT
+        text = await fu.DocumentText().parse_content(
+            _xlsx_rows([f"r{n}" for n in range(10)]), "spreadsheet", filename="a.xlsx"
         )
 
-        assert text == "Sheet: Sheet\nr0\nr1\nr2\nr3\nr4"
+        assert text == "Sheet: Sheet\nr0\nr1\nr2\nr3\nr4\n\n" + fu.XLSX_CELLS_CUT_MARKER.format(
+            cells=5
+        )
+
+    @pytest.mark.security
+    async def test_rows_a_sparse_xlsx_skips_spend_its_cell_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A skipped row reads as an empty tuple, so a workbook with one value at the
+        top and one at the bottom would otherwise walk a million rows for free."""
+        from openpyxl import Workbook
+
+        monkeypatch.setattr(fu, "_XLSX_MAX_CELLS", 100)
+        workbook = Workbook()
+        workbook.active["A1"] = "top"
+        workbook.active["A500"] = "bottom"
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+
+        text = await fu.DocumentText().parse_content(
+            buffer.getvalue(), "spreadsheet", filename="a.xlsx"
+        )
+
+        assert text == "Sheet: Sheet\ntop\n\n" + fu.XLSX_CELLS_CUT_MARKER.format(cells=100)
+
+    async def test_text_past_the_limit_is_not_blamed_on_the_cell_cap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(fu, "_XLSX_MAX_CELLS", 5)
+
+        text = await fu.DocumentText().parse_content(
+            _xlsx_rows(["aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff"]),
+            "spreadsheet",
+            filename="a.xlsx",
+            max_chars=10,
+        )
+
+        assert text == "Sheet: She" + fu.PARSE_CUT_MARKER.format(max_chars=10)
 
     def test_text_exactly_at_the_limit_is_not_cut(self):
         assert fu._join_within(["abc", "de"], "\n", 6) == "abc\nde"

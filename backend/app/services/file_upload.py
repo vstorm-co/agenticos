@@ -109,6 +109,9 @@ It stands alone when the pages read held no text, so a model is told the rest wa
 skipped rather than that the document has nothing in it.
 """
 
+XLSX_CELLS_CUT_MARKER = "…[stopped after {cells} cells; the rest of the workbook was not read]"
+"""What ends an `.xlsx` cut at `_XLSX_MAX_CELLS` while its text was still within budget."""
+
 
 def make_preview(parsed_content: str | None) -> str | None:
     """The head of a file's extracted text, for a client to render beside its name.
@@ -309,12 +312,14 @@ def _odf_kept_text(blocks: Iterable[Any], max_chars: int) -> Iterator[str]:
 
 
 @dataclass(frozen=True)
-class _PdfText:
-    """A PDF's text, and the note on the pages `_PDF_MAX_PAGES` left unread.
+class _ReadText:
+    """A document's text, and the note on what a reader's own cap left unread.
 
-    Apart because the note is not document text: `parse_content` spends the
-    character budget on `text` alone and adds `unread` after any cut, so a text
-    that fits the budget is never reported as cut because of the note (#1990).
+    `_PDF_MAX_PAGES` and `_XLSX_MAX_CELLS` stop a read that the character budget
+    never would. The note is apart because it is not document text:
+    `parse_content` spends the character budget on `text` alone and adds `unread`
+    after any cut, so a text that fits the budget is never reported as cut
+    because of the note (#1990).
     """
 
     text: str
@@ -460,7 +465,8 @@ class DocumentText:
         `CHAT_PARSED_TEXT_MAX_CHARS`; past it, the text is cut and ends with
         `cut_marker`, or `PARSE_CUT_MARKER` when none is given. A PDF that
         `_PDF_MAX_PAGES` stopped within the budget ends with `PDF_PAGES_CUT_MARKER`
-        instead, after the budgeted text rather than inside it.
+        instead, and an `.xlsx` that `_XLSX_MAX_CELLS` stopped with
+        `XLSX_CELLS_CUT_MARKER`, after the budgeted text rather than inside it.
 
         The bound is a budget the readers spend, not a cut applied afterwards. A
         PDF is loaded a page at a time and stops at the page that crosses it, and an
@@ -489,7 +495,7 @@ class DocumentText:
         fmt = resolve_format(mime_type, filename)
         parsed = await self._parse_by_format(data, file_type, fmt, limit, charset)
         text: str | None
-        if isinstance(parsed, _PdfText):
+        if isinstance(parsed, _ReadText):
             text, unread = parsed.text, parsed.unread
         else:
             text, unread = parsed, ""
@@ -501,7 +507,7 @@ class DocumentText:
 
     async def _parse_by_format(
         self, data: bytes, file_type: str, fmt: str, max_chars: int, charset: str | None = None
-    ) -> str | _PdfText | None:
+    ) -> str | _ReadText | None:
         if file_type == "text":
             return await run_blocking(self._parse_text_content, data, charset)
         if file_type == "pdf":
@@ -551,7 +557,7 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_pdf_pymupdf(data: bytes, max_chars: int) -> _PdfText | None:
+    def _parse_pdf_pymupdf(data: bytes, max_chars: int) -> _ReadText | None:
         """Extract text from PDF using PyMuPDF, page by page within `max_chars`.
 
         A compressed PDF under the download limit can inflate to far more text than
@@ -573,12 +579,12 @@ class DocumentText:
             unread = ""
             if read < total and len(text) <= max_chars:
                 unread = PDF_PAGES_CUT_MARKER.format(read=read, total=total)
-            return _PdfText(text, unread) if text or unread else None
+            return _ReadText(text, unread) if text or unread else None
         except Exception as e:
             logger.warning("PyMuPDF PDF parsing failed: %s", e)
             return None
 
-    def _parse_pdf_content(self, data: bytes, max_chars: int) -> _PdfText | None:
+    def _parse_pdf_content(self, data: bytes, max_chars: int) -> _ReadText | None:
         """Read a PDF attached to a chat message.
 
         PyMuPDF, and only PyMuPDF. A chat attachment belongs to no collection,
@@ -611,7 +617,7 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_spreadsheet_content(data: bytes, max_chars: int) -> str | None:
+    def _parse_spreadsheet_content(data: bytes, max_chars: int) -> str | _ReadText | None:
         """Extract a workbook as tab-separated rows, one block per sheet.
 
         Every sheet, named. A workbook's second sheet is where the data usually
@@ -632,7 +638,9 @@ class DocumentText:
         The rows are pulled one at a time and stop once the text is past
         `max_chars`: `read_only` streams them, so the rest are never read (#1990).
         The declared dimensions are dropped first and every cell read is charged
-        to `_XLSX_MAX_CELLS`, because empty cells never spend the character budget.
+        to `_XLSX_MAX_CELLS`, because empty cells never spend the character budget;
+        a row costs at least one, since a sparse sheet yields an empty tuple for
+        every row it skips.
         """
         try:
             from openpyxl import load_workbook
@@ -643,10 +651,13 @@ class DocumentText:
             # upload could still expand without limit (#1591, §7 finding 1).
             workbook: Any = load_workbook(safe_unzip(data), read_only=True, data_only=True)
 
+            capped = False
+
             def lines() -> Iterator[str]:
                 # One line per row, a sheet's name before its first row and a blank
                 # line between sheets: joined with "\n", the same blocks as one
                 # "\n\n"-joined string per sheet, without building a sheet whole.
+                nonlocal capped
                 first = True
                 cells_left = _XLSX_MAX_CELLS
                 for sheet in workbook.worksheets:
@@ -655,8 +666,9 @@ class DocumentText:
                     sheet.reset_dimensions()
                     named = False
                     for row in sheet.iter_rows(values_only=True):
-                        cells_left -= len(row)
+                        cells_left -= max(len(row), 1)
                         if cells_left < 0:
+                            capped = True
                             return
                         cells = ["" if value is None else str(value) for value in row]
                         while cells and cells[-1] == "":
@@ -672,11 +684,15 @@ class DocumentText:
                         yield "\t".join(cells)
 
             try:
-                return _join_within(lines(), "\n", max_chars) or None
+                text = _join_within(lines(), "\n", max_chars)
             finally:
                 # `read_only` keeps file handles open until it is closed, and this
                 # runs inside a request.
                 workbook.close()
+            # Text past the budget stopped the read before the cell cap could.
+            if capped and len(text) <= max_chars:
+                return _ReadText(text, XLSX_CELLS_CUT_MARKER.format(cells=_XLSX_MAX_CELLS))
+            return text or None
         except Exception as e:
             logger.warning("Spreadsheet parsing failed: %s", e)
             return None
