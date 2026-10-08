@@ -19,11 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- **Local services can be registered from the console.** The Knowledge page's
-  local-services panel called `/api/local-services`, which had no proxy route
-  in the console, so listing, adding, editing or removing an Ollama embedding
-  server or an OCR server returned the console's 404 page instead of reaching
-  `/api/v1/local-services`. The route now forwards like every other resource.
+- **Local services work from the console.** Knowledge → Integrations and a
+  collection's embedding and OCR server pickers called `/api/local-services`,
+  which had no proxy route in the console, so listing, registering or removing
+  an Ollama or OCR server returned the console's 404 page and no collection
+  could be pointed at one. The route now forwards to `/api/v1/local-services`
+  like every other resource.
 
 ## [0.0.522] - 2026-10-06
 
