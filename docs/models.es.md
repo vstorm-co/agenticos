@@ -1,5 +1,5 @@
 ---
-source_sha: "9db676be5f54"
+source_sha: "b029e718208f"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -68,6 +68,37 @@ de herramientas y todo el historial, así que cada petición marca las instrucci
 las herramientas y su último mensaje como puntos de caché y lee la anterior desde
 la caché. Un perfil desactiva cualquiera de ellos poniéndolo a `false` -
 `anthropic_cache_messages`, `openrouter_cache_instructions`, etcétera.
+
+### Responses o Chat Completions { #responses-or-chat-completions }
+
+OpenAI publica dos APIs para los mismos modelos, y un perfil en `openai` o
+`azure` guarda a cuál de ellas van sus peticiones: `responses` o `chat`. Cualquier
+otro provider sirve una sola API y aquí no guarda nada.
+
+Ninguna es la correcta en todas partes. Los modelos más nuevos de OpenAI solo se
+sirven por Responses y a Chat Completions responden con un 400, mientras que la
+mayoría de los servidores compatibles con OpenAI - vLLM, LM Studio, un proxy de
+LiteLLM - solo implementan Chat Completions. Por eso la elección es un campo del
+perfil, en **Agents → add a model → API**, y el formulario empieza en el valor
+por defecto:
+
+| Perfil | Por defecto |
+|---|---|
+| `openai`, sin endpoint (la API propia de OpenAI) | `responses` |
+| `openai` con endpoint | `chat` |
+| `azure` | `chat`, porque la Responses API necesita una `api_version` reciente y el secreto puede fijar una anterior |
+
+El valor por defecto es solo donde empieza el formulario. Un endpoint regional de
+OpenAI como `https://eu.api.openai.com/v1` es un endpoint que sirve Responses, así
+que elígela ahí. Una elección omitida se guarda como su valor por defecto, así que
+cambiar el valor por defecto más adelante no mueve un perfil existente.
+
+**Un perfil en Responses no deja conversaciones en OpenAI.** La Responses API
+guarda cada respuesta del lado de OpenAI salvo que se le indique lo contrario,
+mientras que Chat Completions no guarda nada por defecto, así que un modelo en
+Responses envía `store: false`. El razonamiento pasa entre turnos como contenido
+cifrado y no mediante un id de respuesta guardado, así que nada necesita la copia
+guardada. Un perfil que la quiera pone `openai_store` a `true` en sus ajustes.
 
 El esfuerzo de razonamiento **no** está aquí. Es
 [la capability `thinking`](reference/capabilities.md#thinking), porque «razona
@@ -148,8 +179,8 @@ autenticarse.
 
     `keyless` también es cierto de `openai`. Los servidores compatibles con
     OpenAI (vLLM, LM Studio, un proxy de LiteLLM) hablan su API de Chat
-    Completions, que es por lo que un perfil `openai` se construye como
-    `openai-chat`.
+    Completions, que es por lo que un perfil `openai` con endpoint la usa por
+    defecto - ver [Responses o Chat Completions](#responses-or-chat-completions).
 
     Así que «sin clave» por sí solo no distingue un modelo local deliberado de un
     perfil al que le borraron la clave — y la clave ajena del secreto es
@@ -172,9 +203,10 @@ correctamente y que aun así falla en el primer run. Ver
 
 !!! note "Dos ids se reescriben de camino al SDK"
 
-    Un perfil `openai` se construye como `openai-chat`, porque `openai` a secas
-    infiere la Responses API y los servidores compatibles con OpenAI — vLLM, LM
-    Studio, un proxy de LiteLLM — no la implementan.
+    Un perfil `openai` se construye como `openai-chat` u `openai-responses`, y uno
+    `azure` como `azure` o `azure-responses`, según la API que guarda, en lugar de
+    tomar la Responses API que infiere `openai` a secas. Ver
+    [Responses o Chat Completions](#responses-or-chat-completions).
 
     `google_cloud` se construye como `google-cloud`. Ninguno de los dos cambia lo
     que guardas.

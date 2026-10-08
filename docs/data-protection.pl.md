@@ -1,5 +1,5 @@
 ---
-source_sha: "40402bef169a"
+source_sha: "b73ea5306a71"
 ---
 
 # Ochrona danych { #data-protection }
@@ -115,7 +115,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 
 | Cel | Co jest wysyłane | Decyduje o tym | Lokalizacja i warunki |
 |---|---|---|---|
-| Model czatowy | Rozmowa jak dotąd, załączniki wklejone albo opisane, pobrane chunki, wyniki narzędzi | [Profil modelu](models.md#a-model-profile): `provider`, `model`, `base_url` i zapieczętowany klucz. Dwudziestu siedmiu providerów; `ollama` i `litellm` są bezkluczowe i sięgane pod endpointem, który hostujesz, a `openai`, `anthropic`, `google`, `huggingface` i inne przyjmują `base_url`, więc endpoint w UE albo gateway to pole, a nie rozwidlenie | Providera. Weryfikuj per profil |
+| Model czatowy | Rozmowa jak dotąd, załączniki wklejone albo opisane, pobrane chunki, wyniki narzędzi | [Profil modelu](models.md#a-model-profile): `provider`, `model`, `base_url` i zapieczętowany klucz. Dwudziestu siedmiu providerów; `ollama` i `litellm` są bezkluczowe i sięgane pod endpointem, który hostujesz, a `openai`, `anthropic`, `google`, `huggingface` i inne przyjmują `base_url`, więc endpoint w UE albo gateway to pole, a nie rozwidlenie. Profil `openai` lub `azure` na Responses API wysyła `store: false`, więc provider nie trzyma zapisanej kopii odpowiedzi, chyba że profil ustawi `openai_store` | Providera. Weryfikuj per profil |
 | Model embeddingowy | Każdy chunk każdego dokumentu w kolekcji i każde zapytanie wyszukujące | Per kolekcja i tylko tam: `embedding_provider` (`openrouter`, `openai` albo `ollama`, z katalogu), a dla dwóch pierwszych klucz z vaultu `embedding_secret_id`, który płaci. Nie ma klucza embeddingowego na poziomie wdrożenia; kolekcja z kluczem, ale bez wskazanego, odmawia indeksowania i wyszukiwania. `ollama` jest bezkluczowa i sięgana pod usługą lokalną, którą kolekcja wskazuje (`embedding_endpoint_id`), na hoście, który prowadzisz | Providera albo Twój własny host. [Wybór na stałe](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Cały dokument | Kolekcja, której `pdf_parser` to `llamaparse`; musi wskazać klucz z vaultu (`llamaparse_secret_id`), nie ma klucza wdrożenia. Domyślny `pymupdf` parsuje w workerze | LlamaCloud, jeśli użyty |
 | Serwer OCR | Wyrenderowane strony dokumentu | Kolekcja, której `pdf_parser` to `liteparse` **i** której `ocr_endpoint_id` wskazuje usługę lokalną; bez tego OCR działa w workerze | Twój własny host — usługa lokalna jest z definicji w sieci wdrożenia |

@@ -1,5 +1,5 @@
 ---
-source_sha: "40402bef169a"
+source_sha: "b73ea5306a71"
 ---
 
 # Protección de datos { #data-protection }
@@ -118,7 +118,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 
 | Destino | Qué se envía | Lo decide | Ubicación y condiciones |
 |---|---|---|---|
-| El modelo de chat | La conversación hasta ese punto, los adjuntos pegados o descritos, los chunks recuperados, los resultados de herramientas | Un [perfil de modelo](models.md#a-model-profile): `provider`, `model`, `base_url` y una clave sellada. Veintisiete providers; `ollama` y `litellm` no llevan clave y se alcanzan en un endpoint que alojas tú, y `openai`, `anthropic`, `google`, `huggingface` y otros aceptan una `base_url`, así que un endpoint en la UE o una pasarela es un campo, no una bifurcación | La del provider. Verifícalo por perfil |
+| El modelo de chat | La conversación hasta ese punto, los adjuntos pegados o descritos, los chunks recuperados, los resultados de herramientas | Un [perfil de modelo](models.md#a-model-profile): `provider`, `model`, `base_url` y una clave sellada. Veintisiete providers; `ollama` y `litellm` no llevan clave y se alcanzan en un endpoint que alojas tú, y `openai`, `anthropic`, `google`, `huggingface` y otros aceptan una `base_url`, así que un endpoint en la UE o una pasarela es un campo, no una bifurcación. Un perfil `openai` o `azure` en la Responses API envía `store: false`, así que el provider no guarda una copia de la respuesta salvo que el perfil fije `openai_store` | La del provider. Verifícalo por perfil |
 | El modelo de embeddings | Cada chunk de cada documento de una colección, y cada consulta de recuperación | Por colección, y solo ahí: `embedding_provider` (`openrouter`, `openai` u `ollama`, del catálogo) y, para los dos primeros, la clave del vault `embedding_secret_id` que paga. No hay clave de embeddings a nivel de deployment; una colección con clave que no nombre ninguna rechaza indexar y buscar. `ollama` no lleva clave y se alcanza en el servicio local que nombra la colección (`embedding_endpoint_id`), un host que operas tú | La del provider, o tu propio host. [Una elección permanente](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | El documento entero | Una colección cuyo `pdf_parser` sea `llamaparse`; tiene que nombrar una clave del vault (`llamaparse_secret_id`), no hay clave de deployment. El `pymupdf` por defecto parsea en el worker | La de LlamaCloud, si se usa |
 | Un servidor de OCR | Páginas renderizadas de un documento | Una colección cuyo `pdf_parser` sea `liteparse` **y** cuyo `ocr_endpoint_id` nombre un servicio local; sin él, el OCR se ejecuta en el worker | Tu propio host — un servicio local está por construcción en la red del deployment |

@@ -26,7 +26,7 @@ import {
   useSecrets,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
-import type { ModelProfile } from "@/types/providers";
+import type { ModelApi, ModelProfile, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
@@ -149,6 +149,23 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 /**
+ * The API a profile gets when nobody picks one - the rule the service applies.
+ *
+ * The provider's own endpoint gets its `native_api`; an endpoint of the
+ * reader's gets Chat Completions, which every OpenAI-compatible server
+ * implements. Shown in the select rather than left implicit, because neither is
+ * right everywhere: a regional OpenAI endpoint is an endpoint that serves
+ * Responses.
+ */
+export function defaultApi(
+  capabilities: Pick<ProviderInfo, "native_api"> | null,
+  baseUrl: string,
+): ModelApi | null {
+  if (capabilities?.native_api == null) return null;
+  return baseUrl.trim() === "" ? capabilities.native_api : "chat";
+}
+
+/**
  * What this form can mark, for `submitFailure`.
  *
  * Every refusal `POST /model-profiles` gives names one of these three now: a
@@ -156,7 +173,8 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
  * is about `base_url`, a keyed one with no key is about `secret_id` (#898), and
  * the endpoint checks were already there (#891). `base_url` is only offered
  * while that input is on screen - a refusal about a field the reader cannot see
- * belongs in the line above the button, which is at least readable.
+ * belongs in the line above the button, which is at least readable. The API
+ * select needs no entry: its one refusal is for a provider it is not drawn for.
  */
 function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
   return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
@@ -188,6 +206,9 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
+  // `null` until somebody picks, so the select follows the endpoint the way the
+  // service's default does - typing a vLLM address moves it to Chat Completions.
+  const [pickedApi, setPickedApi] = useState<ModelApi | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
@@ -221,6 +242,19 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   // the rule `ModelProfileService.create_profile` enforces; anything looser here
   // would offer a submit the API refuses.
   const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
+  // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
+  // provider there is nothing to choose and the field is not drawn.
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1;
+  // Before anybody picks: the model in use's own choice while its provider and
+  // endpoint are the ones on screen, and otherwise the default for what is - so
+  // pointing the model in use at a vLLM does not carry Responses there with it.
+  const startingApi =
+    selected?.api != null &&
+    providerId === selected.provider &&
+    baseUrl.trim() === (selected.base_url ?? "")
+      ? selected.api
+      : defaultApi(capabilities, baseUrl);
+  const api = choosesApi ? (pickedApi ?? startingApi) : null;
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
@@ -249,6 +283,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     model.trim() === selected.model &&
     label.trim() === "" &&
     baseUrl.trim() === (selected.base_url ?? "") &&
+    api === (selected.api ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
     // would select the old profile and silently drop the key just picked.
@@ -282,6 +317,9 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
         // Only when the provider has one. Sending it otherwise is refused rather
         // than dropped, which is the right refusal but a pointless round trip.
         base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
+        // Sent even when it is the default, so what the select shows is what is
+        // stored - and a refusal, were there one, would be about this field.
+        api,
       });
       onCreated(profile);
     } catch (error) {
@@ -306,6 +344,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               setSecretId("");
               setModel("");
               setBaseUrl("");
+              setPickedApi(null);
               setFailure(NO_FAILURE);
             }}
           >
@@ -468,6 +507,29 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             autoComplete="off"
             spellCheck={false}
           />
+        </FormField>
+      )}
+
+      {provider !== undefined && api !== null && (
+        <FormField htmlFor="add-model-api" label={t("modelApi")} description={t("modelApiHint")}>
+          <Select
+            value={api}
+            onValueChange={(value) => {
+              setPickedApi(capabilities?.apis.find((entry) => entry === value) ?? null);
+              setFailure(NO_FAILURE);
+            }}
+          >
+            <SelectTrigger id="add-model-api">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {capabilities?.apis.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry === "responses" ? t("modelApiResponses") : t("modelApiChat")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
       )}
 
