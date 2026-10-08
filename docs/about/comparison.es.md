@@ -1,5 +1,5 @@
 ---
-source_sha: "b3b8eecaf44d"
+source_sha: "f73b608eac37"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -20,7 +20,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Un builder o una herramienta de automatización autoalojados | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
 | Un servicio de compañero de equipo en Slack o Teams | Viktor | [Viktor](viktor.md) |
 | Una plataforma empresarial entregada | Wonderful | [Wonderful](wonderful.md) |
-| Un agent de programación, o una plataforma para todos los demás | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
+| Un agent de programación, o una capa para todos los demás | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
 ## El panorama de un vistazo { #the-field-at-a-glance }
 
@@ -43,21 +43,21 @@ Cada celda procede de las propias páginas del proveedor; las guías las enlazan
 
 ## Cuánto queda en tus manos { #how-much-stays-yours }
 
-Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el producto, qué modelos puede usar, qué te permite hacer la licencia y si los controles que pide una revisión de TI y seguridad están disponibles sin un plan de pago. Cada celda procede de la guía de ese producto, que cita sus fuentes.
+Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el producto, qué modelos puede usar, qué te permite hacer la licencia y si los controles que pide una revisión de TI y seguridad están disponibles sin un plan de pago. Cada celda procede de las guías de arriba o de las páginas del proveedor que enlazan.
 
 | Producto | Dónde se ejecuta | Qué modelos puedes usar | Qué te permite la licencia | Inicio de sesión, auditoría y control del gasto |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Tu infraestructura; una instalación nueva no envía nada a ninguna parte | Cualquiera de los 27 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros | En cada despliegue |
-| Claude Team / Enterprise | La nube de Anthropic | Solo Claude | Propietaria | Registro de auditoría en Enterprise, 180 días de eventos |
-| ChatGPT Business / Enterprise | La nube de OpenAI; en Enterprise, residencia del almacenamiento en diez regiones | Solo OpenAI | Propietaria | SCIM y roles personalizados en Enterprise; Compliance API en Enterprise y Edu |
-| Copilot Studio | La nube de Microsoft, en entornos de Power Platform | Modelos GPT por defecto, modelos Claude, modelos de Azure Foundry facturados aparte | Propietaria | Entra ID, directivas de datos de Power Platform y auditoría de Purview |
-| Gemini Enterprise | Google Cloud, en las regiones global, US, EU y algunas nacionales | Gemini; otros modelos solo en agents personalizados de Agent Platform | Propietaria | Límites de gasto mensuales en la cuenta de facturación |
-| Dify | Autoalojado o Dify Cloud | Muchos, incluido Ollama | Apache 2.0 con condiciones: un servicio multiinquilino necesita permiso por escrito y el logotipo no se puede cambiar | SSO, roles personalizados, varios workspaces y registros de auditoría son de Enterprise |
-| n8n | Autoalojado o n8n Cloud en Fráncfort | Muchos, incluido Ollama | Sustainable Use License: uso empresarial interno, no comercial o personal; las funciones de pago necesitan una clave de licencia que contacta a diario con el servidor de licencias de n8n | SSO, roles, entornos y log streaming en planes de pago |
-| Viktor | La nube de Viktor, en AWS us-east-1 | Presets de OpenAI, Anthropic, Google y Kimi, o tu propia clave de OpenRouter | Propietaria | Límites a medida en Enterprise |
-| Wonderful | SaaS multiinquilino, single-tenant, tu nube o on-premises aislado de la red | Enrutados por tarea por la plataforma | Propietaria; los agents y la configuración se exportan desde su UI o su API | AI Gateway con topes de presupuesto por equipo y registros de auditoría |
+| **AgenticOS** | Tu infraestructura; una instalación nueva no envía nada a ninguna parte | Cualquiera de los 27 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros; el parser de PDF por defecto es AGPL-3.0, así que una imagen modificada que sirvas a otros les debe su código fuente ([detalles](../licenses.md#the-agpl-component)) | Inicio de sesión: SSO OIDC, LDAP y Kerberos · Auditoría: registro con detección de manipulaciones · Gasto: budgets por agent y por organización · todo en cada despliegue |
+| Claude Team / Enterprise | La nube de Anthropic | Solo Claude | Propietaria | Inicio de sesión: SSO en Team y Enterprise · Auditoría: Enterprise, 180 días de eventos · Gasto: límites por organización, grupo y usuario |
+| ChatGPT Business / Enterprise | La nube de OpenAI; en Enterprise, residencia del almacenamiento en diez regiones | Solo OpenAI | Propietaria | Inicio de sesión: SSO en Business; SCIM y roles personalizados en Enterprise · Auditoría: Compliance API en Enterprise y Edu · Gasto: bolsas de créditos y límites de exceso |
+| Copilot Studio | La nube de Microsoft, en entornos de Power Platform | Modelos GPT por defecto, modelos Claude, modelos de Azure Foundry facturados aparte | Propietaria | Inicio de sesión: Entra ID · Auditoría: Purview · Gasto: límites mensuales por agent |
+| Gemini Enterprise | Google Cloud, en las regiones global, US, EU y algunas nacionales | Gemini; otros modelos solo en agents personalizados de Agent Platform | Propietaria | Inicio de sesión: Google Cloud IAM · Auditoría: registros de auditoría de Google Cloud · Gasto: límites mensuales en la cuenta de facturación |
+| Dify | Autoalojado o Dify Cloud | Muchos, incluido Ollama | Apache 2.0 con condiciones: un servicio multiinquilino necesita permiso por escrito y el logotipo no se puede cambiar | Inicio de sesión: email; SSO en Enterprise · Auditoría: Enterprise · Gasto: facturación del provider o créditos de mensajes en Cloud |
+| n8n | Autoalojado o n8n Cloud en Fráncfort | Muchos, incluido Ollama | Sustainable Use License: uso empresarial interno, no comercial o personal; las funciones de pago necesitan una clave de licencia que contacta a diario con el servidor de licencias de n8n | Inicio de sesión: SSO en planes de pago · Auditoría: streaming de logs en Enterprise · Gasto: cuotas de ejecuciones por plan |
+| Viktor | La nube de Viktor, en AWS us-east-1 | Presets de OpenAI, Anthropic, Google y Kimi, o tu propia clave de OpenRouter | Propietaria | Inicio de sesión: SSO SAML en Enterprise · Auditoría: registros de auditoría en Enterprise · Gasto: bolsa de créditos, límites a medida en Enterprise |
+| Wonderful | SaaS multiinquilino, single-tenant, tu nube o on-premises aislado de la red | Enrutados por tarea por la plataforma | Propietaria; los agents y la configuración se exportan desde su UI o su API | Inicio de sesión: no indicado en sus páginas · Auditoría: registros de auditoría en su AI Gateway · Gasto: topes de presupuesto por equipo |
 
-Dify y n8n también funcionan en tus propios servidores con modelos locales, y Wonderful ofrece un despliegue on-premises aislado de la red. Entre los productos de esta página, AgenticOS es el único en el que las cuatro respuestas quedan en tus manos con Apache-2.0.
+Dify y n8n también funcionan en tus propios servidores con modelos locales, y Wonderful ofrece un despliegue on-premises aislado de la red. Entre los productos de esta tabla, AgenticOS es el único en el que las cuatro respuestas quedan en tus manos.
 
 Operar AgenticOS tú mismo no hace locales todos los modelos, parsers y herramientas. Cada servicio externo lo añades tú; consulta [por defecto no sale nada](../data-protection.md#nothing-leaves-by-default).
 

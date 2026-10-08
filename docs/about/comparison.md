@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | A self-hosted builder or automation tool | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
 | A teammate service in Slack or Teams | Viktor | [Viktor](viktor.md) |
 | A delivered enterprise platform | Wonderful | [Wonderful](wonderful.md) |
-| A coding agent, or a platform for everyone else | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
+| A coding agent, or a layer for everyone else | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
 ## The field at a glance
 
@@ -42,21 +42,21 @@ Each cell is taken from the vendor's own pages; the guides link them. "Proprieta
 
 ## How much stays yours
 
-Sovereignty here means four things you decide: where the product runs, which models it may use, what the licence lets you do with it, and whether the controls an IT and security review asks for come without a paid tier. Each cell is taken from the guide for that product, which names its sources.
+Sovereignty here means four things you decide: where the product runs, which models it may use, what the licence lets you do with it, and whether the controls an IT and security review asks for come without a paid tier. Each cell is taken from the guides above or the vendor pages they link.
 
 | Product | Where it runs | Models you may use | What the licence lets you do | Sign-in, audit and spend controls |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Your infrastructure; a fresh install sends nothing anywhere | Any of 27 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others | In every deployment |
-| Claude Team / Enterprise | Anthropic's cloud | Claude only | Proprietary | Audit log on Enterprise, 180 days of events |
-| ChatGPT Business / Enterprise | OpenAI's cloud; storage residency in ten regions on Enterprise | OpenAI only | Proprietary | SCIM and custom roles on Enterprise; Compliance API on Enterprise and Edu |
-| Copilot Studio | Microsoft's cloud, in Power Platform environments | GPT models by default, Claude models, Azure Foundry models billed separately | Proprietary | Entra ID, Power Platform data policies and Purview audit |
-| Gemini Enterprise | Google Cloud, in global, US, EU and some national regions | Gemini; other models only in custom agents on Agent Platform | Proprietary | Monthly spend limits on the billing account |
-| Dify | Self-hosted or Dify Cloud | Many, including Ollama | Apache 2.0 with conditions: a multi-tenant service needs written permission, and the logo may not be changed | SSO, custom roles, several workspaces and audit logs are Enterprise |
-| n8n | Self-hosted or n8n Cloud in Frankfurt | Many, including Ollama | Sustainable Use License: internal business, non-commercial or personal use; paid features need a licence key that contacts n8n's licence server daily | SSO, roles, environments and log streaming on paid plans |
-| Viktor | Viktor's cloud, on AWS us-east-1 | OpenAI, Anthropic, Google and Kimi presets, or your own OpenRouter key | Proprietary | Limits tailored on Enterprise |
-| Wonderful | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Routed per task by the platform | Proprietary; agents and configuration export through its UI or API | AI Gateway with budget caps per team and audit logs |
+| **AgenticOS** | Your infrastructure; a fresh install sends nothing anywhere | Any of 27 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others; the default PDF parser is AGPL-3.0, so a modified image you serve to others owes them its source ([details](../licenses.md#the-agpl-component)) | Sign-in: OIDC SSO, LDAP and Kerberos · Audit: tamper-evident log · Spend: budgets per agent and per organization · all in every deployment |
+| Claude Team / Enterprise | Anthropic's cloud | Claude only | Proprietary | Sign-in: SSO on Team and Enterprise · Audit: Enterprise, 180 days of events · Spend: organization, group and user limits |
+| ChatGPT Business / Enterprise | OpenAI's cloud; storage residency in ten regions on Enterprise | OpenAI only | Proprietary | Sign-in: SSO on Business; SCIM and custom roles on Enterprise · Audit: Compliance API on Enterprise and Edu · Spend: credit pools and overage limits |
+| Copilot Studio | Microsoft's cloud, in Power Platform environments | GPT models by default, Claude models, Azure Foundry models billed separately | Proprietary | Sign-in: Entra ID · Audit: Purview · Spend: monthly limits per agent |
+| Gemini Enterprise | Google Cloud, in global, US, EU and some national regions | Gemini; other models only in custom agents on Agent Platform | Proprietary | Sign-in: Google Cloud IAM · Audit: Google Cloud audit logs · Spend: monthly limits on the billing account |
+| Dify | Self-hosted or Dify Cloud | Many, including Ollama | Apache 2.0 with conditions: a multi-tenant service needs written permission, and the logo may not be changed | Sign-in: email; SSO on Enterprise · Audit: Enterprise · Spend: provider billing or Cloud message credits |
+| n8n | Self-hosted or n8n Cloud in Frankfurt | Many, including Ollama | Sustainable Use License: internal business, non-commercial or personal use; paid features need a licence key that contacts n8n's licence server daily | Sign-in: SSO on paid plans · Audit: log streaming on Enterprise · Spend: execution quotas per plan |
+| Viktor | Viktor's cloud, on AWS us-east-1 | OpenAI, Anthropic, Google and Kimi presets, or your own OpenRouter key | Proprietary | Sign-in: SAML SSO on Enterprise · Audit: audit logs on Enterprise · Spend: credit pool, limits tailored on Enterprise |
+| Wonderful | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Routed per task by the platform | Proprietary; agents and configuration export through its UI or API | Sign-in: not stated on its pages · Audit: audit logs in its AI Gateway · Spend: budget caps per team |
 
-Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products on this page, AgenticOS is the one where all four answers stay with you under Apache-2.0.
+Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products in this table, AgenticOS is the one where all four answers stay with you.
 
 Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
 
