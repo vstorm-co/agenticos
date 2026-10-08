@@ -71,6 +71,7 @@ from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience, derive_audience
@@ -105,7 +106,7 @@ from app.agents.capabilities.planning import (
     open_plan_store,
     still_open,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
@@ -134,6 +135,7 @@ from app.agents.spec import (
 )
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
+    DelegateWorkspace,
     DelegationOutcome,
     DelegationRecorder,
     DelegationSpend,
@@ -267,6 +269,23 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
+    """Which workspace a delegate with this effective spec runs in.
+
+    The parent's only when `sandbox` was shared - `_with_shared` has put the
+    parent's binding on `spec` then too, so the share list is what tells the two
+    apart. A delegate binding `sandbox` of its own works in a fresh one, and one
+    binding none in none.
+    """
+    if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
+        return "parent"
+    if any(
+        binding.id == SANDBOX_CAPABILITY_ID and binding.enabled for binding in spec.capabilities
+    ):
+        return "own"
+    return "none"
 
 
 def _with_shared(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSpec:
@@ -1170,6 +1189,7 @@ class PreparedRun:
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
+                workspace=self._workspace(),
             )
 
     @asynccontextmanager
@@ -1208,8 +1228,19 @@ class PreparedRun:
                 deps=self.built.deps,
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
+                workspace=self._workspace(),
             ) as iteration:
                 yield iteration
+
+    def _workspace(self) -> Workspace | None:
+        """The workspace this run works in: the one the runner opened, if any.
+
+        Passed rather than left to a capability, so it also overrides the ref a
+        stored history names - the previous turn's, or one restored from another
+        environment. `None` leaves the agent's own, the in-memory fallback of a
+        spec run without the runner.
+        """
+        return None if self.workspace is None else self.workspace.workspace
 
 
 def _outcome(
@@ -2378,7 +2409,7 @@ class AgentRunnerService:
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
-            resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+            resources[WORKSPACE_RESOURCE] = workspace.workspace
             resources[SPILL_LOG_RESOURCE] = workspace.spills
             spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
@@ -2393,12 +2424,12 @@ class AgentRunnerService:
             # agent and the proposal flow use them, and not in a browser about what
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
-            materialised = await materialise_skills(workspace.backend, resources["skills"])
+            materialised = await materialise_skills(workspace.workspace, resources["skills"])
             if materialised.written:
                 spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as
             # the turn's own output.
-            started_with = await workspace_snapshot(workspace.backend)
+            started_with = await workspace_snapshot(workspace.workspace)
 
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
@@ -2832,6 +2863,7 @@ class AgentRunnerService:
             ),
             max_steps=specialist.max_steps,
             preferred_mode=specialist.preferred_mode,
+            workspace=_delegate_workspace(spec, shared),
             collection_names=tuple(own_resources["kb_collection_names"]),
         )
 
@@ -3023,6 +3055,7 @@ class AgentRunnerService:
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
+            workspace=_delegate_workspace(runnable, shared),
             agent_id=ref.agent_id,
             agent_version_id=ref.agent_version_id,
             # Beside the agent as well as inside its deps, because the library
@@ -3049,18 +3082,18 @@ class AgentRunnerService:
         precisely because it does not look like an agent.
 
         What does travel is the state a shared capability's instance depends on.
-        In practice that is one entry, the workspace backend, and it is the whole
-        point of sharing `sandbox`: without it a delegate builds a workspace of
-        its own and finds the file the parent wrote missing. `None` if the parent
-        opened none, which the capability answers with an in-memory workspace
-        exactly as it does for a preview.
+        For `sandbox` that is the workspace and the spill log, for the one
+        capability built before the run starts - the spill store of
+        `tool_output_limits` - so a delegate's spills land in the files it shares.
+        The delegation runs in the parent's workspace itself because
+        `ResolvedSubagent.workspace` says `parent` (`_delegate_workspace`).
 
         Two consequences worth stating, because both are silent. A delegate that
         binds `sandbox` itself *and* is shared the parent's gets its own tool
         configuration over the parent's session - sharing a workspace means
         sharing the files, and a delegate reading a different filesystem is the
         thing sharing exists to prevent. And a delegate that binds `sandbox`
-        without being shared one gets the in-memory workspace, because no
+        without being shared one gets a fresh in-memory workspace, because no
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
@@ -3070,7 +3103,7 @@ class AgentRunnerService:
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
-            resources[WORKSPACE_BACKEND_RESOURCE] = parent_resources.get(WORKSPACE_BACKEND_RESOURCE)
+            resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             # And the spill log with it: a delegate spilling to the shared
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
@@ -3326,7 +3359,7 @@ class AgentRunnerService:
         """
         if prepared.workspace is None:
             return
-        delivered = await files_written(prepared.workspace.backend, prepared.workspace_at_start)
+        delivered = await files_written(prepared.workspace.workspace, prepared.workspace_at_start)
         prepared.outbound.extend(delivered.attachments)
         prepared.outbound_refused.extend(delivered.refused)
 
@@ -3348,7 +3381,7 @@ class AgentRunnerService:
         if workspace is None or state is None or prepared.ctx is None:
             return
         try:
-            changes = await collect_changes(workspace.backend, state)
+            changes = await collect_changes(workspace.workspace, state)
             if changes:
                 await self.proposals.record(
                     prepared.ctx,
@@ -3676,7 +3709,7 @@ class AgentRunnerService:
         assembled: str | list[Any] = prompt
         if attachments:
             assembled = await AttachmentRouter(
-                prepared.workspace.backend if prepared.workspace is not None else None,
+                prepared.workspace.workspace if prepared.workspace is not None else None,
                 # Whether the workspace can read a PDF itself. Known, not inferred
                 # from the briefing: a briefing is a best effort and this decides
                 # whether the extracted text is written at all.

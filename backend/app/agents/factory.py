@@ -57,7 +57,11 @@ from app.agents.capabilities.media import (
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
-from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
+from app.agents.capabilities.system_reminders import (
+    REMINDER_STATE_RESOURCE,
+    ReminderState,
+    SystemReminders,
+)
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
@@ -270,6 +274,10 @@ def build_agent(
         },
         secrets=secrets,
     )
+    # Before hooks run in list order, and a compaction strategy rebuilds the
+    # request from the run's history in its own: reminders appended before it
+    # would be dropped (see `SystemReminders.before_model_request`).
+    configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
 
     # Which tools a human must approve before they act. Computed here, while the
     # registry metadata and the spec's overrides are both in hand, so a surface

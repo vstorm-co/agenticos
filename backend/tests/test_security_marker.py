@@ -109,7 +109,6 @@ EXEMPT: dict[str, str] = {
     "tests/test_rag_parent_context.py::TestAssemblingAPassage::test_the_match_is_never_shortened_however_small_the_budget": "'budget' names the parent-context character cap, not a spend budget; a size bound, no refusal",
     "tests/test_rag_parent_context.py::TestAssemblingAPassage::test_a_chunk_too_big_for_the_budget_stops_its_direction": "'budget' names the parent-context character cap, not a spend budget; a size bound, no refusal",
     "tests/test_rag_parent_context.py::TestExpandingResults::test_the_per_search_budget_is_shared_and_stops_expansion": "'budget' names the per-search parent-context character cap, not a spend budget; a size bound, no refusal",
-    "tests/test_sandbox_workspace.py::TestContainerBackedWorkspaces::test_a_docker_workspace_labels_its_tenant_and_reattaches": "a docker workspace labels its tenant for accounting and reattaches, feature, no isolation refusal",
     "tests/test_sandbox_workspace.py::TestDrawingAHostsImages::test_the_budget_bounds_a_page_of_photographs": "a thumbnail budget bounds image reads, resource limit, not a spend budget",
     "tests/test_sandbox_workspace.py::TestDrawingAHostsImages::test_the_budget_goes_to_the_first_workspaces_listed": "thumbnail fetch budget ordering, not a spend budget",
     "tests/test_services_organizations.py::TestOrganizationService::test_a_new_team_org_starts_with_the_default_monthly_budget": "a new team org gets the default monthly budget, default config, no refusal",

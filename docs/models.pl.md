@@ -1,5 +1,5 @@
 ---
-source_sha: "9db676be5f54"
+source_sha: "0b5ae075ae8b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -75,6 +75,36 @@ decyzja o tym, do *czego* agent służy, a nie pokrętło na połączeniu — i 
 że spec, który ustawia to jako ustawienie modelu, przestaje być przenośny przy
 zmianie modelu.
 
+### Responses czy Chat Completions { #responses-or-chat-completions }
+
+OpenAI publikuje dwa API dla tych samych modeli, a profil na `openai` lub `azure`
+zapisuje, do którego z nich idą jego żądania: `responses` albo `chat`. Każdy inny
+provider obsługuje jedno API i nic tu nie zapisuje.
+
+Żadne nie jest właściwe wszędzie. Najnowsze modele OpenAI są serwowane wyłącznie
+przez Responses i na Chat Completions odpowiadają błędem 400, a większość serwerów
+zgodnych z OpenAI - vLLM, LM Studio, proxy LiteLLM - implementuje tylko Chat
+Completions. Dlatego wybór jest polem profilu, w **Agents → add a model → API**,
+a formularz startuje od wartości domyślnej:
+
+| Profil | Domyślnie |
+|---|---|
+| `openai` bez endpointu (własne API OpenAI) | `responses` |
+| `openai` z endpointem | `chat` |
+| `azure` | `chat`, bo Responses API wymaga nowej `api_version`, a sekret może przypinać starszą |
+
+Wartość domyślna to tylko punkt startowy formularza. Regionalny endpoint OpenAI,
+taki jak `https://eu.api.openai.com/v1`, jest endpointem obsługującym Responses,
+więc wybierz je tam. Pominięty wybór zapisywany jest jako wartość domyślna, więc
+późniejsza zmiana domyślnej nie przestawia istniejącego profilu.
+
+**Profil na Responses nie zostawia rozmów u OpenAI.** Responses API zapisuje
+każdą odpowiedź po stronie OpenAI, chyba że się mu tego zabroni, a Chat
+Completions domyślnie nie zapisuje niczego, więc model na Responses wysyła
+`store: false`. Rozumowanie przechodzi między turami jako zaszyfrowana treść, a nie
+przez zapisany identyfikator odpowiedzi, więc nic nie potrzebuje zapisanej kopii.
+Profil, który jej chce, ustawia w swoich ustawieniach `openai_store` na `true`.
+
 ## Providery { #providers }
 
 Dwadzieścia siedem, czyli wszystko, co Pydantic AI dostarcza i na co profil
@@ -148,7 +178,8 @@ ani nic, czym się uwierzytelnić.
 
     `keyless` jest prawdziwe także dla `openai`. Serwery zgodne z OpenAI (vLLM, LM
     Studio, proxy LiteLLM) mówią jego API Chat Completions, i dlatego profil
-    `openai` budowany jest jako `openai-chat`.
+    `openai` z endpointem domyślnie z niego korzysta - zobacz
+    [Responses czy Chat Completions](#responses-or-chat-completions).
 
     Więc samo „brak klucza” nie odróżnia świadomie lokalnego modelu od profilu,
     któremu klucz usunięto — a klucz obcy sekretu ma `ON DELETE SET NULL`, co
@@ -171,9 +202,10 @@ poprawnie, a i tak zawiedzie przy pierwszym runie. Zobacz
 
 !!! note "Dwa id są przepisywane w drodze do SDK"
 
-    Profil `openai` budowany jest jako `openai-chat`, bo samo `openai` wnioskuje
-    Responses API, a serwery zgodne z OpenAI — vLLM, LM Studio, proxy LiteLLM —
-    go nie implementują.
+    Profil `openai` budowany jest jako `openai-chat` albo `openai-responses`, a
+    profil `azure` jako `azure` albo `azure-responses`, zależnie od zapisanego API,
+    zamiast przyjmować Responses API, które wnioskuje samo `openai`. Zobacz
+    [Responses czy Chat Completions](#responses-or-chat-completions).
 
     `google_cloud` budowany jest jako `google-cloud`. Żadne z nich nie zmienia
     tego, co zapisujesz.

@@ -29,6 +29,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
@@ -141,15 +142,37 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
     return ApiKeySecret(api_key="documentation-probe")
 
 
-def _probe_context() -> RunContext[AgentDeps]:
-    """A run context that reaches nothing.
+def probe_context(built: AbstractCapability[Any]) -> RunContext[AgentDeps]:
+    """A run context that reaches nothing, for listing `built`'s tools.
 
     `get_tools` takes one because a capability may vary its list by the run - and
     none of them varies it by anything this carries. Deps are empty, so a
     capability reading them for a tenant or an audience sees the same "nothing" a
     run outside a conversation would.
+
+    It does carry what a run registers: every capability in `built`'s tree. A
+    combination - the `sandbox` binding is a workspace and a console - attributes
+    each tool to the capability that owns it and looks that one up in the run,
+    and raises for a capability the run never registered. Public because the
+    registry's drift tests list tools exactly the way the catalog does.
     """
-    return RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage(), retry=0, max_retries=1)
+    registered: dict[str, AbstractCapability[Any]] = {}
+    pending: list[AbstractCapability[Any]] = [built]
+    while pending:
+        capability = pending.pop()
+        registered[f"probe-{len(registered)}"] = capability
+        if isinstance(capability, CombinedCapability):
+            pending.extend(capability.capabilities)
+        elif isinstance(capability, WrapperCapability):
+            pending.append(capability.wrapped)
+    return RunContext(
+        deps=AgentDeps(),
+        model=TestModel(),
+        usage=RunUsage(),
+        retry=0,
+        max_retries=1,
+        capabilities=registered,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,7 +268,7 @@ async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
     # list after any filtering or wrapping the capability does - which is the
     # list the model is actually sent.
     contracts: dict[str, ToolContract] = {}
-    for tool_id, tool in (await toolset.get_tools(_probe_context())).items():
+    for tool_id, tool in (await toolset.get_tools(probe_context(built))).items():
         definition_for_model = real_tool_definition(tool)
         contracts[tool_id] = ToolContract(
             description=getattr(definition_for_model, "description", "") or "",

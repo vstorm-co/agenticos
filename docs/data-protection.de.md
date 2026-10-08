@@ -1,5 +1,5 @@
 ---
-source_sha: "40402bef169a"
+source_sha: "3f7ecae57bcf"
 ---
 
 # Datenschutz { #data-protection }
@@ -121,7 +121,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 
 | Ziel | Was gesendet wird | Entschieden durch | Standort und Bedingungen |
 |---|---|---|---|
-| Das Chat-Model | Die bisherige Conversation, eingefügte oder beschriebene Anhänge, abgerufene Chunks, Tool-Ergebnisse | Ein [Model-Profil](models.md#a-model-profile): `provider`, `model`, `base_url` und ein versiegelter Schlüssel. Siebenundzwanzig Provider; `ollama` und `litellm` sind schlüssellos und werden an einem Endpunkt erreicht, den Sie betreiben, und `openai`, `anthropic`, `google`, `huggingface` und andere akzeptieren eine `base_url`, ein EU-Endpunkt oder ein Gateway ist also ein Feld und keine Abzweigung | Die des Providers. Je Profil prüfen |
+| Das Chat-Model | Die bisherige Conversation, eingefügte oder beschriebene Anhänge, abgerufene Chunks, Tool-Ergebnisse | Ein [Model-Profil](models.md#a-model-profile): `provider`, `model`, `base_url` und ein versiegelter Schlüssel. Siebenundzwanzig Provider; `ollama` und `litellm` sind schlüssellos und werden an einem Endpunkt erreicht, den Sie betreiben, und `openai`, `anthropic`, `google`, `huggingface` und andere akzeptieren eine `base_url`, ein EU-Endpunkt oder ein Gateway ist also ein Feld und keine Abzweigung. Ein `openai`- oder `azure`-Profil auf der Responses-API sendet `store: false`, der Provider behält also keine gespeicherte, abrufbare Antwort, sofern das Profil nicht `openai_store` setzt; die Aufbewahrung von OpenAI zur Missbrauchsüberwachung gilt weiterhin, sofern das Konto keine Zero Data Retention hat | Die des Providers. Je Profil prüfen |
 | Das Embedding-Model | Jeder Chunk jedes Dokuments einer Collection und jede Retrieval-Anfrage | Je Collection, und nur dort: `embedding_provider` (`openrouter`, `openai` oder `ollama`, aus dem Katalog) und, für die ersten beiden, der Vault-Schlüssel `embedding_secret_id`, der zahlt. Einen deploymentweiten Embedding-Schlüssel gibt es nicht; eine schlüsselpflichtige Collection ohne einen verweigert Indexierung und Suche. `ollama` ist schlüssellos und wird an dem lokalen Dienst erreicht, den die Collection benennt (`embedding_endpoint_id`), einem Host, den Sie betreiben | Die des Providers oder Ihr eigener Host. [Eine dauerhafte Wahl](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | Das ganze Dokument | Eine Collection, deren `pdf_parser` `llamaparse` ist; sie muss einen Vault-Schlüssel benennen (`llamaparse_secret_id`), einen Deployment-Schlüssel gibt es nicht. Der Standard `pymupdf` parst im Worker | Die von LlamaCloud, falls genutzt |
 | Ein OCR-Server | Gerenderte Seiten eines Dokuments | Eine Collection, deren `pdf_parser` `liteparse` ist **und** deren `ocr_endpoint_id` einen lokalen Dienst benennt; ohne einen läuft OCR im Worker | Ihr eigener Host — ein lokaler Dienst liegt konstruktionsbedingt im Netz des Deployments |

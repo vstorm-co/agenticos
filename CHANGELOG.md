@@ -32,6 +32,92 @@ Two things are versioned separately from this file and worth knowing about:
   array. The alert is dismissed as tolerable until Tauri moves to a newer
   gtk-rs.
 
+## [0.0.532] - 2026-10-09
+
+### Changed
+
+- **Backend dependencies move up.** SQLAlchemy 2.1.4, PyJWT 2.15.1 (accepts the
+  trailing `=` padding AWS ALB tokens carry), Prefect 3.8.8, the MCP SDK 2.3.0,
+  LiteParse 2.15.1, cryptography 50.0.2, boto3 1.43.110, google-auth 2.61.0,
+  google-api-python-client 2.201.0, slack-sdk 3.45.0, mem0ai 2.2.1 and ruff
+  0.16.10; the floors in `pyproject.toml` follow. Replaces Dependabot's #2021,
+  whose harness bump already shipped with #2011.
+
+## [0.0.531] - 2026-10-08
+
+### Documentation
+
+- **AgenticOS is described as a sovereign agentic AI layer.** The README, the
+  comparison page and both decks now give one name for the product where they
+  say what it is. The comparison page gains "How much stays yours": for each of
+  nine products, where it runs, which models it may use, what its licence lets
+  you do (including that the default PDF parser is AGPL-3.0, so a modified image
+  served to others owes them its source) and its sign-in, audit and spend
+  controls, taken from each product's guide.
+
+## [0.0.530] - 2026-10-08
+
+### Documentation
+
+- **What a triggered run cannot reach on its creator's behalf.** A scheduled or
+  event-triggered run uses its creator's role and grants but answers to no
+  identified person, so memory files, mem0, conversation search, personal MCP
+  bindings and `read_artifact` all refuse it. `docs/concepts.md` now says so,
+  names the exception (a `session_scope: user` sandbox opens the creator's own
+  workspace) and gives the workarounds; the capability reference marks each
+  refusal, and two tutorials no longer say a fire spends the creator's budget
+  (#1902).
+
+## [0.0.529] - 2026-10-08
+
+### Changed
+
+- **Agents work in Pydantic AI workspaces.** The sandbox, attachments, skills,
+  artifacts, generated images and spilled tool results all reach an agent's
+  files through the run's workspace, on Pydantic AI 2.54 and
+  `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
+  opened, so a conversation that continues on another host, or in another
+  environment, works in the workspace it has now.
+- **A sandbox whose files were purged is reported, not replaced.** Once a
+  conversation's container or Daytona sandbox has been opened, later turns attach
+  to that session; if its files were swept on the host, the agent is told they are
+  gone instead of carrying on in an empty one, and the next turn starts afresh.
+- **The activity log names what reached the sandbox.** Operations are `read`,
+  `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
+  `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded
+  before keep their old names (`edit`, `glob_info`, `grep_raw`, `read_bytes`)
+  until retention removes them.
+- **A Daytona connection can open a sandbox.** The Daytona SDK was never
+  installed, so the old backend's lazy import failed on every open; the backend
+  image now carries it, and a Daytona sandbox found broken (`error`,
+  `build_failed`) is deleted so the next turn can open its name afresh.
+- **Budgets and reminders keep their place around compaction.** Pydantic AI 2.54
+  runs every `wrap_*` hook outside every `before_*` hook, so the budget is now
+  checked again after a compaction summary was paid for, and a system reminder is
+  appended after compaction rather than before it, where a summary dropped it.
+- **An Anthropic agent with no `max_tokens` can answer at length.** Pydantic AI
+  now defaults it to the model's maximum output rather than 4,096 tokens. Set
+  `max_tokens` on the agent or its model profile to keep a ceiling.
+
+## [0.0.528] - 2026-10-08
+
+### Fixed
+
+- **OpenAI's newest models run.** Every `openai` profile was built on Chat
+  Completions, so a model served on the Responses API only, such as
+  `gpt-6-luna`, failed at its first request with a 400. A profile on `openai`
+  or `azure` now stores which API it uses, chosen under **Agents → add a model
+  → API**. The form starts on Responses for OpenAI's own endpoint and on Chat
+  Completions for an endpoint of your own or for Azure; a regional OpenAI
+  endpoint can pick Responses. Migration `0104_model_profile_api` gives
+  existing `openai` profiles without an endpoint Responses, and the rest Chat
+  Completions. A Responses model sends `store: false`, so moving to Responses
+  does not start keeping conversations on OpenAI's side; a profile can set
+  `openai_store` to opt back in. A profile moved to Responses loses the
+  Chat-only settings in its `params` (`seed`, `stop_sequences`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
+  not send there. Replaces #2033.
+
 ## [0.0.527] - 2026-10-08
 
 ### Fixed

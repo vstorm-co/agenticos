@@ -12,14 +12,27 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import ModelHTTPError, UserError
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
+from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
 from app.agents.audience import RunAudience
@@ -35,6 +48,8 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
+from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.spec import (
     AgentSpec,
@@ -68,6 +83,7 @@ from app.services.mcp_connection import (
     UnavailablePrefixCollision,
 )
 from app.services.transcript import RecordedToolCall
+from tests.workspaces import document_workspace
 
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
@@ -1133,6 +1149,118 @@ class TestWhatAParkedCallRecords:
         assert channel.requested == []
 
 
+def _writes_a_note(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    """A model that writes `notes.txt` on every turn, then answers."""
+    last = messages[-1]
+    if isinstance(last, ModelRequest) and any(isinstance(p, UserPromptPart) for p in last.parts):
+        return ModelResponse(
+            parts=[ToolCallPart("write_file", {"path": "notes.txt", "content": "kept"})]
+        )
+    return ModelResponse(parts=[TextPart("done")])
+
+
+class TestTheRunWorksInTheWorkspaceItOpened:
+    """`execute` and `iterate` hand the run the workspace `prepare` opened.
+
+    Left to the capability, a run continuing a history that names another
+    workspace - the last turn's on a host the agent has since moved off, a
+    conversation restored from another environment - is refused outright by
+    Pydantic AI, and a run without one works in the capability's in-memory
+    fallback while the stored document goes untouched.
+    """
+
+    async def _a_history_from_elsewhere(
+        self, agent: Agent[None, str], root: Path
+    ) -> list[ModelMessage]:
+        earlier = await agent.run("first", workspace=Workspace(LocalWorkspaceBackend(root)))
+        return earlier.all_messages()
+
+    def _prepared_with(self, agent: Agent[None, str], document: StateBackend) -> PreparedRun:
+        prepared = _prepared()
+        prepared.built.agent = agent
+        prepared.built.deps = None
+        prepared.built.usage_limits = None
+        prepared.workspace = MagicMock(workspace=document_workspace(document))
+        return prepared
+
+    @pytest.mark.anyio
+    async def test_execute_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        await self._prepared_with(agent, document).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    async def test_iterate_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        async with self._prepared_with(agent, document).iterate(
+            "next", message_history=history
+        ) as run:
+            async for _ in run:
+                pass
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("elsewhere", ["another-organization", "another-connection"])
+    async def test_a_history_naming_someone_else_s_workspace_never_reaches_it(
+        self, tmp_path, elsewhere
+    ):
+        """A transcript can carry any ref - copied, restored, or written while the
+        agent ran on another host - and the run must still work only where the
+        runner opened it: another organization's document and another
+        connection's session are left exactly as they were."""
+        theirs = StateBackend()
+        if elsewhere == "another-organization":
+            foreign: Workspace = document_workspace(theirs, key="dc-another-organization")
+        else:
+
+            class _OtherHost(LocalWorkspaceBackend):
+                @property
+                def ref(self) -> WorkspaceRef:
+                    return WorkspaceRef(provider=f"sandboxd:{uuid.uuid4()}", id="xc-theirs")
+
+            foreign = Workspace(_OtherHost(tmp_path))
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = (await agent.run("first", workspace=foreign)).all_messages()
+        before = (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir()))
+        ours = StateBackend()
+
+        await self._prepared_with(agent, ours).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert ours.read_bytes("/notes.txt") == b"kept"
+        assert (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir())) == before
+
+    @pytest.mark.anyio
+    async def test_without_one_the_history_is_refused_rather_than_silently_rehomed(self, tmp_path):
+        """What the explicit workspace prevents, pinned so a library change that
+        made it unnecessary - or made it silent - is noticed."""
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+
+        with pytest.raises(UserError, match="none of the agent's workspace capabilities"):
+            await agent.run("next", message_history=history)
+
+
 class TestFilesAcrossOneTurn:
     """What arrived with the message, and what the turn produced.
 
@@ -1158,9 +1286,9 @@ class TestFilesAcrossOneTurn:
                 MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
             )
 
-        # The backend, not the conversation: the router writes the file where the
-        # agent can read it, and only `prepare` knows whether there is one.
-        assert router.call_args.args[0] is prepared.workspace.backend
+        # The workspace, not the conversation: the router writes the file where
+        # the agent can read it, and only `prepare` knows whether there is one.
+        assert router.call_args.args[0] is prepared.workspace.workspace
         assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
 
     @pytest.mark.anyio
@@ -3649,13 +3777,13 @@ class TestTheWorkspaceReachesTheAgent:
         return prepared, build.call_args
 
     @pytest.mark.anyio
-    async def test_a_workspace_backend_is_handed_to_the_capability(self):
+    async def test_the_opened_workspace_is_handed_to_the_capabilities(self):
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
 
         prepared, built = await self._prepare(spec)
 
         assert prepared.workspace is not None
-        assert built.kwargs["resources"]["workspace_backend"] is prepared.workspace.backend
+        assert built.kwargs["resources"][WORKSPACE_RESOURCE] is prepared.workspace.workspace
 
     @pytest.mark.anyio
     async def test_an_agent_without_one_is_handed_nothing(self):
@@ -3664,7 +3792,7 @@ class TestTheWorkspaceReachesTheAgent:
         prepared, built = await self._prepare(AgentSpec(name="Plain"))
 
         assert prepared.workspace is None
-        assert "workspace_backend" not in built.kwargs["resources"]
+        assert WORKSPACE_RESOURCE not in built.kwargs["resources"]
 
 
 class TestTheModelIsToldWhereTheSkillFilesWent:

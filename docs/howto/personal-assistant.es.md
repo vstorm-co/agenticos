@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac3f20dae4f"
+source_sha: "54d365e1b9c3"
 title: "Construye un asistente personal que te recuerda"
 description: "Dale a un agent memoria de tus preferencias, comprueba que una conversación posterior las aplica y confirma después que puede olvidar una cuando se lo pides."
 ---
@@ -85,7 +85,7 @@ Abre Activity en cada run y revisa las llamadas a herramientas, no solo la respu
 
 ## Lo que una programación no puede leer { #what-a-schedule-cannot-read }
 
-Un disparo programado o por un trigger de eventos se ejecuta con los permisos y el budget de quien lo creó, pero para la memoria no es la conversación de nadie: `list_memory` en un **Run now** de una programación de resumen matinal respondió "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read", la misma negativa que recibe un visitante anónimo del widget, aunque quien creó la programación es un miembro real y conocido.
+Un disparo programado o por un trigger de eventos se ejecuta con el rol y los permisos de quien lo creó, pero para la memoria no es la conversación de nadie: `list_memory` en un **Run now** de una programación de resumen matinal respondió "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read", la misma negativa que recibe un visitante anónimo del widget, aunque quien creó la programación es un miembro real y conocido.
 
 Si un resumen programado necesita una preferencia, indícala en el propio prompt de la programación, igual que [un informe programado](scheduled-report.md) incluye sus datos en el mensaje en lugar de depender de la memoria o de un archivo que nadie vuelve a aportar.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "41d9eec9e333"
+source_sha: "6cd3215a642b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -289,6 +289,12 @@ Agent falsch machen könnte.
 - Auf einem öffentlichen Widget oder in einem Embed gibt es niemanden, dem sich
   etwas zuordnen ließe, also gibt es keinen Speicher, und die Tools sagen das,
   statt irgendwohin zu speichern.
+- Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
+  Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
+  Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
+  niemand zu und die Tools verweigern. Legen Sie einen Fakt, den ein geplanter
+  Run braucht, in den Prompt des Triggers oder in eine gebundene Kontextdatei.
+  Siehe [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
 Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
@@ -435,6 +441,10 @@ verweigern beide Tools und sagen warum: Der Korpus ist persönlich, also würde 
 Antwort daraus in einem Kanal die privaten Unterhaltungen einer Person allen im
 Raum vorlesen. Es ist dieselbe Linie, die der Gedächtnisindex zieht, eine Schicht
 weiter außen.
+
+Ein Zeitplan oder ein Ereignis-Trigger antwortet niemandem, also verweigern beide
+Tools auch dort, aus demselben Grund wie die
+[Gedächtnisdateien](#whose-notes-and-who-may-hear-them).
 
 ### Wie gesucht wird { #how-it-matches }
 
@@ -1082,9 +1092,8 @@ Runs nicht öffnen darf, sind Ergebnisse, keine Retries.
 
 **Zurücklesen.** `read_artifact` liefert eine Kopfzeile (Version, Format, Größe)
 und den Quelltext, bei 100.000 Zeichen abgeschnitten, was die Kopfzeile sagt. Es
-öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in
-einem öffentlichen Widget oder einem Embed, wo der Run für einen Besucher steht,
-den niemand identifiziert hat.
+öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in einem öffentlichen Widget, einem Embed, einem Zeitplan oder einem
+Ereignis-Trigger, wo keine identifizierte Person zuhört.
 
 **Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
 für die der Run lief, und nur eine Person erweitert, wer sie liest; das

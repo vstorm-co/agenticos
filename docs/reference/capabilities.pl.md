@@ -1,5 +1,5 @@
 ---
-source_sha: "41d9eec9e333"
+source_sha: "6cd3215a642b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -278,6 +278,11 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+- W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
+  wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
+  nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
+  runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
+  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -412,6 +417,9 @@ którym mógłby to sprawdzić.
 narzędzia odmawiają i mówią dlaczego: korpus jest osobisty, więc odpowiadanie z
 niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. To
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
+
+Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
 
 ### Jak działa dopasowanie { #how-it-matches }
 
@@ -1022,8 +1030,8 @@ a nie retry.
 
 **Odczyt.** `read_artifact` zwraca wiersz nagłówka (wersja, format, rozmiar) i
 źródło, ucięte na 100 000 znaków, co nagłówek mówi. Otwiera tylko to, co osoba
-runa może otworzyć w konsoli, i nic na publicznym widgecie ani w embedzie, gdzie
-run zastępuje gościa, którego nikt nie zidentyfikował.
+runa może otworzyć w konsoli, i nic na publicznym widgecie, w embedzie, w harmonogramie ani w triggerze
+zdarzeń, gdzie nie słucha żadna zidentyfikowana osoba.
 
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń

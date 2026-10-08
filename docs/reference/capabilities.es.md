@@ -1,5 +1,5 @@
 ---
-source_sha: "41d9eec9e333"
+source_sha: "6cd3215a642b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -277,6 +277,12 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   con alguien no se lee en voz alta donde lo ve un canal entero.
 - En un widget público o en un embed no hay a quién atribuir nada, así que no hay
   almacén, y las herramientas lo dicen en vez de guardar en algún sitio.
+- En una programación o en un trigger de evento tampoco hay almacén, aunque el
+  run se ejecuta como el creador del trigger. El creador presta al run su
+  autoridad, no su identidad, así que nadie escucha y las herramientas se
+  niegan. Pon un dato que necesite un run programado en el prompt del trigger o
+  en un archivo de contexto vinculado. Consulta
+  [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 No hay un almacén para toda la organización. Existió uno y se retiró: era un
 segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
@@ -417,6 +423,10 @@ herramientas se niegan, diciendo por qué: el corpus es personal, así que respo
 a partir de él en un canal leería las conversaciones privadas de una persona ante
 todos los de la sala. Es la línea que traza el índice de memoria, una capa más
 afuera.
+
+Una programación o un trigger de evento no responde a nadie, así que ambas
+herramientas se niegan también ahí, por la misma razón que los
+[archivos de memoria](#whose-notes-and-who-may-hear-them).
 
 ### Cómo busca { #how-it-matches }
 
@@ -1038,9 +1048,8 @@ resultados, no reintentos.
 
 **Leer de vuelta.** `read_artifact` devuelve una línea de cabecera (versión,
 formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que la
-cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y
-nada en un widget público o un embed, donde el run sustituye a un visitante que
-nadie ha identificado.
+cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y nada en un widget público, un embed, una programación o un trigger de eventos,
+donde no escucha ninguna persona identificada.
 
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la

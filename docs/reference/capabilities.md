@@ -257,6 +257,11 @@ there is nothing for the agent to get wrong.
   alone with somebody is not read back aloud where a whole channel sees it.
 - On a public widget or an embed there is nobody to attribute anything to, so
   there is no store, and the tools say so rather than saving somewhere.
+- On a schedule or an event trigger there is no store either, even though the
+  run executes as the trigger's creator. The creator lends the run their
+  authority, not their identity, so nobody is listening and the tools refuse.
+  Put a fact a scheduled run needs in the trigger's prompt or in a bound
+  context file. See [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 There is no organisation-wide store. One existed and was removed: it was a second
 mechanism for what [context files](../context.md) already do — standing knowledge
@@ -386,6 +391,9 @@ a person's behalf holds no permission of theirs to check it with.
 refuse, saying why: the corpus is personal, so answering from it in a channel would
 read one person's private conversations out to everyone in the room. It is the
 line the memory index draws, one layer further out.
+
+A schedule or an event trigger answers nobody, so both tools refuse there too,
+for the reason [memory files](#whose-notes-and-who-may-hear-them) do.
 
 ### How it matches
 
@@ -974,7 +982,8 @@ and a page the run's person may not open, are results, not retries.
 **Reading back.** `read_artifact` returns a header line (version, format, size)
 and the source, cut at 100,000 characters with the header saying so. It opens
 only what the run's person may open in the console, and nothing on a public
-widget or an embed, where the run stands in for a visitor nobody identified.
+widget, an embed, a schedule or an event trigger, where no identified person is
+listening.
 
 **Not side-effecting.** A first publication is private to the person the run was
 for, and only a person widens who reads it, so the approval gate would only

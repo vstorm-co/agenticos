@@ -39,7 +39,7 @@
 
 </div>
 
-AgenticOS is a self-hosted workspace where AI agents work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
+AgenticOS is a sovereign, self-hosted layer for your company's AI agents: they work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
 **New here?** Click through the [14-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [44-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.
 
@@ -80,15 +80,15 @@ AgenticOS is a self-hosted workspace where AI agents work with files, run code a
 
 ## 💡 What is AgenticOS?
 
-**AgenticOS is an open-source (Apache-2.0), self-hosted platform for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
+**AgenticOS is an open-source (Apache-2.0), self-hosted layer for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
 
 Most agent frameworks give you a library, so every change to an agent's behaviour is a pull request, a review and a release. That is the wrong shape for the small agents a company actually wants, because the person who knows what the agent should say is not the person with commit access. **Code defines, configuration composes:** engineers extend what there is to assemble, and configuration can only ever reach what code registered.
 
-It runs on your own infrastructure with Docker Compose and works with 27 model providers, including local models through Ollama and vLLM. Agents run on [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); the platform around them uses FastAPI, PostgreSQL with pgvector and Next.js. It is maintained by [Vstorm](https://vstorm.co).
+It runs on your own infrastructure with Docker Compose and works with 27 model providers, including local models through Ollama and vLLM. Agents run on [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); the layer around them uses FastAPI, PostgreSQL with pgvector and Next.js. It is maintained by [Vstorm](https://vstorm.co).
 
 **Who it is for:**
 
-- Companies that want **an internal AI agent platform** they own, instead of per-seat assistants in a vendor's cloud.
+- Companies that want **an internal AI agent layer** they own, instead of per-seat assistants in a vendor's cloud.
 - Teams with **repeated work over documents and tools**, such as reports, support answers, contract checks and data analysis.
 - IT and security teams that need **data sovereignty, company sign-in, budgets, approvals and an audit trail** for AI agents.
 - Engineers who want **typed Python extension points** and a console their non-technical colleagues can use.
@@ -171,7 +171,7 @@ Colleagues can use a published agent in **web chat, Slack, Mattermost or Telegra
 
 Ask an agent to analyze a spreadsheet, produce a chart, prepare a document or work on a repository. With a container-backed sandbox configured and command execution enabled, it can **read and edit files, run shell commands, and execute Python or JavaScript**. The bundled workbench includes data, charting and document tools, including LibreOffice.
 
-If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted workspace with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions. [Sandbox configuration](https://vstorm-co.github.io/agenticos/sandbox/)
+If you use [Claude Code](https://code.claude.com/docs/en/overview) or [Codex](https://developers.openai.com/codex/cli/), the file-and-command workflow will feel familiar. AgenticOS brings that kind of work into a shared, self-hosted layer with company knowledge, reusable agents and organization access controls. What an agent can accomplish depends on its model, enabled tools and instructions. [Sandbox configuration](https://vstorm-co.github.io/agenticos/sandbox/)
 
 ### 🧠 Teach agents how your team works
 
@@ -217,7 +217,7 @@ Building on it? Go to [For developers and operators](#-for-developers-and-operat
 | Who may use which data? | Roles, department groups and per-resource sharing, with company sign-in |
 | What does it cost? | Monthly budgets per agent and organization, checked before each model request |
 | Who approved that action? | Sensitive tools wait for a person; every decision is recorded |
-| Where does our data go? | You run the platform and choose each model, parser and tool it may reach |
+| Where does our data go? | You run AgenticOS and choose each model, parser and tool it may reach |
 
 **What it takes:** a host (4 vCPU, 8 GB RAM), someone to operate the deployment, and subject experts who maintain instructions and documents. Costs are model usage, infrastructure, external services and people's time; the software is Apache-2.0, commercial use included.
 
@@ -317,9 +317,9 @@ Choose it when a team has repeated document or tool-based work, subject experts 
 
 **Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.
 
-<img src="docs/assets/readme/sovereignty.webp" alt="Two deployment options: a self-hosted platform with hosted models under your own contract, or fully local with open models through Ollama or vLLM." width="100%">
+<img src="docs/assets/readme/sovereignty.webp" alt="Two deployment options: AgenticOS self-hosted with hosted models under your own contract, or fully local with open models through Ollama or vLLM." width="100%">
 
-There are two common setups. **Self-hosted platform with hosted models:** AgenticOS, documents, vectors and logs run on your servers, and models come from a provider under your own contract and keys. **Fully local:** the same platform with open models through Ollama or vLLM on your hardware, plus local parsers and tools. Self-hosting the console does not make every model, parser or tool local, so review each destination you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/) · [Security and data flows](https://vstorm-co.github.io/agenticos/security/)
+There are two common setups. **Self-hosted, with hosted models:** AgenticOS, documents, vectors and logs run on your servers, and models come from a provider under your own contract and keys. **Fully local:** the same layer with open models through Ollama or vLLM on your hardware, plus local parsers and tools. Self-hosting the console does not make every model, parser or tool local, so review each destination you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/) · [Security and data flows](https://vstorm-co.github.io/agenticos/security/)
 
 ## 🛠️ For developers and operators
 

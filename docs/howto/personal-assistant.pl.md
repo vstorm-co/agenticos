@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac3f20dae4f"
+source_sha: "54d365e1b9c3"
 title: "Zbuduj osobistego asystenta, który Cię pamięta"
 description: "Daj agentowi pamięć o Twoich preferencjach, sprawdź, czy późniejsza rozmowa je stosuje, a potem upewnij się, że potrafi jedną zapomnieć na prośbę."
 ---
@@ -85,7 +85,7 @@ Otwórz Activity dla każdego runu i sprawdź wywołania narzędzi, a nie tylko 
 
 ## Czego harmonogram nie może przeczytać { #what-a-schedule-cannot-read }
 
-Uruchomienie z harmonogramu albo triggera zdarzeń działa z uprawnieniami i budżetem twórcy, ale dla pamięci nie jest niczyją rozmową. `list_memory` w **Run now** harmonogramu z porannym briefem odpowiedziało „This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read”, czyli tą samą odmową, którą dostaje anonimowy gość widgetu, choć twórca harmonogramu jest prawdziwym, znanym członkiem organizacji.
+Uruchomienie z harmonogramu albo triggera zdarzeń działa z rolą i uprawnieniami twórcy, ale dla pamięci nie jest niczyją rozmową. `list_memory` w **Run now** harmonogramu z porannym briefem odpowiedziało „This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read”, czyli tą samą odmową, którą dostaje anonimowy gość widgetu, choć twórca harmonogramu jest prawdziwym, znanym członkiem organizacji.
 
 Jeśli zaplanowany brief potrzebuje preferencji, zapisz ją w prompcie samego harmonogramu, tak jak [zaplanowany raport](scheduled-report.md) podaje swoje dane w wiadomości, zamiast polegać na pamięci albo pliku, którego nikt ponownie nie dostarczy.
 

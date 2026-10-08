@@ -69,6 +69,36 @@ harder" is a decision about what the agent is *for* rather than a knob on a
 connection — and because a spec that sets it as a model setting stops being
 portable across a model swap.
 
+### Responses or Chat Completions
+
+OpenAI publishes two APIs for the same models, and a profile on `openai` or
+`azure` stores which one its requests go to: `responses` or `chat`. Every other
+provider serves one API and stores nothing here.
+
+Neither is right everywhere. OpenAI's newest models are served on Responses only
+and answer Chat Completions with a 400, while most OpenAI-compatible servers -
+vLLM, LM Studio, a LiteLLM proxy - implement only Chat Completions. So the
+choice is a field on the profile, under **Agents → add a model → API**, and the
+form starts on the default:
+
+| Profile | Default |
+|---|---|
+| `openai`, no endpoint (OpenAI's own API) | `responses` |
+| `openai` with an endpoint | `chat` |
+| `azure` | `chat`, because the Responses API needs a recent `api_version` and the secret may pin an older one |
+
+The default is only where the form starts. A regional OpenAI endpoint such as
+`https://eu.api.openai.com/v1` is an endpoint that serves Responses, so pick it
+there. An omitted choice is stored as its default, so changing the default
+later does not move an existing profile.
+
+**A Responses profile does not keep conversations with OpenAI.** The Responses
+API stores each response on OpenAI's side unless told not to, while Chat
+Completions stores nothing by default, so a Responses model sends
+`store: false`. Reasoning is carried between turns as encrypted content rather
+than by a stored response id, so nothing needs the stored copy. A profile that
+wants it sets `openai_store` to `true` in its settings.
+
 ## Providers
 
 Twenty-seven, which is everything Pydantic AI ships that a chat profile can point
@@ -140,7 +170,8 @@ authenticate with.
 
     `keyless` is true of `openai` as well. OpenAI-compatible servers (vLLM, LM
     Studio, a LiteLLM proxy) speak its Chat Completions API, which is why an
-    `openai` profile is built as `openai-chat`.
+    `openai` profile with an endpoint defaults to it - see
+    [Responses or Chat Completions](#responses-or-chat-completions).
 
     So "no key" alone does not distinguish a deliberate local model from a profile
     whose key was deleted — and the secret foreign key is `ON DELETE SET NULL`,
@@ -162,9 +193,10 @@ fails at the first run. See [secret kinds](secrets.md#kinds).
 
 !!! note "Two ids are rewritten on the way to the SDK"
 
-    An `openai` profile is built as `openai-chat`, because plain `openai` infers
-    the Responses API and OpenAI-compatible servers — vLLM, LM Studio, a LiteLLM
-    proxy — do not implement it.
+    An `openai` profile is built as `openai-chat` or `openai-responses`, and an
+    `azure` one as `azure` or `azure-responses`, by the API it stores, rather than
+    taking the Responses API that plain `openai` infers. See
+    [Responses or Chat Completions](#responses-or-chat-completions).
 
     `google_cloud` is built as `google-cloud`. Neither changes what you store.
 

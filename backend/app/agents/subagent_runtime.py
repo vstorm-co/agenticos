@@ -8,7 +8,7 @@ and secrets are rows, and every one of them has to be reached through
 tree while it still has a session and an auth context, and hands the capability
 this - closures it can call and data it can read, with no way to ask for more.
 
-The same shape, and the same reason, as `WORKSPACE_BACKEND_RESOURCE`: opening a
+The same shape, and the same reason, as `WORKSPACE_RESOURCE`: opening a
 workspace reads and writes rows, so the runner opens it and the capability
 receives what was opened.
 
@@ -48,6 +48,21 @@ falls back to an in-memory backend.
 
 DelegationStatus = Literal["completed", "failed", "cancelled"]
 
+DelegateWorkspace = Literal["parent", "own", "none"]
+"""Which workspace a delegation runs in.
+
+`parent` - the delegating run's own, because `sandbox` is in its
+`share_with_delegates`: a researcher writes `/workspace/notes.md` and a writer
+reads it. `own` - a fresh in-memory one, for a delegate that binds `sandbox`
+itself without being shared the parent's. `none` - no workspace, for a delegate
+that binds no `sandbox` at all.
+
+Decided here rather than left to the delegation library, which hands every
+delegation the parent's workspace whenever one is attached: the share list is
+what decides who works in the parent's files, and with the library's default a
+delegate nobody shared it with would run its own shell in them.
+"""
+
 
 @dataclass(frozen=True)
 class ResolvedSubagent:
@@ -74,6 +89,8 @@ class ResolvedSubagent:
     preferred_mode: DelegationMode | None = None
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
+    workspace: DelegateWorkspace = "none"
+    """Which workspace this delegation runs in; see `DelegateWorkspace`."""
     collection_names: tuple[str, ...] = ()
     """The knowledge collections *this* delegate may search.
 

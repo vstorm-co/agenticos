@@ -16,9 +16,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import (
     REGISTRY,
@@ -48,17 +46,12 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
-from app.services.capability_contracts import real_tool_definition
+from app.services.capability_contracts import probe_context, real_tool_definition
 
 
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
-
-
-def _run_context() -> RunContext[None]:
-    """The least a wrapped toolset needs before it will list its tools."""
-    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
 
 
 class TestSelfLoading:
@@ -351,7 +344,7 @@ class TestToolDeclarations:
         toolset = built.get_toolset()
         if toolset is None:
             return frozenset()
-        return frozenset(await toolset.get_tools(_run_context()))
+        return frozenset(await toolset.get_tools(probe_context(built)))
 
     @staticmethod
     async def _offered_descriptions(built: Any) -> dict[str, str]:
@@ -367,7 +360,7 @@ class TestToolDeclarations:
         toolset = built.get_toolset()
         if toolset is None:
             return {}
-        offered = await toolset.get_tools(_run_context())
+        offered = await toolset.get_tools(probe_context(built))
         return {
             name: getattr(real_tool_definition(tool), "description", "") or ""
             for name, tool in offered.items()

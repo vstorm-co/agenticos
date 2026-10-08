@@ -1,4 +1,4 @@
-<!-- source_sha: 231a09ce4f91 -->
+<!-- source_sha: f38e57a726cf -->
 
 <div align="center">
 
@@ -41,7 +41,7 @@
 
 </div>
 
-AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Dateien arbeiten, Code ausführen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff, Kosten und Ergebnisse an einem Ort.
+AgenticOS ist eine souveräne, selbst gehostete Schicht für die KI-Agenten deines Unternehmens: Sie arbeiten mit Dateien, führen Code aus und nutzen die Werkzeuge und das Wissen deines Unternehmens. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff, Kosten und Ergebnisse an einem Ort.
 
 **Neu hier?** Klicke dich durch die [Einführung in 14 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 44 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
 
@@ -82,15 +82,15 @@ AgenticOS ist eine selbst gehostete Arbeitsumgebung, in der KI-Agenten mit Datei
 
 ## 💡 Was ist AgenticOS?
 
-**AgenticOS ist eine quelloffene (Apache-2.0), selbst gehostete Plattform, um KI-Agenten im ganzen Unternehmen zu erstellen, zu teilen und zu steuern.** Teams konfigurieren einen Agenten im Browser: Sie schreiben seine Anweisungen, wählen ein Modell und schalten Werkzeuge ein. Sie verbinden ihn mit Unternehmensdokumenten und Apps und veröffentlichen ihn im Webchat, in Slack, Mattermost, Telegram, als Website-Widget oder über eine API. Administratoren steuern, wer einen Agenten nutzen darf, was er ausgeben darf und welche Aktionen die Freigabe einer Person brauchen. Jeder Run wird aufgezeichnet.
+**AgenticOS ist eine quelloffene (Apache-2.0), selbst gehostete Schicht, um KI-Agenten im ganzen Unternehmen zu erstellen, zu teilen und zu steuern.** Teams konfigurieren einen Agenten im Browser: Sie schreiben seine Anweisungen, wählen ein Modell und schalten Werkzeuge ein. Sie verbinden ihn mit Unternehmensdokumenten und Apps und veröffentlichen ihn im Webchat, in Slack, Mattermost, Telegram, als Website-Widget oder über eine API. Administratoren steuern, wer einen Agenten nutzen darf, was er ausgeben darf und welche Aktionen die Freigabe einer Person brauchen. Jeder Run wird aufgezeichnet.
 
 Die meisten Agent-Frameworks liefern eine Bibliothek, also wird jede Änderung am Verhalten eines Agenten zu Pull Request, Review und Release. Das passt nicht zu den kleinen Agenten, die ein Unternehmen tatsächlich will, denn wer weiß, was der Agent sagen soll, hat meist keinen Commit-Zugriff. **Code definiert, Konfiguration setzt zusammen:** Entwickler erweitern den Baukasten, und Konfiguration erreicht immer nur das, was Code registriert hat.
 
-Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 27 Modellanbietern, darunter lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); die Plattform drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
+Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 27 Modellanbietern, darunter lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); die Schicht drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
 
 **Für wen es gedacht ist:**
 
-- Unternehmen, die **eine interne Plattform für KI-Agenten** besitzen wollen statt Assistenten pro Arbeitsplatz in der Cloud eines Anbieters.
+- Unternehmen, die **eine interne Schicht für KI-Agenten** besitzen wollen statt Assistenten pro Arbeitsplatz in der Cloud eines Anbieters.
 - Teams mit **wiederkehrender Arbeit über Dokumenten und Werkzeugen**, etwa Berichten, Support-Antworten, Vertragsprüfungen und Datenanalysen.
 - IT- und Sicherheitsteams, die für KI-Agenten **Datensouveränität, Unternehmensanmeldung, Budgets, Freigaben und einen Audit-Trail** brauchen.
 - Entwickler, die **typisierte Erweiterungspunkte in Python** wollen und eine Konsole, die ihre nicht technischen Kollegen bedienen können.
@@ -173,7 +173,7 @@ Kollegen können einen veröffentlichten Agenten im **Webchat, in Slack, Matterm
 
 Bitte einen Agenten, eine Tabelle zu analysieren, ein Diagramm zu erstellen, ein Dokument vorzubereiten oder an einem Repository zu arbeiten. Mit einer konfigurierten Container-Sandbox und aktivierter Befehlsausführung kann er **Dateien lesen und bearbeiten, Shell-Befehle ausführen und Python- oder JavaScript-Code ausführen**. Die mitgelieferte Workbench enthält Werkzeuge für Daten, Diagramme und Dokumente, darunter LibreOffice.
 
-Wenn du [Claude Code](https://code.claude.com/docs/en/overview) oder [Codex](https://developers.openai.com/codex/cli/) nutzt, wird dir die Arbeit mit Dateien und Befehlen vertraut vorkommen. AgenticOS bringt diese Arbeitsweise in eine gemeinsame, selbst gehostete Umgebung mit Unternehmenswissen, wiederverwendbaren Agenten und Zugriffskontrollen für die Organisation. Was ein Agent leisten kann, hängt von seinem Modell, den aktivierten Werkzeugen und seinen Anweisungen ab. [Sandbox-Konfiguration](https://vstorm-co.github.io/agenticos/de/sandbox/)
+Wenn du [Claude Code](https://code.claude.com/docs/en/overview) oder [Codex](https://developers.openai.com/codex/cli/) nutzt, wird dir die Arbeit mit Dateien und Befehlen vertraut vorkommen. AgenticOS bringt diese Arbeitsweise in eine gemeinsame, selbst gehostete Schicht mit Unternehmenswissen, wiederverwendbaren Agenten und Zugriffskontrollen für die Organisation. Was ein Agent leisten kann, hängt von seinem Modell, den aktivierten Werkzeugen und seinen Anweisungen ab. [Sandbox-Konfiguration](https://vstorm-co.github.io/agenticos/de/sandbox/)
 
 ### 🧠 Agenten die Arbeitsweise deines Teams vermitteln
 
@@ -219,7 +219,7 @@ Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#-für-entwickler
 | Wer darf welche Daten nutzen? | Rollen, Abteilungsgruppen und Freigabe pro Ressource, mit Unternehmensanmeldung |
 | Was kostet es? | Monatliche Budgets pro Agent und Organisation, vor jeder Modellanfrage geprüft |
 | Wer hat diese Aktion freigegeben? | Sensible Werkzeuge warten auf eine Person; jede Entscheidung wird aufgezeichnet |
-| Wohin gehen unsere Daten? | Du betreibst die Plattform und wählst jedes Modell, jeden Parser und jedes Werkzeug, das sie erreichen darf |
+| Wohin gehen unsere Daten? | Du betreibst AgenticOS und wählst jedes Modell, jeden Parser und jedes Werkzeug, das es erreichen darf |
 
 **Was es braucht:** einen Host (4 vCPU, 8 GB RAM), jemanden, der die Bereitstellung betreibt, und Fachleute, die Anweisungen und Dokumente pflegen. Kosten entstehen durch Modellnutzung, Infrastruktur, externe Dienste und die Zeit der Beteiligten; die Software steht unter Apache-2.0, kommerzielle Nutzung eingeschlossen.
 
@@ -319,9 +319,9 @@ Wähle es, wenn ein Team wiederkehrende Arbeit mit Dokumenten oder Werkzeugen ha
 
 **Sovereign bedeutet Kontrolle über Bereitstellung, Modellanbieter, Datenflüsse und Agentenzugriff.** AgenticOS ist Apache-2.0-Software, die du prüfen, ändern und betreiben kannst.
 
-<img src="docs/assets/readme/sovereignty.webp" alt="Zwei Bereitstellungsoptionen: eine selbst gehostete Plattform mit gehosteten Modellen unter deinem eigenen Vertrag oder vollständig lokal mit offenen Modellen über Ollama oder vLLM." width="100%">
+<img src="docs/assets/readme/sovereignty.webp" alt="Zwei Bereitstellungsoptionen: AgenticOS selbst gehostet mit gehosteten Modellen unter deinem eigenen Vertrag oder vollständig lokal mit offenen Modellen über Ollama oder vLLM." width="100%">
 
-Es gibt zwei übliche Varianten. **Selbst gehostete Plattform mit gehosteten Modellen:** AgenticOS, Dokumente, Vektoren und Logs laufen auf deinen Servern, die Modelle kommen von einem Anbieter unter deinem eigenen Vertrag und mit deinen Schlüsseln. **Vollständig lokal:** dieselbe Plattform mit offenen Modellen über Ollama oder vLLM auf deiner Hardware, dazu lokale Parser und Werkzeuge. Eine selbst gehostete Konsole macht nicht jedes Modell, jeden Parser und jedes Werkzeug lokal, also prüfe jedes Ziel, das du konfigurierst. [Modelle konfigurieren](https://vstorm-co.github.io/agenticos/de/models/) · [Sicherheit und Datenflüsse](https://vstorm-co.github.io/agenticos/de/security/)
+Es gibt zwei übliche Varianten. **Selbst gehostet, mit gehosteten Modellen:** AgenticOS, Dokumente, Vektoren und Logs laufen auf deinen Servern, die Modelle kommen von einem Anbieter unter deinem eigenen Vertrag und mit deinen Schlüsseln. **Vollständig lokal:** dieselbe Schicht mit offenen Modellen über Ollama oder vLLM auf deiner Hardware, dazu lokale Parser und Werkzeuge. Eine selbst gehostete Konsole macht nicht jedes Modell, jeden Parser und jedes Werkzeug lokal, also prüfe jedes Ziel, das du konfigurierst. [Modelle konfigurieren](https://vstorm-co.github.io/agenticos/de/models/) · [Sicherheit und Datenflüsse](https://vstorm-co.github.io/agenticos/de/security/)
 
 ## 🛠️ Für Entwickler und Betreiber
 

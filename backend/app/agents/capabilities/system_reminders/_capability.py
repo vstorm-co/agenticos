@@ -47,7 +47,6 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelRequestPart,
-    ModelResponse,
     RetryPromptPart,
     TextContent,
     TextPart,
@@ -60,7 +59,6 @@ from pydantic_ai_harness.system_reminders import GoalReanchor
 from app.agents.capabilities._ambient import AmbientCallSkipped, run_ambient_agent
 
 if TYPE_CHECKING:
-    from pydantic_ai.capabilities.abstract import WrapModelRequestHandler
     from pydantic_ai.models import ModelRequestContext
 
 logger = logging.getLogger(__name__)
@@ -163,18 +161,20 @@ class SystemReminders(AbstractCapability[AgentDepsT]):
     state: ReminderState
     cache_ttl: Literal["5m", "1h"] = "5m"
 
-    async def wrap_model_request(
+    async def before_model_request(
         self,
         ctx: RunContext[AgentDepsT],
-        *,
         request_context: ModelRequestContext,
-        handler: WrapModelRequestHandler,
-    ) -> ModelResponse:
-        """Append fired reminders to the request tail, then call the model.
+    ) -> ModelRequestContext:
+        """Return the request with fired reminders appended to its tail.
 
-        Runs after core persists the durable history; the per-request message list
-        mutated here is never written back, so the reminder and its `CachePoint`
-        reach the model but never enter the conversation's history.
+        A before hook, and last in the chain - the factory orders this capability
+        after every other configured one - because a compaction strategy rebuilds
+        the request from the run's history in its own before hook: run before it,
+        the reminder would be dropped while its fire was already counted. The tail
+        message is replaced in a new list rather than appended to, so pydantic-ai
+        writes nothing back to the history: the reminder and its `CachePoint` reach
+        the model but never enter the conversation's history.
         """
         messages = request_context.messages
         # A provider-resume turn hands back a message list whose tail is a
@@ -193,8 +193,9 @@ class SystemReminders(AbstractCapability[AgentDepsT]):
                 if _has_user_content(last.parts):
                     content.append(CachePoint(ttl=self.cache_ttl))
                 content.append("\n\n".join(texts))
-                messages[-1] = replace(last, parts=[*last.parts, UserPromptPart(content=content)])
-        return await handler(request_context)
+                tail = replace(last, parts=[*last.parts, UserPromptPart(content=content)])
+                return replace(request_context, messages=[*messages[:-1], tail])
+        return request_context
 
     async def _fire(self, ctx: RunContext[AgentDepsT]) -> list[str]:
         """The reminder texts to inject this request, committing their fire counts.
