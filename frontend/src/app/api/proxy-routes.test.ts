@@ -25,6 +25,7 @@ import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
@@ -99,6 +100,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["context", context],
   ["conversations", conversations],
   ["kb", kb],
+  ["local-services", localServices],
   ["mcp-connections", mcpConnections],
   ["memory", memory],
   ["me/channel-link", channelLink],

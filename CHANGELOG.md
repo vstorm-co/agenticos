@@ -34,6 +34,50 @@ Two things are versioned separately from this file and worth knowing about:
   `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
   not send there. Replaces #2033.
 
+## [0.0.527] - 2026-10-08
+
+### Fixed
+
+- **Local services work from the console.** Knowledge → Integrations and a
+  collection's embedding and OCR server pickers called `/api/local-services`,
+  which had no proxy route in the console, so listing, registering or removing
+  an Ollama or OCR server returned the console's 404 page and no collection
+  could be pointed at one. The route now forwards to `/api/v1/local-services`
+  like every other resource.
+
+## [0.0.526] - 2026-10-08
+
+### Fixed
+
+- **A capability's own model requests check the budget before each one, not
+  only the first.** Knowledge self-query, query expansion and both browser
+  capabilities run model requests through an agent of their own, which the
+  run's budget guard does not wrap. Self-query, query expansion and browser
+  choice checked the budget once before each nested run, and a browser-use
+  step did not check it at all. A corrected self-query attempt, an expansion
+  retry or the next browser-use step could therefore still be sent after an
+  earlier request took the run to its cap. Every such request is now refused
+  before it is sent once a cap is reached. Self-query still stops the run with
+  the budget refusal, and query expansion still falls back to the query as
+  written (#1808).
+
+## [0.0.525] - 2026-10-08
+
+### Fixed
+
+- **An output guardrail screens the answer before anyone sees it.** The web
+  chat, the embedded widget and the channel bots stream an answer as it is
+  written, and the output guardrail read only the finished one, so a key it
+  redacted, or a term it blocked, had already been shown and stored. With any
+  output check configured, each piece of text and reasoning is now held until
+  it is complete, run through the same detectors and only then sent. Text the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
+  unredacted text in their parts.
+
 ## [0.0.524] - 2026-10-08
 
 ### Fixed

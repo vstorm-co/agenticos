@@ -44,7 +44,6 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities._metered import MeteredModel
-from app.agents.capabilities.budget import assert_ambient_budget
 from app.services.rag.filters import (
     DOCUMENT_TYPE_VOCABULARY,
     SOURCE_VOCABULARY,
@@ -168,8 +167,9 @@ async def infer_filters_from_query(
 
     Reuses the run's own model - the one whose credential the vault resolved - the
     way the LLM reminder and the compaction summary do, wrapped in `MeteredModel`
-    so each response is booked against the run's ledger. That makes one inference
-    one extra metered model request (two when its output needs correcting).
+    so each request is checked against the run's caps and each response is booked
+    against the run's ledger. That makes one inference one extra metered model
+    request (two when its output needs correcting).
 
     Args:
         model: The run's model.
@@ -198,15 +198,14 @@ async def infer_filters_from_query(
         regardless.
 
     Raises:
-        BudgetExceeded: The run has reached a spend ceiling. Checked before the
-            request, because the host agent's budget guard never sees it.
+        BudgetExceeded: The run has reached a spend ceiling. `MeteredModel` checks
+            before each request, the corrected attempt included, because the host
+            agent's budget guard never sees them.
     """
     if not isinstance(model, Model):
         # A realtime model is not request-response, so it cannot run the inference.
         logger.info("self_query_skipped_not_a_request_model")
         return None
-
-    await assert_ambient_budget()
 
     if len(organizational_units) > _MAX_GROUNDED_UNITS:
         logger.info(

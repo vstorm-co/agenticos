@@ -20,7 +20,7 @@ from pydantic_ai.usage import UsageLimits
 from app.agents.capabilities._ambient import run_model_settings
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._metered import MeteredModel
-from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
+from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.knowledge._search import (
     organizational_units_in_scope,
     search_knowledge_base,
@@ -73,8 +73,8 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
     The nested call runs on its own usage, not the host run's: the host's request
     wrapper never sees it, so `MeteredModel` books each response to the run's
     ledger itself, once, whatever else is in flight - two parallel searches each
-    book exactly what they spent. The budget is checked before every call, since
-    the host guard only refuses the host's *next* request.
+    book exactly what they spent. `MeteredModel` also checks the budget before
+    every request, since the host guard only refuses the host's *next* request.
 
     It runs under the host run's model settings, which `ctx.model` does not carry:
     the factory merges them onto the host agent, so an agent built on the bare model
@@ -96,7 +96,6 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
 
     async def generate(prompt: str) -> str:
         try:
-            await assert_ambient_budget()
             result = await agent.run(
                 prompt, usage_limits=_EXPANSION_LIMITS, model_settings=model_settings
             )
