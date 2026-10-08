@@ -168,7 +168,7 @@ names no author is in the evidence column below.
 | logfire-api | 5.1.0 | MIT | https://pypi.org/project/logfire-api/5.1.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
-| mako | 1.4.1 | MIT | https://www.makotemplates.org/ | License-Expression |
+| mako | 1.4.3 | MIT | https://www.makotemplates.org/ | License-Expression |
 | markdown | 3.10.3 | BSD-3-Clause | https://github.com/Python-Markdown/markdown | License-Expression |
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |

@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **`mako` moves to 1.4.3.** 1.4.1, which Alembic pulls in, is affected by
+  CVE-2026-102991 (GHSA-5639-2j2p-m4mx): a `TemplateLookup` on Windows follows a
+  URI with a drive letter outside its directories. The backend runs on Linux and
+  renders no Mako template of its own beyond Alembic's migration skeleton, so
+  this is hygiene; only the lockfile and the third-party notices change.
+- **The desktop app's `glib` 0.18 advisory stays open upstream.**
+  GHSA-wrw7-89jp-8q8g (unsound `VariantStrIter` iterators) is fixed in `glib`
+  0.20, but Tauri 2.12, `wry` 0.57 and `webkit2gtk` 2.0.2 all still require
+  `gtk` 0.18 and with it `glib` 0.18, so no lockfile change can move it. It is
+  Linux-only, and nothing in the desktop shell iterates a `Variant` string
+  array. The alert is dismissed as tolerable until Tauri moves to a newer
+  gtk-rs.
+
 ## [0.0.527] - 2026-10-08
 
 ### Fixed
