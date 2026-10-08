@@ -1,5 +1,5 @@
 ---
-source_sha: "582492d866d3"
+source_sha: "bbb1801a8c80"
 ---
 
 # Conceptos { #concepts }
@@ -176,6 +176,9 @@ almacenes que se guardan por persona le están cerrados:
   ambas herramientas se niegan.
 - Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
   el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
+- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+  privada para el creador, pero `read_artifact` se niega, así que un disparo
+  vuelve a publicar una página entera en lugar de editarla.
 
 Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
 un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún

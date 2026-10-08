@@ -1,5 +1,5 @@
 ---
-source_sha: "582492d866d3"
+source_sha: "bbb1801a8c80"
 ---
 
 # Begriffe { #concepts }
@@ -186,6 +186,9 @@ für ihn verschlossen:
 - Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
   Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
   warum.
+- [Artefakte](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
+  Seite ist für den Ersteller privat, aber `read_artifact` lehnt ab, sodass eine
+  Auslösung eine ganze Seite neu veröffentlicht, statt eine zu bearbeiten.
 
 Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
 Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in

@@ -1,5 +1,5 @@
 ---
-source_sha: "8fb98ae78b16"
+source_sha: "397bec85fc25"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1086,9 +1086,8 @@ Runs nicht öffnen darf, sind Ergebnisse, keine Retries.
 
 **Zurücklesen.** `read_artifact` liefert eine Kopfzeile (Version, Format, Größe)
 und den Quelltext, bei 100.000 Zeichen abgeschnitten, was die Kopfzeile sagt. Es
-öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in
-einem öffentlichen Widget oder einem Embed, wo der Run für einen Besucher steht,
-den niemand identifiziert hat.
+öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in einem öffentlichen Widget, einem Embed, einem Zeitplan oder einem
+Ereignis-Trigger, wo keine identifizierte Person zuhört.
 
 **Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
 für die der Run lief, und nur eine Person erweitert, wer sie liest; das

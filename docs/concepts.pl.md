@@ -1,5 +1,5 @@
 ---
-source_sha: "582492d866d3"
+source_sha: "bbb1801a8c80"
 ---
 
 # Koncepcje { #concepts }
@@ -173,6 +173,9 @@ magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
   narzędzia odmawiają.
 - [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
   własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
+- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+  prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
+  całą stronę od nowa zamiast ją edytować.
 
 Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
 odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.

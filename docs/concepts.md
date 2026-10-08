@@ -167,8 +167,10 @@ per-person stores are closed to it:
   conversation has no memory.
 - [Conversation search](reference/capabilities.md#conversation-search): both
   tools refuse.
-- A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the
-  creator's own Notion or mailbox is absent, and the agent is told why.
+- A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
+- [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is
+  private to the creator, but `read_artifact` refuses, so a fire republishes a
+  whole page rather than editing one.
 
 This is deliberate. A store kept for a person is read back to that person, and a
 fire nobody started must not write into it on their behalf. No setting changes it
