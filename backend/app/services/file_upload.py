@@ -75,6 +75,15 @@ opened, and this budget bounds the read loop so a handful of such sheets cannot
 occupy the bounded file pool before the central text cap runs (#1591).
 """
 
+_XLSX_MAX_CELLS = 1_000_000
+"""How many cells of one `.xlsx` workbook are read, whatever text they hold.
+
+openpyxl's `read_only` reader pads every row to the sheet's declared width, and a
+row of empty cells never brings the character budget closer: a 1.5 KB workbook that
+declares `A1:XFD1048576`, or that places one empty `XFD` cell on each row, would hold
+a file-pool thread for minutes while yielding nothing (#1990).
+"""
+
 _PDF_MAX_PAGES = 2_000
 """How many pages of one PDF are read, whatever text they hold.
 
@@ -83,11 +92,13 @@ text never brings it closer: a PDF of image-only or empty pages would otherwise 
 walked to its last page for nothing (#1990).
 """
 
-PARSE_CUT_MARKER = "\n…[cut at {max_chars} chars; the rest of the document was not read]"
+PARSE_CUT_MARKER = "\n…[cut at {max_chars} chars; the rest of the document is left out]"
 """What ends extracted text that reached the parse budget.
 
-It names no total, unlike `cap_text`: the readers stop at the budget rather than
-reading to the end, so the length of the whole text is never known (#1990).
+It names no total, unlike `cap_text`: most readers stop at the budget rather than
+reading to the end, so the length of the whole text is not known (#1990). It says
+the rest is left out rather than unread because plain text, `.msg` and `.doc` are
+still read whole before the cut.
 """
 
 PDF_PAGES_CUT_MARKER = "…[stopped at page {read} of {total}; the rest of the document was not read]"
@@ -454,10 +465,16 @@ class DocumentText:
         instead, after the budgeted text rather than inside it.
 
         The bound is a budget the readers spend, not a cut applied afterwards. A
-        PDF stops at the page that crosses it, the office readers at the paragraph,
-        row or slide, so the cost of a parse follows what is kept rather than what
-        a compressed file expands to (#1990). Plain text, `.msg` and `.doc` are
-        read whole: their text is no larger than the bytes that hold it.
+        PDF is loaded a page at a time and stops at the page that crosses it, and an
+        `.xlsx` streams its rows and stops at the row, so for those two the cost of
+        a parse follows what is kept (#1990). DOCX, PPTX, ODT and ODP stop
+        extracting at the paragraph or slide, but their libraries decompress and
+        parse the whole archive first, which `safe_unzip`'s size limits bound
+        instead. Plain text, `.msg` and `.doc` are read whole: their text is no
+        larger than the bytes that hold it.
+
+        Raises:
+            ValueError: `max_chars` is negative.
 
         Every in-process branch is blocking CPU work — pymupdf over the pages,
         openpyxl over every cell, odfpy/python-pptx over a decompressed archive — with
@@ -468,6 +485,8 @@ class DocumentText:
         """
         limit = settings.CHAT_PARSED_TEXT_MAX_CHARS
         if max_chars is not None:
+            if max_chars < 0:
+                raise ValueError(f"max_chars must not be negative, got {max_chars}")
             limit = min(limit, max_chars)
         fmt = resolve_format(mime_type, filename)
         parsed = await self._parse_by_format(data, file_type, fmt, limit, charset)
@@ -614,6 +633,8 @@ class DocumentText:
 
         The rows are pulled one at a time and stop once the text is past
         `max_chars`: `read_only` streams them, so the rest are never read (#1990).
+        The declared dimensions are dropped first and every cell read is charged
+        to `_XLSX_MAX_CELLS`, because empty cells never spend the character budget.
         """
         try:
             from openpyxl import load_workbook
@@ -629,9 +650,16 @@ class DocumentText:
                 # line between sheets: joined with "\n", the same blocks as one
                 # "\n\n"-joined string per sheet, without building a sheet whole.
                 first = True
+                cells_left = _XLSX_MAX_CELLS
                 for sheet in workbook.worksheets:
+                    # A sheet's `<dimension>` is attacker-chosen, and openpyxl pads
+                    # each row to it; without it, a row is as wide as its last cell.
+                    sheet.reset_dimensions()
                     named = False
                     for row in sheet.iter_rows(values_only=True):
+                        cells_left -= len(row)
+                        if cells_left < 0:
+                            return
                         cells = ["" if value is None else str(value) for value in row]
                         while cells and cells[-1] == "":
                             cells.pop()

@@ -1180,6 +1180,44 @@ class TestTheParseStopsAtItsLimit:
 
         assert text == "a" * 10 + fu.PARSE_CUT_MARKER.format(max_chars=10)
 
+    async def test_a_negative_limit_is_refused(self):
+        with pytest.raises(ValueError, match="must not be negative"):
+            await fu.DocumentText().parse_content(b"hello world", "text", max_chars=-3)
+
+    @pytest.mark.security
+    def test_an_xlsx_is_read_as_wide_as_its_cells_not_its_declared_dimension(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """openpyxl pads every row to the sheet's `<dimension>`, which the file
+        chooses: two cells declared as `A1:XFD20` would read 327,680 empty ones."""
+        import zipfile
+
+        monkeypatch.setattr(fu, "_XLSX_MAX_CELLS", 100)
+        source = zipfile.ZipFile(io.BytesIO(_xlsx_rows(["top"] + [""] * 18 + ["bottom"])))
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as crafted:
+            for item in source.infolist():
+                data = source.read(item)
+                if item.filename == "xl/worksheets/sheet1.xml":
+                    data = data.replace(b'ref="A1:A20"', b'ref="A1:XFD20"')
+                    assert b"XFD20" in data
+                crafted.writestr(item, data)
+
+        text = FileUploadService._parse_spreadsheet_content(buffer.getvalue(), LIMIT)
+
+        assert text == "Sheet: Sheet\ntop\nbottom"
+
+    @pytest.mark.security
+    def test_an_xlsx_stops_at_its_cell_budget(self, monkeypatch: pytest.MonkeyPatch):
+        """Empty cells never spend the character budget, so a cell count bounds them."""
+        monkeypatch.setattr(fu, "_XLSX_MAX_CELLS", 5)
+
+        text = FileUploadService._parse_spreadsheet_content(
+            _xlsx_rows([f"r{n}" for n in range(10)]), LIMIT
+        )
+
+        assert text == "Sheet: Sheet\nr0\nr1\nr2\nr3\nr4"
+
     def test_text_exactly_at_the_limit_is_not_cut(self):
         assert fu._join_within(["abc", "de"], "\n", 6) == "abc\nde"
 

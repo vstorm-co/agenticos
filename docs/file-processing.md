@@ -148,11 +148,16 @@ listed by name, not extracted. A multi-page TIFF shows up to
 `CHAT_TIFF_MAX_INLINE_PAGES` pages to the model; an agent with a workspace opens the
 rest from the original on disk. Extracted text is capped at
 `CHAT_PARSED_TEXT_MAX_CHARS`, and per-file and per-turn prompt budgets bound what a
-no-workspace agent is pasted. The cap is a budget the readers spend, not a cut after
-the parse: a PDF stops at the page that crosses it and after 2,000 pages, an office
-document at the paragraph, row or slide, so a compressed file that expands to far
-more text costs no more to read than what is kept. Text that reaches the cap ends
-with a marker saying the rest of the document was not read.
+no-workspace agent is pasted.
+
+**The cap is a budget the readers spend, not a cut after the parse.** A PDF is
+loaded a page at a time and stops at the page that crosses the cap, or after 2,000
+pages. An `.xlsx` streams its rows, stops at the row and reads at most a million
+cells, so a sheet that declares a huge empty range costs nothing extra. DOCX, PPTX,
+ODT and ODP stop extracting text at the paragraph or slide, but their libraries
+decompress and parse the whole file first, within the archive size limits. Plain
+text, `.msg` and `.doc` are read whole. Text that reaches the cap ends with a marker
+saying the rest of the document is left out.
 
 **A refused write is said once, about the workspace.** A run whose workspace will
 not take a file is a run whose shell and file tools will fail too, and a per-file

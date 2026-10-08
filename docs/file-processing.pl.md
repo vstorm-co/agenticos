@@ -1,5 +1,5 @@
 ---
-source_sha: "7b41c1457192"
+source_sha: "d63623f608ea"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -157,12 +157,17 @@ Osadzone załączniki pliku `.msg` są wypisywane po nazwie, nie wypakowywane.
 Wielostronicowy TIFF pokazuje modelowi do `CHAT_TIFF_MAX_INLINE_PAGES` stron; agent
 z workspace'em otwiera resztę z oryginału na dysku. Wyciągnięty tekst jest
 ograniczony do `CHAT_PARSED_TEXT_MAX_CHARS`, a budżety na plik i na turę ograniczają
-to, co jest wklejane agentowi bez workspace'u. Ten limit to budżet, który zużywają
-parsery, a nie cięcie po parsowaniu: PDF zatrzymuje się na stronie, która go
-przekracza, i po 2000 stronach, dokument biurowy na akapicie, wierszu lub slajdzie,
-więc skompresowany plik, który rozwija się do znacznie większej ilości tekstu, nie
-kosztuje więcej niż to, co zostaje zachowane. Tekst, który osiąga limit, kończy się
-znacznikiem mówiącym, że reszta dokumentu nie została odczytana.
+to, co jest wklejane agentowi bez workspace'u.
+
+**Limit to budżet, który zużywają parsery, a nie cięcie po parsowaniu.** PDF jest
+wczytywany strona po stronie i zatrzymuje się na stronie, która przekracza limit,
+albo po 2000 stron. `.xlsx` czyta wiersze strumieniowo, zatrzymuje się na wierszu i
+odczytuje najwyżej milion komórek, więc arkusz deklarujący ogromny pusty zakres nic
+dodatkowo nie kosztuje. DOCX, PPTX, ODT i ODP przestają wyciągać tekst na akapicie
+lub slajdzie, ale ich biblioteki najpierw rozpakowują i parsują cały plik, w
+granicach limitów rozmiaru archiwum. Zwykły tekst, `.msg` i `.doc` są czytane w
+całości. Tekst, który osiąga limit, kończy się znacznikiem mówiącym, że reszta
+dokumentu została pominięta.
 
 **Odmowa zapisu jest powiedziana raz i dotyczy workspace'u.** Run, którego
 workspace nie przyjmie pliku, to run, w którym shell i narzędzia plikowe też
