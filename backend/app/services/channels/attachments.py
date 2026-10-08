@@ -28,10 +28,11 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import posixpath
 from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
+from pydantic_ai.workspaces import SupportsCommands, Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
@@ -235,9 +236,7 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     return error or "not supported."
 
 
-async def files_written(
-    backend: BackendProtocol | AsyncBackendProtocol, before: set[str] | None
-) -> DeliveredFiles:
+async def files_written(workspace: Workspace, before: set[str] | None) -> DeliveredFiles:
     """What the agent produced this turn, ready to post.
 
     `before` is the set of paths the workspace held when the turn started, so this
@@ -261,9 +260,8 @@ async def files_written(
     """
     if before is None:
         return DeliveredFiles(attachments=[], refused=[])
-    reader = ensure_async(backend)
     try:
-        paths = await _workspace_paths(reader)
+        paths = await _workspace_paths(workspace)
     except Exception:
         logger.warning("outbound_attachment_scan_failed", exc_info=True)
         return DeliveredFiles(attachments=[], refused=[])
@@ -273,13 +271,15 @@ async def files_written(
     refused: list[str] = []
 
     for path in new:
-        if path.lstrip("/").startswith(_NOT_THE_AGENTS):
+        # Normalized first: a container's `find` answers `./tool_output/...`, which
+        # stripping the slash alone left looking like an agent's file.
+        if posixpath.normpath(path).lstrip("/").startswith(_NOT_THE_AGENTS):
             continue
         if len(attachments) >= MAX_OUTBOUND_FILES:
             refused.append(path)
             continue
         try:
-            data = await reader.read_bytes(path)
+            data = await workspace.read_bytes(path)
         except Exception:
             logger.info("outbound_attachment_unreadable", extra={"path": path})
             continue
@@ -304,9 +304,7 @@ async def files_written(
     return DeliveredFiles(attachments=attachments, refused=refused)
 
 
-async def workspace_snapshot(
-    backend: BackendProtocol | AsyncBackendProtocol,
-) -> set[str] | None:
+async def workspace_snapshot(workspace: Workspace) -> set[str] | None:
     """Every path the workspace holds right now, or `None` if it could not be read.
 
     Taken before the turn so what it added can be told from what it already had.
@@ -324,36 +322,42 @@ async def workspace_snapshot(
     one.
     """
     try:
-        return await _workspace_paths(ensure_async(backend))
+        return await _workspace_paths(workspace)
     except Exception:
         logger.warning("workspace_snapshot_failed", exc_info=True)
         return None
 
 
-async def _workspace_paths(backend: AsyncBackendProtocol) -> set[str]:
-    """Every file in the workspace, dotfiles included.
+async def _workspace_paths(workspace: Workspace) -> set[str]:
+    """Every file in the workspace's working directory, dotfiles included.
 
-    Two patterns, because `**/*` does not match a name beginning with a dot. Here it
-    matters in the *safe* direction and still matters: a `.env` the agent wrote before
-    the turn would be absent from the snapshot, so writing it again during the turn
-    would read as new and get posted into the channel.
+    One `find` where the workspace runs commands, so a container answers in a
+    single round trip rather than one per directory; a walk of its listings where
+    it does not, which for a stored document is a walk of memory. Either way a
+    dotfile is in it - a `.env` the agent wrote before the turn and wrote again
+    during it must not read as new and get posted into the channel.
 
-    Awaited rather than called: a container-backed workspace answers a glob over the
-    network with a synchronous client, so two of them from a coroutine held the event
-    loop for two round trips - once before the turn and once after.
+    **The root is the working directory, `.`.** `/` is the top of a document's
+    namespace and, to a shell, the machine: on a container a snapshot rooted
+    there was 2540 paths of `/proc` and `/usr`, taken twice per turn, so "what
+    did the agent write" was decided by whether `/proc` had changed (#1039).
 
-    **The root is named, and it is `.`** - the working directory. Omitting it took
-    the client's default of `/`, which a backend addressing files by virtual path
-    reads as the top of its namespace and a shell reads as the machine: on a
-    container this snapshot was 2540 paths of `/proc` and `/usr`, taken twice per
-    turn, so "what did the agent write" was decided by whether `/proc` had
-    changed. `pydantic-ai-backend` 0.2.27 makes the two agree, and saying `.`
-    here is also what keeps this correct against a service that has not been
-    updated yet (#1039).
+    Raises:
+        RuntimeError: The `find` failed - the callers turn that into "no snapshot".
     """
-    return {
-        str(entry["path"])
-        for pattern in ("**/*", "**/.*")
-        for entry in await backend.glob_info(pattern, ".")
-        if not entry.get("is_dir")
-    }
+    if isinstance(workspace.backend, SupportsCommands):
+        result = await workspace.run(["find", ".", "-type", "f"])
+        if result.exit_code != 0:
+            raise RuntimeError(f"listing the workspace exited {result.exit_code}")
+        return {line for line in result.stdout.splitlines() if line}
+    return await _walk(workspace, await workspace.working_dir())
+
+
+async def _walk(workspace: Workspace, directory: str) -> set[str]:
+    paths: set[str] = set()
+    for entry in await workspace.list_dir(directory):
+        if entry.is_dir:
+            paths |= await _walk(workspace, entry.path)
+        else:
+            paths.add(entry.path)
+    return paths

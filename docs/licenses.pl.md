@@ -1,5 +1,5 @@
 ---
-source_sha: "7e8688fd9cd6"
+source_sha: "f65f76a23f9a"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -108,7 +108,7 @@ not.
 | MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, MIT-0, MIT-CMU, Unlicense | około 400 | Zachować notę o prawach autorskich i tekst licencji przy kopiach | Plik licencji każdego pakietu jedzie w obrazie, obok kodu: każde `*.dist-info/` wheela w obrazie backendu, plik licencji każdego pakietu pod `/app/licenses/node_modules/<name>/` w obrazie frontendu. Noty je indeksują |
 | Apache-2.0 | około 90 | Tekst licencji, informacja o zmianach, każdy plik `NOTICE`, który niesie pakiet | Jak wyżej; nic nie jest modyfikowane, więc nie ma zmian, o których trzeba informować |
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | kilka | Atrybucja albo nic | Jak wyżej |
-| MPL-2.0 (`certifi`, `pathspec`, `tqdm`, część `orjson`) | 4 | Copyleft na poziomie plików: objęte pliki zostają na MPL, a ich źródła są dostępne | Używane bez modyfikacji; tekst licencji jedzie w obrazie; noty linkują źródła |
+| MPL-2.0 (`bidict`, `certifi`, `pathspec`, `tqdm`, część `orjson`) | 5 | Copyleft na poziomie plików: objęte pliki zostają na MPL, a ich źródła są dostępne | Używane bez modyfikacji; tekst licencji jedzie w obrazie; noty linkują źródła |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Tekst licencji, dostępność źródeł i możliwość podmiany biblioteki | Oba to osobno instalowane binaria ładowane dynamicznie, bez modyfikacji, wymienialne przez reinstalację; źródła zalinkowane w notach. Pakiety libvips nie publikują pliku licencji, więc obraz kładzie tekst LGPL obok nich |
 | LGPL-3.0-only (`ldap3`) | 1 | Tekst licencji, dostępność źródeł i możliwość podmiany biblioteki | Klient LDAP logowania katalogowego, czysto pythonowy wheel importowany bez modyfikacji i wymienialny przez reinstalację; jego pliki licencji są w jego dist-info, a źródła zalinkowane w notach |
 | Artistic-1.0-Perl albo GPL-2.0-or-later (`text-unidecode`) | 1 | Podwójna; wzięta na Artistic License: nota i tekst | Plik licencji z wheela jedzie w obrazie |

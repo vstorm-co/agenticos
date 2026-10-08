@@ -1,8 +1,8 @@
 """Tests for the tool-output-limits capability.
 
 What is guarded: an oversized return is reduced once at production time and not
-re-sent in full; a spill goes to the run's own backend and reads back by handle;
-a spill the backend refuses degrades to a visible truncation rather than a silent
+re-sent in full; a spill goes to the run's own workspace and reads back by handle;
+a spill the workspace refuses degrades to a visible truncation rather than a silent
 drop; a `summarize` call is booked against the run that paid for it; and an agent
 that does not bind the capability gets nothing - no read-back tool, no reduction.
 """
@@ -19,7 +19,7 @@ from pydantic_ai.messages import ToolCallPart, ToolReturn
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RunUsage
-from pydantic_ai_backends import AsyncBackendAdapter, StateBackend, WriteResult
+from pydantic_ai.workspaces import Workspace, WrapperWorkspace
 from pydantic_ai_harness.tool_output_limits import Spill, Summarize, Truncate
 
 from app.agents.capabilities import CapabilityBinding, build, get
@@ -32,14 +32,14 @@ from app.agents.capabilities.budget import (
     guarded_by,
     metered_by,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.tool_output_limits import (
     DEFAULT_SUMMARY_PROMPT,
     SPILL_LOG_RESOURCE,
-    BackendOverflowStore,
     MeteredToolOutputLimits,
     OverflowWriteError,
     ToolOutputLimitsConfig,
+    WorkspaceOverflowStore,
     build_limits,
 )
 from app.agents.capabilities.tool_output_limits._capability import (
@@ -47,6 +47,7 @@ from app.agents.capabilities.tool_output_limits._capability import (
     _build_store,
     readable_return,
 )
+from tests.workspaces import ShellFailing, document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -65,18 +66,15 @@ def _tool_def(name: str = "grep") -> ToolDefinition:
     return ToolDefinition(name=name)
 
 
-@dataclass
-class _RefusingBackend:
-    """A backend that refuses every write, standing in for a workspace at its cap."""
+class _Refusing(WrapperWorkspace):
+    """A workspace that refuses every write, standing in for one at its cap."""
 
-    async def write(self, path: str, content: str | bytes) -> WriteResult:
-        return WriteResult(error="the workspace is full")
+    async def write_bytes(self, path: str, data: bytes) -> None:
+        raise OSError(28, "the workspace is full")
 
-    async def exists(self, path: str) -> bool:  # pragma: no cover - never read from
-        return False
 
-    async def read_bytes(self, path: str) -> bytes:  # pragma: no cover - never read from
-        return b""
+def _refusing() -> Workspace:
+    return _Refusing(document_workspace())
 
 
 @dataclass
@@ -150,67 +148,77 @@ class TestActionMapping:
 
 class TestStore:
     async def test_a_spill_reads_back_by_the_handle_it_returned(self):
-        store = BackendOverflowStore(StateBackend())
+        store = WorkspaceOverflowStore(document_workspace())
         handle = await store.write("run-1/call-1.0", b"payload\nsecond line")
         assert await store.read(handle) == b"payload\nsecond line"
 
-    async def test_an_async_backend_is_awaited(self):
-        """`state` is synchronous; a container backend is not. One adapter, both."""
-        store = BackendOverflowStore(AsyncBackendAdapter(StateBackend()))
-        handle = await store.write("run-1/call-1.0", b"async payload")
-        assert await store.read(handle) == b"async payload"
+    async def test_the_handle_is_the_path_the_workspace_resolved(self):
+        """What a later read, and the prune at close, have to name exactly."""
+        store = WorkspaceOverflowStore(document_workspace())
+        handle = await store.write("run-1/call-1.0", b"x")
+        assert handle == "/tool_output/run-1/call-1.0"
 
     async def test_a_refused_write_raises_so_spill_can_fall_back(self):
-        store = BackendOverflowStore(_RefusingBackend())
+        store = WorkspaceOverflowStore(_refusing())
         with pytest.raises(OverflowWriteError):
             await store.write("run-1/call-1.0", b"too big")
 
     async def test_an_unknown_handle_raises_rather_than_returning_empty(self):
-        """The backend answers a missing path with empty bytes; the read-back tool
-        needs a raised error to tell the model the handle is unknown."""
-        store = BackendOverflowStore(StateBackend())
+        """The read-back tool needs a raised error to tell the model the handle is
+        unknown, rather than empty bytes."""
+        store = WorkspaceOverflowStore(document_workspace())
         with pytest.raises(FileNotFoundError):
             await store.read("tool_output/never-written")
 
     async def test_a_written_handle_is_recorded_in_the_run_spill_log(self):
-        """What lands in the log is the handle as the backend normalized it, so the
+        """What lands in the log is the handle as the workspace resolved it, so the
         prune at workspace close deletes the path that actually exists (#803)."""
         log: list[str] = []
-        store = BackendOverflowStore(StateBackend(), spill_log=log)
+        store = WorkspaceOverflowStore(document_workspace(), spill_log=log)
         first = await store.write("run-1/call-1.0", b"payload")
         second = await store.write("run-1/call-2.0", b"payload")
         assert log == [first, second]
 
+    async def test_a_container_s_failed_transfer_falls_back_too(self):
+        """A container moves the bytes through its shell, whose failure is a
+        `WorkspaceError` rather than the `OSError` of a full document."""
+        store = WorkspaceOverflowStore(ShellFailing(document_workspace()))
+        with pytest.raises(OverflowWriteError):
+            await store.write("run-1/call-1.0", b"payload")
+
     async def test_a_refused_write_records_nothing(self):
         log: list[str] = []
-        store = BackendOverflowStore(_RefusingBackend(), spill_log=log)
+        store = WorkspaceOverflowStore(_refusing(), spill_log=log)
         with pytest.raises(OverflowWriteError):
             await store.write("run-1/call-1.0", b"too big")
         assert log == []
 
 
 class TestBuildStore:
-    def test_no_backend_falls_back_to_an_in_memory_one(self):
+    async def test_no_workspace_falls_back_to_an_in_memory_one(self):
         store = _build_store(None)
-        assert isinstance(store.backend, StateBackend)
+        handle = await store.write("k", b"kept")
+        assert await store.read(handle) == b"kept"
 
-    def test_a_backend_is_used_as_given(self):
-        backend = StateBackend()
-        assert _build_store(backend).backend is backend
+    def test_a_workspace_is_used_as_given(self):
+        workspace = document_workspace()
+        assert _build_store(workspace).workspace is workspace
 
     def test_the_in_memory_fallback_records_no_handles(self):
-        """A backend discarded with the run leaves nothing to delete, so tracking
+        """A document discarded with the run leaves nothing to delete, so tracking
         its spills would offer the prune paths that no longer exist."""
         assert _build_store(None, ["polluted"]).spill_log is None
 
-    def test_a_bound_backend_records_into_the_run_log(self):
+    def test_a_bound_workspace_records_into_the_run_log(self):
         log: list[str] = []
-        assert _build_store(StateBackend(), log).spill_log is log
+        assert _build_store(document_workspace(), log).spill_log is log
 
 
 class TestReduction:
     async def test_a_small_return_passes_through_untouched(self):
-        limits = build_limits(ToolOutputLimitsConfig(threshold=10_000), backend=StateBackend())
+        limits = build_limits(
+            ToolOutputLimitsConfig(threshold=10_000), workspace=document_workspace()
+        )
         out = await limits.after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="small"
         )
@@ -219,7 +227,7 @@ class TestReduction:
     async def test_a_page_of_forty_thousand_characters_arrives_whole_by_default(self):
         """At the old 10,000 a fetched page arrived as a preview to page through,
         which read as the tool being broken; an ordinary page now passes as it is."""
-        limits = build_limits(ToolOutputLimitsConfig(), backend=StateBackend())
+        limits = build_limits(ToolOutputLimitsConfig(), workspace=document_workspace())
         page = "x" * 40_000
         out = await limits.after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result=page
@@ -230,7 +238,7 @@ class TestReduction:
     async def test_a_full_fetch_arrives_whole_with_its_url_and_title(self):
         """`web_fetch` returns up to 50,000 characters of content by default, and
         the URL, title and truncation marker come on top of it."""
-        limits = build_limits(ToolOutputLimitsConfig(), backend=StateBackend())
+        limits = build_limits(ToolOutputLimitsConfig(), workspace=document_workspace())
         fetched = {
             "url": "https://example.com/" + "a" * 500,
             "title": "A long page",
@@ -252,7 +260,7 @@ class TestReduction:
         return as it was; left unset, what is kept follows the threshold."""
         config = ToolOutputLimitsConfig(action="truncate", threshold=10_000)
         assert config.max_chars == 10_000
-        limits = build_limits(config, backend=StateBackend())
+        limits = build_limits(config, workspace=document_workspace())
         out = await limits.after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="z" * 15_000
         )
@@ -266,7 +274,7 @@ class TestReduction:
         """An MCP page arrives as `{"title": ..., "text": "..."}`. Spilled as
         compact JSON it was one line, and every `read_tool_result` answered "1
         matching line, output capped"; its text is now what is paged."""
-        limits = build_limits(ToolOutputLimitsConfig(threshold=500), backend=StateBackend())
+        limits = build_limits(ToolOutputLimitsConfig(threshold=500), workspace=document_workspace())
         page = {
             "metadata": {"type": "block"},
             "title": "VstormPedia",
@@ -294,7 +302,7 @@ class TestReduction:
 
     async def test_an_oversized_return_is_spilled_and_reads_back_in_full(self):
         limits = build_limits(
-            ToolOutputLimitsConfig(action="spill", threshold=500), backend=StateBackend()
+            ToolOutputLimitsConfig(action="spill", threshold=500), workspace=document_workspace()
         )
         payload = "x" * 5_000
         out = await limits.after_tool_execute(
@@ -305,10 +313,10 @@ class TestReduction:
         handle = out.metadata["overflow_handle"]
         assert (await limits.store.read(handle)).decode() == payload
 
-    async def test_a_spill_the_backend_refuses_degrades_to_truncation(self):
+    async def test_a_spill_the_workspace_refuses_degrades_to_truncation(self):
         limits = build_limits(
             ToolOutputLimitsConfig(action="spill", threshold=500, max_chars=200),
-            backend=_RefusingBackend(),
+            workspace=_refusing(),
         )
         out = await limits.after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="y" * 5_000
@@ -321,7 +329,7 @@ class TestBuildLimits:
     def test_the_configuration_reaches_the_capability(self):
         limits = build_limits(
             ToolOutputLimitsConfig(threshold=42_000, over_tokens=True, strip_ansi=True),
-            backend=StateBackend(),
+            workspace=document_workspace(),
         )
         assert limits.over_tokens is True
         assert limits.strip_ansi is True
@@ -356,7 +364,7 @@ class TestMetering:
         capability = MeteredToolOutputLimits(
             wrapped=build_limits(
                 ToolOutputLimitsConfig(action="summarize", threshold=500),
-                backend=StateBackend(),
+                workspace=document_workspace(),
             )
         )
 
@@ -412,14 +420,14 @@ class TestRegistration:
         assert toolset is not None
         assert "read_tool_result" in await toolset.get_tools(_run_context())
 
-    def test_a_bound_backend_is_used_for_spills(self):
-        backend = StateBackend()
+    def test_a_bound_workspace_is_used_for_spills(self):
+        workspace = document_workspace()
         built = build(
             [CapabilityBinding(capability_id=CAPABILITY_ID)],
-            resources={WORKSPACE_BACKEND_RESOURCE: backend},
+            resources={WORKSPACE_RESOURCE: workspace},
         )
         limits = built[0].wrapped
-        assert limits.store.backend is backend
+        assert limits.store.workspace is workspace
 
     async def test_a_spill_is_recorded_in_the_workspace_spill_log(self):
         """The runner's log resource reaches the store, so a spill on a shared
@@ -427,7 +435,7 @@ class TestRegistration:
         log: list[str] = []
         built = build(
             [CapabilityBinding(capability_id=CAPABILITY_ID, config={"threshold": 500})],
-            resources={WORKSPACE_BACKEND_RESOURCE: StateBackend(), SPILL_LOG_RESOURCE: log},
+            resources={WORKSPACE_RESOURCE: document_workspace(), SPILL_LOG_RESOURCE: log},
         )
         out = await built[0].after_tool_execute(
             _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000

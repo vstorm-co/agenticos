@@ -31,11 +31,6 @@ class ImageGeneration(AbstractCapability[AgentDepsT]):
     # either is a key to rotate. `None` only on the preview and test paths that
     # build without a secret; a published agent always has one.
     api_key: str | None = field(default=None, repr=False)
-    # The run's workspace backend when one is open, so a generated image can be
-    # written into it. `None` for an agent without the sandbox capability, which
-    # generates images all the same - it simply has nowhere to build with them.
-    workspace_backend: Any | None = field(default=None, repr=False, compare=False)
-
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -46,6 +41,5 @@ class ImageGeneration(AbstractCapability[AgentDepsT]):
                 model_id=self.model_id,
                 api_key=self.api_key,
                 tool_settings=self.tool_settings,
-                workspace_backend=self.workspace_backend,
             )
         return self._toolset

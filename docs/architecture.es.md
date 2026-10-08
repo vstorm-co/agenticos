@@ -1,5 +1,5 @@
 ---
-source_sha: "8d9cf7ac71b1"
+source_sha: "d6244bf5e175"
 ---
 
 # Arquitectura { #architecture }
@@ -368,7 +368,7 @@ Dos entradas de ese dict son costuras hacia otros subsistemas y no datos sin má
 
 | Recurso | Lo deja el runner | Lo lee |
 |---|---|---|
-| `WORKSPACE_BACKEND_RESOURCE` | la sesión de sandbox abierta | la capability `sandbox` |
+| `WORKSPACE_RESOURCE` | el workspace abierto, que el run también recibe como `ctx.workspace` | `tool_output_limits` y un delegado que comparte `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | el árbol de delegación resuelto | la capability `subagents` |
 
 La delegación es el caso más afilado para la regla. Un delegado es una fila, y

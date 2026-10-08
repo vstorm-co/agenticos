@@ -57,8 +57,9 @@ class BrowserUse(AbstractCapability[AgentDepsT]):
     SSRF-checked at publish, off the event loop.
 
     The sub-agent's own model requests - one per browser step - run on the host
-    run's model and are metered against its budget; the tool wraps the model in a
-    `MeteredModel` for that (agenticos#802).
+    run's model, are refused once the run's budget is spent and are booked
+    against it; the tool wraps the model in a `MeteredModel` for that
+    (agenticos#802, agenticos#1808).
     """
 
     mode: Literal["playwright", "remote"] = "playwright"

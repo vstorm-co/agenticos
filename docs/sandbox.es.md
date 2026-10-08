@@ -1,5 +1,5 @@
 ---
-source_sha: "32ecd84a00b7"
+source_sha: "28df8e05f4b0"
 ---
 
 # La sandbox { #the-sandbox }
@@ -82,6 +82,20 @@ El **scope** es un campo del spec del agent: `run`, `conversation`, `channel`,
 `user` o `agent`. Así que `conversation`, la elección habitual, significa un
 contenedor y un directorio por chat; `agent` significa que todos los runs de ese
 agent comparten uno.
+
+La clave es también el **nombre** de la sesión en el host —el id de una sesión de
+`sandboxd`, el nombre de un sandbox de Daytona—, así que cada run de un scope la
+abre por ese nombre: el primero la crea y los demás se conectan a ella, también los
+concurrentes, y nada tiene que guardar el id propio de un proveedor antes de que el
+segundo run pueda encontrarla.
+
+**Una vez abierta una sesión, un run posterior solo se conecta a ella.** La fila del
+workspace la registra cuando termina el run que la abrió, y el siguiente run pide al
+host esa sesión y no el nombre. Una sesión cuyos archivos se purgaron —barridos por
+`SANDBOXD_WORKSPACE_TTL`, un host reconstruido— se notifica entonces al agente como
+perdida, en lugar de sustituirse en silencio por una vacía en la que seguiría
+trabajando. La fila la olvida al final de ese run, así que el turno siguiente empieza
+una sesión nueva.
 
 También se agrupan en la clave: qué **tipo de backend** y qué **host** alojan el
 workspace. Un documento `state` y el volumen de un contenedor no son la misma
@@ -359,12 +373,13 @@ proceso vio nunca las entradas (#1061).
 Cada llamada al workspace ya pasa por esta aplicación —el run nos llama a
 nosotros, nosotros llamamos al servicio—, así que el registro es nuestro.
 
-`RecordingBackend` envuelve el backend al que llegan las tools de la capability,
-que es por lo que añadir una novena tool no puede olvidarse de registrar. El
-envoltorio registra ocho operaciones con nombre (`write`, `edit`, `read`,
-`read_bytes`, `ls_info`, `glob_info`, `grep_raw`, `execute`) y delega todo lo
-demás sin tocarlo. `exists` e `is_alive` son preguntas y no operaciones, y un
-registro lleno de ellas enterraría las escrituras que alguien vino a leer.
+`RecordingWorkspace` envuelve el workspace en el que trabaja el run, que es por lo
+que añadir una novena tool no puede olvidarse de registrar. Registra lo que llegó
+al sandbox —`read`, `write`, `ls_info`, `mkdir`, `remove` y `execute`—, así que una
+tool que son varias operaciones aparece como cada una de ellas: un `edit_file` es
+un `read` y un `write`; un `glob` o un `grep`, el `execute` del `find` o del `grep`
+que ejecutó. `exists` y `stat` son preguntas y no operaciones, y un registro lleno
+de ellas enterraría las escrituras que alguien vino a leer.
 
 Lleva dos hechos que el servicio nunca podría, y son los dos que una auditoría
 pide de verdad: **qué agent y qué run**. Ambos son `SET NULL` al borrar, porque el

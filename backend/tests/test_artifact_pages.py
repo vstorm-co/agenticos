@@ -904,6 +904,6 @@ class TestTheBundledSkill:
     def test_the_tool_text_names_the_same_set(self) -> None:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
-        tool = build_artifacts_toolset(workspace_backend=None).tools["publish_artifact"]
+        tool = build_artifacts_toolset().tools["publish_artifact"]
         for name in artifacts.ARTIFACT_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

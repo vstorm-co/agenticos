@@ -1,5 +1,5 @@
 ---
-source_sha: "1492817b74ab"
+source_sha: "41a17f94320d"
 title: "Trzymaj dane osobowe z dala od promptów i odpowiedzi agenta"
 description: "Skonfiguruj capability guardrails tak, żeby redagowała adresy e-mail, numery telefonów, numery kart i sekrety, a potem porównaj to, co faktycznie dostał model, z tym, co zobaczył odwiedzający."
 ---
@@ -65,14 +65,14 @@ Nad drugim wierszem tabeli warto się zatrzymać: numer telefonu jest krajowy, w
 
     Transkrypcja runu zapisała turę użytkownika jako `My email is jane.doe@example.com, my card number is 4111 1111 1111 1111, my SSN is 123-45-6789, and my phone number is 415-555-0132.`, czyli pełny, oryginalny, niezredagowany tekst, podczas gdy zapisana tura asystenta miała już `[redacted:openai_key]`.
 
-    Jeszcze jedna rzecz była widoczna tylko na łączu: ramki `text_delta` w WebSockecie przesyłały prawdziwy klucz referencyjny znak po znaku, zanim ramka `final_result` zastąpiła całą odpowiedź wersją zredagowaną. Redakcja działa na gotowej odpowiedzi, a nie na każdym streamowanym tokenie. `widget.js` właśnie z tego powodu nadpisuje wyświetlany tekst przez `final_result.output`, ale klient, który tylko dokleja delty, pokazałby sekret przez sekundę czy dwie przed podmianą.
+    Jeszcze jedna rzecz była widoczna tylko na łączu: ramki `text_delta` w WebSockecie przesyłały prawdziwy klucz referencyjny znak po znaku, zanim ramka `final_result` zastąpiła całą odpowiedź wersją zredagowaną. Redakcja działa na gotowej odpowiedzi, a nie na każdym streamowanym tokenie. `widget.js` właśnie z tego powodu nadpisuje wyświetlany tekst przez `final_result.output`, ale klient, który tylko dokleja delty, pokazałby sekret przez sekundę czy dwie przed podmianą. Od [#1900](https://github.com/vstorm-co/agenticos/issues/1900) agent ze sprawdzeniem wyjścia wstrzymuje każdy fragment, dopóki nie zostanie sprawdzony, więc delty nie niosą już klucza.
 
     Wiadomość o przelewie: `error`, *"This request was blocked by an input guardrail."*, bez ramki `complete` po niej. Run zapisał status `guardrail_blocked`, `0` tokenów wejściowych i wyjściowych, koszt `0.000000`.
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
 - **Wartość, która miała zostać zredagowana, przechodzi nietknięta.** Porównaj ją z pięcioma detektorami: e-mail, IBAN, numer karty (ze sprawdzeniem sumy kontrolnej), amerykański SSN i numer telefonu. Krajowy numer telefonu wymaga, żeby jego kraj był w **phone_regions**, a numer niepoprawny w planie numeracji swojego kraju zostaje pominięty. Adres fizyczny ani imię i nazwisko nie są objęte: to warstwa wzorców, a nie model, który rozumie, czym są dane osobowe.
-- **Klient streamujący na chwilę pokazuje sekret.** Redakcja odpowiedzi działa na gotowej odpowiedzi, gdy ramki `text_delta` już wyszły. Wyświetlaj tekst z `final_result`, tak jak `widget.js`, zamiast tylko doklejać delty. Buforowanie odpowiedzi przy włączonym sprawdzaniu wyjścia jest śledzone w [#1900](https://github.com/vstorm-co/agenticos/issues/1900).
+- **Klient streamujący na chwilę pokazuje sekret.** Przy włączonym jakimkolwiek sprawdzeniu wyjścia tekst i rozumowanie są wstrzymywane fragment po fragmencie i wypuszczane już sprawdzone, więc własna odpowiedź agenta nie powinna tego robić. Dwie streamowane ścieżki nie są jeszcze sprawdzane: argumenty wywołania narzędzia i własna odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Jeśli sekret przyszedł jedną z nich, wyświetlaj tekst z `final_result` zamiast tylko doklejać delty.
 - **Blokada nie zadziałała.** `blocked_keywords_*` dopasowuje dosłowny podciąg bez rozróżniania wielkości liter. Blokada wymaga też włączenia przełącznika danej krawędzi: lista słów kluczowych na krawędzi wyjściowej nic nie robi z wejściem.
 - **Transkrypcja nadal pokazuje surową wartość.** Na krawędzi wejściowej tak ma być: przepisywane jest tylko to, co trafia do modelu, a nie zapisana tura, którą człowiek przegląda później. Redagowanie przed zapisem to inna funkcja, a nie ta.
 - **Run pokazuje `guardrail_blocked`, którego się nie spodziewałeś.** Przeczytaj pole `error` runu. Podaje krawędź (`input`, `output` albo `tool_result`), ale celowo nigdy dopasowanego tekstu, więc sprawdź samą listę słów kluczowych. Pole `error`, które ciągnie się dalej słowami *„It holds more than ... digits”* albo *„It is longer than ... characters”*, pochodzi z redagowania PII: czyta ono najwyżej tyle z jednego tekstu, tym mniej, im więcej krajów wymienia `phone_regions`, i odmawia, zamiast przekazać dalej numery, których nie przeczytało.

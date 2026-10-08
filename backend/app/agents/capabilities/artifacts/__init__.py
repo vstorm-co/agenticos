@@ -6,7 +6,6 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.artifacts._capability import Artifacts
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 
 __all__ = ["ARTIFACTS_CAPABILITY_ID", "Artifacts"]
 
@@ -42,4 +41,4 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
 )
 def _build(ctx: CapabilityBuildContext) -> Artifacts:
     """Never `None`: an agent without a workspace still publishes content it passes inline."""
-    return Artifacts(workspace_backend=ctx.resources.get(WORKSPACE_BACKEND_RESOURCE))
+    return Artifacts()

@@ -18,13 +18,13 @@ or edit it (to publish).
 from __future__ import annotations
 
 from pathlib import PurePosixPath
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai_backends import ensure_async
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
@@ -147,7 +147,7 @@ def apply_edits(source: str, edits: list[ArtifactEdit]) -> str:
     return text
 
 
-def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset[AgentDeps]:
+def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
     """`publish_artifact` and `read_artifact`, reading from the run's workspace when it has one."""
 
     async def publish_artifact(
@@ -250,7 +250,7 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
                 data = content.encode("utf-8")
             elif path is None:
                 return steer(ctx, _ONE_SOURCE)
-            elif workspace_backend is None:
+            elif not ctx.workspace.attached:
                 return steer(
                     ctx,
                     "This agent has no workspace to read a file from. Pass the page as "
@@ -258,9 +258,16 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
                 )
             else:
                 try:
-                    data = await ensure_async(workspace_backend).read_bytes(path)
+                    data = await ctx.workspace.read_bytes(path)
                 except PermissionError as exc:
                     return f"Reading {path!r} was refused: {exc}"
+                except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                    data = b""
+                except WorkspaceError as exc:
+                    # A container's shell could not produce the file - the
+                    # session went away, its output came back damaged. The
+                    # model can retry or publish inline; the run goes on.
+                    return f"Reading {path!r} failed: {exc}"
                 if not data:
                     return steer(
                         ctx,

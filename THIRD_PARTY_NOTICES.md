@@ -23,16 +23,16 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 113 | 241 |
-| Apache-2.0 | 61 | 24 |
+| MIT | 121 | 241 |
+| Apache-2.0 | 70 | 24 |
 | BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
+| MPL-2.0 | 4 | 0 |
 | LGPL-3.0-or-later | 1 | 2 |
-| MPL-2.0 | 3 | 0 |
 | PSF-2.0 | 3 | 0 |
+| 0BSD | 1 | 1 |
 | Apache-2.0 AND MIT | 0 | 2 |
-| 0BSD | 0 | 1 |
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND BSD-2-Clause | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
@@ -52,7 +52,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-244 distributions.
+263 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -61,6 +61,7 @@ names no author is in the evidence column below.
 | aiogram | 3.31.0 | MIT | https://github.com/aiogram/aiogram/ | License-Expression |
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 | https://github.com/aio-libs/aiohappyeyeballs | License field |
 | aiohttp | 3.14.3 | Apache-2.0 | https://github.com/aio-libs/aiohttp | licence file text |
+| aiohttp-retry | 2.9.1 | MIT | https://github.com/inyutin/aiohttp_retry | License field |
 | aiosignal | 1.4.0 | Apache-2.0 | https://github.com/aio-libs/aiosignal | License field |
 | aiosmtplib | 5.1.3 | MIT | https://github.com/cole/aiosmtplib | License field |
 | aiosqlite | 0.22.1 | MIT | https://github.com/omnilib/aiosqlite | classifier |
@@ -68,7 +69,7 @@ names no author is in the evidence column below.
 | amplitude-analytics | 1.2.3 | MIT | https://github.com/amplitude/Amplitude-Python | License field |
 | annotated-doc | 0.0.5 | MIT | https://github.com/fastapi/annotated-doc | License-Expression |
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types | License-Expression |
-| anthropic | 1.6.0 | MIT | https://github.com/anthropics/anthropic-sdk-python | License field |
+| anthropic | 1.11.0 | MIT | https://github.com/anthropics/anthropic-sdk-python | License field |
 | anyio | 4.15.1 | MIT | https://github.com/agronholm/anyio | License-Expression |
 | apprise | 1.13.1 | BSD-2-Clause | https://github.com/caronc/apprise | License field |
 | asgi-lifespan | 2.1.0 | MIT | https://github.com/florimondmanca/asgi-lifespan | License field |
@@ -80,6 +81,7 @@ names no author is in the evidence column below.
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
+| bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
 | boto3 | 1.43.102 | Apache-2.0 | https://github.com/boto/boto3 | License field |
 | botocore | 1.43.103 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
@@ -88,6 +90,7 @@ names no author is in the evidence column below.
 | caio | 0.12.4 | Apache-2.0 | https://github.com/mosquito/caio/ | License-Expression |
 | certifi | 2026.7.22 | MPL-2.0 | https://github.com/certifi/python-certifi | License field; review accepted |
 | cffi | 2.1.1 | MIT-0 | https://github.com/python-cffi/cffi | License-Expression |
+| chardet | 7.6.0 | 0BSD | https://github.com/chardet/chardet | License-Expression |
 | charset-normalizer | 3.5.1 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
 | click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cloudpickle | 3.1.2 | BSD-3-Clause | https://github.com/cloudpipe/cloudpickle | License field |
@@ -99,8 +102,16 @@ names no author is in the evidence column below.
 | cryptography | 50.0.1 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
 | cyclopts | 4.25.2 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
 | dateparser | 1.4.3 | BSD-3-Clause | https://github.com/scrapinghub/dateparser | License-Expression |
+| daytona | 0.220.0 | Apache-2.0 | https://pypi.org/project/daytona/0.220.0/ | License field |
+| daytona-analytics-api-client | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | licence file text |
+| daytona-analytics-api-client-async | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | licence file text |
+| daytona-api-client | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | License field |
+| daytona-api-client-async | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | License field |
+| daytona-toolbox-api-client | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | License field |
+| daytona-toolbox-api-client-async | 0.220.0 | Apache-2.0 | https://github.com/daytona/clients | License field |
 | ddgs | 9.16.0 | MIT | https://github.com/deedy5/ddgs | License-Expression |
 | defusedxml | 0.7.1 | PSF-2.0 | https://github.com/tiran/defusedxml | classifier |
+| deprecated | 1.3.1 | MIT | https://github.com/laurent-laporte-pro/deprecated | License field |
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
 | dnspython | 2.8.0 | ISC | https://github.com/rthalley/dnspython.git | License field |
 | docker | 7.2.0 | Apache-2.0 | https://github.com/docker/docker-py | License-Expression |
@@ -116,12 +127,12 @@ names no author is in the evidence column below.
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
-| genai-prices | 0.1.7 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
+| genai-prices | 0.1.9 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-api-core | 2.37.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | google-api-python-client | 2.200.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
 | google-auth | 2.58.1 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
 | google-auth-httplib2 | 0.4.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/packages/google-auth-httplib2 | License field |
-| google-genai | 2.23.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
+| google-genai | 2.28.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.75.3 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
 | graphviz | 0.21 | MIT | https://github.com/xflr6/graphviz | License-Expression |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet | License-Expression |
@@ -139,6 +150,7 @@ names no author is in the evidence column below.
 | httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
 | httptools | 0.8.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
+| httpx-ws | 0.9.0 | MIT | https://github.com/frankie567/httpx-ws | classifier |
 | httpx2 | 2.13.1 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
 | humanize | 4.16.0 | MIT | https://github.com/python-humanize/humanize | License-Expression |
@@ -182,14 +194,16 @@ names no author is in the evidence column below.
 | multidict | 6.9.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
 | oauthlib | 4.0.0 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
+| obstore | 0.11.1 | MIT | https://developmentseed.org/obstore | classifier; no licence file, attributed to Development Seed |
 | odfpy | 1.4.1 | LGPL-2.1-or-later | https://github.com/eea/odfpy | override: odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later.; review accepted; no licence file, attributed to Soren Roug |
 | olefile | 0.47 | BSD-2-Clause | https://www.decalage.info/python/olefileio | licence file text |
-| openai | 3.14.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
+| openai | 3.24.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl | License field |
 | opentelemetry-api | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-exporter-otlp-proto-common | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-exporter-otlp-proto-http | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-instrumentation | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-aiohttp-client | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-asgi | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-asyncpg | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-fastapi | 0.65b0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
@@ -221,13 +235,13 @@ names no author is in the evidence column below.
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
-| pydantic-ai-backend | 0.2.29 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.35.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
+| pydantic-ai-backend | 0.2.32 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
+| pydantic-ai-harness | 0.54.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.0.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.45.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.54.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.45.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.54.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.0.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.0.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 1.0.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -240,10 +254,12 @@ names no author is in the evidence column below.
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.3 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
+| python-engineio | 4.14.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-engineio | License field |
 | python-json-logger | 4.2.0 | BSD-2-Clause | https://nhairs.github.io/python-json-logger | License-Expression |
 | python-multipart | 0.0.32 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-slugify | 8.0.4 | MIT | https://github.com/un33k/python-slugify | License field |
+| python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.3.post1 | MIT | https://github.com/stub42/pytz.git | License field |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
 | qdrant-client | 1.19.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
@@ -264,6 +280,7 @@ names no author is in the evidence column below.
 | secretstorage | 3.5.0 | BSD-3-Clause | https://github.com/mitya57/secretstorage | License-Expression |
 | semver | 3.1.0 | BSD-3-Clause | https://python-semver.rtfd.io | licence file text |
 | shellingham | 1.5.4 | ISC | https://github.com/sarugaku/shellingham | License field |
+| simple-websocket | 1.1.0 | MIT | https://github.com/miguelgrinberg/simple-websocket | classifier |
 | six | 1.17.0 | MIT | https://github.com/benjaminp/six | License field |
 | slack-sdk | 3.44.1 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
 | sniffio | 1.3.1 | Apache-2.0 | https://github.com/python-trio/sniffio | licence file text |
@@ -271,7 +288,7 @@ names no author is in the evidence column below.
 | sqlalchemy | 2.1.0 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
 | sse-starlette | 3.4.11 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.6.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
-| subagents-pydantic-ai | 0.2.22 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
+| subagents-pydantic-ai | 0.2.25 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
 | tabulate | 0.10.0 | MIT | https://github.com/astanin/python-tabulate | License-Expression |
 | tavily-python | 0.8.4 | MIT | https://github.com/tavily-ai/tavily-python | classifier |
 | tenacity | 9.1.4 | Apache-2.0 | https://github.com/jd/tenacity | License field |
@@ -294,8 +311,10 @@ names no author is in the evidence column below.
 | uvloop | 0.22.1 | MIT | https://github.com/MagicStack/uvloop | License field |
 | watchfiles | 1.2.0 | MIT | https://github.com/samuelcolvin/watchfiles | License field |
 | wcmatch | 11.0.1 | MIT | https://github.com/facelessuser/wcmatch | License-Expression |
+| websocket-client | 1.9.2 | Apache-2.0 | https://github.com/websocket-client/websocket-client/ | License field |
 | websockets | 16.1.1 | BSD-3-Clause | https://github.com/python-websockets/websockets | License-Expression |
 | wrapt | 2.4.1 | BSD-2-Clause | https://github.com/GrahamDumpleton/wrapt | License-Expression |
+| wsproto | 1.3.2 | MIT | https://github.com/python-hyper/wsproto/ | License-Expression |
 | xai-sdk | 1.19.0 | Apache-2.0 | https://github.com/xai-org/xai-sdk-python | License-Expression |
 | xlrd | 2.0.2 | BSD-2-Clause | http://www.python-excel.org/ | licence file text |
 | xlsxwriter | 3.2.9 | BSD-2-Clause | https://github.com/jmcnamara/XlsxWriter | License field |
@@ -320,10 +339,10 @@ names no author is in the evidence column below.
 | @formatjs/icu-skeleton-parser | 2.1.11 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @formatjs/intl-localematcher | 0.8.13 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour | package.json license |
-| @img/sharp-libvips-linux-arm64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-libvips-linux-x64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-linux-arm64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @img/sharp-linux-x64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-libvips-linux-arm64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @next/env | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.3.8 | MIT | https://github.com/vercel/next.js | package.json license |
@@ -567,7 +586,7 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.28.0 | MIT | https://github.com/react/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
 | source-map-js | 1.2.2 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
