@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "c3582e8e67cf"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -506,7 +506,10 @@ To, czym staje się odpowiedź, rozstrzyga się tutaj:
   jak strona. Biblioteka oddałaby surowe bajty, aby model przeczytał je natywnie. Model
   serwowany za endpointem zgodnym z OpenAI, który tego nie potrafi, odrzuca całe
   żądanie (`Unsupported chat content part type: 'file'`), a agent pobiera wtedy ten sam
-  dokument ponownie.
+  dokument ponownie. Wyodrębniany jest tylko tekst do `max_content_chars`, a PDF jest
+  czytany najwyżej przez 2000 stron: dłuższy kończy się notką, która nazywa stronę,
+  na której odczyt się zatrzymał, a gdy odczytane strony nie miały tekstu, wraca
+  tylko ta notka.
 - Plik binarny bez czytelnego tekstu (zeskanowany PDF, archiwum) dociera do modelu jako
   błąd do ponowienia, który nazywa to, co przyszło.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "c3582e8e67cf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -511,7 +511,10 @@ En qué se convierte una respuesta se decide aquí:
   página. La biblioteca devolvería los bytes en bruto para que el modelo los leyera de
   forma nativa. Un modelo servido tras un endpoint compatible con OpenAI que no puede
   hacerlo rechaza la petición entera (`Unsupported chat content part type: 'file'`), y
-  el agent vuelve a descargar el mismo documento.
+  el agent vuelve a descargar el mismo documento. Solo se extrae el texto hasta
+  `max_content_chars`, y un PDF se lee como máximo hasta 2.000 páginas: uno más largo
+  termina con una nota que nombra la página en la que se detuvo, y cuando las páginas
+  leídas no tenían texto, solo vuelve esa nota.
 - Un binario sin texto legible (un PDF escaneado, un archivo comprimido) llega al modelo
   como un error reintentable que nombra lo que llegó.
 
