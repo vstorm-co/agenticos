@@ -155,7 +155,8 @@ class TestStore:
     async def test_the_handle_is_the_path_the_workspace_resolved(self):
         """What a later read, and the prune at close, have to name exactly."""
         store = WorkspaceOverflowStore(document_workspace())
-        assert await store.write("run-1/call-1.0", b"x") == "/tool_output/run-1/call-1.0"
+        handle = await store.write("run-1/call-1.0", b"x")
+        assert handle == "/tool_output/run-1/call-1.0"
 
     async def test_a_refused_write_raises_so_spill_can_fall_back(self):
         store = WorkspaceOverflowStore(_refusing())

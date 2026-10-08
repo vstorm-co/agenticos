@@ -1214,6 +1214,7 @@ class TestTheRunWorksInTheWorkspaceItOpened:
         assert document.read_bytes("/notes.txt") == b"kept"
 
     @pytest.mark.anyio
+    @pytest.mark.security
     @pytest.mark.parametrize("elsewhere", ["another-organization", "another-connection"])
     async def test_a_history_naming_someone_else_s_workspace_never_reaches_it(
         self, tmp_path, elsewhere

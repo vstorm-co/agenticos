@@ -49,9 +49,10 @@ dependencies = [
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
     "prefect>=3.8.5",
-    # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
-    # feature of any particular release, and stating it is what keeps a resolver
-    # from picking a slim the harness cannot run on. Dependabot raises it to
+    # The floor is ours as well as `pydantic-ai-harness`'s: the sandbox runs on
+    # `pydantic_ai.workspaces` and passes `workspace=` to a run, both from 2.52,
+    # and stating it keeps a resolver from picking a slim the harness cannot run
+    # on. Dependabot raises it to
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
@@ -81,8 +82,8 @@ dependencies = [
     # store, tools and cache-safe tail reminder) and `compaction` (the
     # context-window handling and its strategies). Uncapped for the same reason
     # Pydantic AI is: this is where those are maintained, and pinning would
-    # freeze the detectors and the model registry they read. 0.21.0 is the floor
-    # all three were written against.
+    # freeze the detectors and the model registry they read. 0.52.0 is the
+    # floor: the first release on the slim that brought workspaces.
     "pydantic-ai-harness>=0.52.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search

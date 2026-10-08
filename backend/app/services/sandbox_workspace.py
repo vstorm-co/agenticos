@@ -13,9 +13,11 @@ module exists rather than a helper on the capability:
 * `state` lives in this database. Closing flushes the document, and nothing
   survives that is not flushed.
 * `docker` lives in `sandboxd`, which owns its own lifecycle — idle reaping,
-  ceilings, hibernation. Closing releases a *run-scoped* session as a courtesy
-  and leaves every other scope alone, because correctness must not depend on
-  this process getting to its `finally`.
+  ceilings, hibernation. Closing releases a *run-scoped* session as a courtesy.
+  For a longer scope it records which session the row now holds, or forgets one
+  found gone, and removes this run's spills, but leaves the session itself to
+  `sandboxd`: correctness must not depend on this process getting to its
+  `finally`.
 * `daytona` is a cloud resource on the organization's own account, and the same
   applies with somebody else's invoice attached.
 """
@@ -1586,14 +1588,10 @@ class SandboxWorkspaceService:
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
     """Whether a listing that could be read says this path is not in it.
 
-    Only asked of a workspace kept on a host. A stored one has an authoritative
-    oracle - `StateBackend.exists` - and using a *listing* as one there is wrong:
-    `glob_info` does not match dotfiles, so `/.env` exists, reads fine, and is not
-    in any listing. Answering "no such file" for it would be a confident wrong
-    answer built on a pattern's blind spot.
-
-    An unreadable listing also answers `False`: it knows nothing, and the same
-    argument applies.
+    Only asked of a workspace kept on a host. A stored one answers from its own
+    document, so a listing is never its oracle. An unreadable listing answers
+    `False`: it knows nothing, and a "no such file" built on it would be a
+    confident wrong answer.
     """
     if row.backend == "state":
         return False
@@ -1605,14 +1603,12 @@ def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool
 def stored_entries(files: dict[str, FileData]) -> list[FileInfo]:
     """Every file in a stored workspace, dotfiles included.
 
-    Two patterns, because one is not enough: `**/*` does not match a name beginning
-    with a dot, so an agent that wrote `/​.env` or `/​.gitignore` had it absent from
-    every listing - the chat panel, the browser, the flat view - while `read` served
-    it happily. A listing that claims to be "what the agent is keeping" cannot quietly
-    omit a class of filename.
+    Read from the document's own keys rather than a glob, so `/​.env` and `/​.gitignore` are
+    listed like any other file: a listing that claims to be "what the agent is
+    keeping" cannot quietly omit a class of filename.
 
-    A file *inside* a dot-directory (`/​.git/config`) is still absent, and that is the
-    one omission worth keeping: an agent that ran `git init` would otherwise fill the
+    A file *inside* a dot-directory (`/​.git/config`) is left out, and that is the one
+    omission worth keeping: an agent that ran `git init` would otherwise fill the
     panel with object files nobody asked to see.
     """
     document = StateBackend(files=files)

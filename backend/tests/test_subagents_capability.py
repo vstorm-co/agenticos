@@ -2396,6 +2396,7 @@ class TestTheWorkspaceADelegationRunsIn:
 
         assert parents.read_bytes("/notes.md") == b"found it"
 
+    @pytest.mark.security
     async def test_a_delegate_with_a_sandbox_of_its_own_never_touches_the_parents(self):
         parents = StateBackend()
         ctx = replace(a_context(), workspace=document_workspace(parents))
