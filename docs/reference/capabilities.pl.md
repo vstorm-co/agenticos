@@ -1,5 +1,5 @@
 ---
-source_sha: "dd986533920a"
+source_sha: "f2a3c606f56d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1787,7 +1787,8 @@ w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przyc
 tekst. Gdy skonfigurowane jest jakiekolwiek sprawdzenie wyjścia, każdy fragment
 tekstu i rozumowania jest wstrzymywany, aż będzie kompletny, sprawdzany tymi samymi
 detektorami i dopiero wtedy wysyłany. Klucz rozdzielony na dwa kawałki nadal zostaje
-wychwycony. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
+wychwycony, tak samo jak klucz rozdzielony na dwie części, na przykład tekst przed
+wywołaniem narzędzia i po nim. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
 częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
 to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
 Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym

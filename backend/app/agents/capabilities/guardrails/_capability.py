@@ -38,7 +38,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import AsyncIterable, Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
@@ -82,14 +82,23 @@ TextDetector = Callable[[str], GuardrailResult]
 """A detector reads text and returns a verdict. The harness's own signature."""
 
 _KEYWORD_SPLIT = re.compile(r"[,\n]")
-
-WITHHELD_REASONING = "[reasoning withheld by the output guardrail]"
-"""What a reasoning part the output check refused shows in its place."""
 """Blocked keywords arrive as one string, comma- or newline-separated.
 
 A string rather than a `list[str]` because the Builder's generated form renders
 only scalar and enum fields - a list arrives as a text box either way, so it is
 one honestly rather than a control that looks structured and is not.
+"""
+
+WITHHELD_REASONING = "[reasoning withheld by the output guardrail]"
+"""What a reasoning part the output check refused shows in its place."""
+
+_BOUNDARY_CHARS = 1_000
+"""How much of the text already released is screened again with the next part.
+
+A key or a blocked keyword split across two parts - text written before a tool
+call and text after it - is harmless in each. Screened with the tail of what came
+before, the part that completes it is redacted or blocked. Far longer than any
+value the detectors match, and short enough to add little to each screen.
 """
 
 _BLOCK_MESSAGE = {
@@ -298,6 +307,18 @@ class ScreenedStream(AbstractCapability[object]):
 
     screen: TextDetector
 
+    _released: dict[type[TextPart | ThinkingPart], str] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """The raw tail of what this run has released, per kind of part, for `_screened`.
+
+    Held on the instance because the stream hook runs once per node, and a part
+    that completes a value is usually in the response after the tool call."""
+
+    async def for_run(self, ctx: RunContext[object]) -> ScreenedStream:
+        """A fresh instance per run, so one run's released tail never meets another's."""
+        return ScreenedStream(screen=self.screen)
+
     async def wrap_run_event_stream(
         self,
         ctx: RunContext[object],
@@ -315,22 +336,42 @@ class ScreenedStream(AbstractCapability[object]):
                 case PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta()):
                     pass
                 case PartEndEvent(part=TextPart() | ThinkingPart() as part):
-                    screened = replace(part, content=self._screened(part))
+                    before = self._released.get(type(part), "")
+                    content = self._screened(part, before)
+                    # A withheld part is not shown, so nothing can complete it.
+                    tail = "" if content == WITHHELD_REASONING else before + part.content
+                    self._released[type(part)] = tail[-_BOUNDARY_CHARS:]
+                    screened = replace(part, content=content)
                     yield replace(held.pop(event.index), part=screened)
                     yield replace(event, part=screened)
                 case _:
                     yield event
 
-    def _screened(self, part: TextPart | ThinkingPart) -> str:
-        """The part's content as a consumer may see it; a blocked text part raises."""
+    def _screened(self, part: TextPart | ThinkingPart, before: str) -> str:
+        """The part's content as a consumer may see it; a blocked text part raises.
+
+        Screened after `before`, the raw tail of the same kind of text already
+        released, and only what follows the screen of `before` alone is returned:
+        a value that began in an earlier part is redacted in this one, which
+        completes it, and a keyword only the two parts spell together is blocked.
+        """
         try:
-            verdict = self.screen(part.content)
+            shown = self._cleaned(before)
+            both = self._cleaned(before + part.content)
         except GuardrailBlocked:
             if isinstance(part, TextPart):
                 raise
             return WITHHELD_REASONING
+        common = next(
+            (i for i, (a, b) in enumerate(zip(shown, both, strict=False)) if a != b),
+            min(len(shown), len(both)),
+        )
+        return both[common:]
+
+    def _cleaned(self, text: str) -> str:
+        verdict = self.screen(text)
         # A detector here only allows or replaces; a block has raised.
-        return str(verdict.replacement) if verdict.action == "replace" else part.content
+        return str(verdict.replacement) if verdict.action == "replace" else text
 
 
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:

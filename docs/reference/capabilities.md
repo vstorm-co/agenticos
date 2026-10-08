@@ -1704,8 +1704,8 @@ completed answer. See [Governance](../governance.md).
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is
 configured, each piece of text and reasoning is held back until it is complete,
-checked with the same detectors, and only then sent. A key split across two chunks
-is still caught. So is text the model writes before it calls a tool, which is not
+checked with the same detectors, and only then sent. A key split across two chunks is still caught, and so
+is one split across two parts, such as text before a tool call and text after it. So is text the model writes before it calls a tool, which is not
 part of the final answer but is still shown and stored. The cost is that such an
 agent's answer arrives one step at a time rather than word by word. An agent with
 no output check streams as before. A keyword block in the

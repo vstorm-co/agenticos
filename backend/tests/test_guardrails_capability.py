@@ -408,6 +408,56 @@ async def test_reasoning_is_screened_like_the_answer():
     assert "The key was [redacted:anthropic_key], I should not repeat it." in _shown(events)
 
 
+def _released_text(events: list[AgentStreamEvent]) -> str:
+    """The text parts as `RunFrames` and a channel's live reply join them: end to end."""
+    return "".join(
+        event.part.content
+        for event in events
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart)
+    )
+
+
+@pytest.mark.security
+async def test_a_key_split_around_a_tool_call_is_redacted_where_it_completes():
+    """Each half is harmless on its own; a surface that joins the parts shows both."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [
+                "Here it is: sk-ant-api03-ABCDEF",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["GHIJKLMNOPQR. Keep it safe."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _released_text(events)
+    assert "[redacted:anthropic_key]" in _released_text(events)
+    assert _released_text(events).endswith(". Keep it safe.")
+
+
+@pytest.mark.security
+async def test_a_keyword_only_two_parts_spell_together_is_blocked():
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out="confidential"),
+        _streams(
+            ["This is confi", {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["dential."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert _released_text(events) == "This is confi"
+
+
 async def test_a_blocked_keyword_in_reasoning_withholds_the_reasoning_not_the_run():
     """Reasoning routinely restates the question. Ending a run whose answer is
     clean over a word the model only thought would refuse ordinary questions."""
