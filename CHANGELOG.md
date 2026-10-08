@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend dependencies move up.** SQLAlchemy 2.1.4, PyJWT 2.15.1 (accepts the
+  trailing `=` padding AWS ALB tokens carry), Prefect 3.8.8, the MCP SDK 2.3.0,
+  LiteParse 2.15.1, cryptography 50.0.2, boto3 1.43.110, google-auth 2.61.0,
+  google-api-python-client 2.201.0, slack-sdk 3.45.0, mem0ai 2.2.1 and ruff
+  0.16.10; the floors in `pyproject.toml` follow. Replaces Dependabot's #2021,
+  whose harness bump already shipped with #2011.
+
 ## [0.0.530] - 2026-10-08
 
 ### Documentation

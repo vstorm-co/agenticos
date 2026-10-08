@@ -82,8 +82,8 @@ names no author is in the evidence column below.
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.43.102 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.103 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.110 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.110 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
@@ -99,7 +99,7 @@ names no author is in the evidence column below.
 | coolname | 5.0.0 | BSD-2-Clause | https://github.com/alexanderlukanin13/coolname | License-Expression |
 | croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
 | cronsim | 2.7 | BSD-3-Clause | https://github.com/cuu508/cronsim.git | licence file text |
-| cryptography | 50.0.1 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
 | cyclopts | 4.25.2 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
 | dateparser | 1.4.3 | BSD-3-Clause | https://github.com/scrapinghub/dateparser | License-Expression |
 | daytona | 0.220.0 | Apache-2.0 | https://pypi.org/project/daytona/0.220.0/ | License field |
@@ -129,8 +129,8 @@ names no author is in the evidence column below.
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
 | genai-prices | 0.1.9 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-api-core | 2.37.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
-| google-api-python-client | 2.200.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
-| google-auth | 2.58.1 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
+| google-api-python-client | 2.201.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
+| google-auth | 2.61.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
 | google-auth-httplib2 | 0.4.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/packages/google-auth-httplib2 | License field |
 | google-genai | 2.28.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.75.3 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
@@ -174,7 +174,7 @@ names no author is in the evidence column below.
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
-| liteparse | 2.14.7 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
+| liteparse | 2.15.1 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.16.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 5.1.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.1.0 | MIT | https://pypi.org/project/logfire-api/5.1.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
@@ -185,10 +185,10 @@ names no author is in the evidence column below.
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
 | markupsafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
-| mcp | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
-| mcp-types | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp-types | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
-| mem0ai | 2.2.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.0/ | License-Expression |
+| mem0ai | 2.2.1 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.1/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
 | multidict | 6.9.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
@@ -223,7 +223,7 @@ names no author is in the evidence column below.
 | pluggy | 1.6.0 | MIT | https://pypi.org/project/pluggy/1.6.0/ | License field |
 | portalocker | 3.2.0 | BSD-3-Clause | https://github.com/wolph/portalocker/ | License-Expression |
 | posthog | 7.54.0 | MIT | https://github.com/posthog/posthog-python | License-Expression |
-| prefect | 3.8.6 | Apache-2.0 | https://github.com/PrefectHQ/prefect | License field |
+| prefect | 3.8.8 | Apache-2.0 | https://github.com/PrefectHQ/prefect | License field |
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | prometheus-client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | https://github.com/prometheus/client_python | License-Expression |
 | propcache | 0.5.3 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
@@ -248,7 +248,7 @@ names no author is in the evidence column below.
 | pydantic-settings | 2.15.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pydocket | 0.25.2 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.21.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
-| pyjwt | 2.15.0 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
+| pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
 | pyparsing | 3.3.2 | MIT | https://github.com/pyparsing/pyparsing.git | License-Expression |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
@@ -258,7 +258,7 @@ names no author is in the evidence column below.
 | python-json-logger | 4.2.0 | BSD-2-Clause | https://nhairs.github.io/python-json-logger | License-Expression |
 | python-multipart | 0.0.32 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
-| python-slugify | 8.0.4 | MIT | https://github.com/un33k/python-slugify | License field |
+| python-slugify | 9.0.0 | MIT | https://github.com/un33k/python-slugify | License-Expression |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.3.post1 | MIT | https://github.com/stub42/pytz.git | License field |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
@@ -282,10 +282,10 @@ names no author is in the evidence column below.
 | shellingham | 1.5.4 | ISC | https://github.com/sarugaku/shellingham | License field |
 | simple-websocket | 1.1.0 | MIT | https://github.com/miguelgrinberg/simple-websocket | classifier |
 | six | 1.17.0 | MIT | https://github.com/benjaminp/six | License field |
-| slack-sdk | 3.44.1 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
+| slack-sdk | 3.45.0 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
 | sniffio | 1.3.1 | Apache-2.0 | https://github.com/python-trio/sniffio | licence file text |
 | soupsieve | 2.9.2 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
-| sqlalchemy | 2.1.0 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
+| sqlalchemy | 2.1.4 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
 | sse-starlette | 3.4.11 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.6.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
 | subagents-pydantic-ai | 0.2.25 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
