@@ -133,10 +133,11 @@ Both modes inherit the run's own model (`ctx.model`), whose credential was
 resolved from the vault - there is deliberately no configurable model name, which
 on this multi-tenant platform would resolve against process environment variables
 (the `compaction` capability documents the same choice). The nested call runs on
-its own usage with a two-request limit, checks the run's budget before it goes
-out, and is wrapped in `MeteredModel`, so each response is booked to the run's
-ledger exactly once even when the model searches in parallel. It is traced as
-the host run is - the agent's own Logfire project and its `content` setting - so
+its own usage with a two-request limit and is wrapped in `MeteredModel`, which
+checks the run's budget before each request, the retry included, and books each
+response to the run's ledger exactly once even when the model searches in
+parallel. It is traced as the host run is - the agent's own Logfire project and
+its `content` setting - so
 an agent set to `content: none` does not export the question through the
 expansion prompt. It degrades to the plain query when the run's model cannot
 make a request-response call (a realtime model) or when the call fails in an expected way - a provider error, a

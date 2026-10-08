@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -60,6 +59,7 @@ class _UsageModel(Model):
         super().__init__()
         self._usage = usage
         self._name = name
+        self.calls = 0
 
     async def request(
         self,
@@ -67,6 +67,7 @@ class _UsageModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
+        self.calls += 1
         return ModelResponse(parts=[TextPart("ok")], usage=self._usage, model_name=self._name)
 
     @property
@@ -284,16 +285,42 @@ class TestMetering:
             ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
         )
 
-        with (
-            patch.object(wrapped, "request", new=AsyncMock()) as sent,
-            metered_by(ledger),
-            guarded_by(exhausted),
-            pytest.raises(BudgetExceeded),
-        ):
+        with metered_by(ledger), guarded_by(exhausted), pytest.raises(BudgetExceeded):
             await MeteredModel(wrapped).request([], None, ModelRequestParameters())
 
-        sent.assert_not_awaited()
+        assert wrapped.calls == 0
         assert ledger.entries == []
+
+    @pytest.mark.security
+    async def test_a_streamed_request_the_run_cannot_afford_is_refused_before_it_is_sent(
+        self,
+    ):
+        """No nested agent streams today; one that did would otherwise bypass the guard."""
+        wrapped = TestModel()
+        ledger = SpendLedger()
+        exhausted = BudgetGuard(
+            ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
+        )
+
+        with metered_by(ledger), guarded_by(exhausted), pytest.raises(BudgetExceeded):
+            async with MeteredModel(wrapped).request_stream([], None, ModelRequestParameters()):
+                pass
+
+        assert wrapped.last_model_request_parameters is None
+        assert ledger.entries == []
+
+    async def test_a_streamed_request_is_booked_once_it_has_been_read(self):
+        ledger = SpendLedger()
+
+        with metered_by(ledger):
+            async with MeteredModel(TestModel()).request_stream(
+                [], None, ModelRequestParameters()
+            ) as stream:
+                async for _ in stream:
+                    pass
+
+        assert [entry.model_name for entry in ledger.entries] == ["test"]
+        assert ledger.output_tokens > 0
 
     async def test_a_step_from_a_nameless_model_is_booked_as_unknown(self):
         """A blank name prices against nothing rather than reading as an absent field."""

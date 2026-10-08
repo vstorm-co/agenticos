@@ -49,6 +49,8 @@ resolved from the vault - wrapped in a `MeteredModel` (`_toolset.py`) that books
 each response against the run's ledger through the `budget` capability's
 ambient-usage recorder, the shape `MeteredCompaction` uses (agenticos#802). So the
 browse loop's spend counts against the agent's budget rather than running on
-browser-use's own hosted model outside it. End-to-end verification waits on the
+browser-use's own hosted model outside it. `MeteredModel` also checks the run's
+budget before each step, so once the budget is spent the next step is refused
+rather than paid for (agenticos#1808). End-to-end verification waits on the
 engine being installable (agenticos#801); the wrapper is tested against a fake
 model now.

@@ -16,7 +16,8 @@ narration and every outcome - without Chromium and without an account.
 language model runs one per field typed, and neither passes the host agent's
 `BudgetGuard`: they go out through `Agent`s built here. Wrapped in
 :class:`~app.agents.capabilities._metered.MeteredModel`, they book against the
-run's ledger like anything else (agenticos#802).
+run's ledger like anything else, and a request the run can no longer afford is
+refused before it is sent (agenticos#802, agenticos#1808).
 """
 
 from __future__ import annotations
