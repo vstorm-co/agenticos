@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.533] - 2026-10-09
+
 ### Security
 
 - **`mako` moves to 1.4.3.** 1.4.1, which Alembic pulls in, is affected by
