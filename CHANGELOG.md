@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.528] - 2026-10-08
+
 ### Fixed
 
 - **OpenAI's newest models run.** Every `openai` profile was built on Chat
