@@ -446,6 +446,28 @@ async def test_a_key_split_around_a_tool_call_blocks_before_its_second_half():
 
 
 @pytest.mark.security
+async def test_answer_text_that_reads_like_the_placeholder_keeps_the_tail():
+    """Only a part this screen withheld clears the tail; a model writing the same
+    words must not be able to split a keyword around them."""
+    keyword = WITHHELD_REASONING + "bar"
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out=keyword),
+        _streams(
+            [
+                WITHHELD_REASONING,
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["bar"],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+
+@pytest.mark.security
 async def test_a_part_that_breaks_a_redaction_already_shown_blocks():
     """A key redacted at the end of one part stops matching once the next part
     extends it; releasing the joined screen would send the key itself."""

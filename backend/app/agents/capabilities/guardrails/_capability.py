@@ -350,16 +350,19 @@ class ScreenedStream(AbstractCapability[object]):
                     before = self._released
                     content = self._screened(part, before)
                     # A withheld part is not shown, so nothing can complete it.
-                    tail = "" if content == WITHHELD_REASONING else before + part.content
+                    withheld = content is None
+                    tail = "" if withheld else before + part.content
                     self._released = tail[-self.tail_chars :]
+                    content = WITHHELD_REASONING if content is None else content
                     screened = replace(part, content=content)
                     yield replace(held.pop(event.index), part=screened)
                     yield replace(event, part=screened)
                 case _:
                     yield event
 
-    def _screened(self, part: TextPart | ThinkingPart, before: str) -> str:
-        """The part's content as a consumer may see it; a blocked text part raises.
+    def _screened(self, part: TextPart | ThinkingPart, before: str) -> str | None:
+        """The part's content as a consumer may see it, or `None` for a withheld
+        reasoning part; a blocked text part raises.
 
         Screened after `before`, the raw tail already released, and released only
         while the screen of `before` stays exactly what was shown: what follows it
@@ -385,12 +388,12 @@ class ScreenedStream(AbstractCapability[object]):
         except GuardrailBlocked:
             if isinstance(part, TextPart):
                 raise
-            return WITHHELD_REASONING
+            return None
         if not crossed:
             return released
         if isinstance(part, TextPart):
             raise GuardrailBlocked(edge="output", message=_BLOCK_MESSAGE["output"])
-        return WITHHELD_REASONING
+        return None
 
     def _cleaned(self, text: str) -> str:
         verdict = self.screen(text)
