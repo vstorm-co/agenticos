@@ -745,12 +745,31 @@ class SandboxWorkspaceService:
                 "workspace_session_lost",
                 extra={"scope_key": workspace.scope_key, "session_id": row.session_id},
             )
+            if isinstance(workspace.sandbox, DaytonaWorkspace):
+                await self._discard_lost_sandbox(
+                    workspace.sandbox, row.session_id or workspace.scope_key
+                )
             await workspace_repo.record_session(self.db, workspace=row, session_id=None)
             return True
         ref = workspace.workspace.ref
         if ref is not None and ref.id != row.session_id:
             await workspace_repo.record_session(self.db, workspace=row, session_id=ref.id)
         return False
+
+    async def _discard_lost_sandbox(self, sandbox: DaytonaWorkspace, name: str) -> None:
+        """Delete a Daytona sandbox found gone, so the next run can open its name afresh.
+
+        A purged container is gone from its host. A Daytona sandbox in `error` or
+        `build_failed` is not: it still holds the scope's name, the next run opening
+        by that name would attach to it and be refused again, turn after turn, and
+        nothing else deletes it. Best effort, because the loss is already reported.
+        """
+        try:
+            await sandbox.destroy(WorkspaceRef(provider=_provider(sandbox), id=name))
+        except Exception:
+            logger.warning(
+                "workspace_lost_sandbox_not_deleted", extra={"sandbox": name}, exc_info=True
+            )
 
     async def _prune_spills(self, workspace: OpenWorkspace) -> None:
         """Delete this run's spilled tool returns off a workspace that outlives it.

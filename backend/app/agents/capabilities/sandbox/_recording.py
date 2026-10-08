@@ -139,6 +139,32 @@ class RecordingWorkspace(WrapperWorkspace):
             _command_outcome,
         )
 
+    async def working_dir(self) -> str:
+        return await self._noting_loss(super().working_dir())
+
+    async def stat(self, path: str) -> FileEntry:
+        return await self._noting_loss(super().stat(path))
+
+    async def exists(self, path: str) -> bool:
+        return await self._noting_loss(super().exists(path))
+
+    async def realpath(self, path: str) -> str:
+        return await self._noting_loss(super().realpath(path))
+
+    async def _noting_loss(self, call: Awaitable[_T]) -> _T:
+        """Await a question about the workspace, noting a session found gone.
+
+        Not recorded: these read no file and change nothing. But the console's
+        permission guard asks them before every read and write, so a session
+        purged mid-turn is often first seen here, and a close that missed it
+        would keep the lost session for the next turn to fail on again.
+        """
+        try:
+            return await call
+        except WorkspaceUnavailableError:
+            self.lost = True
+            raise
+
     async def _recorded(
         self,
         op: str,

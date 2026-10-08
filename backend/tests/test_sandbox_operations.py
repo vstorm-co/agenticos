@@ -23,7 +23,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceTimeoutError
+from pydantic_ai.workspaces import (
+    LocalWorkspaceBackend,
+    Workspace,
+    WorkspaceTimeoutError,
+    WorkspaceUnavailableError,
+)
 
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.db.models.sandbox_operation import SandboxOperation
@@ -224,6 +229,35 @@ class TestFailures:
         await recorder.write_text("a.txt", "x")
 
         assert (tmp_path / "a.txt").read_text() == "x"
+
+
+class TestALostSession:
+    @pytest.mark.parametrize(
+        ("question", "args"),
+        [
+            ("working_dir", ()),
+            ("stat", ("a.txt",)),
+            ("exists", ("a.txt",)),
+            ("realpath", ("a.txt",)),
+        ],
+    )
+    async def test_a_question_that_finds_the_session_gone_marks_it_lost(
+        self, tmp_path: Path, question: str, args: tuple[str, ...]
+    ):
+        """The console's permission guard asks these before every read and write, so
+        a session purged mid-turn is often first seen by one of them; a close that
+        missed it would keep the session for the next turn to fail on again."""
+        recorder, session = _wrap(tmp_path)
+        gone = AsyncMock(side_effect=WorkspaceUnavailableError("purged"))
+
+        with (
+            patch.object(recorder.wrapped, question, gone),
+            pytest.raises(WorkspaceUnavailableError),
+        ):
+            await getattr(recorder, question)(*args)
+
+        assert recorder.lost
+        assert session.rows == []
 
 
 class TestReadingTheLog:

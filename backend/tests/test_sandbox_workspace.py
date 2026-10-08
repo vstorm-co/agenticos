@@ -2518,7 +2518,45 @@ class TestASessionAcrossRuns:
 
         assert recorded.await_args.kwargs["session_id"] is None
         assert sandboxes.commands == []
+        assert sandboxes.destroyed == []
         assert [r for r in caplog.records if r.message == "workspace_session_lost"]
+
+    async def test_a_lost_daytona_sandbox_is_deleted_so_its_name_opens_afresh(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """A sandbox in `error` still holds the scope's name; left there, every
+        later run would attach to it and be refused again."""
+        sandboxes.gone = True
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        self._row_with(monkeypatch, mock_db_session, "dt-recorded")
+        service = SandboxWorkspaceService(mock_db_session)
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.read_text("notes.txt")
+
+        await service.close(workspace)
+
+        assert sandboxes.destroyed == [WorkspaceRef(provider="daytona", id="dt-recorded")]
+
+    async def test_a_lost_daytona_sandbox_that_cannot_be_deleted_is_logged(
+        self, monkeypatch, mock_db_session, sandboxes, caplog
+    ):
+        sandboxes.gone = True
+        sandboxes.unreachable = RuntimeError("daytona is down")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        recorded = self._row_with(monkeypatch, mock_db_session, "dt-recorded")
+        service = SandboxWorkspaceService(mock_db_session)
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.read_text("notes.txt")
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        assert recorded.await_args.kwargs["session_id"] is None
+        assert [r for r in caplog.records if r.message == "workspace_lost_sandbox_not_deleted"]
 
 
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
