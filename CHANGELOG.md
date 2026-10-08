@@ -31,6 +31,50 @@ Two things are versioned separately from this file and worth knowing about:
   the budget refusal, and query expansion still falls back to the query as
   written (#1808).
 
+## [0.0.525] - 2026-10-08
+
+### Fixed
+
+- **An output guardrail screens the answer before anyone sees it.** The web
+  chat, the embedded widget and the channel bots stream an answer as it is
+  written, and the output guardrail read only the finished one, so a key it
+  redacted, or a term it blocked, had already been shown and stored. With any
+  output check configured, each piece of text and reasoning is now held until
+  it is complete, run through the same detectors and only then sent. Text the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
+  unredacted text in their parts.
+
+## [0.0.524] - 2026-10-08
+
+### Fixed
+
+- **A document's text is extracted only up to the limit.** A chat attachment and
+  a document `web_fetch` downloads were parsed to the last page and only then cut,
+  so a compressed PDF under the 10 MiB download limit could cost far more worker
+  time and memory than the text the model was shown. The readers now stop at the
+  limit: a PDF loads pages until one crosses it, and stops after 2,000 pages; an
+  `.xlsx` streams rows until one crosses it, and reads at most a million cells
+  whatever range the sheet declares, ending with a note when that count stopped
+  it. DOCX, PPTX, ODT and ODP stop extracting at the paragraph or slide, but are still decompressed and parsed whole, within the
+  archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
+  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
+  with a note that the rest of the document is left out (`web_fetch` keeps its
+  `[Content truncated]`), in place of a total length that is no longer counted.
+
+## [0.0.523] - 2026-10-08
+
+### Security
+
+- **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
+  optimization, bundles a `librsvg` affected by CVE-2026-96889
+  (GHSA-wq5f-xc86-pv6w), and `make audit-frontend` failed on it. 0.35.5 is
+  inside the range `next` already asks for, so only the lockfile and the
+  third-party notices change.
+
 ## [0.0.522] - 2026-10-06
 
 ### Fixed

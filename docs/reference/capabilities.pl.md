@@ -1,5 +1,5 @@
 ---
-source_sha: "c6b49553d1cf"
+source_sha: "41d9eec9e333"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -506,7 +506,10 @@ To, czym staje się odpowiedź, rozstrzyga się tutaj:
   jak strona. Biblioteka oddałaby surowe bajty, aby model przeczytał je natywnie. Model
   serwowany za endpointem zgodnym z OpenAI, który tego nie potrafi, odrzuca całe
   żądanie (`Unsupported chat content part type: 'file'`), a agent pobiera wtedy ten sam
-  dokument ponownie.
+  dokument ponownie. Wyodrębniany jest tylko tekst do `max_content_chars`, a PDF jest
+  czytany najwyżej przez 2000 stron: dłuższy kończy się notką, która nazywa stronę,
+  na której odczyt się zatrzymał, a gdy odczytane strony nie miały tekstu, wraca
+  tylko ta notka.
 - Plik binarny bez czytelnego tekstu (zeskanowany PDF, archiwum) dociera do modelu jako
   błąd do ponowienia, który nazywa to, co przyszło.
 
@@ -1779,6 +1782,36 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
+powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
+w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
+tekst. Gdy skonfigurowane jest jakiekolwiek sprawdzenie wyjścia, każdy fragment
+tekstu i rozumowania jest wstrzymywany, aż będzie kompletny, sprawdzany tymi samymi
+detektorami i dopiero wtedy wysyłany. Klucz rozdzielony na dwa kawałki nadal zostaje
+wychwycony. Klucz rozdzielony na dwie części, na przykład tekst przed wywołaniem
+narzędzia i po nim albo rozumowanie i odpowiedź, kończy run, zanim zostanie
+wysłana jego druga połowa, bo pierwsza jest już na ekranie. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
+częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
+to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
+Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym
+w odpowiedzi kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie
+pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane słowo
+kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
+`[reasoning withheld by the output guardrail]`.
+
+**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
+sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
+streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
+dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
+długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
+podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
+streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+
+**Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
+dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
+osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
+wiadomość.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

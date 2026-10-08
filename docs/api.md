@@ -113,8 +113,9 @@ Two WebSocket endpoints, for two audiences.
 - **`/api/v1/embed/{public_key}/ws`** — the public one behind an
   [embed](channels.md), for a visitor who has no account.
 
-Both stream tokens as they arrive and both produce an ordinary run, with the
-same books as everything else.
+Both stream tokens as they arrive (an agent with an output guardrail streams a step
+at a time, see [Guardrails](reference/capabilities.md#guardrails)) and both produce
+an ordinary run, with the same books as everything else.
 
 ## Errors
 

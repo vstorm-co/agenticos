@@ -1,5 +1,5 @@
 ---
-source_sha: "570a2d302580"
+source_sha: "c0858ab0af15"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1417,7 +1417,10 @@ auseinanderlaufen kann.
   Ungefähr einmal pro Sekunde bearbeitet: pro Token wären es Hunderte Schreibvorgänge
   pro Sekunde gegen einen Server, der oft jemandem selbst gehört. Eine Plattform,
   die eine gesendete Nachricht nicht bearbeiten kann, bekommt einfach die fertige
-  Antwort, wie zuvor.
+  Antwort, wie zuvor. Bei einem Agent mit einem
+  [Ausgabe-Guardrail](reference/capabilities.md#guardrails) wird die Antwort
+  stattdessen Schritt für Schritt umgeschrieben, und jeder Schritt wird erst gepostet, nachdem
+  er geprüft wurde.
 - **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die den
   Instruktionen des Agents allein auf dieser Oberfläche hinzugefügt werden. Eine
   neue öffnet sich mit dem, was dieser Client tatsächlich rendert: Slack zeichnet

@@ -5,16 +5,47 @@ ends the run as `GUARDRAIL_BLOCKED` rather than completing with a refusal that r
 like any other answer. The redaction path is the opposite promise - a scrubbed key
 lets the run finish - and both are checked here against a real agent run, because
 the block has to *escape* `agent.run()` for the runner to record it.
+
+The output edge has a third promise, about the stream: nothing it would redact or
+block is shown before it has run, because every surface streams the answer and the
+harness guardrail only reads the finished one (agenticos#1900).
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Sequence
+
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import CombinedCapability
-from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, UserPromptPart
-from pydantic_ai.models.function import FunctionModel
-from pydantic_ai_harness.guardrails import InputGuardrail, OutputGuardrail, ToolGuardrail
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    ModelMessage,
+    ModelResponse,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+    ToolCallPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import (
+    AgentInfo,
+    DeltaThinkingCalls,
+    DeltaThinkingPart,
+    DeltaToolCall,
+    DeltaToolCalls,
+    FunctionModel,
+)
+from pydantic_ai_harness.guardrails import (
+    GuardrailResult,
+    InputGuardrail,
+    OutputGuardrail,
+    ToolGuardrail,
+)
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get, load_builtins
 from app.agents.capabilities.guardrails import (
@@ -22,7 +53,12 @@ from app.agents.capabilities.guardrails import (
     GuardrailsConfig,
     build_guardrails,
 )
-from app.agents.capabilities.guardrails._capability import _edge_detector, _keywords
+from app.agents.capabilities.guardrails._capability import (
+    WITHHELD_REASONING,
+    ScreenedStream,
+    _edge_detector,
+    _keywords,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -35,12 +71,32 @@ def _builtins_loaded():
 
 
 def _answers(text: str) -> FunctionModel:
-    """Answer with fixed text, ignoring the prompt."""
+    """Answer with fixed text, ignoring the prompt.
 
-    def respond(messages, info):  # type: ignore[no-untyped-def]
+    Streams as well as answers whole: an output check screens the stream, which
+    makes `agent.run()` stream the model's response under the hood.
+    """
+
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(parts=[TextPart(text)])
 
-    return FunctionModel(respond)
+    async def stream(_messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
+        yield text
+
+    return FunctionModel(respond, stream_function=stream)
+
+
+type Chunk = str | DeltaToolCalls | DeltaThinkingCalls
+
+
+def _streams(*responses: Sequence[Chunk]) -> FunctionModel:
+    """Stream `responses[n]` as the run's n-th model response, chunk by chunk."""
+
+    async def stream(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[Chunk]:
+        for chunk in responses[sum(isinstance(m, ModelResponse) for m in messages)]:
+            yield chunk
+
+    return FunctionModel(stream_function=stream)
 
 
 def _echoes_prompt() -> FunctionModel:
@@ -164,13 +220,20 @@ def test_each_configured_edge_attaches_its_harness_capability():
     )
     assert isinstance(combined, CombinedCapability)
     kinds = {type(edge) for edge in combined.capabilities}
-    assert kinds == {InputGuardrail, OutputGuardrail, ToolGuardrail}
+    assert kinds == {InputGuardrail, OutputGuardrail, ScreenedStream, ToolGuardrail}
 
 
 def test_only_the_configured_edge_is_attached():
     combined = build_guardrails(GuardrailsConfig(redact_pii_out=True))
     assert isinstance(combined, CombinedCapability)
-    assert [type(edge) for edge in combined.capabilities] == [OutputGuardrail]
+    assert [type(edge) for edge in combined.capabilities] == [OutputGuardrail, ScreenedStream]
+
+
+def test_the_stream_is_left_alone_without_an_output_check():
+    """Only an agent that asked for output screening pays for it in streaming."""
+    combined = build_guardrails(GuardrailsConfig(redact_secrets_in=True, redact_secrets_tool=True))
+    assert isinstance(combined, CombinedCapability)
+    assert ScreenedStream not in {type(edge) for edge in combined.capabilities}
 
 
 async def test_input_redaction_rewrites_the_prompt_the_model_sees():
@@ -259,3 +322,424 @@ def test_the_builder_falls_back_to_defaults_for_a_foreign_config():
 def test_a_configured_binding_builds_the_capability():
     built = _build(GuardrailsConfig(redact_secrets_in=True))
     assert isinstance(built, CombinedCapability)
+
+
+async def _streamed(agent: Agent, events: list[AgentStreamEvent]) -> None:
+    """Drive `agent` the way every streaming surface does, collecting what it is shown.
+
+    Appends to `events` rather than returning them, so a test of a run that raises
+    can still read what was released before it did.
+    """
+    async with agent.iter("go") as run:
+        async for node in run:
+            if Agent.is_model_request_node(node) or Agent.is_call_tools_node(node):
+                async with node.stream(run.ctx) as stream:
+                    async for event in stream:
+                        events.append(event)
+
+
+def _shown(events: list[AgentStreamEvent]) -> str:
+    """Every piece of text or reasoning a consumer of these events could display."""
+    shown: list[str] = []
+    for event in events:
+        if isinstance(event, PartStartEvent | PartEndEvent) and isinstance(
+            event.part, TextPart | ThinkingPart
+        ):
+            shown.append(event.part.content)
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+            shown.append(event.delta.content_delta)
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, ThinkingPartDelta):
+            shown.append(event.delta.content_delta or "")
+    return "\n".join(shown)
+
+
+# The secret arrives split across deltas, the way a model streams it: no one delta
+# holds the whole pattern, so screening deltas one at a time would miss it.
+_KEY_IN_PIECES = ["Here it is: sk-ant-api03-ABCDEF", "GHIJKLMNOPQR. Keep it safe."]
+
+
+@pytest.mark.security
+async def test_a_streamed_answer_never_shows_the_secret_it_redacts():
+    """The reported leak: the deltas carried the key, and only `final_result` was
+    redacted - so the web chat and every channel showed it while it was written."""
+    agent = _agent(GuardrailsConfig(redact_secrets_out=True), _streams(_KEY_IN_PIECES))
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert SECRET not in _shown(events)
+    assert "Here it is: [redacted:anthropic_key]. Keep it safe." in _shown(events)
+
+
+async def test_text_written_before_a_tool_call_is_screened_too():
+    """The harness guardrail reads only the run's output, which is the last
+    response's text. A sentence before a tool call is not part of it, yet a
+    streaming surface shows it and stores it in the turn."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [*_KEY_IN_PIECES, {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["answered"],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert SECRET not in _shown(events)
+    assert "[redacted:anthropic_key]" in _shown(events)
+    assert "answered" in _shown(events)
+
+
+async def test_reasoning_is_screened_like_the_answer():
+    """Reasoning streams to the same reader as the answer, so it is held to the
+    same rule - a key the model recalls while thinking is still a key on screen."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [
+                {0: DeltaThinkingPart(content="The key was sk-ant-api03-ABCDEF")},
+                {0: DeltaThinkingPart(content="GHIJKLMNOPQR, I should not repeat it.")},
+                "Done.",
+            ]
+        ),
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert SECRET not in _shown(events)
+    assert "The key was [redacted:anthropic_key], I should not repeat it." in _shown(events)
+
+
+def _released_text(events: list[AgentStreamEvent]) -> str:
+    """The text parts as `RunFrames` and a channel's live reply join them: end to end."""
+    return "".join(
+        event.part.content
+        for event in events
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart)
+    )
+
+
+@pytest.mark.security
+async def test_a_key_split_around_a_tool_call_blocks_before_its_second_half():
+    """Each half is harmless on its own, and a surface joins the parts: the half
+    already shown cannot be taken back, so the half that completes it is never sent."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [
+                "Here it is: sk-ant-api03-ABCDEF",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["GHIJKLMNOPQR. Keep it safe."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _released_text(events)
+
+
+@pytest.mark.security
+async def test_answer_text_that_reads_like_the_placeholder_keeps_the_tail():
+    """Only a part this screen withheld clears the tail; a model writing the same
+    words must not be able to split a keyword around them."""
+    keyword = WITHHELD_REASONING + "bar"
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out=keyword),
+        _streams(
+            [
+                WITHHELD_REASONING,
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["bar"],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+
+@pytest.mark.security
+async def test_a_part_that_breaks_a_redaction_already_shown_blocks():
+    """A key redacted at the end of one part stops matching once the next part
+    extends it; releasing the joined screen would send the key itself."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams(
+            [
+                "The key is AKIAIOSFODNN7EXAMPLE",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["X and that is all."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "AKIAIOSFODNN7EXAMPLE" not in _shown(events)
+
+
+@pytest.mark.security
+async def test_a_key_begun_in_reasoning_and_finished_in_the_answer_blocks():
+    """A surface shows and stores reasoning and answer in order, so they share a tail."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams([{0: DeltaThinkingPart(content="It is sk-ant-api03-ABCDEF")}, "GHIJKLMNOPQR."]),
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _shown(events)
+
+
+@pytest.mark.security
+async def test_a_keyword_only_two_parts_spell_together_is_blocked():
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out="confidential"),
+        _streams(
+            ["This is confi", {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["dential."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert _released_text(events) == "This is confi"
+
+
+async def test_the_released_tail_never_pushes_a_part_past_a_size_limit():
+    """The tail is context: a part within the PII size ceiling is released even
+    when the tail added to it would not be."""
+
+    def screen(text: str) -> GuardrailResult:
+        if len(text) > 30:
+            raise GuardrailBlocked(edge="output", message="too long")
+        return GuardrailResult.allow()
+
+    agent = Agent(
+        _streams(
+            ["a" * 20, {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["b" * 30],
+        ),
+        capabilities=[
+            ScreenedStream(screen=screen, fits=lambda text: len(text) <= 30, tail_chars=10)
+        ],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert _released_text(events) == "a" * 20 + "b" * 30
+
+
+@pytest.mark.security
+async def test_a_key_split_into_a_part_too_long_for_its_tail_still_blocks():
+    """A part at the size ceiling is screened alone, so the key's completion is
+    checked on a window with the tail - and since it cannot be redacted inside
+    this part alone, it is not released at all."""
+    detector = _edge_detector(
+        redact_secrets_on=True, redact_pii_on=False, phone_regions=(), keywords=[], edge="output"
+    )
+    assert detector is not None
+    agent = Agent(
+        _streams(
+            [
+                "Here it is: sk-ant-api03-ABCDEF",
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            ["GHIJKLMNOPQR. " + "z" * 46],
+        ),
+        capabilities=[
+            ScreenedStream(screen=detector, fits=lambda text: len(text) <= 60, tail_chars=30)
+        ],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _released_text(events)
+
+
+async def test_reasoning_that_completes_a_key_in_a_part_too_long_for_its_tail_is_withheld():
+    detector = _edge_detector(
+        redact_secrets_on=True, redact_pii_on=False, phone_regions=(), keywords=[], edge="output"
+    )
+    assert detector is not None
+    agent = Agent(
+        _streams(
+            [
+                {0: DeltaThinkingPart(content="It was sk-ant-api03-ABCDEF")},
+                {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")},
+            ],
+            [{0: DeltaThinkingPart(content="GHIJKLMNOPQR " + "z" * 47)}, "Done."],
+        ),
+        capabilities=[
+            ScreenedStream(screen=detector, fits=lambda text: len(text) <= 60, tail_chars=30)
+        ],
+    )
+
+    async def fetch() -> str:
+        return "ok"
+
+    agent.tool_plain(fetch)
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert "GHIJKLMNOPQR" not in _shown(events)
+    assert WITHHELD_REASONING in _shown(events)
+    assert "Done." in _shown(events)
+
+
+@pytest.mark.security
+async def test_a_blocked_keyword_longer_than_the_tail_is_still_caught_across_parts():
+    keyword = "x" * 1_500
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out=keyword),
+        _streams(
+            [keyword[:-1], {1: DeltaToolCall(name="fetch", json_args="{}", tool_call_id="c1")}],
+            ["x."],
+        ),
+        tool_result="ok",
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked):
+        await _streamed(agent, events)
+
+
+async def test_with_pii_redaction_the_stream_knows_the_phone_size_limit():
+    capability = build_guardrails(GuardrailsConfig(redact_pii_out=True))
+    assert capability is not None
+    [screened] = [c for c in capability.capabilities if isinstance(c, ScreenedStream)]
+
+    assert screened.fits is not None
+    assert screened.fits("short")
+    assert not screened.fits("1" * 20_000)
+
+
+async def test_a_blocked_keyword_in_reasoning_withholds_the_reasoning_not_the_run():
+    """Reasoning routinely restates the question. Ending a run whose answer is
+    clean over a word the model only thought would refuse ordinary questions."""
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out="acme"),
+        _streams(
+            [
+                {0: DeltaThinkingPart(content="The user asks about Acme.")},
+                "I can only talk about our own product.",
+            ]
+        ),
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    assert "Acme" not in _shown(events)
+    assert WITHHELD_REASONING in _shown(events)
+    assert "I can only talk about our own product." in _shown(events)
+
+
+async def test_a_released_part_keeps_what_came_before_it():
+    """The held start event is the one released, so `previous_part_kind` survives."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_out=True),
+        _streams([{0: DeltaThinkingPart(content="Thinking.")}, "Answer."]),
+    )
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    starts = [event for event in events if isinstance(event, PartStartEvent)]
+    assert [(type(e.part), e.previous_part_kind) for e in starts] == [
+        (ThinkingPart, None),
+        (TextPart, "thinking"),
+    ]
+
+
+@pytest.mark.security
+async def test_a_blocked_answer_ends_the_run_before_any_of_it_is_shown():
+    """The block used to arrive after the whole answer had streamed - and been
+    stored as the turn - so the refusal refused nothing."""
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_out="confidential"),
+        _streams(["Strictly confidential: ", "Acme is buying Initech."]),
+    )
+    events: list[AgentStreamEvent] = []
+
+    with pytest.raises(GuardrailBlocked) as exc:
+        await _streamed(agent, events)
+
+    assert exc.value.edge == "output"
+    assert _shown(events) == ""
+
+
+async def test_a_held_part_is_released_whole_and_in_place():
+    """One start and one end event per part, both carrying the screened text, at
+    the part's own index - what `RunFrames` and a channel's live reply read."""
+    agent = _agent(GuardrailsConfig(redact_secrets_out=True), _streams(_KEY_IN_PIECES))
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    released = [
+        (type(event), event.index, event.part.content)
+        for event in events
+        if isinstance(event, PartStartEvent | PartEndEvent) and isinstance(event.part, TextPart)
+    ]
+    assert released == [
+        (PartStartEvent, 0, "Here it is: [redacted:anthropic_key]. Keep it safe."),
+        (PartEndEvent, 0, "Here it is: [redacted:anthropic_key]. Keep it safe."),
+    ]
+    assert not any(isinstance(event, PartDeltaEvent) for event in events)
+
+
+async def test_without_an_output_check_the_answer_streams_token_by_token():
+    """An agent screening only its input keeps the live stream it had."""
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _streams(["One ", "two ", "three."]))
+    events: list[AgentStreamEvent] = []
+
+    await _streamed(agent, events)
+
+    deltas = [
+        event.delta.content_delta
+        for event in events
+        if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta)
+    ]
+    assert deltas == ["two ", "three."]
+
+
+async def test_a_waited_for_answer_is_still_redacted():
+    """Screening the stream changes only what a consumer of the stream sees: the
+    output the run ends with is still the output guardrail's redacted answer."""
+    agent = _agent(GuardrailsConfig(redact_secrets_out=True), _streams(_KEY_IN_PIECES))
+
+    result = await agent.run("go")
+
+    assert result.output == "Here it is: [redacted:anthropic_key]. Keep it safe."

@@ -476,7 +476,10 @@ What a response turns into is decided here:
   The library would hand back the raw bytes for the model to read natively. A model
   served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
   request (`Unsupported chat content part type: 'file'`), and the agent then fetches
-  the same document again.
+  the same document again. Only the text up to `max_content_chars` is extracted, and
+  a PDF is read for at most 2,000 pages: one longer than that ends with a note
+  naming the page it stopped at, and when the pages read held no text the note is
+  all that comes back.
 - A binary with no readable text (a scanned PDF, an archive) reaches the model as a
   retryable error that names what came back.
 
@@ -1698,6 +1701,32 @@ keyword block instead ends the run with status `guardrail_blocked`, its own outc
 beside `budget_exceeded`, because a refusal is the platform working and an operator
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
+
+**An output check screens the answer before anyone sees it.** Every surface
+streams: the web chat and the embedded widget send the answer as it is written, and
+a channel bot edits its reply as the text arrives. When any output check is
+configured, each piece of text and reasoning is held back until it is complete,
+checked with the same detectors, and only then sent. A key split across two chunks is still caught. One split across two parts, such as
+text before a tool call and text after it, or reasoning and then the answer, ends
+the run before its second half is sent, because the first is already on screen. So is text the model writes before it calls a tool, which is not
+part of the final answer but is still shown and stored. The cost is that such an
+agent's answer arrives one step at a time rather than word by word. An agent with
+no output check streams as before. A keyword block in the
+answer ends the run before any of the blocked text is shown or stored. Reasoning is
+not the answer, so a blocked keyword there does not end the run: that reasoning step
+shows `[reasoning withheld by the output guardrail]` instead.
+
+**What the stream screen does not cover yet.** Two streamed paths are not screened:
+a tool call's arguments as they stream, and a delegate's own streamed answer in the
+delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
+size limits, so an answer part too long for it ends the run as the final answer
+would. Because the screen hooks the run's event stream, a guarded agent's model
+requests stream even through the HTTP API, so its model must support streaming.
+
+**The input edge changes what the model reads, not the transcript.** A redacted
+prompt reaches the model scrubbed, but the conversation stores the message as the
+person typed it, personal data included. Anyone who can read the conversation can
+read that message.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
