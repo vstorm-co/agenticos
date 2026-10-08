@@ -1017,6 +1017,42 @@ class TestTheParseStopsAtItsLimit:
         assert pages_read == [0, 1, 2]
         assert text == fu.PDF_PAGES_CUT_MARKER.format(read=3, total=5)
 
+    # 7 is the text of the three pages read exactly; 10 leaves room for part of the
+    # page note only.
+    @pytest.mark.parametrize("max_chars", [7, 10])
+    async def test_the_page_note_is_kept_outside_the_limit(
+        self, monkeypatch: pytest.MonkeyPatch, max_chars: int
+    ):
+        """Text within the budget is not cut because the page note does not fit:
+        the model is told where the page cap stopped, not that the text was cut."""
+        monkeypatch.setattr(fu, "_PDF_MAX_PAGES", 3)
+
+        text = await fu.DocumentText().parse_content(
+            _pdf(["a", "b", "c", "d", "e"]), "pdf", max_chars=max_chars
+        )
+
+        assert text == "a\n\nb\n\nc\n\n" + fu.PDF_PAGES_CUT_MARKER.format(read=3, total=5)
+
+    async def test_text_past_the_limit_is_not_blamed_on_the_page_cap(
+        self, monkeypatch: pytest.MonkeyPatch, pages_read
+    ):
+        """The budget stopped this read at page 2, so naming page 3 would be wrong."""
+        monkeypatch.setattr(fu, "_PDF_MAX_PAGES", 3)
+
+        text = await fu.DocumentText().parse_content(
+            _pdf(["aaaa", "bbbb", "cccc", "d", "e"]), "pdf", max_chars=5
+        )
+
+        assert pages_read == [0, 1]
+        assert text == "aaaa\n" + fu.PARSE_CUT_MARKER.format(max_chars=5)
+
+    async def test_the_caller_names_the_cut_marker(self):
+        text = await fu.DocumentText().parse_content(
+            b"a" * 50, "text", max_chars=10, cut_marker="[cut]"
+        )
+
+        assert text == "a" * 10 + "[cut]"
+
     @pytest.mark.parametrize(
         ("build", "file_type", "filename"),
         [

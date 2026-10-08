@@ -265,6 +265,19 @@ def _odf_text_blocks(document: Any, qnames: set[tuple[str, str]]) -> Iterator[st
 
 
 @dataclass(frozen=True)
+class _PdfText:
+    """A PDF's text, and the note on the pages `_PDF_MAX_PAGES` left unread.
+
+    Apart because the note is not document text: `parse_content` spends the
+    character budget on `text` alone and adds `unread` after any cut, so a text
+    that fits the budget is never reported as cut because of the note (#1990).
+    """
+
+    text: str
+    unread: str
+
+
+@dataclass(frozen=True)
 class TiffConversion:
     """The PNGs a TIFF contributes to a turn, and what was left out."""
 
@@ -394,13 +407,16 @@ class DocumentText:
         charset: str | None = None,
         *,
         max_chars: int | None = None,
+        cut_marker: str | None = None,
     ) -> str | None:
         """Parse file content into text, dispatched by the canonical format.
 
         Returns extracted text or `None` when parsing fails or the type carries no
         text (an image). The text is bounded by `max_chars`, and never by more than
         `CHAT_PARSED_TEXT_MAX_CHARS`; past it, the text is cut and ends with
-        `PARSE_CUT_MARKER`.
+        `cut_marker`, or `PARSE_CUT_MARKER` when none is given. A PDF that
+        `_PDF_MAX_PAGES` stopped within the budget ends with `PDF_PAGES_CUT_MARKER`
+        instead, after the budgeted text rather than inside it.
 
         The bound is a budget the readers spend, not a cut applied afterwards. A
         PDF stops at the page that crosses it, the office readers at the paragraph,
@@ -419,14 +435,21 @@ class DocumentText:
         if max_chars is not None:
             limit = min(limit, max_chars)
         fmt = resolve_format(mime_type, filename)
-        text = await self._parse_by_format(data, file_type, fmt, limit, charset)
-        if text is None or len(text) <= limit:
+        parsed = await self._parse_by_format(data, file_type, fmt, limit, charset)
+        text: str | None
+        if isinstance(parsed, _PdfText):
+            text, unread = parsed.text, parsed.unread
+        else:
+            text, unread = parsed, ""
+        if text is not None and len(text) > limit:
+            text = text[:limit] + (cut_marker or PARSE_CUT_MARKER.format(max_chars=limit))
+        if not unread:
             return text
-        return text[:limit] + PARSE_CUT_MARKER.format(max_chars=limit)
+        return f"{text}\n\n{unread}" if text else unread
 
     async def _parse_by_format(
         self, data: bytes, file_type: str, fmt: str, max_chars: int, charset: str | None = None
-    ) -> str | None:
+    ) -> str | _PdfText | None:
         if file_type == "text":
             return await run_blocking(self._parse_text_content, data, charset)
         if file_type == "pdf":
@@ -476,7 +499,7 @@ class DocumentText:
             return None
 
     @staticmethod
-    def _parse_pdf_pymupdf(data: bytes, max_chars: int) -> str | None:
+    def _parse_pdf_pymupdf(data: bytes, max_chars: int) -> _PdfText | None:
         """Extract text from PDF using PyMuPDF, page by page within `max_chars`.
 
         A compressed PDF under the download limit can inflate to far more text than
@@ -492,17 +515,18 @@ class DocumentText:
                 read = min(total, _PDF_MAX_PAGES)
                 pages = (doc[index].get_text("text").strip() for index in range(read))
                 text = _join_within((page for page in pages if page), "\n\n", max_chars)
-                if read < total:
-                    cut = PDF_PAGES_CUT_MARKER.format(read=read, total=total)
-                    text = f"{text}\n\n{cut}" if text else cut
             finally:
                 doc.close()
-            return text or None
+            # Text past the budget stopped the read before the page cap could.
+            unread = ""
+            if read < total and len(text) <= max_chars:
+                unread = PDF_PAGES_CUT_MARKER.format(read=read, total=total)
+            return _PdfText(text, unread) if text or unread else None
         except Exception as e:
             logger.warning("PyMuPDF PDF parsing failed: %s", e)
             return None
 
-    def _parse_pdf_content(self, data: bytes, max_chars: int) -> str | None:
+    def _parse_pdf_content(self, data: bytes, max_chars: int) -> _PdfText | None:
         """Read a PDF attached to a chat message.
 
         PyMuPDF, and only PyMuPDF. A chat attachment belongs to no collection,
@@ -838,17 +862,28 @@ class DocumentText:
 
 
 async def extract_text(
-    data: bytes, mime_type: str, filename: str, *, max_chars: int | None = None
+    data: bytes,
+    mime_type: str,
+    filename: str,
+    *,
+    max_chars: int | None = None,
+    cut_marker: str | None = None,
 ) -> str | None:
     """The text of a document that did not arrive as an upload, or `None`.
 
     Dispatched exactly as an attachment is - `classify_file` over the declared
     type and the name - so a PDF read from a URL reaches the model as the same
     text it would have had attached. `max_chars` is how much of it the caller
-    keeps; the parse stops there rather than reading the rest (#1990).
+    keeps; the parse stops there rather than reading the rest, and ends text cut
+    there with `cut_marker` (#1990).
     """
     return await DocumentText().parse_content(
-        data, classify_file(mime_type, filename), mime_type, filename, max_chars=max_chars
+        data,
+        classify_file(mime_type, filename),
+        mime_type,
+        filename,
+        max_chars=max_chars,
+        cut_marker=cut_marker,
     )
 
 
