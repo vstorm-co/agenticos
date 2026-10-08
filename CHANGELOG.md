@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.527] - 2026-10-08
+
 ### Fixed
 
 - **Local services work from the console.** Knowledge → Integrations and a
