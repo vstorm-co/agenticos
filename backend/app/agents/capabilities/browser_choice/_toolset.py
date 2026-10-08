@@ -16,7 +16,8 @@ narration and every outcome - without Chromium and without an account.
 language model runs one per field typed, and neither passes the host agent's
 `BudgetGuard`: they go out through `Agent`s built here. Wrapped in
 :class:`~app.agents.capabilities._metered.MeteredModel`, they book against the
-run's ledger like anything else (agenticos#802).
+run's ledger like anything else, and a request the run can no longer afford is
+refused before it is sent (agenticos#802, agenticos#1808).
 """
 
 from __future__ import annotations
@@ -57,7 +58,6 @@ from app.agents.capabilities.browser_choice._questions import (
     read_decision,
     value_prompt,
 )
-from app.agents.capabilities.budget import assert_ambient_budget
 
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
 """Opens a browser on a starting URL. The default is `_page.open_page`."""
@@ -229,13 +229,6 @@ def build_toolset(
         writer = MeteredModel(cast(Model, ctx.model))
 
         async def decide(task: str, snapshot: Snapshot, history: tuple[str, ...]) -> Choice:
-            # Before the request, not after it. `MeteredModel` books what this
-            # costs once it has been paid for, and the host guard only wraps the
-            # *agent's* requests - so an exhausted budget stopped the turn's next
-            # model call and not the twenty-five this tool was about to make on
-            # its own. Raises `BudgetExceeded`, which the runner already knows
-            # how to surface.
-            await assert_ambient_budget()
             output_type = decision_type(snapshot.elements)
             agent: Agent[None, BaseModel] = Agent(decider, output_type=output_type)
             run = await agent.run(observation(task, snapshot, history))
@@ -258,7 +251,6 @@ def build_toolset(
         task = f"{goal}\n\nVALUES TO USE: {private}" if private else goal
 
         async def generate(element: Element, history: tuple[str, ...]) -> str:
-            await assert_ambient_budget()
             agent: Agent[None, str] = Agent(writer, output_type=str)
             run = await agent.run(value_prompt(task, element, history))
             return run.output.strip()

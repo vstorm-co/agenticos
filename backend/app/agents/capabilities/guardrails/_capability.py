@@ -23,16 +23,36 @@ The raise escapes `agent.run()` cleanly from every edge - `wrap_model_request`
 (input), `after_output_process` (output) and `after_tool_execute` (tool result) all
 propagate a guard's exception rather than converting it, which is what makes one
 `GuardrailBlocked` type serve all three.
+
+**The output edge also screens the stream.** The harness's `OutputGuardrail` reads
+the finished answer, and every surface here streams it first - the web chat sends
+each delta to the socket and a channel bot edits its reply as the text arrives - so
+a redacted key was on screen, and in the stored turn, before the redaction ran
+(agenticos#1900). :class:`ScreenedStream` holds each text and reasoning part back
+from whoever consumes the stream until the part is complete, and releases it
+through the same detector the output guardrail runs.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import AsyncIterable, Callable
+from dataclasses import dataclass, field, replace
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+)
+from pydantic_ai.tools import RunContext
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
@@ -67,6 +87,18 @@ _KEYWORD_SPLIT = re.compile(r"[,\n]")
 A string rather than a `list[str]` because the Builder's generated form renders
 only scalar and enum fields - a list arrives as a text box either way, so it is
 one honestly rather than a control that looks structured and is not.
+"""
+
+WITHHELD_REASONING = "[reasoning withheld by the output guardrail]"
+"""What a reasoning part the output check refused shows in its place."""
+
+_BOUNDARY_CHARS = 1_000
+"""How much of the text already released is screened again with the next part, at least.
+
+A key or a blocked keyword split across two parts - text written before a tool
+call and text after it - is harmless in each. Screened with the tail of what came
+before, the part that completes it is redacted or blocked. Far longer than any
+value the detectors match, and short enough to add little to each screen.
 """
 
 _BLOCK_MESSAGE = {
@@ -248,11 +280,135 @@ def _edge_detector(
     return detect
 
 
+@dataclass
+class ScreenedStream(AbstractCapability[object]):
+    """Release the answer to a streaming consumer only once the output check has read it.
+
+    Text and reasoning parts are held back whole: their start and delta events are
+    dropped, and when a part ends it is released as one start event carrying the
+    screened content, followed by its end event carrying the same. Screening a
+    complete part is what makes this safe - a key split across two deltas is
+    whole by the time the detector reads it - and it covers text the harness
+    guardrail never reads at all: what the model writes before calling a tool is
+    not the run's output, but a streaming surface shows it and stores it.
+
+    A blocked keyword in a text part raises :class:`GuardrailBlocked` out of the
+    stream before any of that part has been released, so the run ends as
+    `GUARDRAIL_BLOCKED` with none of the blocked text shown or written down. A
+    refused reasoning part is replaced by `WITHHELD_REASONING` instead: reasoning
+    routinely restates the question, and ending a run whose answer is clean over
+    a word the model only thought would refuse ordinary questions.
+
+    The cost falls only on an agent that configured an output check: its answer
+    arrives a part at a time rather than token by token. The run's own messages
+    and output are untouched - the library applies this hook to the consumer's
+    view only - so the final answer is still redacted by the output guardrail.
+    """
+
+    screen: TextDetector
+    fits: Callable[[str], bool] | None = None
+    """Whether a text is within the screen's size limit, when it has one.
+
+    The phone detector refuses a text past its character or digit ceiling. The
+    released tail is context, not the part, so it must not push a part that is
+    within the ceiling past it: such a part is screened alone, and its boundary
+    with the tail on a window of its own."""
+    tail_chars: int = _BOUNDARY_CHARS
+    """How much released text is kept to screen with the next part: at least
+    `_BOUNDARY_CHARS`, and longer when a blocked keyword is, so a keyword split
+    across two parts is never cut off at its start."""
+
+    _released: str = field(default="", init=False, repr=False)
+    """The raw tail of what this run has released, text and reasoning in order.
+
+    One tail for both, because a surface shows and stores them in order, so a
+    key begun in reasoning and finished in the answer is one key on screen. Held
+    on the instance because the stream hook runs once per node, and a part that
+    completes a value is usually in the response after the tool call."""
+
+    async def for_run(self, ctx: RunContext[object]) -> ScreenedStream:
+        """A fresh instance per run, so one run's released tail never meets another's."""
+        return ScreenedStream(screen=self.screen, fits=self.fits, tail_chars=self.tail_chars)
+
+    async def wrap_run_event_stream(
+        self,
+        ctx: RunContext[object],
+        *,
+        stream: AsyncIterable[AgentStreamEvent],
+    ) -> AsyncIterable[AgentStreamEvent]:
+        """Drop text and reasoning as they stream, and release each part screened."""
+        # The start events held back, by part index: released with the screened
+        # part so `previous_part_kind` survives.
+        held: dict[int, PartStartEvent] = {}
+        async for event in stream:
+            match event:
+                case PartStartEvent(part=TextPart() | ThinkingPart()):
+                    held[event.index] = event
+                case PartDeltaEvent(delta=TextPartDelta() | ThinkingPartDelta()):
+                    pass
+                case PartEndEvent(part=TextPart() | ThinkingPart() as part):
+                    before = self._released
+                    content = self._screened(part, before)
+                    # A withheld part is not shown, so nothing can complete it.
+                    withheld = content is None
+                    tail = "" if withheld else before + part.content
+                    self._released = tail[-self.tail_chars :]
+                    content = WITHHELD_REASONING if content is None else content
+                    screened = replace(part, content=content)
+                    yield replace(held.pop(event.index), part=screened)
+                    yield replace(event, part=screened)
+                case _:
+                    yield event
+
+    def _screened(self, part: TextPart | ThinkingPart, before: str) -> str | None:
+        """The part's content as a consumer may see it, or `None` for a withheld
+        reasoning part; a blocked text part raises.
+
+        Screened after `before`, the raw tail already released, and released only
+        while the screen of `before` stays exactly what was shown: what follows it
+        is then this part's own text, screened. When this part changes how the
+        tail screens - a key begun there and finished here, or a match there that
+        this part breaks - the value crosses the boundary, and half of it is
+        already on screen: the text part blocks, a reasoning part is withheld. A
+        keyword only the two parts spell together blocks the same way.
+
+        A part too long to screen with its tail under `fits` is screened alone,
+        after its start is screened with the tail on a window that fits.
+        """
+        try:
+            shown = self._cleaned(before)
+            if self.fits is None or self.fits(before + part.content):
+                both = self._cleaned(before + part.content)
+                crossed = not both.startswith(shown)
+                released = both[len(shown) :]
+            else:
+                window = self._cleaned(before + part.content[: self.tail_chars])
+                crossed = not window.startswith(shown)
+                released = self._cleaned(part.content)
+        except GuardrailBlocked:
+            if isinstance(part, TextPart):
+                raise
+            return None
+        if not crossed:
+            return released
+        if isinstance(part, TextPart):
+            raise GuardrailBlocked(edge="output", message=_BLOCK_MESSAGE["output"])
+        return None
+
+    def _cleaned(self, text: str) -> str:
+        verdict = self.screen(text)
+        # A detector here only allows or replaces; a block has raised.
+        return str(verdict.replacement) if verdict.action == "replace" else text
+
+
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
     """The harness capabilities this configuration asks for, combined into one.
 
     One capability per configured edge, wrapped in a `CombinedCapability` so a
-    single binding attaches all of them. `None` when no edge is configured - the
+    single binding attaches all of them. The output edge brings a second,
+    :class:`ScreenedStream`, sharing its detector: the guardrail screens the answer
+    the run ends with and the stream screen what a surface shows while it is
+    written, and neither is safe without the other. `None` when no edge is configured - the
     "enabled but inert" state does not exist, which is the "pays nothing when
     absent" contract every capability owes.
     """
@@ -269,15 +425,27 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     if input_detector is not None:
         edges.append(InputGuardrail(guard=input_detector))
 
+    output_keywords = _keywords(config.blocked_keywords_out)
     output_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_out,
         redact_pii_on=config.redact_pii_out,
         phone_regions=phone_regions,
-        keywords=_keywords(config.blocked_keywords_out),
+        keywords=output_keywords,
         edge="output",
     )
     if output_detector is not None:
         edges.append(OutputGuardrail(guard=for_text(output_detector, on_other="allow")))
+        edges.append(
+            ScreenedStream(
+                screen=output_detector,
+                fits=(
+                    (lambda text: phone_text_error(text, phone_regions) is None)
+                    if config.redact_pii_out
+                    else None
+                ),
+                tail_chars=max([_BOUNDARY_CHARS, *(len(term) for term in output_keywords)]),
+            )
+        )
 
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,

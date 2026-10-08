@@ -271,6 +271,34 @@ class TestInferFilters:
             await _infer(_answering({"document_type": ["pdf"]}, calls=calls))
         assert calls == []
 
+    @pytest.mark.security
+    async def test_a_corrected_attempt_is_refused_once_the_first_reached_the_cap(self):
+        """The first attempt is affordable, fails validation and takes the run to
+        its cap. The corrected attempt the nested run owes is refused before it is
+        sent (agenticos#1808)."""
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        calls: list[int] = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            calls.append(1)
+            # What this attempt cost: $2.00 of input on gpt-4.1, over the $1.00 cap.
+            guard.ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name=info.output_tools[0].name,
+                        args={"document_type": ["not-a-real-type"]},
+                    )
+                ]
+            )
+
+        with guarded_by(guard), pytest.raises(BudgetExceeded):
+            await _infer(FunctionModel(respond))
+        assert calls == [1]
+
 
 class TestConfigDefault:
     def test_it_is_off_for_a_config_that_predates_it(self):

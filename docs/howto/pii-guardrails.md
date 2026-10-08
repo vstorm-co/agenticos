@@ -106,7 +106,9 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
     version. Redaction runs on the finished answer, not on each streamed token —
     `widget.js` overwrites its rendered text with `final_result.output` for
     exactly this reason, but a client that only appends deltas would show the
-    secret for the second or two before the swap.
+    secret for the second or two before the swap. Since
+    [#1900](https://github.com/vstorm-co/agenticos/issues/1900) an agent with an output check holds
+    each part until it has been screened, so the deltas no longer carry the key.
 
     The wire-transfer message: `error` — *"This request was blocked by an input
     guardrail."* — with no `complete` frame after it. The run recorded status
@@ -120,11 +122,12 @@ guardrail rewrites what the *model* reads, never the stored conversation turn.
   number that is not valid in its country's numbering plan is left alone. A
   physical address or a name are not covered — this is a pattern layer, not a
   model that understands what personal data is.
-- **A streaming client shows a secret for a moment.** Output redaction runs on
-  the finished answer, after the `text_delta` frames have gone out. Render the
-  `final_result` text, as `widget.js` does, rather than only appending deltas.
-  Buffering the answer when output screening is on is tracked in
-  [#1900](https://github.com/vstorm-co/agenticos/issues/1900).
+- **A streaming client shows a secret for a moment.** With any output check on,
+  text and reasoning are held per part and released already screened, so the
+  agent's own answer should never do this. Two streamed paths are not screened yet:
+  a tool call's arguments and a delegate's own answer in the delegation panel
+  ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). If the secret came through
+  one of those, render the `final_result` text rather than only appending deltas.
 - **The block did not fire.** `blocked_keywords_*` matches a literal, case-insensitive
   substring. A block also needs the edge's own toggle — a keyword list on the
   output edge does nothing to the input.
