@@ -343,7 +343,7 @@ Two entries in that dict are seams to other subsystems rather than plain data:
 
 | Resource | Left by the runner | Read by |
 |---|---|---|
-| `WORKSPACE_BACKEND_RESOURCE` | the opened sandbox session | the `sandbox` capability |
+| `WORKSPACE_RESOURCE` | the opened workspace, which the run also gets as `ctx.workspace` | `tool_output_limits`, and a delegate that shares `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | the resolved delegation tree | the `subagents` capability |
 
 Delegation is the sharpest case for the rule. A delegate is a row; so are its pinned

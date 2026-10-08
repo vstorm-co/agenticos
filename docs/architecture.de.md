@@ -1,5 +1,5 @@
 ---
-source_sha: "8d9cf7ac71b1"
+source_sha: "d6244bf5e175"
 ---
 
 # Architektur { #architecture }
@@ -372,7 +372,7 @@ bloßen Daten:
 
 | Resource | Hinterlassen vom Runner | Gelesen von |
 |---|---|---|
-| `WORKSPACE_BACKEND_RESOURCE` | der geöffneten Sandbox-Session | der `sandbox`-Capability |
+| `WORKSPACE_RESOURCE` | dem geöffneten Workspace, den der Run auch als `ctx.workspace` erhält | `tool_output_limits` und einem Delegierten, der `sandbox` teilt |
 | `SUBAGENT_RUNTIME_RESOURCE` | dem aufgelösten Delegationsbaum | der `subagents`-Capability |
 
 Delegation ist der schärfste Fall für diese Regel. Ein Delegierter ist eine Zeile;

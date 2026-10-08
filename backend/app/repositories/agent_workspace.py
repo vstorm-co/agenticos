@@ -35,7 +35,6 @@ async def create(
     backend: str,
     conversation_id: UUID | None = None,
     owner_ref: str | None = None,
-    session_id: str | None = None,
     connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
 ) -> AgentWorkspace:
@@ -47,7 +46,6 @@ async def create(
         scope=scope,
         scope_key=scope_key,
         backend=backend,
-        session_id=session_id,
         connection_id=connection_id,
         files=files,
         bytes_total=0,
@@ -65,6 +63,7 @@ async def save_files(
     *,
     workspace: AgentWorkspace,
     files: dict[str, Any],
+    directories: list[str],
     bytes_total: int,
 ) -> AgentWorkspace:
     """Store the document this run produced, bumping the version.
@@ -81,9 +80,20 @@ async def save_files(
     can reach the race at all.
     """
     workspace.files = files
+    workspace.directories = directories
     workspace.bytes_total = bytes_total
     workspace.version += 1
     workspace.last_used_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(workspace)
+    return workspace
+
+
+async def record_session(
+    db: AsyncSession, *, workspace: AgentWorkspace, session_id: str | None
+) -> AgentWorkspace:
+    """Record the host session this workspace is, or `None` once it is gone."""
+    workspace.session_id = session_id
     await db.flush()
     await db.refresh(workspace)
     return workspace

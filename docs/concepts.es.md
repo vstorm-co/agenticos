@@ -1,5 +1,5 @@
 ---
-source_sha: "aad00e7657d4"
+source_sha: "bbb1801a8c80"
 ---
 
 # Conceptos { #concepts }
@@ -161,6 +161,48 @@ la regla de la mención en un canal, por la misma razón.
 Cuando ese miembro ya no puede ejecutar el agent — dejó la organización, o se le
 revocó su grant sobre él — el trigger **se desactiva a sí mismo y registra por
 qué**, en vez de reintentar un rechazo eternamente.
+
+### No es la conversación de esa persona { #it-is-not-that-persons-conversation }
+
+El creador presta a un disparo su **autoridad**: su rol y sus grants. No le
+presta su **identidad**. Nadie escucha un run desatendido, así que no responde a
+ninguna persona identificada, igual que un visitante de un widget embebido. Estos
+almacenes que se guardan por persona le están cerrados:
+
+- [Archivos de memoria](reference/capabilities.md#memory-files) y
+  [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
+  conversación no tiene memoria.
+- [Búsqueda de conversaciones](reference/capabilities.md#conversation-search):
+  ambas herramientas se niegan.
+- Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
+  el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
+- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+  privada para el creador, pero `read_artifact` se niega, así que un disparo
+  vuelve a publicar una página entera en lugar de editarla.
+
+Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
+un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún
+ajuste lo cambia.
+
+!!! warning "Una sandbox con alcance de usuario es la excepción"
+
+    Una [sandbox](sandbox.md) con `session_scope: user` no está cerrada. Un
+    disparo abre el workspace propio del creador para ese agent, y puede leer y
+    escribir allí los archivos del creador. Un miembro sin `agents:edit` no puede
+    editar ni disparar un trigger que creó otro miembro, porque un prompt
+    cambiado podría copiar esos archivos fuera en el siguiente disparo.
+
+La regla decide cómo diseñas un agent que se ejecuta con un trigger:
+
+| Un run desatendido necesita | Usa |
+|---|---|
+| Hechos o preferencias permanentes | El propio prompt del trigger, o un [archivo de contexto](context.md) vinculado al agent |
+| Estado que se conserva de un disparo al siguiente | Una [sandbox](sandbox.md) con `session_scope: conversation`: cada disparo de un trigger se añade a la misma conversación de registro de runs |
+| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, no con la de cada persona |
+
+[Vigilar páginas web en busca de cambios](howto/competitor-monitoring.md) y
+[un asistente personal](howto/personal-assistant.md) se encuentran ambos con
+esta regla y muestran la alternativa.
 
 ### Todo lo demás es un run corriente { #everything-else-is-an-ordinary-run }
 

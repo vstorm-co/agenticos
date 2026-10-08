@@ -90,7 +90,7 @@ async def _run(
     usage: RunUsage | None = None,
     usage_limits: UsageLimits | None = None,
 ) -> ModelRequestContext:
-    """Drive one `wrap_model_request` and return the (mutated) request context."""
+    """Drive one `before_model_request` and return the request it hands on."""
     ctx: RunContext[None] = RunContext(
         deps=None,
         model=model if model is not None else TestModel(),
@@ -98,13 +98,7 @@ async def _run(
         messages=messages,
         usage_limits=usage_limits,
     )
-    request_context = _request_context(messages, model=model)
-
-    async def handler(_rc: ModelRequestContext) -> ModelResponse:
-        return _response()
-
-    await capability.wrap_model_request(ctx, request_context=request_context, handler=handler)
-    return request_context
+    return await capability.before_model_request(ctx, _request_context(messages, model=model))
 
 
 def _tail_reminder(request_context: ModelRequestContext) -> UserPromptPart | None:
@@ -543,3 +537,64 @@ class TestProducers:
     async def test_llm_reminder_producer_returns_a_callable(self):
         producer = llm_reminder_producer(instructions="x", max_context_messages=3, fallback="f")
         assert isinstance(producer, _LlmReminder)
+
+
+class TestARemindersSurvivesCompaction:
+    """Since pydantic-ai 2.54 a compaction strategy rebuilds the request from the
+    run's history inside the same before-chain this capability injects in, so the
+    reminder has to be appended after it, and must still stay out of history."""
+
+    async def test_a_compacted_request_still_carries_the_reminder(self):
+        from pydantic_ai import Agent
+        from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+        from app.agents.capabilities.compaction import (
+            CompactionConfig,
+            MeteredCompaction,
+            build_strategy,
+        )
+
+        seen: list[bool] = []
+
+        def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            tail = messages[-1]
+            seen.append(
+                isinstance(tail, ModelRequest)
+                and any(
+                    isinstance(part, UserPromptPart) and "stay focused" in str(part.content)
+                    for part in tail.parts
+                )
+            )
+            return ModelResponse(parts=[TextPart("ok")])
+
+        compaction = MeteredCompaction(
+            wrapped=build_strategy(
+                CompactionConfig(
+                    strategy="sliding_window",
+                    keep_messages=1,
+                    max_fraction=0.05,
+                    context_window=1_000,
+                )
+            )
+        )
+        reminders = _reminders(reminders=[{"content": "stay focused"}])
+        agent = Agent(FunctionModel(respond), capabilities=[compaction, reminders])
+        history: list[ModelMessage] = [
+            message
+            for index in range(10)
+            for message in (
+                _user_request(f"turn {index}: " + "words " * 20),
+                ModelResponse(parts=[TextPart("fine")]),
+            )
+        ]
+
+        result = await agent.run("next", message_history=history)
+
+        assert seen == [True]
+        assert not any(
+            "stay focused" in str(part.content)
+            for message in result.all_messages()
+            if isinstance(message, ModelRequest)
+            for part in message.parts
+            if isinstance(part, UserPromptPart)
+        )

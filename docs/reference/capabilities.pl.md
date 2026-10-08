@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "6cd3215a642b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -278,6 +278,11 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+- W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
+  wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
+  nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
+  runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
+  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -413,6 +418,9 @@ narzędzia odmawiają i mówią dlaczego: korpus jest osobisty, więc odpowiadan
 niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. To
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
 
+Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
+
 ### Jak działa dopasowanie { #how-it-matches }
 
 Pełnotekstowe wyszukiwanie PostgreSQL — `tsvector` utrzymywany przez bazę nad
@@ -506,7 +514,10 @@ To, czym staje się odpowiedź, rozstrzyga się tutaj:
   jak strona. Biblioteka oddałaby surowe bajty, aby model przeczytał je natywnie. Model
   serwowany za endpointem zgodnym z OpenAI, który tego nie potrafi, odrzuca całe
   żądanie (`Unsupported chat content part type: 'file'`), a agent pobiera wtedy ten sam
-  dokument ponownie.
+  dokument ponownie. Wyodrębniany jest tylko tekst do `max_content_chars`, a PDF jest
+  czytany najwyżej przez 2000 stron: dłuższy kończy się notką, która nazywa stronę,
+  na której odczyt się zatrzymał, a gdy odczytane strony nie miały tekstu, wraca
+  tylko ta notka.
 - Plik binarny bez czytelnego tekstu (zeskanowany PDF, archiwum) dociera do modelu jako
   błąd do ponowienia, który nazywa to, co przyszło.
 
@@ -713,7 +724,9 @@ runa nadrzędnego — tym, którego poświadczenie zostało rozwiązane z vaulta
 jego krok to jedno żądanie do modelu, księgowane w budżecie runa przez ten sam
 rejestr zużycia otoczkowego, z którego korzysta streszczenie kompaktujące. To nie
 jest własny hostowany model browser-use i nie są to wydatki niewidoczne dla
-strażnika budżetu.
+strażnika budżetu. Każdy krok sprawdza budżet przed wysłaniem, więc gdy budżet
+runa jest wyczerpany, kolejny krok agenta przeglądarkowego zostaje odrzucony, a nie
+opłacony.
 
 **`browser-use` jest dodatkiem opcjonalnym.** Ciągnie za sobą ciężkie drzewo
 zależności (Chromium przez Playwright) i przypina zależności o wersję niższą niż
@@ -1017,8 +1030,8 @@ a nie retry.
 
 **Odczyt.** `read_artifact` zwraca wiersz nagłówka (wersja, format, rozmiar) i
 źródło, ucięte na 100 000 znaków, co nagłówek mówi. Otwiera tylko to, co osoba
-runa może otworzyć w konsoli, i nic na publicznym widgecie ani w embedzie, gdzie
-run zastępuje gościa, którego nikt nie zidentyfikował.
+runa może otworzyć w konsoli, i nic na publicznym widgecie, w embedzie, w harmonogramie ani w triggerze
+zdarzeń, gdzie nie słucha żadna zidentyfikowana osoba.
 
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
@@ -1777,6 +1790,36 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
+powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
+w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
+tekst. Gdy skonfigurowane jest jakiekolwiek sprawdzenie wyjścia, każdy fragment
+tekstu i rozumowania jest wstrzymywany, aż będzie kompletny, sprawdzany tymi samymi
+detektorami i dopiero wtedy wysyłany. Klucz rozdzielony na dwa kawałki nadal zostaje
+wychwycony. Klucz rozdzielony na dwie części, na przykład tekst przed wywołaniem
+narzędzia i po nim albo rozumowanie i odpowiedź, kończy run, zanim zostanie
+wysłana jego druga połowa, bo pierwsza jest już na ekranie. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
+częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
+to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
+Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym
+w odpowiedzi kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie
+pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane słowo
+kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
+`[reasoning withheld by the output guardrail]`.
+
+**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
+sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
+streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
+dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
+długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
+podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
+streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+
+**Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
+dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
+osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
+wiadomość.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

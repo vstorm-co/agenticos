@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
+import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
   label: string;
   provider: string;
@@ -24,6 +24,11 @@ export interface NewModelProfile {
    * rest rather than storing a value the SDK would drop.
    */
   base_url?: string | null;
+  /**
+   * Which API the requests go to. Accepted only for providers whose catalog entry
+   * lists `apis`; omitted, the service stores the default for the endpoint.
+   */
+  api?: ModelApi | null;
 }
 
 /**

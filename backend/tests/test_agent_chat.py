@@ -934,6 +934,8 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         will look for it."""
         from pydantic_ai_backends import StateBackend
 
+        from tests.workspaces import document_workspace
+
         attachment = SimpleNamespace(
             id=uuid.uuid4(),
             filename="raport.csv",
@@ -943,11 +945,13 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
             file_type="text",
             parsed_content="month,total",
         )
-        backend = StateBackend()
+        document = StateBackend()
         prepared = _prepared()
         # `parses_documents` is what says the runtime can read a PDF itself; a
         # stored workspace cannot, and so keeps the extracted text beside the file.
-        prepared.workspace = SimpleNamespace(backend=backend, briefing=None, parses_documents=False)
+        prepared.workspace = SimpleNamespace(
+            workspace=document_workspace(document), briefing=None, parses_documents=False
+        )
 
         with (
             _runner(prepared),
@@ -958,7 +962,7 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         ):
             await _run(_db(), attachments=[attachment])
 
-        assert any(path.startswith("/uploads/") for path in backend.files)
+        assert any(path.startswith("/uploads/") for path in document.files)
 
     async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
         """A caller passing the richer shape would otherwise have its

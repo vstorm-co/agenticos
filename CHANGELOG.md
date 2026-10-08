@@ -17,6 +17,140 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.530] - 2026-10-08
+
+### Documentation
+
+- **What a triggered run cannot reach on its creator's behalf.** A scheduled or
+  event-triggered run uses its creator's role and grants but answers to no
+  identified person, so memory files, mem0, conversation search, personal MCP
+  bindings and `read_artifact` all refuse it. `docs/concepts.md` now says so,
+  names the exception (a `session_scope: user` sandbox opens the creator's own
+  workspace) and gives the workarounds; the capability reference marks each
+  refusal, and two tutorials no longer say a fire spends the creator's budget
+  (#1902).
+
+## [0.0.529] - 2026-10-08
+
+### Changed
+
+- **Agents work in Pydantic AI workspaces.** The sandbox, attachments, skills,
+  artifacts, generated images and spilled tool results all reach an agent's
+  files through the run's workspace, on Pydantic AI 2.54 and
+  `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
+  opened, so a conversation that continues on another host, or in another
+  environment, works in the workspace it has now.
+- **A sandbox whose files were purged is reported, not replaced.** Once a
+  conversation's container or Daytona sandbox has been opened, later turns attach
+  to that session; if its files were swept on the host, the agent is told they are
+  gone instead of carrying on in an empty one, and the next turn starts afresh.
+- **The activity log names what reached the sandbox.** Operations are `read`,
+  `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
+  `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded
+  before keep their old names (`edit`, `glob_info`, `grep_raw`, `read_bytes`)
+  until retention removes them.
+- **A Daytona connection can open a sandbox.** The Daytona SDK was never
+  installed, so the old backend's lazy import failed on every open; the backend
+  image now carries it, and a Daytona sandbox found broken (`error`,
+  `build_failed`) is deleted so the next turn can open its name afresh.
+- **Budgets and reminders keep their place around compaction.** Pydantic AI 2.54
+  runs every `wrap_*` hook outside every `before_*` hook, so the budget is now
+  checked again after a compaction summary was paid for, and a system reminder is
+  appended after compaction rather than before it, where a summary dropped it.
+- **An Anthropic agent with no `max_tokens` can answer at length.** Pydantic AI
+  now defaults it to the model's maximum output rather than 4,096 tokens. Set
+  `max_tokens` on the agent or its model profile to keep a ceiling.
+
+## [0.0.528] - 2026-10-08
+
+### Fixed
+
+- **OpenAI's newest models run.** Every `openai` profile was built on Chat
+  Completions, so a model served on the Responses API only, such as
+  `gpt-6-luna`, failed at its first request with a 400. A profile on `openai`
+  or `azure` now stores which API it uses, chosen under **Agents → add a model
+  → API**. The form starts on Responses for OpenAI's own endpoint and on Chat
+  Completions for an endpoint of your own or for Azure; a regional OpenAI
+  endpoint can pick Responses. Migration `0104_model_profile_api` gives
+  existing `openai` profiles without an endpoint Responses, and the rest Chat
+  Completions. A Responses model sends `store: false`, so moving to Responses
+  does not start keeping conversations on OpenAI's side; a profile can set
+  `openai_store` to opt back in. A profile moved to Responses loses the
+  Chat-only settings in its `params` (`seed`, `stop_sequences`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
+  not send there. Replaces #2033.
+
+## [0.0.527] - 2026-10-08
+
+### Fixed
+
+- **Local services work from the console.** Knowledge → Integrations and a
+  collection's embedding and OCR server pickers called `/api/local-services`,
+  which had no proxy route in the console, so listing, registering or removing
+  an Ollama or OCR server returned the console's 404 page and no collection
+  could be pointed at one. The route now forwards to `/api/v1/local-services`
+  like every other resource.
+
+## [0.0.526] - 2026-10-08
+
+### Fixed
+
+- **A capability's own model requests check the budget before each one, not
+  only the first.** Knowledge self-query, query expansion and both browser
+  capabilities run model requests through an agent of their own, which the
+  run's budget guard does not wrap. Self-query, query expansion and browser
+  choice checked the budget once before each nested run, and a browser-use
+  step did not check it at all. A corrected self-query attempt, an expansion
+  retry or the next browser-use step could therefore still be sent after an
+  earlier request took the run to its cap. Every such request is now refused
+  before it is sent once a cap is reached. Self-query still stops the run with
+  the budget refusal, and query expansion still falls back to the query as
+  written (#1808).
+
+## [0.0.525] - 2026-10-08
+
+### Fixed
+
+- **An output guardrail screens the answer before anyone sees it.** The web
+  chat, the embedded widget and the channel bots stream an answer as it is
+  written, and the output guardrail read only the finished one, so a key it
+  redacted, or a term it blocked, had already been shown and stored. With any
+  output check configured, each piece of text and reasoning is now held until
+  it is complete, run through the same detectors and only then sent. Text the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
+  unredacted text in their parts.
+
+## [0.0.524] - 2026-10-08
+
+### Fixed
+
+- **A document's text is extracted only up to the limit.** A chat attachment and
+  a document `web_fetch` downloads were parsed to the last page and only then cut,
+  so a compressed PDF under the 10 MiB download limit could cost far more worker
+  time and memory than the text the model was shown. The readers now stop at the
+  limit: a PDF loads pages until one crosses it, and stops after 2,000 pages; an
+  `.xlsx` streams rows until one crosses it, and reads at most a million cells
+  whatever range the sheet declares, ending with a note when that count stopped
+  it. DOCX, PPTX, ODT and ODP stop extracting at the paragraph or slide, but are still decompressed and parsed whole, within the
+  archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
+  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
+  with a note that the rest of the document is left out (`web_fetch` keeps its
+  `[Content truncated]`), in place of a total length that is no longer counted.
+
+## [0.0.523] - 2026-10-08
+
+### Security
+
+- **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
+  optimization, bundles a `librsvg` affected by CVE-2026-96889
+  (GHSA-wq5f-xc86-pv6w), and `make audit-frontend` failed on it. 0.35.5 is
+  inside the range `next` already asks for, so only the lockfile and the
+  third-party notices change.
+
 ## [0.0.522] - 2026-10-06
 
 ### Fixed

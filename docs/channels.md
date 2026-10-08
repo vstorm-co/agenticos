@@ -1283,7 +1283,10 @@ serves all three platforms, so the policy cannot drift between them.
   when the silence used to be longest, because a tool call produces no text
   while it runs. Edited about once a second: per token would be hundreds of
   writes a second against a server that is often somebody's own. A platform that
-  cannot edit a sent message simply gets the finished answer, as before.
+  cannot edit a sent message simply gets the finished answer, as before. An agent
+  with an [output guardrail](reference/capabilities.md#guardrails) has its reply
+  rewritten one step at a time instead, and each step is posted only after it
+  has been checked.
 - **Every binding carries its own extra instructions**, added to the agent's on
   that surface alone. A new one opens holding what that client actually renders:
   Slack draws no Markdown and writes a link as `<url|text>`, Mattermost renders

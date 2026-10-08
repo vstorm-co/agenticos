@@ -1,5 +1,5 @@
 ---
-source_sha: "aad00e7657d4"
+source_sha: "bbb1801a8c80"
 ---
 
 # Koncepcje { #concepts }
@@ -158,6 +158,48 @@ sama reguła co przy wzmiance na kanale i z tego samego powodu.
 Kiedy ten członek nie może już uruchamiać agenta — odszedł z organizacji albo
 odebrano mu grant na niego — trigger **wyłącza się sam i zapisuje dlaczego**,
 zamiast w nieskończoność ponawiać odmowę.
+
+### To nie jest rozmowa tej osoby { #it-is-not-that-persons-conversation }
+
+Twórca pożycza odpaleniu swoje **uprawnienia**: rolę i granty. Nie pożycza mu
+swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada on
+żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
+magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
+
+- [Pliki pamięci](reference/capabilities.md#memory-files) i
+  [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
+  rozmowa nie ma pamięci.
+- [Wyszukiwanie w rozmowach](reference/capabilities.md#conversation-search): oba
+  narzędzia odmawiają.
+- [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
+  własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
+- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+  prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
+  całą stronę od nowa zamiast ją edytować.
+
+Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
+odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.
+Dziś żadne ustawienie tego nie zmienia.
+
+!!! warning "Wyjątkiem jest sandbox o zakresie użytkownika"
+
+    [Sandbox](sandbox.md) z `session_scope: user` nie jest zamknięty. Odpalenie
+    otwiera własny workspace twórcy dla tego agenta i może czytać oraz zapisywać
+    tam pliki twórcy. Członek bez `agents:edit` nie może edytować ani odpalić
+    triggera utworzonego przez innego członka, bo zmieniony prompt mógłby
+    wynieść te pliki przy następnym odpaleniu.
+
+Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
+
+| Run bez nadzoru potrzebuje | Użyj |
+|---|---|
+| Stałych faktów albo preferencji | Własnego promptu triggera albo [pliku kontekstowego](context.md) podpiętego do agenta |
+| Stanu zachowanego od jednego odpalenia do następnego | [Sandboksa](sandbox.md) z `session_scope: conversation`: każde odpalenie jednego triggera dopisuje się do tej samej rozmowy z logiem runów |
+| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji, a nie kontem każdej osoby |
+
+[Obserwowanie stron pod kątem zmian](howto/competitor-monitoring.md) i
+[osobisty asystent](howto/personal-assistant.md) trafiają na tę regułę i
+pokazują obejście.
 
 ### Cała reszta to zwykły run { #everything-else-is-an-ordinary-run }
 

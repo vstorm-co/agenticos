@@ -56,6 +56,7 @@ from pydantic_ai_harness.compaction import (
 
 from app.agents.capabilities._ambient import run_model_settings
 from app.agents.capabilities.budget import (
+    assert_ambient_budget,
     can_afford_ambient_call,
     record_ambient_usage,
     usage_counts,
@@ -480,10 +481,11 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     This books the spend; what *stops* it is
     :meth:`NotifyingSummarizingCompaction.compact`, which asks
     :func:`~app.agents.capabilities.budget.can_afford_ambient_call` before the
-    summary and skips it at a cap (agenticos#1808). `BudgetGuard` still refuses the
-    next real request in `wrap_model_request`, which runs after this hook, so a
-    summary that crosses a cap mid-run is recorded here and refused on the request
-    after it.
+    summary and skips it at a cap (agenticos#1808). A summary that was paid for is
+    followed by a second check here: since pydantic-ai 2.54 every `wrap_*` hook
+    encloses every `before_*` hook (pydantic-ai#7053), so `BudgetGuard` asked
+    before the summary was bought, and the request this hook hands on would
+    otherwise go out past a cap the summary crossed.
     """
 
     gauge: ContextGauge | None = None
@@ -505,11 +507,14 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             return request_context
         before = usage_counts(ctx.usage)
         try:
-            return await self.wrapped.before_model_request(ctx, request_context)
+            compacted = await self.wrapped.before_model_request(ctx, request_context)
         finally:
             spent = usage_delta(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
+        if spent is not None:
+            await assert_ambient_budget()
+        return compacted
 
     async def _has_no_room(self, ctx: RunContext[AgentDepsT]) -> bool:
         """Whether this window is too small for a summary to ever get under it.

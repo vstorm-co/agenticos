@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "6cd3215a642b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -289,6 +289,12 @@ Agent falsch machen könnte.
 - Auf einem öffentlichen Widget oder in einem Embed gibt es niemanden, dem sich
   etwas zuordnen ließe, also gibt es keinen Speicher, und die Tools sagen das,
   statt irgendwohin zu speichern.
+- Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
+  Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
+  Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
+  niemand zu und die Tools verweigern. Legen Sie einen Fakt, den ein geplanter
+  Run braucht, in den Prompt des Triggers oder in eine gebundene Kontextdatei.
+  Siehe [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
 Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
@@ -436,6 +442,10 @@ Antwort daraus in einem Kanal die privaten Unterhaltungen einer Person allen im
 Raum vorlesen. Es ist dieselbe Linie, die der Gedächtnisindex zieht, eine Schicht
 weiter außen.
 
+Ein Zeitplan oder ein Ereignis-Trigger antwortet niemandem, also verweigern beide
+Tools auch dort, aus demselben Grund wie die
+[Gedächtnisdateien](#whose-notes-and-who-may-hear-them).
+
 ### Wie gesucht wird { #how-it-matches }
 
 PostgreSQL-Volltextsuche — ein `tsvector`, den die Datenbank über jede Nachricht
@@ -534,6 +544,10 @@ Was aus einer Antwort wird, entscheidet sich hier:
   damit das Modell sie nativ liest. Ein Modell hinter einem OpenAI-kompatiblen Endpunkt,
   das das nicht kann, lehnt die ganze Anfrage ab (`Unsupported chat content part type:
   'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
+  Extrahiert wird nur der Text bis `max_content_chars`, und ein PDF wird höchstens
+  2.000 Seiten weit gelesen: Ein längeres endet mit einem Hinweis, der die Seite
+  nennt, an der das Lesen stoppte, und wenn die gelesenen Seiten keinen Text hatten,
+  kommt nur dieser Hinweis zurück.
 - Eine Binärdatei ohne lesbaren Text (ein gescanntes PDF, ein Archiv) erreicht das Modell
   als wiederholbarer Fehler, der nennt, was zurückkam.
 
@@ -756,7 +770,9 @@ aufgelöst wurden —, und jeder seiner Schritte ist eine Modellanfrage, die üb
 dasselbe Konto für Umgebungsverbrauch gegen das Budget des Runs gebucht wird, das
 auch eine Compaction-Zusammenfassung nutzt. Es ist nicht das eigene gehostete
 Modell von browser-use, und es sind keine Ausgaben, die der Budget-Guard nicht
-sehen kann.
+sehen kann. Jeder Schritt prüft das Budget, bevor er gesendet wird: Ist das Budget
+des Runs aufgebraucht, wird der nächste Schritt des Browser-Agents abgelehnt statt
+bezahlt.
 
 **`browser-use` ist ein optionales Extra.** Es zieht einen schweren Baum nach sich
 (Chromium über Playwright) und pinnt Abhängigkeiten eine Minor-Version tiefer als
@@ -1076,9 +1092,8 @@ Runs nicht öffnen darf, sind Ergebnisse, keine Retries.
 
 **Zurücklesen.** `read_artifact` liefert eine Kopfzeile (Version, Format, Größe)
 und den Quelltext, bei 100.000 Zeichen abgeschnitten, was die Kopfzeile sagt. Es
-öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in
-einem öffentlichen Widget oder einem Embed, wo der Run für einen Besucher steht,
-den niemand identifiziert hat.
+öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in einem öffentlichen Widget, einem Embed, einem Zeitplan oder einem
+Ereignis-Trigger, wo keine identifizierte Person zuhört.
 
 **Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
 für die der Run lief, und nur eine Person erweitert, wer sie liest; das
@@ -1911,6 +1926,37 @@ neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, u
 ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
+
+**Eine Ausgabeprüfung greift, bevor jemand die Antwort sieht.** Jede Oberfläche
+streamt: Der Web-Chat und das eingebettete Widget senden die Antwort, während sie
+geschrieben wird, und ein Channel-Bot bearbeitet seine Antwort, während der Text
+ankommt. Ist irgendeine Ausgabeprüfung konfiguriert, wird jedes Stück Text und
+Reasoning zurückgehalten, bis es vollständig ist, mit denselben Detektoren geprüft und
+erst dann gesendet. Ein Schlüssel, der auf zwei Chunks verteilt ist, wird trotzdem
+erkannt. Einer, der auf zwei Teile verteilt ist, etwa Text vor einem Tool-Aufruf
+und Text danach oder Reasoning und dann die Antwort, beendet den Run, bevor seine
+zweite Hälfte gesendet wird, weil die erste schon angezeigt wird. Ebenso Text, den das Modell schreibt, bevor es ein Tool aufruft — er gehört
+nicht zur endgültigen Antwort, wird aber trotzdem angezeigt und gespeichert. Der Preis
+ist, dass die Antwort eines solchen Agents Schritt für Schritt statt Wort für Wort
+ankommt. Ein Agent ohne Ausgabeprüfung streamt wie bisher. Eine Schlagwort-Blockade
+in der Antwort beendet den Run, bevor irgendetwas vom blockierten Text angezeigt oder
+gespeichert wird. Reasoning ist nicht die Antwort, daher beendet ein blockiertes
+Schlagwort dort den Run nicht: Dieser Reasoning-Schritt zeigt stattdessen
+`[reasoning withheld by the output guardrail]`.
+
+**Was der Stream-Filter noch nicht abdeckt.** Zwei gestreamte Pfade werden nicht
+geprüft: die Argumente eines Tool-Aufrufs, während sie gestreamt werden, und die
+eigene gestreamte Antwort eines Delegaten im Delegationspanel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Der
+Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
+Antwortteil, der dafür zu lang ist, den Run so beendet, wie es die endgültige Antwort
+täte. Weil sich der Filter in den Event-Stream des Runs einhängt, streamen die
+Modellanfragen eines Agents mit Guardrail auch über die HTTP-API, sein Modell muss
+also Streaming unterstützen.
+
+**Die Eingabekante ändert, was das Modell liest, nicht das Transkript.** Ein
+geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speichert die
+Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
+Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

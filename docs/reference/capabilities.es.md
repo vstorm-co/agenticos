@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "6cd3215a642b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -277,6 +277,12 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   con alguien no se lee en voz alta donde lo ve un canal entero.
 - En un widget público o en un embed no hay a quién atribuir nada, así que no hay
   almacén, y las herramientas lo dicen en vez de guardar en algún sitio.
+- En una programación o en un trigger de evento tampoco hay almacén, aunque el
+  run se ejecuta como el creador del trigger. El creador presta al run su
+  autoridad, no su identidad, así que nadie escucha y las herramientas se
+  niegan. Pon un dato que necesite un run programado en el prompt del trigger o
+  en un archivo de contexto vinculado. Consulta
+  [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 No hay un almacén para toda la organización. Existió uno y se retiró: era un
 segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
@@ -418,6 +424,10 @@ a partir de él en un canal leería las conversaciones privadas de una persona a
 todos los de la sala. Es la línea que traza el índice de memoria, una capa más
 afuera.
 
+Una programación o un trigger de evento no responde a nadie, así que ambas
+herramientas se niegan también ahí, por la misma razón que los
+[archivos de memoria](#whose-notes-and-who-may-hear-them).
+
 ### Cómo busca { #how-it-matches }
 
 Búsqueda de texto completo de PostgreSQL: un `tsvector` que la base de datos
@@ -511,7 +521,10 @@ En qué se convierte una respuesta se decide aquí:
   página. La biblioteca devolvería los bytes en bruto para que el modelo los leyera de
   forma nativa. Un modelo servido tras un endpoint compatible con OpenAI que no puede
   hacerlo rechaza la petición entera (`Unsupported chat content part type: 'file'`), y
-  el agent vuelve a descargar el mismo documento.
+  el agent vuelve a descargar el mismo documento. Solo se extrae el texto hasta
+  `max_content_chars`, y un PDF se lee como máximo hasta 2.000 páginas: uno más largo
+  termina con una nota que nombra la página en la que se detuvo, y cuando las páginas
+  leídas no tenían texto, solo vuelve esa nota.
 - Un binario sin texto legible (un PDF escaneado, un archivo comprimido) llega al modelo
   como un error reintentable que nombra lo que llegó.
 
@@ -724,7 +737,9 @@ ejecuta con el modelo del run anfitrión — aquel cuya credencial se resolvió 
 vault — y cada uno de sus pasos es una petición al modelo, anotada contra el budget
 del run a través del mismo libro de uso ambiental que usa un resumen de compactación.
 No es el modelo alojado propio de browser-use, y no es gasto que el guardián del
-budget no pueda ver.
+budget no pueda ver. Cada paso consulta el budget antes de enviarse, así que, agotado
+el budget del run, el siguiente paso del agente de navegador se rechaza en lugar de
+pagarse.
 
 **`browser-use` es un extra opcional.** Arrastra un árbol pesado (Chromium vía
 Playwright) y fija dependencias una versión menor por debajo del resto de la
@@ -1033,9 +1048,8 @@ resultados, no reintentos.
 
 **Leer de vuelta.** `read_artifact` devuelve una línea de cabecera (versión,
 formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que la
-cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y
-nada en un widget público o un embed, donde el run sustituye a un visitante que
-nadie ha identificado.
+cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y nada en un widget público, un embed, una programación o un trigger de eventos,
+donde no escucha ninguna persona identificada.
 
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la
@@ -1814,6 +1828,37 @@ trabajo igualmente. Un bloqueo por palabra clave, en cambio, termina el run con 
 es la plataforma funcionando y un operador que filtre buscando problemas debería poder
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
+
+**Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
+las superficies transmiten en streaming: el chat web y el widget incrustado envían la
+respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
+texto. Cuando hay configurada cualquier comprobación de salida, cada fragmento de
+texto y de razonamiento se retiene hasta que está completo, se comprueba con los
+mismos detectores y solo entonces se envía. Una clave partida en dos trozos se detecta igualmente. Una
+partida en dos partes, como el texto antes de una llamada a herramienta y el texto
+después, o el razonamiento y luego la respuesta, termina el run antes de enviar su
+segunda mitad, porque la primera ya está en pantalla. También el texto que el modelo escribe antes de llamar a una herramienta,
+que no forma parte de la respuesta final pero aun así se muestra y se guarda. El coste
+es que la respuesta de un agent así llega paso a paso en lugar de palabra a palabra.
+Un agent sin comprobación de salida transmite como antes. Un bloqueo por palabra clave
+en la respuesta termina el run antes de que se muestre o se guarde nada del texto
+bloqueado. El razonamiento no es la respuesta, así que una palabra clave bloqueada
+en él no termina el run: ese paso de razonamiento muestra
+`[reasoning withheld by the output guardrail]` en su lugar.
+
+**Lo que el filtro del stream aún no cubre.** Dos rutas transmitidas no se filtran:
+los argumentos de una llamada a herramienta mientras se transmiten y la respuesta
+transmitida de un delegado en el panel de delegación ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). El filtro del
+stream hereda los límites de tamaño del detector de teléfonos, así que una parte de
+la respuesta demasiado larga para él termina el run igual que lo haría la respuesta
+final. Como el filtro se engancha al flujo de eventos del run, las peticiones al
+modelo de un agent con guardrail se transmiten en streaming incluso a través de la
+API HTTP, así que su modelo debe admitir streaming.
+
+**El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
+censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
+escribió la persona, datos personales incluidos. Quien pueda leer la conversación
+puede leer ese mensaje.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

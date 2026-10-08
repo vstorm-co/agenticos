@@ -1,5 +1,5 @@
 ---
-source_sha: "a28e7805a24a"
+source_sha: "d510b0c748f8"
 title: "Vigila páginas web en busca de cambios con una programación"
 description: "Consulta dos páginas según una programación, compara cada una con lo que se registró la última vez, e informa solo de lo que cambió."
 ---
@@ -31,8 +31,8 @@ La capability obvia para "recuerda lo que vi la última vez" son los
 funciona, y vale la pena saber por qué antes de recurrir a ella en una
 programación.
 
-Un disparo de trigger se ejecuta como su creador a efectos de budgets,
-aprobaciones y el rastro de auditoría, pero no a efectos de memoria: la
+Un disparo de trigger se ejecuta con el rol y los permisos de su creador, pero
+no como él a efectos de memoria: la
 *audiencia* del run — quién va a oír la respuesta — está deliberadamente
 vacía en la superficie `schedule`, así que un run sin nadie escuchando no
 puede leer ni escribir las notas personales de su creador. `write_memory` y
