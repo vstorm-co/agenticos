@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.530] - 2026-10-08
+
 ### Documentation
 
 - **What a triggered run cannot reach on its creator's behalf.** A scheduled or
