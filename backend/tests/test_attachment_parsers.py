@@ -652,6 +652,99 @@ class TestOdfSpaceBombIsBounded:
         assert text == "END"
 
 
+class TestOdfSpaceBudgetIsSpentOnKeptText:
+    """A whitespace-only paragraph is dropped from the output, so it must not spend
+    the space budget: clamping the whole document up front let a blank spacer use
+    it all and silently zero the spacing of the text after it, with no cut marker,
+    since the result stayed under the limit."""
+
+    @staticmethod
+    def _spacer(count: int):
+        from odf.text import P, S
+
+        p = P()
+        p.addText("  ")
+        p.addElement(S(c=count))
+        return p
+
+    @staticmethod
+    def _spaced(*words: str):
+        from odf.text import P, S, Span
+
+        p = P()
+        span = Span()
+        span.addText(words[0])
+        p.addElement(span)
+        for word in words[1:]:
+            p.addElement(S(c=4))
+            p.addText(word)
+        return p
+
+    def _odt(self, *paragraphs) -> bytes:
+        from odf.opendocument import OpenDocumentText
+
+        document = OpenDocumentText()
+        for p in paragraphs:
+            document.text.addElement(p)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def _odp(self, *paragraphs) -> bytes:
+        from odf.draw import Frame, Page, TextBox
+        from odf.opendocument import OpenDocumentPresentation
+        from odf.style import MasterPage, PageLayout
+
+        document = OpenDocumentPresentation()
+        document.automaticstyles.addElement(PageLayout(name="pl1"))
+        document.masterstyles.addElement(MasterPage(name="m1", pagelayoutname="pl1"))
+        page = Page(masterpagename="m1")
+        frame = Frame()
+        box = TextBox()
+        for p in paragraphs:
+            box.addElement(p)
+        frame.addElement(box)
+        page.addElement(frame)
+        document.presentation.addElement(page)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def test_an_odt_blank_spacer_leaves_the_text_spacing_intact(self):
+        data = self._odt(self._spacer(1000), self._spaced("Total:", "42"))
+
+        assert FileUploadService._parse_odt_content(data, 1000) == "Total:    42"
+
+    def test_an_odp_blank_spacer_leaves_the_text_spacing_intact(self):
+        data = self._odp(self._spacer(1000), self._spaced("Total:", "42"))
+
+        assert FileUploadService._parse_odp_content(data, 1000) == "Total:    42"
+
+    def test_a_blank_spacer_bomb_is_never_expanded(self):
+        data = self._odt(self._spacer(10_000_000_000), self._spaced("a", "b", "c"))
+
+        assert FileUploadService._parse_odt_content(data, 1000) == "a    b    c"
+
+    def test_kept_text_still_shares_one_space_budget(self):
+        data = self._odt(self._spaced("a", "b"), self._spaced("c", "d", "e"))
+
+        assert FileUploadService._parse_odt_content(data, 10) == "a    b\nc    d  e"
+
+    async def test_a_kept_space_run_past_the_limit_is_cut_with_the_marker(self):
+        from odf.text import P, S
+
+        p = P()
+        p.addText("A")
+        p.addElement(S(c=10_000_000_000))
+        p.addText("B")
+
+        text = await fu.DocumentText().parse_content(
+            self._odt(p), "document", filename="a.odt", max_chars=50
+        )
+
+        assert text == "A" + " " * 49 + fu.PARSE_CUT_MARKER.format(max_chars=50)
+
+
 class TestOdsRowRepetitionIsExpandedAndBounded:
     """A nonempty row carrying `table:number-rows-repeated` is real data repeated, so
     it must be emitted that many times — but the count is attacker-controlled, so the

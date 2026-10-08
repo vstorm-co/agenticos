@@ -222,46 +222,81 @@ def safe_unzip(data: bytes) -> io.BytesIO:
     return io.BytesIO(data)
 
 
-def _clamp_odf_space_runs(document: Any, budget: int) -> None:
-    """Clamp every `<text:s text:c=N>` repeat so a walk cannot allocate a bomb.
+def _clamp_odf_space_runs(node: Any, budget: int) -> int:
+    """Clamp every `<text:s text:c=N>` under `node` so a walk cannot allocate a bomb.
 
     odfpy's own `extractText` expands `<text:s>` to `" " * int(text:c)` before any
     character cap is applied, so a sub-kilobyte ODF declaring `text:c="10000000000"`
     allocates gigabytes of spaces inside the extraction — a post-decompression bomb
     `safe_unzip` cannot see, because the XML member itself is tiny (#1591, §7 finding
     3). The count is attacker-controlled, so each run is clamped in place to what is
-    left of `budget` before extraction; the bound is the parsed-text cap, far above
-    any real run of spaces, and the cell/paragraph budgets narrow it further.
+    left of `budget` before extraction. Returns what is left of `budget`.
     """
     from odf.text import S
 
     remaining = budget
-    for element in document.getElementsByType(S):
+    for element in node.getElementsByType(S):
         count = int(element.getAttribute("c") or 1)
         clamped = max(0, min(count, remaining))
         element.setAttribute("c", str(clamped))
         remaining -= clamped
+    return remaining
 
 
-def _odf_text_blocks(document: Any, qnames: set[tuple[str, str]]) -> Iterator[str]:
-    """`extractText` of every element whose qname is in `qnames`, in document order.
+def _odf_blocks(document: Any, qnames: set[tuple[str, str]]) -> Iterator[Any]:
+    """Every element whose qname is in `qnames`, in document order.
 
     A pre-order walk of the body that does not descend into a collected block, so
     the paragraphs and headings interleave in reading order and nothing is
     extracted twice. `getElementsByType` per type would lose that interleaving,
-    which is exactly the structure a heading carries (#1654 review). A generator,
-    so a caller that has enough text stops the extraction (#1990).
+    which is exactly the structure a heading carries (#1654 review).
     """
-    from odf.teletype import extractText
 
-    def walk(node: Any) -> Iterator[str]:
+    def walk(node: Any) -> Iterator[Any]:
         for child in getattr(node, "childNodes", ()):
             if getattr(child, "qname", None) in qnames:
-                yield extractText(child)
+                yield child
             else:
                 yield from walk(child)
 
     return walk(document.body)
+
+
+def _has_visible_text(node: Any) -> bool:
+    """Whether `extractText(node)` would hold anything but whitespace.
+
+    Only text nodes carry visible characters; `<text:s>`, `<text:tab>` and
+    `<text:line-break>` expand to whitespace, so a block is judged without
+    expanding a single space run.
+    """
+    from xml.dom import Node
+
+    for child in getattr(node, "childNodes", ()):
+        if child.nodeType == Node.TEXT_NODE:
+            if child.data.strip():
+                return True
+        elif _has_visible_text(child):
+            return True
+    return False
+
+
+def _odf_kept_text(blocks: Iterable[Any], max_chars: int) -> Iterator[str]:
+    """The text of every block with visible text, its space runs paid from one budget.
+
+    Each kept block's `<text:s>` runs are clamped to what is left of `max_chars`
+    just before it is extracted (#1591). A whitespace-only block is skipped unread
+    and spends nothing: clamping the whole document up front let a blank spacer
+    paragraph, dropped from the output anyway, use up the budget and silently zero
+    the spacing of the text after it. A generator, so a caller that has enough
+    text stops the extraction (#1990).
+    """
+    from odf.teletype import extractText
+
+    remaining = max_chars
+    for block in blocks:
+        if _has_visible_text(block):
+            remaining = _clamp_odf_space_runs(block, remaining)
+            yield extractText(block)
 
 
 @dataclass(frozen=True)
@@ -760,13 +795,11 @@ class DocumentText:
             from odf.opendocument import load
 
             document: Any = load(safe_unzip(data))
-            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
-            _clamp_odf_space_runs(document, max_chars)
             # Headings are `text:h`, not `text:p`; collecting only paragraphs dropped
             # every title and section heading and the structure they carry (#1654
             # review).
-            lines = _odf_text_blocks(document, {(TEXTNS, "p"), (TEXTNS, "h")})
-            return _join_within((line for line in lines if line.strip()), "\n", max_chars) or None
+            blocks = _odf_blocks(document, {(TEXTNS, "p"), (TEXTNS, "h")})
+            return _join_within(_odf_kept_text(blocks, max_chars), "\n", max_chars) or None
         except Exception as e:
             logger.warning("ODT parsing failed: %s", e)
             return None
@@ -776,14 +809,11 @@ class DocumentText:
         """Extract the text frames of an OpenDocument presentation."""
         try:
             from odf.opendocument import load
-            from odf.teletype import extractText
             from odf.text import P
 
             document: Any = load(safe_unzip(data))
-            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
-            _clamp_odf_space_runs(document, max_chars)
-            lines = (extractText(p) for p in document.getElementsByType(P))
-            return _join_within((line for line in lines if line.strip()), "\n", max_chars) or None
+            lines = _odf_kept_text(document.getElementsByType(P), max_chars)
+            return _join_within(lines, "\n", max_chars) or None
         except Exception as e:
             logger.warning("ODP parsing failed: %s", e)
             return None
