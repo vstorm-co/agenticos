@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.532] - 2026-10-09
+
 ### Changed
 
 - **Backend dependencies move up.** SQLAlchemy 2.1.4, PyJWT 2.15.1 (accepts the
