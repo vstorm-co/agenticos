@@ -2080,6 +2080,7 @@ class TestAScreenedAnswerOnTheWire:
             "The new one is [redacted:anthropic_key].",
         ]
 
+    @pytest.mark.security
     async def test_a_blocked_answer_sends_no_text_and_leaves_none_to_store(self):
         """`_persist_partial_turn` writes `timeline.text` on a turn that raised, so a
         block that arrived after the stream stored the very answer it refused."""
