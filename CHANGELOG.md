@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Documentation
+
+- **AgenticOS is described as a sovereign agentic AI layer.** The README, the
+  comparison page and both decks now give one name for the product where they
+  say what it is. The comparison page gains "How much stays yours": for each of
+  nine products, where it runs, which models it may use, what its licence lets
+  you do (including that the default PDF parser is AGPL-3.0, so a modified image
+  served to others owes them its source) and its sign-in, audit and spend
+  controls, taken from each product's guide.
+
 ## [0.0.530] - 2026-10-08
 
 ### Documentation
