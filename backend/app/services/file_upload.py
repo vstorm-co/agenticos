@@ -8,6 +8,7 @@ import zipfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
+from xml.dom import Node
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -128,12 +129,11 @@ def make_preview(parsed_content: str | None) -> str | None:
 
 
 def cap_text(text: str | None, max_chars: int) -> str | None:
-    """Bound extracted text with an explicit truncation marker.
+    """Bound text pasted into a prompt with an explicit truncation marker.
 
-    A small ZIP or OLE upload can expand to very large text; the stored column, the
-    preview and the no-workspace paste all read this, so it is capped once here,
-    before any of them. The marker names both counts so the model knows the rest
-    exists (#1591, §5 #6).
+    The per-file cap on what a no-workspace agent is pasted. The parsed text it
+    reads is already bounded by the parse budget, so this text is known whole, and
+    the marker names both counts so the model knows the rest exists (#1591, §5 #6).
     """
     if text is None or len(text) <= max_chars:
         return text
@@ -280,8 +280,6 @@ def _has_visible_text(node: Any) -> bool:
     `<text:line-break>` expand to whitespace, so a block is judged without
     expanding a single space run.
     """
-    from xml.dom import Node
-
     for child in getattr(node, "childNodes", ()):
         if child.nodeType == Node.TEXT_NODE:
             if child.data.strip():

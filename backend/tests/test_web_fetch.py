@@ -392,6 +392,22 @@ class TestWhatADocumentBecomes:
             read=3, total=5
         )
 
+    async def test_a_pdf_with_no_text_before_the_page_cap_returns_the_note_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Not the no-readable-text retry: the pages after the cap may hold text,
+        and the model is told they were skipped rather than that there is none."""
+        monkeypatch.setattr(file_upload, "_PDF_MAX_PAGES", 2)
+        document = pymupdf.open()
+        for _ in range(4):
+            document.new_page()
+        _serving(monkeypatch, "application/pdf", document.tobytes())
+
+        fetched = await _fetch(_built(), "https://example.com/scan.pdf")
+
+        assert isinstance(fetched, dict)
+        assert fetched["content"] == file_upload.PDF_PAGES_CUT_MARKER.format(read=2, total=4)
+
     async def test_an_image_stays_an_image(self, monkeypatch: pytest.MonkeyPatch):
         """A model that reads pictures is the only reason to fetch one."""
         _serving(monkeypatch, "image/png", b"\x89PNG\r\n\x1a\n")

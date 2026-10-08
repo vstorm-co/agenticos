@@ -1,5 +1,5 @@
 ---
-source_sha: "d63623f608ea"
+source_sha: "2adb2c0e6c04"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -166,7 +166,7 @@ odczytuje najwyżej milion komórek, więc arkusz deklarujący ogromny pusty zak
 dodatkowo nie kosztuje. DOCX, PPTX, ODT i ODP przestają wyciągać tekst na akapicie
 lub slajdzie, ale ich biblioteki najpierw rozpakowują i parsują cały plik, w
 granicach limitów rozmiaru archiwum. Zwykły tekst, `.msg` i `.doc` są czytane w
-całości. Tekst, który osiąga limit, kończy się znacznikiem mówiącym, że reszta
+całości. Tekst, który przekracza limit, kończy się znacznikiem mówiącym, że reszta
 dokumentu została pominięta.
 
 **Odmowa zapisu jest powiedziana raz i dotyczy workspace'u.** Run, którego

@@ -1,5 +1,5 @@
 ---
-source_sha: "d63623f608ea"
+source_sha: "2adb2c0e6c04"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -170,7 +170,7 @@ la fila y lee como máximo un millón de celdas, así que una hoja que declara u
 vacío enorme no cuesta nada más. DOCX, PPTX, ODT y ODP dejan de extraer texto en el
 párrafo o la diapositiva, pero sus bibliotecas descomprimen y analizan primero el
 archivo entero, dentro de los límites de tamaño del archivo comprimido. El texto
-plano, `.msg` y `.doc` se leen enteros. El texto que alcanza el límite termina con
+plano, `.msg` y `.doc` se leen enteros. El texto que supera el límite termina con
 una marca que indica que el resto del documento se omitió.
 
 **Una escritura rechazada se dice una vez, sobre el workspace.** Un run cuyo

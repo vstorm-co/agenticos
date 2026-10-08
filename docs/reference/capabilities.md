@@ -476,7 +476,10 @@ What a response turns into is decided here:
   The library would hand back the raw bytes for the model to read natively. A model
   served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
   request (`Unsupported chat content part type: 'file'`), and the agent then fetches
-  the same document again.
+  the same document again. Only the text up to `max_content_chars` is extracted, and
+  a PDF is read for at most 2,000 pages: one longer than that ends with a note
+  naming the page it stopped at, and when the pages read held no text the note is
+  all that comes back.
 - A binary with no readable text (a scanned PDF, an archive) reaches the model as a
   retryable error that names what came back.
 

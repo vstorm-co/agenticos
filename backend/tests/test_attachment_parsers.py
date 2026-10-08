@@ -11,12 +11,17 @@ rather than the parse (#1591).
 from __future__ import annotations
 
 import io
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from app.services import file_upload as fu
 from app.services.file_upload import FileUploadService
+
+if TYPE_CHECKING:
+    from odf.element import Element
 
 pytestmark = pytest.mark.anyio
 
@@ -659,7 +664,7 @@ class TestOdfSpaceBudgetIsSpentOnKeptText:
     since the result stayed under the limit."""
 
     @staticmethod
-    def _spacer(count: int):
+    def _spacer(count: int) -> Element:
         from odf.text import P, S
 
         p = P()
@@ -668,7 +673,7 @@ class TestOdfSpaceBudgetIsSpentOnKeptText:
         return p
 
     @staticmethod
-    def _spaced(*words: str):
+    def _spaced(*words: str) -> Element:
         from odf.text import P, S, Span
 
         p = P()
@@ -680,7 +685,7 @@ class TestOdfSpaceBudgetIsSpentOnKeptText:
             p.addText(word)
         return p
 
-    def _odt(self, *paragraphs) -> bytes:
+    def _odt(self, *paragraphs: Element) -> bytes:
         from odf.opendocument import OpenDocumentText
 
         document = OpenDocumentText()
@@ -690,7 +695,7 @@ class TestOdfSpaceBudgetIsSpentOnKeptText:
         document.save(buffer)
         return buffer.getvalue()
 
-    def _odp(self, *paragraphs) -> bytes:
+    def _odp(self, *paragraphs: Element) -> bytes:
         from odf.draw import Frame, Page, TextBox
         from odf.opendocument import OpenDocumentPresentation
         from odf.style import MasterPage, PageLayout
@@ -1046,6 +1051,63 @@ def _pptx_slides(texts: list[str]) -> bytes:
     return buffer.getvalue()
 
 
+def _count_docx_paragraphs(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    from docx.text.paragraph import Paragraph
+
+    read: list[object] = []
+    text = Paragraph.text
+
+    def counted(paragraph: Paragraph) -> str:
+        read.append(paragraph)
+        return text.fget(paragraph)
+
+    monkeypatch.setattr(Paragraph, "text", property(counted))
+    return read
+
+
+def _count_xlsx_rows(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    from openpyxl.worksheet._read_only import ReadOnlyWorksheet
+
+    read: list[object] = []
+    cells_by_row = ReadOnlyWorksheet._cells_by_row
+
+    def counted(sheet: ReadOnlyWorksheet, *args: object, **kwargs: object) -> Iterator[object]:
+        for row in cells_by_row(sheet, *args, **kwargs):
+            read.append(row)
+            yield row
+
+    monkeypatch.setattr(ReadOnlyWorksheet, "_cells_by_row", counted)
+    return read
+
+
+def _count_odf_blocks(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    import odf.teletype
+
+    read: list[object] = []
+    extract = odf.teletype.extractText
+
+    def counted(block: object) -> str:
+        read.append(block)
+        return extract(block)
+
+    monkeypatch.setattr(odf.teletype, "extractText", counted)
+    return read
+
+
+def _count_pptx_slides(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    from pptx.slide import Slide
+
+    read: list[object] = []
+    has_notes_slide = Slide.has_notes_slide
+
+    def counted(slide: Slide) -> bool:
+        read.append(slide)
+        return has_notes_slide.fget(slide)
+
+    monkeypatch.setattr(Slide, "has_notes_slide", property(counted))
+    return read
+
+
 class TestTheParseStopsAtItsLimit:
     """A compressed file under the download limit can expand to far more text than
     anything keeps, so each reader stops once it has enough rather than reading to
@@ -1147,23 +1209,34 @@ class TestTheParseStopsAtItsLimit:
         assert text == "a" * 10 + "[cut]"
 
     @pytest.mark.parametrize(
-        ("build", "file_type", "filename"),
+        ("build", "file_type", "filename", "count_reads"),
         [
-            (_docx_paragraphs, "docx", "a.docx"),
-            (_xlsx_rows, "spreadsheet", "a.xlsx"),
-            (_odt, "document", "a.odt"),
-            (_odp_slides, "presentation", "a.odp"),
-            (_pptx_slides, "presentation", "a.pptx"),
+            (_docx_paragraphs, "docx", "a.docx", _count_docx_paragraphs),
+            (_xlsx_rows, "spreadsheet", "a.xlsx", _count_xlsx_rows),
+            (_odt, "document", "a.odt", _count_odf_blocks),
+            (_odp_slides, "presentation", "a.odp", _count_odf_blocks),
+            (_pptx_slides, "presentation", "a.pptx", _count_pptx_slides),
         ],
     )
     async def test_an_office_document_is_cut_at_the_limit(
-        self, build, file_type: str, filename: str
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        build: Callable[[list[str]], bytes],
+        file_type: str,
+        filename: str,
+        count_reads: Callable[[pytest.MonkeyPatch], list[object]],
     ):
         items = [f"item {n:03d}" for n in range(500)]
+        data = build(items)
+        reads = count_reads(monkeypatch)
 
         text = await fu.DocumentText().parse_content(
-            build(items), file_type, filename=filename, max_chars=60
+            data, file_type, filename=filename, max_chars=60
         )
+
+        # Nine items of nine characters cross 60; reading on past them is the
+        # eager parse the budget replaced.
+        assert 0 < len(reads) < 20
 
         assert text is not None
         assert text.endswith(fu.PARSE_CUT_MARKER.format(max_chars=60))
@@ -1224,7 +1297,7 @@ class TestTheParseStopsAtItsLimit:
     def test_the_join_stops_pulling_once_past_the_limit(self):
         pulled: list[str] = []
 
-        def parts():
+        def parts() -> Iterator[str]:
             for part in ["aaaa", "bbbb", "cccc"]:
                 pulled.append(part)
                 yield part

@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01b3c59363"
+source_sha: "c3582e8e67cf"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -534,6 +534,10 @@ Was aus einer Antwort wird, entscheidet sich hier:
   damit das Modell sie nativ liest. Ein Modell hinter einem OpenAI-kompatiblen Endpunkt,
   das das nicht kann, lehnt die ganze Anfrage ab (`Unsupported chat content part type:
   'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
+  Extrahiert wird nur der Text bis `max_content_chars`, und ein PDF wird höchstens
+  2.000 Seiten weit gelesen: Ein längeres endet mit einem Hinweis, der die Seite
+  nennt, an der das Lesen stoppte, und wenn die gelesenen Seiten keinen Text hatten,
+  kommt nur dieser Hinweis zurück.
 - Eine Binärdatei ohne lesbaren Text (ein gescanntes PDF, ein Archiv) erreicht das Modell
   als wiederholbarer Fehler, der nennt, was zurückkam.
 

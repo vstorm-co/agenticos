@@ -28,9 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   whatever range the sheet declares. DOCX, PPTX, ODT and ODP stop extracting at the
   paragraph or slide, but are still decompressed and parsed whole, within the
   archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
-  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that reaches the limit says
-  the rest of the document is left out, in place of a total length that is no
-  longer counted.
+  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
+  with a note that the rest of the document is left out (`web_fetch` keeps its
+  `[Content truncated]`), in place of a total length that is no longer counted.
 
 ## [0.0.523] - 2026-10-08
 

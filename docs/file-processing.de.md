@@ -1,5 +1,5 @@
 ---
-source_sha: "d63623f608ea"
+source_sha: "2adb2c0e6c04"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -176,7 +176,7 @@ Blatt, das einen riesigen leeren Bereich deklariert, nichts zusätzlich kostet. 
 PPTX, ODT und ODP hören am Absatz oder an der Folie auf, Text zu extrahieren, aber
 ihre Bibliotheken entpacken und parsen zuerst die ganze Datei, innerhalb der
 Größengrenzen für Archive. Klartext, `.msg` und `.doc` werden ganz gelesen. Text,
-der die Grenze erreicht, endet mit einer Markierung, die sagt, dass der Rest des
+der die Grenze überschreitet, endet mit einer Markierung, die sagt, dass der Rest des
 Dokuments weggelassen wurde.
 
 **Ein abgelehnter Schreibvorgang wird einmal gesagt, über den Workspace.** Ein
