@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -316,3 +317,16 @@ class McpOAuthCallbackResult(BaseSchema):
     ok: bool
     connection_name: str | None = None
     error: str | None = None
+    failure: Literal["admin_consent_required"] | None = Field(
+        default=None,
+        description=(
+            "A refusal the caller can name rather than only show: admin_consent_required "
+            "when the provider grants the account only after an administrator consents"
+        ),
+    )
+
+
+class PortalAdminConsent(BaseSchema):
+    """Where an administrator approves the organization's app for the whole tenant."""
+
+    url: str

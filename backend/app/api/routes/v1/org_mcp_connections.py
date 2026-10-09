@@ -35,6 +35,7 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionList,
     OrgMcpConnectionUpdate,
+    PortalAdminConsent,
 )
 
 router = APIRouter()
@@ -160,12 +161,12 @@ async def start_org_polled_portal_oauth(
 ) -> Any:
     """Begin the consent flow for a portal the platform polls rather than is posted to.
 
-    Gmail is the case: nothing registers a webhook, so the flow's only job is a
-    refreshable token carrying the portal's read scopes. It uses the deployment's
-    own Google client rather than a per-organization OAuth App - see
-    `google_oauth`'s docstring for why - so a deployment with none configured is a
-    `NotFoundError` (404) the card shows as a prerequisite, and a portal that is
-    not polled is a `BadRequestError` (400).
+    Gmail and Microsoft 365 are the cases: nothing registers a webhook, so the
+    flow's only job is a refreshable token carrying the portal's read scopes. It
+    spends the organization's own OAuth client from the vault - a
+    `google_oauth_app` for Gmail, the `entra_app` for Microsoft 365 - so an
+    organization with none stored is a `NotFoundError` (404) the card shows as a
+    prerequisite, and a portal that is not polled is a `BadRequestError` (400).
 
     Same body as its GitHub sibling (a portal key) and the same
     `mcp:manage` gate: connecting an account for the whole organization is the
@@ -173,6 +174,37 @@ async def start_org_polled_portal_oauth(
     """
     authorization_url = await service.oauth_start_for_polled_portal(ctx, portal_key=data.portal_key)
     return McpOAuthStartResult(authorization_url=authorization_url)
+
+
+@router.get(
+    "/portals/microsoft/admin-consent",
+    response_model=PortalAdminConsent,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def microsoft_admin_consent(service: McpConnectionSvc, ctx: Auth) -> Any:
+    """The link an Entra administrator follows to approve the organization's app.
+
+    For a tenant where members may not consent to apps themselves: connecting the
+    Microsoft 365 portal then ends in `AADSTS65001`, and this is what the card
+    hands to whoever can approve it. Built from the stored `entra_app`, so no
+    stored app is a 404 the card shows as a prerequisite.
+    """
+    return PortalAdminConsent(url=await service.microsoft_admin_consent_url(ctx))
+
+
+@router.delete(
+    "/portals/{portal_key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def disconnect_org_portal(portal_key: str, service: McpConnectionSvc, ctx: Auth) -> None:
+    """Disconnect a portal's account - Gmail, Microsoft 365, a GitHub App installation.
+
+    Triggers built on it stay and fire again once an account is connected. 404
+    when the portal is not connected.
+    """
+    await service.disconnect_portal(ctx, portal_key=portal_key)
 
 
 @router.patch(

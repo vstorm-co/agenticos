@@ -384,13 +384,18 @@ CALLS: tuple[Call, ...] = (
         body={"portal_key": "github"},
     ),
     Call(
-        # The polled variant: no webhook to register, the deployment's own client,
-        # and the same permission - connecting an account for the organization.
+        # The polled variant: no webhook to register, the organization's own
+        # client, and the same permission - connecting an account for the
+        # organization.
         "POST",
         "/mcp-connections/oauth/start/portal",
         Perm.MCP_MANAGE,
         body={"portal_key": "google"},
     ),
+    # Disconnecting one is the same decision as connecting it, and so is the
+    # link an Entra administrator is handed to approve the app.
+    Call("DELETE", "/mcp-connections/portals/{portal_key}", Perm.MCP_MANAGE),
+    Call("GET", "/mcp-connections/portals/microsoft/admin-consent", Perm.MCP_MANAGE),
     Call(
         # The App variant, which is not an OAuth start at all: an App has no
         # consent flow, so connecting it is recording which installation this

@@ -27,6 +27,8 @@ def test_every_preset_validates_against_its_sources_model() -> None:
     model a hand-typed config is (`_EVENT_CONFIG_MODELS`), so it cannot ship a key
     the source would refuse."""
     for portal in portal_catalog.CATALOG:
+        if portal.event_source is None:
+            continue
         model = _EVENT_CONFIG_MODELS[portal.event_source]
         for preset in portal.presets:
             # Raises pydantic.ValidationError if the template is not a valid config.
@@ -34,9 +36,13 @@ def test_every_preset_validates_against_its_sources_model() -> None:
 
 
 def test_every_portal_names_a_real_event_source() -> None:
+    """Or none, and then no presets: a preset with no source has nothing to fire through."""
     known = {source.value for source in EventSource}
     for portal in portal_catalog.CATALOG:
-        assert portal.event_source in known, portal.key
+        if portal.event_source is None:
+            assert not portal.presets, portal.key
+        else:
+            assert portal.event_source in known, portal.key
 
 
 def test_an_auto_webhook_portal_declares_the_scope_it_registers_with() -> None:
@@ -75,3 +81,11 @@ def test_get_preset_finds_a_real_pair_and_misses_the_rest() -> None:
     assert preset.key == "issue_opened"
     assert portal_catalog.get_preset("github", "no-such-preset") is None
     assert portal_catalog.get_preset("no-such-portal", "issue_opened") is None
+
+
+def test_a_polled_portal_names_the_client_its_consent_spends() -> None:
+    """`oauth_start_for_polled_portal` reads the client by this kind, and a polled
+    portal is only ever connected through that flow."""
+    for portal in portal_catalog.CATALOG:
+        if portal.delivery is DeliveryMode.POLLING:
+            assert portal.oauth_app_kind is not None, portal.key

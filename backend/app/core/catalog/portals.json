@@ -140,5 +140,23 @@
       }
     ],
     "oauth_app_kind": "google_oauth_app"
+  },
+  {
+    "key": "microsoft",
+    "name": "Microsoft 365",
+    "description": "Connect your organization's Microsoft account, for the Outlook and calendar triggers built on it.",
+    "category": "productivity",
+    "event_source": null,
+    "delivery": "polling",
+    "icon": "microsoft",
+    "read_scopes": [
+      "offline_access",
+      "User.Read"
+    ],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": null,
+    "target_kind": null,
+    "presets": [],
+    "oauth_app_kind": "entra_app"
   }
 ]

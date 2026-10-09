@@ -34,7 +34,7 @@ import secrets
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from mcp.shared.auth import OAuthToken
@@ -66,7 +66,7 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import GithubAppSecret, SecretKind
+from app.core.secret_kinds import EntraAppSecret, GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
@@ -83,10 +83,19 @@ from app.services import portal_catalog, portals
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
-from app.services.portals import github_app, github_oauth, google_oauth
+from app.services.portals import github_app, github_oauth, google_oauth, microsoft_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
 
 logger = logging.getLogger(__name__)
+
+
+class AdminConsentRequired(OAuthError):
+    """The provider will grant this account only once an administrator has consented.
+
+    Raised by the callback so the route can tell the card *who* has to act, which a
+    plain refusal's message cannot carry: Entra's `AADSTS65001` is a tenant's
+    policy, and the member who met it can do nothing but ask.
+    """
 
 
 def _oauth_redirect_uri() -> str:
@@ -268,6 +277,63 @@ async def _complete_google_flow(
     return payload, (token.granted_scopes or None)
 
 
+async def _complete_microsoft_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through Entra's flow, with its PKCE verifier, and fold the token in.
+
+    Like Google's, the token expires - about an hour - and is renewed by
+    `_refresh_under_lock`, which sends Entra the scopes the grant was consented
+    for rather than a `resource`. `scope` keeps what was asked for, not what Entra
+    answered: the answer may spell scopes differently and add OpenID's, and a
+    refresh must ask for no more than the code was granted.
+
+    Raises:
+        AdminConsentRequired: The tenant lets only an administrator consent.
+        OAuthError: The flow cannot be completed - no verifier, or Entra refused.
+    """
+    if not payload.code_verifier:
+        raise OAuthError("This authorization session is no longer valid - start again.")
+    try:
+        token = await microsoft_oauth.exchange_code(
+            token_endpoint=payload.token_endpoint,
+            client_id=payload.client_id,
+            client_secret=_revealed(payload.client_secret) or "",
+            code=code,
+            code_verifier=payload.code_verifier,
+            redirect_uri=payload.redirect_uri,
+            scopes=(payload.scope or "").split(),
+        )
+    except microsoft_oauth.MicrosoftAdminConsentRequired as exc:
+        raise AdminConsentRequired(str(exc)) from exc
+    except microsoft_oauth.MicrosoftOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    return _apply_microsoft_token(payload, token), (token.granted_scopes or None)
+
+
+def _apply_microsoft_token(
+    payload: McpOAuthPayload, token: microsoft_oauth.MicrosoftToken
+) -> McpOAuthPayload:
+    """Fold an Entra grant or refresh into the stored payload.
+
+    A missing refresh token keeps the stored one: Entra rotates it on every
+    refresh and sends the new one, but a payload with none would stop renewing an
+    hour later with nothing to say why.
+    """
+    return payload.model_copy(
+        update={
+            "access_token": SecretStr(token.access_token),
+            "refresh_token": (
+                SecretStr(token.refresh_token) if token.refresh_token else payload.refresh_token
+            ),
+            "expires_at": (
+                None if token.expires_in is None else _now_epoch() + float(token.expires_in)
+            ),
+            "code_verifier": None,
+        }
+    )
+
+
 async def _complete_github_flow(
     payload: McpOAuthPayload, code: str
 ) -> tuple[McpOAuthPayload, list[str] | None]:
@@ -352,7 +418,10 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
 # point at". A portal added here needs a row; one absent from it cannot be polled,
 # and `oauth_start_for_polled_portal` would raise a `KeyError` before writing
 # anything, which is the loud failure a silent empty string would not be.
-_POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
+_POLLED_PORTAL_URL = {
+    "google": "https://gmail.googleapis.com",
+    "microsoft": "https://graph.microsoft.com",
+}
 
 _GITHUB_APP_GRANT_URL = "https://api.github.com"
 """What a GitHub App grant records as its address.
@@ -404,24 +473,46 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     if not payload.refresh_token:
         return None
     try:
-        token = await mcp_oauth.refresh_tokens(
-            token_endpoint=payload.token_endpoint,
-            client_id=payload.client_id,
-            client_secret=_revealed(payload.client_secret),
-            refresh_token=payload.refresh_token.get_secret_value(),
-            resource=payload.resource,
-            scope=payload.scope,
-        )
-    except OAuthError as exc:
+        payload = await _refreshed(payload, payload.refresh_token.get_secret_value())
+    except (OAuthError, microsoft_oauth.MicrosoftOAuthError) as exc:
         logger.warning("OAuth token refresh failed for %r: %s", connection.name, exc)
         return None
-    payload = _apply_token(payload, token)
     await mcp_connection_repo.update(
         db,
         db_connection=locked,
         update_data={"oauth_payload": _seal_for(locked, payload.model_dump_json()).ciphertext},
     )
     return _revealed(payload.access_token)
+
+
+async def _refreshed(payload: McpOAuthPayload, refresh_token: str) -> McpOAuthPayload:
+    """The payload with a renewed access token, through the flow that issued it.
+
+    Entra's own, without `resource`, for a Microsoft grant; the shared RFC 8707
+    refresh for everything else.
+
+    Raises:
+        OAuthError: The shared refresh was refused.
+        microsoft_oauth.MicrosoftOAuthError: Entra refused or could not be reached.
+    """
+    if payload.provider == microsoft_oauth.PROVIDER:
+        token = await microsoft_oauth.refresh_tokens(
+            token_endpoint=payload.token_endpoint,
+            client_id=payload.client_id,
+            client_secret=_revealed(payload.client_secret) or "",
+            refresh_token=refresh_token,
+            scopes=(payload.scope or "").split(),
+        )
+        return _apply_microsoft_token(payload, token)
+    token = await mcp_oauth.refresh_tokens(
+        token_endpoint=payload.token_endpoint,
+        client_id=payload.client_id,
+        client_secret=_revealed(payload.client_secret),
+        refresh_token=refresh_token,
+        resource=payload.resource,
+        scope=payload.scope,
+    )
+    return _apply_token(payload, token)
 
 
 async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> str | None:
@@ -1152,13 +1243,16 @@ class McpConnectionService:
         Gmail is the case: the grant is spent by the heartbeat's poller, not by a
         provider posting to us, so there is nothing to register and the only thing
         the flow has to produce is a refreshable token with the portal's read
-        scopes on it.
+        scopes on it. Microsoft 365 connects the same way, through the tenant's
+        endpoints and with PKCE, and is the account later portals read through.
 
         **The client is the organization's, from the vault** - the same shape as
         GitHub's, and for the reason that outranks any argument about who owns a
         Google project: every secret at rest in this repository goes through
         `app/core/vault.py`, and there is no second mechanism. It is emphatically
-        *not* the deployment's `GOOGLE_CLIENT_ID`, which is sign-in.
+        *not* the deployment's `GOOGLE_CLIENT_ID`, which is sign-in. Which kind of
+        secret is the portal's `oauth_app_kind`: a `google_oauth_app` for Gmail, the
+        `entra_app` SharePoint sync signs in as for Microsoft 365.
 
         The grant is staged on a `purpose = 'portal'` row, so it never appears
         among the organization's MCP servers: it has no tools and nobody should be
@@ -1169,9 +1263,9 @@ class McpConnectionService:
         Raises:
             BadRequestError: If `portal_key` names no portal, or one that is not
                 polled - a webhook portal connects through its own flow.
-            NotFoundError: If the organization has stored no org-visible
-                `google_oauth_app` secret - a 4xx the card shows as a prerequisite,
-                the same way a missing GitHub OAuth App is, never a 500.
+            NotFoundError: If the organization has stored no org-visible secret of
+                the portal's kind - a 4xx the card shows as a prerequisite, the same
+                way a missing GitHub OAuth App is, never a 500.
             BadRequestError: If more than one is stored, or `portal_key` names no
                 polled portal.
             AuthorizationError: When the request runs under an impersonation - the
@@ -1184,26 +1278,54 @@ class McpConnectionService:
                 message="This portal is not one the platform polls",
                 details={"portal_key": portal_key},
             )
+        # Every polled portal names its kind; `tests/test_portal_catalog.py` holds
+        # the catalog to it.
         creds = await OrganizationSecretService(self.db).oauth_app(
-            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+            ctx, kind=SecretKind(cast(str, portal.oauth_app_kind))
         )
         redirect_uri = _oauth_redirect_uri()
         state = secrets.token_urlsafe(32)
         scopes = list(portal.read_scopes)
+        if isinstance(creds, EntraAppSecret):
+            pkce = mcp_oauth.new_pkce()
+            code_verifier: str | None = pkce.code_verifier
+            provider = microsoft_oauth.PROVIDER
+            authorize_endpoint = microsoft_oauth.authorize_endpoint(creds.tenant_id)
+            token_endpoint = microsoft_oauth.token_endpoint(creds.tenant_id)
+            authorization_url = microsoft_oauth.authorization_url(
+                tenant_id=creds.tenant_id,
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=scopes,
+                state=state,
+                code_challenge=pkce.code_challenge,
+            )
+        else:
+            code_verifier = None
+            provider = google_oauth.PROVIDER
+            authorize_endpoint = google_oauth.AUTHORIZE_ENDPOINT
+            token_endpoint = google_oauth.TOKEN_ENDPOINT
+            authorization_url = google_oauth.authorization_url(
+                client_id=creds.client_id,
+                redirect_uri=redirect_uri,
+                scopes=scopes,
+                state=state,
+            )
         payload = McpOAuthPayload(
             # A portal grant points at the API it reads rather than at an MCP
             # server. The column is not nullable and the value is not a lie: it is
             # where the token is spent.
             server_url=_POLLED_PORTAL_URL[portal_key],
             started_at=_now_epoch(),
-            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
-            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            authorization_endpoint=authorize_endpoint,
+            token_endpoint=token_endpoint,
             client_id=creds.client_id,
             client_secret=creds.client_secret,
             scope=" ".join(scopes),
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
-            provider=google_oauth.PROVIDER,
+            code_verifier=code_verifier,
+            provider=provider,
         )
         existing = await mcp_connection_repo.get_portal_grant(
             self.db, organization_id=ctx.organization_id, portal_key=portal_key
@@ -1227,12 +1349,7 @@ class McpConnectionService:
             payload=payload,
             state=state,
         )
-        return google_oauth.authorization_url(
-            client_id=creds.client_id,
-            redirect_uri=redirect_uri,
-            scopes=scopes,
-            state=state,
-        )
+        return authorization_url
 
     async def connect_github_app(self, ctx: AuthContext, *, installation_id: str) -> McpConnection:
         """Record which GitHub App installation this organization's triggers belong to.
@@ -1355,6 +1472,8 @@ class McpConnectionService:
             raise OAuthError("This authorization session has expired - start again.")
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
+        elif payload.provider == microsoft_oauth.PROVIDER:
+            payload, granted_scopes = await _complete_microsoft_flow(payload, code)
         elif payload.provider == google_oauth.PROVIDER:
             payload, granted_scopes = await _complete_google_flow(payload, code)
             # Google may omit the refresh token on a re-consent for a grant it
@@ -1630,6 +1749,68 @@ class McpConnectionService:
             target_type="mcp_connection",
             target_id=str(connection_id),
             details={"name": db_connection.name},
+        )
+
+    async def disconnect_portal(self, ctx: AuthContext, *, portal_key: str) -> None:
+        """Remove the organization's grant for one portal - Gmail, Microsoft 365, a GitHub App.
+
+        A portal grant is invisible to :meth:`delete_for_org`, which resolves MCP
+        connections only, so until this a connected mailbox could be replaced by
+        connecting again and never removed. The triggers built on it stay and
+        lose the account reference, as they do when an MCP connection is deleted;
+        connecting again gives them a grant to read through.
+
+        The provider still lists the app as granted until the account owner or an
+        administrator revokes it there: nothing here can withdraw consent, only
+        forget the token.
+
+        Raises:
+            NotFoundError: The organization has no grant for this portal.
+        """
+        grant = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal_key
+        )
+        if grant is None:
+            raise NotFoundError(
+                message="This portal is not connected", details={"portal_key": portal_key}
+            )
+        # Imported locally: the trigger service imports this module at module scope.
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).release_connection(ctx, grant.id)
+        await mcp_connection_repo.delete(self.db, db_connection=grant)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="portal.disconnected",
+            target_type="mcp_connection",
+            target_id=str(grant.id),
+            details={"portal_key": portal_key},
+        )
+
+    async def microsoft_admin_consent_url(self, ctx: AuthContext) -> str:
+        """The link an Entra administrator follows to approve the app for the tenant.
+
+        Built here from the stored `entra_app`, and never carried on a callback's
+        query string: anyone can send a browser to the callback, and a consent link
+        the page showed from its own URL would be one a stranger chose.
+
+        Raises:
+            NotFoundError: The organization has stored no org-visible `entra_app`.
+            BadRequestError: More than one is stored.
+        """
+        portal = portal_catalog.BY_KEY[microsoft_oauth.PROVIDER]
+        # `oauth_app` unseals only the kind it was asked for.
+        creds = cast(
+            EntraAppSecret,
+            await OrganizationSecretService(self.db).oauth_app(ctx, kind=SecretKind.ENTRA_APP),
+        )
+        return microsoft_oauth.admin_consent_url(
+            tenant_id=creds.tenant_id,
+            client_id=creds.client_id,
+            scopes=portal.read_scopes,
+            redirect_uri=_oauth_redirect_uri(),
         )
 
     async def test_for_org(

@@ -199,7 +199,13 @@ async def poll_portal_grants_flow() -> None:
     from app.services.mcp_connection import McpConnectionService
     from app.services.portal_catalog import CATALOG, DeliveryMode
 
-    polled_keys = [entry.key for entry in CATALOG if entry.delivery is DeliveryMode.POLLING]
+    # A polled portal with no event source is an account other portals build on
+    # (Microsoft 365): there is nothing to read for it, so its grant is not claimed.
+    polled_keys = [
+        entry.key
+        for entry in CATALOG
+        if entry.delivery is DeliveryMode.POLLING and entry.event_source is not None
+    ]
     if not polled_keys:
         return
     # The dedupe claim is what keeps a re-read message from firing twice, and only

@@ -760,6 +760,7 @@ include = [
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/microsoft_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
@@ -1155,6 +1156,7 @@ include = [
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/microsoft_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is

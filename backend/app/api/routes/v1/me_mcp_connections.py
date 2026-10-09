@@ -25,6 +25,7 @@ from app.schemas.mcp_connection import (
     McpOAuthStartResult,
     McpToolRead,
 )
+from app.services.mcp_connection import AdminConsentRequired
 
 router = APIRouter()
 
@@ -103,6 +104,8 @@ async def complete_mcp_oauth(
     so the provider redirect can reach it without our auth cookie."""
     try:
         connection = await service.oauth_callback(state=data.state, code=data.code)
+    except AdminConsentRequired as exc:
+        return McpOAuthCallbackResult(ok=False, error=str(exc), failure="admin_consent_required")
     except (OAuthError, NotFoundError) as exc:
         return McpOAuthCallbackResult(ok=False, error=str(exc))
     return McpOAuthCallbackResult(ok=True, connection_name=connection.name)

@@ -255,7 +255,9 @@ class TestOneMailboxIsOneTenant:
 class TestWhichGrantsAreRead:
     async def test_only_polled_portals_are_claimed(self):
         """GitHub is pushed to and must never be polled: a tick that claimed it
-        would spend a token exchange a minute to ask a question nobody asked."""
+        would spend a token exchange a minute to ask a question nobody asked. Nor
+        is Microsoft 365, which is polled-delivery but has no event source to read
+        for until a portal is built on it."""
         from app.worker.tasks import trigger_tasks
 
         connections = MagicMock()

@@ -4679,3 +4679,317 @@ class TestCompletingGooglesFlow:
 
         with pytest.raises(mcp_oauth.OAuthError):
             await _complete_google_flow(_base_payload(provider="google"), "code")
+
+
+def _microsoft_payload(**overrides) -> McpOAuthPayload:
+    """A Microsoft 365 grant as the polled-portal start stages it."""
+    data = {
+        "server_url": "https://graph.microsoft.com",
+        "authorization_endpoint": "https://login.microsoftonline.com/contoso/oauth2/v2.0/authorize",
+        "token_endpoint": "https://login.microsoftonline.com/contoso/oauth2/v2.0/token",
+        "scope": "offline_access User.Read",
+        "resource": "https://graph.microsoft.com",
+        "provider": "microsoft",
+        "code_verifier": "the-verifier",
+    }
+    data.update(overrides)
+    return _base_payload(**data)
+
+
+class TestConnectingMicrosoft365:
+    """The Microsoft 365 portal: the tenant's endpoints, PKCE, and the `entra_app` secret."""
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self):
+        return McpConnectionService(db=AsyncMock())
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.get_portal_grant = AsyncMock(return_value=None)
+        mock_repo.create_org_scoped = AsyncMock()
+        mock_repo.update = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def entra(self, monkeypatch):
+        """The organization's stored app registration, as the vault reader answers it."""
+        from app.core.secret_kinds import EntraAppSecret
+
+        creds = EntraAppSecret(
+            tenant_id="contoso.onmicrosoft.com",
+            client_id="0f9e8d7c-6b5a-4f3e-9d2c-1b0a9f8e7d6c",
+            client_secret="app-secret",
+        )
+        monkeypatch.setattr(OrganizationSecretService, "oauth_app", AsyncMock(return_value=creds))
+        return creds
+
+    async def test_it_spends_the_entra_app_and_the_tenants_endpoints(
+        self, service, ctx, repo, entra
+    ):
+        from app.core.secret_kinds import SecretKind
+
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        assert url.startswith(
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/authorize?"
+        )
+        assert "code_challenge_method=S256" in url
+        assert "scope=offline_access+User.Read" in url
+        assert "app-secret" not in url
+        asked = OrganizationSecretService.oauth_app.await_args
+        assert asked.kwargs["kind"] is SecretKind.ENTRA_APP
+
+    async def test_the_verifier_is_sealed_in_the_pending_grant_not_sent(
+        self, service, ctx, repo, entra
+    ):
+        """PKCE's point: the verifier stays with the platform until the exchange."""
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+
+        staged = repo.create_org_scoped.await_args.kwargs
+        pending = McpOAuthPayload.model_validate_json(
+            unseal(
+                staged["oauth_pending_payload"],
+                scope=VaultScope.organization(ctx.organization_id),
+                key_version=staged["secret_key_version"],
+            )
+        )
+        assert pending.provider == "microsoft"
+        assert pending.code_verifier
+        assert pending.code_verifier not in url
+        assert pending.token_endpoint.endswith("/contoso.onmicrosoft.com/oauth2/v2.0/token")
+        assert staged["portal_key"] == "microsoft"
+
+    async def test_connecting_under_an_impersonation_is_refused(self, service, ctx, repo, entra):
+        """The administrator's own Microsoft account would be bound as the member's."""
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="microsoft")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_the_callback_exchanges_the_code_with_its_verifier(
+        self, service, repo, monkeypatch
+    ):
+        from app.services.portals import microsoft_oauth
+
+        pending = _connection(
+            auth_type="oauth",
+            url="https://graph.microsoft.com",
+            oauth_state="state-ms",
+            purpose="portal",
+            portal_key="microsoft",
+            poll_cursor=None,
+        )
+        pending.oauth_pending_payload = _seal_into(pending, _microsoft_payload().model_dump_json())
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        exchange = AsyncMock(
+            return_value=microsoft_oauth.MicrosoftToken(
+                access_token="AT",
+                refresh_token="RT",
+                expires_in=3600,
+                granted_scopes=["User.Read", "profile", "openid", "email"],
+            )
+        )
+        monkeypatch.setattr(microsoft_oauth, "exchange_code", exchange)
+
+        await service.oauth_callback(state="state-ms", code="the-code")
+
+        assert exchange.await_args.kwargs["code_verifier"] == "the-verifier"
+        update_data = repo.update.call_args.kwargs["update_data"]
+        stored = McpOAuthPayload.model_validate_json(
+            _open_from(pending, update_data["oauth_payload"])
+        )
+        assert stored.refresh_token.get_secret_value() == "RT"
+        assert stored.code_verifier is None
+        # What was asked for, which is what a refresh may ask for again.
+        assert stored.scope == "offline_access User.Read"
+        assert update_data["granted_scopes"] == ["User.Read", "profile", "openid", "email"]
+        # No portal reads through it yet, so there is no cursor to start.
+        assert update_data["poll_cursor"] is None
+
+    async def test_aadsts65001_reaches_the_callback_as_an_administrators_decision(
+        self, monkeypatch
+    ):
+        from app.services.mcp_connection import AdminConsentRequired, _complete_microsoft_flow
+        from app.services.portals import microsoft_oauth
+
+        monkeypatch.setattr(
+            microsoft_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=microsoft_oauth.MicrosoftAdminConsentRequired("approve it")),
+        )
+
+        with pytest.raises(AdminConsentRequired):
+            await _complete_microsoft_flow(_microsoft_payload(), "code")
+
+    async def test_another_refusal_is_the_shared_oauth_error(self, monkeypatch):
+        from app.services.mcp_connection import AdminConsentRequired, _complete_microsoft_flow
+        from app.services.portals import microsoft_oauth
+
+        monkeypatch.setattr(
+            microsoft_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=microsoft_oauth.MicrosoftOAuthError("refused")),
+        )
+
+        with pytest.raises(mcp_oauth.OAuthError) as raised:
+            await _complete_microsoft_flow(_microsoft_payload(), "code")
+        assert not isinstance(raised.value, AdminConsentRequired)
+
+    async def test_a_pending_grant_with_no_verifier_cannot_be_completed(self, monkeypatch):
+        from app.services.mcp_connection import _complete_microsoft_flow
+        from app.services.portals import microsoft_oauth
+
+        exchange = AsyncMock()
+        monkeypatch.setattr(microsoft_oauth, "exchange_code", exchange)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="start again"):
+            await _complete_microsoft_flow(_microsoft_payload(code_verifier=None), "code")
+        exchange.assert_not_awaited()
+
+    async def test_the_admin_consent_link_is_built_from_the_stored_app(self, service, ctx, entra):
+        url = await service.microsoft_admin_consent_url(ctx)
+
+        assert url.startswith(
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0/adminconsent?"
+        )
+        assert f"client_id={entra.client_id}" in url
+        assert "app-secret" not in url
+
+
+class TestRenewingAMicrosoftGrant:
+    """Entra's refresh, without `resource`, and its rotated refresh token kept."""
+
+    pytestmark = pytest.mark.anyio
+
+    @staticmethod
+    def _expired() -> McpConnection:
+        return _oauth_connection(
+            _microsoft_payload(
+                code_verifier=None, access_token="stale", refresh_token="old-rt", expires_at=0.0
+            )
+        )
+
+    async def test_it_renews_through_entra_and_stores_the_rotated_token(self, monkeypatch):
+        from app.services.portals import microsoft_oauth
+
+        row = self._expired()
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_by_id_for_update",
+            AsyncMock(return_value=row),
+        )
+        update = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update)
+        shared = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "refresh_tokens", shared)
+        refresh = AsyncMock(
+            return_value=microsoft_oauth.MicrosoftToken(
+                access_token="new-at", refresh_token="new-rt", expires_in=3600, granted_scopes=[]
+            )
+        )
+        monkeypatch.setattr(microsoft_oauth, "refresh_tokens", refresh)
+
+        headers = await _resolve_auth_headers(AsyncMock(), row)
+
+        assert headers == {"Authorization": "Bearer new-at"}
+        shared.assert_not_awaited()
+        assert refresh.await_args.kwargs["scopes"] == ["offline_access", "User.Read"]
+        assert "resource" not in refresh.await_args.kwargs
+        stored = McpOAuthPayload.model_validate_json(
+            _open_from(row, update.await_args.kwargs["update_data"]["oauth_payload"])
+        )
+        assert stored.refresh_token.get_secret_value() == "new-rt"
+
+    async def test_a_refresh_with_no_new_refresh_token_keeps_the_stored_one(self):
+        from app.services.mcp_connection import _apply_microsoft_token
+        from app.services.portals import microsoft_oauth
+
+        payload = _microsoft_payload(refresh_token="old-rt")
+        renewed = _apply_microsoft_token(
+            payload,
+            microsoft_oauth.MicrosoftToken(
+                access_token="at", refresh_token=None, expires_in=None, granted_scopes=[]
+            ),
+        )
+
+        assert renewed.refresh_token.get_secret_value() == "old-rt"
+        assert renewed.expires_at is None
+
+    async def test_a_refused_refresh_drops_the_token_without_writing(self, monkeypatch):
+        from app.services.portals import microsoft_oauth
+
+        row = self._expired()
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_by_id_for_update",
+            AsyncMock(return_value=row),
+        )
+        update = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "update", update)
+        monkeypatch.setattr(
+            microsoft_oauth,
+            "refresh_tokens",
+            AsyncMock(side_effect=microsoft_oauth.MicrosoftAdminConsentRequired("withdrawn")),
+        )
+
+        assert await _resolve_auth_headers(AsyncMock(), row) is None
+        update.assert_not_awaited()
+
+
+class TestDisconnectingAPortal:
+    """Removing a portal's grant, which no route could do before (#1983)."""
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.get_portal_grant = AsyncMock(return_value=None)
+        mock_repo.delete = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def released(self, monkeypatch):
+        from app.services.agent_trigger import AgentTriggerService
+
+        release = AsyncMock()
+        monkeypatch.setattr(AgentTriggerService, "release_connection", release)
+        return release
+
+    @pytest.fixture
+    def audit(self, monkeypatch):
+        recorded = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "record_audit", recorded)
+        return recorded
+
+    async def test_a_portal_nobody_connected_is_not_found(self, ctx, repo, released, audit):
+        with pytest.raises(NotFoundError):
+            await McpConnectionService(db=AsyncMock()).disconnect_portal(ctx, portal_key="google")
+        repo.delete.assert_not_called()
+        audit.assert_not_awaited()
+
+    async def test_the_grant_is_released_deleted_and_audited(self, ctx, repo, released, audit):
+        """Its triggers shed what they registered first, while the token still exists."""
+        grant = _connection(scope="org", organization_id=ctx.organization_id, user_id=None)
+        repo.get_portal_grant = AsyncMock(return_value=grant)
+
+        await McpConnectionService(db=AsyncMock()).disconnect_portal(ctx, portal_key="microsoft")
+
+        assert released.await_args.args[1] == grant.id
+        repo.delete.assert_awaited_once()
+        assert repo.delete.await_args.kwargs["db_connection"] is grant
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "portal.disconnected"
+        assert entry["details"] == {"portal_key": "microsoft"}
