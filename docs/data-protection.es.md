@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "34de189b6f15"
 ---
 
 # Protección de datos { #data-protection }
@@ -133,6 +133,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
+| Un portal de trigger conectado: Gmail, Microsoft 365 | El intercambio de tokens y cada renovación, con el client secret de la organización; después el sondeo de Gmail lee los mensajes nuevos del buzón. Microsoft 365 todavía no lee nada | Un grant del portal, hecho por alguien con `mcp:manage` en la pantalla de consentimiento del proveedor a través del secreto `google_oauth_app` o `entra_app` de la organización. *Disconnect* lo borra | La de Google o la de Microsoft |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |
 
 Los conectores de sincronización van al revés: un origen de Google Drive o S3

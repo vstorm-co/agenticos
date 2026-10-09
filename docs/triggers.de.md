@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "36700b1e42ee"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -213,14 +213,62 @@ postet. Was Sie darüber wissen sollten, wie es liest:
   Historie vor. Ein Cursor, der älter ist als das, synchronisiert sich auf jetzt,
   statt das Postfach für immer stillzulegen.
 
-Das Deployment braucht einen Google-OAuth-Client (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - dasselbe Paar, das die Google-Anmeldung verwendet) mit
-aktivierter Gmail-API. Ohne einen sagt die Karte das, statt eine
-Connect-Schaltfläche anzubieten, die nur scheitern könnte. Anders als bei GitHub
-gehört der Client dem *Deployment* und nicht jeder Organisation: Googles
-Zustimmungsbildschirm für einen Postfach-Scope braucht ein verifiziertes Projekt,
-das ein Betreiber einmal registriert und das kein Tenant von ihm überhaupt
-registrieren kann.
+Die Organisation braucht einen eigenen Google-OAuth-Client, im Vault als
+`google_oauth_app`-Secret hinterlegt - für die Organisation sichtbar, und genau
+einer - aus einem Google-Projekt mit aktivierter Gmail-API und
+`<FRONTEND_URL>/api/me/mcp-connections/oauth/callback` als autorisierter
+Redirect-URI. Ohne einen sagt die Karte das und bietet *Zugangsdaten hinzufügen*
+an statt einer Connect-Schaltfläche, die nur scheitern könnte. Es ist nicht die
+`GOOGLE_CLIENT_ID` des Deployments, die der Google-Anmeldung dient und sonst
+nichts.
+
+**Trennen** auf der Karte entfernt das Postfach. Die darauf aufgebauten Trigger
+bleiben bestehen und lesen wieder, sobald ein Konto verbunden ist; Google führt die
+App weiterhin als berechtigt, bis sie dort im Konto selbst entfernt wird.
+
+## Microsoft 365 (vorerst das Konto) { #microsoft-365-the-account-for-now }
+
+Microsoft 365 wird wie Gmail abgefragt und auf dieselbe Weise verbunden: *Routines
+→ New event trigger → Microsoft 365 → Connect account*, mit `mcp:manage`. Es löst
+noch nichts aus. Das Verbinden gibt der Organisation das eine Microsoft-365-Konto,
+über das die Outlook- und Kalender-Trigger lesen werden, und bis diese erscheinen,
+zeigt die Karte *Verbunden*, statt einen Trigger anzubieten.
+
+Was die Organisation braucht, ist eine Entra-App-Registrierung, hinterlegt als
+`entra_app`-Secret - dieselbe Art, als die sich eine [SharePoint- oder
+OneDrive-Sync-Quelle](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)
+anmeldet. In der Registrierung:
+
+- eine **Web**-Redirect-URI, `<FRONTEND_URL>/api/me/mcp-connections/oauth/callback`;
+- die delegierten Microsoft-Graph-Berechtigungen `offline_access` und `User.Read`,
+  und sonst nichts. Die Zustimmung fragt nur nach diesen beiden, sie liest sich
+  also wie die Reichweite eines Tokens und nicht wie die eines Postfachs.
+
+Die Zustimmung läuft mit PKCE gegen die eigenen Endpunkte Ihres Tenants.
+Gespeichert wird das Refresh-Token, das Entra bei jeder Erneuerung rotiert.
+
+**Wenn Ihr Administrator die App freigeben muss.** Viele Tenants lassen kein
+Mitglied einer App zustimmen, die ein Administrator nicht freigegeben hat. Entra
+lehnt dann mit `AADSTS65001` ab, und der Toast sagt, dass Ihr Administrator die
+App freigeben muss, statt den Satz von Entra zu wiederholen. *Admin-Consent-Link
+kopieren* auf der Karte liefert den Link zum Weiterleiten: Er nennt Ihren Tenant
+und Ihre App und fragt nach den oben genannten Berechtigungen. Sobald die Freigabe
+erteilt ist, können Mitglieder verbinden. Der Link lässt sich auch verschicken,
+bevor es jemand versucht.
+
+**Eine Registrierung, beide Aufgaben.** Das Verbinden liest das eine
+org-sichtbare `entra_app`-Secret der Organisation und wird bei zwei gespeicherten
+abgelehnt, wie bei GitHub. Eine Sync-Quelle benennt ihr Secret per ID und ist
+davon nicht betroffen - das Portal aber schon. Halten Sie also eine Registrierung,
+die sowohl die Anwendungsberechtigungen trägt, die die Sync-Quellen brauchen, als
+auch die oben genannten delegierten.
+
+**Trennen** vergisst das Token. Die Zustimmung bei Microsoft wird dadurch nicht
+zurückgezogen: Die App bleibt unter *My Apps* des Kontos oder unter *Enterprise
+applications* des Tenants, bis jemand sie dort entfernt. Wer ein Mitglied
+impersoniert, kann das Konto nicht verbinden, wie bei jeder anderen Integration:
+Zugestimmt hätte das eigene Konto des Administrators, und die Berechtigung würde
+die Impersonierung überdauern.
 
 ## Zwei Wege, GitHub anzubinden, und woran Sie erkennen, welcher läuft { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -494,5 +542,8 @@ hindurch:
 - Eine `202` bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in Activity.
 - **Gmail wird abgefragt**, es hat also überhaupt keine URL und kein Secret —
   verbinden Sie das Postfach, und das ist die Einrichtung.
+- **Microsoft 365 verbindet sich über das `entra_app`-Secret** und fragt nur nach
+  `offline_access` und `User.Read`. Ein Tenant, der die Freigabe eines
+  Administrators braucht, bekommt einen Link zum Weiterleiten.
 - Greifen Sie auf einem Laptop nach **Run now**, bevor Sie nach einem Tunnel
   greifen.

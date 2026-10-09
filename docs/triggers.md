@@ -184,13 +184,56 @@ you should know about how it reads:
 - **A missed week repairs itself.** Google keeps about a week of history. A cursor
   older than that resynchronises to now rather than parking the mailbox for ever.
 
-The deployment needs a Google OAuth client (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - the same pair Google sign-in uses) with the Gmail API
-enabled. Without one the card says so instead of offering a Connect button that
-could only fail. Unlike GitHub, the client is the *deployment's* rather than each
-organization's: Google's consent screen for a mailbox scope needs a verified
-project, which an operator registers once and no tenant of theirs can register at
-all.
+The organization needs a Google OAuth client of its own, stored in the vault as a
+`google_oauth_app` secret - org-visible, and exactly one - from a Google project
+with the Gmail API enabled and `<FRONTEND_URL>/api/me/mcp-connections/oauth/callback`
+as an authorized redirect URI. Without one the card says so and offers *Add
+credentials* instead of a Connect button that could only fail. It is not the
+deployment's `GOOGLE_CLIENT_ID`, which is Google sign-in and nothing else.
+
+**Disconnect** on the card removes the mailbox. The triggers built on it stay, and
+read again once an account is connected; Google still lists the app as granted
+until the account's owner removes it there.
+
+## Microsoft 365 (the account, for now)
+
+Microsoft 365 is polled like Gmail and connected the same way: *Routines → New
+event trigger → Microsoft 365 → Connect account*, with `mcp:manage`. It fires
+nothing yet. Connecting gives the organization the one Microsoft 365 account the
+Outlook and calendar triggers will read through, and until they ship the card says
+*Connected* instead of offering a trigger.
+
+What the organization needs is an Entra app registration, stored as the `entra_app`
+secret - the same kind a [SharePoint or OneDrive sync
+source](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup) signs in
+as. In the registration:
+
+- a **Web** redirect URI, `<FRONTEND_URL>/api/me/mcp-connections/oauth/callback`;
+- the delegated Microsoft Graph permissions `offline_access` and `User.Read`, and
+  nothing else. The consent asks for those two alone, so it reads a token's worth
+  of reach rather than a mailbox's.
+
+The consent runs with PKCE against your tenant's own endpoints. The refresh token
+Entra rotates on every renewal is the one kept.
+
+**When your administrator has to approve the app.** Many tenants let no member
+consent to an app an administrator has not approved. Entra then refuses with
+`AADSTS65001`, and the toast says your administrator has to approve the app rather
+than repeating Entra's sentence. *Copy admin-consent link* on the card gives the
+link to send them: it names your tenant and your app and asks for the permissions
+above. Once they approve, members can connect. It can be sent before anybody tries.
+
+**One registration, both jobs.** The connect reads the organization's single
+org-visible `entra_app` secret and refuses with two stored, as GitHub's does. A
+sync source names its secret by id, so it is not affected - but the portal is, so
+keep one registration carrying both the application permissions the sync sources
+need and the delegated ones above.
+
+**Disconnect** forgets the token. It does not withdraw consent at Microsoft: the
+app stays under the account's *My Apps*, or the tenant's *Enterprise
+applications*, until somebody removes it there. Somebody impersonating a member
+cannot connect the account, as with any other integration: the account consented
+would be the administrator's own, and the grant would outlive the impersonation.
 
 ## Two ways to connect GitHub, and how to tell which you are running
 
@@ -446,4 +489,7 @@ Two ways through it:
 - A `202` means **accepted**, not finished. Read the run in Activity.
 - **Gmail is polled**, so it has no URL and no secret at all — connect the mailbox
   and that is the setup.
+- **Microsoft 365 connects through the `entra_app` secret**, and asks only for
+  `offline_access` and `User.Read`. A tenant that needs an administrator's approval
+  gets a link to send them.
 - On a laptop, reach for **Run now** before you reach for a tunnel.

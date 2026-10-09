@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "a4b4ab5b2b65"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -102,6 +102,7 @@ existieren.
 | `aws_credentials` | Access Key ID, Secret Access Key, Region, optionales Session-Token |
 | `gcp_service_account` | Das JSON des Service-Accounts, beim Hineingeben validiert |
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
+| `google_oauth_app` | Die öffentliche Client-ID eines Google-OAuth-Clients und dessen Secret, zum Verbinden eines Postfachs |
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
@@ -109,7 +110,9 @@ existieren.
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
 ausgewählt — der GitHub-Verbindungsablauf liest es serverseitig, um den
 Token-Austausch durchzuführen — also muss es **für die Organisation sichtbar
-sein, und es darf genau eines geben**: die privaten Zugangsdaten eines Mitglieds
+sein, und es darf genau eines geben**. Dasselbe gilt für `google_oauth_app`, über
+das sich das Gmail-Portal verbindet, und für `entra_app`, wenn sich das
+Microsoft-365-Portal darüber verbindet: die privaten Zugangsdaten eines Mitglieds
 werden nie stillschweigend für die Verbindung der ganzen Organisation verwendet,
 und bei zwei gespeicherten org-sichtbaren Apps wird die Verbindung abgelehnt
 (unter Nennung beider), statt an denjenigen Namen gebunden zu werden, der zuerst
@@ -128,6 +131,12 @@ Sites sie lesen kann, und ein Token sagt nicht, welche das sind. Gewähren Sie i
 OneDrive einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup).
 Ihr Hinweis sind die letzten vier Zeichen der Client-ID, die öffentlich ist, statt
 die des Secrets.
+
+Dieselbe Registrierung ist der OAuth-Client, über den das
+[Microsoft-365-Portal](triggers.md#microsoft-365-the-account-for-now) ein Konto
+verbindet. Dort zählen die *delegierten* Berechtigungen - `offline_access` und `User.Read`, denen
+das Konto selbst oder ein Administrator für den Tenant zugestimmt hat - und nicht
+die Anwendungsberechtigungen, mit denen eine Sync-Quelle liest.
 
 `aws_credentials` ist der klarste Fall dafür, dass es Arten überhaupt gibt: die
 Access Key ID ist nicht geheim und der Secret Access Key ist es, und ein einzelnes
