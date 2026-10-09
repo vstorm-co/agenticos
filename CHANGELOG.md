@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.534] - 2026-10-09
+
 ### Changed
 
 - **`pydantic-monty` 1.1.0 and `aiohttp` 3.14.4.** Monty, the sandboxed Python
