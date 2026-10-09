@@ -169,6 +169,11 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
+def api_key_limit() -> Limit:
+    """Requests per minute one organization API key may make, on any public route."""
+    return Limit(attempts=settings.RATE_LIMIT_API_KEY_PER_MINUTE)
+
+
 def ml_limit() -> Limit:
     """What one caller may ask the standalone ML services for, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)

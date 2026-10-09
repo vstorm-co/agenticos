@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "c2598611c808"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -19,12 +19,57 @@ Drei Wege hinein, für drei verschiedene Aufrufer.
 
 | | Header | Für |
 |---|---|---|
-| **JWT** | `Authorization: Bearer <access token>` | Eine Person oder etwas, das als eine handelt. Kurzlebig, wird mit einem Refresh-Token erneuert |
-| **API-Key** | `X-API-Key: <key>` | Dienst zu Dienst. Kein Nutzer dahinter |
-| **Session-Cookie** | von der Konsole gesetzt | Nur der Browser — das Token ist HttpOnly und erreicht JavaScript nie |
+| **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…` | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
+| **JWT** | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token |
+| **Sitzungs-Cookie** | von der Konsole gesetzt | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript |
 
-Keys werden mit `secrets.compare_digest` verglichen, nie mit `==`, und ein Key
-wird so gespeichert wie [alle anderen Zugangsdaten](secrets.md) auch.
+### API-Schlüssel der Organisation { #organization-api-keys }
+
+Ein Schlüssel wird von einem Mitglied in einer Organisation ausgestellt, unter
+**Einstellungen → API-Schlüssel** (oder mit `POST /api/v1/api-keys` aus einer
+angemeldeten Sitzung). Er trägt die Befugnisse dieses Mitglieds, zweifach
+eingeschränkt:
+
+- **Auf die Berechtigungen, mit denen er ausgestellt wurde.** Wählen Sie eine
+  Vorlage — *Nur lesen*, *Wissen einspeisen*, *Voller Zugriff* — oder haken Sie
+  Berechtigungen aus dem [Katalog](permissions.md) an. Sie können nur vergeben,
+  was Sie selbst haben.
+- **Auf das, was der Aussteller jetzt darf.** Jede Anfrage liest die Mitgliedschaft
+  des Ausstellers neu, sodass eine Herabstufung jeden seiner Schlüssel sofort
+  einschränkt und seine Entfernung aus der Organisation jeden von ihm ausgestellten
+  Schlüssel stoppt. Eine Freigabe auf einer Ressource erweitert, was eine *Person*
+  mit einer Zeile tun darf; einen Schlüssel erweitert sie nie über seine
+  Berechtigungen hinaus.
+
+Der Schlüssel wird **einmal** angezeigt, in der Antwort, die ihn erstellt.
+Gespeichert wird nur sein SHA-256, und er erscheint nie in einer Logzeile, einem
+Audit-Eintrag oder einem Fehlertext. Listen zeigen sein Präfix (`aos_1a2b3c4d`),
+und so nennt auch ein Audit-Eintrag den Schlüssel, der gehandelt hat — jeder
+Eintrag, der während einer mit einem Schlüssel authentifizierten Anfrage
+geschrieben wird, trägt `via_api_key` in seinen Details. Ein Schlüssel kann ein
+Ablaufdatum haben, und sein Widerruf (`DELETE /api/v1/api-keys/{id}`) wirkt ab
+seiner nächsten Anfrage.
+
+```bash
+curl "$BASE/api/v1/me/permissions" \
+  -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Zwei Ablehnungen sollten Sie kennen:
+
+- **`403` "API keys are not accepted on this endpoint"** — Schlüssel werden nur in
+  der öffentlichen API angenommen: Agents, Runs und Freigaben, Wissensbasen und
+  RAG, Skills, Kontextdateien, Artefakte, die ML-Dienste, `/me/permissions`
+  sowie Mitglieder, Einladungen, Gruppen und Einstellungen einer Organisation.
+  Die eigenen Routen der Konsole, Ihr Konto, das Verlassen oder Übergeben einer
+  Organisation und die Schlüsselverwaltung selbst bleiben Sitzungen vorbehalten,
+  damit ein geleakter Schlüssel keinen Nachfolger erzeugen kann.
+- **`401` "Invalid, expired or revoked API key"** — derselbe Satz in jedem Fall,
+  damit ein falscher Schlüssel nichts darüber erfährt, welche Schlüssel existieren.
+
+Jeder Schlüssel hat außerdem sein eigenes Limit, `RATE_LIMIT_API_KEY_PER_MINUTE`
+Anfragen pro Minute (standardmäßig 600), und ein Run oder ein ML-Aufruf, den er
+auslöst, zählt gegen diese Limits für den Schlüssel statt für seinen Aussteller.
 
 ### Sessions und Widerruf { #sessions-and-revocation }
 
@@ -42,21 +87,25 @@ Verbindung von einem routinemäßigen Refresh nicht gekappt wird.
 
 ## Der Organisations-Header { #the-organization-header }
 
-**`X-Organization-Id` reist auf jeder Anfrage mit**, und es ist keine optionale
-Verzierung: er entscheidet, in welchem Tenant der Aufruf handelt.
+**Ein API-Schlüssel handelt in seiner eigenen Organisation** und braucht keinen
+Header. `X-Organization-Id` mit einem Schlüssel zu senden ist nur erlaubt, wenn
+er dieselbe Organisation nennt; nennt er eine andere, antwortet die API mit `400`
+und `details.header = "X-Organization-Id"`, statt den Tenant zu wechseln.
 
-Ein Aufrufer, der zu drei Organisationen gehört, ist in jeder ein anderer
-Principal, mit einer anderen Rolle und anderen Grants. Lassen Sie den Header
-weg, hat die Anfrage keinen Tenant, in dem sie handeln könnte; senden Sie den
-falschen, bekommen Sie eine Ablehnung, die genau so aussieht, als gäbe es die
-Ressource nicht — absichtlich, damit Ids nicht abtastbar werden.
+**Ein Sitzungs-Token nimmt den Tenant aus `X-Organization-Id`.** Ein Aufrufer,
+der drei Organisationen angehört, ist in jeder ein anderer Akteur, mit einer
+anderen Rolle und anderen Freigaben, also senden Sie den Header bei jeder Anfrage.
+Fehlt er, fällt die Anfrage auf die **persönliche Organisation** des Aufrufers
+zurück — ein Skript, das ihn vergisst, handelt dort, mit den Agents, Freigaben
+und dem Budget dieser Organisation, und bekommt keinen Fehler. Senden Sie den
+falschen, erhalten Sie eine Ablehnung, die genau wie eine nicht existierende
+Ressource aussieht — absichtlich, damit sich IDs nicht abtasten lassen.
 
 ## Einen Agent ausführen { #running-an-agent }
 
 ```bash
 curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
@@ -111,8 +160,7 @@ personenbezogener Daten. Sie hängen an `ml:invoke` statt an `agents:run`, und
 
 ```bash
 curl -X POST "$BASE/api/v1/ml/privacy/pii" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"text": "write to ada@example.com"}'
 ```
@@ -121,9 +169,14 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Zwei WebSocket-Endpunkte, für zwei Zielgruppen.
 
-- **`/api/v1/ws/agent`** — der authentifizierte, den die Konsole verwendet. Ein
+- **`/api/v1/ws/agent`** — der authentifizierte, den die Konsole nutzt. Ein
   Frame mit `agent_id` führt diesen veröffentlichten Agent aus; ein Frame ohne
-  sie bekommt den allgemeinen Assistenten.
+  sie erreicht den allgemeinen Assistenten. Authentifizieren Sie sich mit dem
+  Subprotokoll `access_token.<token>`, wobei das Token ein Sitzungs-JWT oder ein
+  API-Schlüssel der Organisation ist; der Socket eines Schlüssels handelt in
+  dessen Organisation, führt jeden Zug innerhalb der Berechtigungen des Schlüssels
+  aus und schließt sich beim nächsten Frame, nachdem der Schlüssel widerrufen
+  wurde.
 - **`/api/v1/embed/{public_key}/ws`** — der öffentliche hinter einem
   [Embed](channels.md), für einen Besucher, der kein Konto hat.
 
@@ -186,9 +239,14 @@ vorwärts.
 
 - **`/docs`** auf dem Deployment ist die erzeugte Referenz; in der Produktion
   ist sie bewusst aus.
-- Drei Wege hinein: **JWT, `X-API-Key` oder das Cookie der Konsole**.
-- **`X-Organization-Id` entscheidet über den Tenant** bei jeder Anfrage, und der
-  falsche sieht aus wie eine fehlende Ressource.
+- Drei Wege hinein: **ein API-Schlüssel der Organisation, ein JWT oder das
+  Cookie der Konsole**.
+- Ein Schlüssel trägt die Befugnisse seines Ausstellers, **eingeschränkt auf
+  seine Berechtigungen und die aktuelle Rolle des Ausstellers**, wird einmal
+  angezeigt und funktioniert nur in der öffentlichen API.
+- **Ein Schlüssel handelt in seiner eigenen Organisation; eine Sitzung liest
+  `X-Organization-Id`** und fällt ohne ihn auf die persönliche Organisation
+  zurück. Der falsche sieht aus wie eine fehlende Ressource.
 - Einen Agent über HTTP auszuführen ist **derselbe Runner** — Budget, Freigabe
   und Audit gelten alle.
 - **Noch keine Kompatibilitätszusage und kein SDK** (R10); der Spec des Agents ist

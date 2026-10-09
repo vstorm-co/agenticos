@@ -21,6 +21,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import Auth, MLSvc, limit_ml_call, require
+from app.api.public_api import PUBLIC
 from app.core.config import settings
 from app.core.permissions import Perm
 from app.schemas.ml import (
@@ -37,7 +38,7 @@ from app.schemas.ml import (
     TranscriptionRead,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 _READ_CEILING = settings.ML_MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1
 """How many bytes an upload route copies out of the spooled body.

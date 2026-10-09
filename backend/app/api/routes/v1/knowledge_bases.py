@@ -20,6 +20,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -45,7 +46,7 @@ from app.schemas.sync_source import (
 )
 from app.services.ingestion_config import parse_override
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get(

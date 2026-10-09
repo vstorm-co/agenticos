@@ -15,12 +15,51 @@ Three ways in, for three different callers.
 
 | | Header | For |
 |---|---|---|
+| **Organization API key** | `Authorization: Bearer aos_…` | A script, an HTTP client such as Postman, or an MCP client. Acts as the member who issued it, narrowed to the permissions it was issued with |
 | **JWT** | `Authorization: Bearer <access token>` | A person, or something acting as one. Short-lived, refreshed with a refresh token |
-| **API key** | `X-API-Key: <key>` | Service-to-service. No user behind it |
 | **Session cookie** | set by the console | The browser only — the token is HttpOnly and never reaches JavaScript |
 
-Keys are compared with `secrets.compare_digest`, never `==`, and a key is
-stored the way [every other credential](secrets.md) is.
+### Organization API keys
+
+A key is issued by a member, in one organization, from **Settings → API keys**
+(or `POST /api/v1/api-keys` from a signed-in session). It carries that member's
+authority, narrowed twice:
+
+- **To the permissions it was issued with.** Pick a preset — *Read-only*,
+  *Knowledge ingest*, *Full access* — or tick permissions from the
+  [catalog](permissions.md). You can only grant what you hold.
+- **To what the issuer may do now.** Every request re-reads the issuer's
+  membership, so demoting them narrows each of their keys at once, and removing
+  them from the organization stops every key they issued. A resource grant
+  widens what a *person* may do to one row; it never widens a key past its
+  permissions.
+
+The key is shown **once**, in the response that creates it. Only a SHA-256 of it
+is stored, and it never appears in a log line, an audit entry or an error body.
+Lists show its prefix (`aos_1a2b3c4d`), which is also how an audit entry names
+the key that acted — every entry recorded during a key-authenticated request
+carries `via_api_key` in its details. A key can have an expiry, and revoking it
+(`DELETE /api/v1/api-keys/{id}`) takes effect on its next request.
+
+```bash
+curl "$BASE/api/v1/me/permissions" \
+  -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Two refusals are worth knowing:
+
+- **`403` "API keys are not accepted on this endpoint"** — keys are accepted on
+  the public API only: agents, runs and approvals, knowledge bases and RAG, skills,
+  context files, artifacts, the ML services, `/me/permissions`, and an
+  organization's members, invitations, groups and settings. The console's own
+  routes, your account, leaving or handing over an organization, and key
+  management itself stay session-only, so a leaked key cannot mint its successor.
+- **`401` "Invalid, expired or revoked API key"** — the same sentence for each
+  case, so a wrong key learns nothing about which keys exist.
+
+Each key is also rate limited on its own, `RATE_LIMIT_API_KEY_PER_MINUTE`
+requests a minute (600 by default), and a run or an ML call it makes counts
+against those limits for the key rather than for its issuer.
 
 ### Sessions and revocation
 
@@ -36,20 +75,25 @@ off by a routine refresh.
 
 ## The organization header
 
-**`X-Organization-Id` travels on every request**, and it is not optional
-decoration: it decides which tenant the call acts in.
+**An API key acts in its own organization**, and needs no header. Sending
+`X-Organization-Id` with a key is allowed only when it names that same
+organization; naming another one answers `400` with
+`details.header = "X-Organization-Id"` rather than switching tenant.
 
-A caller who belongs to three organizations is a different principal in each,
-with a different role and different grants. Omit the header and the request has
-no tenant to act in; send the wrong one and you get a refusal that looks exactly
-like the resource not existing — deliberately, so ids stay unprobeable.
+**A session token takes the tenant from `X-Organization-Id`.** A caller who
+belongs to three organizations is a different principal in each, with a
+different role and different grants, so send the header on every request. When
+it is absent the request falls back to the caller's **personal organization** —
+a script that forgets it acts there, with whatever agents, grants and budget
+that organization has, and gets no error. Send the wrong one and you get a
+refusal that looks exactly like the resource not existing — deliberately, so ids
+stay unprobeable.
 
 ## Running an agent
 
 ```bash
 curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
@@ -97,8 +141,7 @@ detection. They are gated on `ml:invoke` rather than `agents:run`, and
 
 ```bash
 curl -X POST "$BASE/api/v1/ml/privacy/pii" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"text": "write to ada@example.com"}'
 ```
@@ -109,7 +152,10 @@ Two WebSocket endpoints, for two audiences.
 
 - **`/api/v1/ws/agent`** — the authenticated one the console uses. A frame
   carrying `agent_id` runs that published agent; a frame without one gets the
-  general assistant.
+  general assistant. Authenticate with the subprotocol `access_token.<token>`,
+  where the token is a session JWT or an organization API key; a key's socket
+  acts in the key's organization, runs each turn within the key's permissions,
+  and closes on the next frame after the key is revoked.
 - **`/api/v1/embed/{public_key}/ws`** — the public one behind an
   [embed](channels.md), for a visitor who has no account.
 
@@ -170,9 +216,12 @@ The one format that *does* carry a promise is the
 
 - **`/docs`** on the deployment is the generated reference; it is off in
   production by design.
-- Three ways in: **JWT, `X-API-Key`, or the console's cookie**.
-- **`X-Organization-Id` decides the tenant** on every request, and the wrong one
-  looks like a missing resource.
+- Three ways in: **an organization API key, a JWT, or the console's cookie**.
+- A key carries its issuer's authority **narrowed to its permissions and to the
+  issuer's current role**, is shown once, and works on the public API only.
+- **A key acts in its own organization; a session reads `X-Organization-Id`**
+  and falls back to the personal organization without it. The wrong one looks
+  like a missing resource.
 - Running an agent over HTTP is the **same runner** — budget, approval and audit
   all apply.
 - **No compatibility promise or SDK yet** (R10); the agent spec is the one

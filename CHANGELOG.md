@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Organization API keys.** A member issues a key under **Settings → API keys**
+  and calls the public API with `Authorization: Bearer aos_…` from a script,
+  Postman or an MCP client, with no browser session. A key carries its issuer's
+  authority narrowed to the permissions it was issued with (presets or a custom
+  pick) and to the issuer's *current* role, so demoting or removing the issuer
+  narrows or stops it at once; a resource grant never widens a key. The key is
+  shown once and stored as a hash, can expire, is revoked instantly, has its own
+  rate limit (`RATE_LIMIT_API_KEY_PER_MINUTE`) and is named by prefix in every
+  audit entry it causes. Keys work on the public routes only — agents, runs,
+  knowledge bases and RAG, skills, context, artifacts, ML services — and on the
+  chat WebSocket; account and key management stay session-only. Two new
+  permissions, `api_keys:create` and `api_keys:manage`; migration
+  `0107_api_keys` (#1794).
+- **Organization administration through the public API.** Listing members,
+  changing a role, removing a member, inviting (by email or link), groups, and
+  reading or changing an organization's settings and retention now authorize
+  through the caller's permission context, so an API key with `members:manage`
+  or `org:settings` can do them and one without is refused. Leaving an
+  organization and transferring ownership stay session-only. For a key, the
+  `/orgs/{org_id}` in the path must be the key's own organization (#2057).
+- **`X-Organization-Id` documented as it behaves.** A session without the header
+  acts in the caller's personal organization; a key acts in its own and answers
+  `400` to a header naming another (#1903).
 - **Follow an artifact.** A **Follow** button on a page's bar puts a notice in
   the inbox (and, if enabled, an email) whenever the page gets a new version,
   republished or restored. A republish that changes nothing is silent, the

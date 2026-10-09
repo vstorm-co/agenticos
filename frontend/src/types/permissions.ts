@@ -64,4 +64,6 @@ export const Perm = {
   budgetsManage: "budgets:manage",
   runsView: "runs:view",
   auditRead: "audit:read",
+  apiKeysCreate: "api_keys:create",
+  apiKeysManage: "api_keys:manage",
 } as const satisfies Record<string, Permission>;

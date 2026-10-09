@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, ContextSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.context import ContextSort
 from app.schemas.context import (
@@ -24,7 +25,7 @@ from app.schemas.context import (
     ContextFileUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("", response_model=ContextFileList, dependencies=[Depends(require(Perm.CONTEXT_VIEW))])

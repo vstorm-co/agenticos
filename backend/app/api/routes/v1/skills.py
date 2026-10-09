@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, SkillSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
@@ -32,7 +33,7 @@ from app.schemas.skill import (
     SkillUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])

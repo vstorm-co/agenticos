@@ -317,6 +317,7 @@ class ChatAgentRunner:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        context: AuthContext | None = None,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -364,6 +365,11 @@ class ChatAgentRunner:
                 have not connected is asked for when the agent reaches for it,
                 and `on_personal_gaps` hears only the gaps nobody here can fix.
 
+            context: The caller's authorization, when the surface already holds
+                one narrower than membership - a socket opened with an
+                organization API key, whose turns run within the key's scopes.
+                Omitted, it is read from the user's membership.
+
         Returns:
             The answer to show and persist, and the model that produced it. A
             run parked on an approval returns no answer at all - it did not fail,
@@ -379,7 +385,7 @@ class ChatAgentRunner:
                 Surfaced rather than swallowed so the client sees the guard's
                 safe refusal, not a generic failure.
         """
-        ctx = await self._context(user, organization_id)
+        ctx = context if context is not None else await self._context(user, organization_id)
         prepared = await self.runner.prepare(
             ctx,
             agent_id,

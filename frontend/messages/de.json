@@ -2661,7 +2661,8 @@
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "artifacts": "Artefakte"
+    "artifacts": "Artefakte",
+    "apiKeys": "API-Schlüssel"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3185,6 +3186,10 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "settings-api-keys": {
+        "title": "Ihre API-Schlüssel",
+        "body": "Ein Schlüssel lässt ein Skript, Postman oder einen MCP-Client ohne Browser in Ihrem Namen handeln. Wählen Sie, was er darf; er kann nie mehr als Sie und hört auf, sobald Sie ihn widerrufen."
       }
     }
   },
@@ -5431,5 +5436,52 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "apiKeys": {
+    "title": "API-Schlüssel",
+    "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
+    "createTitle": "Schlüssel erstellen",
+    "createWhy": "Benennen Sie ihn nach dem, was ihn nutzt, damit Sie wissen, welchen Sie widerrufen.",
+    "createdTitle": "Schlüssel kopieren",
+    "createdWhy": "Er wird nur dieses eine Mal angezeigt. Gespeichert wird nur ein Fingerabdruck.",
+    "shownOnce": "Kopieren Sie ihn jetzt und bewahren Sie ihn sicher auf. Geht er verloren, widerrufen Sie ihn und erstellen einen neuen.",
+    "useItLikeThis": "Senden Sie ihn als Bearer-Token:",
+    "name": "Name",
+    "namePlaceholder": "Nächtlicher Import",
+    "access": "Zugriff",
+    "accessWhy": "Was der Schlüssel darf. Er enthält nur Berechtigungen, die Sie haben, und wird erneut eingeschränkt, wenn sich Ihre Rolle ändert.",
+    "preset": {
+      "read_only": "Nur lesen",
+      "knowledge_ingest": "Wissen einspeisen",
+      "full_access": "Voller Zugriff (Ihrer)",
+      "custom": "Benutzerdefiniert"
+    },
+    "expires": "Läuft ab",
+    "expiry": {
+      "30": "In 30 Tagen",
+      "90": "In 90 Tagen",
+      "365": "In einem Jahr",
+      "never": "Nie"
+    },
+    "create": "Erstellen",
+    "done": "Fertig",
+    "issuer": "Ausgestellt von",
+    "status": "Status",
+    "lastUsed": "Zuletzt verwendet",
+    "never": "Nie",
+    "noExpiry": "Kein Ablauf",
+    "scopeCount": "{count, plural, =1 {1 Berechtigung} other {# Berechtigungen}}",
+    "state": {
+      "active": "Aktiv",
+      "expired": "Abgelaufen",
+      "revoked": "Widerrufen"
+    },
+    "revoke": "Widerrufen",
+    "revokeTitle": "{name} widerrufen?",
+    "revokeWhy": "Alles, was diesen Schlüssel nutzt, funktioniert sofort nicht mehr. Das lässt sich nicht rückgängig machen.",
+    "revoked": "Schlüssel widerrufen",
+    "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
+    "emptyTitle": "Noch keine API-Schlüssel",
+    "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen."
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "9ea6636a0d1c"
 ---
 
 # Permisos { #permissions }
@@ -98,7 +98,12 @@ Dos clases de permiso, y se comportan de forma distinta.
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
-`mcp:manage`, `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+`mcp:manage`, `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` permite a un miembro emitir [claves de
+API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y
+revoca las de todos. Una clave tiene un subconjunto de estos permisos, nunca más
+de lo que su emisor tiene ahora.
 
 !!! example "Por qué `ml:invoke` no es `agents:run`"
 
@@ -157,9 +162,9 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 |---|---|---|---|---|
 | `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
 | `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
 | `viewer` | lee | `view` `SHARED` | ninguno | ninguno |
 
 La distinción entre `builder` y `admin` es la interesante: un builder ve la

@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.deps import Auth
+from app.api.public_api import PUBLIC
 from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, Perm
 from app.schemas.permissions import (
     MyPermissions,
@@ -18,7 +19,7 @@ from app.schemas.permissions import (
     RoleDefinition,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/me/permissions", response_model=MyPermissions)

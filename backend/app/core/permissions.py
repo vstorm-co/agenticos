@@ -84,6 +84,12 @@ class Perm(StrEnum):
     # widening `agents:run` to cover it would have handed every such integration
     # the ability to spend the organization's model budget as well.
     ML_INVOKE = "ml:invoke"
+    # Organization API keys (#1794). Creating one for yourself is everyday work -
+    # a script that uploads into your own knowledge base - and the key can never
+    # reach further than its issuer does. Seeing and revoking everybody's is the
+    # administration of that, and a separate authority.
+    API_KEYS_CREATE = "api_keys:create"
+    API_KEYS_MANAGE = "api_keys:manage"
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -249,6 +255,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -267,6 +274,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -285,6 +293,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
+        Perm.API_KEYS_CREATE: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -397,6 +406,23 @@ class AuthContext:
     subject-less constructor.
     """
 
+    api_key_id: UUID | None = None
+    """The organization API key this request authenticated with, if any (#1794).
+
+    `user_id` is still the member who issued it - every budget, grant and audit
+    entry keys on a person - and this names the credential that person handed to
+    a script, so an audit entry can say which key acted.
+    """
+
+    key_scopes: frozenset[Perm] | None = None
+    """What the key was issued for, or `None` for a session.
+
+    Effective permissions are the issuer's *current* role intersected with this,
+    in :attr:`permissions`, so a key never reaches further than its issuer does
+    today: demoting the issuer narrows every key they hold without touching one.
+    A grant on a single row widens a role, never a key - see :meth:`key_allows`.
+    """
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.
@@ -458,8 +484,22 @@ class AuthContext:
         if self.is_anonymous:
             return {}
         if self.is_app_admin:
-            return dict.fromkeys(Perm, Scope.ALL)
-        return dict(ROLE_PERMS.get(self.role, {}))
+            held = dict.fromkeys(Perm, Scope.ALL)
+        else:
+            held = dict(ROLE_PERMS.get(self.role, {}))
+        if self.key_scopes is not None:
+            return {perm: scope for perm, scope in held.items() if perm in self.key_scopes}
+        return held
+
+    def key_allows(self, perm: Perm) -> bool:
+        """Whether the credential behind this request was issued for `perm` at all.
+
+        Always true for a session. For an API key it is the check a resource grant
+        has to pass before it may widen access: a grant answers "what may this
+        person do to this row", and a read-only key held by somebody with an edit
+        grant must still not edit.
+        """
+        return self.key_scopes is None or perm in self.key_scopes
 
     def scope_for(self, perm: Perm) -> Scope:
         """How far this permission reaches, or `Scope.NONE` if not held."""

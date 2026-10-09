@@ -33,6 +33,7 @@ from app.api.deps import (
     limit_agent_run,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -69,7 +70,7 @@ from app.services import mcp_catalog, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get(

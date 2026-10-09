@@ -19,6 +19,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.main import app
 from app.schemas.retention import RetentionRead
 
@@ -38,8 +39,12 @@ _READ = RetentionRead(
 
 @asynccontextmanager
 async def _client() -> AsyncIterator[AsyncClient]:
+    caller = uuid4()
     app.dependency_overrides[deps.get_current_user] = lambda: MagicMock(
-        id=uuid4(), is_app_admin=False
+        id=caller, is_app_admin=False
+    )
+    app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+        user_id=caller, organization_id=ORG, role=OrgRoleName.ADMIN
     )
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
     try:
@@ -88,3 +93,22 @@ async def test_a_period_outside_the_bounds_is_a_422_naming_the_class() -> None:
         response = await client.put(PATH, json={"retention_days": {"conversations": 0}})
 
     assert response.status_code == 422
+
+
+@pytest.mark.security
+async def test_a_key_without_org_settings_cannot_change_retention() -> None:
+    """The write is gated on `org:settings` in the caller's context, so a key
+    issued without it is refused before the service runs, whoever issued it (#2057)."""
+    update = AsyncMock(return_value=_READ)
+    with patch("app.services.retention.RetentionService.update", new=update):
+        async with _client() as client:
+            app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+                user_id=uuid4(),
+                organization_id=ORG,
+                role=OrgRoleName.OWNER,
+                key_scopes=frozenset({Perm.AGENTS_VIEW}),
+            )
+            response = await client.put(PATH, json={"retention_days": {"conversations": 30}})
+
+    assert response.status_code == 403
+    update.assert_not_called()

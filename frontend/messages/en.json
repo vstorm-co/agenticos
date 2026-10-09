@@ -2798,7 +2798,8 @@
     "routines": "Routines",
     "collapseSidebar": "Collapse the sidebar",
     "expandSidebar": "Expand the sidebar",
-    "artifacts": "Artifacts"
+    "artifacts": "Artifacts",
+    "apiKeys": "API keys"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3322,6 +3323,10 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "settings-api-keys": {
+        "title": "Your API keys",
+        "body": "A key lets a script, Postman or an MCP client act as you, without a browser. Pick what it may do; it can never do more than you can, and it stops the moment you revoke it."
       }
     }
   },
@@ -5573,5 +5578,52 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "apiKeys": {
+    "title": "API keys",
+    "why": "Keys let a script, an HTTP client or an MCP client call this organization's API as you, narrowed to what you pick. A key never does more than you can today.",
+    "createTitle": "Create key",
+    "createWhy": "Name it after what will use it, so you know which one to revoke.",
+    "createdTitle": "Copy your key",
+    "createdWhy": "This is the only time it is shown. Only a fingerprint of it is stored.",
+    "shownOnce": "Copy it now and keep it somewhere safe. If you lose it, revoke it and create another.",
+    "useItLikeThis": "Send it as a bearer token:",
+    "name": "Name",
+    "namePlaceholder": "Nightly import",
+    "access": "Access",
+    "accessWhy": "What the key may do. It holds only permissions you have, and narrows again if your role changes.",
+    "preset": {
+      "read_only": "Read-only",
+      "knowledge_ingest": "Knowledge ingest",
+      "full_access": "Full access (yours)",
+      "custom": "Custom"
+    },
+    "expires": "Expires",
+    "expiry": {
+      "30": "In 30 days",
+      "90": "In 90 days",
+      "365": "In a year",
+      "never": "Never"
+    },
+    "create": "Create",
+    "done": "Done",
+    "issuer": "Issued by",
+    "status": "Status",
+    "lastUsed": "Last used",
+    "never": "Never",
+    "noExpiry": "No expiry",
+    "scopeCount": "{count, plural, =1 {1 permission} other {# permissions}}",
+    "state": {
+      "active": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke {name}?",
+    "revokeWhy": "Anything using this key stops working immediately. This cannot be undone.",
+    "revoked": "Key revoked",
+    "couldNotLoad": "Could not load your API keys",
+    "emptyTitle": "No API keys yet",
+    "emptyWhy": "Create one to call the API from a script, Postman or Claude Code."
   }
 }

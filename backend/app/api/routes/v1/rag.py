@@ -52,6 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -86,7 +87,7 @@ from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
 from app.services.rag.filters import resolve_legacy_filter, scope_for_tenant
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/embedding-models", response_model=EmbeddingModelsResponse)

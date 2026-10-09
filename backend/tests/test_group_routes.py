@@ -20,6 +20,7 @@ from httpx import AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -46,7 +47,12 @@ def _member_row(source: str = "directory") -> tuple[SimpleNamespace, str, str | 
 
 @pytest.fixture
 def signed_in() -> None:
+    """An Admin of the path's organization: the routes gate writes on
+    `members:manage` in that organization before the service is reached (#2057)."""
     app.dependency_overrides[deps.get_current_user] = lambda: CALLER
+    app.dependency_overrides[deps.get_path_org_context] = lambda: AuthContext(
+        user_id=CALLER.id, organization_id=ORG, role=OrgRoleName.ADMIN
+    )
 
 
 @pytest.fixture

@@ -8,9 +8,11 @@ may read, `members:manage` may change.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
-from app.api.deps import CurrentUser, GroupSvc
+from app.api.deps import GroupSvc, PathOrgAuth, require_in_path_org
+from app.api.public_api import PUBLIC
+from app.core.permissions import Perm
 from app.schemas.group import (
     GroupCreate,
     GroupList,
@@ -21,13 +23,15 @@ from app.schemas.group import (
     GroupUpdate,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
+
+_MANAGE = Depends(require_in_path_org(Perm.MEMBERS_MANAGE))
 
 
 @router.get("/{org_id}/groups", response_model=GroupList)
-async def list_groups(org_id: UUID, service: GroupSvc, user: CurrentUser) -> Any:
+async def list_groups(org_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> Any:
     """Every group in the organization, with its member count. Any member may call this."""
-    rows = await service.list_groups(org_id, user.id)
+    rows = await service.list_groups(org_id, ctx.subject_id)
     items = [
         GroupRead(
             id=group.id,
@@ -42,12 +46,15 @@ async def list_groups(org_id: UUID, service: GroupSvc, user: CurrentUser) -> Any
     return GroupList(items=items, total=len(items))
 
 
-@router.post("/{org_id}/groups", response_model=GroupRead, status_code=status.HTTP_201_CREATED)
-async def create_group(
-    org_id: UUID, data: GroupCreate, service: GroupSvc, user: CurrentUser
-) -> Any:
+@router.post(
+    "/{org_id}/groups",
+    response_model=GroupRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_MANAGE],
+)
+async def create_group(org_id: UUID, data: GroupCreate, service: GroupSvc, ctx: PathOrgAuth) -> Any:
     """Create a group. Requires `members:manage`."""
-    group = await service.create(org_id, user.id, data)
+    group = await service.create(org_id, ctx.subject_id, data)
     return GroupRead(
         id=group.id,
         organization_id=group.organization_id,
@@ -58,12 +65,12 @@ async def create_group(
     )
 
 
-@router.patch("/{org_id}/groups/{group_id}", response_model=GroupRead)
+@router.patch("/{org_id}/groups/{group_id}", response_model=GroupRead, dependencies=[_MANAGE])
 async def update_group(
-    org_id: UUID, group_id: UUID, data: GroupUpdate, service: GroupSvc, user: CurrentUser
+    org_id: UUID, group_id: UUID, data: GroupUpdate, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
     """Rename a group or change its description. Requires `members:manage`."""
-    group, count = await service.update(org_id, group_id, user.id, data)
+    group, count = await service.update(org_id, group_id, ctx.subject_id, data)
     return GroupRead(
         id=group.id,
         organization_id=group.organization_id,
@@ -75,19 +82,22 @@ async def update_group(
 
 
 @router.delete(
-    "/{org_id}/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+    "/{org_id}/groups/{group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[_MANAGE],
 )
-async def delete_group(org_id: UUID, group_id: UUID, service: GroupSvc, user: CurrentUser) -> None:
+async def delete_group(org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> None:
     """Delete a group, the grants made to it and the mappings naming it. Requires `members:manage`."""
-    await service.delete(org_id, group_id, user.id)
+    await service.delete(org_id, group_id, ctx.subject_id)
 
 
 @router.get("/{org_id}/groups/{group_id}/members", response_model=GroupMemberList)
 async def list_group_members(
-    org_id: UUID, group_id: UUID, service: GroupSvc, user: CurrentUser
+    org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
     """Who is in one group, and whether the directory or a person put them there."""
-    rows = await service.list_members(org_id, group_id, user.id)
+    rows = await service.list_members(org_id, group_id, ctx.subject_id)
     items = [
         GroupMemberRead(
             user_id=member.user_id,
@@ -105,12 +115,15 @@ async def list_group_members(
     "/{org_id}/groups/{group_id}/members",
     response_model=GroupMemberRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[_MANAGE],
 )
 async def add_group_member(
-    org_id: UUID, group_id: UUID, data: GroupMemberAdd, service: GroupSvc, user: CurrentUser
+    org_id: UUID, group_id: UUID, data: GroupMemberAdd, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
     """Put a member of the organization in the group. Requires `members:manage`."""
-    member, email, full_name = await service.add_member(org_id, group_id, data.user_id, user.id)
+    member, email, full_name = await service.add_member(
+        org_id, group_id, data.user_id, ctx.subject_id
+    )
     return GroupMemberRead(
         user_id=member.user_id,
         email=email,
@@ -124,9 +137,10 @@ async def add_group_member(
     "/{org_id}/groups/{group_id}/members/{member_user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
+    dependencies=[_MANAGE],
 )
 async def remove_group_member(
-    org_id: UUID, group_id: UUID, member_user_id: UUID, service: GroupSvc, user: CurrentUser
+    org_id: UUID, group_id: UUID, member_user_id: UUID, service: GroupSvc, ctx: PathOrgAuth
 ) -> None:
     """Take somebody out of the group. Requires `members:manage`."""
-    await service.remove_member(org_id, group_id, member_user_id, user.id)
+    await service.remove_member(org_id, group_id, member_user_id, ctx.subject_id)

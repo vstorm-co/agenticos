@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "c2598611c808"
 ---
 
 # API HTTP { #the-http-api }
@@ -18,13 +18,52 @@ Trzy drogi wejścia, dla trzech różnych wywołujących.
 
 | | Nagłówek | Dla |
 |---|---|---|
+| **Klucz API organizacji** | `Authorization: Bearer aos_…` | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
 | **JWT** | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem |
-| **Klucz API** | `X-API-Key: <key>` | Komunikacji usługa–usługa. Nie stoi za nim żaden użytkownik |
 | **Ciasteczko sesji** | ustawiane przez konsolę | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu |
 
-Klucze są porównywane przez `secrets.compare_digest`, nigdy przez `==`, a klucz
-jest przechowywany tak samo jak
-[każde inne poświadczenie](secrets.md).
+### Klucze API organizacji { #organization-api-keys }
+
+Klucz wydaje członek, w jednej organizacji, w **Ustawienia → Klucze API** (albo
+przez `POST /api/v1/api-keys` z zalogowanej sesji). Niesie uprawnienia tego
+członka, zawężone dwukrotnie:
+
+- **Do uprawnień, z którymi został wydany.** Wybierz preset — *Tylko odczyt*,
+  *Zasilanie bazy wiedzy*, *Pełny dostęp* — albo zaznacz uprawnienia z
+  [katalogu](permissions.md). Możesz nadać tylko to, co sam masz.
+- **Do tego, co wydający może zrobić teraz.** Każde żądanie odczytuje członkostwo
+  wydającego na nowo, więc jego degradacja od razu zawęża każdy z jego kluczy, a
+  usunięcie go z organizacji zatrzymuje wszystkie wydane przez niego klucze. Grant
+  na zasobie poszerza to, co może zrobić z jednym wierszem *osoba*; nigdy nie
+  poszerza klucza ponad jego uprawnienia.
+
+Klucz jest pokazywany **raz**, w odpowiedzi, która go tworzy. Przechowywany jest
+wyłącznie jego SHA-256 i nigdy nie trafia do linii logu, wpisu audytu ani treści
+błędu. Listy pokazują jego prefiks (`aos_1a2b3c4d`) — i tak samo wpis audytu
+nazywa klucz, który zadziałał: każdy wpis zapisany w trakcie żądania
+uwierzytelnionego kluczem niesie w szczegółach `via_api_key`. Klucz może mieć datę
+wygaśnięcia, a jego unieważnienie (`DELETE /api/v1/api-keys/{id}`) działa od
+następnego żądania.
+
+```bash
+curl "$BASE/api/v1/me/permissions" \
+  -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Warto znać dwie odmowy:
+
+- **`403` "API keys are not accepted on this endpoint"** — klucze są przyjmowane
+  wyłącznie w publicznym API: agenci, runy i zatwierdzenia, bazy wiedzy i RAG,
+  skille, pliki kontekstu, artefakty, usługi ML, `/me/permissions` oraz
+  członkowie, zaproszenia, grupy i ustawienia organizacji. Własne trasy konsoli,
+  twoje konto, opuszczenie lub przekazanie organizacji i samo zarządzanie kluczami
+  pozostają tylko dla sesji, więc wyciekły klucz nie wybije swojego następcy.
+- **`401` "Invalid, expired or revoked API key"** — to samo zdanie w każdym
+  przypadku, więc zły klucz nie dowiaduje się niczego o tym, jakie klucze istnieją.
+
+Każdy klucz ma też własny limit, `RATE_LIMIT_API_KEY_PER_MINUTE` żądań na minutę
+(domyślnie 600), a run albo wywołanie ML, które wykona, liczy się do tych limitów
+dla klucza, a nie dla jego wydającego.
 
 ### Sesje i unieważnianie { #sessions-and-revocation }
 
@@ -41,21 +80,24 @@ przerwane przez rutynowe odświeżenie.
 
 ## Nagłówek organizacji { #the-organization-header }
 
-**`X-Organization-Id` podróżuje z każdym żądaniem** i nie jest opcjonalną
-ozdobą: decyduje, w którym najemcy działa wywołanie.
+**Klucz API działa we własnej organizacji** i nie potrzebuje nagłówka. Wysłanie
+`X-Organization-Id` razem z kluczem jest dozwolone tylko wtedy, gdy nazywa tę samą
+organizację; wskazanie innej kończy się `400` z
+`details.header = "X-Organization-Id"` zamiast zmiany najemcy.
 
-Wywołujący, który należy do trzech organizacji, jest w każdej z nich innym
-podmiotem, z inną rolą i innymi grantami. Pomiń nagłówek, a żądanie nie ma
-najemcy, w którym miałoby działać; wyślij zły, a dostaniesz odmowę, która wygląda
-dokładnie jak nieistniejący zasób — celowo, żeby identyfikatorów nie dało się
-sondować.
+**Token sesji bierze najemcę z `X-Organization-Id`.** Wywołujący, który należy do
+trzech organizacji, jest w każdej z nich innym podmiotem, z inną rolą i innymi
+grantami, więc wysyłaj nagłówek przy każdym żądaniu. Gdy go brakuje, żądanie
+wraca do **osobistej organizacji** wywołującego — skrypt, który o nim zapomni,
+działa tam, z agentami, grantami i budżetem tej organizacji, i nie dostaje żadnego
+błędu. Wyślij zły, a dostaniesz odmowę, która wygląda dokładnie jak nieistniejący
+zasób — celowo, żeby identyfikatorów nie dało się sondować.
 
 ## Uruchamianie agenta { #running-an-agent }
 
 ```bash
 curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
@@ -104,8 +146,7 @@ osobowych. Bramkuje je `ml:invoke`, a nie `agents:run`; ich dokumentacją są
 
 ```bash
 curl -X POST "$BASE/api/v1/ml/privacy/pii" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"text": "write to ada@example.com"}'
 ```
@@ -116,7 +157,10 @@ Dwa endpointy WebSocket, dla dwóch odbiorców.
 
 - **`/api/v1/ws/agent`** — uwierzytelniony, którego używa konsola. Ramka niosąca
   `agent_id` uruchamia tego opublikowanego agenta; ramka bez niego trafia do
-  ogólnego asystenta.
+  ogólnego asystenta. Uwierzytelnij się subprotokołem `access_token.<token>`, gdzie
+  token to JWT sesji albo klucz API organizacji; gniazdo klucza działa w jego
+  organizacji, każdą turę wykonuje w ramach uprawnień klucza i zamyka się przy
+  następnej ramce po unieważnieniu klucza.
 - **`/api/v1/embed/{public_key}/ws`** — publiczny, stojący za
   [embedem](channels.md), dla odwiedzającego, który nie ma konta.
 
@@ -178,9 +222,11 @@ przodu.
 
 - **`/docs`** na deploymencie to generowana referencja; na produkcji jest
   wyłączona z założenia.
-- Trzy drogi wejścia: **JWT, `X-API-Key` albo ciasteczko konsoli**.
-- **`X-Organization-Id` decyduje o najemcy** przy każdym żądaniu, a zły nagłówek
-  wygląda jak brakujący zasób.
+- Trzy drogi wejścia: **klucz API organizacji, JWT albo ciasteczko konsoli**.
+- Klucz niesie uprawnienia wydającego **zawężone do swoich uprawnień i do jego
+  obecnej roli**, jest pokazywany raz i działa wyłącznie w publicznym API.
+- **Klucz działa we własnej organizacji; sesja czyta `X-Organization-Id`** i bez
+  niego wraca do organizacji osobistej. Zły nagłówek wygląda jak brakujący zasób.
 - Uruchomienie agenta przez HTTP to **ten sam runner** — budżet, zatwierdzenie i
   audyt obowiązują tak samo.
 - **Jeszcze bez obietnicy kompatybilności i bez SDK** (R10); spec agenta jest

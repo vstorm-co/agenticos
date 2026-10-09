@@ -4303,8 +4303,10 @@ class TestAListingCarriesWhatEachTileDraws:
         assert set(found[1].thumbnails) == {"/out/chart.png"}
         assert decoded_on and all(name.startswith("file-io") for name in decoded_on)
 
-    async def test_stored_and_host_images_share_one_budget(self, monkeypatch, mock_db_session):
-        """The flat view's budget is request-wide: a stored workspace listed first
+    async def test_stored_and_host_images_share_one_screen_of_tiles(
+        self, monkeypatch, mock_db_session
+    ):
+        """The flat view's allowance is request-wide: a stored workspace listed first
         spends it before a host is asked for anything."""
         from app.repositories import agent as agent_repo
         from app.services.sandbox_workspace import THUMBNAIL_BUDGET, stored_entries

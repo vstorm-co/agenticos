@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "c2598611c808"
 ---
 
 # La API HTTP { #the-http-api }
@@ -19,12 +19,53 @@ Tres formas de entrar, para tres llamantes distintos.
 
 | | Cabecera | Para |
 |---|---|---|
-| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa como tal. De vida corta, se renueva con un refresh token |
-| **API key** | `X-API-Key: <key>` | De servicio a servicio. Sin ningún usuario detrás |
-| **Cookie de sesión** | la pone la consola | Solo el navegador — el token es HttpOnly y nunca llega a JavaScript |
+| **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
+| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
+| **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
 
-Las claves se comparan con `secrets.compare_digest`, nunca con `==`, y una clave
-se guarda igual que [cualquier otra credencial](secrets.md).
+### Claves de API de la organización { #organization-api-keys }
+
+Una clave la emite un miembro, en una organización, desde **Settings → API keys**
+(o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
+ese miembro, limitada dos veces:
+
+- **A los permisos con los que se emitió.** Elige una plantilla — *Read-only*,
+  *Knowledge ingest*, *Full access* — o marca permisos del
+  [catálogo](permissions.md). Solo puedes conceder lo que tienes.
+- **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
+  membresía del emisor, así que degradarlo limita al instante cada una de sus
+  claves, y sacarlo de la organización detiene todas las claves que emitió. Un
+  permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
+  una fila; nunca amplía una clave más allá de sus permisos.
+
+La clave se muestra **una vez**, en la respuesta que la crea. Solo se guarda su
+SHA-256, y nunca aparece en una línea de log, una entrada de auditoría ni el
+cuerpo de un error. Las listas muestran su prefijo (`aos_1a2b3c4d`), que es
+también como una entrada de auditoría nombra la clave que actuó: cada entrada
+registrada durante una petición autenticada con clave lleva `via_api_key` en sus
+detalles. Una clave puede caducar, y revocarla (`DELETE /api/v1/api-keys/{id}`)
+surte efecto en su siguiente petición.
+
+```bash
+curl "$BASE/api/v1/me/permissions" \
+  -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Conviene conocer dos rechazos:
+
+- **`403` "API keys are not accepted on this endpoint"**: las claves solo se
+  aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
+  RAG, skills, archivos de contexto, artefactos, los servicios de ML,
+  `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
+  organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
+  una organización y la gestión de claves en sí siguen siendo solo de sesión, para
+  que una clave filtrada no pueda acuñar su sucesora.
+- **`401` "Invalid, expired or revoked API key"**: la misma frase en cada caso,
+  para que una clave equivocada no aprenda nada sobre qué claves existen.
+
+Cada clave tiene además su propio límite, `RATE_LIMIT_API_KEY_PER_MINUTE`
+peticiones por minuto (600 por defecto), y un run o una llamada de ML que haga
+cuenta contra esos límites para la clave y no para su emisor.
 
 ### Sesiones y revocación { #sessions-and-revocation }
 
@@ -41,21 +82,24 @@ por una renovación rutinaria.
 
 ## La cabecera de organización { #the-organization-header }
 
-**`X-Organization-Id` viaja en todas las peticiones**, y no es un adorno
-opcional: decide en qué inquilino actúa la llamada.
+**Una clave de API actúa en su propia organización** y no necesita cabecera.
+Enviar `X-Organization-Id` con una clave solo se permite si nombra esa misma
+organización; nombrar otra responde `400` con
+`details.header = "X-Organization-Id"` en lugar de cambiar de inquilino.
 
-Un llamante que pertenece a tres organizaciones es un principal distinto en cada
-una, con un rol distinto y grants distintos. Si omites la cabecera, la petición no
-tiene inquilino en el que actuar; si envías la equivocada, obtienes un rechazo
-idéntico a que el recurso no exista — deliberadamente, para que los ids no se
-puedan sondear.
+**Un token de sesión toma el inquilino de `X-Organization-Id`.** Quien pertenece
+a tres organizaciones es un principal distinto en cada una, con otro rol y otros
+permisos concedidos, así que envía la cabecera en cada petición. Si falta, la
+petición vuelve a la **organización personal** del llamante: un script que la
+olvide actúa allí, con los agents, permisos y budget de esa organización, y no
+recibe ningún error. Envía la equivocada y obtendrás un rechazo idéntico al de un
+recurso inexistente, a propósito, para que los ids no se puedan sondear.
 
 ## Ejecutar un agent { #running-an-agent }
 
 ```bash
 curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
@@ -107,8 +151,7 @@ datos personales. Los controla `ml:invoke`, no `agents:run`, y
 
 ```bash
 curl -X POST "$BASE/api/v1/ml/privacy/pii" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"text": "write to ada@example.com"}'
 ```
@@ -117,9 +160,12 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 
 Dos endpoints WebSocket, para dos públicos.
 
-- **`/api/v1/ws/agent`** — el autenticado, el que usa la consola. Un frame que
-  lleva `agent_id` ejecuta ese agent publicado; un frame sin él llega al
-  asistente general.
+- **`/api/v1/ws/agent`**: el autenticado que usa la consola. Un frame con
+  `agent_id` ejecuta ese agent publicado; un frame sin él llega al asistente
+  general. Autentícate con el subprotocolo `access_token.<token>`, donde el token
+  es un JWT de sesión o una clave de API de la organización; el socket de una
+  clave actúa en la organización de la clave, ejecuta cada turno dentro de los
+  permisos de la clave y se cierra en el siguiente frame tras revocarla.
 - **`/api/v1/embed/{public_key}/ws`** — el público, detrás de un
   [embed](channels.md), para un visitante que no tiene cuenta.
 
@@ -181,8 +227,12 @@ El único formato que *sí* lleva una promesa es el
 
 - **`/docs`** en el despliegue es la referencia generada; está desactivada en
   producción por diseño.
-- Tres formas de entrar: **JWT, `X-API-Key` o la cookie de la consola**.
-- **`X-Organization-Id` decide el inquilino** en todas las peticiones, y la
+- Tres formas de entrar: **una clave de API de la organización, un JWT o la
+  cookie de la consola**.
+- Una clave lleva la autoridad de su emisor **limitada a sus permisos y al rol
+  actual del emisor**, se muestra una vez y solo funciona en la API pública.
+- **Una clave actúa en su propia organización; una sesión lee
+  `X-Organization-Id`** y sin ella vuelve a la organización personal. La
   equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.

@@ -14,10 +14,19 @@ it back, and listing invitations returns everything except it.
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 
-from app.api.deps import CurrentUser, InvitationStagingSvc, InvitationSvc, enforce_auth_limit
+from app.api.deps import (
+    CurrentUser,
+    InvitationStagingSvc,
+    InvitationSvc,
+    PathOrgAuth,
+    enforce_auth_limit,
+    require_in_path_org,
+)
+from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
+from app.core.permissions import Perm
 from app.schemas.organization import (
     InvitationCreate,
     InvitationCreated,
@@ -28,18 +37,21 @@ from app.schemas.organization import (
     InviteLinkCreate,
 )
 
-org_router = APIRouter()
+org_router = APIRouter(dependencies=[PUBLIC])
 token_router = APIRouter()
 
 
 @org_router.post(
-    "/{org_id}/invitations", response_model=InvitationCreated, status_code=status.HTTP_201_CREATED
+    "/{org_id}/invitations",
+    response_model=InvitationCreated,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
 )
 async def create_invitation(
     org_id: UUID,
     data: InvitationCreate,
     service: InvitationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """Invite a user to the organization by email. Requires Owner or Admin.
 
@@ -51,7 +63,9 @@ async def create_invitation(
     caller that assumed it had told the inviter so on a deployment that mails
     nobody (#1484).
     """
-    invite, delivered = await service.invite(org_id, data.email, data.role, requester_id=user.id)
+    invite, delivered = await service.invite(
+        org_id, data.email, data.role, requester_id=ctx.subject_id
+    )
     return InvitationCreated(
         id=invite.id,
         organization_id=invite.organization_id,
@@ -69,12 +83,13 @@ async def create_invitation(
     "/{org_id}/invitations/link",
     response_model=InvitationCreated,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
 )
 async def create_invite_link(
     org_id: UUID,
     data: InviteLinkCreate,
     service: InvitationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """Mint a shareable link. Requires Owner or Admin.
 
@@ -85,7 +100,7 @@ async def create_invite_link(
     invite = await service.create_link(
         org_id,
         data.role,
-        requester_id=user.id,
+        requester_id=ctx.subject_id,
         max_uses=data.max_uses,
         email_domain=data.email_domain,
     )
@@ -104,11 +119,15 @@ async def create_invite_link(
     )
 
 
-@org_router.get("/{org_id}/invitations", response_model=InvitationList)
+@org_router.get(
+    "/{org_id}/invitations",
+    response_model=InvitationList,
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
+)
 async def list_invitations(
     org_id: UUID,
     service: InvitationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
     status_filter: str | None = Query(None, alias="status", description="Filter by status"),
     skip: int = Query(0, ge=0, description="Items to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max items to return"),
@@ -118,7 +137,7 @@ async def list_invitations(
     Without the tokens. Revoking from this list goes through the id below.
     """
     invites = await service.list_for_org(
-        org_id, user.id, status=status_filter, skip=skip, limit=limit
+        org_id, ctx.subject_id, status=status_filter, skip=skip, limit=limit
     )
     items = [
         InvitationRead(
@@ -143,12 +162,13 @@ async def list_invitations(
     "/{org_id}/invitations/{invitation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
 )
 async def revoke_invitation_by_id(
     org_id: UUID,
     invitation_id: UUID,
     service: InvitationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> None:
     """Revoke a pending invitation from the members list. Requires Owner or Admin.
 
@@ -156,7 +176,7 @@ async def revoke_invitation_by_id(
     reason to put a live credential in a URL, where it reaches server logs and
     browser history. An invitation belonging to another organization answers 404.
     """
-    await service.revoke_by_id(org_id, invitation_id, requester_id=user.id)
+    await service.revoke_by_id(org_id, invitation_id, requester_id=ctx.subject_id)
 
 
 @token_router.post("/invitations/stage", response_model=InvitationStaged)

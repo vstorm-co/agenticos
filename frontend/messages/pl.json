@@ -97,7 +97,8 @@
     "deploymentSettings": "Instalacja",
     "collapseSidebar": "Zwiń panel boczny",
     "expandSidebar": "Rozwiń panel boczny",
-    "artifacts": "Artefakty"
+    "artifacts": "Artefakty",
+    "apiKeys": "Klucze API"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -1889,6 +1890,10 @@
       "artifacts-list": {
         "title": "Opublikowane strony",
         "body": "Raporty i dashboardy opublikowane przez Twoje agenty. Otwórz jeden, żeby go zobaczyć, wybierz wcześniejszą wersję, udostępnij go współpracownikom albo nadaj mu link publiczny."
+      },
+      "settings-api-keys": {
+        "title": "Twoje klucze API",
+        "body": "Klucz pozwala skryptowi, Postmanowi albo klientowi MCP działać w twoim imieniu, bez przeglądarki. Wybierz, co może robić; nigdy nie zrobi więcej niż ty i przestaje działać, gdy go unieważnisz."
       }
     }
   },
@@ -3197,5 +3202,52 @@
     "add": "Dodaj",
     "mappingAdded": "Mapowanie dodane",
     "mappingDeleted": "Mapowanie usunięte"
+  },
+  "apiKeys": {
+    "title": "Klucze API",
+    "why": "Klucze pozwalają skryptowi, klientowi HTTP albo klientowi MCP wywoływać API tej organizacji w twoim imieniu, z zawężonym zakresem. Klucz nigdy nie zrobi więcej niż ty dzisiaj.",
+    "createTitle": "Utwórz klucz",
+    "createWhy": "Nazwij go od tego, co będzie go używać, żeby wiedzieć, który unieważnić.",
+    "createdTitle": "Skopiuj klucz",
+    "createdWhy": "Pokazujemy go tylko ten jeden raz. Przechowujemy wyłącznie jego odcisk.",
+    "shownOnce": "Skopiuj go teraz i trzymaj w bezpiecznym miejscu. Jeśli go zgubisz, unieważnij go i utwórz nowy.",
+    "useItLikeThis": "Wysyłaj go jako bearer token:",
+    "name": "Nazwa",
+    "namePlaceholder": "Nocny import",
+    "access": "Dostęp",
+    "accessWhy": "Co klucz może robić. Zawiera tylko uprawnienia, które masz, i zawęża się ponownie, gdy zmieni się twoja rola.",
+    "preset": {
+      "read_only": "Tylko odczyt",
+      "knowledge_ingest": "Zasilanie bazy wiedzy",
+      "full_access": "Pełny dostęp (twój)",
+      "custom": "Własny"
+    },
+    "expires": "Wygasa",
+    "expiry": {
+      "30": "Za 30 dni",
+      "90": "Za 90 dni",
+      "365": "Za rok",
+      "never": "Nigdy"
+    },
+    "create": "Utwórz",
+    "done": "Gotowe",
+    "issuer": "Wydał",
+    "status": "Status",
+    "lastUsed": "Ostatnio użyty",
+    "never": "Nigdy",
+    "noExpiry": "Bez wygaśnięcia",
+    "scopeCount": "{count, plural, =1 {1 uprawnienie} few {# uprawnienia} many {# uprawnień} other {# uprawnienia}}",
+    "state": {
+      "active": "Aktywny",
+      "expired": "Wygasł",
+      "revoked": "Unieważniony"
+    },
+    "revoke": "Unieważnij",
+    "revokeTitle": "Unieważnić {name}?",
+    "revokeWhy": "Wszystko, co używa tego klucza, natychmiast przestanie działać. Tego nie da się cofnąć.",
+    "revoked": "Klucz unieważniony",
+    "couldNotLoad": "Nie udało się wczytać kluczy API",
+    "emptyTitle": "Nie masz jeszcze kluczy API",
+    "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code."
   }
 }

@@ -67,6 +67,9 @@ export default defineConfig({
         "src/components/dashboard/widgets/notifications.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
         "src/components/artifacts/**/*.tsx",
+        // Organization API keys (#1794): the list, and the dialog that shows a key once.
+        "src/components/settings/api-keys-manager.tsx",
+        "src/components/settings/create-api-key-dialog.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",

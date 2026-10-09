@@ -141,7 +141,7 @@ async def resolve_access(
         return True
 
     required = _PERM_MIN_GRANT.get(perm)
-    if required is None:
+    if required is None or not ctx.key_allows(perm):
         return False
 
     granted = await resource_grant_repo.get_level(
@@ -225,6 +225,8 @@ async def visible_resource_ids(
         return []
     if ctx.scope_for(perm) is Scope.ALL:
         return None
+    if not ctx.key_allows(perm):
+        return []
     required = _PERM_MIN_GRANT.get(perm, GrantLevel.READ)
     return await resource_grant_repo.list_shared_ids(
         db,

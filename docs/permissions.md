@@ -88,7 +88,11 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`.
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
+for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a
+subset of the permissions here, never more than its issuer holds now.
 
 !!! example "Why `ml:invoke` is not `agents:run`"
 
@@ -144,9 +148,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
 | `viewer` | reads | `view` `SHARED` | none | none |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the

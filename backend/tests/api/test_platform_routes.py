@@ -239,6 +239,13 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
+    Call(
+        "POST",
+        "/api-keys",
+        Perm.API_KEYS_CREATE,
+        body={"name": "ci", "scopes": ["agents:view"]},
+    ),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
     Call(
@@ -719,6 +726,10 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 # brought with it authenticates differently and is not this file's business.
 _PLATFORM_PREFIXES = (
     "/agents",
+    # Organization API keys. Issuing gates on `api_keys:create`; listing and
+    # revoking act on the caller's own keys unless they hold `api_keys:manage`,
+    # which the service decides per row.
+    "/api-keys",
     "/runs",
     "/approvals",
     "/spend",
@@ -847,6 +858,10 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
     deps.get_sharing_service,
+    # Listing and revoking API keys act on the caller's own unless they hold
+    # `api_keys:manage`; the service decides per key, and answers a key that is
+    # somebody else's as missing.
+    deps.get_api_key_service,
     deps.get_agent_registry_service,
     # Every exposure route acts on one agent, and the service resolves access to
     # it before touching a binding - so where an agent is available is decided

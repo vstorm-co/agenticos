@@ -17,6 +17,7 @@ from app.api.deps import (
     RunExportSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.core.permissions import Perm
@@ -44,7 +45,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.run_manifest import RunManifestRead
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])

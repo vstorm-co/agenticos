@@ -268,6 +268,12 @@ export const qk = {
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },
+  apiKeys: {
+    /** Every key query in one organization, for invalidating after a create or revoke. */
+    all: (orgId: string) => ["api-keys", orgId] as const,
+    list: (orgId: string) => ["api-keys", orgId, "list"] as const,
+    scopes: (orgId: string) => ["api-keys", orgId, "scopes"] as const,
+  },
   artifacts: {
     all: () => ["artifacts"] as const,
     list: (query: { search: string; agentId: string | null; skip: number; limit: number }) =>

@@ -570,6 +570,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional for the same reason: the card is on one settings page of five, and
+  // the stop is offered from whichever one help was opened on.
+  { id: "settings-api-keys", page: SETTINGS_DETAIL, target: "api-keys", optional: true },
 
   { id: "finish", inTour: true },
 ];

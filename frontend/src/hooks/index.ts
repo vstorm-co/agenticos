@@ -1,5 +1,6 @@
 export { useAuth } from "./use-auth";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
+export { useApiKeys } from "./use-api-keys";
 export { useAdminUsers } from "./use-admin-users";
 export {
   useAdminOrganizations,

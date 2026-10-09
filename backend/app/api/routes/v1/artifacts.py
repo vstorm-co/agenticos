@@ -28,6 +28,7 @@ from app.api.deps import (
     limit_public_artifact,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
@@ -47,7 +48,7 @@ from app.schemas.artifact import (
 )
 from app.services.artifact import library_file
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 public_router = APIRouter()
 content_router = APIRouter()
 embed_router = APIRouter()
