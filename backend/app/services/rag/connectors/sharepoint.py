@@ -38,14 +38,11 @@ Microsoft's national clouds (US Government, China) have other hosts and are not
 supported.
 """
 
-import asyncio
 import logging
 import re
-import time
 from collections import deque
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 from contextlib import aclosing
-from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path, PurePosixPath
@@ -58,6 +55,15 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.core.config import settings
 from app.core.exceptions import AppException, BadRequestError, ExternalServiceError, NotFoundError
 from app.core.secret_kinds import EntraAppSecret, SecretKind, StorableSecret
+from app.services.microsoft_graph import (
+    GRAPH,
+    GRAPH_ORIGIN,
+    TRANSIENT,
+    GraphClient,
+    ResyncRequired,
+    Retry,
+    retry_after,
+)
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -69,19 +75,9 @@ from app.services.rag.connectors import (
 
 logger = logging.getLogger(__name__)
 
-GRAPH = "https://graph.microsoft.com/v1.0"
-LOGIN = "https://login.microsoftonline.com"
-_GRAPH_ORIGIN = "https://graph.microsoft.com/"
-_SCOPE = "https://graph.microsoft.com/.default"
 _TIMEOUT = httpx.Timeout(30.0)
-_ATTEMPTS = 4
-_MAX_RETRY_AFTER = 60.0
-_TRANSIENT = frozenset({429, 500, 502, 503, 504})
 _REDIRECTS = frozenset({301, 302, 303, 307, 308})
 _MAX_REDIRECTS = 3
-# A token is renewed this many seconds before Graph would stop accepting it, so
-# a request made just before expiry is not refused half-way through a sync.
-_TOKEN_MARGIN = 300.0
 _PAGE_SIZE = 200
 _MIB = 1024 * 1024
 DEFAULT_EXTENSIONS = (".pdf", ".docx", ".md", ".txt")
@@ -93,7 +89,6 @@ _NAME_FORBIDDEN = re.compile(r'["*:<>?\\|\x00-\x1f\x7f]')
 # Ids Graph hands out for sites (`host,guid,guid`), drives (`b!...`) and items.
 # Checked before one goes into a URL path, because they are read off a response.
 _GRAPH_ID = re.compile(r"^[A-Za-z0-9!._,-]{1,512}$")
-_ERROR_CODE = re.compile(r"^[A-Za-z_]{1,64}$")
 
 
 class SharePointConfig(BaseModel):
@@ -242,28 +237,6 @@ class _Page(BaseModel):
     delta_link: str | None = Field(default=None, alias="@odata.deltaLink")
 
 
-class _Token(BaseModel):
-    access_token: str
-    expires_in: int
-
-
-@dataclass(frozen=True)
-class _Retry:
-    """A transient answer: try again after `wait` seconds, or `None` for the local backoff."""
-
-    wait: float | None
-
-
-class _ResyncRequired(Exception):
-    """A delta link Graph no longer honours (HTTP 410): the library must be listed again."""
-
-
-def _retry_after(value: str | None) -> float | None:
-    """Graph's `Retry-After`, which it sends in seconds, capped; `None` when absent."""
-    stripped = (value or "").strip()
-    return min(float(stripped), _MAX_RETRY_AFTER) if stripped.isdigit() else None
-
-
 def _graph_id(value: str) -> str:
     if not _GRAPH_ID.fullmatch(value):
         raise ExternalServiceError(
@@ -272,135 +245,44 @@ def _graph_id(value: str) -> str:
     return value
 
 
-def _graph_link(value: str) -> str:
-    """A link Graph answered with, refused unless it leads back to Graph."""
-    if not value.startswith(_GRAPH_ORIGIN):
-        raise ExternalServiceError(
-            message="Microsoft Graph answered a link to another host, so it was not followed."
-        )
-    return value
+class _SharePointGraph(GraphClient):
+    """One sync's Graph session, reading drive items and downloading their bytes.
 
-
-def _error_code(response: httpx.Response) -> str | None:
-    """Graph's own error code - `accessDenied`, `itemNotFound` - when it is one.
-
-    A fixed vocabulary and the most useful word for troubleshooting, so it may
-    reach a sync log; the error's `message` is Graph's prose and does not.
-    """
-    try:
-        body = response.json()
-    except ValueError:
-        return None
-    error = body.get("error") if isinstance(body, dict) else None
-    code = error.get("code") if isinstance(error, dict) else error
-    return code if isinstance(code, str) and _ERROR_CODE.fullmatch(code) else None
-
-
-class _Graph:
-    """One sync's Microsoft Graph session: the app's token, retries, and which hosts get what.
-
-    Every request is retried on a 429, a 5xx or a transport error, `_ATTEMPTS`
-    times in all, honouring Graph's `Retry-After` - throttling is how Graph
-    answers a large library read quickly, not a failure. A refusal (400, 401,
-    403) is not retried: asking again with the same credential gets the same
-    answer.
+    A refusal is worded for whoever registered the Entra app, since the fix is
+    an application permission on the site.
     """
 
-    def __init__(
-        self, credential: EntraAppSecret, client: httpx.AsyncClient, backoff: float
-    ) -> None:
-        self._credential = credential
-        self._client = client
-        self._backoff = backoff
-        self._token: str | None = None
-        self._token_expires_at = 0.0
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
-
-    async def get(self, url: str, *, what: str) -> _Page | _Item:
-        """GET a Graph URL and parse it - a page when the body has `value`, else one item.
-
-        Raises:
-            NotFoundError: Graph found nothing at `url` (404).
-            BadRequestError: Graph refused the app (401, 403) or the request (400).
-            ExternalServiceError: Graph stayed unavailable, or answered something unreadable.
-            _ResyncRequired: a delta link Graph no longer honours (410).
-        """
-
-        async def attempt() -> httpx.Response | _Retry:
-            response = await self._client.get(
-                url, headers={"Authorization": f"Bearer {await self._bearer()}"}
-            )
-            if response.status_code in _TRANSIENT:
-                return _Retry(_retry_after(response.headers.get("retry-after")))
-            return response
-
-        response = await self._with_retries(attempt, what=what)
-        status = response.status_code
+    def refused(self, status: int, code: str | None, *, what: str) -> AppException:
         if status == 401:
-            raise BadRequestError(
+            return BadRequestError(
                 message=(
                     f"Microsoft Graph did not accept the app's token for {what}. The app registration "
                     "needs a Microsoft Graph application permission, such as Sites.Selected, with "
                     "administrator consent."
                 )
             )
-        if status == 403:
-            raise BadRequestError(
-                message=(
-                    f"Microsoft Graph denied the app access to {what} ({_error_code(response) or 'HTTP 403'}). "
-                    "Grant the app registration read access to this site - Sites.Selected, granted on "
-                    "the site - and sync again."
-                ),
-                details={"code": _error_code(response)},
-            )
-        if status == 404:
-            raise NotFoundError(message=f"Microsoft Graph found no {what}.")
-        if status == 410:
-            raise _ResyncRequired
-        if not 200 <= status < 300:
-            raise ExternalServiceError(
-                message=f"Microsoft Graph answered HTTP {status} for {what} ({_error_code(response) or 'no code'}).",
-                details={"status": status},
-            )
-        try:
-            body = response.json()
-            return _Page.model_validate(body) if "value" in body else _Item.model_validate(body)
-        except (ValueError, ValidationError, TypeError):
-            # Neither the body nor the validation error is quoted: a
-            # `ValidationError` embeds the input, and the input is Graph's.
-            raise ExternalServiceError(
-                message=f"Microsoft Graph answered {what} with a body this connector could not read."
-            ) from None
+        return BadRequestError(
+            message=(
+                f"Microsoft Graph denied the app access to {what} ({code or 'HTTP 403'}). "
+                "Grant the app registration read access to this site - Sites.Selected, granted on "
+                "the site - and sync again."
+            ),
+            details={"code": code},
+        )
 
     async def item(self, url: str, *, what: str) -> _Item:
-        answer = await self.get(url, what=what)
-        if not isinstance(answer, _Item):
+        body = await self.get(url, what=what)
+        if "value" in body:
             raise ExternalServiceError(
                 message=f"Microsoft Graph answered {what} with a list, not an item."
             )
-        return answer
+        return _parsed(_Item, body, what=what)
 
-    async def pages(self, url: str, *, what: str) -> AsyncGenerator[_Page]:
-        """Every page of a Graph collection, following `@odata.nextLink` on Graph only."""
-        next_url: str | None = url
-        while next_url is not None:
-            page = await self.get(next_url, what=what)
-            if not isinstance(page, _Page):
-                raise ExternalServiceError(
-                    message=f"Microsoft Graph answered {what} with an item, not a list."
-                )
-            yield page
-            next_url = _graph_link(page.next_link) if page.next_link else None
-
-    async def delta_link(self, url: str, *, what: str) -> str:
-        """The delta link that ends a delta read from `url`."""
+    async def listing(self, url: str, *, what: str) -> AsyncGenerator[_Page]:
+        """Every page of a collection of drive items."""
         async with aclosing(self.pages(url, what=what)) as pages:
             async for page in pages:
-                if page.delta_link:
-                    return _graph_link(page.delta_link)
-        raise ExternalServiceError(message=f"Microsoft Graph ended {what} without a delta link.")
+                yield _parsed(_Page, page, what=what)
 
     async def changed_since(self, link: str) -> bool:
         """Whether anything in the drive changed since `link` was issued.
@@ -410,11 +292,11 @@ class _Graph:
         change - the library has to be listed to know.
         """
         try:
-            async with aclosing(self.pages(link, what="the library's changes")) as pages:
+            async with aclosing(self.listing(link, what="the library's changes")) as pages:
                 async for page in pages:
                     if any(item.root is None for item in page.value):
                         return True
-        except _ResyncRequired:
+        except ResyncRequired:
             return True
         return False
 
@@ -427,7 +309,7 @@ class _Graph:
         """
         target = url
         for _ in range(_MAX_REDIRECTS + 1):
-            status, location = await self._with_retries(
+            status, location = await self.with_retries(
                 partial(
                     self._download_once,
                     self._download_url(target, what=what),
@@ -452,11 +334,11 @@ class _Graph:
 
     async def _download_once(
         self, url: str, dest: Path, *, what: str, limit: int
-    ) -> tuple[int, str | None] | _Retry:
+    ) -> tuple[int, str | None] | Retry:
         """One download attempt: the status and `Location`, with the body written on a 2xx."""
         async with self._client.stream("GET", url) as response:
-            if response.status_code in _TRANSIENT:
-                return _Retry(_retry_after(response.headers.get("retry-after")))
+            if response.status_code in TRANSIENT:
+                return Retry(retry_after(response.headers.get("retry-after")))
             if not 200 <= response.status_code < 300:
                 return response.status_code, response.headers.get("location")
             await self._write_capped(response, dest, what=what, limit=limit)
@@ -484,90 +366,15 @@ class _Graph:
                     )
                 handle.write(chunk)
 
-    async def _bearer(self) -> str:
-        """The app's Graph token, signed in for once and renewed shortly before it expires.
 
-        Raises:
-            BadRequestError: Entra refused the tenant, the app or its secret.
-            ExternalServiceError: Entra stayed unavailable.
-        """
-        if self._token is not None and time.monotonic() < self._token_expires_at:
-            return self._token
-        credential = self._credential
-        form = {
-            "grant_type": "client_credentials",
-            "client_id": credential.client_id,
-            "client_secret": credential.client_secret.get_secret_value(),
-            "scope": _SCOPE,
-        }
-
-        async def attempt() -> httpx.Response | _Retry:
-            response = await self._client.post(
-                f"{LOGIN}/{credential.tenant_id}/oauth2/v2.0/token", data=form
-            )
-            if response.status_code in _TRANSIENT:
-                return _Retry(_retry_after(response.headers.get("retry-after")))
-            return response
-
-        response = await self._with_retries(attempt, what="signing in to Microsoft Entra")
-        if response.status_code in (400, 401):
-            code = _error_code(response) or f"HTTP {response.status_code}"
-            raise BadRequestError(
-                message=(
-                    f"Microsoft Entra refused the app registration's credentials ({code}). Check the "
-                    "tenant id, the client id and the client secret in the Vault, and whether the "
-                    "secret has expired."
-                ),
-                details={"code": _error_code(response)},
-            )
-        if response.status_code != 200:
-            raise ExternalServiceError(
-                message=f"Microsoft Entra answered HTTP {response.status_code} when the app signed in.",
-                details={"status": response.status_code},
-            )
-        try:
-            token = _Token.model_validate_json(response.content)
-        except ValidationError:
-            raise ExternalServiceError(
-                message="Microsoft Entra answered the sign-in with no usable token."
-            ) from None
-        self._token = token.access_token
-        self._token_expires_at = time.monotonic() + max(token.expires_in - _TOKEN_MARGIN, 0.0)
-        return self._token
-
-    async def _with_retries[T](
-        self, attempt: Callable[[], Awaitable[T | _Retry]], *, what: str
-    ) -> T:
-        """Run `attempt` until it answers, a transient failure `_ATTEMPTS` times at most.
-
-        Raises:
-            ExternalServiceError: the last attempt was still transient.
-        """
-        number = 1
-        while True:
-            backoff = self._backoff * 2 ** (number - 1)
-            try:
-                outcome = await attempt()
-            except httpx.TransportError as exc:
-                if number == _ATTEMPTS:
-                    raise ExternalServiceError(
-                        message=f"Microsoft 365 could not be reached for {what} ({type(exc).__name__})."
-                    ) from exc
-                wait = backoff
-            else:
-                if not isinstance(outcome, _Retry):
-                    return outcome
-                if number == _ATTEMPTS:
-                    raise ExternalServiceError(
-                        message=(
-                            f"Microsoft 365 stayed unavailable or kept throttling {what} after "
-                            f"{_ATTEMPTS} attempts."
-                        )
-                    )
-                wait = backoff if outcome.wait is None else outcome.wait
-            logger.info("Retrying %s after a transient failure (attempt %d)", what, number)
-            await asyncio.sleep(wait)
-            number += 1
+def _parsed[M: BaseModel](model: type[M], body: dict[str, object], *, what: str) -> M:
+    try:
+        return model.model_validate(body)
+    except ValidationError:
+        # The validation error is not quoted: it embeds the input, and the input is Graph's.
+        raise ExternalServiceError(
+            message=f"Microsoft Graph answered {what} with a body this connector could not read."
+        ) from None
 
 
 class SharePointConnector(BaseSyncConnector):
@@ -588,7 +395,7 @@ class SharePointConnector(BaseSyncConnector):
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         """`transport` replaces the network for a test."""
         self._transport = transport
-        self._graph: _Graph | None = None
+        self._graph: _SharePointGraph | None = None
         self._drives: dict[str, str] = {}
 
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
@@ -627,7 +434,7 @@ class SharePointConnector(BaseSyncConnector):
         drive_part, _, link = (previous or "").partition(" ")
         if (
             drive_part == drive_id
-            and link.startswith(_GRAPH_ORIGIN)
+            and link.startswith(GRAPH_ORIGIN)
             and not await graph.changed_since(link)
         ):
             return f"{drive_id} {link}"
@@ -662,7 +469,7 @@ class SharePointConnector(BaseSyncConnector):
                 f"?$top={_PAGE_SIZE}&$select=id,name,size,file,folder,lastModifiedDateTime"
             )
             try:
-                async for page in graph.pages(url, what=f"the folder {shown}"):
+                async for page in graph.listing(url, what=f"the folder {shown}"):
                     for item in page.value:
                         if item.folder is not None:
                             if parsed.include_subfolders:
@@ -735,7 +542,7 @@ class SharePointConnector(BaseSyncConnector):
         if graph is not None:
             await graph.aclose()
 
-    def _session(self, credential: StorableSecret | None) -> _Graph:
+    def _session(self, credential: StorableSecret | None) -> _SharePointGraph:
         """This sync's Graph session, opened with the source's own credential.
 
         Raises:
@@ -757,10 +564,10 @@ class SharePointConnector(BaseSyncConnector):
             client = httpx.AsyncClient(
                 timeout=_TIMEOUT, follow_redirects=False, transport=self._transport
             )
-            self._graph = _Graph(credential, client, self.RETRY_BACKOFF)
+            self._graph = _SharePointGraph(credential, client, backoff=self.RETRY_BACKOFF)
         return self._graph
 
-    async def _drive_id(self, graph: _Graph, parsed: SharePointConfig) -> str:
+    async def _drive_id(self, graph: _SharePointGraph, parsed: SharePointConfig) -> str:
         """The drive the site URL and library name point at, looked up once per sync.
 
         Raises:
@@ -789,7 +596,7 @@ class SharePointConnector(BaseSyncConnector):
         else:
             names: list[str] = []
             drive_id = ""
-            async for page in graph.pages(
+            async for page in graph.listing(
                 f"{GRAPH}/sites/{site_id}/drives?$select=id,name", what="the site's libraries"
             ):
                 for drive in page.value:
@@ -806,7 +613,9 @@ class SharePointConnector(BaseSyncConnector):
         self._drives[key] = drive_id
         return drive_id
 
-    async def _start_folder(self, graph: _Graph, drive_id: str, parsed: SharePointConfig) -> str:
+    async def _start_folder(
+        self, graph: _SharePointGraph, drive_id: str, parsed: SharePointConfig
+    ) -> str:
         """The id of the folder the listing starts from - the library's root, or the configured folder.
 
         Raises:
