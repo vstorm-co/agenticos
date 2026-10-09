@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenticos"
-version = "0.0.534"
+version = "0.0.535"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },

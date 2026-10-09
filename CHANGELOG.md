@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.535] - 2026-10-09
+
 ### Fixed
 
 - **Scheduled triggers and every periodic job fire again.** The Prefect server
