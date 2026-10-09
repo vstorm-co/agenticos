@@ -1,5 +1,5 @@
 ---
-source_sha: "4204964a3eae"
+source_sha: "0ceb552b4aa0"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -472,7 +472,7 @@ Un volumen importa, y no es obvio cuál:
 |---|---|---|
 | `postgres_data` | todo — agents, conversaciones, credenciales selladas | **sí** |
 | `media_data` | archivos subidos, antes de la ingesta | sí |
-| `prefect_data` | el historial de ejecuciones de los flows | no |
+| `prefect_data` | la base de datos de Prefect: deployments, historial de ejecuciones, ejecuciones en cola | no |
 
 La caché ya no tiene ningún volumen. Los buckets del límite de peticiones, las
 marcas de deduplicación de los canales y las respuestas de pertenencia llevan

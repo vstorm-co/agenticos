@@ -232,7 +232,11 @@ services:
     image: prefecthq/prefect:3.8.8-python3.12
     command: prefect server start --host 0.0.0.0
     volumes:
-      - prefect_data:/root/.local/share/prefect/
+      # Where Prefect 3 keeps its SQLite database ($PREFECT_HOME). The volume used
+      # to sit on /root/.local/share/prefect/, which nothing writes, so every
+      # recreate of this container dropped the deployments, the run history and
+      # every queued run, and the scheduler had nothing until the runner restarted.
+      - prefect_data:/root/.prefect/
     environment:
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty unless the sandbox profile is up. Note what is absent from
