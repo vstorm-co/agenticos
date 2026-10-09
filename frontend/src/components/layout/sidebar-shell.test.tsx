@@ -13,6 +13,9 @@ import { SidebarShell } from "./sidebar-shell";
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));
+vi.mock("@/components/layout/assistant-button", () => ({
+  AssistantButton: () => <button>the assistant</button>,
+}));
 vi.mock("@/components/layout/notification-bell", () => ({
   NotificationBell: () => <button>the bell</button>,
 }));

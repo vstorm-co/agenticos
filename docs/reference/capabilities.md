@@ -48,6 +48,7 @@ tools listed.
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `platform` | Operate the platform | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -1785,6 +1786,23 @@ Three properties hold on every platform:
 - **Outside a channel it contributes nothing.** A run from the dashboard, the API
   or a schedule has no directory, so the capability is not attached at all — the
   same reason `knowledge` with no collections is not.
+
+## Operate the platform
+
+The hands of the [Platform assistant](../console.md#the-assistant): the same tools
+the platform's [MCP server](../mcp.md#agenticos-as-an-mcp-server) offers Claude
+Code, handed to an agent. Each is a call to the public API made in-process with a
+credential the runner mints for the person the run acts for, so the agent can do
+exactly what that person could do — their role, their grants, the organization's
+budget and audit trail — and nothing more. A run nobody is behind, such as an
+anonymous widget visitor, gets no credential and the capability attaches nothing.
+
+The five tools that change something — `create_agent_draft`, `run_agent`,
+`create_knowledge_base`, `add_document`, `invite_member` — are declared
+side-effecting, so the approval gate holds each call until a person approves it.
+A refusal is the tool's result rather than an error, so the model can say what
+was refused and why. Nothing here deletes, publishes or touches a credential, and
+workflows and tables are not reachable yet.
 
 ## What a binding may change
 

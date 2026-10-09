@@ -14,7 +14,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
-from app.services.platform_mcp._tools import register_tools
+from app.services.platform_mcp._tools import platform_tools
 
 pytestmark = pytest.mark.anyio
 
@@ -34,7 +34,8 @@ def api() -> MagicMock:
 @pytest.fixture
 def server(api: MagicMock) -> MCPServer:
     server = MCPServer(name="test")
-    register_tools(server, api)
+    for tool in platform_tools(api):
+        server.add_tool(tool.function)
     return server
 
 
@@ -45,7 +46,7 @@ def server(api: MagicMock) -> MCPServer:
         ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
         ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
         (
-            "create_agent",
+            "create_agent_draft",
             {"name": "Bot", "instructions": "Be brief.", "description": "A bot"},
             (
                 "POST",
@@ -58,7 +59,7 @@ def server(api: MagicMock) -> MCPServer:
             ),
         ),
         (
-            "create_agent",
+            "create_agent_draft",
             {"name": "Bot", "instructions": "Be brief."},
             ("POST", "/agents", {"json": {"spec": {"name": "Bot", "instructions": "Be brief."}}}),
         ),
@@ -135,8 +136,12 @@ def _token() -> AccessToken:
     return AccessToken(token="aos_0123abcdsecret", client_id="aos_0123abcd", scopes=[])
 
 
-def _api(handler: Any) -> PlatformApi:
-    api = PlatformApi(MagicMock())
+def _raise(message: str) -> dict[str, Any]:
+    raise ToolError(message)
+
+
+def _api(handler: Any, token: str | None = "aos_0123abcdsecret") -> PlatformApi:
+    api = PlatformApi(MagicMock(), token=lambda: token, on_refusal=_raise)
     api._transport = httpx.MockTransport(handler)
     return api
 
@@ -149,8 +154,7 @@ class TestTheInProcessCall:
             seen.append(request)
             return httpx.Response(200, json={"ok": True})
 
-        with patch("app.services.platform_mcp._api.get_access_token", return_value=_token()):
-            answer = await _api(handler).request("GET", "/agents")
+        answer = await _api(handler).request("GET", "/agents")
 
         assert answer == {"ok": True}
         assert seen[0].headers["authorization"] == "Bearer aos_0123abcdsecret"
@@ -165,34 +169,26 @@ class TestTheInProcessCall:
                 },
             )
 
-        with (
-            patch("app.services.platform_mcp._api.get_access_token", return_value=_token()),
-            pytest.raises(ToolError, match="403 AUTHORIZATION_ERROR: Insufficient permissions"),
-        ):
+        with pytest.raises(ToolError, match="403 AUTHORIZATION_ERROR: Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
 
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json=["not", "an", "envelope"])
 
-        with (
-            patch("app.services.platform_mcp._api.get_access_token", return_value=_token()),
-            pytest.raises(ToolError, match="502 ERROR: The request was refused"),
-        ):
+        with pytest.raises(ToolError, match="502 ERROR: The request was refused"):
             await _api(handler).request("GET", "/agents")
 
     async def test_no_content_is_none(self) -> None:
-        with patch("app.services.platform_mcp._api.get_access_token", return_value=_token()):
-            answer = await _api(lambda request: httpx.Response(204)).request("DELETE", "/x")
+        answer = await _api(lambda request: httpx.Response(204)).request("DELETE", "/x")
 
         assert answer is None
 
     async def test_an_unauthenticated_call_never_reaches_the_api(self) -> None:
-        with (
-            patch("app.services.platform_mcp._api.get_access_token", return_value=None),
-            pytest.raises(ToolError, match="authenticated"),
-        ):
-            await _api(lambda request: httpx.Response(200, json={})).request("GET", "/agents")
+        with pytest.raises(ToolError, match="authenticated"):
+            await _api(lambda request: httpx.Response(200, json={}), token=None).request(
+                "GET", "/agents"
+            )
 
 
 class TestTheVerifier:
@@ -213,3 +209,18 @@ class TestTheVerifier:
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             assert await PlatformOAuthProvider().load_access_token("aos_0123abcdsecret") is None
+
+
+class TestChainedCalls:
+    async def test_a_refused_identity_is_passed_on_rather_than_used(self) -> None:
+        """`list_members` and `invite_member` first ask who the caller is; a refusal
+        there is the answer, not a key to index."""
+        refusal = {"refused": "401 AUTHENTICATION_ERROR: gone"}
+        api = MagicMock()
+        api.request = AsyncMock(return_value=refusal)
+        tools = {tool.name: tool for tool in platform_tools(api)}
+
+        assert await tools["list_members"].function() == refusal
+        assert await tools["invite_member"].function(email="ada@example.com") == refusal
+        assert tools["invite_member"].writes and not tools["list_members"].writes
+        assert tools["whoami"].summary.startswith("Which organization")

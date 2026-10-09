@@ -14,7 +14,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -139,6 +139,9 @@ class TestToolDeclarations:
     # assertions here are about names, not about search results.
     RESOURCES = {
         "kb_collection_names": ["kb_1"],
+        # The credential the runner mints for the person a run acts for; without
+        # one `platform` builds nothing, and its tools would escape the check.
+        "platform_credential": SecretStr("aos_0123abcdsecret"),
         # Any object at all: `channel_tools` builds when a run is in a channel
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.

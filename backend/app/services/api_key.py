@@ -48,6 +48,9 @@ and :func:`is_api_key` recognise one without a database round trip."""
 _PREFIX_LENGTH = len(KEY_PREFIX) + 8
 _SECRET_BYTES = 32
 _TOUCH_EVERY = timedelta(minutes=1)
+_RUN_CREDENTIAL_LIFETIME = timedelta(hours=2)
+"""Long enough for a run that waits on an approval for a while; a run parked
+longer than this asks the platform again for a fresh one when it resumes."""
 _REFUSED = "Invalid, expired or revoked API key"
 
 # Keys never manage keys: a leaked one must not be able to mint its successors.
@@ -183,6 +186,7 @@ class ApiKeyService:
         scopes: list[str],
         expires_at: datetime | None,
         oauth_grant_id: UUID | None,
+        internal: bool = False,
     ) -> tuple[str, ApiKey]:
         """A new key and its row; the plaintext exists only in the returned string."""
         prefix = KEY_PREFIX + secrets.token_hex(4)
@@ -197,6 +201,7 @@ class ApiKeyService:
             scopes=scopes,
             expires_at=expires_at,
             oauth_grant_id=oauth_grant_id,
+            internal=internal,
         )
         return key, row
 
@@ -222,6 +227,32 @@ class ApiKeyService:
             scopes=scopes,
             expires_at=expires_at,
             oauth_grant_id=grant_id,
+        )
+        return key
+
+    async def issue_for_run(self, ctx: AuthContext) -> str | None:
+        """A short-lived credential carrying `ctx`, for the in-app assistant (#1798).
+
+        The assistant operates the platform through the public API as the person
+        it runs for, so it needs what an integration needs: a key, holding exactly
+        what `ctx` holds - narrowed again on every call to the person's current
+        role, like any key. `None` when nobody is behind the run: an anonymous
+        visitor has no authority to lend.
+
+        Minted per run and never listed; lapsed ones are swept as new ones are made.
+        """
+        if ctx.user_id is None:
+            return None
+        now = datetime.now(UTC)
+        await api_key_repo.delete_expired_internal(self.db, user_id=ctx.user_id, before=now)
+        key, _row = await self._mint(
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            name="Platform assistant",
+            scopes=[perm.value for perm in self._grantable(ctx)],
+            expires_at=now + _RUN_CREDENTIAL_LIFETIME,
+            oauth_grant_id=None,
+            internal=True,
         )
         return key
 

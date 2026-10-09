@@ -144,6 +144,91 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // platform - the in-app assistant operating the organization (#1798).
+  whoami: {
+    kind: "read",
+    render: "generic",
+    captionKey: "checkingWhoAmI",
+    displayNameKey: "whoAmI",
+  },
+  list_agents: {
+    kind: "read",
+    render: "generic",
+    captionKey: "listingAgents",
+    displayNameKey: "listAgents",
+  },
+  get_agent: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingAgent",
+    displayNameKey: "getAgent",
+  },
+  create_agent_draft: {
+    kind: "write",
+    render: "generic",
+    captionKey: "draftingAgent",
+    displayNameKey: "createAgentDraft",
+  },
+  run_agent: {
+    kind: "write",
+    render: "generic",
+    captionKey: "runningAgent",
+    displayNameKey: "runAgent",
+  },
+  list_runs: {
+    kind: "read",
+    render: "generic",
+    captionKey: "listingRuns",
+    displayNameKey: "listRuns",
+  },
+  get_run: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingRun",
+    displayNameKey: "getRun",
+  },
+  list_knowledge_bases: {
+    kind: "read",
+    render: "generic",
+    captionKey: "listingKnowledgeBases",
+    displayNameKey: "listKnowledgeBases",
+  },
+  create_knowledge_base: {
+    kind: "write",
+    render: "generic",
+    captionKey: "creatingKnowledgeBase",
+    displayNameKey: "createKnowledgeBase",
+  },
+  add_document: {
+    kind: "write",
+    render: "generic",
+    captionKey: "addingDocument",
+    displayNameKey: "addDocument",
+  },
+  search_knowledge: {
+    kind: "read",
+    render: "generic",
+    captionKey: "searchingKnowledgeBase",
+    displayNameKey: "searchKnowledgeBase",
+  },
+  list_skills: {
+    kind: "read",
+    render: "generic",
+    captionKey: "listingSkills",
+    displayNameKey: "listSkills",
+  },
+  list_members: {
+    kind: "read",
+    render: "generic",
+    captionKey: "listingMembers",
+    displayNameKey: "listMembers",
+  },
+  invite_member: {
+    kind: "write",
+    render: "generic",
+    captionKey: "invitingMember",
+    displayNameKey: "inviteMember",
+  },
   // artifacts - the published page is the answer, so its card opens where it lands.
   publish_artifact: {
     kind: "write",

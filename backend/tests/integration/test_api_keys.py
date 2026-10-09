@@ -437,3 +437,44 @@ class TestAdministration:
 
         assert members.status_code == 404
         assert leave.status_code == 403
+
+
+class TestTheAssistantsCredential:
+    """The key the runner mints for the in-app assistant (#1798)."""
+
+    async def test_it_carries_the_caller_is_never_listed_and_lapsed_ones_are_swept(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        ctx = AuthContext(user_id=member.id, organization_id=organization.id, role="member")
+        service = ApiKeyService(db)
+        lapsed = await service.issue_for_run(ctx)
+        assert lapsed is not None
+        await db.execute(
+            ApiKey.__table__.update()
+            .where(ApiKey.prefix == lapsed[:12])
+            .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+
+        minted = await service.issue_for_run(ctx)
+
+        assert minted is not None
+        caller = await service.authenticate(minted)
+        # Everything the member holds, except minting keys: no key manages keys.
+        assert caller.context.permissions == {
+            perm: scope
+            for perm, scope in ctx.permissions.items()
+            if perm is not Perm.API_KEYS_CREATE
+        }
+        rows = (await db.execute(select(ApiKey))).scalars().all()
+        assert [row.prefix for row in rows] == [minted[:12]]
+        assert rows[0].internal
+        assert (await service.list_keys(ctx)).items == []
+
+    async def test_nobody_behind_a_run_gets_nothing(self, db: AsyncSession) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+
+        assert await ApiKeyService(db).issue_for_run(AuthContext.anonymous(organization.id)) is None

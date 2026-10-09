@@ -94,10 +94,10 @@ async def test_a_key_lists_the_tools_and_creates_an_agent_draft(
         tools = {tool.name for tool in (await session.list_tools()).tools}
         me = _content(await session.call_tool("whoami", {}))
         created = await session.call_tool(
-            "create_agent", {"name": "Refunds", "instructions": "Answer refund questions."}
+            "create_agent_draft", {"name": "Refunds", "instructions": "Answer refund questions."}
         )
 
-    assert {"whoami", "create_agent", "invite_member", "search_knowledge"} <= tools
+    assert {"whoami", "create_agent_draft", "invite_member", "search_knowledge"} <= tools
     assert me["organization_id"] == str(organization.id)
     assert not created.is_error
     agents = (
@@ -114,7 +114,7 @@ async def test_a_tool_the_key_was_not_issued_for_is_refused_with_the_reason(
 
     async with _connected(key) as session:
         refused = await session.call_tool(
-            "create_agent", {"name": "Refunds", "instructions": "Answer refund questions."}
+            "create_agent_draft", {"name": "Refunds", "instructions": "Answer refund questions."}
         )
 
     assert refused.is_error

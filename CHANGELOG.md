@@ -63,6 +63,16 @@ Two things are versioned separately from this file and worth knowing about:
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
   **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
+- **The Platform assistant.** A sparkle beside search opens an agent, installed
+  from the new *Platform assistant* template, that finds agents, runs, knowledge
+  bases, skills and members, explains a failed run, and — once a person approves
+  the exact call — drafts agents, creates knowledge bases, adds documents and
+  invites people. It is bound to the new `platform` capability, whose tools are
+  the MCP server's, called in-process with a credential minted for whoever is
+  asking, so it can never do more than they can. The five tools that change
+  something wait on the approval gate. The MCP tool `create_agent` is renamed
+  `create_agent_draft`, which no longer collides with delegation's. Migration
+  `0109_internal_api_keys` (#1798).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

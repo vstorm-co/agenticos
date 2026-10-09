@@ -10,9 +10,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
+from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 from pydantic import AnyHttpUrl
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
@@ -21,9 +25,24 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.core.config import settings
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
-from app.services.platform_mcp._tools import register_tools
+from app.services.platform_mcp._tools import PlatformTool, platform_tools
 
 MCP_PATH = "/mcp"
+
+_READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+
+
+def _mcp_token() -> str | None:
+    """The bearer the MCP request arrived with, which every tool call presents again."""
+    token = get_access_token()
+    return token.token if token is not None else None
+
+
+def _tool_error(message: str) -> dict[str, Any]:
+    """An MCP client is told a refusal as a tool error, carrying the API's reason."""
+    raise ToolError(message)
+
 
 INSTRUCTIONS = """\
 Tools for operating an AgenticOS organization: its agents, runs, knowledge bases,
@@ -51,7 +70,9 @@ def build_platform_mcp(app: ASGIApp) -> tuple[MCPServer, Starlette]:
             revocation_options=RevocationOptions(enabled=True),
         ),
     )
-    register_tools(server, PlatformApi(app))
+    api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
+    for tool in platform_tools(api):
+        server.add_tool(tool.function, annotations=_WRITE if tool.writes else _READ)
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
     # The host is not localhost, so the SDK's DNS-rebinding guard stays off - it
@@ -121,4 +142,13 @@ class _Forward:
 forward = _Forward()
 
 
-__all__ = ["MCP_PATH", "ROUTE_PATHS", "build_platform_mcp", "forward", "serve_platform_mcp"]
+__all__ = [
+    "MCP_PATH",
+    "ROUTE_PATHS",
+    "PlatformApi",
+    "PlatformTool",
+    "build_platform_mcp",
+    "forward",
+    "platform_tools",
+    "serve_platform_mcp",
+]

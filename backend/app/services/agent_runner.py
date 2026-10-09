@@ -64,7 +64,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
@@ -105,6 +105,10 @@ from app.agents.capabilities.planning import (
     new_plan_store,
     open_plan_store,
     still_open,
+)
+from app.agents.capabilities.platform import (
+    PLATFORM_CAPABILITY_ID,
+    PLATFORM_CREDENTIAL_RESOURCE,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -185,6 +189,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     delegation_binding,
 )
+from app.services.api_key import ApiKeyService
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channel_link import mcp_servers_link
@@ -1909,6 +1914,22 @@ class AgentRunnerService:
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
+        self.api_keys = ApiKeyService(db)
+
+    async def _platform_resources(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
+        """The credential the `platform` capability acts with, when it is bound.
+
+        Minted from this run's own authorization, so the assistant can do what the
+        person it runs for can do - and an agent that does not bind the capability
+        mints nothing. See `app/agents/capabilities/platform/README.md`.
+        """
+        if not any(
+            binding.enabled and binding.id == PLATFORM_CAPABILITY_ID
+            for binding in spec.capabilities
+        ):
+            return {}
+        credential = await self.api_keys.issue_for_run(ctx)
+        return {PLATFORM_CREDENTIAL_RESOURCE: SecretStr(credential)} if credential else {}
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -2207,6 +2228,7 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            **await self._platform_resources(spec, ctx),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -3101,6 +3123,7 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
+            **await self._platform_resources(spec, ctx),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)

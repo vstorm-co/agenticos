@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "6fc78494b7f7"
 ---
 
 # Konsola { #the-console }
@@ -108,6 +108,20 @@ To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#a
 — ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co
 się właśnie wydarzyło, karta na dashboardzie dla kilku najnowszych, przy
 następnym otwarciu strony.
+
+## Asystent { #the-assistant }
+
+Iskierka obok wyszukiwania otwiera **asystenta platformy**: agenta zainstalowanego
+z szablonu *Platform assistant* i powiązanego z
+[obsługą platformy](reference/capabilities.md#operate-the-platform). Zapytaj go,
+którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
+albo co jest w bazie wiedzy; poproś o szkic agenta albo zaproszenie współpracownika,
+a najpierw pokaże ci dokładne wywołanie do zatwierdzenia. Działa z twoimi
+uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej.
+
+Dopóki ktoś z `agents:edit` go nie zainstaluje i nie opublikuje — przycisk to
+proponuje — mówi, kto może to zrobić. Przy publikacji udostępnij go organizacji,
+żeby wszyscy mieli tego samego asystenta.
 
 ## Chat { #chat }
 

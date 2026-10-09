@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "6fc78494b7f7"
 ---
 
 # La consola { #the-console }
@@ -106,6 +106,20 @@ Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde
 lo lees: la campana para lo que acaba de pasar, la tarjeta del dashboard para
 un puñado de las más recientes, la próxima vez que abras la página.
+
+## El asistente { #the-assistant }
+
+El destello junto a la búsqueda abre el **asistente de la plataforma**: un agent
+instalado desde la plantilla *Platform assistant* y vinculado a
+[Operar la plataforma](reference/capabilities.md#operate-the-platform). Pregúntale
+qué agents responden dudas de reembolsos, por qué falló el run de anoche o qué hay
+en una base de conocimiento; pídele que esboce un agent o invite a un compañero, y
+primero te mostrará la llamada exacta para que la apruebes. Actúa con tus
+permisos, así que encuentra y hace lo que tú podrías, y nada más.
+
+Hasta que alguien con `agents:edit` lo instale y lo publique — el botón lo ofrece —,
+dice quién puede hacerlo. Compártelo con la organización al publicarlo, para que
+todos tengan el mismo asistente.
 
 ## Chat { #chat }
 

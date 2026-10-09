@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "6fc78494b7f7"
 ---
 
 # Die Konsole { #the-console }
@@ -117,6 +117,21 @@ Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 an denen Sie es lesen: die Glocke für das, was gerade passiert ist, die
 Dashboard-Karte für eine Handvoll der neuesten, beim nächsten Öffnen der
 Seite.
+
+## Der Assistent { #the-assistant }
+
+Das Funkeln neben der Suche öffnet den **Plattform-Assistenten**: einen Agent, der
+aus der Vorlage *Platform assistant* installiert und an
+[Plattform bedienen](reference/capabilities.md#operate-the-platform) gebunden ist.
+Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
+letzter Nacht fehlschlug oder was in einer Wissensbasis steht; lassen Sie ihn einen
+Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst den genauen
+Aufruf zur Freigabe. Er handelt mit Ihren Berechtigungen, findet und tut also, was
+Sie könnten, und nicht mehr.
+
+Bis jemand mit `agents:edit` ihn installiert und veröffentlicht — die Schaltfläche
+bietet es an —, sagt er, wer das kann. Teilen Sie ihn beim Veröffentlichen mit der
+Organisation, damit alle denselben Assistenten haben.
 
 ## Chat { #chat }
 

@@ -3277,5 +3277,14 @@
     "couldNotLoad": "Nie udało się wczytać podłączonych aplikacji",
     "emptyTitle": "Brak podłączonych aplikacji",
     "emptyWhy": "Dodaj AgenticOS do Claude Code albo innego klienta MCP i zaloguj się; pojawi się tutaj."
+  },
+  "assistant": {
+    "title": "Asystent platformy",
+    "why": "Pytaj o swoich agentów, runy i bazy wiedzy albo poproś go o przygotowanie rzeczy. Działa z twoimi uprawnieniami i pyta, zanim cokolwiek zmieni.",
+    "open": "Otwórz asystenta",
+    "draftWhy": "Jest zainstalowany, ale nieopublikowany. Wybierz model, udostępnij go organizacji i opublikuj.",
+    "finish": "Dokończ konfigurację",
+    "setUp": "Skonfiguruj asystenta",
+    "askAdmin": "Asystent nie jest jeszcze skonfigurowany w tej organizacji. Poproś administratora o zainstalowanie go z szablonów agentów."
   }
 }

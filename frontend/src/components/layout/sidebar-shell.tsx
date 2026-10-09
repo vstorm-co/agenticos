@@ -38,6 +38,7 @@
 
 import type { ReactNode } from "react";
 
+import { AssistantButton } from "@/components/layout/assistant-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
@@ -66,6 +67,7 @@ export function SidebarShell({
             below now. */}
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           <SidebarSearch variant="icon" />
+          <AssistantButton />
           <NotificationBell variant="icon" />
         </div>
         <SidebarUser compact={collapsed} />

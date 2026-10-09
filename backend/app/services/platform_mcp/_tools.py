@@ -1,45 +1,56 @@
-"""The tools the platform's MCP server offers: the public API, one operation each.
+"""The platform's operations: the public API, one call each - offered twice.
+
+The MCP server registers them for Claude Code and any MCP client (#2058), and the
+`platform` capability hands the same functions to the in-app assistant (#1798),
+so the two cannot drift: one name, one description, one call.
 
 Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
-it will be refused. Reads are marked read-only; nothing here deletes, publishes
-or touches a credential (#2058).
+it will be refused. Nothing here deletes, publishes or touches a credential.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
-from mcp.server.mcpserver import MCPServer
-from mcp.types import ToolAnnotations
-
 from app.services.platform_mcp._api import PlatformApi
-
-_READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
-_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
 
-def register_tools(server: MCPServer, api: PlatformApi) -> None:
-    @server.tool(annotations=_READ)
+@dataclass(frozen=True)
+class PlatformTool:
+    name: str
+    function: Callable[..., Awaitable[dict[str, Any]]]
+    writes: bool
+    """Whether it changes something - an MCP client is told so, and the in-app
+    assistant asks a person before it runs."""
+
+    @property
+    def summary(self) -> str:
+        """The first line of the description - what the Builder lists beside the tool."""
+        return (self.function.__doc__ or "").strip().splitlines()[0]
+
+
+def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
+    """Every operation, bound to `api`."""
+
     async def whoami() -> dict[str, Any]:
         """Which organization this connection acts in, and the permissions it holds there."""
         return await api.request("GET", "/me/permissions")
 
-    @server.tool(annotations=_READ)
     async def list_agents(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The agents this caller can see. Needs `agents:view`."""
         return await api.request("GET", "/agents", params={"limit": limit, "skip": skip})
 
-    @server.tool(annotations=_READ)
     async def get_agent(agent_id: UUID) -> dict[str, Any]:
         """One agent: its draft and published spec, status and labels. Needs `agents:view`."""
         return await api.request("GET", f"/agents/{agent_id}")
 
-    @server.tool(annotations=_WRITE)
-    async def create_agent(
+    async def create_agent_draft(
         name: str, instructions: str, description: str | None = None
     ) -> dict[str, Any]:
         """Create an agent draft from a name and instructions. Needs `agents:edit`.
@@ -52,7 +63,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             spec["description"] = description
         return await api.request("POST", "/agents", json={"spec": spec})
 
-    @server.tool(annotations=_WRITE)
     async def run_agent(
         agent_id: UUID, prompt: str, conversation_id: UUID | None = None
     ) -> dict[str, Any]:
@@ -66,7 +76,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             body["conversation_id"] = str(conversation_id)
         return await api.request("POST", f"/agents/{agent_id}/run", json=body)
 
-    @server.tool(annotations=_READ)
     async def list_runs(
         agent_id: UUID | None = None, limit: int = 20, skip: int = 0
     ) -> dict[str, Any]:
@@ -76,7 +85,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             params["agent_id"] = str(agent_id)
         return await api.request("GET", "/runs", params=params)
 
-    @server.tool(annotations=_READ)
     async def get_run(run_id: UUID) -> dict[str, Any]:
         """One run: status, the error a failed one stopped on, tokens and cost.
 
@@ -84,7 +92,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
         """
         return await api.request("GET", f"/runs/{run_id}")
 
-    @server.tool(annotations=_READ)
     async def list_knowledge_bases() -> dict[str, Any]:
         """The knowledge bases this caller can see, with each one's `collection_name`.
 
@@ -92,7 +99,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
         """
         return await api.request("GET", "/kb")
 
-    @server.tool(annotations=_WRITE)
     async def create_knowledge_base(name: str, description: str | None = None) -> dict[str, Any]:
         """Create an organization knowledge base with the deployment's defaults.
 
@@ -103,7 +109,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             body["description"] = description
         return await api.request("POST", "/kb", json=body)
 
-    @server.tool(annotations=_WRITE)
     async def add_document(kb_id: UUID, filename: str, content: str) -> dict[str, Any]:
         """Add a text document to a knowledge base; it is parsed and indexed in the background.
 
@@ -116,7 +121,6 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             files={"file": (filename, content.encode("utf-8"), "text/plain")},
         )
 
-    @server.tool(annotations=_READ)
     async def search_knowledge(collection_name: str, query: str, limit: int = 4) -> dict[str, Any]:
         """Semantic search in one knowledge base, by its `collection_name`.
 
@@ -128,26 +132,48 @@ def register_tools(server: MCPServer, api: PlatformApi) -> None:
             json={"collection_name": collection_name, "query": query, "limit": limit},
         )
 
-    @server.tool(annotations=_READ)
     async def list_skills() -> dict[str, Any]:
         """The skills this caller can see. Needs `skills:view`."""
         return await api.request("GET", "/skills")
 
-    @server.tool(annotations=_READ)
     async def list_members() -> dict[str, Any]:
         """The members of this connection's organization, with their roles."""
-        organization_id = (await api.request("GET", "/me/permissions"))["organization_id"]
-        return await api.request("GET", f"/orgs/{organization_id}/members")
+        me = await api.request("GET", "/me/permissions")
+        if "organization_id" not in me:
+            return me
+        return await api.request("GET", f"/orgs/{me['organization_id']}/members")
 
-    @server.tool(annotations=_WRITE)
     async def invite_member(email: str, role: InviteRole = "member") -> dict[str, Any]:
         """Invite somebody to this organization by email. Needs `members:manage`.
 
         They receive an email with a link to join. A role above your own is refused.
         """
-        organization_id = (await api.request("GET", "/me/permissions"))["organization_id"]
+        me = await api.request("GET", "/me/permissions")
+        if "organization_id" not in me:
+            return me
         return await api.request(
             "POST",
-            f"/orgs/{organization_id}/invitations",
+            f"/orgs/{me['organization_id']}/invitations",
             json={"email": email, "role": role},
         )
+
+    operations = (
+        (whoami, False),
+        (list_agents, False),
+        (get_agent, False),
+        (create_agent_draft, True),
+        (run_agent, True),
+        (list_runs, False),
+        (get_run, False),
+        (list_knowledge_bases, False),
+        (create_knowledge_base, True),
+        (add_document, True),
+        (search_knowledge, False),
+        (list_skills, False),
+        (list_members, False),
+        (invite_member, True),
+    )
+    return tuple(
+        PlatformTool(name=function.__name__, function=function, writes=writes)
+        for function, writes in operations
+    )

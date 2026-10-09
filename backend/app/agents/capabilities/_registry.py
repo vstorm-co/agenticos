@@ -663,6 +663,7 @@ def load_builtins() -> None:
         memory_files,
         memory_mem0,
         planning,
+        platform,
         sandbox,
         skills,
         subagents,

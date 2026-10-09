@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "860be1ce5ba6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -53,6 +53,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
 | `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `platform` | Plattform bedienen | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -2014,6 +2015,25 @@ Drei Eigenschaften gelten auf jeder Plattform:
   API oder aus einem Zeitplan hat kein Verzeichnis, deshalb wird die Capability gar
   nicht erst angehängt — aus demselben Grund, aus dem `knowledge` ohne Collections
   nicht angehängt wird.
+
+## Plattform bedienen { #operate-the-platform }
+
+Die Hände des [Plattform-Assistenten](../console.md#the-assistant): dieselben
+Tools, die der [MCP-Server](../mcp.md#agenticos-as-an-mcp-server) der Plattform
+Claude Code anbietet, einem Agent übergeben. Jedes ist ein Aufruf der öffentlichen
+API im selben Prozess, mit einem Zugang, den der Runner für die Person ausstellt,
+für die der Run handelt — der Agent kann also genau das, was diese Person kann:
+ihre Rolle, ihre Freigaben, Budget und Audit der Organisation, und nicht mehr. Ein
+Run, hinter dem niemand steht, etwa ein anonymer Widget-Besucher, erhält keinen
+Zugang, und die Capability hängt nichts an.
+
+Die fünf Tools, die etwas ändern — `create_agent_draft`, `run_agent`,
+`create_knowledge_base`, `add_document`, `invite_member` — sind als
+side-effecting deklariert, sodass das Approval Gate jeden Aufruf anhält, bis eine
+Person ihn freigibt. Eine Ablehnung ist das Ergebnis des Tools und kein Fehler,
+damit das Modell sagen kann, was abgelehnt wurde und warum. Nichts hier löscht,
+veröffentlicht oder berührt Zugangsdaten, und Workflows und Tabellen sind noch
+nicht erreichbar.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

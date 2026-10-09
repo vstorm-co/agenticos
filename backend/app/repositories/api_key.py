@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ async def create(
     scopes: list[str],
     expires_at: datetime | None,
     oauth_grant_id: UUID | None = None,
+    internal: bool = False,
 ) -> ApiKey:
     key = ApiKey(
         organization_id=organization_id,
@@ -33,6 +34,7 @@ async def create(
         scopes=scopes,
         expires_at=expires_at,
         oauth_grant_id=oauth_grant_id,
+        internal=internal,
     )
     db.add(key)
     await db.flush()
@@ -57,11 +59,15 @@ async def list_for_organization(
 ) -> list[tuple[ApiKey, str]]:
     """Each key a person issued, with their email, newest first; one issuer's when
     `user_id` is set. OAuth access tokens are left out - they are listed as their
-    grant, under connected applications."""
+    grant, under connected applications - and so are the platform's own."""
     query = (
         select(ApiKey, User.email)
         .join(User, User.id == ApiKey.user_id)
-        .where(ApiKey.organization_id == organization_id, ApiKey.oauth_grant_id.is_(None))
+        .where(
+            ApiKey.organization_id == organization_id,
+            ApiKey.oauth_grant_id.is_(None),
+            ApiKey.internal.is_(False),
+        )
         .order_by(ApiKey.created_at.desc())
     )
     if user_id is not None:
@@ -87,4 +93,13 @@ async def touch(db: AsyncSession, key_id: UUID, *, at: datetime, stale_before: d
             (ApiKey.last_used_at.is_(None)) | (ApiKey.last_used_at < stale_before),
         )
         .values(last_used_at=at)
+    )
+
+
+async def delete_expired_internal(db: AsyncSession, *, user_id: UUID, before: datetime) -> None:
+    """Drop one person's lapsed internal credentials - one is minted per run."""
+    await db.execute(
+        delete(ApiKey).where(
+            ApiKey.user_id == user_id, ApiKey.internal.is_(True), ApiKey.expires_at < before
+        )
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "b0cbd412965c"
+source_sha: "d2be4ebf72bb"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -825,7 +825,7 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 |---|---|
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
-| `create_agent` | `agents:edit` |
+| `create_agent_draft` | `agents:edit` |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |

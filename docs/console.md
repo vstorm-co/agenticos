@@ -101,6 +101,20 @@ to explain — this page is only the two places you read it: the bell for what
 just happened, the dashboard card for a handful of the most recent, the next
 time you open the page.
 
+## The assistant
+
+The sparkle beside search opens the **Platform assistant**: an agent installed
+from the *Platform assistant* template and bound to
+[Operate the platform](reference/capabilities.md#operate-the-platform). Ask it which
+agents can answer refund questions, why last night's run failed, or what is in a
+knowledge base; ask it to draft an agent or invite a colleague, and it shows you
+the exact call to approve first. It acts with your permissions, so it finds and
+does what you could, and no more.
+
+Until somebody with `agents:edit` installs and publishes it — the button offers
+to — it says who can. Share it with the organization when you publish it, so
+everyone gets the same assistant.
+
 ## Chat
 
 Where you talk to a published agent. The picker chooses which agent answers, and

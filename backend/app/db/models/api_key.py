@@ -16,7 +16,8 @@ shows and what a lookup starts from.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import false as sql_false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -51,6 +52,11 @@ class ApiKey(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A credential the platform minted for its own use - the in-app assistant's,
+    # for the person a run acts for (#1798). Never listed, and short-lived.
+    internal: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sql_false()
+    )
     # Set for an access token an OAuth client received (#2059): the grant it came
     # from, so revoking the grant revokes it. Null for a key a person issued.
     oauth_grant_id: Mapped[uuid.UUID | None] = mapped_column(

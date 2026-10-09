@@ -762,7 +762,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 |---|---|
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
-| `create_agent` | `agents:edit` |
+| `create_agent_draft` | `agents:edit` |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
