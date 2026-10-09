@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Follow an artifact.** A **Follow** button on a page's bar puts a notice in
+  the inbox (and, if enabled, an email) whenever the page gets a new version,
+  republished or restored. A republish that changes nothing is silent, the
+  person who made the version is not told, and following grants no access: a
+  follower who loses access stops receiving notices, and the inbox re-checks
+  access when it is read. Migration `0106_artifact_followers` adds the table
+  and the `artifact_version_published` event type (#1977).
+
+### Fixed
+
+- **Workspace listings no longer decode every stored image on the event loop.**
+  Both backends draw at most one screen of thumbnails per request, the decode
+  runs on the file pool, and a workspace listed by id returns no tiles at all
+  (#1930).
+- **A hidden ingestion setting can no longer block submit.** Turning OCR,
+  LiteParse or image descriptions off resets a refused value behind the
+  now-hidden field to its default (#1930).
+- **Reduced motion skips the staggered card reveal**, and the agents label
+  filter stops offering picks past the 10-category / 20-tag cap the API applies
+  (#1930).
+
+### Changed
+
+- **Backend dependencies upgraded to their newest releases**, with the
+  context-manager annotations the newer typeshed requires (#2005).
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

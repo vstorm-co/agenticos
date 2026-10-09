@@ -59,6 +59,8 @@ export interface ArtifactPublicLink {
 /** One artifact as its own page reads it: with what the caller may do, decided by the server. */
 export interface ArtifactDetail extends Artifact {
   can_edit: boolean;
+  /** Whether the caller is told in their inbox when a new version is published. */
+  following: boolean;
   public_link: ArtifactPublicLink;
 }
 

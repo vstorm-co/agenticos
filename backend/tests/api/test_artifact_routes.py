@@ -39,6 +39,14 @@ OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 PATH = "app.services.artifact"
 
 
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+
+
 def _artifact(*, public_key: str | None = None) -> Artifact:
     return Artifact(
         id=uuid.uuid4(),
@@ -92,6 +100,44 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
 
 def _url(suffix: str = "") -> str:
     return f"{settings.API_V1_STR}/artifacts{suffix}"
+
+
+class TestFollowing:
+    async def test_following_and_unfollowing_answer_with_the_page(self, client: OpenClient) -> None:
+        row = _artifact()
+        follow = AsyncMock()
+        unfollow = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.follow", new=follow),
+            patch(f"{PATH}.artifact_repo.unfollow", new=unfollow),
+            patch(f"{PATH}.artifact_repo.is_following", new=AsyncMock(side_effect=[True, False])),
+        ):
+            async with client() as http:
+                followed = await http.put(_url(f"/{row.id}/follow"))
+                unfollowed = await http.delete(_url(f"/{row.id}/follow"))
+        assert followed.status_code == 200
+        assert followed.json()["following"] is True
+        assert unfollowed.status_code == 200
+        assert unfollowed.json()["following"] is False
+        assert follow.await_args.kwargs["artifact_id"] == row.id
+        assert unfollow.await_args.kwargs["artifact_id"] == row.id
+
+    @pytest.mark.security
+    async def test_a_page_the_caller_cannot_open_cannot_be_followed(
+        self, client: OpenClient
+    ) -> None:
+        """Following is not a way to learn that a page exists."""
+        follow = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=None)),
+            patch(f"{PATH}.artifact_repo.follow", new=follow),
+        ):
+            async with client() as http:
+                response = await http.put(_url(f"/{uuid.uuid4()}/follow"))
+        assert response.status_code == 404
+        follow.assert_not_called()
 
 
 class TestMembers:

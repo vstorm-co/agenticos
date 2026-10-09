@@ -468,6 +468,42 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def artifact_version_published(
+        self,
+        *,
+        recipients: list[UUID],
+        organization_id: UUID,
+        artifact_id: UUID,
+        title: str,
+        version_number: int,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """A page somebody follows got a new version (#1977).
+
+        `recipients` are followers the caller has already checked can still
+        read the page; the inbox checks again at read time
+        (`ContentGate.ARTIFACTS_VIEW`), so access lost in between hides the row.
+        One occurrence per version, so a retried publish tells nobody twice.
+        """
+        if not recipients:
+            return
+        page_path = self._link(f"/artifacts/{artifact_id}", organization_id)
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.ARTIFACT_VERSION_PUBLISHED,
+            occurrence_id=f"{artifact_id}:{version_number}",
+            summary=f"'{title}' has a new version (v{version_number}).",
+            context_url=page_path,
+            render_context={
+                "artifact_id": str(artifact_id),
+                "artifact_title": title,
+                "version": version_number,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            use_savepoint=True,
+        )
+
     async def hold_security_audience(self, organization_id: UUID | None) -> list[UUID]:
         """Lock the rows `security_event` is about to reference, before the
         audit chain lock is taken, and return them.

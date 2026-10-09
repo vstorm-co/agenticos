@@ -11,11 +11,12 @@ from uuid import UUID
 
 from sqlalchemy import and_, delete, false, func, or_, select
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
-from app.db.models.artifact import Artifact, ArtifactVersion
+from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
 
@@ -422,3 +423,40 @@ async def environment_names(db: AsyncSession, environment_ids: list[UUID]) -> di
         )
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+async def follow(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> None:
+    """Add a follower; following twice is following once."""
+    await db.execute(
+        pg_insert(ArtifactFollower)
+        .values(artifact_id=artifact_id, user_id=user_id)
+        .on_conflict_do_nothing(constraint="uq_artifact_follower")
+    )
+    await db.flush()
+
+
+async def unfollow(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> None:
+    await db.execute(
+        delete(ArtifactFollower).where(
+            ArtifactFollower.artifact_id == artifact_id, ArtifactFollower.user_id == user_id
+        )
+    )
+    await db.flush()
+
+
+async def is_following(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> bool:
+    result = await db.execute(
+        select(ArtifactFollower.id).where(
+            ArtifactFollower.artifact_id == artifact_id, ArtifactFollower.user_id == user_id
+        )
+    )
+    return result.first() is not None
+
+
+async def follower_ids(db: AsyncSession, artifact_id: UUID) -> list[UUID]:
+    result = await db.execute(
+        select(ArtifactFollower.user_id)
+        .where(ArtifactFollower.artifact_id == artifact_id)
+        .order_by(ArtifactFollower.created_at)
+    )
+    return list(result.scalars().all())

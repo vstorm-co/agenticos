@@ -21,7 +21,7 @@ import type { NotificationPreference } from "@/lib/notification-preferences-api"
  * `useNotificationPreferences` is mocked here rather than exercised for real
  * - its own wiring to `GET`/`PATCH /notifications/preferences` is
  * `use-notification-preferences.test.ts`'s job - so what this file pins for
- * it is that the page renders exactly the fourteen togglable pairs the
+ * it is that the page renders exactly the sixteen togglable pairs the
  * backend's `_TOGGLABLE_PAIRS` produces, in the shape the hook hands back.
  */
 
@@ -96,15 +96,14 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the fourteen togglable pairs the backend produces", () => {
+  it("offers exactly the sixteen togglable pairs the backend produces", () => {
     render(<NotificationsSettingsPage />);
 
-    // Four events offer both channels (2 switches each), five offer only
-    // in-app (1 each): 4*2 + 5 = 13... no - run_completed, run_failed,
+    // run_completed, run_failed, artifact_version_published,
     // ingestion_completed, ingestion_failed and announcement each offer both
-    // (5*2 = 10); budget_exceeded, approval_requested, usage_report and
-    // agent_usage_report offer only in-app (4*1 = 4). 10 + 4 = 14, plus the
-    // three legacy email switches above = 17 switches on the page total.
+    // channels (6*2 = 12); budget_exceeded, approval_requested, usage_report
+    // and agent_usage_report offer only in-app (4*1 = 4). 12 + 4 = 16, plus
+    // the three legacy email switches above = 19 switches on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -113,7 +112,8 @@ describe("the notifications settings page", () => {
     expect(
       screen.queryByRole("switch", { name: "Per-agent usage report - Email" }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(17);
+    expect(screen.getByRole("switch", { name: "Artifact updated - Email" })).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(19);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

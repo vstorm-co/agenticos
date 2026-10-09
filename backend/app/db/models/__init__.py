@@ -55,10 +55,16 @@ from app.db.models.notification import Notification, NotificationChannel, Notifi
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
-from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact import (
+    Artifact,
+    ArtifactFollower,
+    ArtifactMediaType,
+    ArtifactVersion,
+)
 
 __all__ = [
     "Artifact",
+    "ArtifactFollower",
     "ArtifactMediaType",
     "ArtifactVersion",
     "User",

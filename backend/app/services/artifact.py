@@ -81,6 +81,7 @@ from app.schemas.artifact import (
 )
 from app.services.access import ARTIFACT, resolve_access, visible_resource_ids
 from app.services.file_storage import get_file_storage
+from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -572,6 +573,7 @@ async def publish_with(
         sha256=sha256,
         storage_path=path,
         run_id=run_id,
+        actor_user_id=owner_user_id,
     )
     await record_audit(
         db,
@@ -595,8 +597,10 @@ async def _append_version(
     sha256: str,
     storage_path: str,
     run_id: UUID | None,
+    actor_user_id: UUID | None,
 ) -> ArtifactVersion:
-    """Add the next version, mark the publication, and prune past the kept window."""
+    """Add the next version, mark the publication, prune past the kept window, and
+    tell the page's followers."""
     version = await artifact_repo.create_version(
         db,
         artifact_id=artifact.id,
@@ -611,7 +615,36 @@ async def _append_version(
         db, artifact=artifact, update_data={"published_at": datetime.now(UTC)}
     )
     await _prune(db, artifact)
+    await _notify_followers(db, artifact, version, actor_user_id=actor_user_id)
     return version
+
+
+async def _notify_followers(
+    db: AsyncSession, artifact: Artifact, version: ArtifactVersion, *, actor_user_id: UUID | None
+) -> None:
+    """Tell everybody following the page that it has a new version (#1977).
+
+    Not the person whose run or restore made it - they know. And only followers
+    who can still open the page: following grants nothing, so one who lost
+    access is skipped here and again when the inbox is read. An `unchanged`
+    republish never reaches this, so a schedule that found nothing new is quiet.
+    """
+    followers = [
+        user_id
+        for user_id in await artifact_repo.follower_ids(db, artifact.id)
+        if user_id != actor_user_id
+    ]
+    readers = [
+        user_id for user_id in followers if await _may(db, artifact, user_id, Perm.ARTIFACTS_VIEW)
+    ]
+    await NotificationService(db).artifact_version_published(
+        recipients=readers,
+        organization_id=artifact.organization_id,
+        artifact_id=artifact.id,
+        title=artifact.title,
+        version_number=version.number,
+        actor_user_id=actor_user_id,
+    )
 
 
 async def read_source(
@@ -949,9 +982,27 @@ class ArtifactService:
         can_edit = await resolve_access(
             self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
         )
-        return await self._detail(artifact, can_edit=can_edit)
+        return await self._detail(ctx, artifact, can_edit=can_edit)
 
-    async def _detail(self, artifact: Artifact, *, can_edit: bool) -> ArtifactDetail:
+    async def follow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Be told in the inbox when this page gets a new version (#1977).
+
+        Anybody who may open the page may follow it; following twice is
+        following once.
+        """
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.follow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
+    async def unfollow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """Stop being told about new versions. Not following already is not an error."""
+        artifact = await self.get(ctx, artifact_id)
+        await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
+        return await self.read(ctx, artifact.id)
+
+    async def _detail(
+        self, ctx: AuthContext, artifact: Artifact, *, can_edit: bool
+    ) -> ArtifactDetail:
         current = await artifact_repo.latest_version(self.db, artifact.id)
         names = await artifact_repo.environment_names(
             self.db, [artifact.environment_id] if artifact.environment_id else []
@@ -966,6 +1017,10 @@ class ArtifactService:
         return ArtifactDetail(
             **self._read(artifact, current, names).model_dump(),
             can_edit=can_edit,
+            following=ctx.user_id is not None
+            and await artifact_repo.is_following(
+                self.db, artifact_id=artifact.id, user_id=ctx.user_id
+            ),
             public_link=ArtifactPublicLinkRead(
                 expires_at=artifact.public_expires_at,
                 pinned_version_id=pinned.id if pinned is not None else None,
@@ -1081,7 +1136,7 @@ class ArtifactService:
             artifact = await artifact_repo.update(
                 self.db, artifact=artifact, update_data={"title": data.title}
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def restore_version(
         self, ctx: AuthContext, artifact_id: UUID, version_id: UUID
@@ -1108,7 +1163,7 @@ class ArtifactService:
             )
         latest = await artifact_repo.latest_version(self.db, locked.id)
         if latest is not None and latest.id == source.id:
-            return await self._detail(locked, can_edit=True)
+            return await self._detail(ctx, locked, can_edit=True)
         if not await get_file_storage().exists(source.storage_path):
             logger.warning(
                 "artifact_bytes_missing",
@@ -1127,6 +1182,7 @@ class ArtifactService:
             sha256=source.sha256,
             storage_path=source.storage_path,
             run_id=None,
+            actor_user_id=ctx.subject_id,
         )
         await record_audit(
             self.db,
@@ -1137,7 +1193,7 @@ class ArtifactService:
             target_id=str(locked.id),
             details={"version": version.number, "restored": source.number},
         )
-        return await self._detail(locked, can_edit=True)
+        return await self._detail(ctx, locked, can_edit=True)
 
     async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn on the "anyone with the link" address, or rotate it when it is on.
@@ -1161,7 +1217,7 @@ class ArtifactService:
             target_type="artifact",
             target_id=str(artifact.id),
         )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def update_public_link(
         self, ctx: AuthContext, artifact_id: UUID, data: ArtifactPublicLinkUpdate
@@ -1211,7 +1267,7 @@ class ArtifactService:
                 target_id=str(artifact.id),
                 details={"fields": sorted(changes)},
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def _pinned_number(self, artifact: Artifact, version_id: UUID | None) -> int | None:
         if version_id is None:
@@ -1242,7 +1298,7 @@ class ArtifactService:
                 target_type="artifact",
                 target_id=str(artifact.id),
             )
-        return await self._detail(artifact, can_edit=True)
+        return await self._detail(ctx, artifact, can_edit=True)
 
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Delete an artifact, every version, its grants and its link.

@@ -114,6 +114,18 @@ async def restore_artifact_version(
     return await service.restore_version(ctx, artifact_id, version_id)
 
 
+@router.put("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Be notified in the inbox when the page gets a new version."""
+    return await service.follow(ctx, artifact_id)
+
+
+@router.delete("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Stop being notified about new versions."""
+    return await service.unfollow(ctx, artifact_id)
+
+
 @router.get("/{artifact_id}/view", response_model=ArtifactView)
 async def view_artifact(
     artifact_id: UUID,

@@ -4330,7 +4330,9 @@
       "yesDeleteMyAccount": "Yes, delete my account",
       "yourConversationsKnowledgeBase": "Your conversations, knowledge base contents, API keys, and all personal data will be permanently deleted. Active subscriptions will be canceled. This cannot be undone.",
       "avatarColour": "Fallback colour",
-      "avatarColourHint": "Shown as your avatar until you upload a picture."
+      "avatarColourHint": "Shown as your avatar until you upload a picture.",
+      "prefArtifactVersionPublished": "Artifact updated",
+      "prefArtifactVersionPublishedTrigger": "A page you follow gets a new version - republished by its agent or restored by a person."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5495,7 +5497,11 @@
     "wrongPassword": "That password is not right.",
     "passwordTitle": "This page is protected",
     "passwordWhy": "Type the password you were given to open it.",
-    "openPage": "Open the page"
+    "openPage": "Open the page",
+    "follow": "Follow",
+    "unfollow": "Unfollow",
+    "followed": "You will be notified when a new version is published",
+    "unfollowed": "You will no longer be notified about this page"
   },
   "groups": {
     "title": "Groups",

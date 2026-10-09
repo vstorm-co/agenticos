@@ -257,6 +257,21 @@ hardening a security review may ask for, not a requirement. Set the variable for
 the backend and for the frontend, which adds that origin to its `frame-src`. See
 [Configuration](configuration.md#published-artifacts).
 
+## Following a page
+
+**Follow** on a page's bar puts a notice in your inbox each time it gets a new
+version - an agent republished it with different content, or somebody restored
+an older version. A republish that changes nothing tells nobody, so a schedule
+that found nothing new stays quiet. The person whose run or restore made the
+version is not told about their own change.
+
+Following gives no access. Anybody who can open the page can follow it, and a
+follower who loses access stops receiving notices without unfollowing. The
+inbox checks access again when it is read, so a notice about a page that is no
+longer yours to open disappears with that access. The notice can also be sent
+by email; turn either channel off under **Settings → Notifications → Artifact
+updated**.
+
 ## Retention and deletion
 
 Artifacts are a [retention class](governance.md#the-classes) of their own,

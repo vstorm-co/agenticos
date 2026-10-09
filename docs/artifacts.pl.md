@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "a6f20542143f"
 ---
 
 # Artefakty { #artifacts }
@@ -271,6 +271,22 @@ jest wtedy w zupełnie innej witrynie. Nieprzezroczysty origin już ją izoluje,
 to jest utwardzenie, o które może poprosić przegląd bezpieczeństwa, a nie wymóg.
 Ustaw zmienną dla backendu i dla frontendu, który dodaje ten origin do swojego
 `frame-src`. Zobacz [Konfiguracja](configuration.md#published-artifacts).
+
+## Obserwowanie strony { #following-a-page }
+
+**Obserwuj** na pasku strony umieszcza powiadomienie w Twojej skrzynce za każdym
+razem, gdy strona dostaje nową wersję - agent opublikował ją ponownie z inną
+treścią albo ktoś przywrócił starszą wersję. Ponowna publikacja, która niczego
+nie zmienia, nikogo nie powiadamia, więc harmonogram, który nie znalazł nic
+nowego, pozostaje cichy. Osoba, której run albo przywrócenie utworzyło wersję,
+nie dostaje powiadomienia o własnej zmianie.
+
+Obserwowanie nie daje dostępu. Obserwować stronę może każdy, kto może ją
+otworzyć, a obserwujący, który straci dostęp, przestaje dostawać powiadomienia
+bez rezygnowania z obserwowania. Skrzynka sprawdza dostęp ponownie przy
+odczycie, więc powiadomienie o stronie, której nie możesz już otworzyć, znika
+razem z tym dostępem. Powiadomienie może też przyjść mailem; każdy kanał
+wyłączysz w **Ustawienia → Powiadomienia → Artefakt zaktualizowany**.
 
 ## Retencja i usuwanie { #retention-and-deletion }
 

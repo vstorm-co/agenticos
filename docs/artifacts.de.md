@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "a6f20542143f"
 ---
 
 # Artefakte { #artifacts }
@@ -295,6 +295,24 @@ das ist also eine Härtung, die ein Security-Review verlangen kann, keine
 Voraussetzung. Setzen Sie die Variable für das Backend und für das Frontend, das
 diesen Origin zu seinem `frame-src` hinzufügt. Siehe
 [Konfiguration](configuration.md#published-artifacts).
+
+## Einer Seite folgen { #following-a-page }
+
+**Folgen** in der Leiste einer Seite legt jedes Mal eine Benachrichtigung in
+Ihren Posteingang, wenn die Seite eine neue Version erhält - ein Agent hat sie
+mit anderem Inhalt neu veröffentlicht, oder jemand hat eine ältere Version
+wiederhergestellt. Eine Neuveröffentlichung, die nichts ändert, benachrichtigt
+niemanden, sodass ein Zeitplan, der nichts Neues gefunden hat, still bleibt. Wer
+die Version mit seinem Run oder seiner Wiederherstellung erzeugt hat, wird über
+die eigene Änderung nicht benachrichtigt.
+
+Folgen gewährt keinen Zugriff. Jeder, der die Seite öffnen kann, kann ihr
+folgen, und wer den Zugriff verliert, erhält keine Benachrichtigungen mehr, ohne
+entfolgen zu müssen. Der Posteingang prüft den Zugriff beim Lesen erneut, sodass
+eine Benachrichtigung über eine Seite, die Sie nicht mehr öffnen dürfen, mit
+diesem Zugriff verschwindet. Die Benachrichtigung kann auch per E-Mail kommen;
+jeden Kanal schalten Sie unter **Einstellungen → Benachrichtigungen → Artefakt
+aktualisiert** ab.
 
 ## Aufbewahrung und Löschung { #retention-and-deletion }
 

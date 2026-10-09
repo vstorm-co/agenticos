@@ -57,6 +57,7 @@ function detail(overrides: Partial<ArtifactDetailData> = {}): ArtifactDetailData
     created_at: "2026-09-01T10:00:00Z",
     updated_at: null,
     can_edit: false,
+    following: false,
     public_link: {
       expires_at: null,
       pinned_version_id: null,
@@ -82,6 +83,7 @@ function state(artifact: ArtifactDetailData | null, overrides: Record<string, un
     disablePublicLink: mutation(),
     updatePublicLink: mutation(),
     restoreVersion: mutation(),
+    follow: mutation(),
     remove: mutation(),
     ...overrides,
   };
@@ -114,6 +116,22 @@ describe("ArtifactViewer", () => {
     );
     // Nothing about who reaches it sits beside the page until Share is pressed.
     expect(sharingPanel).not.toHaveBeenCalled();
+  });
+
+  it("follows a page, and says so on the button once it does", async () => {
+    const follow = mutation();
+    useArtifactMock.mockReturnValue(state(detail(), { follow }));
+    const { rerender } = render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    const button = screen.getByRole("button", { name: "Follow" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(button);
+    expect(follow.mutate).toHaveBeenCalledWith(true);
+
+    useArtifactMock.mockReturnValue(state(detail({ following: true }), { follow }));
+    rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    await userEvent.click(screen.getByRole("button", { name: "Unfollow" }));
+    expect(follow.mutate).toHaveBeenLastCalledWith(false);
   });
 
   it("says in a word how far it reaches", () => {

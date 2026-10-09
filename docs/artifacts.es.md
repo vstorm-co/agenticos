@@ -1,5 +1,5 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "a6f20542143f"
 ---
 
 # Artefactos { #artifacts }
@@ -282,6 +282,22 @@ entonces en otro sitio por completo. El origen opaco ya la aísla, así que esto
 un endurecimiento que puede pedir una revisión de seguridad, no un requisito.
 Fija la variable para el backend y para el frontend, que añade ese origen a su
 `frame-src`. Consulta [Configuración](configuration.md#published-artifacts).
+
+## Seguir una página { #following-a-page }
+
+**Seguir**, en la barra de una página, deja un aviso en tu bandeja cada vez que
+la página recibe una versión nueva: un agente la volvió a publicar con otro
+contenido, o alguien restauró una versión anterior. Una republicación que no
+cambia nada no avisa a nadie, así que una programación que no encontró nada
+nuevo no hace ruido. La persona cuyo run o restauración creó la versión no recibe
+aviso de su propio cambio.
+
+Seguir no da acceso. Cualquiera que pueda abrir la página puede seguirla, y quien
+pierde el acceso deja de recibir avisos sin tener que dejar de seguirla. La
+bandeja vuelve a comprobar el acceso al leerse, de modo que un aviso sobre una
+página que ya no puedes abrir desaparece con ese acceso. El aviso también puede
+llegar por correo; cada canal se desactiva en **Settings → Notifications →
+Artifact updated**.
 
 ## Retención y borrado { #retention-and-deletion }
 

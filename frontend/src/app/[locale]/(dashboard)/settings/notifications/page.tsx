@@ -5,6 +5,7 @@ import {
   Bell,
   CircleDollarSign,
   FileCheck2,
+  FileText,
   FileX2,
   Hand,
   KeyRound,
@@ -97,6 +98,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email"],
   },
   { eventType: "run_failed", words: "prefRunFailed", icon: XCircle, channels: ["in_app", "email"] },
+  {
+    eventType: "artifact_version_published",
+    words: "prefArtifactVersionPublished",
+    icon: FileText,
+    channels: ["in_app", "email"],
+  },
   {
     eventType: "ingestion_completed",
     words: "prefIngestionCompleted",

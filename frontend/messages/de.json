@@ -4189,7 +4189,9 @@
       "yesDeleteMyAccount": "Ja, mein Konto löschen",
       "yourConversationsKnowledgeBase": "Ihre Unterhaltungen, die Inhalte der Wissensdatenbank, API-Schlüssel und alle persönlichen Daten werden endgültig gelöscht. Aktive Abonnements werden gekündigt. Das lässt sich nicht rückgängig machen.",
       "avatarColour": "Ersatzfarbe",
-      "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen."
+      "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
+      "prefArtifactVersionPublished": "Artefakt aktualisiert",
+      "prefArtifactVersionPublishedTrigger": "Eine Seite, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5353,7 +5355,11 @@
     "wrongPassword": "Dieses Passwort ist nicht richtig.",
     "passwordTitle": "Diese Seite ist geschützt",
     "passwordWhy": "Geben Sie das Passwort ein, das Sie erhalten haben, um sie zu öffnen.",
-    "openPage": "Seite öffnen"
+    "openPage": "Seite öffnen",
+    "follow": "Folgen",
+    "unfollow": "Nicht mehr folgen",
+    "followed": "Sie werden benachrichtigt, wenn eine neue Version veröffentlicht wird",
+    "unfollowed": "Sie werden über diese Seite nicht mehr benachrichtigt"
   },
   "groups": {
     "title": "Gruppen",

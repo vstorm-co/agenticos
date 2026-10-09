@@ -52,6 +52,7 @@ const DETAIL: ArtifactDetail = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: true,
+  following: false,
   public_link: {
     expires_at: null,
     pinned_version_id: null,
@@ -211,6 +212,35 @@ describe("useArtifact", () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("gone"));
     await act(async () => {
       await result.current.restoreVersion.mutateAsync("v0").catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalled();
+  });
+});
+
+describe("useArtifact follow", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("follows with a PUT, unfollows with a DELETE, and keeps the answer", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ ...DETAIL, following: true });
+    await act(() => result.current.follow.mutateAsync(true));
+    expect(apiClient.put).toHaveBeenCalledWith("/artifacts/a1/follow");
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "You will be notified when a new version is published",
+    );
+    await waitFor(() => expect(result.current.artifact?.following).toBe(true));
+
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ ...DETAIL, following: false });
+    await act(() => result.current.follow.mutateAsync(false));
+    expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1/follow");
+    expect(toastSuccess).toHaveBeenCalledWith("You will no longer be notified about this page");
+
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("gone"));
+    await act(async () => {
+      await result.current.follow.mutateAsync(true).catch(() => undefined);
     });
     expect(toastError).toHaveBeenCalled();
   });

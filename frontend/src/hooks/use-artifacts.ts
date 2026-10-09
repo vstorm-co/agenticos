@@ -145,6 +145,17 @@ export function useArtifact(artifactId: string) {
     },
     onError: fail,
   });
+  const follow = useMutation({
+    mutationFn: (on: boolean) =>
+      on
+        ? apiClient.put<ArtifactDetail>(`/artifacts/${artifactId}/follow`)
+        : apiClient.delete<ArtifactDetail>(`/artifacts/${artifactId}/follow`),
+    onSuccess: (artifact) => {
+      queryClient.setQueryData(qk.artifacts.detail(artifactId), artifact);
+      toast.success(t(artifact.following ? "followed" : "unfollowed"));
+    },
+    onError: fail,
+  });
   const remove = useMutation({
     mutationFn: () => apiClient.delete<void>(`/artifacts/${artifactId}`),
     onSuccess: async () => {
@@ -165,6 +176,7 @@ export function useArtifact(artifactId: string) {
     disablePublicLink,
     updatePublicLink,
     restoreVersion,
+    follow,
     remove,
   };
 }

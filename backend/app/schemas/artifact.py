@@ -88,6 +88,9 @@ class ArtifactDetail(ArtifactRead):
             "scope and any grant on this artifact, decided by the server"
         )
     )
+    following: bool = Field(
+        description="Whether the caller is told in their inbox when a new version is published"
+    )
     public_link: ArtifactPublicLinkRead
 
 

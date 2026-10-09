@@ -3121,7 +3121,11 @@
     "wrongPassword": "To hasło jest nieprawidłowe.",
     "passwordTitle": "Ta strona jest chroniona",
     "passwordWhy": "Wpisz otrzymane hasło, żeby ją otworzyć.",
-    "openPage": "Otwórz stronę"
+    "openPage": "Otwórz stronę",
+    "follow": "Obserwuj",
+    "unfollow": "Przestań obserwować",
+    "followed": "Dostaniesz powiadomienie, gdy pojawi się nowa wersja",
+    "unfollowed": "Nie będziesz już dostawać powiadomień o tej stronie"
   },
   "groups": {
     "title": "Grupy",
