@@ -186,7 +186,8 @@ services:
     restart: unless-stopped
 
   prefect-server:
-    image: prefecthq/prefect:3-latest
+    # Pinned for the reason given in docker-compose-prod.yml.
+    image: prefecthq/prefect:3.8.8-python3.12
     command: prefect server start --host 0.0.0.0
     volumes:
       - prefect_data:/root/.local/share/prefect/

@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scheduled triggers and every periodic job fire again.** The Prefect server
+  image was the floating `prefecthq/prefect:3-latest`, and a deploy on
+  2026-09-28 pulled 3.8.7, built against SQLAlchemy 2.1. Its scheduler fails on
+  every tick (PrefectHQ/prefect#23199) and creates no runs, while the API stays
+  healthy and every deployment reads ready. Agent triggers, notification emails,
+  portal polling, RAG sync checks and the hourly and daily sweeps stopped as a
+  result; manually run triggers kept working. All three compose files now pin
+  `3.8.8-python3.12`, whose image ships SQLAlchemy 2.0.
+
 ## [0.0.534] - 2026-10-09
 
 ### Changed

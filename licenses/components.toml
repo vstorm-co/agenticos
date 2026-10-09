@@ -171,7 +171,7 @@ tracked_in = "https://github.com/vstorm-co/agenticos/issues/1603"
 
 [[component]]
 name = "prefecthq/prefect"
-version = "3-latest"
+version = "3.8.8-python3.12"
 kind = "service image, deployment"
 license = "Apache-2.0"
 source = "https://github.com/PrefectHQ/prefect"

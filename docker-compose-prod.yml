@@ -223,7 +223,13 @@ services:
     # Production had no Prefect at all, which meant document ingestion,
     # collection syncs and scheduled reports never ran: an upload was accepted
     # and the document stayed unsearchable forever.
-    image: prefecthq/prefect:3-latest
+    # Pinned, not `3-latest`: every deploy pulls, and the floating tag moved on
+    # 2026-09-28 to a 3.8.7 image built against SQLAlchemy 2.1, whose scheduler
+    # creates no runs (PrefectHQ/prefect#23199) - every heartbeat in
+    # app/worker/prefect_app.py stopped while the API still answered healthy.
+    # Bump deliberately, and check the image's SQLAlchemy is below 2.1 until
+    # that issue is closed.
+    image: prefecthq/prefect:3.8.8-python3.12
     command: prefect server start --host 0.0.0.0
     volumes:
       - prefect_data:/root/.local/share/prefect/
