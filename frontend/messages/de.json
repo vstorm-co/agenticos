@@ -5548,5 +5548,16 @@
     "finish": "Einrichtung abschließen",
     "setUp": "Assistenten einrichten",
     "askAdmin": "Der Assistent ist in dieser Organisation noch nicht eingerichtet. Bitten Sie eine Administration, ihn aus den Agent-Vorlagen zu installieren."
+  },
+  "liveUpdates": {
+    "changedElsewhere": "{actor} hat das {surface} geändert, während Sie es bearbeitet haben. Laden Sie neu, um diese Version zu sehen, oder behalten Sie Ihre Änderungen und speichern Sie darüber.",
+    "reload": "Neu laden",
+    "keepMine": "Meine Änderungen behalten",
+    "surface": {
+      "console": "in der Konsole",
+      "api_key": "mit einem API-Schlüssel",
+      "mcp": "über MCP",
+      "assistant": "über den Plattform-Assistenten"
+    }
   }
 }

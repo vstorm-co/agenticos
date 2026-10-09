@@ -14,7 +14,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import __version__
 from starlette.routing import Route
 
-from app.services import platform_mcp
+from app.services import change_feed, platform_mcp
+from app.services.change_feed import ChangeFeedMiddleware
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -169,6 +170,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And the maintenance gate, which runs above the dependency graph on every
     # request and so has no `request.state` to read either.
     maintenance.configure(redis_client)
+    # And the change feed (#2061): its middleware publishes above the dependency
+    # graph, and its sockets outlive the request that opened them.
+    change_feed.configure(redis_client)
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
@@ -264,6 +268,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     channel_connection_state.configure(None)
     trigger_dedupe.configure(None)
     maintenance.configure(None)
+    change_feed.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -364,11 +369,16 @@ OS for your agents.
     setup_logfire()
     instrument_app(app)
 
-    # Innermost, so it sees a response as the route produced it. The
+    # Innermost but for the change feed, which passes a response through
+    # untouched - so it sees a response as the route produced it. The
     # `BaseHTTPMiddleware` layers above re-emit every body as a stream, and
     # Starlette skips `minimum_size` for a stream. Level 5 rather than 9: on JSON
     # the last levels buy a few percent for several times the CPU, and the load
     # test already found a deployment CPU-bound (`docs/load-testing.md`).
+    # Inside GZip, so the response it reads a created row's id from is the one
+    # the route wrote rather than its compressed form.
+    app.add_middleware(ChangeFeedMiddleware)
+
     app.add_middleware(
         GZipMiddleware,
         minimum_size=1024,

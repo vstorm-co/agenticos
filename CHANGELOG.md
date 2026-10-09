@@ -73,6 +73,15 @@ Two things are versioned separately from this file and worth knowing about:
   something wait on the approval gate. The MCP tool `create_agent` is renamed
   `create_agent_draft`, which no longer collides with delegation's. Migration
   `0109_internal_api_keys` (#1798).
+- **The console keeps up with changes made elsewhere.** A successful write
+  through the public API — from a script's key, Claude Code over MCP, the
+  Platform assistant or another person's console — is announced over Redis to
+  the organization's open consoles on the new `/api/v1/ws/events` socket, and
+  each page with nothing unsaved refetches in place. The Builder stops autosaving
+  when the agent it holds changes elsewhere: it takes the new draft when nothing
+  was edited, and otherwise says who changed it and through what and waits for
+  **Reload** or **Keep my changes**. A subscriber only hears about rows it may
+  read, and a socket whose session, key or membership is gone is closed (#2061).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

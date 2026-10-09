@@ -1,5 +1,5 @@
 ---
-source_sha: "ad746c44b22f"
+source_sha: "1e994dd4ff25"
 ---
 
 # Seguridad { #security }
@@ -203,6 +203,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Un refresh token reproducido termina su cadena y queda registrado | La rotación conserva el hash que sustituyó; un refresh que coincida con él es el caso de reutilización de la RFC 6819 §5.2.2.3 y cierra esa sesión con una entrada de auditoría (`SessionService.detect_refresh_reuse`). Un token presentado dentro de `REFRESH_REUSE_GRACE_SECONDS` (60 por defecto) desde su rotación es una respuesta perdida o una petición de una ráfaga con la misma cookie, no una reproducción, y recibe el sucesor que la fila ya guarda, reconstruido a partir del token gastado, de modo que cada petición de la ráfaga obtiene el mismo token (`SessionService.claim_refresh_grace`, `reissue_within_grace`); esa ventana es el coste aceptado | `test_session_revocation.py::TestReusingASpentRefreshToken`, `TestTheReuseGraceWindow` |
 | Claves de API de la organización | La autoridad de un miembro, limitada a los permisos con los que se emitió la clave y releída de la membresía del emisor en cada petición; SHA-256 en reposo, se muestra una vez, caducidad opcional, revocable, limitada por clave, aceptada solo en rutas públicas y nombrada por prefijo en las entradas de auditoría de la petición (`app/services/api_key.py`, `app/api/public_api.py`) | `tests/integration/test_api_keys.py`, `test_api_key_service.py` |
 | OAuth 2.1 para clientes MCP | Solo clientes públicos, PKCE (S256) obligatorio, redirect URI comparada exactamente; el consentimiento en la consola rechaza una sesión de suplantación y los permisos que el miembro no tiene; los códigos son de un solo uso, los refresh tokens rotan, y reutilizar uno revoca la concesión con cada token emitido (`app/services/oauth_server.py`, `app/services/platform_mcp/_oauth.py`) | `tests/integration/test_mcp_oauth.py` |
+| Eventos de cambios en vivo | Publicados solo después de que una escritura a través de la API pública haya tenido éxito y se haya confirmado; el acceso de cada suscriptor se vuelve a leer en cada evento, así que una fila que no puede leer, el cambio de otra organización o la eliminación de un tipo que su rol no ve completo nunca le llegan, y un socket cuya sesión, clave o membresía terminó se cierra (`app/services/change_feed.py`) | `tests/integration/test_change_feed.py` |
 
 ### Controles de auditoría · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

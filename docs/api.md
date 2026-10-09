@@ -239,6 +239,14 @@ Both stream tokens as they arrive (an agent with an output guardrail streams a s
 at a time, see [Guardrails](reference/capabilities.md#guardrails)) and both produce
 an ordinary run, with the same books as everything else.
 
+A third, **`/api/v1/ws/events`**, only listens. It is how an open console
+[keeps up with changes made elsewhere](console.md#changes-made-elsewhere):
+authenticated the same way, with the organization in `?organization_id=`, it
+sends one JSON frame per successful public write in that organization —
+`resource`, `id`, `action` (`created`, `updated` or `deleted`), `surface`
+(`console`, `api_key`, `mcp` or `assistant`) and who made it — and only for rows
+the caller may read.
+
 ## Errors
 
 One envelope, everywhere:

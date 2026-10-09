@@ -1,5 +1,5 @@
 ---
-source_sha: "6fc78494b7f7"
+source_sha: "4f3326b41450"
 ---
 
 # Die Konsole { #the-console }
@@ -133,6 +133,30 @@ Bis jemand mit `agents:edit` ihn installiert und veröffentlicht — die Schaltf
 bietet es an —, sagt er, wer das kann. Teilen Sie ihn beim Veröffentlichen mit der
 Organisation, damit alle denselben Assistenten haben.
 
+## Änderungen von anderswo { #changes-made-elsewhere }
+
+Eine offene Seite hält mit Änderungen Schritt, die anderswo gemacht werden: in
+der Konsole eines Kollegen, durch ein Skript mit einem [API-Schlüssel](api.md),
+durch Claude Code über den [MCP-Server der Plattform](mcp.md#agenticos-as-an-mcp-server)
+oder durch den Assistenten. Jeder erfolgreiche Schreibvorgang über die öffentliche
+API wird den offenen Konsolen der Organisation gemeldet, sobald er festgeschrieben
+ist, und eine Liste oder Detailseite ohne ungespeicherte Änderungen lädt an Ort
+und Stelle neu — ein mit einem Schlüssel erstellter Agent erscheint auf der Seite
+Agents, ohne dass Sie neu laden.
+
+Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
+sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
+die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
+ungespeicherten Änderungen sagt er, wer ihn worüber geändert hat, und wartet auf
+Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ihre,
+über deren gespeichert).
+
+Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
+Skill, einer Wissensbasis, einer Kontextdatei oder einer Seite, die Sie nicht
+sehen, erreicht Ihre Konsole nie, und eine Löschung erreicht nur Rollen, die
+jede Zeile dieser Art sehen. Bricht die Verbindung ab, arbeitet die Konsole wie
+bisher und verbindet sich selbst wieder.
+
 ## Chat { #chat }
 
 Hier sprechen Sie mit einem veröffentlichten Agent. Die Auswahl entscheidet,
@@ -221,6 +245,8 @@ dem ein echtes Problem als ein stilles gelesen wird.
   Seite Sie gerade sind.
 - **Chat, Slack und die API sind derselbe Runner**, also ist das, was Sie in der
   Konsole sehen, das, was ein Kunde bekommt.
+- **Änderungen von anderswo kommen von selbst an** — über die API, MCP oder den
+  Assistenten —, und der Builder fragt, bevor er ungespeicherte Änderungen ersetzt.
 - **Slash commands gehören Ihnen**, die eingebauten eingeschlossen, und Sie
   können die ausblenden, die Sie nicht nutzen.
 - Eine Seite, die "noch nichts da" zeigt, kann **eine fehlgeschlagene Anfrage**

@@ -33,6 +33,8 @@ import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
@@ -169,8 +171,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
-  const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
-    useAgent(id);
+  const {
+    agent,
+    isLoading,
+    fetchedAt,
+    saveDraft,
+    validate,
+    publish,
+    rollback,
+    setAvatar,
+    setColor,
+  } = useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
@@ -316,9 +327,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // request every 1.2 seconds. When both are spent the badge keeps saying
   // "Unsaved", which by then is the truth.
   const { mutateAsync: storeDraft, isPending: storing } = saveDraft;
+  // A change to this draft made through the API, MCP, the assistant or another
+  // console holds the autosave: storing the spec on this page would otherwise
+  // overwrite it unseen, because the refetch it causes makes this page "dirty"
+  // against the new stored draft (#2061).
+  const remote = useRemoteDraft({
+    resource: "agent",
+    id,
+    local: spec,
+    stored: agent?.draft_spec,
+    fetchedAt,
+    adopt: setSpec,
+  });
   const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
   useEffect(() => {
-    if (!canEdit || !spec || !agent?.draft_spec || !isDirty || storing) return;
+    if (!canEdit || !spec || !agent?.draft_spec || !isDirty || storing || remote.held) return;
     const payload = JSON.stringify(spec);
     if (payload === attempts.current.payload && attempts.current.tries >= 2) return;
     const timer = setTimeout(() => {
@@ -331,7 +354,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       void storeDraft(spec).catch(() => null);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing]);
+  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing, remote.held]);
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
@@ -878,6 +901,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </>
         }
       />
+
+      {remote.conflict && (
+        <RemoteChangeBanner
+          change={remote.conflict}
+          onReload={remote.reload}
+          onKeepMine={remote.keepMine}
+        />
+      )}
 
       {((agent.categories ?? []).length > 0 || (agent.tags ?? []).length > 0) && (
         <div className="flex flex-wrap items-center gap-1.5">

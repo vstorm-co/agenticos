@@ -74,6 +74,8 @@ export default defineConfig({
         "src/components/settings/connected-apps.tsx",
         // The page an MCP client sends a person to, to consent (#2059).
         "src/components/oauth/**/*.tsx",
+        // Live updates from changes made elsewhere (#2061).
+        "src/components/live-updates/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",

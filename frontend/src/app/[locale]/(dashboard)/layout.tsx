@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
@@ -18,6 +19,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
+      {/* Changes made through the API, MCP or the assistant reach open pages. */}
+      <LiveUpdates />
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>

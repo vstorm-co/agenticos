@@ -40,6 +40,7 @@ from app.schemas.api_key import (
     ApiKeyScopeCatalog,
     ApiKeyStatus,
 )
+from app.schemas.change_event import ChangeSurface
 
 KEY_PREFIX = "aos_"
 """What every organization key starts with - so a secret scanner, a log scrubber
@@ -111,6 +112,8 @@ class KeyCaller:
     context: AuthContext
     api_key_id: UUID
     prefix: str
+    surface: ChangeSurface = "api_key"
+    """Which kind of client holds the key - what a change it makes is attributed to."""
 
 
 class ApiKeyService:
@@ -322,6 +325,7 @@ class ApiKeyService:
             organization=organization,
             api_key_id=key.id,
             prefix=key.prefix,
+            surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
             context=AuthContext(
                 user_id=key.user_id,
                 organization_id=key.organization_id,

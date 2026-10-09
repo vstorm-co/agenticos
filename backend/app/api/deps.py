@@ -372,6 +372,8 @@ from app.db.models.user import User
 from app.api.public_api import is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.oauth_server import OAuthServerService
+from app.services.change_feed import ChangeOrigin
+from app.schemas.change_event import ChangeSurface
 
 
 def get_api_key_service(db: DBSession) -> ApiKeyService:
@@ -739,6 +741,22 @@ def get_sharing_service(db: DBSession) -> SharingService:
 SharingSvc = Annotated[SharingService, Depends(get_sharing_service)]
 
 
+def _attributed(
+    request: Request, user: User, ctx: AuthContext, surface: ChangeSurface
+) -> AuthContext:
+    """Return `ctx`, recording who a change this request makes is attributed to.
+
+    Read by the change feed once the response is out (#2061).
+    """
+    request.state.change_origin = ChangeOrigin(
+        organization_id=ctx.organization_id,
+        actor_user_id=user.id,
+        actor_name=user.full_name or user.email,
+        surface=surface,
+    )
+    return ctx
+
+
 async def get_auth_context(
     request: Request, user: CurrentUser, org: ActiveOrg, db: DBSession
 ) -> AuthContext:
@@ -751,19 +769,20 @@ async def get_auth_context(
     """
     caller = _key_caller(request)
     if caller is not None:
-        return caller.context
+        return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org.id, user_id=user.id)
     if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(org.id)},
         )
-    return AuthContext(
+    ctx = AuthContext(
         user_id=user.id,
         organization_id=org.id,
         role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
     )
+    return _attributed(request, user, ctx, "console")
 
 
 Auth = Annotated[AuthContext, Depends(get_auth_context)]
@@ -790,18 +809,19 @@ async def get_path_org_context(
             raise NotFoundError(
                 message="Organization not found or access denied", details={"org_id": org_id}
             )
-        return caller.context
+        return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org_id, user_id=user.id)
     if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied", details={"org_id": org_id}
         )
-    return AuthContext(
+    ctx = AuthContext(
         user_id=user.id,
         organization_id=org_id,
         role=membership.role if membership else "",
         is_app_admin=user.is_app_admin,
     )
+    return _attributed(request, user, ctx, "console")
 
 
 PathOrgAuth = Annotated[AuthContext, Depends(get_path_org_context)]

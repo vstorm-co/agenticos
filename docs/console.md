@@ -115,6 +115,27 @@ Until somebody with `agents:edit` installs and publishes it — the button offer
 to — it says who can. Share it with the organization when you publish it, so
 everyone gets the same assistant.
 
+## Changes made elsewhere
+
+An open page keeps up with changes made somewhere else: a colleague's console,
+a script with an [API key](api.md), Claude Code over the
+[platform's MCP server](mcp.md#agenticos-as-an-mcp-server), or the assistant.
+Each successful write through the public API is announced to the organization's
+open consoles once it has committed, and a list or detail page with nothing
+unsaved on it refetches in place — an agent created by a key appears on the
+Agents page without a reload.
+
+The Builder is the exception, because it saves your draft as you type. When the
+agent you are editing changes elsewhere it stops saving and fetches the new
+version. With nothing unsaved it simply takes it; with unsaved edits it tells you
+who changed it and through what, and waits for you to choose **Reload** (their
+version) or **Keep my changes** (yours, saved over theirs).
+
+You only hear about what you could read: a change to an agent, skill, knowledge
+base, context file or page you cannot see never reaches your console, and a
+deletion reaches only roles that see every row of its kind. When the connection
+drops the console works as before and reconnects on its own.
+
 ## Chat
 
 Where you talk to a published agent. The picker chooses which agent answers, and
@@ -196,6 +217,8 @@ quiet one.
   independent of whichever page you are on.
 - **Chat, Slack and the API are the same runner**, so what you see in the
   console is what a customer gets.
+- **Changes made elsewhere arrive on their own** — through the API, MCP or the
+  assistant — and the Builder asks before replacing unsaved edits.
 - **Slash commands are yours**, built-in ones included, and you can hide the
   ones you do not use.
 - A page showing "nothing yet" may be **a failed request**, not an empty

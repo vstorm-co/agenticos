@@ -120,6 +120,7 @@ vi.mock("@/stores", () => ({
     select({ select: vi.fn() }),
   useConversationStore: (select: (state: { reset: () => void }) => unknown) =>
     select({ reset: vi.fn() }),
+  useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
 }));
 
 // Composition the Model panel does not depend on. Each is covered where it

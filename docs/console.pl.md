@@ -1,5 +1,5 @@
 ---
-source_sha: "6fc78494b7f7"
+source_sha: "4f3326b41450"
 ---
 
 # Konsola { #the-console }
@@ -123,6 +123,27 @@ Dopóki ktoś z `agents:edit` go nie zainstaluje i nie opublikuje — przycisk t
 proponuje — mówi, kto może to zrobić. Przy publikacji udostępnij go organizacji,
 żeby wszyscy mieli tego samego asystenta.
 
+## Zmiany wprowadzone gdzie indziej { #changes-made-elsewhere }
+
+Otwarta strona nadąża za zmianami wprowadzonymi gdzie indziej: w konsoli
+współpracownika, przez skrypt z [kluczem API](api.md), przez Claude Code
+połączone z [serwerem MCP platformy](mcp.md#agenticos-as-an-mcp-server) albo przez
+asystenta. Każdy udany zapis przez publiczne API jest ogłaszany otwartym konsolom
+organizacji, gdy tylko zostanie zatwierdzony, a lista lub strona szczegółów bez
+niezapisanych zmian pobiera dane ponownie na miejscu — agent utworzony kluczem
+pojawia się na stronie Agents bez przeładowania.
+
+Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
+zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
+niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
+którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
+**Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
+
+Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
+pliku kontekstu albo strony, której nie widzisz, nigdy nie trafia do twojej
+konsoli, a usunięcie trafia tylko do ról, które widzą każdy wiersz danego rodzaju.
+Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
+
 ## Chat { #chat }
 
 Miejsce, w którym rozmawiasz z opublikowanym agentem. Selektor wybiera, który
@@ -205,6 +226,8 @@ problem zostaje odczytany jako cisza.
   kliknięcie, niezależnie od tego, na której stronie akurat jesteś.
 - **Chat, Slack i API to ten sam runner**, więc to, co widzisz w konsoli, jest
   tym, co dostaje klient.
+- **Zmiany wprowadzone gdzie indziej docierają same** — przez API, MCP albo
+  asystenta — a Builder pyta, zanim zastąpi niezapisane zmiany.
 - **Slash commands są twoje**, łącznie z wbudowanymi, a te, z których nie
   korzystasz, możesz ukryć.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie

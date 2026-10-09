@@ -3286,5 +3286,16 @@
     "finish": "Dokończ konfigurację",
     "setUp": "Skonfiguruj asystenta",
     "askAdmin": "Asystent nie jest jeszcze skonfigurowany w tej organizacji. Poproś administratora o zainstalowanie go z szablonów agentów."
+  },
+  "liveUpdates": {
+    "changedElsewhere": "{actor} zmienił(a) to {surface} w trakcie twojej edycji. Przeładuj, aby zobaczyć tę wersję, albo zachowaj swoje zmiany i zapisz je zamiast niej.",
+    "reload": "Przeładuj",
+    "keepMine": "Zachowaj moje zmiany",
+    "surface": {
+      "console": "w konsoli",
+      "api_key": "kluczem API",
+      "mcp": "przez MCP",
+      "assistant": "przez asystenta platformy"
+    }
   }
 }

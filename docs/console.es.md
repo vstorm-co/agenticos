@@ -1,5 +1,5 @@
 ---
-source_sha: "6fc78494b7f7"
+source_sha: "4f3326b41450"
 ---
 
 # La consola { #the-console }
@@ -121,6 +121,27 @@ Hasta que alguien con `agents:edit` lo instale y lo publique — el botón lo of
 dice quién puede hacerlo. Compártelo con la organización al publicarlo, para que
 todos tengan el mismo asistente.
 
+## Cambios hechos en otro lugar { #changes-made-elsewhere }
+
+Una página abierta se mantiene al día con los cambios hechos en otro lugar: la
+consola de un compañero, un script con una [clave de API](api.md), Claude Code a
+través del [servidor MCP de la plataforma](mcp.md#agenticos-as-an-mcp-server) o el
+asistente. Cada escritura correcta a través de la API pública se anuncia a las
+consolas abiertas de la organización en cuanto se confirma, y una lista o una
+página de detalle sin nada sin guardar vuelve a pedir los datos en su sitio: un
+agent creado con una clave aparece en la página Agents sin recargar.
+
+La excepción es el Builder, porque guarda tu borrador mientras escribes. Cuando el
+agent que editas cambia en otro lugar, deja de guardar y obtiene la nueva versión.
+Si no hay nada sin guardar, simplemente la adopta; si hay cambios sin guardar, te
+dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su versión)
+o **Conservar mis cambios** (la tuya, guardada encima de la suya).
+
+Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
+de conocimiento, un archivo de contexto o una página que no ves nunca llega a tu
+consola, y una eliminación solo llega a los roles que ven todas las filas de ese
+tipo. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
+
 ## Chat { #chat }
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
@@ -204,6 +225,8 @@ que un problema real se lea como algo tranquilo.
   un clic, sin importar en qué página estés.
 - **Chat, Slack y la API son el mismo runner**, así que lo que ves en la consola
   es lo que recibe un cliente.
+- **Los cambios hechos en otro lugar llegan solos** — por la API, MCP o el
+  asistente — y el Builder pregunta antes de reemplazar cambios sin guardar.
 - **Los comandos de barra son tuyos**, incluidos los de serie, y puedes ocultar
   los que no uses.
 - Una página que muestra "todavía nada" puede ser **una petición fallida**, no un

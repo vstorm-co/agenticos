@@ -5690,5 +5690,16 @@
     "finish": "Finish setting it up",
     "setUp": "Set up the assistant",
     "askAdmin": "The assistant is not set up in this organization yet. Ask an administrator to install it from the agent templates."
+  },
+  "liveUpdates": {
+    "changedElsewhere": "{actor} changed this {surface} while you were editing it. Reload to see their version, or keep your changes to save over it.",
+    "reload": "Reload",
+    "keepMine": "Keep my changes",
+    "surface": {
+      "console": "in the console",
+      "api_key": "with an API key",
+      "mcp": "over MCP",
+      "assistant": "through the Platform assistant"
+    }
   }
 }

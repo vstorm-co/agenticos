@@ -1,5 +1,5 @@
 ---
-source_sha: "607db26c1ad1"
+source_sha: "4a0a94002702"
 ---
 
 # API HTTP { #the-http-api }
@@ -243,6 +243,14 @@ Dwa endpointy WebSocket, dla dwóch odbiorców.
 Oba strumieniują tokeny w miarę ich napływania (agent z guardrailem na wyjściu
 streamuje krok po kroku, zobacz [Guardrails](reference/capabilities.md#guardrails))
 i oba tworzą zwyczajny run, z tymi samymi księgami co wszystko inne.
+
+Trzeci, **`/api/v1/ws/events`**, tylko nasłuchuje. Dzięki niemu otwarta konsola
+[nadąża za zmianami wprowadzonymi gdzie indziej](console.md#changes-made-elsewhere):
+uwierzytelniony tak samo, z organizacją w `?organization_id=`, wysyła jedną ramkę
+JSON na każdy udany zapis przez publiczne API w tej organizacji — `resource`,
+`id`, `action` (`created`, `updated` albo `deleted`), `surface` (`console`,
+`api_key`, `mcp` albo `assistant`) i kto go wykonał — i tylko o wierszach, które
+wywołujący może odczytać.
 
 ## Błędy { #errors }
 
