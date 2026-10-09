@@ -2,9 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   MCP_OAUTH_RETURN_COOKIE,
+  mcpOAuthAdminConsented,
   mcpOAuthConnected,
   mcpOAuthRefused,
   mcpOAuthUpstreamRefusal,
+  needsAdminConsent,
   safeMcpOAuthReturn,
 } from "@/lib/mcp-oauth";
 import { backendFetch } from "@/lib/server-api";
@@ -48,8 +50,13 @@ export async function GET(request: NextRequest) {
 
   const providerError = params.get("error");
   if (providerError) {
-    return servers(mcpOAuthUpstreamRefusal(params.get("error_description") ?? providerError));
+    const description = params.get("error_description");
+    if (needsAdminConsent(description)) return servers(mcpOAuthRefused("ADMIN_CONSENT_REQUIRED"));
+    return servers(mcpOAuthUpstreamRefusal(description ?? providerError));
   }
+  // An administrator approving the app for the tenant: Entra answers on this
+  // same redirect URI with no code, because nothing is exchanged.
+  if (params.get("admin_consent") === "True") return servers(mcpOAuthAdminConsented());
 
   const code = params.get("code");
   const state = params.get("state");
@@ -62,10 +69,14 @@ export async function GET(request: NextRequest) {
       ok: boolean;
       connection_name: string | null;
       error: string | null;
+      failure: "admin_consent_required" | null;
     }>("/api/v1/me/mcp-connections/oauth/callback", {
       method: "POST",
       body: JSON.stringify({ code, state }),
     });
+    if (result.failure === "admin_consent_required") {
+      return servers(mcpOAuthRefused("ADMIN_CONSENT_REQUIRED"));
+    }
     if (!result.ok) {
       return servers(
         result.error

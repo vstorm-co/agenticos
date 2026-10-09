@@ -172,10 +172,11 @@ export async function startGithubOrgOAuth(
 /**
  * Begin consent for a portal the platform *polls* rather than is posted to.
  *
- * Gmail's case: nothing registers a webhook, so the flow's only job is a
- * refreshable token carrying the portal's read scopes. It uses the deployment's
- * own Google client rather than a per-organization OAuth App, so a deployment with
- * none configured answers 404 and the card shows it as a prerequisite.
+ * Gmail's and Microsoft 365's case: nothing registers a webhook, so the flow's
+ * only job is a refreshable token carrying the portal's read scopes. It spends
+ * the client the organization stored for the portal - a Google OAuth client, or
+ * the Entra app - so with none stored it answers 404 and the card shows it as a
+ * prerequisite.
  */
 export async function startPolledPortalOAuth(
   portalKey: string,
@@ -183,4 +184,31 @@ export async function startPolledPortalOAuth(
   return apiClient.post<{ authorization_url: string }>("/mcp-connections/oauth/start/portal", {
     portal_key: portalKey,
   });
+}
+
+/**
+ * Remove the organization's account on a polled portal, and every trigger
+ * reading through it stops with it.
+ *
+ * The grant is the organization's one account on that service, so this is how a
+ * different account is connected instead: disconnect, then connect again. A 404
+ * means nobody had connected it.
+ */
+export async function disconnectPortal(portalKey: string): Promise<void> {
+  await apiClient.delete<void>(`/mcp-connections/portals/${encodeURIComponent(portalKey)}`);
+}
+
+/**
+ * Where a Microsoft 365 tenant administrator approves the organization's Entra
+ * app for everyone, so members can consent to it.
+ *
+ * Built server-side from the `entra_app` secret in the vault, so it names the
+ * tenant and client actually connected through. Nothing is granted by fetching
+ * it: the link is handed to whoever administers the tenant.
+ */
+export async function fetchMicrosoftAdminConsentUrl(): Promise<string> {
+  const { url } = await apiClient.get<{ url: string }>(
+    "/mcp-connections/portals/microsoft/admin-consent",
+  );
+  return url;
 }

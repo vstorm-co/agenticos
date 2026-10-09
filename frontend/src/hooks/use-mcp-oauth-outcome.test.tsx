@@ -36,6 +36,15 @@ describe("announcing an MCP OAuth outcome", () => {
     expect(toast.error).toHaveBeenCalledWith("The provider sent no authorization code.");
   });
 
+  it("tells an administrator their approval for the tenant landed, as good news", () => {
+    arriveAt("?mcp_oauth=admin_consent");
+
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringMatching(/^An administrator approved the app/),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("quotes a provider's own account of a refusal", () => {
     arriveAt("?mcp_oauth=error&mcp_oauth_detail=You%20said%20no");
 

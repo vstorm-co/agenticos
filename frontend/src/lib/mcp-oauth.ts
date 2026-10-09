@@ -23,14 +23,34 @@ import { isSafeReturnPath } from "@/lib/safe-return-path";
  * instruction from us.
  */
 
-/** A refusal written in this repository, and therefore translatable. */
-export type McpOAuthFailure = "AUTHORIZATION_FAILED" | "MISSING_AUTHORIZATION_CODE";
+/**
+ * A refusal written in this repository, and therefore translatable.
+ *
+ * `ADMIN_CONSENT_REQUIRED` is Entra's `AADSTS65001`: the tenant lets no member
+ * consent to this app until an administrator has, so retrying cannot help and
+ * the copy says who has to act instead.
+ */
+export type McpOAuthFailure =
+  "AUTHORIZATION_FAILED" | "MISSING_AUTHORIZATION_CODE" | "ADMIN_CONSENT_REQUIRED";
 
 /** Copy for each, under the `mcp` namespace. */
 const FAILURE_KEYS: Record<McpOAuthFailure, string> = {
   AUTHORIZATION_FAILED: "oauthFailed",
   MISSING_AUTHORIZATION_CODE: "oauthMissingCode",
+  ADMIN_CONSENT_REQUIRED: "oauthAdminConsentRequired",
 };
+
+/**
+ * Whether Entra refused at its own consent screen for want of an administrator.
+ *
+ * Entra names the refusal only inside `error_description` (`AADSTS65001: The
+ * user or administrator has not consented...`); `error` is a generic
+ * `consent_required` or `access_denied` shared with refusals that retrying does
+ * fix.
+ */
+export function needsAdminConsent(errorDescription: string | null): boolean {
+  return errorDescription?.includes("AADSTS65001") ?? false;
+}
 
 /** Long enough for a provider's sentence, short enough not to be a paragraph. */
 const DETAIL_LIMIT = 200;
@@ -45,12 +65,25 @@ export const MCP_OAUTH_PARAMS = [
 
 export type McpOAuthOutcome =
   | { status: "success"; name: string }
+  | { status: "admin-consented" }
   | { status: "error"; failure: McpOAuthFailure }
   | { status: "upstream-error"; detail: string };
 
 /** The query for a consent that finished, naming the connection it created. */
 export function mcpOAuthConnected(name: string): string {
   return `mcp_oauth=success&mcp_oauth_name=${encodeURIComponent(name)}`;
+}
+
+/**
+ * The query for an administrator's approval of the app for their whole tenant.
+ *
+ * Entra's admin-consent endpoint returns to the same redirect URI as a sign-in,
+ * with `admin_consent=True` and no code: nothing is exchanged and no connection
+ * is made, so without its own outcome it read as "the provider sent no
+ * authorization code".
+ */
+export function mcpOAuthAdminConsented(): string {
+  return "mcp_oauth=admin_consent";
 }
 
 /** The query for one this deployment refused. */
@@ -73,6 +106,7 @@ export function readMcpOAuthOutcome(search: string): McpOAuthOutcome | null {
   const status = params.get("mcp_oauth");
   if (!status) return null;
   if (status === "success") return { status: "success", name: params.get("mcp_oauth_name") ?? "" };
+  if (status === "admin_consent") return { status: "admin-consented" };
   const failure = params.get("mcp_oauth_failure");
   if (failure !== null && failure in FAILURE_KEYS) {
     return { status: "error", failure: failure as McpOAuthFailure };
@@ -89,6 +123,8 @@ export function mcpOAuthMessage(outcome: McpOAuthOutcome, t: Translate): string 
       return outcome.name === ""
         ? t("oauthConnectedUnnamed")
         : t("oauthConnected", { name: outcome.name });
+    case "admin-consented":
+      return t("oauthAdminConsented");
     case "error":
       return t(FAILURE_KEYS[outcome.failure]);
     case "upstream-error":

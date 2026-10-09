@@ -110,8 +110,7 @@ describe("starting an OAuth flow", () => {
 
   it("starts a polled portal through the endpoint that registers no webhook", async () => {
     // Gmail's case: nothing is registered anywhere, so the flow's only job is a
-    // refreshable token - and it runs on the deployment's own Google client rather
-    // than a per-organization OAuth App (#1068).
+    // refreshable token, on the client the organization stored for the portal.
     vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://google/consent" });
 
     await expect(personal.startPolledPortalOAuth("google")).resolves.toEqual({
@@ -120,6 +119,24 @@ describe("starting an OAuth flow", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/oauth/start/portal", {
       portal_key: "google",
     });
+  });
+});
+
+describe("a polled portal's account", () => {
+  it("disconnects it by the portal's key", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+    await expect(personal.disconnectPortal("microsoft")).resolves.toBeUndefined();
+    expect(apiClient.delete).toHaveBeenCalledWith("/mcp-connections/portals/microsoft");
+  });
+
+  it("reads the admin-consent link the server built from the Entra app", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ url: "https://login.microsoftonline.com/x" });
+
+    await expect(personal.fetchMicrosoftAdminConsentUrl()).resolves.toBe(
+      "https://login.microsoftonline.com/x",
+    );
+    expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections/portals/microsoft/admin-consent");
   });
 });
 

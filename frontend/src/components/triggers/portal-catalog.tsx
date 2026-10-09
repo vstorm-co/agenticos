@@ -10,6 +10,7 @@ import Link from "next/link";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
+import { PortalAccountControls } from "@/components/triggers/portal-account-controls";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -39,6 +40,7 @@ import {
   startPolledPortalOAuth,
 } from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
+import { hereForMcpOAuthReturn, rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
 
 /**
  * A backend category slug as a heading - hyphens read as a machine field, and
@@ -89,10 +91,9 @@ const BLOCKED_REASON: Record<NonNullable<PortalCatalogEntry["connect_blocked_by"
 /**
  * Whether the vault is where this portal's prerequisite is fixed.
  *
- * `oauth_unavailable` is not: a polled portal connects on the deployment's own
- * Google client, which is an environment variable an operator sets, so a
- * disabled "Add credentials" and a link to a store holding nothing relevant are
- * two controls that lie about what would help.
+ * `oauth_unavailable` is not: the portal declares no credential to connect
+ * with, so a disabled "Add credentials" and a link to a store holding nothing
+ * relevant are two controls that lie about what would help.
  */
 function vaultFixable(item: PortalWithState): boolean {
   return (
@@ -120,6 +121,10 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   // GitHub OAuth App.
   const [addingSecret, setAddingSecret] = useState<PortalWithState | null>(null);
   const { kinds, create: createSecret } = useSecrets();
+  // The vault's own name for the credential a blocked card asks for, so the
+  // sentence names Google's or Microsoft's client rather than always GitHub's.
+  const credentialName = (kind: string | null) =>
+    kinds.find((entry) => entry.kind === kind)?.name ?? t("oauthAppFallback");
   const queryClient = useQueryClient();
 
   const categories = useMemo(
@@ -143,8 +148,9 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
       // Three flows, because three kinds of provider. GitHub cannot be discovered
       // like a generic MCP server, so its consent URL is built from the
       // organization's own OAuth App secret keyed by the portal. A *polled* portal
-      // registers nothing and only needs a refreshable token, on the deployment's
-      // own client. Everything else follows discovery-and-registration.
+      // registers nothing and only needs a refreshable token, on the client the
+      // organization stored for it - Google's OAuth client, or Microsoft's Entra
+      // app. Everything else follows discovery-and-registration.
       const { authorization_url } =
         item.portal.delivery === "polling"
           ? await startPolledPortalOAuth(item.portal.key)
@@ -154,6 +160,12 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                 { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
                 "organization",
               );
+      // Back to this dialog's page rather than the MCP servers one, which is
+      // where the callback lands otherwise - and where a refusal such as "your
+      // administrator has to approve this app" would be told to somebody who
+      // never asked about MCP servers.
+      const here = hereForMcpOAuthReturn();
+      if (here !== undefined) rememberMcpOAuthReturn(here);
       window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotConnect")));
@@ -273,7 +285,9 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                       is: a Member who cannot fix it is not told to. */}
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
-                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"])}
+                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
+                        credential: credentialName(item.portal.oauth_app_kind),
+                      })}
                     </p>
                   )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
@@ -297,7 +311,13 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                           <Link href={ROUTES.VAULT}>{t("openVault")}</Link>
                         </Button>
                       ))}
-                    {item.action === "create" && canRun && (
+                    {/* A portal with no presets connects an account and nothing
+                        more yet, so there is no trigger to create and the card
+                        says it is connected instead. */}
+                    {item.action === "create" && item.portal.presets.length === 0 && (
+                      <Badge variant="secondary">{t("connectedState")}</Badge>
+                    )}
+                    {item.action === "create" && canRun && item.portal.presets.length > 0 && (
                       <Button size="sm" variant="outline" onClick={() => setDialog(item)}>
                         <Sparkles className="mr-1 h-3.5 w-3.5" />
                         {t("createAction")}
@@ -325,6 +345,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                         {busyKey === item.portal.key ? t("redirecting") : t("reauthorizeAction")}
                       </Button>
                     )}
+                    {canManageConnections && <PortalAccountControls item={item} />}
                   </div>
                 </div>
               </CardContent>

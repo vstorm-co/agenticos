@@ -56,6 +56,7 @@ const mutation = () => ({
 let allowed: Set<Permission>;
 
 vi.mock("@/hooks", () => ({
+  useMcpOAuthOutcome: () => undefined,
   useAgent: () => ({
     agent: AGENT,
     isLoading: false,

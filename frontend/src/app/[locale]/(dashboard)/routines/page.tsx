@@ -9,7 +9,7 @@ import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
-import { useCanCreateTrigger } from "@/hooks";
+import { useCanCreateTrigger, useMcpOAuthOutcome } from "@/hooks";
 
 /**
  * The org-wide home for everything an agent does on its own.
@@ -29,6 +29,9 @@ export default function RoutinesPage() {
   const canCreate = useCanCreateTrigger();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  // Connecting a portal's account from the event dialog returns here, so this
+  // page tells how the consent went.
+  useMcpOAuthOutcome();
 
   return (
     <div className="space-y-6">

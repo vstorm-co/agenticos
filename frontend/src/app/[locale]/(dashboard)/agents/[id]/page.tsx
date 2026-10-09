@@ -100,6 +100,7 @@ import {
   useOrgMcpConnections,
   usePermissions,
   useSkills,
+  useMcpOAuthOutcome,
 } from "@/hooks";
 import {
   readSubagentsConfig,
@@ -169,6 +170,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
+  // The triggers panel connects a portal's account, and the consent returns here.
+  useMcpOAuthOutcome();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
     useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);

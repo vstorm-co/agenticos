@@ -670,6 +670,56 @@ describe("finishing an MCP OAuth flow", () => {
     });
   });
 
+  it("names Entra's need for an administrator rather than quoting it", async () => {
+    // A member of a tenant that allows no user consent: retrying cannot help, so
+    // the toast says who has to act instead of repeating Entra's sentence.
+    const response = await callback(
+      callbackRequest(
+        "error=consent_required&error_description=" +
+          encodeURIComponent("AADSTS65001: The user or administrator has not consented"),
+      ),
+    );
+
+    expect(backendFetch).not.toHaveBeenCalled();
+    expect(redirected(response)).toMatchObject({
+      status: "error",
+      failure: "ADMIN_CONSENT_REQUIRED",
+      detail: null,
+    });
+  });
+
+  it("says an administrator's approval for the tenant landed, with nothing to exchange", async () => {
+    // Entra's admin-consent endpoint returns here with no code; read as a
+    // sign-in it was "the provider sent no authorization code".
+    const response = await callback(
+      callbackRequest("admin_consent=True&tenant=contoso.onmicrosoft.com"),
+    );
+
+    expect(backendFetch).not.toHaveBeenCalled();
+    expect(redirected(response)).toMatchObject({
+      path: "/mcp-servers",
+      status: "admin_consent",
+      failure: null,
+    });
+  });
+
+  it("names it too when the token exchange is where Entra refused", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({
+      ok: false,
+      connection_name: null,
+      error: "Your administrator has to approve this app",
+      failure: "admin_consent_required",
+    });
+
+    const response = await callback(callbackRequest("code=abc&state=xyz"));
+
+    expect(redirected(response)).toMatchObject({
+      status: "error",
+      failure: "ADMIN_CONSENT_REQUIRED",
+      detail: null,
+    });
+  });
+
   it("falls back to the provider's error code when it described nothing", async () => {
     const response = await callback(callbackRequest("error=access_denied"));
 
