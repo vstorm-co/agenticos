@@ -736,7 +736,17 @@ on the API's host speaks MCP over streamable HTTP, so Claude Code, Claude Deskto
 or any MCP client can operate the organization — list and create agents, run them,
 read runs and their cost, fill and search knowledge bases, invite members.
 
-Connect with an [organization API key](api.md#organization-api-keys):
+The client signs in through the browser: it registers itself, opens the
+console's consent page, where you choose the organization and what it may do,
+and receives a token that lasts an hour and renews itself. No key is pasted
+anywhere.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+Or connect with an [organization API key](api.md#organization-api-keys), for a
+client that cannot open a browser:
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp \
@@ -763,8 +773,9 @@ would be; a refusal comes back as a tool error naming the missing permission.
 
 Deliberately absent: deleting anything, publishing an agent, and touching a
 credential. A draft created here is published by a person in the console.
-Sign-in through the browser (OAuth) instead of a pasted key, and an approval step
-before the assistant's writes, are tracked as #2059 and #2060.
+Connected applications are listed under **Settings → API keys**, where
+disconnecting one ends its access and every token it holds. An approval step
+before the assistant's writes is tracked as #2060.
 
 ## What MCP does not get you
 

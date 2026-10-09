@@ -22,6 +22,7 @@ async def create(
     key_hash: str,
     scopes: list[str],
     expires_at: datetime | None,
+    oauth_grant_id: UUID | None = None,
 ) -> ApiKey:
     key = ApiKey(
         organization_id=organization_id,
@@ -31,6 +32,7 @@ async def create(
         key_hash=key_hash,
         scopes=scopes,
         expires_at=expires_at,
+        oauth_grant_id=oauth_grant_id,
     )
     db.add(key)
     await db.flush()
@@ -53,11 +55,13 @@ async def get(db: AsyncSession, key_id: UUID, *, organization_id: UUID) -> ApiKe
 async def list_for_organization(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID | None
 ) -> list[tuple[ApiKey, str]]:
-    """Each key with its issuer's email, newest first; one issuer's when `user_id` is set."""
+    """Each key a person issued, with their email, newest first; one issuer's when
+    `user_id` is set. OAuth access tokens are left out - they are listed as their
+    grant, under connected applications."""
     query = (
         select(ApiKey, User.email)
         .join(User, User.id == ApiKey.user_id)
-        .where(ApiKey.organization_id == organization_id)
+        .where(ApiKey.organization_id == organization_id, ApiKey.oauth_grant_id.is_(None))
         .order_by(ApiKey.created_at.desc())
     )
     if user_id is not None:

@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from mcp.server.auth.settings import AuthSettings
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from pydantic import AnyHttpUrl
 from starlette.applications import Starlette
@@ -20,7 +20,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 from app.services.platform_mcp._api import PlatformApi
-from app.services.platform_mcp._auth import PlatformTokenVerifier
+from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import register_tools
 
 MCP_PATH = "/mcp"
@@ -40,13 +40,15 @@ def build_platform_mcp(app: ASGIApp) -> tuple[MCPServer, Starlette]:
         name="agenticos",
         title="AgenticOS",
         instructions=INSTRUCTIONS,
-        token_verifier=PlatformTokenVerifier(),
+        auth_server_provider=PlatformOAuthProvider(),
         auth=AuthSettings(
             issuer_url=AnyHttpUrl(base),
             resource_server_url=AnyHttpUrl(f"{base}{MCP_PATH}"),
-            # An organization key is not issued for an audience, so there is no
-            # resource on it to compare; the verifier and the API decide instead.
+            # A key pasted into a client is not issued for an audience, so there is
+            # no resource on it to compare; the public API decides instead.
             validate_token_resource=False,
+            client_registration_options=ClientRegistrationOptions(enabled=True),
+            revocation_options=RevocationOptions(enabled=True),
         ),
     )
     register_tools(server, PlatformApi(app))
@@ -64,7 +66,15 @@ def build_platform_mcp(app: ASGIApp) -> tuple[MCPServer, Starlette]:
     return server, starlette
 
 
-ROUTE_PATHS = (MCP_PATH, f"/.well-known/oauth-protected-resource{MCP_PATH}")
+ROUTE_PATHS = (
+    MCP_PATH,
+    f"/.well-known/oauth-protected-resource{MCP_PATH}",
+    "/.well-known/oauth-authorization-server",
+    "/authorize",
+    "/token",
+    "/register",
+    "/revoke",
+)
 """What the MCP app answers, registered on the API app so it is served beside it."""
 
 

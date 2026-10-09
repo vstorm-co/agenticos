@@ -268,6 +268,11 @@ export const qk = {
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },
+  mcpOauth: {
+    request: (orgId: string, requestId: string) =>
+      ["mcp-oauth", orgId, "request", requestId] as const,
+    grants: (orgId: string) => ["mcp-oauth", orgId, "grants"] as const,
+  },
   apiKeys: {
     /** Every key query in one organization, for invalidating after a create or revoke. */
     all: (orgId: string) => ["api-keys", orgId] as const,

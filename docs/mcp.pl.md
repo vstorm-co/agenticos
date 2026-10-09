@@ -1,5 +1,5 @@
 ---
-source_sha: "c599d91c0513"
+source_sha: "b0cbd412965c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -767,7 +767,16 @@ Desktop albo dowolny klient MCP może obsługiwać organizację — listować i 
 agentów, uruchamiać ich, czytać runy i ich koszt, zasilać i przeszukiwać bazy
 wiedzy, zapraszać członków.
 
-Połącz się [kluczem API organizacji](api.md#organization-api-keys):
+Klient loguje się przez przeglądarkę: rejestruje się, otwiera w konsoli stronę
+zgody, na której wybierasz organizację i to, co może robić, i dostaje token ważny
+godzinę, który sam się odnawia. Nigdzie nie wklejasz klucza.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+Albo połącz się [kluczem API organizacji](api.md#organization-api-keys), jeśli
+klient nie potrafi otworzyć przeglądarki:
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp \
@@ -793,9 +802,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `invite_member` | `members:manage` |
 
 Celowo nie ma tu usuwania czegokolwiek, publikowania agenta ani dotykania
-poświadczeń. Draft utworzony tutaj publikuje osoba w konsoli. Logowanie przez
-przeglądarkę (OAuth) zamiast wklejonego klucza oraz krok zatwierdzenia przed
-zapisami asystenta są śledzone jako #2059 i #2060.
+poświadczeń. Draft utworzony tutaj publikuje osoba w konsoli. Podłączone aplikacje są
+widoczne w **Ustawienia → Klucze API**, gdzie odłączenie kończy ich dostęp razem
+z każdym tokenem. Krok zatwierdzenia przed zapisami asystenta jest śledzony
+jako #2060.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

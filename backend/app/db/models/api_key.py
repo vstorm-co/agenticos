@@ -51,6 +51,14 @@ class ApiKey(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set for an access token an OAuth client received (#2059): the grant it came
+    # from, so revoking the grant revokes it. Null for a key a person issued.
+    oauth_grant_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("oauth_grants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
     def __repr__(self) -> str:
         return f"<ApiKey(prefix={self.prefix}, org={self.organization_id})>"

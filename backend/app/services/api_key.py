@@ -153,17 +153,13 @@ class ApiKeyService:
         now = datetime.now(UTC)
         if data.expires_at is not None and data.expires_at <= now:
             raise refused_field("expires_at", "The expiry has to be in the future")
-        prefix = KEY_PREFIX + secrets.token_hex(4)
-        key = prefix + secrets.token_urlsafe(_SECRET_BYTES)
-        row = await api_key_repo.create(
-            self.db,
+        key, row = await self._mint(
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             name=data.name,
-            prefix=prefix,
-            key_hash=_digest(key),
             scopes=sorted({perm.value for perm in data.scopes}),
             expires_at=data.expires_at,
+            oauth_grant_id=None,
         )
         await record_audit(
             self.db,
@@ -177,6 +173,57 @@ class ApiKeyService:
         issuer = await user_repo.get_by_id(self.db, ctx.subject_id)
         email = issuer.email if issuer is not None else ""
         return ApiKeyCreated(**_read(row, email, now).model_dump(), key=key)
+
+    async def _mint(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        name: str,
+        scopes: list[str],
+        expires_at: datetime | None,
+        oauth_grant_id: UUID | None,
+    ) -> tuple[str, ApiKey]:
+        """A new key and its row; the plaintext exists only in the returned string."""
+        prefix = KEY_PREFIX + secrets.token_hex(4)
+        key = prefix + secrets.token_urlsafe(_SECRET_BYTES)
+        row = await api_key_repo.create(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            name=name,
+            prefix=prefix,
+            key_hash=_digest(key),
+            scopes=scopes,
+            expires_at=expires_at,
+            oauth_grant_id=oauth_grant_id,
+        )
+        return key, row
+
+    async def issue_for_grant(
+        self,
+        *,
+        grant_id: UUID,
+        organization_id: UUID,
+        user_id: UUID,
+        client_name: str,
+        scopes: list[str],
+        expires_at: datetime,
+    ) -> str:
+        """An OAuth access token: a short-lived key under the grant it was issued for (#2059).
+
+        Not audited one by one - a client refreshes every hour - the consent and
+        its revocation are. Its own requests are audited like any key's.
+        """
+        key, _row = await self._mint(
+            organization_id=organization_id,
+            user_id=user_id,
+            name=f"OAuth: {client_name}"[:100],
+            scopes=scopes,
+            expires_at=expires_at,
+            oauth_grant_id=grant_id,
+        )
+        return key
 
     async def list_keys(self, ctx: AuthContext) -> ApiKeyList:
         """Every key in the organization for `api_keys:manage`, otherwise the caller's own."""

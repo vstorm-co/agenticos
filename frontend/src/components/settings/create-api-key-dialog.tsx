@@ -5,10 +5,10 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
+import { ScopePicker, useScopeChoice } from "@/components/settings/scope-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -26,13 +26,10 @@ import {
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import type { ApiKeyCreateInput, ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
-import type { Permission } from "@/types/permissions";
 
 /** How long a new key lives. `never` is a choice, not a default. */
 const EXPIRIES = { "30": 30, "90": 90, "365": 365, never: null } as const;
 type Expiry = keyof typeof EXPIRIES;
-
-const CUSTOM = "custom";
 
 interface CreateApiKeyDialogProps {
   open: boolean;
@@ -68,23 +65,17 @@ export function CreateApiKeyDialog({
   // The API's own origin, not this console's: a key is sent straight to the
   // backend, and the console's `/api` is a proxy that only carries a session.
   const { apiUrl } = usePublicConfig();
-  const firstPreset = catalog.presets[0]?.id ?? CUSTOM;
+  const choice = useScopeChoice(catalog);
   const [name, setName] = useState("");
-  const [preset, setPreset] = useState<string>(firstPreset);
-  const [custom, setCustom] = useState<Permission[]>([]);
   const [expiry, setExpiry] = useState<Expiry>("90");
   const [created, setCreated] = useState<ApiKeyCreated | null>(null);
-
-  // "Custom" matches no preset, so the ticked permissions are what is sent.
-  const chosen = catalog.presets.find((choice) => choice.id === preset);
-  const scopes = chosen ? chosen.scopes : custom;
+  const scopes = choice.scopes;
 
   // Opened from outside only - there is no trigger in here - so the dialog only
   // ever asks to close, and closing forgets the key it showed.
   const close = () => {
     setName("");
-    setPreset(firstPreset);
-    setCustom([]);
+    choice.reset();
     setExpiry("90");
     setCreated(null);
     onOpenChange(false);
@@ -97,9 +88,6 @@ export function CreateApiKeyDialog({
       toast.error(getErrorMessage(error, tErrors));
     }
   };
-
-  const toggle = (scope: Permission, on: boolean) =>
-    setCustom((current) => (on ? [...current, scope] : current.filter((s) => s !== scope)));
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -136,38 +124,7 @@ export function CreateApiKeyDialog({
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="api-key-preset">{t("access")}</Label>
-              <Select value={preset} onValueChange={setPreset}>
-                <SelectTrigger id="api-key-preset">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {catalog.presets.map((choice) => (
-                    <SelectItem key={choice.id} value={choice.id}>
-                      {t(`preset.${choice.id}`)}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={CUSTOM}>{t("preset.custom")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">{t("accessWhy")}</p>
-            </div>
-            {chosen === undefined ? (
-              <fieldset className="grid gap-2 sm:grid-cols-2" aria-label={t("access")}>
-                {catalog.scopes.map((scope) => (
-                  <label key={scope} className="flex items-center gap-2 font-mono text-xs">
-                    <Checkbox
-                      checked={custom.includes(scope)}
-                      onCheckedChange={(on) => toggle(scope, on === true)}
-                    />
-                    {scope}
-                  </label>
-                ))}
-              </fieldset>
-            ) : (
-              <p className="text-muted-foreground font-mono text-xs">{scopes.join(", ")}</p>
-            )}
+            <ScopePicker catalog={catalog} choice={choice} id="api-key-preset" />
             <div className="space-y-1.5">
               <Label htmlFor="api-key-expiry">{t("expires")}</Label>
               <Select value={expiry} onValueChange={(value) => setExpiry(value as Expiry)}>

@@ -1,5 +1,5 @@
 ---
-source_sha: "c599d91c0513"
+source_sha: "b0cbd412965c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -781,7 +781,16 @@ Code, Claude Desktop o cualquier cliente MCP puede operar la organización —
 listar y crear agents, ejecutarlos, leer los runs y su coste, llenar y buscar
 bases de conocimiento, invitar a miembros.
 
-Conéctate con una [clave de API de la organización](api.md#organization-api-keys):
+El cliente inicia sesión por el navegador: se registra, abre la página de
+consentimiento de la consola, donde eliges la organización y lo que puede hacer, y
+recibe un token que dura una hora y se renueva solo. No se pega ninguna clave.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+O conéctate con una [clave de API de la organización](api.md#organization-api-keys),
+para un cliente que no puede abrir un navegador:
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp \
@@ -808,9 +817,10 @@ permiso que faltaba.
 | `invite_member` | `members:manage` |
 
 A propósito no hay: borrar nada, publicar un agent ni tocar credenciales. Un
-borrador creado aquí lo publica una persona en la consola. Iniciar sesión por el
-navegador (OAuth) en lugar de pegar una clave, y un paso de aprobación antes de
-las escrituras del asistente, se siguen como #2059 y #2060.
+borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+aparecen en **Settings → API keys**, donde desconectar una termina su acceso y
+el de cada token que tiene. Un paso de aprobación antes de las escrituras del
+asistente se sigue como #2060.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

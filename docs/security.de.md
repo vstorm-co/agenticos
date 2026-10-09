@@ -1,5 +1,5 @@
 ---
-source_sha: "3b62656f6e5b"
+source_sha: "ad746c44b22f"
 ---
 
 # Sicherheit { #security }
@@ -207,6 +207,8 @@ SOC 2 CC6–CC8.
 | Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
 | Eine geänderte E-Mail-Adresse wird nachgewiesen, bevor Post ihr folgt | `PATCH /users/me` legt die Adresse in `users.pending_email` ab und schickt einen einmaligen Link mit einer Stunde Gültigkeit dorthin; bis der Link zurückkommt, erhält das Konto alles weiter unter seiner bisherigen Adresse, und diese wird darüber informiert, dass eine Änderung verlangt wurde. Der Link trägt die Credential-Version des Kontos, sodass ein Ändern oder Zurücksetzen des Passworts — wozu genau dieser Hinweis auffordert — ihn entwertet, und eine von einer Administratorin reparierte Adresse löscht die Vormerkung. Eine erneute Anfrage nach der bereits vorgemerkten Adresse verschickt nichts, und die Zahl unterschiedlicher Adressen pro Konto und Stunde ist begrenzt. Anfrage und Bestätigung werden beide auditiert (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
 | Ein wiedergespielter Refresh-Token beendet seine Kette und wird protokolliert | Die Rotation behält den ersetzten Hash; ein Refresh, der dazu passt, ist der Reuse-Fall aus RFC 6819 §5.2.2.3 und schließt diese Session mit einem Audit-Eintrag (`SessionService.detect_refresh_reuse`). Ein Token, der innerhalb von `REFRESH_REUSE_GRACE_SECONDS` (standardmäßig 60) nach seiner Rotation vorgelegt wird, ist eine verlorene Antwort oder eine Anfrage aus einer Serie mit demselben Cookie und kein Replay, und er bekommt den Nachfolger, den die Zeile bereits hält, aus dem verbrauchten Token neu gebildet, sodass jede Anfrage der Serie denselben Token erhält (`SessionService.claim_refresh_grace`, `reissue_within_grace`); dieses Fenster ist der bewusst in Kauf genommene Preis | `test_session_revocation.py::TestReusingASpentRefreshToken`, `TestTheReuseGraceWindow` |
+| API-Schlüssel der Organisation | Die Befugnisse eines Mitglieds, eingeschränkt auf die Berechtigungen des Schlüssels und bei jeder Anfrage aus der Mitgliedschaft des Ausstellers neu gelesen; im Ruhezustand SHA-256, einmal angezeigt, optional ablaufend, widerrufbar, pro Schlüssel begrenzt, nur auf öffentlichen Routen angenommen und in den Audit-Einträgen einer Anfrage per Präfix benannt (`app/services/api_key.py`, `app/api/public_api.py`) | `tests/integration/test_api_keys.py`, `test_api_key_service.py` |
+| OAuth 2.1 für MCP-Clients | Nur öffentliche Clients, PKCE (S256) Pflicht, Redirect-URI exakt verglichen; die Zustimmung in der Konsole lehnt eine Impersonation-Sitzung und Berechtigungen ab, die das Mitglied nicht hat; Codes sind einmalig, Refresh-Tokens rotieren, und eine Wiederverwendung widerruft die Freigabe mit jedem ausgestellten Token (`app/services/oauth_server.py`, `app/services/platform_mcp/_oauth.py`) | `tests/integration/test_mcp_oauth.py` |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

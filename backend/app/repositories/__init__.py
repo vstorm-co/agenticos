@@ -48,6 +48,7 @@ from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
 from app.repositories import api_key as api_key_repo
+from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
 from app.repositories import memory as memory_repo
@@ -118,6 +119,7 @@ __all__ = [
     "retention_repo",
     "skill_repo",
     "api_key_repo",
+    "oauth_repo",
     "artifact_repo",
     "context_repo",
     "memory_repo",

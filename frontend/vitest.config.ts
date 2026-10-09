@@ -70,6 +70,10 @@ export default defineConfig({
         // Organization API keys (#1794): the list, and the dialog that shows a key once.
         "src/components/settings/api-keys-manager.tsx",
         "src/components/settings/create-api-key-dialog.tsx",
+        "src/components/settings/scope-picker.tsx",
+        "src/components/settings/connected-apps.tsx",
+        // The page an MCP client sends a person to, to consent (#2059).
+        "src/components/oauth/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",

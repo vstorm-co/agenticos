@@ -208,6 +208,7 @@ describe("stepsForPage", () => {
       "settings-tabs",
       "my-memory",
       "settings-api-keys",
+      "settings-connected-apps",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",

@@ -573,6 +573,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Optional for the same reason: the card is on one settings page of five, and
   // the stop is offered from whichever one help was opened on.
   { id: "settings-api-keys", page: SETTINGS_DETAIL, target: "api-keys", optional: true },
+  {
+    id: "settings-connected-apps",
+    page: SETTINGS_DETAIL,
+    target: "connected-apps",
+    optional: true,
+  },
 
   { id: "finish", inTour: true },
 ];

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b62656f6e5b"
+source_sha: "ad746c44b22f"
 ---
 
 # Bezpieczeństwo { #security }
@@ -194,6 +194,8 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Limitowanie prób logowania | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
 | Zmieniony adres e-mail jest dowodzony, zanim poczta za nim pójdzie | `PATCH /users/me` odkłada adres w `users.pending_email` i wysyła na niego jednorazowy, godzinny link; konto do powrotu tego linku odbiera wszystko pod dotychczasowym adresem, a ten dotychczasowy dostaje informację, że o zmianę poproszono. Link niesie wersję poświadczeń konta, więc zmiana albo reset hasła — to, do czego wzywa tamta informacja — unieważnia go, a naprawa adresu przez administratora czyści odłożoną zmianę. Ponowna prośba o już odłożony adres nie wysyła nic, a liczba różnych adresów na konto jest ograniczona w ciągu godziny. I żądanie, i potwierdzenie trafiają do audytu (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
 | Odtworzony refresh token kończy swój łańcuch i zostaje zapisany | Rotacja zachowuje zastąpiony hash; refresh, który do niego pasuje, to przypadek ponownego użycia z RFC 6819 §5.2.2.3 - zamyka tę sesję i zostawia wpis w audycie (`SessionService.detect_refresh_reuse`). Token przedstawiony w ciągu `REFRESH_REUSE_GRACE_SECONDS` (domyślnie 60) od swojej rotacji to utracona odpowiedź albo jedno z kilku równoczesnych żądań z tym samym cookie, a nie odtworzenie, więc dostaje następcę, którego wiersz już trzyma, odtworzonego ze zużytego tokena - każde żądanie z takiej serii dostaje ten sam token (`SessionService.claim_refresh_grace`, `reissue_within_grace`); to okno jest świadomie przyjętym kosztem | `test_session_revocation.py::TestReusingASpentRefreshToken`, `TestTheReuseGraceWindow` |
+| Klucze API organizacji | Uprawnienia członka zawężone do tych, z którymi klucz wydano, i odczytywane z członkostwa wydającego przy każdym żądaniu; w spoczynku SHA-256, pokazywany raz, opcjonalne wygaśnięcie, unieważnialny, limit per klucz, przyjmowany tylko na trasach publicznych, a we wpisach audytu żądania nazwany prefiksem (`app/services/api_key.py`, `app/api/public_api.py`) | `tests/integration/test_api_keys.py`, `test_api_key_service.py` |
+| OAuth 2.1 dla klientów MCP | Tylko klienci publiczni, wymagane PKCE (S256), redirect URI porównywany dokładnie; zgoda w konsoli odrzuca sesję impersonacji i uprawnienia, których członek nie ma; kody są jednorazowe, refresh tokeny rotują, a ponowne użycie unieważnia grant z każdym wydanym tokenem (`app/services/oauth_server.py`, `app/services/platform_mcp/_oauth.py`) | `tests/integration/test_mcp_oauth.py` |
 
 ### Kontrole audytowe · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

@@ -56,6 +56,13 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
+from app.db.models.oauth import (
+    OAuthAuthorizationCode,
+    OAuthAuthorizationRequest,
+    OAuthClient,
+    OAuthGrant,
+    OAuthRefreshToken,
+)
 from app.db.models.artifact import (
     Artifact,
     ArtifactFollower,
@@ -65,6 +72,11 @@ from app.db.models.artifact import (
 
 __all__ = [
     "ApiKey",
+    "OAuthAuthorizationCode",
+    "OAuthAuthorizationRequest",
+    "OAuthClient",
+    "OAuthGrant",
+    "OAuthRefreshToken",
     "Artifact",
     "ArtifactFollower",
     "ArtifactMediaType",

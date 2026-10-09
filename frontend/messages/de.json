@@ -3190,6 +3190,10 @@
       "settings-api-keys": {
         "title": "Ihre API-Schlüssel",
         "body": "Ein Schlüssel lässt ein Skript, Postman oder einen MCP-Client ohne Browser in Ihrem Namen handeln. Wählen Sie, was er darf; er kann nie mehr als Sie und hört auf, sobald Sie ihn widerrufen."
+      },
+      "settings-connected-apps": {
+        "title": "Verbundene Anwendungen",
+        "body": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen im erlaubten Rahmen - trennen Sie eine, um ihren Zugriff sofort zu beenden."
       }
     }
   },
@@ -5483,5 +5487,29 @@
     "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
     "emptyTitle": "Noch keine API-Schlüssel",
     "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen."
+  },
+  "mcpOauth": {
+    "title": "{client} möchte in Ihrem Namen handeln",
+    "why": "Es nutzt Ihre Berechtigungen in der Organisation unten, begrenzt auf das, was Sie erlauben. Was Sie auch wählen, Sie kehren zu {host} zurück.",
+    "organization": "Organisation",
+    "revokeLater": "Sie können es jederzeit unter Einstellungen → API-Schlüssel trennen.",
+    "allow": "Erlauben",
+    "deny": "Ablehnen",
+    "expiredTitle": "Diese Anfrage ist abgelaufen",
+    "expiredWhy": "Starten Sie die Verbindung erneut aus der Anwendung, die Sie hierher geschickt hat.",
+    "connectedTitle": "Verbundene Anwendungen",
+    "connectedWhy": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen, im Rahmen dessen, was Sie erlaubt haben.",
+    "application": "Anwendung",
+    "access": "Zugriff",
+    "connectedBy": "Verbunden von",
+    "since": "Verbunden",
+    "scopeCount": "{count, plural, =1 {1 Berechtigung} other {# Berechtigungen}}",
+    "disconnect": "Trennen",
+    "disconnectTitle": "{client} trennen?",
+    "disconnectWhy": "Ihr Zugriff endet jetzt, mit jedem Token, das sie hält. Für eine neue Verbindung muss sie erneut fragen.",
+    "disconnected": "Anwendung getrennt",
+    "couldNotLoad": "Verbundene Anwendungen konnten nicht geladen werden",
+    "emptyTitle": "Keine verbundenen Anwendungen",
+    "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier."
   }
 }

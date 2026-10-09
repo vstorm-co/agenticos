@@ -1,6 +1,7 @@
 export { useAuth } from "./use-auth";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useApiKeys } from "./use-api-keys";
+export { useConnectedApps, useConsentRequest } from "./use-mcp-oauth";
 export { useAdminUsers } from "./use-admin-users";
 export {
   useAdminOrganizations,

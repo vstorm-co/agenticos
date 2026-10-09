@@ -1,5 +1,5 @@
 ---
-source_sha: "c599d91c0513"
+source_sha: "b0cbd412965c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -797,7 +797,18 @@ Claude Code, Claude Desktop oder jeder MCP-Client die Organisation bedienen kann
 Agents auflisten und anlegen, ausführen, Runs und ihre Kosten lesen, Wissensbasen
 befüllen und durchsuchen, Mitglieder einladen.
 
-Verbinden Sie sich mit einem [API-Schlüssel der Organisation](api.md#organization-api-keys):
+Der Client meldet sich über den Browser an: Er registriert sich, öffnet die
+Zustimmungsseite der Konsole, auf der Sie die Organisation und seine Befugnisse
+wählen, und erhält ein Token, das eine Stunde gilt und sich selbst erneuert. Es
+wird nirgends ein Schlüssel eingefügt.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+Oder verbinden Sie sich mit einem
+[API-Schlüssel der Organisation](api.md#organization-api-keys), für einen Client,
+der keinen Browser öffnen kann:
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp \
@@ -825,9 +836,9 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 
 Bewusst fehlt: etwas löschen, einen Agent veröffentlichen und Zugangsdaten
 anfassen. Einen hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
-Die Anmeldung über den Browser (OAuth) statt eines eingefügten Schlüssels und ein
-Freigabeschritt vor den Schreibvorgängen des Assistenten werden
-als #2059 und #2060 verfolgt.
+Verbundene Anwendungen stehen unter **Einstellungen → API-Schlüssel**, wo das
+Trennen ihren Zugriff samt jedem Token beendet. Ein Freigabeschritt vor den
+Schreibvorgängen des Assistenten wird als #2060 verfolgt.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

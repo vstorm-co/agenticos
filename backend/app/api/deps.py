@@ -371,6 +371,7 @@ from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 from app.api.public_api import is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
+from app.services.oauth_server import OAuthServerService
 
 
 def get_api_key_service(db: DBSession) -> ApiKeyService:
@@ -378,6 +379,13 @@ def get_api_key_service(db: DBSession) -> ApiKeyService:
 
 
 ApiKeySvc = Annotated[ApiKeyService, Depends(get_api_key_service)]
+
+
+def get_oauth_server_service(db: DBSession) -> OAuthServerService:
+    return OAuthServerService(db)
+
+
+OAuthServerSvc = Annotated[OAuthServerService, Depends(get_oauth_server_service)]
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(

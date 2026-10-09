@@ -730,6 +730,9 @@ _PLATFORM_PREFIXES = (
     # revoking act on the caller's own keys unless they hold `api_keys:manage`,
     # which the service decides per row.
     "/api-keys",
+    # Consenting to and disconnecting MCP clients (#2059): every route acts on the
+    # caller's own consent or grants, which the service decides per row.
+    "/mcp-oauth",
     "/runs",
     "/approvals",
     "/spend",
@@ -862,6 +865,7 @@ RESOURCE_AWARE_SERVICES = (
     # `api_keys:manage`; the service decides per key, and answers a key that is
     # somebody else's as missing.
     deps.get_api_key_service,
+    deps.get_oauth_server_service,
     deps.get_agent_registry_service,
     # Every exposure route acts on one agent, and the service resolves access to
     # it before touching a binding - so where an agent is available is decided

@@ -13,7 +13,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from app.services.platform_mcp._api import PlatformApi
-from app.services.platform_mcp._auth import PlatformTokenVerifier
+from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import register_tools
 
 pytestmark = pytest.mark.anyio
@@ -197,19 +197,19 @@ class TestTheInProcessCall:
 
 class TestTheVerifier:
     async def test_a_session_jwt_is_not_an_mcp_credential(self) -> None:
-        assert await PlatformTokenVerifier().verify_token("eyJhbGciOiJIUzI1NiJ9.e30.x") is None
+        assert await PlatformOAuthProvider().load_access_token("eyJhbGciOiJIUzI1NiJ9.e30.x") is None
 
     @pytest.mark.security
     async def test_a_key_the_platform_refuses_opens_no_session(self) -> None:
         from app.core.exceptions import AuthenticationError
 
         with (
-            patch("app.services.platform_mcp._auth.get_db_context") as db_context,
+            patch("app.services.platform_mcp._oauth.get_db_context") as db_context,
             patch(
-                "app.services.platform_mcp._auth.ApiKeyService.authenticate",
+                "app.services.platform_mcp._oauth.ApiKeyService.authenticate",
                 new=AsyncMock(side_effect=AuthenticationError(message="revoked")),
             ),
         ):
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
-            assert await PlatformTokenVerifier().verify_token("aos_0123abcdsecret") is None
+            assert await PlatformOAuthProvider().load_access_token("aos_0123abcdsecret") is None

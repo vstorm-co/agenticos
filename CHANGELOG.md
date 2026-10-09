@@ -54,6 +54,15 @@ Two things are versioned separately from this file and worth knowing about:
   Each tool is the public API called in-process with the caller's key, so it is
   refused, rate limited and audited exactly as the HTTP request would be. Nothing
   deletes, publishes or touches a credential (#2058).
+- **Claude Code connects by signing in, not by pasting a key.** The MCP server is
+  an OAuth 2.1 authorization server: `claude mcp add --transport http agenticos
+  <host>/mcp` registers the client, opens the console's consent page — pick the
+  organization and what it may do — and returns an hour-long token that renews
+  itself. Public clients with PKCE only; codes are single-use, refresh tokens
+  rotate, and a reused one revokes the grant with every token it issued. The
+  access token is an organization key under the grant, so it is narrowed and
+  audited like one. Connected applications are listed, and disconnected, under
+  **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

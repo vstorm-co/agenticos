@@ -1894,6 +1894,10 @@
       "settings-api-keys": {
         "title": "Twoje klucze API",
         "body": "Klucz pozwala skryptowi, Postmanowi albo klientowi MCP działać w twoim imieniu, bez przeglądarki. Wybierz, co może robić; nigdy nie zrobi więcej niż ty i przestaje działać, gdy go unieważnisz."
+      },
+      "settings-connected-apps": {
+        "title": "Podłączone aplikacje",
+        "body": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu w granicach tego, na co pozwolono — odłącz ją, żeby od razu zakończyć jej dostęp."
       }
     }
   },
@@ -3249,5 +3253,29 @@
     "couldNotLoad": "Nie udało się wczytać kluczy API",
     "emptyTitle": "Nie masz jeszcze kluczy API",
     "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code."
+  },
+  "mcpOauth": {
+    "title": "{client} chce działać w twoim imieniu",
+    "why": "Użyje twoich uprawnień w organizacji poniżej, w granicach tego, na co pozwolisz. Cokolwiek wybierzesz, wrócisz do {host}.",
+    "organization": "Organizacja",
+    "revokeLater": "Możesz ją odłączyć w każdej chwili w Ustawienia → Klucze API.",
+    "allow": "Zezwól",
+    "deny": "Odmów",
+    "expiredTitle": "Ta prośba wygasła",
+    "expiredWhy": "Rozpocznij łączenie ponownie z aplikacji, która cię tu przysłała.",
+    "connectedTitle": "Podłączone aplikacje",
+    "connectedWhy": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu, w granicach tego, na co pozwolono.",
+    "application": "Aplikacja",
+    "access": "Dostęp",
+    "connectedBy": "Podłączył(a)",
+    "since": "Podłączona",
+    "scopeCount": "{count, plural, =1 {1 uprawnienie} few {# uprawnienia} many {# uprawnień} other {# uprawnienia}}",
+    "disconnect": "Odłącz",
+    "disconnectTitle": "Odłączyć {client}?",
+    "disconnectWhy": "Jej dostęp kończy się teraz, razem z każdym tokenem, który ma. Żeby się ponownie połączyć, musi poprosić jeszcze raz.",
+    "disconnected": "Aplikacja odłączona",
+    "couldNotLoad": "Nie udało się wczytać podłączonych aplikacji",
+    "emptyTitle": "Brak podłączonych aplikacji",
+    "emptyWhy": "Dodaj AgenticOS do Claude Code albo innego klienta MCP i zaloguj się; pojawi się tutaj."
   }
 }

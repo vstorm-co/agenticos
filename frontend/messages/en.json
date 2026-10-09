@@ -3327,6 +3327,10 @@
       "settings-api-keys": {
         "title": "Your API keys",
         "body": "A key lets a script, Postman or an MCP client act as you, without a browser. Pick what it may do; it can never do more than you can, and it stops the moment you revoke it."
+      },
+      "settings-connected-apps": {
+        "title": "Connected applications",
+        "body": "Apps you signed in to with this account, like Claude Code. Each acts as you within what you allowed - disconnect one to end its access at once."
       }
     }
   },
@@ -5625,5 +5629,29 @@
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
     "emptyWhy": "Create one to call the API from a script, Postman or Claude Code."
+  },
+  "mcpOauth": {
+    "title": "{client} wants to act as you",
+    "why": "It will use your permissions in the organization below, limited to what you allow. Whatever you choose, you go back to {host}.",
+    "organization": "Organization",
+    "revokeLater": "You can disconnect it at any time under Settings → API keys.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "expiredTitle": "This request has expired",
+    "expiredWhy": "Start the connection again from the application that sent you here.",
+    "connectedTitle": "Connected applications",
+    "connectedWhy": "Applications you signed in to with this account, such as Claude Code. Each acts as you, within what you allowed.",
+    "application": "Application",
+    "access": "Access",
+    "connectedBy": "Connected by",
+    "since": "Connected",
+    "scopeCount": "{count, plural, =1 {1 permission} other {# permissions}}",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect {client}?",
+    "disconnectWhy": "Its access ends now, with every token it holds. It has to ask again to reconnect.",
+    "disconnected": "Application disconnected",
+    "couldNotLoad": "Could not load connected applications",
+    "emptyTitle": "No connected applications",
+    "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here."
   }
 }
