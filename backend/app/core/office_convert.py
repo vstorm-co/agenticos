@@ -52,7 +52,7 @@ import sys
 import tempfile
 import uuid
 import weakref
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -166,7 +166,7 @@ class Slot:
 
 
 @asynccontextmanager
-async def reserve(timeout_seconds: float, *, what: str) -> AsyncIterator[Slot]:
+async def reserve(timeout_seconds: float, *, what: str) -> AsyncGenerator[Slot, None]:
     """Hold a converter slot for the body, refusing if none frees up in time.
 
     `timeout_seconds` is the ceiling on everything inside, the wait included:

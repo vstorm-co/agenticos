@@ -56,7 +56,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncIterable, Iterator
+from collections.abc import AsyncIterable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -1050,7 +1050,7 @@ class DelegationJournal:
         return stream
 
     @contextmanager
-    def delegating(self, delegation: Delegation) -> Iterator[None]:
+    def delegating(self, delegation: Delegation) -> Generator[None, None, None]:
         """Make `delegation` the current one, for the library and for the ledger.
 
         Two context variables, set together because they are two halves of one

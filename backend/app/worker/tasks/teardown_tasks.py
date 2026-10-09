@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -37,8 +38,6 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.services.rag.vectorstore import PgVectorStore
@@ -167,7 +166,7 @@ async def _submit_cleanup_run(
 
 
 @asynccontextmanager
-async def _vector_store() -> AsyncIterator[PgVectorStore]:
+async def _vector_store() -> AsyncGenerator[PgVectorStore, None]:
     """A `PgVectorStore` on an engine built for one run and disposed after it.
 
     A pooled connection made on one flow's event loop breaks on the next, so each run
