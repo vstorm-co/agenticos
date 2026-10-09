@@ -369,22 +369,21 @@ OS for your agents.
     setup_logfire()
     instrument_app(app)
 
-    # Innermost but for the change feed, which passes a response through
-    # untouched - so it sees a response as the route produced it. The
+    # Innermost, so it sees a response as the route produced it. The
     # `BaseHTTPMiddleware` layers above re-emit every body as a stream, and
     # Starlette skips `minimum_size` for a stream. Level 5 rather than 9: on JSON
     # the last levels buy a few percent for several times the CPU, and the load
     # test already found a deployment CPU-bound (`docs/load-testing.md`).
-    # Inside GZip, so the response it reads a created row's id from is the one
-    # the route wrote rather than its compressed form.
-    app.add_middleware(ChangeFeedMiddleware)
-
     app.add_middleware(
         GZipMiddleware,
         minimum_size=1024,
         compresslevel=5,
         exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
     )
+
+    # Directly above GZip: pure ASGI, so it re-streams nothing, and it reads a
+    # created row's id from a compressed answer by decoding it.
+    app.add_middleware(ChangeFeedMiddleware)
 
     # Outermost of the three, because it exists to answer before anything reads the
     # body - a middleware under CORS or the session would run after the request had

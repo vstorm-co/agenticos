@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+from pydantic import SecretStr
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
 from pydantic_ai.models.test import TestModel
@@ -41,6 +42,7 @@ from app.agents.capabilities._registry import (
     get,
 )
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.capabilities.platform import PLATFORM_CREDENTIAL_RESOURCE
 from app.agents.deps import AgentDeps
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -91,6 +93,9 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
     # read back is the shape of the tools, never a result - the directory answers
     # nothing and the delegate is never delegated to.
     CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+    # The platform's tools build only for somebody to act as; a credential that
+    # authenticates nobody is enough to list them, since none is ever called.
+    PLATFORM_CREDENTIAL_RESOURCE: SecretStr("documentation-probe"),
     SUBAGENT_RUNTIME_RESOURCE: SubagentRuntime(
         subagents=(
             ResolvedSubagent(

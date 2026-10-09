@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactMediaType, ArtifactVersion
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.resource_grant import Visibility
 from app.services import artifact as artifacts
@@ -233,3 +233,11 @@ class TestTheInboxChecksAgain:
 
     async def test_a_malformed_artifact_id_hides_the_row(self) -> None:
         assert not await self._visible(_notice("not-a-uuid"), artifact=None, readable=True)
+
+
+def test_a_follower_row_names_the_page_and_the_person() -> None:
+    artifact_id, user_id = uuid.uuid4(), uuid.uuid4()
+
+    shown = repr(ArtifactFollower(artifact_id=artifact_id, user_id=user_id))
+
+    assert str(artifact_id) in shown and str(user_id) in shown

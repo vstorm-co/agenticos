@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import APIRouter, FastAPI, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from httpx import ASGITransport, AsyncClient
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.public_api import PUBLIC
 from app.api.routes.v1.change_events import change_events
@@ -213,6 +214,53 @@ class TestMiddleware:
         await middleware({"type": "lifespan"}, receive, send)
 
         inner.assert_awaited_once_with({"type": "lifespan"}, receive, send)
+
+
+def _compressing_app() -> FastAPI:
+    """The real stacking: GZip inside the change feed, so a create's answer
+    reaches the feed compressed."""
+    app = FastAPI()
+    public = APIRouter(dependencies=[PUBLIC])
+    created = str(uuid.uuid4())
+
+    @public.post("/kb")
+    async def create(request: Request) -> dict[str, str]:
+        request.state.change_origin = ORIGIN
+        return {"id": created, "description": "x" * 4096}
+
+    @public.post("/skills")
+    async def mislabelled(request: Request) -> Response:
+        request.state.change_origin = ORIGIN
+        return Response(b"not gzip at all", headers={"content-encoding": "gzip"})
+
+    app.include_router(public, prefix=V1)
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.add_middleware(ChangeFeedMiddleware)
+    app.state.created = created
+    return app
+
+
+class TestCompressedAnswers:
+    async def test_a_compressed_create_is_read_for_its_id(self, redis: Any) -> None:
+        app = _compressing_app()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
+            answer = await http.post(f"{V1}/kb", headers={"Accept-Encoding": "gzip"})
+
+        assert answer.headers["content-encoding"] == "gzip"
+        [call] = redis.raw.publish.await_args_list
+        assert str(ChangeEvent.model_validate_json(call.args[1]).id) == app.state.created
+
+    async def test_an_answer_that_will_not_inflate_names_no_row(self, redis: Any) -> None:
+        transport = ASGITransport(app=_compressing_app())
+        # Raw: the client would refuse to inflate it too.
+        async with (
+            AsyncClient(transport=transport, base_url="http://t") as http,
+            http.stream("POST", f"{V1}/skills") as answer,
+        ):
+            [chunk async for chunk in answer.aiter_raw()]
+
+        [call] = redis.raw.publish.await_args_list
+        assert ChangeEvent.model_validate_json(call.args[1]).id is None
 
 
 class TestRoute:

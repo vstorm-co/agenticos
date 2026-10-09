@@ -54,6 +54,10 @@ class _PubSub:
         async for data in self.receive:
             yield {"type": "message", "data": data}
 
+    async def end(self) -> None:
+        """What Redis does to a subscription when its connection goes away."""
+        await self.send.aclose()
+
     async def aclose(self) -> None:
         self.bus.subscribers[self.channel].remove(self)
         self.closed = True
@@ -449,3 +453,19 @@ class TestStream:
             await socket.frame({"type": "websocket.disconnect"})
 
         assert [frame["resource"] for frame in socket.sent] == ["member"]
+
+    async def test_a_subscription_redis_ends_closes_the_socket_for_a_retry(
+        self, db: AsyncSession, bus: _Bus
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        await db.commit()
+        socket = _Socket()
+
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(_stream, socket, organization, create_access_token(str(owner.id)))
+            await _settled(bus.listening)
+            await bus.pubsubs[0].end()
+
+        assert socket.closed == (1011, "Live updates were interrupted")
+        assert bus.pubsubs[0].closed

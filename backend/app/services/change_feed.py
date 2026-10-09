@@ -24,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import zlib
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
@@ -33,6 +34,7 @@ import anyio
 from fastapi import WebSocket
 from redis.asyncio.client import PubSub
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api.public_api import is_public_route
@@ -167,6 +169,18 @@ def _created_id(body: bytes) -> UUID | None:
     return None
 
 
+def _decoded(body: bytes, encoding: str) -> bytes:
+    """The answer as the route wrote it. GZip sits inside this middleware, so a
+    long create answer arrives compressed; it is inflated no further than a row
+    could be long, and an answer that will not inflate is read as naming no row."""
+    if encoding != "gzip":
+        return body
+    try:
+        return zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(body, _BODY_LIMIT)
+    except zlib.error:
+        return b""
+
+
 def change_for(
     *,
     method: str,
@@ -226,12 +240,14 @@ class ChangeFeedMiddleware:
             await self.app(scope, receive, send)
             return
         status = 0
+        encoding = ""
         body: bytearray | None = bytearray()
 
         async def watch(message: Message) -> None:
-            nonlocal status, body
+            nonlocal status, encoding, body
             if message["type"] == "http.response.start":
                 status = message["status"]
+                encoding = Headers(raw=message["headers"]).get("content-encoding", "")
             elif body is not None:
                 body.extend(message.get("body", b""))
                 if len(body) > _BODY_LIMIT:
@@ -249,7 +265,7 @@ class ChangeFeedMiddleware:
             path=scope["path"],
             path_params=scope.get("path_params", {}),
             origin=origin,
-            body=bytes(body or b""),
+            body=_decoded(bytes(body or b""), encoding),
         )
         if event is not None:
             await publish(event)
@@ -343,7 +359,7 @@ async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_to
 
     Closes with 4403 the first time the holder's access is found gone - a revoked
     session or key, or a membership that ended - and with 1011 when this process
-    has no Redis to listen on.
+    has no Redis to listen on or Redis ends the subscription.
     """
     if _redis is None:
         await websocket.close(code=1011, reason="Live updates are unavailable")
@@ -363,3 +379,7 @@ async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_to
                     return
                 if await visible(db, ctx, event):
                     await websocket.send_text(event.model_dump_json())
+        # Redis ended the subscription. 1011 is one the console retries, and a
+        # reconnect subscribes again.
+        await websocket.close(code=1011, reason="Live updates were interrupted")
+        tasks.cancel_scope.cancel()
