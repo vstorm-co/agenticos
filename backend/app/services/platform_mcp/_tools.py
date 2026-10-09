@@ -58,7 +58,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         The draft is not published: a person reviews and publishes it in the
         console, where capabilities, knowledge and limits are added.
         """
-        spec: dict[str, Any] = {"name": name, "instructions": instructions}
+        # Able to ask the person questions, like every agent the console creates.
+        spec: dict[str, Any] = {
+            "name": name,
+            "instructions": instructions,
+            "capabilities": [{"id": "ask_user"}],
+        }
         if description:
             spec["description"] = description
         return await api.request("POST", "/agents", json={"spec": spec})

@@ -1,5 +1,5 @@
 ---
-source_sha: "860be1ce5ba6"
+source_sha: "95c9cbd86475"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -52,6 +52,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
 | `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — |
 | `platform` | Operar la plataforma | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -1912,6 +1913,21 @@ Tres propiedades se cumplen en todas las plataformas:
 - **Fuera de un canal no aporta nada.** Un run desde el panel, la API o una
   programación no tiene directorio, así que la capability no se adjunta en absoluto,
   por la misma razón por la que `knowledge` sin colecciones tampoco.
+
+## Preguntar al usuario { #ask-the-user }
+
+Cuando un agent necesita una decisión que solo la persona puede tomar, pregunta en
+lugar de adivinar: `ask_user_question` acepta de una a diez preguntas de opción
+múltiple, cada una con un encabezado corto, de dos a seis opciones con lo que
+significa cada una y si se pueden elegir varias. La consola las muestra como una
+tarjeta, una pregunta a la vez, con espacio para una respuesta escrita y un resumen
+antes de enviar; el agent recibe lo elegido por encabezado, o se le dice que la
+persona no quiso responder, y sigue.
+
+La herramienta y su esquema vienen de `AskUser` de pydantic-ai-harness. Está activa
+por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivarla.
+Donde todavía nadie puede responder — una programación, un webhook, la API — el
+agent recibe que la persona no quiso responder.
 
 ## Operar la plataforma { #operate-the-platform }
 

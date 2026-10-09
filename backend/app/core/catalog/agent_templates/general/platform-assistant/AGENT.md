@@ -5,6 +5,7 @@ description: Helps people use AgenticOS - finds agents, runs and knowledge bases
   knowledge bases, adds documents and invites people. Acts with exactly the
   permissions of whoever is asking.
 capabilities:
+- ask_user
 - platform
 - clock
 budget_usd: 20

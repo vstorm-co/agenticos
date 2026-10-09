@@ -33,6 +33,7 @@ import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
+import { ASK_USER_ID, unboundBinding } from "@/lib/agent-spec";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -107,7 +108,9 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           instructions: "",
           model_profile_id: null,
           model_settings: {},
-          capabilities: [],
+          // Every new agent can ask the person a question rather than guess
+          // (#2064); its author can switch it off in the Builder.
+          capabilities: [{ ...unboundBinding(ASK_USER_ID), enabled: true }],
           collection_ids: [],
           skill_ids: [],
           context_ids: [],

@@ -259,7 +259,9 @@
       "readingArtifact": "Czytanie opublikowanej strony",
       "readArtifact": "Odczyt opublikowanej strony",
       "artifactVersion": "Wersja {version} · otwórz stronę",
-      "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę"
+      "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę",
+      "askingYou": "Czekam na twoją odpowiedź",
+      "askedYou": "Zapytał cię"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -1322,7 +1324,15 @@
     "source": "Źródło",
     "typeToConfirm": "Wpisz <mono>{phrase}</mono>, aby potwierdzić",
     "typeYourAnswer": "Wpisz odpowiedź…",
-    "useProviderDefault": "Użyj domyślnych providera"
+    "useProviderDefault": "Użyj domyślnych providera",
+    "pickAnyNumber": "Wybierz wszystkie pasujące.",
+    "useThisAnswer": "Użyj",
+    "continue": "Dalej",
+    "previousQuestion": "Poprzednie pytanie",
+    "reviewAnswers": "Twoje odpowiedzi",
+    "goToQuestion": "Przejdź do pytania {step}",
+    "skipped": "Pominięte",
+    "sendAnswers": "Wyślij odpowiedzi"
   },
   "states": {
     "loading": "Wczytywanie"

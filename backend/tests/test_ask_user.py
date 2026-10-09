@@ -9,6 +9,14 @@ shape the WebSocket client has actually been able to send.
 from __future__ import annotations
 
 import pytest
+from pydantic_ai_harness.ask_user import (
+    AskUserAnswer,
+    AskUserRequest,
+    AskUserResponse,
+    Question,
+    QuestionOption,
+    check_response,
+)
 from subagents_pydantic_ai import SubAgentState
 
 # The library binds this itself around every delegation and exports the reader
@@ -16,7 +24,16 @@ from subagents_pydantic_ai import SubAgentState
 # reaches for it here.
 from subagents_pydantic_ai._state import bind_subagent_state
 
-from app.agents.ask_user import MAX_QUESTIONS, QuestionItem, asking_delegate, format_answers
+from app.agents.ask_user import (
+    MAX_QUESTIONS,
+    QuestionChoice,
+    QuestionItem,
+    answers_to_response,
+    asking_delegate,
+    format_answers,
+    render_answer,
+    wire_questions,
+)
 
 
 class TestQuestionItem:
@@ -29,7 +46,11 @@ class TestQuestionItem:
 
     def test_free_form_can_be_closed_off(self):
         """A question with fixed options must be able to mean only those."""
-        item = QuestionItem(question="Region?", options=["eu", "us"], allow_custom=False)
+        item = QuestionItem(
+            question="Region?",
+            options=[QuestionChoice(label="eu"), QuestionChoice(label="us")],
+            allow_custom=False,
+        )
 
         assert item.allow_custom is False
 
@@ -112,3 +133,71 @@ class TestWhichDelegateIsAsking:
         the main agent asking, which is the honest answer when nothing said."""
         with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0)):
             assert asking_delegate() is None
+
+
+def _request(*, multi: bool = False) -> AskUserRequest:
+    return AskUserRequest(
+        questions=(
+            Question(
+                header="Region",
+                question="Where should it run?",
+                options=(
+                    QuestionOption(label="eu", description="Frankfurt"),
+                    QuestionOption(label="us"),
+                ),
+                multi_select=multi,
+            ),
+            Question(
+                header="Size",
+                question="How big?",
+                options=(QuestionOption(label="small"), QuestionOption(label="large")),
+            ),
+        )
+    )
+
+
+class TestTheAskUserCard:
+    """#2064. The surface's answers are client input; nothing it sends may fail
+    the run, and what reaches the model must pass the harness's own check."""
+
+    def test_the_card_carries_headers_descriptions_and_multi_select(self) -> None:
+        [region, _size] = wire_questions(_request(multi=True))
+
+        assert region["header"] == "Region"
+        assert region["options"][0] == {"label": "eu", "description": "Frankfurt"}
+        assert region["multi_select"] is True
+
+    def test_picks_and_typed_answers_become_the_harness_response(self) -> None:
+        request = _request(multi=True)
+
+        response = answers_to_response(
+            request, [{"selected": ["us", "eu", "us"]}, {"answer": "medium\x07"}]
+        )
+
+        check_response(request, response)
+        assert response.answers == (
+            AskUserAnswer(header="Region", selected=("us", "eu")),
+            AskUserAnswer(header="Size", custom_answer="medium"),
+        )
+
+    def test_a_label_not_offered_and_a_second_single_pick_are_dropped(self) -> None:
+        request = _request()
+
+        response = answers_to_response(
+            request, [{"selected": ["mars", "eu", "us"]}, {"selected": ["galaxy"]}]
+        )
+
+        check_response(request, response)
+        assert response.answers == (
+            AskUserAnswer(header="Region", selected=("eu",)),
+            AskUserAnswer(header="Size", custom_answer="(skipped)"),
+        )
+
+    def test_skipping_everything_is_declining(self) -> None:
+        request = _request()
+
+        for answers in ([{"skipped": True}, {"skipped": True, "answer": "x"}], [], ["eu", None]):
+            assert answers_to_response(request, answers) == AskUserResponse(cancelled=True)
+
+    def test_a_picked_answer_is_shown_by_its_labels(self) -> None:
+        assert render_answer({"selected": ["eu", "us"]}) == "eu, us"

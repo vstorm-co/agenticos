@@ -3,6 +3,7 @@ name: Line Support
 description: Takes a machine fault from symptom to the documented procedure, safety
   first.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 4

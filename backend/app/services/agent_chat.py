@@ -41,7 +41,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
-from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -308,6 +308,7 @@ class ChatAgentRunner:
         prompt_message_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        ask_questions: QuestionsCallback | None = None,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
@@ -343,6 +344,8 @@ class ChatAgentRunner:
                 refusal happens inside `prepare`.
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
+            ask_questions: How the `ask_user` capability puts a card of
+                multiple-choice questions to that person (#2064).
             stream: Iterates the run and forwards its events to the client.
             on_run_open: Told the run row as soon as `prepare` has opened one,
                 so a surface can persist what it streamed even when this method
@@ -413,6 +416,7 @@ class ChatAgentRunner:
         # tell it to ask first has no way to ask; without `subagent_events`, a
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
+        prepared.deps.ask_questions = ask_questions
         prepared.deps.subagent_events = subagent_events
         # And the third: summarising a long history is a whole model request
         # between two of this turn's own, where nothing streams. Without this the

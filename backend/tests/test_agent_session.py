@@ -76,6 +76,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, Question, QuestionOption
 from subagents_pydantic_ai import SubAgentState, TaskStatus
 
 # The library binds this itself around every delegation and exports the reader
@@ -1310,7 +1311,16 @@ class TestAskingTheUser:
                 "ask_user",
                 {
                     "questions": [
-                        {"question": "Which region?", "options": ["eu", "us"], "allow_custom": True}
+                        {
+                            "question": "Which region?",
+                            "header": None,
+                            "options": [
+                                {"label": "eu", "description": None},
+                                {"label": "us", "description": None},
+                            ],
+                            "multi_select": False,
+                            "allow_custom": True,
+                        }
                     ]
                 },
             )
@@ -1321,6 +1331,52 @@ class TestAskingTheUser:
         )
 
         assert await asking == "eu"
+
+    async def test_an_ask_user_card_is_answered_with_the_picked_labels(self):
+        """#2064: the `ask_user` capability's batch goes out as one card on the same
+        frame, and the picks come back keyed by header - each pair also landing on
+        the turn's timeline the moment the answer arrives."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Audience",
+                    question="Who will use it?",
+                    options=(QuestionOption(label="Everyone"), QuestionOption(label="My team")),
+                ),
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+
+        asking = asyncio.create_task(session._ask_questions(request))
+        await _wait(asked)
+        [(kind, payload)] = _sent_events(session)
+        await session.handle_frame(
+            {
+                "type": "ask_user_response",
+                "answers": [{"selected": ["My team"]}, {"answer": "Friendly but brief"}],
+            }
+        )
+        response = await asking
+
+        assert kind == "ask_user"
+        assert [item["header"] for item in payload["questions"]] == ["Audience", "Tone"]
+        assert response.answers == (
+            AskUserAnswer(header="Audience", selected=("My team",)),
+            AskUserAnswer(header="Tone", custom_answer="Friendly but brief"),
+        )
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.answer) for part in stored] == [
+            ("Who will use it?", "My team"),
+            ("How should it sound?", "Friendly but brief"),
+        ]
 
     async def test_an_answered_question_is_recorded_on_the_turns_timeline(self):
         """The whole point of #502: the question and the answer land on the running

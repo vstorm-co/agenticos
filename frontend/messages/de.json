@@ -1237,7 +1237,9 @@
       "listingMembers": "Sehe mir die Mitglieder an",
       "listMembers": "Mitglieder auflisten",
       "invitingMember": "Lade jemanden ein",
-      "inviteMember": "Mitglied einladen"
+      "inviteMember": "Mitglied einladen",
+      "askingYou": "Warte auf Ihre Antwort",
+      "askedYou": "Hat Sie gefragt"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -4928,7 +4930,15 @@
     "source": "Quelle",
     "typeToConfirm": "Tippen Sie <mono>{phrase}</mono> zur Bestätigung",
     "typeYourAnswer": "Antwort eingeben …",
-    "useProviderDefault": "Provider-Standard verwenden"
+    "useProviderDefault": "Provider-Standard verwenden",
+    "pickAnyNumber": "Wählen Sie alle zutreffenden.",
+    "useThisAnswer": "Übernehmen",
+    "continue": "Weiter",
+    "previousQuestion": "Vorherige Frage",
+    "reviewAnswers": "Ihre Antworten",
+    "goToQuestion": "Zu Frage {step}",
+    "skipped": "Übersprungen",
+    "sendAnswers": "Antworten senden"
   },
   "vault": {
     "access": "Zugriff",

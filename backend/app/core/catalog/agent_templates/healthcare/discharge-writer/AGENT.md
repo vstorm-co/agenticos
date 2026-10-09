@@ -3,6 +3,7 @@ name: Discharge Letter Writer
 description: Turns a clinical discharge summary into the version the patient reads
   at home, without changing a fact.
 capabilities:
+- ask_user
 - context
 - skills
 - clock

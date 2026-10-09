@@ -144,6 +144,13 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // ask_user - multiple-choice questions to the person running the agent (#2064).
+  ask_user_question: {
+    kind: "read",
+    render: "generic",
+    captionKey: "askingYou",
+    displayNameKey: "askedYou",
+  },
   // platform - the in-app assistant operating the organization (#1798).
   whoami: {
     kind: "read",

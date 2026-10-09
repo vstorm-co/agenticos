@@ -48,6 +48,7 @@ tools listed.
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Ask the user | utility | `ask_user_question` | — | — |
 | `platform` | Operate the platform | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -1786,6 +1787,20 @@ Three properties hold on every platform:
 - **Outside a channel it contributes nothing.** A run from the dashboard, the API
   or a schedule has no directory, so the capability is not attached at all — the
   same reason `knowledge` with no collections is not.
+
+## Ask the user
+
+When an agent needs a decision only the person can make, it asks instead of
+guessing: `ask_user_question` takes one to ten multiple-choice questions, each
+with a short header, two to six options with what each means, and whether
+several may be picked. The console shows them as a card, one question at a time,
+with room for a typed answer and a summary before sending; the agent receives the
+picks keyed by header, or is told the person declined and carries on.
+
+The tool and its schema come from `AskUser` in pydantic-ai-harness. It is on by
+default in every new agent and every template, and an author can switch it off.
+Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
+the person declined.
 
 ## Operate the platform
 

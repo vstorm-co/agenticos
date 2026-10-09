@@ -1,5 +1,5 @@
 ---
-source_sha: "860be1ce5ba6"
+source_sha: "95c9cbd86475"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -53,6 +53,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
 | `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Den Nutzer fragen | utility | `ask_user_question` | — | — |
 | `platform` | Plattform bedienen | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -2015,6 +2016,21 @@ Drei Eigenschaften gelten auf jeder Plattform:
   API oder aus einem Zeitplan hat kein Verzeichnis, deshalb wird die Capability gar
   nicht erst angehängt — aus demselben Grund, aus dem `knowledge` ohne Collections
   nicht angehängt wird.
+
+## Den Nutzer fragen { #ask-the-user }
+
+Braucht ein Agent eine Entscheidung, die nur der Mensch treffen kann, fragt er,
+statt zu raten: `ask_user_question` nimmt eine bis zehn Multiple-Choice-Fragen,
+jede mit einer kurzen Überschrift, zwei bis sechs Optionen samt Bedeutung und der
+Angabe, ob mehrere gewählt werden dürfen. Die Konsole zeigt sie als Karte, eine
+Frage nach der anderen, mit Platz für eine eigene Antwort und einer Übersicht vor
+dem Senden; der Agent erhält die Auswahl nach Überschrift oder erfährt, dass die
+Person abgelehnt hat, und macht weiter.
+
+Das Tool und sein Schema stammen aus `AskUser` in pydantic-ai-harness. Es ist in
+jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abschalten.
+Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
+Agent, dass die Person abgelehnt hat.
 
 ## Plattform bedienen { #operate-the-platform }
 

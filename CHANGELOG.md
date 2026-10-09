@@ -83,6 +83,13 @@ Two things are versioned separately from this file and worth knowing about:
   was edited, and otherwise says who changed it and through what and waits for
   **Reload** or **Keep my changes**. A subscriber only hears about rows it may
   read, and a socket whose session, key or membership is gone is closed (#2061).
+- **Agents ask instead of guessing.** A new `ask_user` capability, built on
+  `AskUser` from pydantic-ai-harness, gives an agent `ask_user_question`: up to ten
+  multiple-choice questions with headers, option descriptions and multi-select.
+  The console asks them as a carousel card - one question per slide, a typed
+  answer, Back, Skip and a summary before sending - on the same channel a
+  delegate's questions already used. On by default in every new agent, every
+  template and every draft created over MCP (#2064).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

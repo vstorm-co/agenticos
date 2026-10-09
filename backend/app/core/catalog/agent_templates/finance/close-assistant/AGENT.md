@@ -3,6 +3,7 @@ name: Month-End Close Assistant
 description: Drives the close through its dependencies and reports what is actually
   blocking it.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - code_execution

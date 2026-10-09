@@ -53,7 +53,12 @@ def server(api: MagicMock) -> FastMCP:
                 "/agents",
                 {
                     "json": {
-                        "spec": {"name": "Bot", "instructions": "Be brief.", "description": "A bot"}
+                        "spec": {
+                            "name": "Bot",
+                            "instructions": "Be brief.",
+                            "capabilities": [{"id": "ask_user"}],
+                            "description": "A bot",
+                        }
                     }
                 },
             ),
@@ -61,7 +66,19 @@ def server(api: MagicMock) -> FastMCP:
         (
             "create_agent_draft",
             {"name": "Bot", "instructions": "Be brief."},
-            ("POST", "/agents", {"json": {"spec": {"name": "Bot", "instructions": "Be brief."}}}),
+            (
+                "POST",
+                "/agents",
+                {
+                    "json": {
+                        "spec": {
+                            "name": "Bot",
+                            "instructions": "Be brief.",
+                            "capabilities": [{"id": "ask_user"}],
+                        }
+                    }
+                },
+            ),
         ),
         (
             "run_agent",

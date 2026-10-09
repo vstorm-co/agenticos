@@ -3,6 +3,7 @@ name: Incident and Quality Assistant
 description: Writes up patient-safety incidents factually and blamelessly, and flags
   what the account does not establish.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - clock

@@ -87,6 +87,9 @@ export default defineConfig({
         // dressed up as a refactor.
         "src/components/files/**/*.tsx",
         "src/components/ui/doc-peek.tsx",
+        // The question carousel an agent asks through (#2064).
+        "src/components/ui/question-prompt.tsx",
+        "src/components/ui/question-slide.tsx",
         "src/components/ui/text-peek.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",

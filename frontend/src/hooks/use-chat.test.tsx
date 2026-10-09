@@ -1999,7 +1999,39 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.pendingQuestions).toEqual([
-      { question: "Which invoice?", options: [], allowCustom: true },
+      {
+        question: "Which invoice?",
+        header: undefined,
+        options: [],
+        multiSelect: false,
+        allowCustom: true,
+      },
+    ]);
+  });
+
+  it("carries a card's headers, option descriptions and multi-select (#2064)", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("ask_user", {
+      questions: [
+        {
+          question: "Who will use it?",
+          header: "Audience",
+          options: [{ label: "Everyone", description: "The whole organization" }],
+          multi_select: true,
+          allow_custom: true,
+        },
+      ],
+    });
+
+    expect(result.current.pendingQuestions).toEqual([
+      {
+        question: "Who will use it?",
+        header: "Audience",
+        options: [{ label: "Everyone", description: "The whole organization" }],
+        multiSelect: true,
+        allowCustom: true,
+      },
     ]);
   });
 
@@ -2014,7 +2046,7 @@ describe("useChat - approvals and questions", () => {
   it("sends the answers and closes the prompt", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
-      questions: [{ question: "Which?", options: ["a"], allow_custom: false }],
+      questions: [{ question: "Which?", options: [{ label: "a" }], allow_custom: false }],
     });
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));

@@ -15,6 +15,7 @@ import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
   AskUserAnswer,
+  AskUserChoice,
   AskUserQuestion,
   BrowserFrame,
   ChatMessageFile,
@@ -671,12 +672,20 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "ask_user": {
           const { questions } = wsEvent.data as {
-            questions: { question: string; options: string[]; allow_custom: boolean }[];
+            questions: {
+              question: string;
+              header?: string | null;
+              options?: AskUserChoice[];
+              multi_select?: boolean;
+              allow_custom: boolean;
+            }[];
           };
           setPendingQuestions(
             (questions ?? []).map((q) => ({
               question: q.question,
+              header: q.header,
               options: q.options ?? [],
+              multiSelect: q.multi_select ?? false,
               allowCustom: q.allow_custom,
             })),
           );

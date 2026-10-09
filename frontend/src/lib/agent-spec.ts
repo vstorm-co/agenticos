@@ -23,6 +23,8 @@ export const SKILLS_ID = "skills";
 
 /** The capability that publishes pages, and the bundled skill that teaches it to build them. */
 export const ARTIFACTS_ID = "artifacts";
+/** The `ask_user` capability, on by default in every new agent (#2064). */
+export const ASK_USER_ID = "ask_user";
 export const ARTIFACT_PAGES_SKILL = "artifact-pages";
 
 /** The capability that searches the collections bound in `collection_ids`. */

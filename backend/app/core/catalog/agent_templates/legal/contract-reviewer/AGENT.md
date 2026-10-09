@@ -3,6 +3,7 @@ name: Contract First Pass
 description: Extracts the operative terms of an agreement and flags every deviation
   from the standard, without advising.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 5

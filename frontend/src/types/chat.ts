@@ -396,15 +396,26 @@ export interface Decision {
   };
 }
 
+export interface AskUserChoice {
+  label: string;
+  description?: string | null;
+}
+
 export interface AskUserQuestion {
   question: string;
-  options: string[];
+  /** A short label for the question, shown as a chip (#2064). */
+  header?: string | null;
+  options: AskUserChoice[];
+  /** Whether several options may be picked. */
+  multiSelect?: boolean;
   /** Whether the user may type a free-form answer instead of picking an option. */
   allowCustom: boolean;
 }
 
 export interface AskUserAnswer {
   answer: string;
+  /** The labels picked, when the person chose from the options. */
+  selected?: string[];
   skipped: boolean;
 }
 

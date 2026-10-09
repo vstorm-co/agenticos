@@ -7,8 +7,16 @@ from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
-from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
+from app.agents.ask_user import (
+    QuestionChoice,
+    QuestionItem,
+    answers_to_response,
+    asking_delegate,
+    render_answer,
+    wire_questions,
+)
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -146,10 +154,11 @@ class AgentSession:
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
         self._current_timeline: TurnTimeline | None = None
-        # The question awaiting an answer, so the frame handler can record the
-        # answered pair the moment it arrives - before a `stop` frame behind it
-        # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
-        self._pending_question: str | None = None
+        # The questions awaiting answers, so the frame handler can record each
+        # answered pair the moment they arrive - before a `stop` frame behind them
+        # can cancel the turn and lose them (#502). One round at a time, under
+        # `_ask_lock`: a delegate's single question, or an `ask_user` card.
+        self._pending_questions: list[str] | None = None
         # Which delegate that question came from, read where the question is put
         # rather than where its answer lands: the delegation's state is bound for
         # the duration of the delegation, so it is bound inside `_ask_one` and
@@ -204,12 +213,13 @@ class AgentSession:
             # the next frame, so completing the pair now is what keeps a turn
             # cancelled a microtask later from losing the answered question
             # (#502).
-            if self._pending_question is not None and self._current_timeline is not None:
-                self._current_timeline.add_ask_user(
-                    self._pending_question,
-                    render_answer(answers[0] if answers else None),
-                    asked_by=self._pending_asked_by,
-                )
+            if self._pending_questions is not None and self._current_timeline is not None:
+                for index, question in enumerate(self._pending_questions):
+                    self._current_timeline.add_ask_user(
+                        question,
+                        render_answer(answers[index] if index < len(answers) else None),
+                        asked_by=self._pending_asked_by,
+                    )
             return
 
         if msg_type == "connect_account_response":
@@ -467,6 +477,7 @@ class AgentSession:
                     ),
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
+                    ask_questions=self._ask_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -657,7 +668,9 @@ class AgentSession:
         inside it, and unbound again by the time the answer comes back on the
         receive loop. `None` is the main agent asking the question itself (#1042).
         """
-        item = QuestionItem(question=question, options=options)
+        item = QuestionItem(
+            question=question, options=[QuestionChoice(label=option) for option in options]
+        )
         asked_by = asking_delegate()
         # **Under the lock, with the round it belongs to.** The frame handler
         # records the answered pair onto the turn's timeline the moment the
@@ -668,14 +681,31 @@ class AgentSession:
         # the second's name. The lock already held the wire round; it holds what
         # names it now too.
         async with self._ask_lock:
-            self._pending_question = question
+            self._pending_questions = [question]
             self._pending_asked_by = asked_by
             try:
                 answers = await self._send_and_wait([item.model_dump()])
             finally:
-                self._pending_question = None
+                self._pending_questions = None
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
+
+    async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
+        """Put an `ask_user` card to the client and return the picks (#2064).
+
+        The same frame and the same lock as a delegate's question, so a card and a
+        delegate asking at once queue rather than draw over each other, and the
+        answered pairs land on the turn's timeline the moment they arrive.
+        """
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = asking_delegate()
+            try:
+                answers = await self._send_and_wait(wire_questions(request))
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+        return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.

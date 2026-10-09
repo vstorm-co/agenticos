@@ -3,6 +3,7 @@ name: Product Terms Assistant
 description: Answers questions about rates, fees and terms by quoting the current
   document and its version.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 4

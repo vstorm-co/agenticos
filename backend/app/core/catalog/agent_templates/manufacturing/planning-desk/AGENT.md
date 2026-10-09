@@ -3,6 +3,7 @@ name: Planning Desk
 description: Answers what the schedule can absorb and what a change costs, naming
   what moves.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - code_execution

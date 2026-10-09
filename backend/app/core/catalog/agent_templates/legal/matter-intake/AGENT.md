@@ -3,6 +3,7 @@ name: Matter Intake
 description: Captures a new matter completely and runs the conflict and limitation
   questions before anything else.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

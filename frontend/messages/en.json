@@ -1242,7 +1242,9 @@
       "listingMembers": "Looking at the members",
       "listMembers": "List members",
       "invitingMember": "Inviting someone",
-      "inviteMember": "Invite member"
+      "inviteMember": "Invite member",
+      "askingYou": "Waiting for your answer",
+      "askedYou": "Asked you"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -5069,7 +5071,15 @@
     "source": "Source",
     "typeToConfirm": "Type <mono>{phrase}</mono> to confirm",
     "typeYourAnswer": "Type your answer…",
-    "useProviderDefault": "Use provider default"
+    "useProviderDefault": "Use provider default",
+    "pickAnyNumber": "Pick as many as apply.",
+    "useThisAnswer": "Use this",
+    "continue": "Continue",
+    "previousQuestion": "Previous question",
+    "reviewAnswers": "Your answers",
+    "goToQuestion": "Go to question {step}",
+    "skipped": "Skipped",
+    "sendAnswers": "Send answers"
   },
   "vault": {
     "access": "Access",

@@ -1,5 +1,5 @@
 ---
-source_sha: "860be1ce5ba6"
+source_sha: "95c9cbd86475"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -53,6 +53,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
 | `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Pytanie do użytkownika | narzędzia | `ask_user_question` | — | — |
 | `platform` | Obsługa platformy | narzędzia | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -1872,6 +1873,21 @@ Trzy własności obowiązują na każdej platformie:
 - **Poza kanałem nie wnosi nic.** Run z dashboardu, z API albo z harmonogramu nie ma
   żadnego katalogu, więc capability nie jest w ogóle dołączana — z tego samego
   powodu, dla którego nie jest dołączane `knowledge` bez kolekcji.
+
+## Pytanie do użytkownika { #ask-the-user }
+
+Gdy agent potrzebuje decyzji, którą może podjąć tylko człowiek, pyta zamiast
+zgadywać: `ask_user_question` przyjmuje od jednego do dziesięciu pytań
+wielokrotnego wyboru, każde z krótkim nagłówkiem, od dwóch do sześciu opcji z
+opisem, co każda oznacza, i informacją, czy można wybrać kilka. Konsola pokazuje je
+jako kartę, jedno pytanie naraz, z miejscem na własną odpowiedź i podsumowaniem
+przed wysłaniem; agent dostaje wybory według nagłówka albo informację, że osoba
+odmówiła, i działa dalej.
+
+Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
+domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
+wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
+dowiaduje się, że osoba odmówiła.
 
 ## Obsługa platformy { #operate-the-platform }
 
