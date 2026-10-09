@@ -55,6 +55,8 @@ async def test_it_is_served_without_a_credential_and_holds_only_public_routes(
     assert f"{settings.API_V1_STR}/api-keys" not in paths
     assert f"{settings.API_V1_STR}/users/me" not in paths
     assert f"{settings.API_V1_STR}/orgs/{{org_id}}/leave" not in paths
+    # A directory on the deployment's own disk is never a key's to point at.
+    assert f"{settings.API_V1_STR}/rag/sync/local" not in paths
     assert "compatibility" in document["info"]["description"].lower()
 
 

@@ -279,3 +279,26 @@ class TestRoute:
 
         socket.accept.assert_awaited_once_with(subprotocol="events")
         stream.assert_awaited_once_with(socket, organization_id=organization.id, auth_token="token")
+
+
+class TestTheTab:
+    def test_a_well_formed_tab_id_is_echoed_and_anything_else_is_dropped(self) -> None:
+        tab = str(uuid.uuid4())
+
+        assert change_feed.console_tab(tab) == tab
+        assert change_feed.console_tab(None) is None
+        assert change_feed.console_tab("x" * 65) is None
+        assert change_feed.console_tab("<script>") is None
+
+    def test_the_change_carries_the_tab_that_made_it(self) -> None:
+        origin = ChangeOrigin(
+            organization_id=uuid.uuid4(),
+            actor_user_id=uuid.uuid4(),
+            actor_name="Ada",
+            surface="console",
+            tab="tab-1",
+        )
+
+        event = change_for(method="POST", path=f"{V1}/kb", path_params={}, origin=origin, body=b"")
+
+        assert event is not None and event.origin_tab == "tab-1"

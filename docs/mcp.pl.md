@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4ada142d78"
+source_sha: "3ce84e15a17d"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -774,6 +774,9 @@ logowaniem.
 Klient loguje się przez przeglądarkę: rejestruje się, otwiera w konsoli stronę
 zgody, na której wybierasz organizację i to, co może robić, i dostaje token ważny
 godzinę, który sam się odnawia. Nigdzie nie wklejasz klucza.
+
+Rejestracja nie wymaga poświadczeń, więc jest limitowana per adres jak logowanie,
+a klient, z którym nikt nie dokończył logowania, znika po dobie.
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp

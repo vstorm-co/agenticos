@@ -13,6 +13,7 @@ const CHANGE: ChangeEvent = {
   surface: "mcp",
   actor_user_id: "user-1",
   actor_name: "Ada Lovelace",
+  origin_tab: null,
 };
 
 describe("RemoteChangeBanner", () => {

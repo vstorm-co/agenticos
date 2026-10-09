@@ -24,7 +24,6 @@ from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthenticationError
-from app.core.permissions import AuthContext
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -50,7 +49,7 @@ from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
-from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
+from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +140,6 @@ class AgentSession:
         # the socket carried no token to re-check - which the handshake refuses,
         # so it happens in tests alone; such a session is left to run.
         self._auth_token = auth_token
-        # The narrowed context of an organization key, refreshed by every frame's
-        # re-check; None for a session socket, whose context is its membership.
-        self._key_context: AuthContext | None = None
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -276,11 +272,7 @@ class AgentSession:
             return True
         async with get_db_context() as db:
             try:
-                caller = await authenticate_socket_key(db, self._auth_token)
-                if caller is None:
-                    await authenticate_socket_token(db, self._auth_token, allow_expired=True)
-                else:
-                    self._key_context = caller.context
+                await authenticate_socket_token(db, self._auth_token, allow_expired=True)
             except AuthenticationError:
                 await self._cancel_turn()
                 with contextlib.suppress(RuntimeError):
@@ -495,7 +487,6 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
-                    context=self._key_context,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).

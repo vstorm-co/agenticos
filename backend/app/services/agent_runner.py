@@ -189,7 +189,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     delegation_binding,
 )
-from app.services.api_key import ApiKeyService
+from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channel_link import mcp_servers_link
@@ -1914,7 +1914,6 @@ class AgentRunnerService:
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
-        self.api_keys = ApiKeyService(db)
 
     async def _platform_resources(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
         """The credential the `platform` capability acts with, when it is bound.
@@ -1928,7 +1927,7 @@ class AgentRunnerService:
             for binding in spec.capabilities
         ):
             return {}
-        credential = await self.api_keys.issue_for_run(ctx)
+        credential = await mint_for_run(ctx)
         return {PLATFORM_CREDENTIAL_RESOURCE: SecretStr(credential)} if credential else {}
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:

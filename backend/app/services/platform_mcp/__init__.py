@@ -21,14 +21,18 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.http import StarletteWithLifespan
 from mcp.types import ToolAnnotations
+from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.services import rate_limit
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import PlatformTool, platform_tools
 
 MCP_PATH = "/mcp"
+REGISTER_PATH = "/register"
+"""Dynamic client registration: open to anyone, so limited per address."""
 
 _READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 _WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
@@ -83,7 +87,7 @@ ROUTE_PATHS = (
     "/.well-known/oauth-authorization-server",
     "/authorize",
     "/token",
-    "/register",
+    REGISTER_PATH,
     "/revoke",
 )
 """What the MCP app answers, registered on the API app so it is served beside it."""
@@ -113,6 +117,24 @@ class _Forward:
     """
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["path"] == REGISTER_PATH and scope.get("method") == "POST":
+            decision = await rate_limit.consume(
+                surface="oauth_register",
+                caller=f"ip:{rate_limit.caller_ip(HTTPConnection(scope))}",
+                limit=rate_limit.auth_limit(),
+            )
+            if not decision.allowed:
+                # RFC 6749's error shape, which is what a registering client parses.
+                refused = JSONResponse(
+                    {
+                        "error": "temporarily_unavailable",
+                        "error_description": "Too many registrations. Try again shortly.",
+                    },
+                    status_code=429,
+                    headers={"Retry-After": str(decision.retry_after_seconds)},
+                )
+                await refused(scope, receive, send)
+                return
         starlette = getattr(scope["app"].state, "platform_mcp", None)
         if starlette is None:
             response = JSONResponse(

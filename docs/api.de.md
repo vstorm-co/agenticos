@@ -1,5 +1,5 @@
 ---
-source_sha: "4a0a94002702"
+source_sha: "97048db675bf"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -250,11 +250,10 @@ Zwei WebSocket-Endpunkte, für zwei Zielgruppen.
 - **`/api/v1/ws/agent`** — der authentifizierte, den die Konsole nutzt. Ein
   Frame mit `agent_id` führt diesen veröffentlichten Agent aus; ein Frame ohne
   sie erreicht den allgemeinen Assistenten. Authentifizieren Sie sich mit dem
-  Subprotokoll `access_token.<token>`, wobei das Token ein Sitzungs-JWT oder ein
-  API-Schlüssel der Organisation ist; der Socket eines Schlüssels handelt in
-  dessen Organisation, führt jeden Zug innerhalb der Berechtigungen des Schlüssels
-  aus und schließt sich beim nächsten Frame, nachdem der Schlüssel widerrufen
-  wurde.
+  Subprotokoll `access_token.<token>`, wobei das Token ein Sitzungs-JWT ist. Ein
+  API-Schlüssel der Organisation wird hier abgelehnt: Ein Zug auf diesem Socket ist
+  eine Person an der Tastatur, mit ihren persönlichen Verbindungen. Integrationen
+  führen Agents über `POST /api/v1/agents/{id}/run` aus.
 - **`/api/v1/embed/{public_key}/ws`** — der öffentliche hinter einem
   [Embed](channels.md), für einen Besucher, der kein Konto hat.
 

@@ -745,6 +745,9 @@ console's consent page, where you choose the organization and what it may do,
 and receives a token that lasts an hour and renews itself. No key is pasted
 anywhere.
 
+Registration needs no credential, so it is limited per address like sign-in,
+and a client nobody completed sign-in with is forgotten after a day.
+
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp
 ```

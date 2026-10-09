@@ -289,7 +289,7 @@ class TestTheConsoleHalf:
     async def test_denying_tells_the_client_access_denied(
         self, db: AsyncSession, served: None
     ) -> None:
-        _ctx = await _owner(db)
+        await _owner(db)
         _verifier, challenge = _pkce()
         async with _http() as http:
             client = await _register(http)
@@ -518,3 +518,103 @@ class TestTheProviderDirectly:
         await PlatformOAuthProvider().revoke_token(
             PlatformAccessToken(token="aos_x", client_id="aos_x", scopes=[], grant_id=None)
         )
+
+
+@pytest.mark.security
+async def test_two_exchanges_of_one_refresh_token_issue_once_and_revoke(
+    db: AsyncSession, served: None
+) -> None:
+    """Both exchanges loaded the token before either spent it - what two
+    concurrent requests do. Only one may issue, and the loser is a reuse."""
+    from mcp.server.auth.provider import TokenError
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    from app.services.platform_mcp._oauth import PlatformOAuthProvider
+
+    _ctx, client_id, tokens = await _connected(db, Perm.AGENTS_VIEW)
+    provider = PlatformOAuthProvider()
+    client = OAuthClientInformationFull(client_id=client_id, redirect_uris=[REDIRECT])
+    first = await provider.load_refresh_token(client, tokens["refresh_token"])
+    second = await provider.load_refresh_token(client, tokens["refresh_token"])
+    assert first is not None and second is not None
+
+    issued = await provider.exchange_refresh_token(client, first, [])
+    with pytest.raises(TokenError) as lost:
+        await provider.exchange_refresh_token(client, second, [])
+
+    assert lost.value.error == "invalid_grant"
+    assert (await _whoami(issued.access_token)).status_code == 401
+
+
+@pytest.mark.security
+async def test_a_grant_revoked_after_loading_issues_nothing(db: AsyncSession, served: None) -> None:
+    from mcp.server.auth.provider import TokenError
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    from app.services.platform_mcp._oauth import PlatformOAuthProvider
+
+    ctx, client_id, tokens = await _connected(db, Perm.AGENTS_VIEW)
+    provider = PlatformOAuthProvider()
+    client = OAuthClientInformationFull(client_id=client_id, redirect_uris=[REDIRECT])
+    loaded = await provider.load_refresh_token(client, tokens["refresh_token"])
+    assert loaded is not None
+    keys_before = len((await db.execute(select(ApiKey))).scalars().all())
+
+    grant = (await db.execute(select(OAuthGrant))).scalar_one()
+    await OAuthServerService(db).disconnect(ctx, grant.id)
+    await db.commit()
+
+    with pytest.raises(TokenError):
+        await provider.exchange_refresh_token(client, loaded, [])
+    db.expire_all()
+    assert len((await db.execute(select(ApiKey))).scalars().all()) <= keys_before
+
+
+@pytest.mark.security
+async def test_registration_is_limited_per_address(served: None) -> None:
+    """Registering needs no credential; one address may not create rows without end."""
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.rate_limit import Decision
+
+    denied = AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=60))
+    with patch("app.services.platform_mcp.rate_limit.consume", new=denied):
+        async with _http() as http:
+            refused = await http.post(
+                "/register", json={"redirect_uris": [REDIRECT], "client_name": "flood"}
+            )
+
+    assert refused.status_code == 429
+    assert refused.headers["retry-after"] == "60"
+    assert refused.json()["error"] == "temporarily_unavailable"
+    assert denied.await_args.kwargs["surface"] == "oauth_register"
+
+
+async def test_a_client_nobody_signed_in_with_is_swept_on_the_next_registration(
+    db: AsyncSession, served: None
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.oauth import OAuthClient
+
+    _ctx, kept_id, _tokens = await _connected(db, Perm.AGENTS_VIEW)
+    stale = OAuthClient(
+        client_id="stale-client",
+        info={"client_id": "stale-client", "redirect_uris": [REDIRECT]},
+        created_at=datetime.now(UTC) - timedelta(days=2),
+    )
+    db.add(stale)
+    await db.execute(
+        OAuthClient.__table__.update()
+        .where(OAuthClient.client_id == kept_id)
+        .values(created_at=datetime.now(UTC) - timedelta(days=2))
+    )
+    await db.commit()
+
+    async with _http() as http:
+        await _register(http)
+
+    db.expire_all()
+    remaining = set((await db.execute(select(OAuthClient.client_id))).scalars())
+    assert "stale-client" not in remaining
+    assert kept_id in remaining

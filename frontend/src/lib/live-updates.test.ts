@@ -15,6 +15,7 @@ function change(resource: ChangeResource): ChangeEvent {
     surface: "mcp",
     actor_user_id: "user-1",
     actor_name: "Ada",
+    origin_tab: null,
   };
 }
 

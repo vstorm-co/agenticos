@@ -372,7 +372,7 @@ from app.db.models.user import User
 from app.api.public_api import is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.oauth_server import OAuthServerService
-from app.services.change_feed import ChangeOrigin
+from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
 
 
@@ -753,6 +753,7 @@ def _attributed(
         actor_user_id=user.id,
         actor_name=user.full_name or user.email,
         surface=surface,
+        tab=console_tab(request.headers.get(CONSOLE_TAB_HEADER)),
     )
     return ctx
 

@@ -34,3 +34,7 @@ class ChangeEvent(BaseSchema):
     surface: ChangeSurface
     actor_user_id: UUID = Field(description="The member the change was made as")
     actor_name: str
+    origin_tab: str | None = Field(
+        default=None,
+        description="The console tab that made the change, so that tab can tell its own echo",
+    )

@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4ada142d78"
+source_sha: "3ce84e15a17d"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -805,6 +805,10 @@ Der Client meldet sich über den Browser an: Er registriert sich, öffnet die
 Zustimmungsseite der Konsole, auf der Sie die Organisation und seine Befugnisse
 wählen, und erhält ein Token, das eine Stunde gilt und sich selbst erneuert. Es
 wird nirgends ein Schlüssel eingefügt.
+
+Die Registrierung braucht keine Anmeldedaten, daher ist sie wie die Anmeldung pro
+Adresse begrenzt, und ein Client, mit dem niemand die Anmeldung abgeschlossen hat,
+wird nach einem Tag vergessen.
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp

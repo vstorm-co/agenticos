@@ -24,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import re
 import zlib
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -69,6 +70,16 @@ _REVOKED_CLOSE_CODE = 4403
 """Not retried by the console (`use-websocket.ts`): access that is gone does not
 come back by reconnecting."""
 
+CONSOLE_TAB_HEADER = "x-console-tab"
+_TAB = re.compile(r"[A-Za-z0-9-]{1,64}")
+"""What a tab id may look like - it is echoed to every subscriber, so nothing else."""
+
+
+def console_tab(value: str | None) -> str | None:
+    """The tab id a request carried, or `None` when it carried none worth echoing."""
+    return value if value is not None and _TAB.fullmatch(value) else None
+
+
 _WRITES = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _BODY_LIMIT = 256 * 1024
 """How much of a response is kept to read a created row's `id` from. A create
@@ -87,6 +98,8 @@ class ChangeOrigin:
     actor_user_id: UUID
     actor_name: str
     surface: ChangeSurface
+    tab: str | None = None
+    """The console tab the request came from (`X-Console-Tab`), opaque."""
 
 
 @dataclass(frozen=True)
@@ -211,6 +224,7 @@ def change_for(
         surface=origin.surface,
         actor_user_id=origin.actor_user_id,
         actor_name=origin.actor_name,
+        origin_tab=origin.tab,
     )
 
 

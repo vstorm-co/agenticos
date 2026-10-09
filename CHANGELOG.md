@@ -28,8 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   shown once and stored as a hash, can expire, is revoked instantly, has its own
   rate limit (`RATE_LIMIT_API_KEY_PER_MINUTE`) and is named by prefix in every
   audit entry it causes. Keys work on the public routes only — agents, runs,
-  knowledge bases and RAG, skills, context, artifacts, ML services — and on the
-  chat WebSocket; account and key management stay session-only. Two new
+  knowledge bases and RAG, skills, context, artifacts, ML services; the console's
+  chat socket, account and key management, and the local directory sync stay
+  session-only. Two new
   permissions, `api_keys:create` and `api_keys:manage`; migration
   `0107_api_keys` (#1794).
 - **Organization administration through the public API.** Listing members,

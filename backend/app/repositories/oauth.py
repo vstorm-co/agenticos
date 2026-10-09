@@ -167,11 +167,52 @@ async def get_refresh_token(
     return (found[0], found[1]) if found else None
 
 
-async def mark_used(
-    db: AsyncSession, row: OAuthAuthorizationCode | OAuthRefreshToken, at: datetime
-) -> None:
-    row.used_at = at
-    await db.flush()
+async def consume_code(db: AsyncSession, row: OAuthAuthorizationCode, at: datetime) -> bool:
+    """Spend a code, and say whether this call was the one that did.
+
+    One conditional `UPDATE`, so of two exchanges presenting the same code at once
+    exactly one finds it unspent: the database decides, not two reads that both
+    saw `used_at IS NULL`.
+    """
+    spent = await db.execute(
+        sql_update(OAuthAuthorizationCode)
+        .where(
+            OAuthAuthorizationCode.code_hash == row.code_hash,
+            OAuthAuthorizationCode.used_at.is_(None),
+        )
+        .values(used_at=at)
+        .returning(OAuthAuthorizationCode.code_hash)
+    )
+    return spent.scalar_one_or_none() is not None
+
+
+async def consume_refresh_token(db: AsyncSession, row: OAuthRefreshToken, at: datetime) -> bool:
+    """:func:`consume_code`, for a refresh token."""
+    spent = await db.execute(
+        sql_update(OAuthRefreshToken)
+        .where(
+            OAuthRefreshToken.token_hash == row.token_hash,
+            OAuthRefreshToken.used_at.is_(None),
+        )
+        .values(used_at=at)
+        .returning(OAuthRefreshToken.token_hash)
+    )
+    return spent.scalar_one_or_none() is not None
+
+
+async def delete_unclaimed_clients(db: AsyncSession, *, before: datetime) -> None:
+    """Forget clients registered before `before` that never got a grant.
+
+    Registration is open, so a client nobody completed sign-in for is a row a
+    stranger chose to create; once it is older than any sign-in could take, it
+    goes. A client with a grant - live or revoked - stays, as its record.
+    """
+    claimed = select(OAuthGrant.client_id)
+    await db.execute(
+        delete(OAuthClient).where(
+            OAuthClient.created_at < before, OAuthClient.client_id.not_in(claimed)
+        )
+    )
 
 
 async def delete_expired_requests(db: AsyncSession, *, before: datetime) -> None:

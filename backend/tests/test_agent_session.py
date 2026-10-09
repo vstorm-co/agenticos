@@ -527,48 +527,6 @@ class TestReauthorizingEachFrame:
         session.websocket.close.assert_not_called()
         assert auth.await_args.kwargs["allow_expired"] is True
 
-    async def test_a_key_socket_runs_each_turn_in_the_key_s_fresh_context(self):
-        """A socket opened with an organization key is held to the key, frame by
-        frame, and its turns run within the key's scopes - re-read on each frame,
-        so demoting the issuer narrows the next turn (#1794)."""
-        session = self._socket_session("aos_0123abcdsecret")
-        narrowed = MagicMock()
-        run = AsyncMock(return_value=_finished_turn())
-
-        with (
-            _chat(run),
-            patch(
-                "app.services.agent_session.authenticate_socket_key",
-                new=AsyncMock(return_value=SimpleNamespace(context=narrowed)),
-            ),
-            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as jwt,
-        ):
-            await session.handle_frame(_message())
-            task = session._turn_task
-            assert task is not None
-            await task
-
-        assert run.await_args.kwargs["context"] is narrowed
-        jwt.assert_not_awaited()
-
-    async def test_a_revoked_key_closes_the_socket(self):
-        session = self._socket_session("aos_0123abcdsecret")
-
-        with (
-            patch("app.services.agent_session.get_db_context") as db_context,
-            patch(
-                "app.services.agent_session.authenticate_socket_key",
-                new=AsyncMock(side_effect=AuthenticationError(message="revoked")),
-            ),
-            patch("app.services.agent_session.persist_user_turn") as persist,
-        ):
-            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
-            await session.handle_frame(_message())
-
-        persist.assert_not_called()
-        session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
-
     async def test_an_unknown_control_frame_costs_no_credential_query(self):
         """A frame that does nothing must not re-check the credential: otherwise
         an authenticated client turns a stream of no-op frames into a stream of

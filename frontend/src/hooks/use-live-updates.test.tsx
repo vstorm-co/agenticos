@@ -11,6 +11,7 @@ import type { ChangeEvent } from "@/types/change-events";
 
 interface SocketOptions {
   url: string;
+  identity?: string;
   protocols: () => string[] | undefined;
   onMessage: (message: MessageEvent) => void;
 }
@@ -39,6 +40,7 @@ const EVENT: ChangeEvent = {
   surface: "api_key",
   actor_user_id: "user-1",
   actor_name: "Ada",
+  origin_tab: null,
 };
 
 let client: QueryClient;
@@ -53,7 +55,7 @@ beforeEach(() => {
   socket.connect.mockReset();
   socket.disconnect.mockReset();
   useOrgStore.setState({ activeOrgId: "org-1" });
-  useAuthStore.setState({ accessToken: "jwt" });
+  useAuthStore.setState({ accessToken: "jwt", user: null });
 });
 
 describe("useLiveUpdates", () => {
@@ -64,10 +66,19 @@ describe("useLiveUpdates", () => {
       "wss://api.example.com/api/v1/ws/events?organization_id=org-1",
     );
     expect(socket.options?.protocols()).toEqual(["access_token.jwt", "events"]);
+    expect(socket.options?.identity).toBeUndefined();
     expect(socket.connect).toHaveBeenCalled();
 
     unmount();
     expect(socket.disconnect).toHaveBeenCalled();
+  });
+
+  it("speaks for the signed-in person, so another one gets another socket", () => {
+    useAuthStore.setState({ user: { id: "u1" } as never });
+
+    renderHook(() => useLiveUpdates(), { wrapper });
+
+    expect(socket.options?.identity).toBe("u1");
   });
 
   it("stays closed without an organization or a token", () => {

@@ -20,12 +20,15 @@ import type { ChangeEvent } from "@/types/change-events";
  *
  * Opened again whenever the access token changes: a live socket is reused as it
  * is, and one the server refused at the handshake is retried with the new token.
+ * A different person - an impersonation, another account - is a new socket, so
+ * the stream never keeps hearing what the previous principal could see.
  * While it is down the console behaves as it always did.
  */
 export function useLiveUpdates(): void {
   const queryClient = useQueryClient();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const accessToken = useAuthStore((state) => state.accessToken);
+  const principal = useAuthStore((state) => state.user?.id);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const url = useMemo(
     () => `${wsOrigin}/api/v1/ws/events?organization_id=${encodeURIComponent(activeOrgId ?? "")}`,
@@ -45,7 +48,12 @@ export function useLiveUpdates(): void {
     },
     [queryClient],
   );
-  const { connect, disconnect } = useWebSocket({ url, protocols, onMessage });
+  const { connect, disconnect } = useWebSocket({
+    url,
+    protocols,
+    identity: principal,
+    onMessage,
+  });
 
   useEffect(() => {
     if (!activeOrgId || !accessToken) return;

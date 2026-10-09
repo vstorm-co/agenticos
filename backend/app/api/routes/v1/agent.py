@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.api.deps import ActiveOrgWS, CurrentUserWS
 from app.services.agent import AgentConnectionManager
 from app.services.agent_session import AgentSession
+from app.services.api_key import KeyCaller
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ async def agent_websocket(
 ) -> None:
     if user is None:
         await websocket.close(code=4001, reason="Unauthorized")
+        return
+    # The console's own socket. A run here is a person at the keyboard - their
+    # personal connections, no per-key limit - which a key is not; integrations
+    # run agents over `POST /agents/{id}/run` instead.
+    if isinstance(getattr(websocket.state, "api_key_caller", None), KeyCaller):
+        await websocket.close(code=4003, reason="API keys are not accepted on the chat socket")
         return
 
     await manager.connect(websocket)

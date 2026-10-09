@@ -103,8 +103,8 @@ class TestTheRunnerMintsOnlyWhenBound:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER
         )
-        with patch.object(
-            runner.api_keys, "issue_for_run", new=AsyncMock(return_value="aos_x")
+        with patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_x")
         ) as mint:
             bound = await runner._platform_resources(self._spec(PLATFORM_CAPABILITY_ID), ctx)
             unbound = await runner._platform_resources(self._spec("clock"), ctx)
@@ -118,5 +118,5 @@ class TestTheRunnerMintsOnlyWhenBound:
 
         runner = AgentRunnerService(MagicMock())
         ctx = AuthContext.anonymous(uuid.uuid4())
-        with patch.object(runner.api_keys, "issue_for_run", new=AsyncMock(return_value=None)):
+        with patch("app.services.agent_runner.mint_for_run", new=AsyncMock(return_value=None)):
             assert await runner._platform_resources(self._spec(PLATFORM_CAPABILITY_ID), ctx) == {}

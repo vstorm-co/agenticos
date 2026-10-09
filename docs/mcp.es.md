@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4ada142d78"
+source_sha: "3ce84e15a17d"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -788,6 +788,10 @@ decisión detrás de un inicio de sesión.
 El cliente inicia sesión por el navegador: se registra, abre la página de
 consentimiento de la consola, donde eliges la organización y lo que puede hacer, y
 recibe un token que dura una hora y se renueva solo. No se pega ninguna clave.
+
+El registro no necesita credenciales, así que se limita por dirección como el
+inicio de sesión, y un cliente con el que nadie completó el inicio de sesión se
+olvida al cabo de un día.
 
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp

@@ -211,7 +211,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading, dataUpdatedAt, errorUpdatedAt } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -339,9 +339,10 @@ export function useAgent(agentId: string | null) {
   return {
     agent: data,
     isLoading,
-    /** When the agent was last answered for, successfully or not - what a page
-     *  waiting on a refetch it did not start watches for. */
-    fetchedAt: Math.max(dataUpdatedAt, errorUpdatedAt),
+    /** When the agent was last read successfully - what a page waiting on a
+     *  refetch it did not start watches for. A failed refetch does not count:
+     *  it has not shown what changed. */
+    fetchedAt: dataUpdatedAt,
     saveDraft,
     validate,
     publish,

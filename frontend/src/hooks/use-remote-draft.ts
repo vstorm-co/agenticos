@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { CONSOLE_TAB } from "@/lib/console-tab";
 import { onRemoteChange } from "@/lib/live-updates";
-import { useAuthStore } from "@/stores";
 import type { ChangeEvent, ChangeResource } from "@/types/change-events";
 
 interface RemoteDraftOptions<T> {
@@ -40,8 +40,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
  * assistant or somebody else's console - saving waits for the refetch that
  * event started. If the stored version moved and nothing was edited here, the
  * editor adopts it silently; if there were edits, it shows `conflict` and keeps
- * holding until the person chooses. The reader's own console saves are echoes
- * of what this tab already has, and are not changes "elsewhere".
+ * holding until the person chooses. A save made by this very tab is an echo of what
+ * it already has, and is not a change "elsewhere".
  */
 export function useRemoteDraft<T>({
   resource,
@@ -51,7 +51,6 @@ export function useRemoteDraft<T>({
   fetchedAt,
   adopt,
 }: RemoteDraftOptions<T>): RemoteDraft {
-  const me = useAuthStore((state) => state.user?.id);
   const [waiting, setWaiting] = useState<{
     event: ChangeEvent;
     since: number;
@@ -70,7 +69,9 @@ export function useRemoteDraft<T>({
     () =>
       onRemoteChange((event) => {
         if (event.resource !== resource || event.id !== id) return;
-        if (event.surface === "console" && event.actor_user_id === me) return;
+        // This tab's own saves - it already has them. The same person's edit in
+        // another tab is a change elsewhere like any other.
+        if (event.origin_tab === CONSOLE_TAB) return;
         const now = current.current;
         setWaiting({
           event,
@@ -79,7 +80,7 @@ export function useRemoteDraft<T>({
           edited: now.local !== null && !same(now.local, now.stored),
         });
       }),
-    [resource, id, me],
+    [resource, id],
   );
 
   // Settled during render, the way the Builder adopts its first draft: the

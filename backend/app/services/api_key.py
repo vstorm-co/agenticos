@@ -27,6 +27,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.organization import Organization
 from app.db.models.user import User
+from app.db.session import get_db_context
 from app.repositories import api_key as api_key_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -240,11 +241,15 @@ class ApiKeyService:
         it runs for, so it needs what an integration needs: a key, holding exactly
         what `ctx` holds - narrowed again on every call to the person's current
         role, like any key. `None` when nobody is behind the run: an anonymous
-        visitor has no authority to lend.
+        visitor has no authority to lend, and neither does a run where the
+        publisher stands in for one - a public widget, an embed, an unlinked
+        channel member. That context names the publisher only so the run has a
+        subject; lending their authority to whoever typed would hand a stranger
+        the publisher's agents, runs and members.
 
         Minted per run and never listed; lapsed ones are swept as new ones are made.
         """
-        if ctx.user_id is None:
+        if ctx.user_id is None or ctx.subject_is_publisher_fallback:
             return None
         now = datetime.now(UTC)
         await api_key_repo.delete_expired_internal(self.db, user_id=ctx.user_id, before=now)
@@ -334,3 +339,15 @@ class ApiKeyService:
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
             ),
         )
+
+
+async def mint_for_run(ctx: AuthContext) -> str | None:
+    """:meth:`ApiKeyService.issue_for_run`, committed before it returns.
+
+    The credential is presented by an in-process request on a session of its
+    own, so it has to be visible outside the run's transaction - and a delegate
+    is built mid-run, long after that transaction's opening commit, where a key
+    flushed on the run's session would not be seen until the run ended.
+    """
+    async with get_db_context() as db:
+        return await ApiKeyService(db).issue_for_run(ctx)

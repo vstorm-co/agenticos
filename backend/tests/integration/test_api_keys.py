@@ -366,11 +366,11 @@ class TestTheServiceDirectly:
 
 class TestSockets:
     @pytest.mark.security
-    async def test_a_chat_socket_opens_with_a_key_and_closes_with_its_revocation(
+    async def test_a_socket_opens_with_a_key_and_closes_with_its_revocation(
         self, db: AsyncSession
     ) -> None:
-        """The handshake and every frame's re-check both resolve the key; a revoked
-        key refuses the next frame the way an ended session does."""
+        """The live-update socket's handshake and its per-event re-check both
+        resolve the key; a revoked key is refused the way an ended session is."""
         from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 
         owner = await _person(db)
@@ -478,3 +478,41 @@ class TestTheAssistantsCredential:
         organization = await _organization(db, owner)
 
         assert await ApiKeyService(db).issue_for_run(AuthContext.anonymous(organization.id)) is None
+
+    @pytest.mark.security
+    async def test_a_publisher_standing_in_for_a_stranger_lends_nothing(
+        self, db: AsyncSession
+    ) -> None:
+        """A public widget or an unlinked channel member runs as the publisher only
+        so the run has a subject; the stranger typing must not get their authority."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        stand_in = AuthContext(
+            user_id=owner.id,
+            organization_id=organization.id,
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+
+        assert await ApiKeyService(db).issue_for_run(stand_in) is None
+        assert (await db.execute(select(ApiKey))).scalars().all() == []
+
+    async def test_a_run_credential_is_usable_from_another_session_at_once(
+        self, db: AsyncSession
+    ) -> None:
+        """A delegate is built mid-run, after the run's opening commit; its
+        credential must not wait for the run's transaction to end."""
+        from app.db.session import get_db_context
+        from app.services.api_key import mint_for_run
+
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        await db.commit()
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+
+        minted = await mint_for_run(ctx)
+
+        assert minted is not None
+        async with get_db_context() as elsewhere:
+            caller = await ApiKeyService(elsewhere).authenticate(minted)
+        assert caller.user.id == owner.id

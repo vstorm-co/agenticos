@@ -18,6 +18,12 @@ interface UseWebSocketOptions {
    *  Evaluated on each `connect()` instead: a reconnect always presents the
    *  freshest token, and a refresh on its own changes nothing. */
   protocols?: () => string[] | undefined;
+  /** Who the socket speaks for, when that can change without the address
+   *  changing - an impersonation starting, another account signing in. Part of
+   *  the socket's identity, so a new principal opens a new socket rather than
+   *  inheriting the old one's authentication; a refreshed token for the same
+   *  principal does not. */
+  identity?: string;
   onMessage?: (event: MessageEvent) => void;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
@@ -43,7 +49,7 @@ const NO_RETRY_CLOSE_CODES = new Set([1000, 1001, 1005, 1008, 4001, 4401, 4403])
  *  subprotocols are deliberately absent: the only one that ever varies is the
  *  access token, and a token that changed is not a different socket. It is the
  *  same socket, still authenticated by the credential it shook hands with. */
-const sigOf = (url: string) => JSON.stringify({ url });
+const sigOf = (url: string, identity?: string) => JSON.stringify({ url, identity });
 
 /** Detach handlers before closing so a deliberate teardown can't re-enter the
  *  onclose logic (reconnect / token refresh) for a socket we're discarding. */
@@ -62,6 +68,7 @@ function silentClose(ws: WebSocket) {
 export function useWebSocket({
   url,
   protocols,
+  identity,
   onMessage,
   onOpen,
   onClose,
@@ -126,7 +133,7 @@ export function useWebSocket({
       closeTimeoutRef.current = null;
     }
 
-    const sig = sigOf(url);
+    const sig = sigOf(url, identity);
     const live = wsRef.current;
 
     // Same params + live socket → reuse it (StrictMode double-mount, fast
@@ -193,7 +200,7 @@ export function useWebSocket({
     ws.onerror = (error) => {
       onErrorRef.current?.(error);
     };
-  }, [url, reconnect, reconnectInterval, maxReconnectAttempts]);
+  }, [url, identity, reconnect, reconnectInterval, maxReconnectAttempts]);
 
   useEffect(() => {
     connectRef.current = connect;

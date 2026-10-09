@@ -26,10 +26,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.models.oauth import OAuthAuthorizationRequest, OAuthClient, OAuthGrant
+from app.db.models.oauth import (
+    OAuthAuthorizationCode,
+    OAuthAuthorizationRequest,
+    OAuthClient,
+    OAuthGrant,
+    OAuthRefreshToken,
+)
 from app.repositories import oauth as oauth_repo
 from app.repositories import organization as organization_repo
 from app.schemas.oauth_server import (
@@ -44,6 +50,8 @@ ACCESS_TOKEN_LIFETIME = timedelta(hours=1)
 REFRESH_TOKEN_LIFETIME = timedelta(days=30)
 CODE_LIFETIME = timedelta(minutes=10)
 REQUEST_LIFETIME = timedelta(minutes=10)
+UNCLAIMED_CLIENT_LIFETIME = timedelta(days=1)
+"""How long a self-registered client may sit without anybody signing in with it."""
 
 CONSENT_PATH = "/oauth/consent"
 """The console page a person consents on, under `FRONTEND_URL`."""
@@ -93,6 +101,15 @@ class OAuthServerService:
         self.db = db
 
     async def register(self, client_id: str, info: dict[str, Any]) -> None:
+        """Record a client that registered itself, sweeping the ones nobody signed in with.
+
+        Registration needs no credential, which is what lets Claude Code connect
+        unaided - and what lets anyone create rows. The forwarder limits how fast
+        one address may register; this bounds how long an unused client stays.
+        """
+        await oauth_repo.delete_unclaimed_clients(
+            self.db, before=datetime.now(UTC) - UNCLAIMED_CLIENT_LIFETIME
+        )
         await oauth_repo.create_client(self.db, client_id=client_id, info=info)
 
     async def client(self, client_id: str) -> OAuthClient | None:
@@ -251,7 +268,7 @@ class OAuthServerService:
         if found is None:
             raise NotFoundError(message="Unknown authorization code")
         row, grant = found
-        await oauth_repo.mark_used(self.db, row, datetime.now(UTC))
+        await self._spend(client, row, grant, what="authorization code")
         return await self._issue(client, grant, list(grant.scopes))
 
     async def refresh(self, client_id: str, token: str) -> RefreshGrant | None:
@@ -275,8 +292,43 @@ class OAuthServerService:
         if found is None:
             raise NotFoundError(message="Unknown refresh token")
         row, grant = found
-        await oauth_repo.mark_used(self.db, row, datetime.now(UTC))
+        await self._spend(client, row, grant, what="refresh token")
         return await self._issue(client, grant, [scope for scope in scopes if scope in row.scopes])
+
+    async def _spend(
+        self,
+        client: OAuthClient,
+        row: OAuthAuthorizationCode | OAuthRefreshToken,
+        grant: OAuthGrant,
+        *,
+        what: str,
+    ) -> None:
+        """Check the token is still good and spend it, in the exchange that issues.
+
+        FastMCP loads a token before exchanging it, and anything can happen
+        between the two - a disconnect revokes the grant, a second request
+        presents the same token - so the checks are made again here and the
+        spend is atomic. Losing the race is a reuse, answered like one: the grant
+        and every token it issued are revoked.
+
+        Raises:
+            BadRequestError: Revoked, another client's, expired, or already spent.
+        """
+        now = datetime.now(UTC)
+        if (
+            grant.revoked_at is not None
+            or grant.client_id != client.client_id
+            or row.expires_at <= now
+        ):
+            raise BadRequestError(message=f"This {what} is no longer valid")
+        spent = (
+            await oauth_repo.consume_code(self.db, row, now)
+            if isinstance(row, OAuthAuthorizationCode)
+            else await oauth_repo.consume_refresh_token(self.db, row, now)
+        )
+        if not spent:
+            await self._revoke(grant, reason=f"{what} reused")
+            raise BadRequestError(message=f"This {what} was already used")
 
     async def _issue(
         self, client: OAuthClient, grant: OAuthGrant, scopes: list[str]

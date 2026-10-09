@@ -52,7 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -512,7 +512,9 @@ async def list_sync_logs(
     return await rag_sync_svc.list_sync_logs(collections=collections, limit=limit)
 
 
-@router.post("/sync/local", response_model=RAGSyncResponse)
+# Console-only: it reads a directory on the deployment's own disk, which an
+# organization key must never be able to point anywhere.
+@router.post("/sync/local", response_model=RAGSyncResponse, openapi_extra=INTERNAL)
 async def trigger_local_sync(
     request: RAGSyncRequest,
     rag_sync_svc: RAGSyncSvc,

@@ -2,9 +2,8 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useRemoteDraft } from "./use-remote-draft";
+import { CONSOLE_TAB } from "@/lib/console-tab";
 import { announceChange } from "@/lib/live-updates";
-import { useAuthStore } from "@/stores";
-import type { User } from "@/types";
 import type { ChangeEvent } from "@/types/change-events";
 
 type Draft = { instructions: string };
@@ -15,7 +14,6 @@ interface Props {
   fetchedAt: number;
 }
 
-const ME = "me";
 const adopt = vi.fn();
 
 function change(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
@@ -27,6 +25,7 @@ function change(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
     surface: "mcp",
     actor_user_id: "someone-else",
     actor_name: "Ada",
+    origin_tab: "another-tab",
     ...overrides,
   };
 }
@@ -44,7 +43,6 @@ function mount(initial: Props) {
 
 beforeEach(() => {
   adopt.mockReset();
-  useAuthStore.setState({ user: { id: ME } as User });
 });
 
 describe("useRemoteDraft", () => {
@@ -114,22 +112,22 @@ describe("useRemoteDraft", () => {
     expect(adopt).not.toHaveBeenCalled();
   });
 
-  it("ignores another row, another kind, and this reader's own console saves", () => {
+  it("ignores another row, another kind, and this tab's own saves", () => {
     const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
 
     act(() => {
       announceChange(change({ id: "agent-2" }));
       announceChange(change({ resource: "skill" }));
-      announceChange(change({ surface: "console", actor_user_id: ME }));
+      announceChange(change({ surface: "console", origin_tab: CONSOLE_TAB }));
     });
 
     expect(view.result.current.held).toBe(false);
   });
 
-  it("treats the reader's own change through another surface as a change elsewhere", () => {
+  it("treats the same person's edit in another tab as a change elsewhere", () => {
     const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
 
-    act(() => announceChange(change({ surface: "assistant", actor_user_id: ME })));
+    act(() => announceChange(change({ surface: "console", origin_tab: "other-tab" })));
 
     expect(view.result.current.held).toBe(true);
   });
