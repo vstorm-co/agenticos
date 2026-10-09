@@ -121,7 +121,7 @@ dependencies = [
     "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.4",
-    "pydantic-monty>=1.0.0",
+    "pydantic-monty>=1.1.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only
@@ -172,7 +172,7 @@ dependencies = [
     # websockets and websocket-client for one transport's HTTP client. And not
     # `slack-sdk[socket-mode]`, which does not exist - the only extra is
     # `optional`, so the advice in that ImportError's message was unfollowable.
-    "aiohttp>=3.13.5",
+    "aiohttp>=3.14.4",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is

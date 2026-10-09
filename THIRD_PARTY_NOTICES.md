@@ -24,15 +24,15 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 121 | 241 |
-| Apache-2.0 | 70 | 24 |
+| Apache-2.0 | 69 | 24 |
 | BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
 | MPL-2.0 | 4 | 0 |
+| Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
 | PSF-2.0 | 3 | 0 |
 | 0BSD | 1 | 1 |
-| Apache-2.0 AND MIT | 0 | 2 |
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND BSD-2-Clause | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
@@ -60,7 +60,7 @@ names no author is in the evidence column below.
 | aiofiles | 25.1.0 | Apache-2.0 | https://github.com/Tinche/aiofiles | License field |
 | aiogram | 3.31.0 | MIT | https://github.com/aiogram/aiogram/ | License-Expression |
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 | https://github.com/aio-libs/aiohappyeyeballs | License field |
-| aiohttp | 3.14.3 | Apache-2.0 | https://github.com/aio-libs/aiohttp | licence file text |
+| aiohttp | 3.14.4 | Apache-2.0 AND MIT | https://github.com/aio-libs/aiohttp | License-Expression |
 | aiohttp-retry | 2.9.1 | MIT | https://github.com/inyutin/aiohttp_retry | License field |
 | aiosignal | 1.4.0 | Apache-2.0 | https://github.com/aio-libs/aiosignal | License field |
 | aiosmtplib | 5.1.3 | MIT | https://github.com/cole/aiosmtplib | License field |
@@ -242,9 +242,9 @@ names no author is in the evidence column below.
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
 | pydantic-graph | 2.54.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
-| pydantic-monty | 1.0.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-client | 1.0.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-runtime | 1.0.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty | 1.1.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-client | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-runtime | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-settings | 2.15.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pydocket | 0.25.2 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.21.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |

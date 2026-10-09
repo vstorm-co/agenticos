@@ -17,6 +17,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **`pydantic-monty` 1.1.0 and `aiohttp` 3.14.4.** Monty, the sandboxed Python
+  the code-mode tools run in, gains a `complex` type, treats `bool`s as `int`s in
+  arithmetic, and releases a failed dict literal's operands; `aiohttp` is a patch
+  release.
+
 ## [0.0.533] - 2026-10-09
 
 ### Security
