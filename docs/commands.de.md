@@ -1,5 +1,5 @@
 ---
-source_sha: "9562587df4cb"
+source_sha: "5e7cbb840c77"
 ---
 
 # Befehle { #commands }
@@ -335,7 +335,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token.
+# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
+# that has not completed for five intervals fails it, whatever Prefect's own
+# health endpoint says.
 uv run agenticos cmd doctor
 
 # Dasselbe plus ein zweites Blatt: eine Zeile je Kontrolle eines

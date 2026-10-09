@@ -1,5 +1,5 @@
 ---
-source_sha: "1048cece0606"
+source_sha: "760ca1f20862"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -227,7 +227,7 @@ Każdy tenant w tym wdrożeniu, ze swoim właścicielem, członkami i agentami.
 
 ### System { #system }
 
-Baza danych, Redis, magazyn wektorów i dostęp do modeli - te same sprawdzenia, które wykonuje `agenticos cmd doctor`, na jednej stronie.
+Baza danych, Redis, magazyn wektorów, dostęp do modeli i zadania cykliczne - te same sprawdzenia, które wykonuje `agenticos cmd doctor`, na jednej stronie.
 
 > **Miejsce na zrzut — System.**
 

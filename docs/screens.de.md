@@ -1,5 +1,5 @@
 ---
-source_sha: "1048cece0606"
+source_sha: "760ca1f20862"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -227,7 +227,7 @@ Jeder Mandant auf diesem Deployment, mit Owner, Mitgliedern und Agents.
 
 ### System { #system }
 
-Datenbank, Redis, der Vektorspeicher und der Modellzugriff - dieselben Prüfungen, die `agenticos cmd doctor` ausführt, auf einer Seite.
+Datenbank, Redis, der Vektorspeicher, der Modellzugriff und geplante Jobs - dieselben Prüfungen, die `agenticos cmd doctor` ausführt, auf einer Seite.
 
 > **Screenshot ausstehend — System.**
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1048cece0606"
+source_sha: "760ca1f20862"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -227,7 +227,7 @@ Cada inquilino de este despliegue, con su owner, sus miembros y sus agents.
 
 ### System { #system }
 
-Base de datos, Redis, el almacén vectorial y el acceso a los modelos — las mismas comprobaciones que ejecuta `agenticos cmd doctor`, en una página.
+Base de datos, Redis, el almacén vectorial, el acceso a los modelos y los trabajos programados — las mismas comprobaciones que ejecuta `agenticos cmd doctor`, en una página.
 
 > **Captura pendiente — System.**
 

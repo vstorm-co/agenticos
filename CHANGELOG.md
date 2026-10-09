@@ -27,6 +27,18 @@ Two things are versioned separately from this file and worth knowing about:
   portal polling, RAG sync checks and the hourly and daily sweeps stopped as a
   result; manually run triggers kept working. All three compose files now pin
   `3.8.8-python3.12`, whose image ships SQLAlchemy 2.0.
+- **Prefect's database survives a container recreate.** The `prefect_data`
+  volume was mounted on `/root/.local/share/prefect/`, but Prefect 3 keeps its
+  SQLite database in `/root/.prefect/`, so every recreate of `prefect-server`
+  dropped the deployments, the run history and every queued run until the
+  runner restarted. The volume now sits on `/root/.prefect/`.
+
+### Added
+
+- **A `scheduler` health check.** `/admin/system`, the dashboard's service
+  health widget and `agenticos cmd doctor` report when the trigger heartbeat
+  last completed, and fail once it has missed five intervals. The outage above
+  ran for eleven days with every health check green.
 
 ## [0.0.534] - 2026-10-09
 

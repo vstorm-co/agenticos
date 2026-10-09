@@ -696,7 +696,8 @@
           "database": "Baza danych",
           "redis": "Redis",
           "vector_store": "Vector store",
-          "model_access": "Dostęp do modeli"
+          "model_access": "Dostęp do modeli",
+          "scheduler": "Zadania cykliczne"
         }
       },
       "top-orgs": {

@@ -1456,7 +1456,8 @@
           "database": "Datenbank",
           "redis": "Redis",
           "vector_store": "Vektorspeicher",
-          "model_access": "Modellzugriff"
+          "model_access": "Modellzugriff",
+          "scheduler": "Geplante Jobs"
         }
       },
       "knowledge-freshness": {
@@ -3307,6 +3308,8 @@
       "serviceModelAccessDetail": "Provider-Schlüssel und -Profile",
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & Queue-Broker",
+      "serviceScheduler": "Geplante Jobs",
+      "serviceSchedulerDetail": "Trigger, E-Mails und Sweeps, über Prefect",
       "serviceVectorStore": "Vektorspeicher",
       "serviceVectorStoreDetail": "pgvector, dieselbe Datenbank",
       "services": "Dienste",

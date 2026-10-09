@@ -1,5 +1,5 @@
 ---
-source_sha: "74925aba0c7c"
+source_sha: "c27849d0d0ef"
 ---
 
 # Instalación { #install }
@@ -229,7 +229,8 @@ docker compose exec app agenticos cmd doctor
 
 `doctor` hace las preguntas que haría un primer mensaje. ¿Se llega a la base de
 datos y está en head? ¿Descifra el vault? ¿Hay un perfil de modelo con una clave
-detrás? ¿Responde cada conexión de sandbox registrada con un runtime?
+detrás? ¿Responde cada conexión de sandbox registrada con un runtime? ¿Se
+ejecutan de verdad los trabajos programados?
 
 Cada línea nombra la pieza que falta, en vez de decirte que algo ha fallado.
 

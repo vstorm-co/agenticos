@@ -1470,7 +1470,8 @@
           "database": "Database",
           "redis": "Redis",
           "vector_store": "Vector store",
-          "model_access": "Model access"
+          "model_access": "Model access",
+          "scheduler": "Scheduled jobs"
         }
       },
       "knowledge-freshness": {
@@ -3444,6 +3445,8 @@
       "serviceModelAccessDetail": "Provider keys and profiles",
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & queue broker",
+      "serviceScheduler": "Scheduled jobs",
+      "serviceSchedulerDetail": "Triggers, emails and sweeps, via Prefect",
       "serviceVectorStore": "Vector store",
       "serviceVectorStoreDetail": "pgvector, same database",
       "services": "Services",

@@ -1,5 +1,5 @@
 ---
-source_sha: "74925aba0c7c"
+source_sha: "c27849d0d0ef"
 ---
 
 # Installation { #install }
@@ -235,7 +235,7 @@ docker compose exec app agenticos cmd doctor
 `doctor` stellt die Fragen, die eine erste Nachricht stellen würde. Ist die
 Datenbank erreichbar und auf dem neuesten Stand? Entschlüsselt der Vault? Gibt es
 ein Model Profile mit einem Key dahinter? Antwortet jede registrierte
-Sandbox-Connection mit einer Laufzeitumgebung?
+Sandbox-Connection mit einer Laufzeitumgebung? Laufen geplante Jobs tatsächlich?
 
 Jede Zeile benennt den fehlenden Teil, statt Ihnen zu sagen, dass etwas
 fehlgeschlagen ist.

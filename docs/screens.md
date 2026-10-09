@@ -223,7 +223,7 @@ Every tenant on this deployment, with its owner, members and agents.
 
 ### System
 
-Database, Redis, the vector store and model access - the same checks `agenticos cmd doctor` runs, on a page.
+Database, Redis, the vector store, model access and scheduled jobs - the same checks `agenticos cmd doctor` runs, on a page.
 
 > **Screenshot pending — System.**
 

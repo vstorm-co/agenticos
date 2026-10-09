@@ -350,6 +350,115 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     )
 
 
+_HEARTBEAT_DEPLOYMENT = "agent-triggers-check"
+"""The trigger heartbeat's deployment, as `app/worker/prefect_app.py` registers it.
+
+The heartbeat stands for every interval deployment there: one scheduler service
+creates all their runs and one runner executes them, so when this one stops
+completing, the others have stopped with it.
+"""
+
+_HEARTBEAT_SECONDS = 60
+"""The heartbeat's declared interval in `app/worker/prefect_app.py`."""
+
+_MISSED_HEARTBEATS = 5
+"""How many intervals may pass without a completed heartbeat before it is a failure.
+
+One missed tick is a slow run or a runner restart; five is a stopped scheduler.
+"""
+
+
+async def _last_heartbeat() -> datetime | None:
+    """When the trigger heartbeat last completed, according to Prefect - or never.
+
+    Imported here rather than at the top: the API process otherwise loads Prefect
+    only when it dispatches a run, and this module is imported at start-up.
+    """
+    from prefect.client.orchestration import get_client
+    from prefect.client.schemas.filters import (
+        DeploymentFilter,
+        DeploymentFilterName,
+        FlowRunFilter,
+        FlowRunFilterState,
+        FlowRunFilterStateType,
+    )
+    from prefect.client.schemas.objects import StateType
+    from prefect.client.schemas.sorting import FlowRunSort
+
+    async with get_client() as client:
+        runs = await client.read_flow_runs(
+            deployment_filter=DeploymentFilter(
+                name=DeploymentFilterName(any_=[_HEARTBEAT_DEPLOYMENT])
+            ),
+            flow_run_filter=FlowRunFilter(
+                state=FlowRunFilterState(type=FlowRunFilterStateType(any_=[StateType.COMPLETED]))
+            ),
+            sort=FlowRunSort.END_TIME_DESC,
+            limit=1,
+        )
+    return runs[0].end_time if runs else None
+
+
+async def probe_scheduler() -> SystemCheck:
+    """Whether scheduled work is actually running, judged by the trigger heartbeat.
+
+    The Prefect server's own health says nothing about this. From 2026-09-28 to
+    2026-10-09 its scheduler failed on every tick (PrefectHQ/prefect#23199) and
+    created no runs, while `/api/health` answered and every deployment read
+    `READY`; scheduled triggers, notification emails and the sweeps all stopped,
+    and nothing reported it. A completed heartbeat is the one fact that needs the
+    scheduler, the runner and the database all working, so its age is the check.
+
+    The threshold honours `WORKER_MIN_INTERVAL_SECONDS` the way the deployment
+    does, or a development machine that slows its ticks would always read failed.
+    """
+    interval = max(_HEARTBEAT_SECONDS, settings.WORKER_MIN_INTERVAL_SECONDS)
+    start = perf_counter()
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            completed_at = await _last_heartbeat()
+    except TimeoutError:
+        return _timed_out("scheduler", "the Prefect API")
+    except Exception as exc:
+        logger.warning("scheduler health probe failed", exc_info=True)
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=f"reading flow runs from the Prefect API failed: {exc}",
+        )
+    latency = _elapsed_ms(start)
+    if completed_at is None:
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=(
+                f"no {_HEARTBEAT_DEPLOYMENT} run has ever completed, so scheduled triggers, "
+                "notification emails and sweeps are not running; check the Prefect server "
+                "log for scheduler errors and that the worker is up"
+            ),
+            latency_ms=latency,
+        )
+    age = (datetime.now(UTC) - completed_at).total_seconds()
+    if age > interval * _MISSED_HEARTBEATS:
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=(
+                f"the {_HEARTBEAT_DEPLOYMENT} heartbeat last completed {age / 60:.0f} min ago "
+                f"(expected every {interval}s), so scheduled triggers, notification emails "
+                "and sweeps are not running; check the Prefect server log for scheduler "
+                "errors and that the worker is up"
+            ),
+            latency_ms=latency,
+        )
+    return SystemCheck(
+        key="scheduler",
+        status="healthy",
+        detail=f"the {_HEARTBEAT_DEPLOYMENT} heartbeat completed {age:.0f}s ago",
+        latency_ms=latency,
+    )
+
+
 async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict[str, Any]]:
     """The Kubernetes answer: is this instance fit to serve traffic.
 
@@ -378,7 +487,9 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
     that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
-    database, redis_check = await asyncio.gather(probe_database(db), probe_redis(redis))
+    database, redis_check, scheduler = await asyncio.gather(
+        probe_database(db), probe_redis(redis), probe_scheduler()
+    )
     if database.status == "healthy":
         vector_store = await probe_vector_store(db)
         model_access = await probe_model_access(db)
@@ -388,5 +499,5 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
 
     return SystemHealthResponse(
         checked_at=datetime.now(UTC),
-        checks=[database, redis_check, vector_store, model_access],
+        checks=[database, redis_check, vector_store, model_access, scheduler],
     )
