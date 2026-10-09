@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import {
   Button,
@@ -64,6 +65,9 @@ export function CreateApiKeyDialog({
 }: CreateApiKeyDialogProps) {
   const t = useTranslations("apiKeys");
   const tErrors = useTranslations("errors");
+  // The API's own origin, not this console's: a key is sent straight to the
+  // backend, and the console's `/api` is a proxy that only carries a session.
+  const { apiUrl } = usePublicConfig();
   const firstPreset = catalog.presets[0]?.id ?? CUSTOM;
   const [name, setName] = useState("");
   const [preset, setPreset] = useState<string>(firstPreset);
@@ -116,7 +120,7 @@ export function CreateApiKeyDialog({
               <p>{t("useItLikeThis")}</p>
               {/* i18n-exempt: a command line, identical in every language */}
               <code className="bg-muted block rounded px-2 py-1.5 font-mono break-all">
-                {`curl -H "Authorization: Bearer ${created.prefix}…" ${window.location.origin}/api/v1/me/permissions`}
+                {`curl -H "Authorization: Bearer ${created.prefix}…" ${apiUrl}/api/v1/me/permissions`}
               </code>
             </div>
           </div>

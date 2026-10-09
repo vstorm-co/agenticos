@@ -6,6 +6,9 @@ import { CreateApiKeyDialog } from "./create-api-key-dialog";
 import type { ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
 
 const toastError = vi.fn();
+vi.mock("@/components/public-config/public-config-provider", () => ({
+  usePublicConfig: () => ({ apiUrl: "https://api.example" }),
+}));
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
 const CATALOG: ApiKeyScopeCatalog = {
@@ -63,7 +66,10 @@ describe("CreateApiKeyDialog", () => {
     expect(sent?.scopes).toEqual(["agents:view", "collections:view"]);
     expect(new Date(sent?.expires_at ?? 0).getTime()).toBeGreaterThan(Date.now());
     expect(await screen.findByDisplayValue("aos_0123abcdsecret")).toBeInTheDocument();
-    expect(screen.getByText(/aos_0123abcd…/)).toBeInTheDocument();
+    // The key goes to the API's origin, never to the console's proxy.
+    expect(
+      screen.getByText(/https:\/\/api\.example\/api\/v1\/me\/permissions/),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
