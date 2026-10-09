@@ -729,6 +729,43 @@ the agent may use. Availability, permissions and any service charges depend on
 that provider. A registry listing is not an AgenticOS end-to-end test of the
 service. Review the approval modes below before enabling write tools.
 
+## AgenticOS as an MCP server
+
+Everything above is the platform calling other servers. It is also one: **`/mcp`**
+on the API's host speaks MCP over streamable HTTP, so Claude Code, Claude Desktop
+or any MCP client can operate the organization — list and create agents, run them,
+read runs and their cost, fill and search knowledge bases, invite members.
+
+Connect with an [organization API key](api.md#organization-api-keys):
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+The connection acts as the member who issued the key, within the key's
+permissions. Each tool is a call to the [public API](api.md) made with that key,
+so it is refused, rate limited and audited exactly as the same request over HTTP
+would be; a refusal comes back as a tool error naming the missing permission.
+
+| Tool | Needs |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent` | `agents:view` |
+| `create_agent` | `agents:edit` |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+Deliberately absent: deleting anything, publishing an agent, and touching a
+credential. A draft created here is published by a person in the console.
+Sign-in through the browser (OAuth) instead of a pasted key, and an approval step
+before the assistant's writes, are tracked as #2059 and #2060.
+
 ## What MCP does not get you
 
 - **A coverage guarantee.** Catalog entries are metadata. The tools are the

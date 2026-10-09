@@ -1363,6 +1363,9 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # The same link behind a password (#1972): the password in the body, the
         # link's own bucket bounding a guessing loop.
         ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
+        # The public API's own OpenAPI document (#1796): the contract an
+        # integrator writes a client against, before they hold a key.
+        ("GET", f"{settings.API_V1_STR}/public/openapi.json"),
     }
 )
 
@@ -1452,6 +1455,9 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # session, and they report nothing but whether this process can reach
         # Postgres and Redis.
         ("GET", f"{V1}/health"),
+        # The public API's OpenAPI document (#1796). It describes the routes a
+        # key may call - the documented contract - and nothing about any tenant.
+        ("GET", f"{V1}/public/openapi.json"),
         ("GET", f"{V1}/health/live"),
         ("GET", f"{V1}/health/ready"),
         ("GET", f"{V1}/ready"),

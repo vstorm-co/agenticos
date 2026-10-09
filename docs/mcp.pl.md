@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "c599d91c0513"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -758,6 +758,44 @@ autoryzację, a następnie przetestuj połączenie i wybierz narzędzia agenta.
 Dostępność, uprawnienia i ewentualne opłaty zależą od dostawcy. Wpis w rejestrze
 nie oznacza testu całej integracji z AgenticOS. Przed włączeniem narzędzi zapisu
 sprawdź opisane poniżej tryby zatwierdzania.
+
+## AgenticOS jako serwer MCP { #agenticos-as-an-mcp-server }
+
+Wszystko powyżej to platforma wołająca inne serwery. Sama też jest serwerem:
+**`/mcp`** na hoście API mówi MCP przez streamable HTTP, więc Claude Code, Claude
+Desktop albo dowolny klient MCP może obsługiwać organizację — listować i tworzyć
+agentów, uruchamiać ich, czytać runy i ich koszt, zasilać i przeszukiwać bazy
+wiedzy, zapraszać członków.
+
+Połącz się [kluczem API organizacji](api.md#organization-api-keys):
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Połączenie działa jako członek, który wydał klucz, w granicach uprawnień klucza.
+Każde narzędzie to wywołanie [publicznego API](api.md) tym kluczem, więc jest
+odrzucane, limitowane i audytowane dokładnie tak jak to samo żądanie po HTTP;
+odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
+
+| Narzędzie | Wymaga |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent` | `agents:view` |
+| `create_agent` | `agents:edit` |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+Celowo nie ma tu usuwania czegokolwiek, publikowania agenta ani dotykania
+poświadczeń. Draft utworzony tutaj publikuje osoba w konsoli. Logowanie przez
+przeglądarkę (OAuth) zamiast wklejonego klucza oraz krok zatwierdzenia przed
+zapisami asystenta są śledzone jako #2059 i #2060.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "c599d91c0513"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -788,6 +788,46 @@ die Werkzeuge des Agenten. Verfügbarkeit, Berechtigungen und etwaige Gebühren
 hängen vom Anbieter ab. Ein Registry-Eintrag ist kein durchgängiger Integrationstest
 mit AgenticOS. Prüfen Sie vor dem Aktivieren schreibender Werkzeuge die unten
 beschriebenen Freigabemodi.
+
+## AgenticOS als MCP-Server { #agenticos-as-an-mcp-server }
+
+Alles oben ist die Plattform, die andere Server aufruft. Sie ist aber auch selbst
+einer: **`/mcp`** auf dem Host der API spricht MCP über streamable HTTP, sodass
+Claude Code, Claude Desktop oder jeder MCP-Client die Organisation bedienen kann —
+Agents auflisten und anlegen, ausführen, Runs und ihre Kosten lesen, Wissensbasen
+befüllen und durchsuchen, Mitglieder einladen.
+
+Verbinden Sie sich mit einem [API-Schlüssel der Organisation](api.md#organization-api-keys):
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Die Verbindung handelt als das Mitglied, das den Schlüssel ausgestellt hat,
+innerhalb der Berechtigungen des Schlüssels. Jedes Tool ist ein Aufruf der
+[öffentlichen API](api.md) mit diesem Schlüssel und wird daher genau so abgelehnt,
+begrenzt und auditiert wie dieselbe Anfrage über HTTP; eine Ablehnung kommt als
+Tool-Fehler zurück, der die fehlende Berechtigung nennt.
+
+| Tool | Braucht |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent` | `agents:view` |
+| `create_agent` | `agents:edit` |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+Bewusst fehlt: etwas löschen, einen Agent veröffentlichen und Zugangsdaten
+anfassen. Einen hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
+Die Anmeldung über den Browser (OAuth) statt eines eingefügten Schlüssels und ein
+Freigabeschritt vor den Schreibvorgängen des Assistenten werden
+als #2059 und #2060 verfolgt.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

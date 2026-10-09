@@ -12,6 +12,9 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from starlette.routing import Route
+
+from app.services import platform_mcp
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -215,7 +218,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # policy on the dev stack - already replaces. Startup is deliberately not
     # watched; app/core/watchdog.py says why.
     watchdog.start()
-    yield state
+    async with platform_mcp.serve_platform_mcp(app, app.state):
+        yield state
     # Decline new intake before anything else: a bot activated moments ago left a
     # deferred `open_inbound_stream` that `drain()` below awaits, and without this
     # its `start_polling` would reopen a stream after the stop loops - after intake
@@ -412,6 +416,12 @@ OS for your agents.
     )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # The platform's own MCP server (#2058), served beside the API rather than
+    # under its prefix: an MCP client is pointed at `<host>/mcp`, and the OAuth
+    # metadata path it discovers is fixed by the spec.
+    for path in platform_mcp.ROUTE_PATHS:
+        app.router.routes.append(Route(path, endpoint=platform_mcp.forward))
 
     return app
 

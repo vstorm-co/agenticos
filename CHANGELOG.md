@@ -46,6 +46,14 @@ Two things are versioned separately from this file and worth knowing about:
   writes down the v1 compatibility promise — additive changes only, 90 days'
   deprecation — and gains worked examples for ingestion and search, runs and
   cost, invitations, and retrying a 429 (#1796).
+- **AgenticOS is an MCP server.** `/mcp` on the API's host speaks MCP over
+  streamable HTTP: `claude mcp add --transport http agenticos <host>/mcp --header
+  "Authorization: Bearer aos_…"` gives Claude Code (or any MCP client) tools to
+  list, create and run agents, read runs and cost, create and search knowledge
+  bases and add documents to them, list skills and members, and invite a member.
+  Each tool is the public API called in-process with the caller's key, so it is
+  refused, rate limited and audited exactly as the HTTP request would be. Nothing
+  deletes, publishes or touches a credential (#2058).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "c599d91c0513"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -772,6 +772,45 @@ del agente. La disponibilidad, los permisos y los posibles cargos dependen del
 proveedor. Una entrada del registro no equivale a una prueba completa de la
 integración con AgenticOS. Revisa los modos de aprobación descritos abajo antes
 de activar herramientas de escritura.
+
+## AgenticOS como servidor MCP { #agenticos-as-an-mcp-server }
+
+Todo lo anterior es la plataforma llamando a otros servidores. También es uno:
+**`/mcp`** en el host de la API habla MCP sobre streamable HTTP, así que Claude
+Code, Claude Desktop o cualquier cliente MCP puede operar la organización —
+listar y crear agents, ejecutarlos, leer los runs y su coste, llenar y buscar
+bases de conocimiento, invitar a miembros.
+
+Conéctate con una [clave de API de la organización](api.md#organization-api-keys):
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+La conexión actúa como el miembro que emitió la clave, dentro de los permisos de
+la clave. Cada herramienta es una llamada a la [API pública](api.md) con esa
+clave, así que se rechaza, se limita y se audita exactamente igual que la misma
+petición por HTTP; un rechazo vuelve como error de la herramienta nombrando el
+permiso que faltaba.
+
+| Herramienta | Necesita |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent` | `agents:view` |
+| `create_agent` | `agents:edit` |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+A propósito no hay: borrar nada, publicar un agent ni tocar credenciales. Un
+borrador creado aquí lo publica una persona en la consola. Iniciar sesión por el
+navegador (OAuth) en lugar de pegar una clave, y un paso de aprobación antes de
+las escrituras del asistente, se siguen como #2059 y #2060.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
