@@ -1,6 +1,6 @@
 """Consenting to an MCP client, and disconnecting one (#2059).
 
-The OAuth endpoints a client talks to are the MCP SDK's, served beside `/mcp`.
+The OAuth endpoints a client talks to are FastMCP's, served beside `/mcp`.
 These are the console's half: the page a person lands on from `/authorize`, and
 the list of applications they have connected. Session-only, like key management:
 a token must not be able to approve or revoke the grants tokens come from.

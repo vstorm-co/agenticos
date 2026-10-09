@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from mcp.server.auth.provider import AccessToken
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server.auth import AccessToken
 
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
@@ -32,10 +32,10 @@ def api() -> MagicMock:
 
 
 @pytest.fixture
-def server(api: MagicMock) -> MCPServer:
-    server = MCPServer(name="test")
+def server(api: MagicMock) -> FastMCP:
+    server = FastMCP(name="test")
     for tool in platform_tools(api):
-        server.add_tool(tool.function)
+        server.tool(tool.function)
     return server
 
 
@@ -123,7 +123,7 @@ def server(api: MagicMock) -> MCPServer:
     ],
 )
 async def test_each_tool_is_one_public_api_call(
-    server: MCPServer, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
+    server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
     await server.call_tool(tool, arguments)
 
@@ -209,6 +209,12 @@ class TestTheVerifier:
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             assert await PlatformOAuthProvider().load_access_token("aos_0123abcdsecret") is None
+
+    async def test_a_token_this_provider_did_not_load_has_no_grant_to_revoke(self) -> None:
+        with patch("app.services.platform_mcp._oauth.get_db_context") as db_context:
+            await PlatformOAuthProvider().revoke_token(_token())
+
+        db_context.assert_not_called()
 
 
 class TestChainedCalls:

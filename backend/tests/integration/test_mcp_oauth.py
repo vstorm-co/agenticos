@@ -206,7 +206,9 @@ async def test_a_wrong_pkce_verifier_gets_no_token(db: AsyncSession, served: Non
         code = await _consent(db, ctx, request_id, Perm.AGENTS_VIEW)
         refused = await _exchange(http, client["client_id"], code, "x" * 64)
 
-    assert refused.status_code == 400
+    # 401, not RFC 6749's 400: MCP requires it for an invalid grant, and FastMCP's
+    # token endpoint answers that way.
+    assert refused.status_code == 401
     assert refused.json()["error"] == "invalid_grant"
 
 
@@ -224,7 +226,7 @@ async def test_a_reused_code_revokes_the_grant_and_its_tokens(
         second = await _exchange(http, client["client_id"], code, verifier)
 
     assert first.status_code == 200
-    assert second.status_code == 400
+    assert second.status_code == 401
     assert (await _whoami(first.json()["access_token"])).status_code == 401
 
 
@@ -240,12 +242,12 @@ async def test_refresh_rotates_and_a_spent_refresh_token_revokes_everything(
 
     assert rotated.status_code == 200
     assert rotated.json()["refresh_token"] != tokens["refresh_token"]
-    assert replayed.status_code == 400
+    assert replayed.status_code == 401
     # The theft is answered for both holders: the rotated token dies with the grant.
     assert (await _whoami(rotated.json()["access_token"])).status_code == 401
     async with _http() as http:
         after = await _refresh(http, client_id, rotated.json()["refresh_token"])
-    assert after.status_code == 400
+    assert after.status_code == 401
 
 
 async def test_the_client_can_revoke_its_own_access(db: AsyncSession, served: None) -> None:

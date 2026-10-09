@@ -1,5 +1,5 @@
 ---
-source_sha: "d2be4ebf72bb"
+source_sha: "5f4ada142d78"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -766,6 +766,10 @@ Wszystko powyżej to platforma wołająca inne serwery. Sama też jest serwerem:
 Desktop albo dowolny klient MCP może obsługiwać organizację — listować i tworzyć
 agentów, uruchamiać ich, czytać runy i ich koszt, zasilać i przeszukiwać bazy
 wiedzy, zapraszać członków.
+
+Serwer jest zbudowany na [FastMCP](https://gofastmcp.com): obsługuje protokół i
+endpointy OAuth 2.1, a AgenticOS dostarcza narzędzia i każdą decyzję stojącą za
+logowaniem.
 
 Klient loguje się przez przeglądarkę: rejestruje się, otwiera w konsoli stronę
 zgody, na której wybierasz organizację i to, co może robić, i dostaje token ważny

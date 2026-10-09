@@ -1,5 +1,5 @@
 ---
-source_sha: "d2be4ebf72bb"
+source_sha: "5f4ada142d78"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -796,6 +796,10 @@ einer: **`/mcp`** auf dem Host der API spricht MCP über streamable HTTP, sodass
 Claude Code, Claude Desktop oder jeder MCP-Client die Organisation bedienen kann —
 Agents auflisten und anlegen, ausführen, Runs und ihre Kosten lesen, Wissensbasen
 befüllen und durchsuchen, Mitglieder einladen.
+
+Der Server baut auf [FastMCP](https://gofastmcp.com) auf: Es bedient das Protokoll
+und die OAuth-2.1-Endpunkte, und AgenticOS liefert die Tools und jede
+Entscheidung hinter einer Anmeldung.
 
 Der Client meldet sich über den Browser an: Er registriert sich, öffnet die
 Zustimmungsseite der Konsole, auf der Sie die Organisation und seine Befugnisse

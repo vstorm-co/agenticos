@@ -1,13 +1,13 @@
-"""The MCP SDK's authorization-server protocol, answered by :mod:`app.services.oauth_server`.
+"""FastMCP's authorization server, answered by :mod:`app.services.oauth_server`.
 
-The SDK owns the wire - metadata, registration, `/authorize` validation, PKCE and
+FastMCP owns the wire - metadata, registration, `/authorize` validation, PKCE and
 redirect checks at `/token`, revocation - and calls these methods for every
 decision that needs the database. Each opens a session of its own: they run
 outside any FastAPI request.
 
-Bearer verification lives here too, because the SDK takes one or the other: an
-organization API key and an OAuth access token are both `aos_` keys, so
-`load_access_token` admits either.
+Bearer verification lives here too, because the provider is also the token
+verifier: an organization API key and an OAuth access token are both `aos_`
+keys, so `load_access_token` admits either.
 """
 
 from __future__ import annotations
@@ -16,17 +16,18 @@ from collections.abc import Awaitable
 from datetime import datetime
 from uuid import UUID
 
+from fastmcp.server.auth import AccessToken, OAuthProvider
 from mcp.server.auth.provider import (
-    AccessToken,
     AuthorizationCode,
     AuthorizationParams,
-    OAuthAuthorizationServerProvider,
     RefreshToken,
     TokenError,
 )
+from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from pydantic import AnyUrl
 
+from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.session import get_db_context
 from app.repositories import api_key as api_key_repo
@@ -84,11 +85,20 @@ def _answer(issued: IssuedTokens | TokenError) -> OAuthToken:
     return _token(issued)
 
 
-class PlatformOAuthProvider(
-    OAuthAuthorizationServerProvider[PlatformCode, PlatformRefreshToken, PlatformAccessToken]
-):
-    """Subclassed rather than matched structurally, for the protocol's own default of
-    refusing the identity-assertion grant (SEP-990), which this server does not offer."""
+class PlatformOAuthProvider(OAuthProvider):
+    """Public clients registering themselves, and revocation; the issuer is the
+    deployment's public origin, where the OAuth routes are served beside `/mcp`.
+
+    A key pasted into a client is not issued for an audience, so a token carries
+    no resource to compare and none is checked: the public API decides instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            base_url=settings.PUBLIC_BASE_URL.rstrip("/"),
+            client_registration_options=ClientRegistrationOptions(enabled=True),
+            revocation_options=RevocationOptions(enabled=True),
+        )
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
         async with get_db_context() as db:
@@ -139,7 +149,7 @@ class PlatformOAuthProvider(
         )
 
     async def exchange_authorization_code(
-        self, client: OAuthClientInformationFull, authorization_code: PlatformCode
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
         async with get_db_context() as db:
             service = OAuthServerService(db)
@@ -170,7 +180,7 @@ class PlatformOAuthProvider(
     async def exchange_refresh_token(
         self,
         client: OAuthClientInformationFull,
-        refresh_token: PlatformRefreshToken,
+        refresh_token: RefreshToken,
         scopes: list[str],
     ) -> OAuthToken:
         async with get_db_context() as db:
@@ -218,8 +228,14 @@ class PlatformOAuthProvider(
             grant_id=row.oauth_grant_id if row is not None else None,
         )
 
-    async def revoke_token(self, token: PlatformAccessToken | PlatformRefreshToken) -> None:
-        """Revoke the grant behind either token; a person's own key is not revoked here."""
+    async def revoke_token(self, token: AccessToken | RefreshToken) -> None:
+        """Revoke the grant behind either token; a person's own key is not revoked here.
+
+        FastMCP hands back the token this provider loaded, so anything else - or
+        a key with no grant behind it - has nothing to revoke.
+        """
+        if not isinstance(token, PlatformAccessToken | PlatformRefreshToken):
+            return
         if token.grant_id is None:
             return
         async with get_db_context() as db:

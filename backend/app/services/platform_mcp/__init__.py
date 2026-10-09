@@ -1,9 +1,13 @@
-"""The platform's own MCP server, at `/mcp` (#2058).
+"""The platform's own MCP server, at `/mcp` (#2058), built on FastMCP.
 
-Claude Code or any MCP client - and, through the same door, the in-app
-assistant - operates AgenticOS through a curated set of tools. Each one is a call
-to the public API made in-process with the caller's own token, so an MCP caller
-can do exactly what that token can do over HTTP and nothing more.
+Claude Code or any MCP client operates AgenticOS through a curated set of tools,
+and the in-app assistant is handed the same ones. Each is a call to the public
+API made in-process with the caller's own token, so an MCP caller can do exactly
+what that token can do over HTTP and nothing more.
+
+FastMCP serves the protocol over streamable HTTP and the OAuth 2.1 endpoints
+around it; :mod:`._oauth` answers its authorization-server decisions from the
+database.
 """
 
 from __future__ import annotations
@@ -12,17 +16,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from mcp.server.auth.middleware.auth_context import get_access_token
-from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_access_token
+from fastmcp.server.http import StarletteWithLifespan
 from mcp.types import ToolAnnotations
-from pydantic import AnyHttpUrl
-from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.core.config import settings
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import PlatformTool, platform_tools
@@ -52,37 +53,26 @@ Start with `whoami` to see the organization and what this connection may do.
 """
 
 
-def build_platform_mcp(app: ASGIApp) -> tuple[MCPServer, Starlette]:
+def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     """The MCP server, and the ASGI app serving it, calling `app`'s public API."""
-    base = settings.PUBLIC_BASE_URL.rstrip("/")
-    server = MCPServer(
-        name="agenticos",
-        title="AgenticOS",
+    server = FastMCP(
+        name="AgenticOS",
         instructions=INSTRUCTIONS,
-        auth_server_provider=PlatformOAuthProvider(),
-        auth=AuthSettings(
-            issuer_url=AnyHttpUrl(base),
-            resource_server_url=AnyHttpUrl(f"{base}{MCP_PATH}"),
-            # A key pasted into a client is not issued for an audience, so there is
-            # no resource on it to compare; the public API decides instead.
-            validate_token_resource=False,
-            client_registration_options=ClientRegistrationOptions(enabled=True),
-            revocation_options=RevocationOptions(enabled=True),
-        ),
+        auth=PlatformOAuthProvider(),
     )
     api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
     for tool in platform_tools(api):
-        server.add_tool(tool.function, annotations=_WRITE if tool.writes else _READ)
+        server.tool(tool.function, annotations=_WRITE if tool.writes else _READ)
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
-    # The host is not localhost, so the SDK's DNS-rebinding guard stays off - it
-    # protects unauthenticated local servers, and every request here carries a
-    # bearer token a rebinding page could not attach.
-    starlette = server.streamable_http_app(
-        streamable_http_path=MCP_PATH,
+    # FastMCP's Host/Origin guard stays off: it protects unauthenticated local
+    # servers from DNS rebinding, and every request here carries a bearer token
+    # a rebinding page could not attach.
+    starlette = server.http_app(
+        path=MCP_PATH,
         stateless_http=True,
         json_response=True,
-        host="0.0.0.0",  # noqa: S104 - see above; this binds nothing
+        host_origin_protection=False,
     )
     return server, starlette
 
@@ -103,11 +93,11 @@ ROUTE_PATHS = (
 async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None, None]:
     """Run the MCP server for one lifespan of `app`, reachable through :func:`forward`.
 
-    Built per lifespan rather than once: its session manager runs once per
-    instance, and a process can run the lifespan more than once (a reload, a test).
+    Built per lifespan rather than once: FastMCP's session manager runs once per
+    app, and a process can run the lifespan more than once (a reload, a test).
     """
-    server, starlette = build_platform_mcp(app)
-    async with server.session_manager.run():
+    _server, starlette = build_platform_mcp(app)
+    async with starlette.router.lifespan_context(starlette):
         setattr(state, "platform_mcp", starlette)  # noqa: B010 - Starlette's State is dynamic
         try:
             yield

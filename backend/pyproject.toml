@@ -77,6 +77,8 @@ dependencies = [
     # here does: the portals, the channels, `model_catalog` and the web-research
     # search all build and send their own requests.
     "mcp>=2.3.0",
+    # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
+    "fastmcp>=4.1.0",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -1365,3 +1367,9 @@ exclude_also = [
     "raise NotImplementedError",
     "@overload",
 ]
+
+[tool.uv]
+# FastMCP asks for a beartype pre-release on Python 3.15, where no final
+# release supports it yet. Allowing that one pre-release, only there, is what
+# lets the lock resolve for every Python this project claims; 3.12 is unaffected.
+constraint-dependencies = ["beartype>=0.23.0rc2; python_full_version >= '3.15'"]

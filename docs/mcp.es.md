@@ -1,5 +1,5 @@
 ---
-source_sha: "d2be4ebf72bb"
+source_sha: "5f4ada142d78"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -780,6 +780,10 @@ Todo lo anterior es la plataforma llamando a otros servidores. También es uno:
 Code, Claude Desktop o cualquier cliente MCP puede operar la organización —
 listar y crear agents, ejecutarlos, leer los runs y su coste, llenar y buscar
 bases de conocimiento, invitar a miembros.
+
+El servidor está construido sobre [FastMCP](https://gofastmcp.com): sirve el
+protocolo y los endpoints de OAuth 2.1, y AgenticOS aporta las herramientas y cada
+decisión detrás de un inicio de sesión.
 
 El cliente inicia sesión por el navegador: se registra, abre la página de
 consentimiento de la consola, donde eliges la organización y lo que puede hacer, y

@@ -736,6 +736,10 @@ on the API's host speaks MCP over streamable HTTP, so Claude Code, Claude Deskto
 or any MCP client can operate the organization — list and create agents, run them,
 read runs and their cost, fill and search knowledge bases, invite members.
 
+The server is built on [FastMCP](https://gofastmcp.com): it serves the protocol
+and the OAuth 2.1 endpoints, and AgenticOS supplies the tools and every decision
+behind a sign-in.
+
 The client signs in through the browser: it registers itself, opens the
 console's consent page, where you choose the organization and what it may do,
 and receives a token that lasts an hour and renews itself. No key is pasted

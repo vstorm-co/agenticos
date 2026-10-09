@@ -46,8 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
   writes down the v1 compatibility promise — additive changes only, 90 days'
   deprecation — and gains worked examples for ingestion and search, runs and
   cost, invitations, and retrying a 429 (#1796).
-- **AgenticOS is an MCP server.** `/mcp` on the API's host speaks MCP over
-  streamable HTTP: `claude mcp add --transport http agenticos <host>/mcp --header
+- **AgenticOS is an MCP server**, built on [FastMCP](https://gofastmcp.com).
+  `/mcp` on the API's host speaks MCP over streamable HTTP: `claude mcp add --transport http agenticos <host>/mcp --header
   "Authorization: Bearer aos_…"` gives Claude Code (or any MCP client) tools to
   list, create and run agents, read runs and cost, create and search knowledge
   bases and add documents to them, list skills and members, and invite a member.
@@ -58,7 +58,8 @@ Two things are versioned separately from this file and worth knowing about:
   an OAuth 2.1 authorization server: `claude mcp add --transport http agenticos
   <host>/mcp` registers the client, opens the console's consent page — pick the
   organization and what it may do — and returns an hour-long token that renews
-  itself. Public clients with PKCE only; codes are single-use, refresh tokens
+  itself. FastMCP's token endpoint answers an invalid grant with `401`, as MCP
+  requires, rather than OAuth's `400`. Public clients with PKCE only; codes are single-use, refresh tokens
   rotate, and a reused one revokes the grant with every token it issued. The
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
