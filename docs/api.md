@@ -146,6 +146,82 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
   -d '{"text": "write to ada@example.com"}'
 ```
 
+## Worked examples
+
+Each one runs with an organization key in `$AGENTICOS_KEY` and the API's origin
+in `$BASE`. Create the key under **Settings → API keys** with the permissions the
+example names; the console shows the key once.
+
+**Put a document into a knowledge base and search it** — a key with
+`collections:view` and `collections:edit` (the *Knowledge ingest* preset).
+Ingestion runs in the background, so a search right after the upload may not find
+the document yet; `GET /api/v1/kb/$KB_ID/documents` shows its status.
+
+```bash
+# Find the knowledge base, upload a file into it, and search it.
+curl "$BASE/api/v1/kb" -H "Authorization: Bearer $AGENTICOS_KEY"
+
+curl -X POST "$BASE/api/v1/kb/$KB_ID/documents" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -F "file=@policy.pdf"
+
+curl -X POST "$BASE/api/v1/rag/search" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"collection_name\": \"$COLLECTION_NAME\", \"query\": \"refund window\"}"
+```
+
+**Run an agent and read what it cost** — `agents:run` and `runs:view`. The run
+read carries its status, its tokens and its cost.
+
+```bash
+RUN_ID=$(curl -s -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarise this week'"'"'s tickets"}' | jq -r .run_id)
+
+curl "$BASE/api/v1/runs/$RUN_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+**Invite a member** — `members:manage`. The invitation is emailed; the response
+carries its token once, for an inviter whose mail may not arrive.
+
+```bash
+curl -X POST "$BASE/api/v1/orgs/$ORG_ID/invitations" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "new.hire@example.com", "role": "member"}'
+```
+
+**Retry what was rate limited, and nothing else.** A `429` carries
+`Retry-After`; every other refusal is final for that request, and a `401` means
+the key is gone — revoked, expired, or its issuer removed — so retrying it only
+spends the limit.
+
+```python
+import time
+
+import httpx
+
+
+def call(client: httpx.Client, method: str, path: str, **kwargs) -> httpx.Response:
+    for _ in range(5):
+        response = client.request(method, path, **kwargs)
+        if response.status_code != 429:
+            response.raise_for_status()
+            return response
+        time.sleep(int(response.headers.get("Retry-After", "60")))
+    response.raise_for_status()
+    return response
+
+
+client = httpx.Client(
+    base_url="https://agenticos.example.com/api/v1",
+    headers={"Authorization": f"Bearer {KEY}"},
+)
+print(call(client, "GET", "/me/permissions").json())
+```
+
 ## Streaming
 
 Two WebSocket endpoints, for two audiences.
@@ -199,18 +275,21 @@ not `403`, for the reason above.
 
 ## Stability, honestly
 
-**There is no published compatibility promise yet, and no client library.** The
-API has been public since the first commit and the versioning contract is
-[roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work
-(R10).
+**The public API has a written compatibility promise; the rest of `/api/v1` does
+not.** The routes an API key may call are listed in their own OpenAPI document at
+**`/api/v1/public/openapi.json`**, served in every environment. Within v1 a change
+to one of them is additive — a new route, a new optional field, a new response
+field or enum value — and a client must ignore response fields it does not know.
+Removing or renaming something there happens only after it has been marked
+`deprecated` in that document for at least 90 days and listed in the
+[release notes](release-notes.md); a change that cannot be made that way goes into
+`/api/v2`, beside v1.
 
-In practice the shapes have been stable and the `/api/v1` prefix means a
-breaking change would land beside the current one rather than on top of it — but
-until that is written down, treat it as what it is: an API you should pin your
-integration's tests against.
+The console's own routes carry no such promise and change with the console; a key
+cannot call them. There is no client library yet.
 
-The one format that *does* carry a promise is the
-[agent spec](reference/spec.md), which is versioned and only moves forward.
+The [agent spec](reference/spec.md) carries its own promise: it is versioned and
+only moves forward.
 
 ## Recap
 
@@ -224,5 +303,5 @@ The one format that *does* carry a promise is the
   like a missing resource.
 - Running an agent over HTTP is the **same runner** — budget, approval and audit
   all apply.
-- **No compatibility promise or SDK yet** (R10); the agent spec is the one
-  versioned format.
+- **The public API is in `/api/v1/public/openapi.json`** and changes only
+  additively within v1, with 90 days' deprecation; there is no SDK yet.

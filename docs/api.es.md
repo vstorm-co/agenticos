@@ -1,5 +1,5 @@
 ---
-source_sha: "c2598611c808"
+source_sha: "607db26c1ad1"
 ---
 
 # La API HTTP { #the-http-api }
@@ -156,6 +156,82 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
   -d '{"text": "write to ada@example.com"}'
 ```
 
+## Ejemplos paso a paso { #worked-examples }
+
+Cada uno funciona con una clave de la organización en `$AGENTICOS_KEY` y el origen
+de la API en `$BASE`. Crea la clave en **Settings → API keys** con los permisos que
+nombra el ejemplo; la consola la muestra una vez.
+
+**Sube un documento a una base de conocimiento y búscalo** — una clave con
+`collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
+ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
+no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado.
+
+```bash
+# Find the knowledge base, upload a file into it, and search it.
+curl "$BASE/api/v1/kb" -H "Authorization: Bearer $AGENTICOS_KEY"
+
+curl -X POST "$BASE/api/v1/kb/$KB_ID/documents" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -F "file=@policy.pdf"
+
+curl -X POST "$BASE/api/v1/rag/search" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"collection_name\": \"$COLLECTION_NAME\", \"query\": \"refund window\"}"
+```
+
+**Ejecuta un agent y consulta lo que costó** — `agents:run` y `runs:view`. La
+lectura del run trae su estado, sus tokens y su coste.
+
+```bash
+RUN_ID=$(curl -s -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarise this week'"'"'s tickets"}' | jq -r .run_id)
+
+curl "$BASE/api/v1/runs/$RUN_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+**Invita a un miembro** — `members:manage`. La invitación se envía por correo; la
+respuesta trae su token una vez, por si el correo del invitante no llega.
+
+```bash
+curl -X POST "$BASE/api/v1/orgs/$ORG_ID/invitations" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "new.hire@example.com", "role": "member"}'
+```
+
+**Reintenta lo que chocó con el límite, y nada más.** Un `429` trae `Retry-After`;
+cualquier otro rechazo es definitivo para esa petición, y un `401` significa que la
+clave ya no existe — revocada, caducada o su emisor eliminado —, así que
+reintentarlo solo gasta el límite.
+
+```python
+import time
+
+import httpx
+
+
+def call(client: httpx.Client, method: str, path: str, **kwargs) -> httpx.Response:
+    for _ in range(5):
+        response = client.request(method, path, **kwargs)
+        if response.status_code != 429:
+            response.raise_for_status()
+            return response
+        time.sleep(int(response.headers.get("Retry-After", "60")))
+    response.raise_for_status()
+    return response
+
+
+client = httpx.Client(
+    base_url="https://agenticos.example.com/api/v1",
+    headers={"Authorization": f"Bearer {KEY}"},
+)
+print(call(client, "GET", "/me/permissions").json())
+```
+
 ## Streaming { #streaming }
 
 Dos endpoints WebSocket, para dos públicos.
@@ -209,19 +285,21 @@ Un `401` lleva `WWW-Authenticate: Bearer`. Una lectura entre inquilinos responde
 
 ## Estabilidad, con franqueza { #stability-honestly }
 
-**Todavía no hay una promesa de compatibilidad publicada, ni una librería
-cliente.** La API es pública desde el primer commit y el contrato de versionado
-es trabajo de la
-[hoja de ruta](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)
-(R10).
+**La API pública tiene una promesa de compatibilidad escrita; el resto de
+`/api/v1` no.** Las rutas que puede llamar una clave de API están en su propio
+documento OpenAPI en **`/api/v1/public/openapi.json`**, servido en todos los
+entornos. Dentro de v1, un cambio en una de ellas es aditivo — una ruta nueva, un
+campo opcional nuevo, un campo de respuesta o un valor de enum nuevos —, y un
+cliente debe ignorar los campos de respuesta que no conozca. Quitar o renombrar algo
+solo ocurre después de marcarlo como `deprecated` en ese documento durante al menos
+90 días y listarlo en las [notas de versión](release-notes.md); un cambio que no se
+pueda hacer así va a `/api/v2`, junto a v1.
 
-En la práctica las formas han sido estables y el prefijo `/api/v1` significa que
-un cambio incompatible aterrizaría al lado del actual y no encima de él — pero
-hasta que eso esté por escrito, trátala como lo que es: una API contra la que
-deberías fijar las pruebas de tu integración.
+Las rutas propias de la consola no tienen esa promesa y cambian con la consola; una
+clave no puede llamarlas. Todavía no hay biblioteca cliente.
 
-El único formato que *sí* lleva una promesa es el
-[spec del agent](reference/spec.md), que está versionado y solo avanza.
+El [spec del agent](reference/spec.md) tiene su propia promesa: está versionado y
+solo avanza.
 
 ## Recapitulación { #recap }
 
@@ -236,5 +314,5 @@ El único formato que *sí* lleva una promesa es el
   equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
-- **Todavía no hay promesa de compatibilidad ni SDK** (R10); el spec del agent es
-  el único formato versionado.
+- **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
+  cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.

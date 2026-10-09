@@ -39,6 +39,13 @@ Two things are versioned separately from this file and worth knowing about:
   or `org:settings` can do them and one without is refused. Leaving an
   organization and transferring ownership stay session-only. For a key, the
   `/orgs/{org_id}` in the path must be the key's own organization (#2057).
+- **The public API's own OpenAPI document**, at `/api/v1/public/openapi.json`
+  in every environment: only the routes a key may call, the `ApiKey` bearer
+  scheme, and the error envelope every refusal actually returns (FastAPI's
+  default 422 schema described a body this API never sends). `docs/api.md`
+  writes down the v1 compatibility promise — additive changes only, 90 days'
+  deprecation — and gains worked examples for ingestion and search, runs and
+  cost, invitations, and retrying a 429 (#1796).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

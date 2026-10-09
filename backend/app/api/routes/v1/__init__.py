@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import api_keys, health
+from app.api.routes.v1 import api_keys, health, public_openapi
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
@@ -63,6 +63,7 @@ from app.api.routes.v1 import admin_announcements
 v1_router = APIRouter()
 
 v1_router.include_router(health.router, tags=["health"])
+v1_router.include_router(public_openapi.router)
 
 v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(directory_auth.router, prefix="/auth", tags=["auth"])
