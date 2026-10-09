@@ -27,6 +27,7 @@ import {
   LITEPARSE_OUTPUT_FORMATS,
   LLAMAPARSE_TIERS,
   PDF_PARSERS,
+  settleHiddenFields,
   THINKING_EFFORTS,
   toNumber,
 } from "@/lib/ingestion-config";
@@ -95,12 +96,20 @@ export function IngestionSettings({
   const { services } = useLocalServices(value.pdf_parser === "liteparse");
   const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
+  // Every change goes through `settleHiddenFields`, so turning a setting off
+  // cannot leave a refused value behind a field that is no longer on screen.
   const set = <K extends keyof IngestionConfig>(key: K, next: IngestionConfig[K]) =>
-    onChange({ ...value, [key]: next });
+    onChange(settleHiddenFields({ ...value, [key]: next }, t));
   const setImage = <K extends keyof ImageDescriptionConfig>(
     key: K,
     next: ImageDescriptionConfig[K],
-  ) => onChange({ ...value, image_description: { ...value.image_description, [key]: next } });
+  ) =>
+    onChange(
+      settleHiddenFields(
+        { ...value, image_description: { ...value.image_description, [key]: next } },
+        t,
+      ),
+    );
 
   const parser = PDF_PARSERS.find((choice) => choice.value === value.pdf_parser);
 

@@ -28,6 +28,7 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
 import { useTranslations } from "next-intl";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 type Filter = "all" | AgentStatus;
 
@@ -163,6 +164,7 @@ export default function AgentsPage() {
         allLabel={t("allCategories")}
         countLabel={(count) => t("categoryCount", { count })}
         clearLabel={t("clearFilter")}
+        max={MAX_AGENT_CATEGORIES}
       />
       <LabelFilter
         options={tagOptions}
@@ -172,6 +174,7 @@ export default function AgentsPage() {
         allLabel={t("allTags")}
         countLabel={(count) => t("tagCount", { count })}
         clearLabel={t("clearFilter")}
+        max={MAX_AGENT_TAGS}
       />
     </div>
   );

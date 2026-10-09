@@ -1926,6 +1926,14 @@
 .rise-in > :nth-child(n + 9) {
   animation-delay: 320ms;
 }
+/* The global reduced-motion rule shortens durations but keeps these delays, and
+   with `both` fill a later card would sit invisible for up to 320ms and then
+   appear at once (#1930). Without motion the grid is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  .rise-in > * {
+    animation: none;
+  }
+}
 
 /* A streaming answer: each block the markdown grows - a paragraph, a list, a
    heading, a table - fades up as it mounts. Blocks already on screen keep their

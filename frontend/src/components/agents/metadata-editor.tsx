@@ -6,10 +6,9 @@ import { useTranslations } from "next-intl";
 import { ChipsInput } from "@/components/agents/chips-input";
 import { Label } from "@/components/ui";
 import { useAgent } from "@/hooks";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
-/** The write caps the server enforces, shown here as add affordances. */
-const MAX_CATEGORIES = 10;
-const MAX_TAGS = 20;
+/** The longest label the server stores, enforced here before it is sent. */
 const MAX_LABEL_LENGTH = 32;
 
 const sameLabels = (a: string[], b: string[]) =>
@@ -82,7 +81,7 @@ export function MetadataEditor({
         <div className="flex items-baseline justify-between gap-2">
           <Label>{t("categories")}</Label>
           <span className="text-muted-foreground font-mono text-xs">
-            {t("labelCount", { used: draftCategories.length, max: MAX_CATEGORIES })}
+            {t("labelCount", { used: draftCategories.length, max: MAX_AGENT_CATEGORIES })}
           </span>
         </div>
         <ChipsInput
@@ -91,7 +90,7 @@ export function MetadataEditor({
           inputLabel={t("addCategory")}
           removeLabel={(value) => t("removeCategory", { value })}
           placeholder={t("addCategoryPlaceholder")}
-          maxItems={MAX_CATEGORIES}
+          maxItems={MAX_AGENT_CATEGORIES}
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}
         />
@@ -101,7 +100,7 @@ export function MetadataEditor({
         <div className="flex items-baseline justify-between gap-2">
           <Label>{t("tags")}</Label>
           <span className="text-muted-foreground font-mono text-xs">
-            {t("labelCount", { used: draftTags.length, max: MAX_TAGS })}
+            {t("labelCount", { used: draftTags.length, max: MAX_AGENT_TAGS })}
           </span>
         </div>
         <ChipsInput
@@ -110,7 +109,7 @@ export function MetadataEditor({
           inputLabel={t("addTag")}
           removeLabel={(value) => t("removeTag", { value })}
           placeholder={t("addTagPlaceholder")}
-          maxItems={MAX_TAGS}
+          maxItems={MAX_AGENT_TAGS}
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}
         />

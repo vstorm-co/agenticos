@@ -32,13 +32,12 @@ import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 1000;
-/** The caps the server enforces, so a chip too many is refused before it is sent. */
-const MAX_CATEGORIES = 10;
-const MAX_TAGS = 20;
+/** The longest label the server stores, so a longer chip is refused before it is sent. */
 const MAX_LABEL = 32;
 
 /**
@@ -224,7 +223,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                 inputLabel={tAgents("addCategory")}
                 removeLabel={(value) => tAgents("removeCategory", { value })}
                 placeholder={tAgents("addCategoryPlaceholder")}
-                maxItems={MAX_CATEGORIES}
+                maxItems={MAX_AGENT_CATEGORIES}
                 maxLength={MAX_LABEL}
               />
             </div>
@@ -236,7 +235,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                 inputLabel={tAgents("addTag")}
                 removeLabel={(value) => tAgents("removeTag", { value })}
                 placeholder={tAgents("addTagPlaceholder")}
-                maxItems={MAX_TAGS}
+                maxItems={MAX_AGENT_TAGS}
                 maxLength={MAX_LABEL}
               />
             </div>

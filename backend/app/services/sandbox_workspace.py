@@ -63,6 +63,7 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -1128,11 +1129,11 @@ class SandboxWorkspaceService:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         # A budget across the whole request, not per workspace: a host's thumbnail
-        # is a `read_bytes` for that file, and twenty-five workspaces of photographs
-        # would be a page that fetches two hundred images to draw them 64 pixels
-        # wide. The tiles past it fall back to the grey glyph, which is what every
-        # container-backed image looked like before.
-        budget = HOST_THUMBNAIL_BUDGET
+        # is a `read_bytes` for that file, a stored one a decode of bytes already in
+        # hand, and twenty-five workspaces of photographs would be a page that decodes
+        # two hundred images to draw them 64 pixels wide. The tiles past it fall back
+        # to the grey glyph.
+        budget = THUMBNAIL_BUDGET
         opened = overviews[:limit]
         listed = await self._entries_of(ctx, [overview.row for overview in opened])
         readable: list[tuple[WorkspaceOverview, list[FileInfo]]] = [
@@ -1146,10 +1147,7 @@ class SandboxWorkspaceService:
         # Shared out in listing order before anything is fetched, so which tiles are
         # drawn does not depend on which host happened to answer first.
         shares: list[int] = []
-        for overview, entries in readable:
-            if overview.row.backend == "state":
-                shares.append(0)
-                continue
+        for _overview, entries in readable:
             picked, budget = thumbnail_picks(entries, budget)
             shares.append(len(picked))
         tiled = await _concurrently(
@@ -1189,30 +1187,23 @@ class SandboxWorkspaceService:
         return await _concurrently([partial(self._entries, ctx, row) for row in rows])
 
     async def _host_thumbnails(
-        self,
-        ctx: AuthContext,
-        row: AgentWorkspace,
-        entries: list[FileInfo],
-        budget: int,
-    ) -> tuple[dict[str, str], int]:
-        """Thumbnails for a host's images, within what is left of the budget.
+        self, ctx: AuthContext, row: AgentWorkspace, paths: list[str]
+    ) -> dict[str, str]:
+        """Thumbnails for a host's images, the ones :func:`thumbnail_picks` chose.
 
-        A stored image arrives base64 in the document this listing already read, so
-        drawing it costs nothing; a host's is a `read_bytes` for that one file. So
-        this is bounded and the size is checked *before* fetching, off the listing
-        entry - a 20 MB photograph would be read in full to be thrown away by the
-        scaler's own ceiling.
+        A host's image is a `read_bytes` for that one file, which is why the pick
+        checks the size *before* fetching, off the listing entry - a 20 MB
+        photograph would be read in full to be thrown away by the scaler's own
+        ceiling.
 
         Failure is silence. A file whose suffix says PNG and whose bytes are not
         one, or a host that stops answering mid-grid, leaves that tile with the
         glyph every container-backed image had before this existed.
         """
-        paths, budget = thumbnail_picks(entries, budget)
         tiles = await _concurrently(
             [partial(self._host_thumbnail, ctx, row, path) for path in paths]
         )
-        drawn = {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
-        return drawn, budget
+        return {path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None}
 
     async def _host_thumbnail(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:
         """One host image drawn as a tile, or `None` for the glyph."""
@@ -1223,7 +1214,7 @@ class SandboxWorkspaceService:
             return None
         if raw is None:
             return None
-        return thumbnail_of(path, raw)
+        return await run_blocking(thumbnail_of, path, raw)
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -1237,6 +1228,10 @@ class SandboxWorkspaceService:
         a `run`-scoped one never had one, and an `agent`-scoped one belongs to
         all of them.
 
+        Without tiles: the explorer that reads this draws a tree of names and
+        sizes, so previews and thumbnails here were up to a budget of image reads
+        and decodes per request that nothing displayed (#1930).
+
         Raises:
             NotFoundError: If it is not this organization's, or not one this
                 caller may see. Reported as missing rather than refused in both
@@ -1244,7 +1239,7 @@ class SandboxWorkspaceService:
                 - in another organization, or in a colleague's conversation.
         """
         row = await self._workspace_of(ctx, workspace_id)
-        return row, await self._tiled(ctx, row)
+        return row, await self._browsable(ctx, row)
 
     async def _workspace_of(self, ctx: AuthContext, workspace_id: UUID) -> AgentWorkspace:
         """The workspace by its id, when this caller may read it - see :meth:`files_of`."""
@@ -1285,7 +1280,7 @@ class SandboxWorkspaceService:
             ctx,
             row,
             [entry for entry in contents.entries if not entry.get("is_dir")],
-            HOST_THUMBNAIL_BUDGET,
+            THUMBNAIL_BUDGET,
         )
         return replace(contents, previews=previews, thumbnails=thumbnails)
 
@@ -1295,25 +1290,32 @@ class SandboxWorkspaceService:
         """Each file's preview and thumbnail, by path, and what is left of the budget.
 
         A stored workspace's bytes are in the row already, so every text file gets
-        its first lines and every image its thumbnail at no cost. A host's are a
-        round trip per file, so only images are drawn, within `budget` - see
-        :meth:`_host_thumbnails`.
+        its first lines at no cost. A host's are a round trip per file, so it gets
+        no previews - see :meth:`_host_thumbnails`.
+
+        Images are drawn within `budget` on both backends. A stored image costs no
+        fetch, but its decode is not free: about 48 compressed 4096x4096 PNGs fit
+        under the stored cap, and drawing all of them was 800 megapixels decoded
+        for one listing (#1930). The decode runs on the file pool rather than the
+        event loop, so a grid of photographs does not hold every other request.
         """
+        paths, budget = thumbnail_picks(files, budget)
         if row.backend == "state":
             stored = dict(row.files or {})
             previews: dict[str, str] = {}
-            thumbnails: dict[str, str] = {}
             for entry in files:
                 path = str(entry.get("path"))
                 preview = stored_preview(stored.get(path))
                 if preview is not None:
                     previews[path] = preview
-                thumbnail = stored_thumbnail(path, stored.get(path))
-                if thumbnail is not None:
-                    thumbnails[path] = thumbnail
+            tiles = await _concurrently(
+                [partial(run_blocking, stored_thumbnail, path, stored.get(path)) for path in paths]
+            )
+            thumbnails = {
+                path: tile for path, tile in zip(paths, tiles, strict=True) if tile is not None
+            }
             return previews, thumbnails, budget
-        drawn, budget = await self._host_thumbnails(ctx, row, files, budget)
-        return {}, drawn, budget
+        return {}, await self._host_thumbnails(ctx, row, paths), budget
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -1742,12 +1744,12 @@ def stored_preview(data: FileData | None) -> str | None:
 THUMBNAIL_BOX = (160, 128)
 """Twice the card's 64px band, so the tile is not soft on a retina screen."""
 
-HOST_THUMBNAIL_BUDGET = 24
-"""How many host-backed images one flat listing will fetch to draw.
+THUMBNAIL_BUDGET = 24
+"""How many images one listing will decode to draw, on either backend.
 
-A stored image is already in the document the listing reads; a host's is a
-`read_bytes` per file. Twenty-four is one screen of tiles - past it the grey glyph
-is what a container-backed image looked like before any of them were drawn."""
+A host's image is a `read_bytes` per file; a stored one is already in the document
+the listing reads, but decoding it is still the expensive half. Twenty-four is one
+screen of tiles - past it the grey glyph is drawn instead."""
 
 THUMBNAIL_SOURCE_LIMIT = 4 * 1024 * 1024
 """The largest stored image this will decode.
@@ -1819,13 +1821,11 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
 
 
 def thumbnail_picks(entries: list[FileInfo], budget: int) -> tuple[list[str], int]:
-    """Which of a host's images a listing will fetch, and the budget left.
+    """Which images a listing will draw, and the budget left.
 
-    A stored image arrives base64 in the document the listing already read, so
-    drawing it costs nothing; a host's is a `read_bytes` for that one file. So this
-    is bounded and the size is checked *before* fetching, off the listing entry - a
-    20 MB photograph would be read in full to be thrown away by the scaler's own
-    ceiling.
+    Bounded on both backends - see :data:`THUMBNAIL_BUDGET`. The size is checked
+    *before* anything is fetched or decoded, off the listing entry: a 20 MB
+    photograph would be read in full to be thrown away by the scaler's own ceiling.
     """
     picked: list[str] = []
     for entry in entries:
