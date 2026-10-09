@@ -2418,7 +2418,20 @@
     "authorFilterLabel": "Autor zawiera",
     "authorFilterPlaceholder": "np. Jan Kowalski",
     "textFilterLabel": "Treść zawiera",
-    "textFilterPlaceholder": "np. rekrutacja"
+    "textFilterPlaceholder": "np. rekrutacja",
+    "needsOAuthApp": "Połączenie wymaga danych uwierzytelniających typu „{credential}” Twojej organizacji. Dodaj je tutaj albo w vault.",
+    "ambiguousOAuthApp": "Zapisano dwa widoczne w całej organizacji sekrety typu „{credential}”, więc przy łączeniu nie da się ustalić, o który chodzi. Usuń jeden z nich w vault.",
+    "oauthUnavailable": "Ten portal nie wskazuje danych uwierzytelniających do połączenia, więc nie da się go połączyć. Nic w vault tego nie naprawi.",
+    "oauthAppFallback": "Klient OAuth",
+    "connectedState": "Połączono",
+    "copyAdminConsentLink": "Kopiuj link zgody administratora",
+    "adminConsentCopied": "Skopiowano link zgody administratora. Wyślij go administratorowi tenanta Microsoft 365.",
+    "adminConsentFailed": "Nie udało się pobrać linku zgody administratora.",
+    "disconnectAction": "Odłącz",
+    "disconnectTitle": "Odłączyć {name}?",
+    "disconnectWarning": "Triggery oparte na {name} przestają je odczytywać, dopóki konto nie zostanie połączone ponownie; same triggery zostają. Dostawca wciąż pokazuje aplikację jako uprawnioną, dopóki właściciel konta lub administrator jej tam nie odwoła.",
+    "disconnected": "Odłączono {name}.",
+    "disconnectFailed": "Nie udało się odłączyć konta."
   },
   "agents": {
     "accentColour": "Kolor akcentu",

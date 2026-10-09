@@ -573,7 +573,10 @@ class AgentTriggerService:
                         details={"portal_key": data.portal_key, "preset_key": data.preset_key},
                     )
                 portal, preset = resolved
-                event_source = portal.event_source
+                # A portal with a preset names its source; only a portal with none
+                # may leave it null, and `tests/test_portal_catalog.py` holds every
+                # catalog entry to that.
+                event_source = cast(str, portal.event_source)
                 event_config = self._merged_preset_config(event_source, preset, data.event_config)
                 plaintext_secret = secrets.token_urlsafe(32)
                 portal_key = portal.key

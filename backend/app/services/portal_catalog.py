@@ -81,8 +81,10 @@ class PortalEntry:
     description: str
     category: str
     # The `event_source` every preset here fires through - the delivery layer's
-    # vocabulary (`app/db/models/agent_trigger.py:EventSource`).
-    event_source: str
+    # vocabulary (`app/db/models/agent_trigger.py:EventSource`). None only for a
+    # portal with no presets yet: an account other portals are built on, which
+    # is connected here and fires nothing itself (Microsoft 365, #1983).
+    event_source: str | None
     delivery: DeliveryMode
     presets: tuple[PortalPreset, ...]
     # The brand mark to draw, as `BrandIcon` names them; empty falls back to a

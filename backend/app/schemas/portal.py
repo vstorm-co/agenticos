@@ -34,7 +34,9 @@ class PortalRead(BaseSchema):
     description: str
     category: str
     icon: str | None = None
-    event_source: str
+    event_source: str | None = Field(
+        description="The event source the presets fire through, or null for a portal with no presets",
+    )
     delivery: str = Field(
         description="auto_webhook (platform registers the webhook), manual (paste a URL), or polling",
     )

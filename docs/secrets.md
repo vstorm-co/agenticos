@@ -89,13 +89,16 @@ decides which fields exist.
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
+| `google_oauth_app` | A Google OAuth client's public client id and its secret, for connecting a mailbox |
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
 GitHub connect flow reads it server-side to run the token exchange — so it must be
-**org-visible, and there must be exactly one**: a member's private credential is
+**org-visible, and there must be exactly one**. The same holds for
+`google_oauth_app`, which the Gmail portal connects through, and for `entra_app`
+when the Microsoft 365 portal connects through it: a member's private credential is
 never silently used for the whole organization's connection, and with two org-visible
 apps stored the connect is refused (naming both) rather than keyed to whichever name
 sorts first.
@@ -112,6 +115,12 @@ it `Sites.Selected` on the one site the source reads — see [SharePoint and One
 setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
 the last four characters of the client id, which is public, rather than of the
 secret.
+
+The same registration is the OAuth client the [Microsoft 365
+portal](triggers.md#microsoft-365-the-account-for-now) connects an account through.
+There it is the *delegated* permissions that count - `offline_access` and
+`User.Read`, consented by the account or by an administrator for the tenant - not
+the application permissions a sync source reads with.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.

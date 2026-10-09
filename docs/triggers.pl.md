@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "36700b1e42ee"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -201,13 +201,62 @@ warto wiedzieć o tym, jak to czyta:
   historii. Kursor starszy niż to resynchronizuje się do teraz, zamiast zaparkować
   skrzynkę na zawsze.
 
-Deployment potrzebuje klienta Google OAuth (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - tej samej pary, której używa logowanie przez Google) z
-włączonym Gmail API. Bez niego kafelek mówi to wprost, zamiast oferować przycisk
-Connect, który mógłby tylko zawieść. W odróżnieniu od GitHuba klient należy do
-*deploymentu*, a nie do każdej organizacji: ekran zgody Google dla zakresu
-skrzynki pocztowej wymaga zweryfikowanego projektu, który operator rejestruje raz
-i którego żaden z jego tenantów nie może zarejestrować w ogóle.
+Organizacja potrzebuje własnego klienta Google OAuth, zapisanego w vaulcie jako
+sekret `google_oauth_app` - widocznego dla organizacji i dokładnie jednego - z
+projektu Google z włączonym Gmail API i z
+`<FRONTEND_URL>/api/me/mcp-connections/oauth/callback` jako autoryzowanym URI
+przekierowania. Bez niego kafelek mówi to wprost i oferuje *Add credentials*
+zamiast przycisku Connect, który mógłby tylko zawieść. To nie jest
+`GOOGLE_CLIENT_ID` deploymentu, który służy do logowania przez Google i do
+niczego więcej.
+
+**Odłącz** na kafelku usuwa skrzynkę. Triggery na niej oparte zostają i znów
+czytają, gdy konto zostanie podłączone; Google nadal pokazuje aplikację jako
+uprawnioną, dopóki nie zostanie tam usunięta z poziomu konta.
+
+## Microsoft 365 (na razie samo konto) { #microsoft-365-the-account-for-now }
+
+Microsoft 365 jest odpytywany jak Gmail i podłączany tak samo: *Routines → New
+event trigger → Microsoft 365 → Connect account*, z `mcp:manage`. Na razie
+niczego nie odpala. Podłączenie daje organizacji to jedno konto Microsoft 365,
+przez które będą czytać triggery Outlooka i kalendarza, a dopóki nie zostaną
+wydane, kafelek pokazuje *Połączono* zamiast oferować trigger.
+
+Organizacja potrzebuje rejestracji aplikacji Entra, zapisanej jako sekret
+`entra_app` - tego samego rodzaju, jako który loguje się [źródło synchronizacji
+SharePoint albo
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). W
+rejestracji:
+
+- URI przekierowania typu **Web**,
+  `<FRONTEND_URL>/api/me/mcp-connections/oauth/callback`;
+- delegowane uprawnienia Microsoft Graph `offline_access` i `User.Read`, i nic
+  poza nimi. Zgoda prosi tylko o te dwa, więc mówi o zasięgu tokena, a nie
+  skrzynki pocztowej.
+
+Zgoda przebiega z PKCE przez endpointy twojego własnego tenanta. Zachowywany jest
+refresh token, który Entra rotuje przy każdym odnowieniu.
+
+**Gdy administrator musi zatwierdzić aplikację.** Wiele tenantów nie pozwala
+członkom wyrażać zgody na aplikację niezatwierdzoną przez administratora. Entra
+odmawia wtedy z `AADSTS65001`, a toast mówi, że administrator musi zatwierdzić
+aplikację, zamiast powtarzać zdanie Entry. *Kopiuj link zgody administratora* na
+kafelku daje link do przesłania osobie administrującej tenantem: wskazuje twój
+tenant i twoją aplikację i prosi o uprawnienia wymienione wyżej. Po zatwierdzeniu
+członkowie mogą się łączyć. Link można wysłać, zanim ktokolwiek spróbuje.
+
+**Jedna rejestracja, oba zadania.** Łączenie czyta jedyny widoczny dla
+organizacji sekret `entra_app` i odmawia, gdy zapisane są dwa, tak jak przy
+GitHubie. Źródło synchronizacji wskazuje swój sekret po id, więc go to nie
+dotyczy - ale portal tak, więc trzymaj jedną rejestrację, która ma zarówno
+uprawnienia aplikacji potrzebne źródłom synchronizacji, jak i delegowane
+uprawnienia wymienione wyżej.
+
+**Odłącz** zapomina token. Nie wycofuje zgody po stronie Microsoftu: aplikacja
+zostaje w *My Apps* konta albo w *Enterprise applications* tenanta, dopóki ktoś
+jej tam nie usunie. Jak przy każdej innej integracji, w trakcie impersonacji
+członka nie da się podłączyć konta: zgodę wyraziłoby własne konto osoby
+administrującej, a uprawnienie przetrwałoby impersonację.
 
 ## Dwa sposoby podłączenia GitHuba i jak poznać, który masz { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -462,4 +511,7 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
 - `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Activity.
 - **Gmail jest odpytywany**, więc nie ma URL-a ani sekretu w ogóle — podłącz
   skrzynkę i to cała konfiguracja.
+- **Microsoft 365 łączy się przez sekret `entra_app`** i prosi tylko o
+  `offline_access` i `User.Read`. Tenant wymagający zatwierdzenia przez
+  administratora dostaje link do przesłania osobie administrującej.
 - Na laptopie sięgnij po **Run now**, zanim sięgniesz po tunel.

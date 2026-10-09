@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "c75f9433fc56"
 ---
 
 # Configuración { #configuration }
@@ -140,7 +140,7 @@ Validación en producción: `API_KEY` no puede usar el valor por defecto con
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `GOOGLE_CLIENT_ID` | (empty) | Client ID de Google OAuth2 — el inicio de sesión **y** el consentimiento del trigger de Gmail |
+| `GOOGLE_CLIENT_ID` | (empty) | Client ID de Google OAuth2 — solo para el inicio de sesión. El trigger de Gmail se conecta a través del propio secreto `google_oauth_app` de la organización |
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret de Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL de callback de OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL del frontend para las redirecciones de OAuth2 |

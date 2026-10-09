@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "c75f9433fc56"
 ---
 
 # Konfiguration { #configuration }
@@ -141,7 +141,7 @@ Standardwert sein.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `GOOGLE_CLIENT_ID` | (empty) | Google-OAuth2-Client-ID — Anmeldung **und** die Einwilligung für den Gmail-Trigger |
+| `GOOGLE_CLIENT_ID` | (empty) | Google-OAuth2-Client-ID — nur für die Anmeldung. Der Gmail-Trigger verbindet sich über das eigene `google_oauth_app`-Secret der Organisation |
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google-OAuth2-Client-Secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | Callback-URL für OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend-URL für die OAuth2-Weiterleitungen |

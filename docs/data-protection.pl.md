@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "34de189b6f15"
 ---
 
 # Ochrona danych { #data-protection }
@@ -130,6 +130,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
 | Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
+| Podłączony portal triggerów: Gmail, Microsoft 365 | Wymiana tokenów i każde odświeżenie, z client secret organizacji; następnie odpytywanie Gmaila czyta nowe wiadomości ze skrzynki. Microsoft 365 na razie niczego nie czyta | Uprawnienie portalu, nadane na ekranie zgody providera przez kogoś z `mcp:manage`, przez sekret `google_oauth_app` albo `entra_app` organizacji. *Odłącz* je usuwa | Google albo Microsoft |
 | Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |
 
 Konektory synchronizacji działają w drugą stronę: źródło Google Drive albo S3

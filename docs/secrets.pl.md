@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "a4b4ab5b2b65"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -96,6 +96,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `aws_credentials` | Access key id, secret access key, region, opcjonalny token sesji |
 | `gcp_service_account` | JSON konta serwisowego, walidowany przy wprowadzaniu |
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
+| `google_oauth_app` | Publiczny client id klienta Google OAuth i jego sekret, do podłączenia skrzynki pocztowej |
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
@@ -103,7 +104,9 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
 człowieka — proces łączenia z GitHubem czyta go po stronie serwera, żeby
 przeprowadzić wymianę tokenów — musi więc być **widoczny dla organizacji i musi
-być dokładnie jeden**: prywatne poświadczenie członka nigdy nie zostaje po cichu
+być dokładnie jeden**. To samo dotyczy `google_oauth_app`, przez który łączy się
+portal Gmail, oraz `entra_app`, gdy łączy się przez niego portal Microsoft 365:
+prywatne poświadczenie członka nigdy nie zostaje po cichu
 użyte dla połączenia całej organizacji, a przy dwóch zapisanych aplikacjach
 widocznych dla organizacji łączenie zostaje odrzucone (z nazwaniem obu), zamiast
 zostać przypisane do tej, której nazwa sortuje się pierwsza.
@@ -121,6 +124,12 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+Ta sama rejestracja jest klientem OAuth, przez który [portal Microsoft
+365](triggers.md#microsoft-365-the-account-for-now) podłącza konto. Tam liczą się
+uprawnienia *delegowane* - `offline_access` i `User.Read`, na które zgodę
+wyraża samo konto albo administrator w imieniu tenanta - a nie uprawnienia
+aplikacji, z którymi czyta źródło synchronizacji.
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole

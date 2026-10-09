@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PortalCatalog } from "./portal-catalog";
 import { apiClient } from "@/lib/api-client";
-import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
+import {
+  startGithubOrgOAuth,
+  startMcpOAuth,
+  startPolledPortalOAuth,
+} from "@/lib/mcp-connections-api";
+import { toast } from "sonner";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 vi.mock("@/lib/api-client", async () => {
@@ -20,7 +25,12 @@ vi.mock("@/lib/mcp-connections-api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/mcp-connections-api")>(
     "@/lib/mcp-connections-api",
   );
-  return { ...actual, startMcpOAuth: vi.fn(), startGithubOrgOAuth: vi.fn() };
+  return {
+    ...actual,
+    startMcpOAuth: vi.fn(),
+    startGithubOrgOAuth: vi.fn(),
+    startPolledPortalOAuth: vi.fn(),
+  };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -57,6 +67,32 @@ function polledPortal(blockedBy: BlockedBy) {
     presets: [
       { key: "any_message", label: "Any new message", description: "…", target_required: false },
     ],
+  };
+}
+
+/**
+ * Microsoft 365: polled, connected through the Entra app, and with no presets
+ * yet - the account is all it offers so far.
+ */
+function microsoftPortal(overrides: Record<string, unknown> = {}) {
+  return {
+    key: "microsoft",
+    name: "Microsoft 365",
+    description: "Connect the organization's Microsoft 365 account.",
+    category: "productivity",
+    icon: "microsoft",
+    event_source: null,
+    delivery: "polling",
+    webhook_admin_scopes: [],
+    target_kind: null,
+    connection_catalog_key: null,
+    connection_id: null,
+    connection_state: null,
+    connection_covers_webhook_scopes: false,
+    connect_blocked_by: null,
+    oauth_app_kind: "entra_app",
+    presets: [],
+    ...overrides,
   };
 }
 
@@ -173,12 +209,12 @@ const SECRET_KINDS = {
   items: [
     {
       kind: "api_key",
-      label: "API key",
+      name: "API key",
       json_schema: { type: "object", properties: { api_key: { type: "string" } } },
     },
     {
       kind: "github_oauth_app",
-      label: "GitHub OAuth App",
+      name: "GitHub OAuth App",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
@@ -186,14 +222,26 @@ const SECRET_KINDS = {
     },
     {
       kind: "google_oauth_app",
-      label: "Google OAuth client",
+      name: "Google OAuth client",
       json_schema: {
         type: "object",
         properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
       },
     },
+    {
+      kind: "entra_app",
+      name: "Microsoft Entra app",
+      json_schema: {
+        type: "object",
+        properties: {
+          tenant_id: { type: "string" },
+          client_id: { type: "string" },
+          client_secret: { type: "string" },
+        },
+      },
+    },
   ],
-  total: 3,
+  total: 4,
 };
 
 const SECRET_PURPOSES = {
@@ -258,12 +306,20 @@ function serve(
   org: OrgMcpConnectionRecord[],
   blockedBy: BlockedBy = null,
   polled: BlockedBy | undefined = undefined,
+  extra: object[] = [],
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/trigger-portals") {
       const catalog = portalsFor(org, blockedBy);
-      if (polled === undefined) return catalog;
-      return { items: [...catalog.items, polledPortal(polled)], total: catalog.total + 1 };
+      const items = [
+        ...catalog.items,
+        ...(polled === undefined ? [] : [polledPortal(polled)]),
+        ...extra,
+      ];
+      return { items, total: items.length };
+    }
+    if (path === "/mcp-connections/portals/microsoft/admin-consent") {
+      return { url: "https://login.microsoftonline.com/contoso/v2.0/adminconsent?client_id=c" };
     }
     if (path === "/agents/mcp-catalog") return MCP_CATALOG;
     if (path === "/mcp-connections") return { items: org, total: org.length };
@@ -281,8 +337,9 @@ async function mount({
   org = [] as OrgMcpConnectionRecord[],
   blockedBy = null as BlockedBy,
   polled = undefined as BlockedBy | undefined,
+  extra = [] as object[],
 } = {}) {
-  serve(org, blockedBy, polled);
+  serve(org, blockedBy, polled, extra);
   render(<PortalCatalog canRun={canRun} canManageConnections={canManageConnections} />, {
     wrapper,
   });
@@ -414,23 +471,23 @@ describe("PortalCatalog", () => {
 
   it("says a polled portal's own prerequisite, not the GitHub one beside it", async () => {
     // `connect_blocked_by` has three values and the card chose its sentence with a
-    // two-way ternary, so the third fell through to GitHub's: a Gmail card on a
-    // deployment with no Google client read "Two org-visible GitHub OAuth App
-    // secrets are stored, so connecting cannot tell which one you meant" - about a
-    // portal that has nothing to do with OAuth Apps, and while none were stored.
+    // two-way ternary, so the third fell through to GitHub's: a Gmail card read
+    // "Two org-visible GitHub OAuth App secrets are stored, so connecting cannot
+    // tell which one you meant" - about a portal that has nothing to do with
+    // OAuth Apps, and while none were stored.
     await mount({ blockedBy: "oauth_app_secret", polled: "oauth_unavailable" });
 
     const gmail = within(screen.getByRole("group", { name: "Gmail" }));
 
-    expect(gmail.getByText(/Google client/)).toBeVisible();
+    expect(gmail.getByText(/names no credential to connect with/)).toBeVisible();
     expect(gmail.queryByText(/cannot tell which one/)).toBeNull();
     expect(gmail.queryByText(/GitHub OAuth App credentials/)).toBeNull();
   });
 
   it("offers no vault control for a prerequisite the vault cannot fix", async () => {
-    // An operator sets the deployment's Google client in the environment. A
-    // disabled Add credentials and a link to a store holding nothing relevant are
-    // two controls that lie about what would help.
+    // The portal declares no credential at all. A disabled Add credentials and a
+    // link to a store holding nothing relevant are two controls that lie about
+    // what would help.
     await mount({ polled: "oauth_unavailable" });
 
     const gmail = within(screen.getByRole("group", { name: "Gmail" }));
@@ -521,6 +578,200 @@ describe("PortalCatalog", () => {
     expect(screen.queryByRole("button", { name: "Re-authorize" })).toBeNull();
     // The raw-webhook escape hatch is also a create, so it is gated the same way.
     expect(screen.queryByRole("button", { name: "Advanced: API trigger" })).toBeNull();
+  });
+
+  it("names the credential the blocked portal spends, not GitHub's", async () => {
+    // The sentence was GitHub's whatever the portal, so a Microsoft 365 card with
+    // no Entra app stored asked for an OAuth App it would never read.
+    await mount({ extra: [microsoftPortal({ connect_blocked_by: "oauth_app_secret" })] });
+
+    const card = within(screen.getByRole("group", { name: "Microsoft 365" }));
+
+    expect(await card.findByText(/organization's Microsoft Entra app credentials/)).toBeVisible();
+    expect(card.queryByText(/GitHub OAuth App/)).toBeNull();
+  });
+
+  it("names a credential the vault does not list generically", async () => {
+    await mount({
+      extra: [
+        microsoftPortal({ connect_blocked_by: "oauth_app_secret", oauth_app_kind: "retired" }),
+      ],
+    });
+
+    const card = within(screen.getByRole("group", { name: "Microsoft 365" }));
+
+    expect(await card.findByText(/organization's OAuth client credentials/)).toBeVisible();
+  });
+
+  it("says a connected portal with no presets is connected rather than offering a create", async () => {
+    // Microsoft 365 connects an account and fires nothing yet, so Create trigger
+    // would open a picker with nothing in it.
+    await mount({
+      extra: [microsoftPortal({ connection_id: "g1", connection_state: "connected" })],
+    });
+
+    const card = within(screen.getByRole("group", { name: "Microsoft 365" }));
+
+    expect(card.getByText("Connected")).toBeVisible();
+    expect(card.queryByRole("button", { name: "Create trigger" })).toBeNull();
+  });
+
+  it("comes back to this page after the consent rather than to the MCP servers one", async () => {
+    vi.mocked(startPolledPortalOAuth).mockResolvedValue({
+      authorization_url: "https://login.microsoftonline.com/consent",
+    });
+    window.history.replaceState({}, "", "/routines?tab=events");
+    await mount({ extra: [microsoftPortal()] });
+
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Connect account",
+      }),
+    );
+
+    await waitFor(() => expect(startPolledPortalOAuth).toHaveBeenCalledWith("microsoft"));
+    expect(document.cookie).toContain(
+      `mcp_oauth_return=${encodeURIComponent("/routines?tab=events")}`,
+    );
+  });
+
+  it("copies the link an administrator approves the app for the tenant at", async () => {
+    // Offered before anybody connects: an administrator approving first is what
+    // spares the first member Entra's "Need admin approval" screen.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await mount({ extra: [microsoftPortal()] });
+
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Copy admin-consent link",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        "https://login.microsoftonline.com/contoso/v2.0/adminconsent?client_id=c",
+      ),
+    );
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/Admin-consent link copied/));
+  });
+
+  it("says so when the admin-consent link cannot be had", async () => {
+    await mount({ extra: [microsoftPortal()] });
+    vi.mocked(apiClient.get).mockRejectedValueOnce("offline");
+
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Copy admin-consent link",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Could not get the admin-consent link."),
+    );
+  });
+
+  it("offers no admin-consent link on a card that cannot connect yet", async () => {
+    // The link is built from the Entra app in the vault; with none stored there
+    // is nothing for an administrator to approve.
+    await mount({ extra: [microsoftPortal({ connect_blocked_by: "oauth_app_secret" })] });
+
+    expect(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).queryByRole("button", {
+        name: "Copy admin-consent link",
+      }),
+    ).toBeNull();
+  });
+
+  it("disconnects a polled portal's account after asking, and reads the catalog again", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    await mount({
+      extra: [microsoftPortal({ connection_id: "g1", connection_state: "connected" })],
+    });
+    const reads = vi
+      .mocked(apiClient.get)
+      .mock.calls.filter(([path]) => path === "/trigger-portals");
+    const before = reads.length;
+
+    await user.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Disconnect",
+      }),
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText(/stop reading it until an account is connected again/)).toBeVisible();
+    await user.click(dialog.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/mcp-connections/portals/microsoft"),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Microsoft 365 is disconnected."),
+    );
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/trigger-portals").length,
+    ).toBeGreaterThan(before);
+  });
+
+  it("keeps the dialog open and says so when disconnecting fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.delete).mockRejectedValue("offline");
+    await mount({
+      extra: [microsoftPortal({ connection_id: "g1", connection_state: "connected" })],
+    });
+
+    await user.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Disconnect",
+      }),
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Could not disconnect the account."),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("cancels a disconnect without removing anything", async () => {
+    const user = userEvent.setup();
+    await mount({
+      extra: [microsoftPortal({ connection_id: "g1", connection_state: "connected" })],
+    });
+
+    await user.click(
+      within(screen.getByRole("group", { name: "Microsoft 365" })).getByRole("button", {
+        name: "Disconnect",
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("offers no Disconnect where nothing is connected, or to a caller who may not manage it", async () => {
+    // A webhook portal's account also carries the hooks it registered, and is
+    // removed where it was connected - so GitHub's card never offers it either.
+    await mount({ org: [orgConnection()], extra: [microsoftPortal()] });
+
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  });
+
+  it("hides the account controls from a caller without mcp:manage", async () => {
+    await mount({
+      canManageConnections: false,
+      extra: [microsoftPortal({ connection_id: "g1", connection_state: "connected" })],
+    });
+
+    const card = within(screen.getByRole("group", { name: "Microsoft 365" }));
+
+    expect(card.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    expect(card.queryByRole("button", { name: "Copy admin-consent link" })).toBeNull();
   });
 
   it("connects GitHub through the org OAuth App endpoint, keyed by the portal", async () => {

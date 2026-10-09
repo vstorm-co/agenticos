@@ -313,6 +313,10 @@ class GitTokenSecret(_SecretBase):
 class EntraAppSecret(_SecretBase):
     """A Microsoft Entra app registration a SharePoint or OneDrive source signs in as.
 
+    Also the OAuth client the Microsoft 365 portal connects an account through:
+    the same registration, its *delegated* permissions consented by the account
+    rather than its application permissions by an administrator (#1983).
+
     The client credentials flow: the app proves itself with its secret and gets
     a Microsoft Graph token carrying the *application* permissions an
     administrator consented to. Those decide the source's reach, not anything a
@@ -588,7 +592,8 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
     SecretKind.ENTRA_APP: (
         "Microsoft Entra app",
         "An app registration's tenant, client id and client secret - for reading "
-        "SharePoint sites and OneDrive folders through Microsoft Graph.",
+        "SharePoint sites and OneDrive folders through Microsoft Graph, and for "
+        "connecting the organization's Microsoft 365 account.",
     ),
 }
 

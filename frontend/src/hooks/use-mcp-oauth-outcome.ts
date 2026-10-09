@@ -25,7 +25,8 @@ export function useMcpOAuthOutcome(): void {
     const url = new URL(window.location.href);
     for (const param of MCP_OAUTH_PARAMS) url.searchParams.delete(param);
     window.history.replaceState({}, "", url.toString());
-    const say = outcome.status === "success" ? toast.success : toast.error;
+    const refused = outcome.status === "error" || outcome.status === "upstream-error";
+    const say = refused ? toast.error : toast.success;
     say(mcpOAuthMessage(outcome, t));
   }, [t]);
 }

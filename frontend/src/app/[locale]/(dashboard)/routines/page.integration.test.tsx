@@ -7,6 +7,7 @@ import RoutinesPage from "./page";
 let canCreate = true;
 
 vi.mock("@/hooks", () => ({
+  useMcpOAuthOutcome: () => undefined,
   useCanCreateTrigger: () => canCreate,
 }));
 // The list and the portal dialog have their own suites; stubbed here so the page's

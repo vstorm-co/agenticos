@@ -45,6 +45,7 @@ const state = {
 };
 
 vi.mock("@/hooks", () => ({
+  useMcpOAuthOutcome: () => undefined,
   useAgent: () => ({
     agent: {
       id: "a-1",

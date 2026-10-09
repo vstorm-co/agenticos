@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Connect a Microsoft 365 account.** A `microsoft` trigger portal connects
+  the organization's one Microsoft 365 account through the `entra_app` secret
+  SharePoint sources already use, with PKCE, asking only for `offline_access`
+  and `User.Read`. A tenant that refuses with `AADSTS65001` is told an
+  administrator has to approve the app, and the card copies the admin-consent
+  link to send them. No trigger fires through it yet; the Outlook and calendar
+  ones build on it (#1983).
+- **Disconnect a polled portal's account.** `DELETE
+  /api/v1/mcp-connections/portals/{portal_key}` and a *Disconnect* on the card
+  remove a Gmail or Microsoft 365 grant, which nothing could before. The
+  triggers stay and read again once an account is connected.
+
+### Changed
+
+- **A portal card names the credential it is missing.** The prerequisite
+  sentence named a GitHub OAuth App whatever the portal; it now names the
+  vault kind that portal's connect spends.
+- **Connecting a portal from the trigger dialog comes back to that page**,
+  with the outcome as a toast, rather than to the MCP servers page.
+
 ## [0.0.534] - 2026-10-09
 
 ### Changed

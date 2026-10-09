@@ -126,6 +126,7 @@ complete list of destinations, with the configuration that decides each.
 | Speech to text, image generation | The voice note; the prompt | A profile for `groq`, `mistral` or `openai`; a profile for `google` or `openai` | The provider's |
 | Slack, Telegram, Mattermost | The agent's replies | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
 | Google sign-in | Nothing outbound; Google returns the email, name, picture and account id | `GOOGLE_CLIENT_ID` | Google's |
+| A connected trigger portal: Gmail, Microsoft 365 | The token exchange and each refresh, with the organization's client secret; Gmail's poll then reads the mailbox's new messages. Microsoft 365 reads nothing yet | A portal grant, made by somebody holding `mcp:manage` at the provider's consent screen through the organization's `google_oauth_app` or `entra_app` secret. *Disconnect* deletes it | Google's or Microsoft's |
 | Your SMTP relay | The mail above | `SMTP_HOST`, `SMTP_TLS` | Yours |
 
 Sync connectors run the other way: a Google Drive or S3 source pulls documents

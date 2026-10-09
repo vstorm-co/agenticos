@@ -35,8 +35,12 @@ export interface PortalCatalogEntry {
   category: string;
   /** Brand mark to draw, by name. Null falls back to a monogram. */
   icon: string | null;
-  /** The `EventSource` every preset here fires through. */
-  event_source: string;
+  /**
+   * The `EventSource` every preset here fires through. Null for a portal that
+   * only connects an account and has no presets yet - Microsoft 365, whose
+   * events arrive in later changes.
+   */
+  event_source: string | null;
   delivery: PortalDelivery;
   /**
    * The OAuth scope(s) a connected account must hold to auto-register this
@@ -68,9 +72,8 @@ export interface PortalCatalogEntry {
    * GitHub's flow spends the organization's own OAuth App credentials, so with
    * none stored (`oauth_app_secret`) - or two org-visible ones and nothing to say
    * which was meant (`ambiguous_oauth_app_secret`) - pressing Connect could only
-   * fail, which it did as a red toast. `oauth_unavailable` is a polled portal on a
-   * deployment with no Google client configured, which the vault cannot fix: an
-   * operator sets it in the environment (#1068).
+   * fail, which it did as a red toast. `oauth_unavailable` is a portal that
+   * declares no credential to connect with, which nothing in the vault fixes.
    */
   connect_blocked_by:
     "oauth_app_secret" | "ambiguous_oauth_app_secret" | "oauth_unavailable" | null;

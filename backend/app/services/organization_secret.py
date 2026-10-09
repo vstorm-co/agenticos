@@ -23,6 +23,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
+    EntraAppSecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
     SecretKind,
@@ -42,9 +43,9 @@ from app.schemas.secret import SecretRead, SecretUsage
 from app.services.access import SECRET, resolve_access, visible_resource_ids
 from app.services.notifications import NotificationService
 
-# The two credentials a connect flow spends: identical fields, separate kinds,
-# because a kind names what a credential is for.
-OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret
+# The credentials a connect flow spends, a kind each because a kind names what a
+# credential is for. An Entra app adds the tenant its endpoints live under.
+OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret | EntraAppSecret
 
 
 class OrganizationSecretService:
@@ -395,10 +396,10 @@ class OrganizationSecretService:
         passes it straight to the provider's token endpoint - it is never returned to
         a client, logged, or written to the audit trail.
 
-        One method over two kinds, because the rule is the same for both and it is
-        the rule that matters: `github_oauth_app` connects a repository account,
-        `google_oauth_app` a mailbox, and each organization registers its own client
-        for either. A deployment-wide client read from the environment would be a
+        One method over every such kind, because the rule is the same for each and
+        it is the rule that matters: `github_oauth_app` connects a repository
+        account, `google_oauth_app` a mailbox, `entra_app` a Microsoft 365 account,
+        and each organization registers its own client for any of them. A deployment-wide client read from the environment would be a
         second mechanism for a credential at rest, which this repository does not
         have.
 

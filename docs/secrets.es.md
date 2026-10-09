@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "a4b4ab5b2b65"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `aws_credentials` | Access key id, secret access key, región, session token opcional |
 | `gcp_service_account` | El JSON de la cuenta de servicio, validado al entrar |
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
+| `google_oauth_app` | El client id público de un cliente OAuth de Google y su secreto, para conectar un buzón |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
@@ -105,7 +106,9 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
 flujo de conexión con GitHub lo lee en el servidor para ejecutar el intercambio de
 tokens —, así que tiene que ser **visible para la organización, y tiene que haber
-exactamente uno**: la credencial privada de un miembro nunca se usa en silencio
+exactamente uno**. Lo mismo vale para `google_oauth_app`, con el que se conecta
+el portal de Gmail, y para `entra_app` cuando el portal de Microsoft 365 se
+conecta con él: la credencial privada de un miembro nunca se usa en silencio
 para la conexión de toda la organización, y con dos apps visibles para la
 organización guardadas la conexión se rechaza (nombrando ambas) en lugar de
 quedar atada al nombre que ordene primero.
@@ -122,6 +125,12 @@ un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio 
 lee la fuente — consulta [Configurar SharePoint y
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
 son los cuatro últimos caracteres del client id, que es público, y no del secreto.
+
+El mismo registro es el cliente OAuth a través del cual el [portal de Microsoft
+365](triggers.md#microsoft-365-the-account-for-now) conecta una cuenta. Ahí lo que
+cuenta son los permisos *delegados* - `offline_access` y `User.Read`, consentidos
+por la cuenta o, para todo el tenant, por quien lo administre - y no los permisos
+de aplicación con los que lee una fuente de sincronización.
 
 `aws_credentials` es el caso más claro de por qué existen los kinds: el access key
 id no es secreto y el secret access key sí lo es, y un único campo no puede

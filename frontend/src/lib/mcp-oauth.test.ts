@@ -5,11 +5,13 @@ import messages from "../../messages/en.json";
 import type { Translate } from "./agent-step-captions";
 import {
   hereForMcpOAuthReturn,
+  mcpOAuthAdminConsented,
   mcpOAuthClient,
   mcpOAuthConnected,
   mcpOAuthMessage,
   mcpOAuthRefused,
   mcpOAuthUpstreamRefusal,
+  needsAdminConsent,
   readMcpOAuthOutcome,
   rememberMcpOAuthReturn,
   safeMcpOAuthReturn,
@@ -35,6 +37,10 @@ describe("the MCP OAuth callback query", () => {
     expect(roundTrip(mcpOAuthConnected("Linear Work"))).toBe("Linear Work is connected.");
   });
 
+  it("says an administrator's approval for the tenant landed", () => {
+    expect(roundTrip(mcpOAuthAdminConsented())).toMatch(/^An administrator approved the app/);
+  });
+
   it("says the server is connected when the backend named nothing", () => {
     expect(roundTrip(mcpOAuthConnected(""))).toBe("The server is connected.");
   });
@@ -46,6 +52,19 @@ describe("the MCP OAuth callback query", () => {
     expect(roundTrip(mcpOAuthRefused("MISSING_AUTHORIZATION_CODE"))).toBe(
       "The provider sent no authorization code.",
     );
+    expect(roundTrip(mcpOAuthRefused("ADMIN_CONSENT_REQUIRED"))).toMatch(
+      /^Your administrator has to approve this app/,
+    );
+  });
+
+  it("recognises Entra's refusal for want of an administrator by its code alone", () => {
+    // `error` is a generic `consent_required` shared with refusals a retry does
+    // fix; only the description names AADSTS65001.
+    expect(
+      needsAdminConsent("AADSTS65001: The user or administrator has not consented to use the app"),
+    ).toBe(true);
+    expect(needsAdminConsent("AADSTS50020: User account does not exist in tenant")).toBe(false);
+    expect(needsAdminConsent(null)).toBe(false);
   });
 
   it("quotes an upstream refusal after a refusal of its own", () => {

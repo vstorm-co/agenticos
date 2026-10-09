@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "34de189b6f15"
 ---
 
 # Datenschutz { #data-protection }
@@ -136,6 +136,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
 | Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
+| Ein verbundenes Trigger-Portal: Gmail, Microsoft 365 | Der Token-Austausch und jede Erneuerung, mit dem Client Secret der Organisation; die Abfrage von Gmail liest danach die neuen Nachrichten des Postfachs. Microsoft 365 liest noch nichts | Eine Portal-Berechtigung, erteilt von jemandem mit `mcp:manage` auf dem Zustimmungsbildschirm des Anbieters über das `google_oauth_app`- oder `entra_app`-Secret der Organisation. *Trennen* löscht sie | Die von Google oder Microsoft |
 | Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |
 
 Sync-Konnektoren laufen andersherum: Eine Google-Drive- oder S3-Quelle zieht

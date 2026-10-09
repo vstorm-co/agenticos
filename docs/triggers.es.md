@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "36700b1e42ee"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -204,13 +204,60 @@ conviene saber sobre cómo lee:
   historial. Un cursor más antiguo que eso se resincroniza con el ahora en vez de
   dejar el buzón aparcado para siempre.
 
-El despliegue necesita un cliente OAuth de Google (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - el mismo par que usa el inicio de sesión con Google) con
-la API de Gmail habilitada. Sin él la tarjeta lo dice en vez de ofrecer un botón
-Connect que solo podría fallar. A diferencia de GitHub, el cliente es del
-*despliegue* y no de cada organización: la pantalla de consentimiento de Google
-para un scope de buzón necesita un proyecto verificado, que un operador registra
-una vez y que ninguno de sus inquilinos puede registrar en absoluto.
+La organización necesita un cliente OAuth de Google propio, guardado en el vault
+como secreto `google_oauth_app` - visible para la organización, y exactamente uno -
+de un proyecto de Google con la API de Gmail habilitada y
+`<FRONTEND_URL>/api/me/mcp-connections/oauth/callback` como redirect URI
+autorizada. Sin él la tarjeta lo dice y ofrece *Add credentials* en vez de un
+botón Connect que solo podría fallar. No es el `GOOGLE_CLIENT_ID` del despliegue,
+que es el inicio de sesión con Google y nada más.
+
+**Disconnect** en la tarjeta quita el buzón. Los triggers construidos sobre él se
+quedan, y vuelven a leer en cuanto se conecta una cuenta; Google sigue mostrando
+la app como autorizada hasta que quien posee la cuenta la quite allí.
+
+## Microsoft 365 (la cuenta, por ahora) { #microsoft-365-the-account-for-now }
+
+Microsoft 365 se sondea como Gmail y se conecta de la misma manera: *Routines →
+New event trigger → Microsoft 365 → Connect account*, con `mcp:manage`. Todavía
+no dispara nada. Conectar le da a la organización la única cuenta de Microsoft 365
+a través de la cual leerán los triggers de Outlook y de calendario, y hasta que
+lleguen la tarjeta muestra *Connected* en vez de ofrecer un trigger.
+
+Lo que necesita la organización es un registro de aplicación de Entra, guardado
+como el secreto `entra_app` - el mismo kind con el que inicia sesión una [fuente
+de sincronización de SharePoint u
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). En el
+registro:
+
+- una redirect URI **Web**, `<FRONTEND_URL>/api/me/mcp-connections/oauth/callback`;
+- los permisos delegados de Microsoft Graph `offline_access` y `User.Read`, y nada
+  más. El consentimiento pide solo esos dos, así que se lee como el alcance de un
+  token y no como el de un buzón.
+
+El consentimiento se ejecuta con PKCE contra los endpoints propios de tu tenant.
+El refresh token que Entra rota en cada renovación es el que se guarda.
+
+**Cuando quien administra tu tenant tiene que aprobar la app.** Muchos tenants no
+dejan que ningún miembro consienta una app que su administración no haya
+aprobado. Entonces Entra rechaza con `AADSTS65001`, y el toast dice que quien
+administra tu tenant tiene que aprobar la app en vez de repetir la frase de Entra.
+*Copy admin-consent link* en la tarjeta da el enlace que hay que enviarle: nombra
+tu tenant y tu app y pide los permisos de arriba. Una vez aprobada, los miembros
+pueden conectar. Se puede enviar antes de que nadie lo intente.
+
+**Un registro, los dos trabajos.** La conexión lee el único secreto `entra_app`
+visible para la organización y se rechaza si hay dos guardados, como la de
+GitHub. Una fuente de sincronización nombra su secreto por id, así que no le
+afecta - pero al portal sí, así que mantén un único registro que lleve tanto los
+permisos de aplicación que necesitan las fuentes de sincronización como los
+delegados de arriba.
+
+**Disconnect** olvida el token. No retira el consentimiento en Microsoft: la app
+sigue en *My Apps* de la cuenta, o en *Enterprise applications* del tenant, hasta
+que alguien la quite allí. Quien suplanta a un miembro no puede conectar la
+cuenta, como con cualquier otra integración: la cuenta consentida sería la de
+quien suplanta, y el grant sobreviviría a la suplantación.
 
 ## Dos maneras de conectar GitHub, y cómo saber cuál tienes { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -471,4 +518,7 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
 - Un `202` significa **aceptado**, no terminado. Lee el run en Activity.
 - **Gmail se sondea**, así que no tiene URL ni secreto alguno — conecta el buzón
   y ese es todo el montaje.
+- **Microsoft 365 se conecta a través del secreto `entra_app`**, y solo pide
+  `offline_access` y `User.Read`. Un tenant que necesita la aprobación de quien lo
+  administra recibe un enlace para enviársela.
 - En un portátil, echa mano de **Run now** antes que de un túnel.

@@ -634,7 +634,7 @@ class TestRetries:
         async def sleep(seconds: float) -> None:
             slept.append(seconds)
 
-        monkeypatch.setattr("app.services.rag.connectors.sharepoint.asyncio.sleep", sleep)
+        monkeypatch.setattr("app.services.microsoft_graph.asyncio.sleep", sleep)
         tenant = _handbook()
         tenant.queue(
             f"/v1.0/drives/{DRIVE}/items/root/children",
