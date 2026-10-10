@@ -77,6 +77,8 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // The page the bubble has waited out its moment on; on any other it is quiet.
   const [readyOn, setReadyOn] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(readPreferences);
+  // "Not now" on a page: quiet there for the rest of this visit to the console.
+  const [setAside, setSetAside] = useState<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const loaded = useRef(false);
   const queued = useRef<ToFrame[]>([]);
@@ -149,6 +151,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   };
   const speaking =
     readyOn === pathname &&
+    setAside !== pathname &&
     !open &&
     bubble !== null &&
     !preferences.off &&
@@ -235,6 +238,11 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             ask(text);
           }}
           onSilence={heard}
+          onDismiss={() => {
+            heard();
+            setSetAside(pathname);
+          }}
+          name={assistant.name}
           path={pathname}
         />
       )}

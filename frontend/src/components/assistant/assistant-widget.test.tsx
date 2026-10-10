@@ -129,7 +129,9 @@ describe("the AI Architect widget", () => {
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
 
     lookAtThePage();
-    fireEvent.click(screen.getByText(/Want a new agent/));
+    // It says who is speaking, and asks through its one action.
+    expect(screen.getByText("on this page")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Describe it" }));
 
     const dialog = screen.getByRole("dialog", { name: "AI Architect" });
     expect(dialog).not.toHaveClass("hidden");
@@ -187,7 +189,7 @@ describe("the AI Architect widget", () => {
     const { rerender } = render(<AssistantWidget />);
     lookAtThePage();
 
-    fireEvent.click(screen.getByText(/One of your runs failed/));
+    fireEvent.click(screen.getByRole("button", { name: "Explain it" }));
     const { sent } = loadedFrame();
     expect(sent.mock.calls.map(([message]) => message)).toContainEqual({
       type: ASK,
@@ -207,6 +209,17 @@ describe("the AI Architect widget", () => {
     fireEvent.click(screen.getByRole("button", { name: "Don't show tips on this page" }));
 
     expect(JSON.parse(localStorage.getItem("assistant-bubbles")!).seenRun).toBe("run-8");
+  });
+
+  it("sets the bubble aside for this visit with Not now, without silencing the page", () => {
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(screen.queryByText(/Want a new agent/)).toBeNull();
+    const stored = localStorage.getItem("assistant-bubbles");
+    expect(stored === null ? [] : JSON.parse(stored).silenced).toEqual([]);
   });
 
   it("offers help with a form somebody is stuck in, by its name", () => {

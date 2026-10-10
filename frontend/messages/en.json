@@ -5972,6 +5972,10 @@
     "tipsOn": "Turn tips back on",
     "tipsOff": "Turn tips off",
     "silenceHere": "Don't show tips on this page",
+    "bubbleWaiting": "waiting for you",
+    "bubbleTip": "a tip",
+    "bubbleHere": "on this page",
+    "notNow": "Not now",
     "greeting": "Hi, I'm {assistant}. What shall we do?",
     "greetingNamed": "Hi {person}, I'm {assistant}. What shall we do?",
     "tiles": {
@@ -5996,59 +6000,73 @@
     "bubbles": {
       "approvals": {
         "say": "Something is waiting for your approval. Shall we go through it together?",
-        "ask": "What is waiting for my approval? Explain each item in plain language."
+        "ask": "What is waiting for my approval? Explain each item in plain language.",
+        "action": "Go through them"
       },
       "firstSteps": {
         "say": "Your organization has no agents yet. Shall we build the first one together?",
-        "ask": "Help me build our first agent. Ask me what it should do."
+        "ask": "Help me build our first agent. Ask me what it should do.",
+        "action": "Build one with me"
       },
       "agents": {
         "say": "Want a new agent? Describe it in a sentence and I'll build it.",
-        "ask": "I'd like a new agent. Ask me what it should do and build it."
+        "ask": "I'd like a new agent. Ask me what it should do and build it.",
+        "action": "Describe it"
       },
       "agent": {
         "say": "Not sure what a setting here does? Ask me.",
-        "ask": "Explain this agent's settings in plain language and suggest what to improve."
+        "ask": "Explain this agent's settings in plain language and suggest what to improve.",
+        "action": "Explain this page"
       },
       "knowledge": {
         "say": "I can help you add documents so agents answer from them.",
-        "ask": "Help me add our documents so an agent can answer from them."
+        "ask": "Help me add our documents so an agent can answer from them.",
+        "action": "Add documents"
       },
       "runs": {
         "say": "A run failed? I can explain what went wrong.",
-        "ask": "Look at the recent runs and explain any failure in plain language, with what to do about it."
+        "ask": "Look at the recent runs and explain any failure in plain language, with what to do about it.",
+        "action": "Explain a failure"
       },
       "skills": {
         "say": "Skills teach agents how to do a task. Shall we write one together?",
-        "ask": "Help me write a skill. Ask me which task it should teach."
+        "ask": "Help me write a skill. Ask me which task it should teach.",
+        "action": "Write one with me"
       },
       "settings": {
         "say": "Looking for a setting? Tell me what you want to change.",
-        "ask": "I want to change a setting. Ask me which one and show me where it is."
+        "ask": "I want to change a setting. Ask me which one and show me where it is.",
+        "action": "Find a setting"
       },
       "tipMcp": {
         "say": "Did you know? Agents can use your company's tools - CRM, calendar, tickets - through MCP.",
-        "ask": "How can an agent use our company's tools through MCP? Explain it simply."
+        "ask": "How can an agent use our company's tools through MCP? Explain it simply.",
+        "action": "Show me how"
       },
       "tipVariables": {
         "say": "Did you know? Typing '{{' in an agent's instructions inserts today's date, the person's name and more.",
-        "ask": "How do variables in an agent's instructions work?"
+        "ask": "How do variables in an agent's instructions work?",
+        "action": "Show me how"
       },
       "tipGroups": {
         "say": "Did you know? Through groups you can share an agent with just one department.",
-        "ask": "How do I share an agent with only one group or department?"
+        "ask": "How do I share an agent with only one group or department?",
+        "action": "Show me how"
       },
       "tipQuestions": {
         "say": "Did you know? An agent can ask you questions with ready-made answers to click.",
-        "ask": "How does an agent ask me questions while it works?"
+        "ask": "How does an agent ask me questions while it works?",
+        "action": "Show me how"
       },
       "stuck": {
         "say": "Stuck on \"{form}\"? I can walk you through it.",
-        "ask": "I'm filling in \"{form}\" and I'm not sure what to put. Walk me through it one field at a time, in plain words."
+        "ask": "I'm filling in \"{form}\" and I'm not sure what to put. Walk me through it one field at a time, in plain words.",
+        "action": "Walk me through it"
       },
       "failedRun": {
         "say": "One of your runs failed. Want me to explain what happened?",
-        "ask": "Why did my run {run} fail? Explain it in plain words and tell me what I can change."
+        "ask": "Why did my run {run} fail? Explain it in plain words and tell me what I can change.",
+        "action": "Explain it"
       }
     },
     "setup": {

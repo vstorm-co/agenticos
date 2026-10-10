@@ -870,6 +870,22 @@
   animation: pop-in var(--duration-base) var(--ease-spring) both;
 }
 
+/* The Architect's speech bubble arriving above its face (#2075): rising a few
+   pixels as it fades in, so it reads as spoken rather than as a toast. */
+.bubble-rise {
+  animation: bubble-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes bubble-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Dashes travelling along the agent map's edges - flow, from source to sink.
    The offset is one dash period (4 + 4), so the loop is seamless. Stripped by
    the reduced-motion block below like every other long-running animation. */

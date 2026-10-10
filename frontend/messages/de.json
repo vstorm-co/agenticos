@@ -5855,6 +5855,10 @@
     "tipsOn": "Tipps wieder einschalten",
     "tipsOff": "Tipps ausschalten",
     "silenceHere": "Auf dieser Seite keine Tipps zeigen",
+    "bubbleWaiting": "wartet auf dich",
+    "bubbleTip": "ein Tipp",
+    "bubbleHere": "auf dieser Seite",
+    "notNow": "Nicht jetzt",
     "greeting": "Hallo, ich bin {assistant}. Womit fangen wir an?",
     "greetingNamed": "Hallo {person}, ich bin {assistant}. Womit fangen wir an?",
     "tiles": {
@@ -5879,59 +5883,73 @@
     "bubbles": {
       "approvals": {
         "say": "Etwas wartet auf Ihre Freigabe. Sollen wir es gemeinsam durchgehen?",
-        "ask": "Was wartet auf meine Freigabe? Erklären Sie jeden Punkt in einfachen Worten."
+        "ask": "Was wartet auf meine Freigabe? Erklären Sie jeden Punkt in einfachen Worten.",
+        "action": "Gemeinsam durchgehen"
       },
       "firstSteps": {
         "say": "Ihre Organisation hat noch keine Agents. Bauen wir gemeinsam den ersten?",
-        "ask": "Helfen Sie mir, unseren ersten Agent zu bauen. Fragen Sie mich, was er tun soll."
+        "ask": "Helfen Sie mir, unseren ersten Agent zu bauen. Fragen Sie mich, was er tun soll.",
+        "action": "Gemeinsam bauen"
       },
       "agents": {
         "say": "Brauchen Sie einen neuen Agent? Beschreiben Sie ihn in einem Satz, und ich baue ihn.",
-        "ask": "Ich möchte einen neuen Agent. Fragen Sie mich, was er tun soll, und bauen Sie ihn."
+        "ask": "Ich möchte einen neuen Agent. Fragen Sie mich, was er tun soll, und bauen Sie ihn.",
+        "action": "Beschreiben"
       },
       "agent": {
         "say": "Unklar, was eine Einstellung hier bewirkt? Fragen Sie mich.",
-        "ask": "Erklären Sie die Einstellungen dieses Agents in einfachen Worten und schlagen Sie Verbesserungen vor."
+        "ask": "Erklären Sie die Einstellungen dieses Agents in einfachen Worten und schlagen Sie Verbesserungen vor.",
+        "action": "Diese Seite erklären"
       },
       "knowledge": {
         "say": "Ich helfe Ihnen, Dokumente hinzuzufügen, damit Agents daraus antworten.",
-        "ask": "Helfen Sie mir, unsere Dokumente hinzuzufügen, damit ein Agent daraus antworten kann."
+        "ask": "Helfen Sie mir, unsere Dokumente hinzuzufügen, damit ein Agent daraus antworten kann.",
+        "action": "Dokumente hinzufügen"
       },
       "runs": {
         "say": "Ein Run ist fehlgeschlagen? Ich erkläre, was schiefging.",
-        "ask": "Sehen Sie sich die letzten Runs an und erklären Sie jeden Fehler in einfachen Worten – und was dagegen zu tun ist."
+        "ask": "Sehen Sie sich die letzten Runs an und erklären Sie jeden Fehler in einfachen Worten – und was dagegen zu tun ist.",
+        "action": "Fehler erklären"
       },
       "skills": {
         "say": "Skills bringen Agents bei, wie eine Aufgabe geht. Schreiben wir gemeinsam einen?",
-        "ask": "Helfen Sie mir, einen Skill zu schreiben. Fragen Sie mich, welche Aufgabe er beibringen soll."
+        "ask": "Helfen Sie mir, einen Skill zu schreiben. Fragen Sie mich, welche Aufgabe er beibringen soll.",
+        "action": "Gemeinsam schreiben"
       },
       "settings": {
         "say": "Suchen Sie eine Einstellung? Sagen Sie mir, was Sie ändern möchten.",
-        "ask": "Ich möchte eine Einstellung ändern. Fragen Sie mich, welche, und zeigen Sie mir, wo sie ist."
+        "ask": "Ich möchte eine Einstellung ändern. Fragen Sie mich, welche, und zeigen Sie mir, wo sie ist.",
+        "action": "Einstellung finden"
       },
       "tipMcp": {
         "say": "Wussten Sie schon? Agents können über MCP die Werkzeuge Ihres Unternehmens nutzen – CRM, Kalender, Tickets.",
-        "ask": "Wie kann ein Agent über MCP die Werkzeuge unseres Unternehmens nutzen? Erklären Sie es einfach."
+        "ask": "Wie kann ein Agent über MCP die Werkzeuge unseres Unternehmens nutzen? Erklären Sie es einfach.",
+        "action": "Zeig mir wie"
       },
       "tipVariables": {
         "say": "Wussten Sie schon? '{{' in den Instruktionen eines Agents fügt das heutige Datum, den Namen der Person und mehr ein.",
-        "ask": "Wie funktionieren Variablen in den Instruktionen eines Agents?"
+        "ask": "Wie funktionieren Variablen in den Instruktionen eines Agents?",
+        "action": "Zeig mir wie"
       },
       "tipGroups": {
         "say": "Wussten Sie schon? Über Gruppen können Sie einen Agent nur mit einer Abteilung teilen.",
-        "ask": "Wie teile ich einen Agent nur mit einer Gruppe oder Abteilung?"
+        "ask": "Wie teile ich einen Agent nur mit einer Gruppe oder Abteilung?",
+        "action": "Zeig mir wie"
       },
       "tipQuestions": {
         "say": "Wussten Sie schon? Ein Agent kann Ihnen Fragen mit fertigen Antworten zum Anklicken stellen.",
-        "ask": "Wie stellt mir ein Agent während der Arbeit Fragen?"
+        "ask": "Wie stellt mir ein Agent während der Arbeit Fragen?",
+        "action": "Zeig mir wie"
       },
       "stuck": {
         "say": "Hängen Sie bei „{form}“ fest? Ich führe Sie durch.",
-        "ask": "Ich fülle „{form}“ aus und weiß nicht, was hinein soll. Führen Sie mich Feld für Feld durch, in einfachen Worten."
+        "ask": "Ich fülle „{form}“ aus und weiß nicht, was hinein soll. Führen Sie mich Feld für Feld durch, in einfachen Worten.",
+        "action": "Führ mich durch"
       },
       "failedRun": {
         "say": "Einer Ihrer Runs ist fehlgeschlagen. Soll ich erklären, was passiert ist?",
-        "ask": "Warum ist mein Run {run} fehlgeschlagen? Erklären Sie es in einfachen Worten und sagen Sie mir, was ich ändern kann."
+        "ask": "Warum ist mein Run {run} fehlgeschlagen? Erklären Sie es in einfachen Worten und sagen Sie mir, was ich ändern kann.",
+        "action": "Erklären"
       }
     },
     "setup": {

@@ -139,6 +139,11 @@ export function markRunSeen(runId: string): void {
   write({ ...readPreferences(), seenRun: runId });
 }
 
+/** Whether the bubble offers a tip about the product rather than help with this page. */
+export function isTip(bubble: BubbleKey): boolean {
+  return TIPS.includes(bubble);
+}
+
 /** What waits for the reader rather than suggests something - shown on a phone too. */
 export function isProactive(bubble: BubbleKey): boolean {
   return (

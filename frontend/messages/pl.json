@@ -5746,6 +5746,10 @@
     "tipsOn": "Włącz podpowiedzi",
     "tipsOff": "Wyłącz podpowiedzi",
     "silenceHere": "Nie pokazuj podpowiedzi na tej stronie",
+    "bubbleWaiting": "czeka na ciebie",
+    "bubbleTip": "wskazówka",
+    "bubbleHere": "na tej stronie",
+    "notNow": "Nie teraz",
     "greeting": "Cześć, jestem {assistant}. Co robimy?",
     "greetingNamed": "Cześć {person}, jestem {assistant}. Co robimy?",
     "tiles": {
@@ -5770,59 +5774,73 @@
     "bubbles": {
       "approvals": {
         "say": "Coś czeka na Twoją akceptację. Przejrzymy to razem?",
-        "ask": "Co czeka na moją akceptację? Wyjaśnij każdą pozycję prostym językiem."
+        "ask": "Co czeka na moją akceptację? Wyjaśnij każdą pozycję prostym językiem.",
+        "action": "Przejdźmy przez nie"
       },
       "firstSteps": {
         "say": "Twoja organizacja nie ma jeszcze agentów. Zbudujemy pierwszego razem?",
-        "ask": "Pomóż mi zbudować naszego pierwszego agenta. Zapytaj, co ma robić."
+        "ask": "Pomóż mi zbudować naszego pierwszego agenta. Zapytaj, co ma robić.",
+        "action": "Zbudujmy go razem"
       },
       "agents": {
         "say": "Potrzebujesz nowego agenta? Opisz go jednym zdaniem, a ja go zbuduję.",
-        "ask": "Chcę nowego agenta. Zapytaj mnie, co ma robić, i zbuduj go."
+        "ask": "Chcę nowego agenta. Zapytaj mnie, co ma robić, i zbuduj go.",
+        "action": "Opiszę go"
       },
       "agent": {
         "say": "Nie wiesz, co robi któreś ustawienie? Zapytaj mnie.",
-        "ask": "Wyjaśnij prostym językiem ustawienia tego agenta i podpowiedz, co poprawić."
+        "ask": "Wyjaśnij prostym językiem ustawienia tego agenta i podpowiedz, co poprawić.",
+        "action": "Wyjaśnij tę stronę"
       },
       "knowledge": {
         "say": "Pomogę Ci dodać dokumenty, żeby agenci odpowiadali na ich podstawie.",
-        "ask": "Pomóż mi dodać nasze dokumenty, żeby agent mógł z nich odpowiadać."
+        "ask": "Pomóż mi dodać nasze dokumenty, żeby agent mógł z nich odpowiadać.",
+        "action": "Dodaj dokumenty"
       },
       "runs": {
         "say": "Jakiś run się nie udał? Wyjaśnię, co poszło nie tak.",
-        "ask": "Przejrzyj ostatnie runy i wyjaśnij prostym językiem każdy błąd oraz co z nim zrobić."
+        "ask": "Przejrzyj ostatnie runy i wyjaśnij prostym językiem każdy błąd oraz co z nim zrobić.",
+        "action": "Wyjaśnij błąd"
       },
       "skills": {
         "say": "Skille uczą agentów, jak wykonać zadanie. Napiszemy jeden razem?",
-        "ask": "Pomóż mi napisać skill. Zapytaj, jakiego zadania ma uczyć."
+        "ask": "Pomóż mi napisać skill. Zapytaj, jakiego zadania ma uczyć.",
+        "action": "Napiszmy go razem"
       },
       "settings": {
         "say": "Szukasz ustawienia? Powiedz, co chcesz zmienić.",
-        "ask": "Chcę zmienić ustawienie. Zapytaj, które, i pokaż mi, gdzie jest."
+        "ask": "Chcę zmienić ustawienie. Zapytaj, które, i pokaż mi, gdzie jest.",
+        "action": "Znajdź ustawienie"
       },
       "tipMcp": {
         "say": "Czy wiesz, że agenci mogą korzystać z narzędzi Twojej firmy - CRM, kalendarza, zgłoszeń - przez MCP?",
-        "ask": "Jak agent może korzystać z narzędzi naszej firmy przez MCP? Wyjaśnij to prosto."
+        "ask": "Jak agent może korzystać z narzędzi naszej firmy przez MCP? Wyjaśnij to prosto.",
+        "action": "Pokaż jak"
       },
       "tipVariables": {
         "say": "Czy wiesz, że wpisanie '{{' w instrukcjach agenta wstawia dzisiejszą datę, imię osoby i nie tylko?",
-        "ask": "Jak działają zmienne w instrukcjach agenta?"
+        "ask": "Jak działają zmienne w instrukcjach agenta?",
+        "action": "Pokaż jak"
       },
       "tipGroups": {
         "say": "Czy wiesz, że przez grupy możesz udostępnić agenta tylko jednemu działowi?",
-        "ask": "Jak udostępnić agenta tylko jednej grupie lub działowi?"
+        "ask": "Jak udostępnić agenta tylko jednej grupie lub działowi?",
+        "action": "Pokaż jak"
       },
       "tipQuestions": {
         "say": "Czy wiesz, że agent może zadawać Ci pytania z gotowymi odpowiedziami do kliknięcia?",
-        "ask": "Jak agent zadaje mi pytania w trakcie pracy?"
+        "ask": "Jak agent zadaje mi pytania w trakcie pracy?",
+        "action": "Pokaż jak"
       },
       "stuck": {
         "say": "Formularz „{form}” sprawia kłopot? Przeprowadzę Cię przez niego.",
-        "ask": "Wypełniam „{form}” i nie wiem, co wpisać. Przeprowadź mnie przez to pole po polu, prostym językiem."
+        "ask": "Wypełniam „{form}” i nie wiem, co wpisać. Przeprowadź mnie przez to pole po polu, prostym językiem.",
+        "action": "Przeprowadź mnie"
       },
       "failedRun": {
         "say": "Jeden z Twoich runów się nie udał. Wyjaśnić, co się stało?",
-        "ask": "Dlaczego mój run {run} się nie udał? Wyjaśnij to prostym językiem i powiedz, co mogę zmienić."
+        "ask": "Dlaczego mój run {run} się nie udał? Wyjaśnij to prostym językiem i powiedz, co mogę zmienić.",
+        "action": "Wyjaśnij"
       }
     },
     "setup": {
