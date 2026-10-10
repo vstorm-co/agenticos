@@ -221,6 +221,18 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
   `0112_group_icon` (#2072).
 
+- **A department runs itself.** An administrator can make a member a group's
+  lead, who then adds and removes the group's members without administering the
+  organization. A group's page has **Add to this group**: everything the reader
+  may edit that the group lacks, shared several at once at a chosen level. A
+  group's members are told when something is shared with it, in the inbox and by
+  email unless they turn *Shared with your group* off, and cards for agents,
+  skills, context and knowledge name who they are for - everyone, their
+  departments, or private. API: `PATCH /orgs/{id}/groups/{id}/members/{user}`
+  (`is_lead`), `GET .../shareable`, `POST .../shares`, `shared_groups` on those
+  listings and the `resource_shared` notification; migration
+  `0116_group_leads_and_shares` (#2072).
+
 - **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
   answer streams natively under the question, with each tool call a step that goes
   from in progress to done or failed - as a timeline or as one plan - and a step

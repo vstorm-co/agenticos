@@ -3280,6 +3280,14 @@
       "agent-test": {
         "title": "Beim Bauen ausprobieren",
         "body": "Öffnet neben dem Builder einen Chat, der als unveröffentlichter Entwurf oder als beliebige Umgebung antwortet. Test-Runs werden gezählt und budgetiert und in der Aktivität markiert."
+      },
+      "group-members": {
+        "title": "Wer darin ist",
+        "body": "Die Personen in dieser Abteilung. Die Leitung - mit einer Krone markiert - fügt sie hinzu und entfernt sie; ein Admin bestimmt die Leitung."
+      },
+      "group-add-to": {
+        "title": "Geben Sie ihr, was sie braucht",
+        "body": "Teilen Sie Agents, Wissen, Skills, Kontext, Apps und MCP-Server mit der ganzen Abteilung auf einmal. Jedes Mitglied wird benachrichtigt."
       }
     }
   },
@@ -4318,7 +4326,9 @@
       "avatarColour": "Ersatzfarbe",
       "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
       "prefArtifactVersionPublished": "App aktualisiert",
-      "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt."
+      "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt.",
+      "prefResourceShared": "Mit Ihrer Gruppe geteilt",
+      "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5606,7 +5616,20 @@
         "description": "Lieferanten, Logistik und der laufende Betrieb."
       }
     },
-    "resourceMcpServers": "MCP-Server"
+    "resourceMcpServers": "MCP-Server",
+    "lead": "Leitung",
+    "makeLead": "{name} zur Leitung der Gruppe machen",
+    "unmakeLead": "{name} leitet die Gruppe nicht mehr",
+    "leadChanged": "Leitung aktualisiert",
+    "sharedWithGroup": "{count, plural, =1 {1 Element mit der Gruppe geteilt} other {# Elemente mit der Gruppe geteilt}}",
+    "addToGroup": "Zu dieser Gruppe hinzufügen",
+    "addToGroupTitle": "Zu {name} hinzufügen",
+    "addToGroupWhy": "Wählen Sie, was diese Gruppe haben soll. Teilen können Sie, was Sie bearbeiten dürfen; jedes Mitglied wird benachrichtigt.",
+    "addToGroupSearch": "Agents, Wissen, Skills und mehr suchen",
+    "addToGroupNoMatch": "Nichts, was Sie teilen können, passt.",
+    "addToGroupNothing": "Es gibt nichts, was Sie mit dieser Gruppe teilen können - alles, was Sie bearbeiten dürfen, ist schon hier.",
+    "addToGroupLevel": "Sie dürfen",
+    "addToGroupShare": "{count, plural, =0 {Teilen} =1 {1 teilen} other {# teilen}}"
   },
   "directory": {
     "navLabel": "Verzeichnis",
@@ -6083,6 +6106,8 @@
     "search": "Gruppen und Personen suchen",
     "searchPlaceholder": "Gruppen und Personen suchen…",
     "noMatches": "Keine Treffer - versuchen Sie einen Namen oder eine E-Mail-Adresse.",
-    "typeForPeople": "Geben Sie einen Namen oder eine E-Mail-Adresse ein, um eine Person zu finden."
+    "typeForPeople": "Geben Sie einen Namen oder eine E-Mail-Adresse ein, um eine Person zu finden.",
+    "chipPrivate": "Privat",
+    "chipGroupsMore": "{names} +{count}"
   }
 }

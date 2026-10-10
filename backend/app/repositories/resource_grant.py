@@ -259,6 +259,27 @@ async def delete_for_resource(
     )
 
 
+async def group_grants_for_resources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    resource_type: str,
+    resource_ids: list[UUID],
+) -> list[tuple[UUID, UUID]]:
+    """(resource id, group id) for every group each resource is shared with, in one query."""
+    if not resource_ids:
+        return []
+    result = await db.execute(
+        select(ResourceGrant.resource_id, ResourceGrant.subject_group_id).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.resource_id.in_(resource_ids),
+            ResourceGrant.subject_group_id.is_not(None),
+        )
+    )
+    return [(resource_id, group_id) for resource_id, group_id in result.all() if group_id]
+
+
 async def count_for_resources(
     db: AsyncSession,
     *,

@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAddDepartments, useGroupMembers, useGroupResources, useGroups } from "./use-groups";
+import {
+  useAddDepartments,
+  useGroupMembers,
+  useGroupResources,
+  useGroupSharing,
+  useGroups,
+} from "./use-groups";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -180,6 +186,60 @@ describe("useGroupResources", () => {
 
     await waitFor(() => expect(result.current.resources).toHaveLength(1));
     expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/resources");
+  });
+});
+
+describe("a group's lead and what it is given (#2072)", () => {
+  it("names a lead, and says why when refused", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({ ...ROW, is_lead: true });
+    const { result } = renderHook(() => useGroupMembers("o-1", "g-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.setLead.mutateAsync({ userId: "u-1", isLead: true });
+    });
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/members/u-1", {
+      is_lead: true,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Lead updated");
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new ApiError(403, "Admins only"));
+    await act(async () => {
+      await result.current.setLead
+        .mutateAsync({ userId: "u-1", isLead: false })
+        .catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("Admins only");
+  });
+
+  it("offers what can be shared and shares several at once", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ kind: "skill", id: "s1", name: "ledger", level: "use" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useGroupSharing("o-1", "g-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.shareable).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/shareable");
+    await act(async () => {
+      await result.current.share.mutateAsync({
+        items: [{ kind: "skill", id: "s1" }],
+        level: "use",
+      });
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/shares", {
+      items: [{ kind: "skill", id: "s1" }],
+      level: "use",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Shared 1 item with the group");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "Cannot edit that"));
+    await act(async () => {
+      await result.current.share
+        .mutateAsync({ items: [{ kind: "skill", id: "s1" }], level: "use" })
+        .catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("Cannot edit that");
   });
 });
 

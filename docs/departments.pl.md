@@ -1,5 +1,5 @@
 ---
-source_sha: "4f82ed9ae1fd"
+source_sha: "b7c15e4f4e04"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -21,6 +21,14 @@ Potem można zmienić im nazwę, ikonę albo je usunąć jak każdą inną grup�
 Ludzi dodaje się do grupy na jej stronie, ręcznie, albo przez
 [mapowanie grupy katalogowej](directory.md#directory-group-mappings), jeśli firma
 prowadzi już swoje zespoły w katalogu.
+
+### Lider grupy { #a-groups-lead }
+
+Administrator może ustawić członka jako **lidera** grupy - korona przy nim na
+liście członków. Lider dodaje osoby do swojej grupy i je z niej usuwa bez
+administrowania organizacją, więc kierownik działu może dodać nowego pracownika
+bez proszenia IT. Lidera wyznacza i odwołuje tylko ktoś z `members:manage`, bo
+lider rozdaje dostęp do wszystkiego, co udostępniono grupie.
 
 ## Kto może korzystać z nowej rzeczy { #who-can-use-a-new-thing }
 
@@ -69,6 +77,16 @@ według rodzaju - agenci, bazy wiedzy, skille, kontekst, aplikacje i serwery MCP
 z poziomem udostępnienia każdego. Czytający widzi tylko to, co i tak mógłby
 otworzyć, więc członek Sprzedaży czytający stronę Finansów nie dowie się, co
 Finanse trzymają.
+
+**Dodaj do tej grupy** udostępnia kilka rzeczy naraz: pokazuje wszystko, co
+czytający może edytować, a czego grupa jeszcze nie ma, z wyszukiwarką, polem do
+zaznaczenia przy każdej rzeczy i poziomem udostępnienia. Każde to ten sam grant,
+który zapisuje panel Share, więc wymaga tego samego prawa do edycji.
+
+Członkowie dostają powiadomienie, gdy coś udostępniono ich grupie - w skrzynce i,
+jeśli chcą, e-mailem; *Shared with your group* w ustawieniach powiadomień to
+wyłącza. Karty w całej konsoli mówią, dla kogo jest każda rzecz: *Wszyscy*, jej
+działy z nazwy albo *Prywatne*.
 
 ## Skąd pochodzi wiedza agenta { #where-an-agents-knowledge-comes-from }
 

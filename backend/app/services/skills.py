@@ -41,7 +41,7 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
-from app.services.resource_usage import agents_using
+from app.services.resource_usage import agents_using, groups_sharing
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
@@ -288,9 +288,14 @@ class SkillService:
         used = await agents_using(
             self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
         )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
+        )
         return SkillList(
             items=[
-                _summary(skill, bundled_names).model_copy(update={"used_by": used[skill.id]})
+                _summary(skill, bundled_names).model_copy(
+                    update={"used_by": used[skill.id], "shared_groups": groups[skill.id]}
+                )
                 for skill in items
             ],
             total=total,

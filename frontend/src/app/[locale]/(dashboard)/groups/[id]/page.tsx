@@ -2,10 +2,21 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { AppWindow, BookOpen, Bot, Database, FileText, Pencil, Plug, Users } from "lucide-react";
+import {
+  AppWindow,
+  BookOpen,
+  Bot,
+  Database,
+  FileText,
+  Pencil,
+  Plug,
+  Share2,
+  Users,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
 import { GroupIcon } from "@/components/groups/group-icon";
 import { GroupFormDialog } from "@/components/orgs/group-form-dialog";
 import { GroupMembersDialog } from "@/components/orgs/group-members-dialog";
@@ -55,6 +66,7 @@ export default function GroupPage({ params }: PageProps) {
   const { resources, isLoading, error } = useGroupResources(orgId, id);
   const [editing, setEditing] = useState(false);
   const [members, setMembers] = useState(false);
+  const [adding, setAdding] = useState(false);
   const group = groups.find((entry) => entry.id === id);
 
   if (groupsLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
@@ -75,9 +87,13 @@ export default function GroupPage({ params }: PageProps) {
         description={group.description ?? undefined}
         actions={
           <>
-            <Button variant="outline" onClick={() => setMembers(true)}>
+            <Button variant="outline" onClick={() => setMembers(true)} data-tour="group-members">
               <Users className="h-4 w-4" />
               {t("memberCount", { count: group.member_count })}
+            </Button>
+            <Button variant="outline" onClick={() => setAdding(true)} data-tour="group-add-to">
+              <Share2 className="h-4 w-4" />
+              {t("addToGroup")}
             </Button>
             {canManage && (
               <Button variant="outline" onClick={() => setEditing(true)}>
@@ -135,6 +151,7 @@ export default function GroupPage({ params }: PageProps) {
       </ListCard>
 
       {editing && <GroupFormDialog orgId={orgId} group={group} onClose={() => setEditing(false)} />}
+      {adding && <AddToGroupDialog orgId={orgId} group={group} onClose={() => setAdding(false)} />}
       {members && (
         <GroupMembersDialog
           orgId={orgId}

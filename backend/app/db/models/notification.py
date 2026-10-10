@@ -46,6 +46,7 @@ class NotificationEventType(enum.StrEnum):
     CONFIGURATION_CHANGED = "configuration_changed"
     ANNOUNCEMENT = "announcement"
     ARTIFACT_VERSION_PUBLISHED = "artifact_version_published"
+    RESOURCE_SHARED = "resource_shared"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -137,7 +138,7 @@ class Notification(Base, TimestampMixin):
             "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
-            "'announcement', 'artifact_version_published')",
+            "'announcement', 'artifact_version_published', 'resource_shared')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

@@ -49,6 +49,16 @@ REGISTRY_PATH = "app.services.agent_registry"
 
 
 @pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent here is shared with a group; `test_group_leads_and_shares` covers that."""
+
+    async def nobody(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.agent_registry.groups_sharing", nobody)
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 

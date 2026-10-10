@@ -35,7 +35,13 @@ export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export { useRetention } from "./use-retention";
-export { useAddDepartments, useGroups, useGroupMembers, useGroupResources } from "./use-groups";
+export {
+  useAddDepartments,
+  useGroups,
+  useGroupMembers,
+  useGroupResources,
+  useGroupSharing,
+} from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";

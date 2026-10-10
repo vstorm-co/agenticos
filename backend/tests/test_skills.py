@@ -40,6 +40,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
         return {resource_id: [] for resource_id in resource_ids}
 
     monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
 
 
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:

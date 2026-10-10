@@ -1,5 +1,5 @@
 ---
-source_sha: "4f82ed9ae1fd"
+source_sha: "b7c15e4f4e04"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -23,6 +23,15 @@ danach wie bei jeder anderen Gruppe.
 Personen kommen auf der Seite der Gruppe hinzu, von Hand oder über eine
 [Zuordnung einer Verzeichnisgruppe](directory.md#directory-group-mappings), wenn
 Ihr Unternehmen seine Teams bereits in einem Verzeichnis führt.
+
+### Die Leitung einer Gruppe { #a-groups-lead }
+
+Ein Admin kann ein Mitglied zur **Leitung** der Gruppe machen - die Krone neben
+ihm in der Mitgliederliste. Die Leitung fügt Personen ihrer Gruppe hinzu und
+entfernt sie, ohne die Organisation zu verwalten, sodass eine Abteilungsleitung
+eine neue Kollegin aufnehmen kann, ohne die IT zu fragen. Nur wer
+`members:manage` hat, bestimmt oder entfernt eine Leitung, denn sie vergibt
+Zugriff auf alles, was mit der Gruppe geteilt ist.
 
 ## Wer etwas Neues nutzen darf { #who-can-use-a-new-thing }
 
@@ -74,6 +83,17 @@ nach Art gruppiert - Agents, Wissensdatenbanken, Skills, Kontext, Apps und
 MCP-Server - mit der Stufe, auf der jedes geteilt wurde. Wer liest, sieht nur, was er ohnehin
 öffnen könnte; ein Mitglied des Vertriebs erfährt auf der Seite der
 Finanzabteilung also nicht, was diese aufbewahrt.
+
+**Zu dieser Gruppe hinzufügen** teilt mehreres auf einmal: Es listet alles, was
+die lesende Person bearbeiten darf und die Gruppe noch nicht hat, mit Suche,
+einem Häkchen je Eintrag und der Stufe, auf der geteilt wird. Jedes ist dieselbe
+Freigabe, die der Bereich Share schreibt, und braucht dasselbe Recht zu
+bearbeiten.
+
+Mitglieder werden benachrichtigt, wenn etwas mit ihrer Gruppe geteilt wird - im
+Posteingang und, wenn gewünscht, per E-Mail; *Shared with your group* in den
+Benachrichtigungseinstellungen schaltet das ab. Karten in der ganzen Konsole
+sagen, für wen etwas ist: *Alle*, seine Abteilungen mit Namen oder *Privat*.
 
 ## Woher das Wissen eines Agents kommt { #where-an-agents-knowledge-comes-from }
 

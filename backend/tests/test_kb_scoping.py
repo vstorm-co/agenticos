@@ -26,6 +26,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
         return {resource_id: [] for resource_id in resource_ids}
 
     monkeypatch.setattr("app.services.knowledge_base.agents_using", nowhere)
+    monkeypatch.setattr("app.services.knowledge_base.groups_sharing", nowhere)
 
 
 @pytest.fixture(autouse=True)

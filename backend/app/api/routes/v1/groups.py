@@ -10,17 +10,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import GroupSvc, PathOrgAuth, require_in_path_org
+from app.api.deps import GroupSharingSvc, GroupSvc, PathOrgAuth, require_in_path_org
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
+from app.db.models.resource_grant import GrantLevel
 from app.schemas.group import (
     GroupCreate,
+    GroupLeadUpdate,
     GroupList,
     GroupMemberAdd,
     GroupMemberList,
     GroupMemberRead,
     GroupRead,
     GroupResourceList,
+    GroupShareRequest,
     GroupUpdate,
     as_group_icon,
 )
@@ -109,6 +112,35 @@ async def list_group_resources(
     return GroupResourceList(items=items, total=len(items))
 
 
+@router.get("/{org_id}/groups/{group_id}/shareable", response_model=GroupResourceList)
+async def list_shareable_with_group(
+    org_id: UUID, group_id: UUID, service: GroupSharingSvc, ctx: PathOrgAuth
+) -> Any:
+    """What the caller could share with this group: what they may edit, not shared yet."""
+    items = await service.shareable(ctx, group_id)
+    return GroupResourceList(items=items, total=len(items))
+
+
+@router.post(
+    "/{org_id}/groups/{group_id}/shares",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def share_with_group(
+    org_id: UUID,
+    group_id: UUID,
+    data: GroupShareRequest,
+    service: GroupSharingSvc,
+    ctx: PathOrgAuth,
+) -> None:
+    """Share several resources with the group at once.
+
+    Each needs the caller to be able to edit it, decided per resource by the
+    same rule the Share panel applies - not by a role gate here.
+    """
+    await service.share(ctx, group_id, data.items, level=GrantLevel(data.level))
+
+
 @router.get("/{org_id}/groups/{group_id}/members", response_model=GroupMemberList)
 async def list_group_members(
     org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth
@@ -121,6 +153,7 @@ async def list_group_members(
             email=email,
             full_name=full_name,
             source=member.source,
+            is_lead=member.is_lead,
             created_at=member.created_at,
         )
         for member, email, full_name in rows
@@ -132,12 +165,15 @@ async def list_group_members(
     "/{org_id}/groups/{group_id}/members",
     response_model=GroupMemberRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_MANAGE],
 )
 async def add_group_member(
     org_id: UUID, group_id: UUID, data: GroupMemberAdd, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
-    """Put a member of the organization in the group. Requires `members:manage`."""
+    """Put a member of the organization in the group.
+
+    Requires `members:manage`, or leading this group - which the service decides,
+    since a role gate here could not see who leads which group.
+    """
     member, email, full_name = await service.add_member(
         org_id, group_id, data.user_id, ctx.subject_id
     )
@@ -146,6 +182,7 @@ async def add_group_member(
         email=email,
         full_name=full_name,
         source=member.source,
+        is_lead=member.is_lead,
         created_at=member.created_at,
     )
 
@@ -154,10 +191,36 @@ async def add_group_member(
     "/{org_id}/groups/{group_id}/members/{member_user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    dependencies=[_MANAGE],
 )
 async def remove_group_member(
     org_id: UUID, group_id: UUID, member_user_id: UUID, service: GroupSvc, ctx: PathOrgAuth
 ) -> None:
-    """Take somebody out of the group. Requires `members:manage`."""
+    """Take somebody out of the group. Requires `members:manage`, or leading this group."""
     await service.remove_member(org_id, group_id, member_user_id, ctx.subject_id)
+
+
+@router.patch(
+    "/{org_id}/groups/{group_id}/members/{member_user_id}",
+    response_model=GroupMemberRead,
+    dependencies=[_MANAGE],
+)
+async def set_group_lead(
+    org_id: UUID,
+    group_id: UUID,
+    member_user_id: UUID,
+    data: GroupLeadUpdate,
+    service: GroupSvc,
+    ctx: PathOrgAuth,
+) -> Any:
+    """Make a member the group's lead, or not. Requires `members:manage`."""
+    member, email, full_name = await service.set_lead(
+        org_id, group_id, member_user_id, ctx.subject_id, is_lead=data.is_lead
+    )
+    return GroupMemberRead(
+        user_id=member.user_id,
+        email=email,
+        full_name=full_name,
+        source=member.source,
+        is_lead=member.is_lead,
+        created_at=member.created_at,
+    )

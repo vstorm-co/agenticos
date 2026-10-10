@@ -77,7 +77,15 @@ class GroupMemberRead(BaseSchema):
     source: MembershipSourceLiteral
     """`directory` when a directory group mapping put this person here; the next
     sign-in may take them out again. Adding them by hand makes it `manual`."""
+    is_lead: bool = False
+    """Whether this person leads the group: they add and remove its members."""
     created_at: datetime
+
+
+class GroupLeadUpdate(BaseSchema):
+    """Make a member the group's lead, or not."""
+
+    is_lead: bool
 
 
 class GroupMemberList(BaseSchema):
@@ -102,3 +110,19 @@ class GroupResourceList(BaseSchema):
 
     items: list[GroupResource]
     total: int
+
+
+class GroupShareItem(BaseSchema):
+    """One resource to share with a group, by kind and id."""
+
+    kind: GroupResourceKind
+    id: UUID
+
+
+class GroupShareRequest(BaseSchema):
+    """Share several resources with one group at once, from the group's page (#2072)."""
+
+    items: list[GroupShareItem] = Field(min_length=1, max_length=50)
+    level: GrantLevelLiteral = Field(
+        default="use", description="What the group may do with each: `read`, `use` or `edit`."
+    )

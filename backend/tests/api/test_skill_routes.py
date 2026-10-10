@@ -42,6 +42,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
         return {resource_id: [] for resource_id in resource_ids}
 
     monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
 
 
 _ORGANIZATION_ID = uuid.uuid4()

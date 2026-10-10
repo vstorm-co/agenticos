@@ -38,7 +38,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.rag import embedding_providers
-from app.services.resource_usage import agents_using
+from app.services.resource_usage import agents_using, groups_sharing
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
@@ -159,10 +159,13 @@ class KnowledgeBaseService:
         used = await agents_using(
             self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]
         )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id for kb in items]
+        )
         return KnowledgeBaseList(
             items=[
                 _with_counts(kb, counts.get(kb.collection_name)).model_copy(
-                    update={"used_by": used[kb.id]}
+                    update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
                 )
                 for kb in items
             ],

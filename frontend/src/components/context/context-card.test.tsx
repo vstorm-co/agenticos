@@ -19,6 +19,7 @@ const FILE: ContextFileSummary = {
   format: "md",
   mode: "inject",
   enabled: true,
+  visibility: "org",
   size_bytes: 2048,
   excerpt: "# Glossary\n\nARR - annual recurring revenue",
 };

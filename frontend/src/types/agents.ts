@@ -354,6 +354,8 @@ export interface Agent {
   description: string | null;
   status: AgentStatus;
   visibility: Visibility;
+  /** The groups it is shared with, by name (#2072). Only the listing carries it. */
+  shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */

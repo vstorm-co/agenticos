@@ -7,6 +7,7 @@ import { cn, formatBytes } from "@/lib/utils";
 import type { ContextFileSummary } from "@/types/providers";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
+import { AudienceChip } from "@/components/sharing/audience-chip";
 import { useTranslations } from "next-intl";
 
 interface ContextCardProps {
@@ -60,6 +61,7 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
             <FileText className="h-3.5 w-3.5 shrink-0" />
             {t("sizeWithFormat", { format: file.format, size: formatBytes(file.size_bytes) })}
           </span>
+          <AudienceChip visibility={file.visibility} groups={file.shared_groups} />
           <UsedBy agents={file.used_by} />
         </span>
       </button>

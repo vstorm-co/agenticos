@@ -61,6 +61,8 @@ export interface GroupMember {
   email: string;
   full_name: string | null;
   source: MembershipSource;
+  /** Leads the group: adds and removes its members without administering the org. */
+  is_lead: boolean;
   created_at: string;
 }
 
@@ -74,6 +76,12 @@ export interface GroupResource {
   kind: "agent" | "collection" | "skill" | "context" | "artifact" | "mcp_connection";
   id: string;
   name: string;
+  level: GrantLevel;
+}
+
+/** Share several resources with a group from its page (#2072). */
+export interface GroupShareRequest {
+  items: { kind: GroupResource["kind"]; id: string }[];
   level: GrantLevel;
 }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f82ed9ae1fd"
+source_sha: "b7c15e4f4e04"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -22,6 +22,15 @@ cualquier otro grupo.
 Las personas se añaden a un grupo desde su página, a mano, o mediante un
 [mapeo de grupo de directorio](directory.md#directory-group-mappings) si tu
 empresa ya lleva sus equipos en un directorio.
+
+### El responsable de un grupo { #a-groups-lead }
+
+Un administrador puede hacer a un miembro **responsable** del grupo - la corona a
+su lado en la lista de miembros. Un responsable añade personas a su grupo y las
+quita sin administrar la organización, así que quien dirige un departamento puede
+incorporar a alguien nuevo sin pedírselo a TI. Solo quien tiene `members:manage`
+nombra o retira a un responsable, porque reparte acceso a todo lo compartido con
+el grupo.
 
 ## Quién puede usar algo nuevo { #who-can-use-a-new-thing }
 
@@ -72,6 +81,16 @@ por tipo - agents, bases de conocimiento, skills, contexto, aplicaciones y
 servidores MCP - con el nivel al que se compartió cada uno. Quien lee solo ve lo que podría abrir de todos
 modos, así que un miembro de Ventas que lee la página de Finanzas no se entera de
 lo que guarda Finanzas.
+
+**Add to this group** comparte varias cosas a la vez: lista todo lo que quien lee
+puede editar y el grupo aún no tiene, con un buscador, una casilla por elemento y
+el nivel al que compartir. Cada una es la misma concesión que escribe el panel
+Share, así que necesita el mismo derecho a editar.
+
+Los miembros reciben un aviso cuando algo se comparte con su grupo - en la bandeja
+y, si lo quieren, por correo; *Shared with your group* en los ajustes de
+notificaciones lo desactiva. Las tarjetas de toda la consola dicen para quién es
+cada cosa: *Everyone*, sus departamentos por nombre o *Private*.
 
 ## De dónde viene el conocimiento de un agent { #where-an-agents-knowledge-comes-from }
 

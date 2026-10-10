@@ -30,7 +30,7 @@ from app.schemas.context import (
     ContextModeLiteral,
 )
 from app.services.access import CONTEXT, resolve_access, visible_resource_ids
-from app.services.resource_usage import agents_using
+from app.services.resource_usage import agents_using, groups_sharing
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
@@ -138,8 +138,16 @@ class ContextService:
         used = await agents_using(
             self.db, ctx, field="context_ids", resource_ids=[file.id for file in items]
         )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=CONTEXT, resource_ids=[file.id for file in items]
+        )
         return ContextFileList(
-            items=[_summary(file).model_copy(update={"used_by": used[file.id]}) for file in items],
+            items=[
+                _summary(file).model_copy(
+                    update={"used_by": used[file.id], "shared_groups": groups[file.id]}
+                )
+                for file in items
+            ],
             total=total,
         )
 

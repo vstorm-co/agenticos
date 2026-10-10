@@ -54,6 +54,10 @@ class ContextFileSummary(BaseSchema):
             "card says where it is used, or that it is used nowhere yet"
         ),
     )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - the departments it belongs to.",
+    )
 
 
 class ContextFileList(BaseSchema):

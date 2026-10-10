@@ -18,6 +18,7 @@ const SKILL: SkillSummary = {
   description: "How refunds and their exceptions are handled.",
   category: null,
   enabled: true,
+  visibility: "org",
   file_count: 2,
   built_in: false,
   excerpt: "# Refunds\n\n1. Check the order\n- Use **the** `refund` tool",

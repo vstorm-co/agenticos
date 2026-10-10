@@ -44,7 +44,7 @@ def _group(name: str = "Finance") -> SimpleNamespace:
 
 def _member_row(source: str = "directory") -> tuple[SimpleNamespace, str, str | None]:
     return (
-        SimpleNamespace(user_id=uuid4(), source=source, created_at=NOW),
+        SimpleNamespace(user_id=uuid4(), source=source, is_lead=False, created_at=NOW),
         "jane@corp.example",
         "Jane",
     )
@@ -187,6 +187,45 @@ class TestGroupRoutes:
         assert groups.add_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
         assert removed.status_code == 204
         assert groups.remove_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
+
+    async def test_naming_a_lead(self, client: AsyncClient, groups: MagicMock) -> None:
+        member, email, name = _member_row("manual")
+        member.is_lead = True
+        groups.set_lead = AsyncMock(return_value=(member, email, name))
+        group_id, user_id = uuid4(), uuid4()
+
+        resp = await client.patch(
+            f"{V1}/orgs/{ORG}/groups/{group_id}/members/{user_id}", json={"is_lead": True}
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["is_lead"] is True
+        assert groups.set_lead.await_args.kwargs == {"is_lead": True}
+
+    async def test_offering_and_sharing_from_a_group_s_page(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_sharing_service] = lambda: service
+        item_id = uuid4()
+        service.shareable = AsyncMock(
+            return_value=[
+                SimpleNamespace(kind="skill", id=item_id, name="Month-end close", level="use")
+            ]
+        )
+        service.share = AsyncMock()
+        group_id = uuid4()
+
+        offered = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/shareable")
+        shared = await client.post(
+            f"{V1}/orgs/{ORG}/groups/{group_id}/shares",
+            json={"items": [{"kind": "skill", "id": str(item_id)}], "level": "read"},
+        )
+
+        assert offered.json()["items"][0]["name"] == "Month-end close"
+        assert shared.status_code == 204
+        assert service.share.await_args.kwargs == {"level": "read"}
+        assert service.share.await_args.args[2][0].id == item_id
 
     @pytest.mark.security
     async def test_a_refusal_from_the_service_is_a_403(

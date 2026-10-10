@@ -504,6 +504,43 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def resource_shared(
+        self,
+        *,
+        recipients: list[UUID],
+        organization_id: UUID,
+        resource_kind: str,
+        resource_id: UUID,
+        name: str,
+        path: str,
+        group_name: str,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """Something was shared with a group the recipients are in (#2072).
+
+        One occurrence per resource and group, so sharing the same thing twice
+        tells nobody twice. The summary names what and with which group; the
+        link opens it.
+        """
+        if not recipients:
+            return
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.RESOURCE_SHARED,
+            occurrence_id=f"{resource_kind}:{resource_id}:{group_name}",
+            summary=f"'{name}' was shared with {group_name}.",
+            context_url=self._link(path, organization_id),
+            render_context={
+                "resource_kind": resource_kind,
+                "resource_id": str(resource_id),
+                "resource_name": name,
+                "group_name": group_name,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            use_savepoint=True,
+        )
+
     async def hold_security_audience(self, organization_id: UUID | None) -> list[UUID]:
         """Lock the rows `security_event` is about to reference, before the
         audit chain lock is taken, and return them.

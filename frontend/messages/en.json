@@ -3413,6 +3413,14 @@
       "agent-test": {
         "title": "Try it as you build",
         "body": "Opens a chat beside the Builder that answers as your unpublished draft, or as any environment. Test runs are counted and budgeted, and marked in Activity."
+      },
+      "group-members": {
+        "title": "Who is in it",
+        "body": "The people in this department. Its lead - marked with a crown - adds and removes them; an administrator names the lead."
+      },
+      "group-add-to": {
+        "title": "Give it what it needs",
+        "body": "Share agents, knowledge, skills, context, apps and MCP servers with the whole department at once. Each member is told it is there."
       }
     }
   },
@@ -4455,7 +4463,9 @@
       "avatarColour": "Fallback colour",
       "avatarColourHint": "Shown as your avatar until you upload a picture.",
       "prefArtifactVersionPublished": "App updated",
-      "prefArtifactVersionPublishedTrigger": "An app you follow gets a new version - republished by its agent or restored by a person."
+      "prefArtifactVersionPublishedTrigger": "An app you follow gets a new version - republished by its agent or restored by a person.",
+      "prefResourceShared": "Shared with your group",
+      "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5744,7 +5754,20 @@
         "description": "Suppliers, logistics and day-to-day running."
       }
     },
-    "resourceMcpServers": "MCP servers"
+    "resourceMcpServers": "MCP servers",
+    "lead": "Lead",
+    "makeLead": "Make {name} the group's lead",
+    "unmakeLead": "{name} no longer leads the group",
+    "leadChanged": "Lead updated",
+    "sharedWithGroup": "{count, plural, =1 {Shared 1 item with the group} other {Shared # items with the group}}",
+    "addToGroup": "Add to this group",
+    "addToGroupTitle": "Add to {name}",
+    "addToGroupWhy": "Pick what this group should have. You can share what you may edit; each member is told it is here.",
+    "addToGroupSearch": "Search agents, knowledge, skills and more",
+    "addToGroupNoMatch": "Nothing you can share matches.",
+    "addToGroupNothing": "There is nothing you can share with this group - everything you may edit is already here.",
+    "addToGroupLevel": "They can",
+    "addToGroupShare": "{count, plural, =0 {Share} =1 {Share 1} other {Share #}}"
   },
   "directory": {
     "navLabel": "Directory",
@@ -6221,6 +6244,8 @@
     "search": "Search groups and people",
     "searchPlaceholder": "Search groups and people…",
     "noMatches": "Nothing matches - try a name or an email address.",
-    "typeForPeople": "Type a name or an email address to find a person."
+    "typeForPeople": "Type a name or an email address to find a person.",
+    "chipPrivate": "Private",
+    "chipGroupsMore": "{names} +{count}"
   }
 }

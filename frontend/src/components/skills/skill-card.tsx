@@ -7,6 +7,7 @@ import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
+import { AudienceChip } from "@/components/sharing/audience-chip";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -65,6 +66,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               </span>
             )}
           </span>
+          <AudienceChip visibility={skill.visibility} groups={skill.shared_groups} />
           <UsedBy agents={skill.used_by} />
         </span>
       </button>

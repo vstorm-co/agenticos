@@ -161,6 +161,13 @@ class AgentRead(BaseSchema):
             "endpoints answer with the default rather than paying a count nobody reads."
         ),
     )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The groups this agent is shared with, by name - the departments it "
+            "belongs to. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     channels: list[str] = Field(
         default_factory=list,
         description=(

@@ -1936,6 +1936,14 @@
       "agent-test": {
         "title": "Testuj w trakcie budowania",
         "body": "Otwiera obok Buildera czat, który odpowiada jako nieopublikowany szkic albo dowolne środowisko. Runy testowe są liczone i rozliczane w budżecie, a w Aktywności są oznaczone."
+      },
+      "group-members": {
+        "title": "Kto w nim jest",
+        "body": "Osoby w tym dziale. Lider - oznaczony koroną - dodaje je i usuwa; lidera wyznacza administrator."
+      },
+      "group-add-to": {
+        "title": "Daj mu to, czego potrzebuje",
+        "body": "Udostępnij agentów, wiedzę, skille, kontekst, aplikacje i serwery MCP całemu działowi naraz. Każdy członek dostaje powiadomienie."
       }
     }
   },
@@ -3345,7 +3353,20 @@
         "description": "Dostawcy, logistyka i bieżące działanie."
       }
     },
-    "resourceMcpServers": "Serwery MCP"
+    "resourceMcpServers": "Serwery MCP",
+    "lead": "Lider",
+    "makeLead": "Ustaw {name} jako lidera grupy",
+    "unmakeLead": "{name} przestaje być liderem grupy",
+    "leadChanged": "Lider zaktualizowany",
+    "sharedWithGroup": "{count, plural, one {Udostępniono grupie 1 element} few {Udostępniono grupie # elementy} many {Udostępniono grupie # elementów} other {Udostępniono grupie # elementu}}",
+    "addToGroup": "Dodaj do tej grupy",
+    "addToGroupTitle": "Dodaj do {name}",
+    "addToGroupWhy": "Wybierz, co ta grupa powinna mieć. Możesz udostępnić to, co możesz edytować; każdy członek dostanie powiadomienie.",
+    "addToGroupSearch": "Szukaj agentów, wiedzy, skilli i innych",
+    "addToGroupNoMatch": "Nic, co możesz udostępnić, nie pasuje.",
+    "addToGroupNothing": "Nie ma nic, co możesz udostępnić tej grupie - wszystko, co możesz edytować, już tu jest.",
+    "addToGroupLevel": "Mogą",
+    "addToGroupShare": "{count, plural, =0 {Udostępnij} one {Udostępnij 1} few {Udostępnij #} many {Udostępnij #} other {Udostępnij #}}"
   },
   "directory": {
     "navLabel": "Katalog",
@@ -3822,7 +3843,9 @@
     "search": "Szukaj grup i osób",
     "searchPlaceholder": "Szukaj grup i osób…",
     "noMatches": "Brak wyników - spróbuj imienia lub adresu e-mail.",
-    "typeForPeople": "Wpisz imię lub adres e-mail, aby znaleźć osobę."
+    "typeForPeople": "Wpisz imię lub adres e-mail, aby znaleźć osobę.",
+    "chipPrivate": "Prywatne",
+    "chipGroupsMore": "{names} +{count}"
   },
   "context": {
     "whoCanUseIt": "Kto może z tego korzystać"

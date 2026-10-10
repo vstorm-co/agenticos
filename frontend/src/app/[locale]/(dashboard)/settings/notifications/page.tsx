@@ -12,6 +12,7 @@ import {
   Mail,
   Megaphone,
   PieChart,
+  Share2,
   UserPlus,
   XCircle,
 } from "lucide-react";
@@ -102,6 +103,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "artifact_version_published",
     words: "prefArtifactVersionPublished",
     icon: FileText,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "resource_shared",
+    words: "prefResourceShared",
+    icon: Share2,
     channels: ["in_app", "email"],
   },
   {

@@ -1,6 +1,7 @@
 "use client";
 
 import { UsedBy } from "@/components/agents/used-by";
+import { AudienceChip } from "@/components/sharing/audience-chip";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
@@ -249,7 +250,12 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
           )}
         </div>
 
-        <UsedBy agents={kb.used_by} className="mt-4" />
+        <AudienceChip
+          visibility={kb.visibility ?? "private"}
+          groups={kb.shared_groups}
+          className="mt-4"
+        />
+        <UsedBy agents={kb.used_by} className="mt-2" />
 
         <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">

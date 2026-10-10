@@ -1,8 +1,10 @@
-"""Which agents use an organization's skills, context files and knowledge bases.
+"""Which agents use an organization's skills, context files and knowledge bases,
+and which groups each is shared with.
 
 A thing somebody created and cannot see the use of is a thing they cannot tell
 is safe to change or delete, and one they cannot tell they still have to give
-to an agent (#2075). The listings of all three ask this once per page.
+to an agent (#2075). Which department it belongs to is the other half of that
+card (#2072). The listings ask both once per page.
 """
 
 from collections.abc import Collection
@@ -11,10 +13,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
-from app.repositories import agent_repo
+from app.repositories import agent_repo, group_repo, resource_grant_repo
 from app.repositories.agent import BoundResourceField
 from app.schemas.resource_usage import AgentUsage
-from app.services.access import AGENT, accessible_ids
+from app.services.access import AGENT, ResourceType, accessible_ids
 
 
 async def agents_using(
@@ -40,3 +42,33 @@ async def agents_using(
         ]
         for resource_id, bound in found.items()
     }
+
+
+async def groups_sharing(
+    db: AsyncSession,
+    ctx: AuthContext,
+    *,
+    resource_type: ResourceType,
+    resource_ids: Collection[UUID],
+) -> dict[UUID, list[str]]:
+    """For each resource, the names of the groups it is shared with, sorted.
+
+    Group names are no secret inside an organization - any member lists them -
+    so this needs no narrowing beyond the organization. Every requested id is a
+    key, an unshared one with an empty list.
+    """
+    pairs = await resource_grant_repo.group_grants_for_resources(
+        db,
+        organization_id=ctx.organization_id,
+        resource_type=resource_type.key,
+        resource_ids=list(resource_ids),
+    )
+    names = await group_repo.get_names(
+        db, organization_id=ctx.organization_id, group_ids=sorted({group for _, group in pairs})
+    )
+    shared: dict[UUID, list[str]] = {resource_id: [] for resource_id in resource_ids}
+    # Every group a grant names is one of this organization's: the grant's
+    # foreign key holds the group, and sharing refuses another tenant's.
+    for resource_id, group_id in pairs:
+        shared[resource_id].append(names[group_id])
+    return {resource_id: sorted(groups) for resource_id, groups in shared.items()}

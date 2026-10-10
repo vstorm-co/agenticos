@@ -121,6 +121,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.resource_usage import groups_sharing
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
@@ -909,6 +910,9 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
+        )
         rows = [
             AgentRead(
                 id=agent.id,
@@ -925,6 +929,7 @@ class AgentRegistryService:
                 tags=agent.tags,
                 can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
+                shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
                     budget_caps.get(agent.current_version_id) if agent.current_version_id else None

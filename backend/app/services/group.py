@@ -80,6 +80,19 @@ class GroupService:
         if not role_has(membership.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
 
+    async def _require_member_manager(
+        self, organization_id: UUID, group_id: UUID, requester_id: UUID
+    ) -> None:
+        """Who may change who is in a group: `members:manage`, or the group's own lead."""
+        membership = await self._membership(organization_id, requester_id)
+        if role_has(membership.role, Perm.MEMBERS_MANAGE):
+            return
+        lead = await group_repo.get_member(self.db, group_id=group_id, user_id=requester_id)
+        if lead is None or not lead.is_lead:
+            raise AuthorizationError(
+                message="Only an administrator or the group's lead can change who is in it"
+            )
+
     async def _group(self, organization_id: UUID, group_id: UUID) -> Group:
         group = await group_repo.get(self.db, organization_id=organization_id, group_id=group_id)
         if group is None:
@@ -283,7 +296,7 @@ class GroupService:
                 group reaches what was shared with it, and an outsider in one
                 would reach this organization's resources.
         """
-        await self._require_manage(organization_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, requester_id)
         group = await self._group(organization_id, group_id)
         if await member_repo.get(self.db, organization_id=organization_id, user_id=user_id) is None:
             raise BadRequestError(
@@ -337,7 +350,7 @@ class GroupService:
         self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID
     ) -> None:
         """Take somebody out of a group, whoever put them there."""
-        await self._require_manage(organization_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, requester_id)
         group = await self._group(organization_id, group_id)
         member = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
         if member is None:
@@ -354,6 +367,36 @@ class GroupService:
             target_id=str(group.id),
             details={"user_id": str(user_id)},
         )
+
+    async def set_lead(
+        self,
+        organization_id: UUID,
+        group_id: UUID,
+        user_id: UUID,
+        requester_id: UUID,
+        *,
+        is_lead: bool,
+    ) -> tuple[GroupMember, str, str | None]:
+        """Make a member the group's lead, or not. Administrators only: a lead can
+        add members, so naming one is handing out part of `members:manage`."""
+        await self._require_manage(organization_id, requester_id)
+        group = await self._group(organization_id, group_id)
+        member = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
+        if member is None:
+            raise NotFoundError(
+                message="Not a member of this group", details={"user_id": str(user_id)}
+            )
+        await group_repo.set_member_lead(self.db, member, is_lead=is_lead)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="group.lead_changed",
+            target_type="group",
+            target_id=str(group.id),
+            details={"user_id": str(user_id), "is_lead": is_lead},
+        )
+        return await self._member_row(group.id, user_id)
 
     async def _refuse_taken_name(self, organization_id: UUID, name: str) -> None:
         if await group_repo.get_by_name(self.db, organization_id=organization_id, name=name):

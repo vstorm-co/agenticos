@@ -54,6 +54,12 @@ export const ORG_DIRECTORY = "org-directory-detail";
 export const SETTINGS_DETAIL = "settings-detail";
 
 /**
+ * One department's page, `/groups/<id>` (#2072): its people, and adding to what it
+ * has. Opened on the first group, like a collection on the first collection.
+ */
+export const GROUP_DETAIL = "group-detail";
+
+/**
  * A workspace's file browser, `/workspaces/<id>`, collapsed the same way. Unlike a
  * seeded agent or collection there is no example to open from the list — a
  * workspace is one person's own agent output — so its stop is "?"-only help shown
@@ -328,6 +334,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "groups-list", page: ROUTES.GROUPS, target: "groups-list" },
+  { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
+  { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -646,6 +654,7 @@ export function pageKey(path: string): string {
     if (path.endsWith("/directory")) return ORG_DIRECTORY;
     return ORG_MEMBERS;
   }
+  if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   return path;

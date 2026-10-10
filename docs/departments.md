@@ -19,6 +19,14 @@ People are added to a group from its page, by hand, or by a
 [directory group mapping](directory.md#directory-group-mappings) when your
 company already keeps its teams in a directory.
 
+### A group's lead
+
+An administrator can make a member the group's **lead** - the crown beside them
+in the members list. A lead adds people to their group and takes them out
+without administering the organization, so a department head can bring in a new
+hire without asking IT. Only someone with `members:manage` names or removes a
+lead, since a lead hands out access to everything shared with the group.
+
 ## Who can use a new thing
 
 Creating an agent, a skill, a knowledge base, a context file or a shared MCP
@@ -63,7 +71,17 @@ the Builder shows it where the agent's knowledge comes from.
 
 Opening a group shows its people and everything shared with it, grouped by
 kind - agents, knowledge bases, skills, context, apps and MCP servers - with the
-level each was shared at. A reader sees only the items they could open anyway, so a
+level each was shared at.
+
+**Add to this group** shares several things at once: it lists everything the
+reader may edit that the group does not have yet, with a search, a tick each and
+the level to share at. Each is the same grant the Share panel writes, so it
+needs the same right to edit.
+
+Members are told when something is shared with their group - in the inbox and,
+if they want it, by email; *Shared with your group* in notification settings
+turns it off. Cards across the console say who each thing is for: *Everyone*,
+its departments by name, or *Private*. A reader sees only the items they could open anyway, so a
 member of Sales reading Finance's page does not learn what Finance keeps.
 
 ## Where an agent's knowledge comes from

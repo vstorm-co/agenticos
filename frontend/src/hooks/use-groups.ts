@@ -15,9 +15,12 @@ import {
   listGroups,
   removeGroupMember,
   updateGroup,
+  listShareableWithGroup,
+  setGroupLead,
+  shareWithGroup,
 } from "@/lib/groups-api";
 import { qk } from "@/lib/query-keys";
-import type { GroupCreate, GroupUpdate } from "@/types/groups";
+import type { GroupCreate, GroupShareRequest, GroupUpdate } from "@/types/groups";
 
 /**
  * Invalidates one organization's groups, and with them every group's member
@@ -119,7 +122,48 @@ export function useGroupMembers(orgId: string, groupId: string) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 
-  return { members: data?.items ?? [], isLoading, error, add, remove };
+  const setLead = useMutation({
+    mutationFn: ({ userId, isLead }: { userId: string; isLead: boolean }) =>
+      setGroupLead(orgId, groupId, userId, isLead),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("leadChanged"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+
+  return { members: data?.items ?? [], isLoading, error, add, remove, setLead };
+}
+
+/**
+ * What the caller could share with one group, and sharing several at once (#2072).
+ *
+ * Used by the dialog that offers it, which mounts only when opened: the list is
+ * everything the caller may edit, of every kind.
+ */
+export function useGroupSharing(orgId: string, groupId: string) {
+  const t = useTranslations("groups");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupShareable(orgId, groupId),
+    queryFn: () => listShareableWithGroup(orgId, groupId),
+    enabled: !!orgId && !!groupId,
+  });
+  const share = useMutation({
+    mutationFn: (request: GroupShareRequest) => shareWithGroup(orgId, groupId, request),
+    onSuccess: async (_done, request) => {
+      await queryClient.invalidateQueries({
+        queryKey: qk.organizations.groupResources(orgId, groupId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: qk.organizations.groupShareable(orgId, groupId),
+      });
+      toast.success(t("sharedWithGroup", { count: request.items.length }));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+  return { shareable: data?.items ?? [], isLoading, error, share };
 }
 
 /** What one group has been given - agents, knowledge, skills, context and apps (#2072). */

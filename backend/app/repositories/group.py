@@ -170,6 +170,13 @@ async def set_member_source(
     return member
 
 
+async def set_member_lead(db: AsyncSession, member: GroupMember, *, is_lead: bool) -> GroupMember:
+    member.is_lead = is_lead
+    await db.flush()
+    await db.refresh(member)
+    return member
+
+
 async def remove_member(db: AsyncSession, member: GroupMember) -> None:
     await db.delete(member)
     await db.flush()
