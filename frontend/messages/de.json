@@ -704,11 +704,21 @@
     "testPanelEnvironmentHint": "Antwortet mit {name}, Version {version}, als Test-Run.",
     "testPanelNew": "Neues Gespräch",
     "testPanelPin": "Test-Prompt anheften",
-    "testPanelPinPlaceholder": "Prompt zum erneuten Ausführen anheften…",
+    "testPanelPinPlaceholder": "Fragen oder einen Prompt zum Wiederholen anheften…",
     "testPanelReplay": "Letzte Nachricht erneut senden",
     "testPanelResize": "Breite des Testbereichs ändern",
     "testPanelUnpin": "{text} lösen",
-    "testPanelWhatAnswers": "Was antwortet"
+    "testPanelWhatAnswers": "Was antwortet",
+    "testPanelCompare": "Zwei nebeneinander vergleichen",
+    "testPanelComparedWith": "Verglichen mit",
+    "testPanelCompareHint": "Zwei Chats antworten nebeneinander. Fragen Sie beide über das Feld unten, damit sie dieselben Worte bekommen.",
+    "testPanelChanges": "Was der Entwurf ändert",
+    "testPanelChangesTitle": "Was der Entwurf ändert",
+    "testPanelChangesWhy": "Der getestete Entwurf gegenüber Version {version}, der veröffentlichten.",
+    "testPanelPrompt": "Prompt",
+    "testPanelAsk": "Fragen",
+    "testPanelAskBoth": "Beide fragen",
+    "testPanelAskBothPlaceholder": "Beide dasselbe fragen..."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -3643,7 +3653,8 @@
       "knowledge": "Wissen",
       "skills": "Skills",
       "thisPlatformMcp": "AgenticOS (diese Plattform)",
-      "testPanelOpen": "Testen"
+      "testPanelOpen": "Testen",
+      "testPanelShortcut": "Neben dem Builder testen (T)"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",

@@ -3,9 +3,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TestPanel } from "./test-panel";
+import { useTestShortcut } from "./use-test-shortcut";
 import { ASK, NEW, REPLAY } from "@/lib/assistant-messages";
 import { readTestPanel, TEST_PANEL_OPEN, writeTestPanel } from "@/lib/test-panel-state";
-import type { AgentEnvironment } from "@/types/agents";
+import type { AgentEnvironment, AgentSpec } from "@/types/agents";
+
+const useAgentVersion = vi.fn();
+vi.mock("@/hooks", () => ({ useAgentVersion: (...args: unknown[]) => useAgentVersion(...args) }));
 
 const PRODUCTION = {
   id: "env-prod",
@@ -16,12 +20,16 @@ const PRODUCTION = {
   is_default: true,
 } as AgentEnvironment;
 
+const STAGING = { ...PRODUCTION, id: "env-stg", name: "staging", version: 4, is_default: false };
+const DRAFT = { name: "Support", instructions: "Be brief." } as AgentSpec;
+
 function open(props: Partial<Parameters<typeof TestPanel>[0]> = {}) {
   const onClose = vi.fn();
   render(
     <TestPanel
       agentId="a1"
-      published
+      currentVersionId="v3"
+      draftSpec={DRAFT}
       environments={[PRODUCTION]}
       saving={false}
       onClose={onClose}
@@ -64,9 +72,17 @@ describe("the Builder's test panel", () => {
   });
 
   it("falls back to the draft when the agent has nothing published, or the environment is gone", () => {
-    writeTestPanel("a1", { open: true, width: 440, mode: "env-prod", pinned: [] });
-    const { frame } = open({ published: false });
+    writeTestPanel("a1", {
+      open: true,
+      width: 440,
+      mode: "env-prod",
+      compare: "draft",
+      pinned: [],
+    });
+    const { frame } = open({ currentVersionId: null });
     expect(frame.getAttribute("src")).toContain("mode=draft");
+    expect(screen.queryByTitle("Compared with")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Compare two side by side" })).toBeNull();
   });
 
   it("starts over, replays and runs a pinned prompt in the frame", async () => {
@@ -74,7 +90,7 @@ describe("the Builder's test panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
     await userEvent.click(screen.getByRole("button", { name: "Send the last message again" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Pin a test prompt" }), "Refunds?");
+    await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Refunds?");
     await userEvent.click(screen.getByRole("button", { name: "Pin a test prompt" }));
     await userEvent.click(screen.getByRole("button", { name: "Refunds?" }));
 
@@ -88,10 +104,13 @@ describe("the Builder's test panel", () => {
 
   it("pins a prompt once, and unpins it", async () => {
     open();
-    const input = screen.getByRole("textbox", { name: "Pin a test prompt" });
+    const input = screen.getByRole("textbox", { name: "Prompt" });
+    const pin = screen.getByRole("button", { name: "Pin a test prompt" });
 
-    await userEvent.type(input, "Refunds?{Enter}");
-    await userEvent.type(input, "Refunds?{Enter}");
+    await userEvent.type(input, "Refunds?");
+    await userEvent.click(pin);
+    await userEvent.type(input, "Refunds?");
+    await userEvent.click(pin);
     expect(screen.getAllByRole("button", { name: "Refunds?" })).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Unpin Refunds?" }));
@@ -114,6 +133,98 @@ describe("the Builder's test panel", () => {
     expect(readTestPanel("a1").width).toBe(320);
   });
 
+  it("asks what is typed without pinning it", async () => {
+    const { post } = open();
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Hours?{Enter}");
+
+    expect(post).toHaveBeenCalledWith({ type: ASK, text: "Hours?" }, window.location.origin);
+    expect(readTestPanel("a1").pinned).toEqual([]);
+  });
+
+  it("compares two side by side, asks both at once, and stops comparing", async () => {
+    const { post } = open({ environments: [PRODUCTION, STAGING] });
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
+    const beside = screen.getByTitle("Compared with") as HTMLIFrameElement;
+    const besidePost = vi.fn();
+    Object.defineProperty(beside, "contentWindow", { value: { postMessage: besidePost } });
+
+    expect(beside.getAttribute("src")).toContain("mode=env-prod");
+    expect(readTestPanel("a1")).toMatchObject({ compare: "env-prod", width: 880 });
+    expect(screen.getByRole("status")).toHaveTextContent("Ask both");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Compared with" }));
+    await userEvent.click(await screen.findByRole("option", { name: "staging (version 4)" }));
+    const restaged = screen.getByTitle("Compared with") as HTMLIFrameElement;
+    const restagedPost = vi.fn();
+    Object.defineProperty(restaged, "contentWindow", { value: { postMessage: restagedPost } });
+    expect(restaged.getAttribute("src")).toContain("mode=env-stg");
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Refunds?");
+    await userEvent.click(screen.getByRole("button", { name: "Ask both" }));
+    expect(post).toHaveBeenCalledWith({ type: ASK, text: "Refunds?" }, window.location.origin);
+    expect(restagedPost).toHaveBeenCalledWith(
+      { type: ASK, text: "Refunds?" },
+      window.location.origin,
+    );
+
+    const edge = screen.getByRole("separator", { name: "Resize the test panel" });
+    fireEvent.pointerDown(edge, { clientX: 1000 });
+    fireEvent.pointerMove(window, { clientX: 0 });
+    fireEvent.pointerUp(window);
+    expect(readTestPanel("a1").width).toBe(1400);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
+    expect(screen.queryByTitle("Compared with")).toBeNull();
+    expect(readTestPanel("a1")).toMatchObject({ compare: null, width: 820 });
+  });
+
+  it("compares the draft with an environment when an environment answers", async () => {
+    writeTestPanel("a1", { open: true, width: 440, mode: "env-prod", compare: null, pinned: [] });
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
+
+    expect((screen.getByTitle("Compared with") as HTMLIFrameElement).getAttribute("src")).toContain(
+      "mode=draft",
+    );
+  });
+
+  it("shows what the draft changes against the published version", async () => {
+    useAgentVersion.mockReturnValue({
+      version: { version: 3, spec: { name: "Support", instructions: "Be thorough." } },
+      isLoading: false,
+      error: null,
+    });
+    open();
+
+    await userEvent.click(screen.getByRole("button", { name: "What the draft changes" }));
+
+    expect(useAgentVersion).toHaveBeenCalledWith("a1", "v3");
+    expect(await screen.findByText(/against version 3/)).toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText(/against version 3/)).toBeNull();
+  });
+
+  it("says when the published version cannot be read, and waits for it", async () => {
+    useAgentVersion.mockReturnValue({
+      version: undefined,
+      isLoading: false,
+      error: new Error("x"),
+    });
+    open();
+    await userEvent.click(screen.getByRole("button", { name: "What the draft changes" }));
+    expect(screen.queryByText("+1")).toBeNull();
+    cleanup();
+
+    useAgentVersion.mockReturnValue({ version: undefined, isLoading: true, error: null });
+    open();
+    await userEvent.click(screen.getByRole("button", { name: "What the draft changes" }));
+    expect(screen.queryByText("+1")).toBeNull();
+  });
+
   it("closes", async () => {
     const { onClose } = open();
 
@@ -129,5 +240,43 @@ describe("the Builder's test panel", () => {
     cleanup();
 
     expect(document.documentElement.hasAttribute(TEST_PANEL_OPEN)).toBe(false);
+  });
+});
+
+function ShortcutHost({ enabled, toggle }: { enabled: boolean; toggle: () => void }) {
+  useTestShortcut(enabled, toggle);
+  return (
+    <div>
+      <input aria-label="instructions" />
+    </div>
+  );
+}
+
+describe("the T shortcut", () => {
+  it("toggles the panel, but not while typing, with a modifier, or under a dialog", () => {
+    const toggle = vi.fn();
+    render(<ShortcutHost enabled toggle={toggle} />);
+
+    fireEvent.keyDown(window, { key: "t" });
+    fireEvent.keyDown(window, { key: "T" });
+    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.keyDown(window, { key: "t", metaKey: true });
+    fireEvent.keyDown(screen.getByLabelText("instructions"), { key: "t" });
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.append(dialog);
+    fireEvent.keyDown(window, { key: "t" });
+    dialog.remove();
+
+    expect(toggle).toHaveBeenCalledTimes(2);
+  });
+
+  it("is not there for someone who cannot edit the agent", () => {
+    const toggle = vi.fn();
+    render(<ShortcutHost enabled={false} toggle={toggle} />);
+
+    fireEvent.keyDown(window, { key: "t" });
+
+    expect(toggle).not.toHaveBeenCalled();
   });
 });

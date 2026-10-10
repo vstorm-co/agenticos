@@ -286,8 +286,11 @@ Two things are versioned separately from this file and worth knowing about:
   call continues on the draft it started with. Every turn is a test run,
   budgeted like any other and marked and filterable in Activity
   (`?test=` on the runs list and export). The panel starts over, replays the
-  last message and reruns pinned prompts. Chat frames take `draft` and `test`;
-  migration `0113_test_runs` (#2074).
+  last message and reruns pinned prompts. It compares two side by side - the
+  draft against production, or two environments - asked the same thing at once,
+  shows what the draft changes against the published version, and opens and
+  closes with <kbd>T</kbd>. Chat frames take `draft` and `test`; migration
+  `0113_test_runs` (#2074).
 
 ### Fixed
 

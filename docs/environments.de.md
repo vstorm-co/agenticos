@@ -1,5 +1,5 @@
 ---
-source_sha: "abf313fc6e2b"
+source_sha: "012b6efb6435"
 ---
 
 # Umgebungen { #environments }
@@ -110,6 +110,13 @@ andere, in der Aktivität als `Test` markiert und dort filterbar (**Mit Test-Run
 sich mit einem Klick erneut ausführen lassen. Seine Breite, was antwortet, und die
 angehefteten Prompts werden pro Agent im Browser gespeichert. Der Chat-Frame sendet
 in jeder Runde `draft: true` oder `test: true` mit einer `environment_id`.
+
+**Vergleichen** stellt zwei Chats nebeneinander - den Entwurf und die Produktion
+oder zwei Umgebungen -, und das Feld darüber fragt beide gleichzeitig dasselbe,
+sodass sich die Antworten nur darin unterscheiden, was antwortet. **Was der
+Entwurf ändert** zeigt den Entwurf gegenüber der veröffentlichten Version, als
+denselben Diff, den die Versionshistorie zeichnet. Ein Druck auf <kbd>T</kbd>
+irgendwo im Builder, außerhalb eines Textfelds, öffnet oder schließt den Bereich.
 
 ## Tracing pro Umgebung { #tracing-per-environment }
 

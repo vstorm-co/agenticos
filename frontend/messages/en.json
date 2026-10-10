@@ -706,11 +706,21 @@
     "testPanelEnvironmentHint": "Answers with {name}, version {version}, as a test run.",
     "testPanelNew": "New conversation",
     "testPanelPin": "Pin a test prompt",
-    "testPanelPinPlaceholder": "Pin a prompt to rerun…",
+    "testPanelPinPlaceholder": "Ask, or pin a prompt to rerun…",
     "testPanelReplay": "Send the last message again",
     "testPanelResize": "Resize the test panel",
     "testPanelUnpin": "Unpin {text}",
-    "testPanelWhatAnswers": "What answers"
+    "testPanelWhatAnswers": "What answers",
+    "testPanelCompare": "Compare two side by side",
+    "testPanelComparedWith": "Compared with",
+    "testPanelCompareHint": "Two chats answer side by side. Ask both from the box below so they get the same words.",
+    "testPanelChanges": "What the draft changes",
+    "testPanelChangesTitle": "What the draft changes",
+    "testPanelChangesWhy": "The draft under test against version {version}, the one published.",
+    "testPanelPrompt": "Prompt",
+    "testPanelAsk": "Ask",
+    "testPanelAskBoth": "Ask both",
+    "testPanelAskBothPlaceholder": "Ask both the same thing..."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3779,7 +3789,8 @@
       "tagsHint": "Anything narrower you want to search by later.",
       "labelCount": "{used} of {max}",
       "thisPlatformMcp": "AgenticOS (this platform)",
-      "testPanelOpen": "Test"
+      "testPanelOpen": "Test",
+      "testPanelShortcut": "Test beside the Builder (T)"
     },
     "auth": {
       "backSign": "Back to sign in",

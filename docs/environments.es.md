@@ -1,5 +1,5 @@
 ---
-source_sha: "abf313fc6e2b"
+source_sha: "012b6efb6435"
 ---
 
 # Entornos { #environments }
@@ -103,6 +103,13 @@ panel empieza una conversación nueva, vuelve a enviar el último mensaje tras u
 cambio y guarda unos prompts fijados para relanzarlos con un clic. Su anchura, qué
 responde y los prompts fijados se recuerdan por agent en tu navegador. El marco del
 chat envía `draft: true`, o `test: true` con un `environment_id`, en cada turno.
+
+**Compare** pone dos chats lado a lado - el borrador y producción, o dos entornos -
+y el cuadro de encima pregunta lo mismo a ambos a la vez, así que las respuestas
+solo difieren en qué responde. **What the draft changes** muestra el borrador
+frente a la versión publicada, con el mismo diff que dibuja el historial de
+versiones. Pulsar <kbd>T</kbd> en cualquier parte del Builder, fuera de un campo de
+texto, abre o cierra el panel.
 
 ## Trazas por entorno { #tracing-per-environment }
 

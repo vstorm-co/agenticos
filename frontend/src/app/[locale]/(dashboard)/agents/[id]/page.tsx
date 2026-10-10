@@ -62,6 +62,7 @@ import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { KnowledgeReach } from "@/components/agents/knowledge-reach";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
+import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
@@ -285,6 +286,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -842,6 +844,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   variant={testing ? "secondary" : "outline"}
                   onClick={() => toggleTesting(!testing)}
                   aria-pressed={testing}
+                  title={t("testPanelShortcut")}
+                  aria-keyshortcuts="T"
                   data-tour="agent-test"
                 >
                   <FlaskConical className="h-4 w-4" />
@@ -1537,8 +1541,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
       {testing && (
         <TestPanel
           agentId={id}
-          published={isPublished}
+          currentVersionId={agent.current_version_id}
           environments={environments}
+          draftSpec={spec}
           saving={isDirty || saveDraft.isPending}
           onClose={() => toggleTesting(false)}
         />

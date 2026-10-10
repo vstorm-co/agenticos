@@ -1,5 +1,5 @@
 ---
-source_sha: "abf313fc6e2b"
+source_sha: "012b6efb6435"
 ---
 
 # Środowiska { #environments }
@@ -103,6 +103,12 @@ po zmianie i trzyma kilka przypiętych promptów do uruchomienia jednym kliknię
 Jego szerokość, to, co odpowiada, i przypięte prompty są zapamiętywane per agent w
 przeglądarce. Ramka czatu wysyła w każdej turze `draft: true` albo `test: true` z
 `environment_id`.
+
+**Porównaj** stawia dwa czaty obok siebie - szkic i produkcję albo dwa środowiska -
+a pole nad nimi pyta oba o to samo jednocześnie, więc odpowiedzi różnią się tylko
+tym, co odpowiada. **Co zmienia szkic** pokazuje szkic na tle opublikowanej wersji,
+jako ten sam diff, który rysuje historia wersji. Naciśnięcie <kbd>T</kbd> w
+dowolnym miejscu Buildera, poza polem tekstowym, otwiera albo zamyka panel.
 
 ## Ślady per środowisko { #tracing-per-environment }
 

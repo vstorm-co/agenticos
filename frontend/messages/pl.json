@@ -583,7 +583,8 @@
       "decidedByStandingConsent": "pominięte z góry dla konwersacji"
     },
     "agents": {
-      "thisPlatformMcp": "AgenticOS (ta platforma)"
+      "thisPlatformMcp": "AgenticOS (ta platforma)",
+      "testPanelShortcut": "Testuj obok Buildera (T)"
     }
   },
   "rag": {
@@ -3114,11 +3115,21 @@
     "testPanelEnvironmentHint": "Odpowiada {name}, wersja {version}, jako run testowy.",
     "testPanelNew": "Nowa rozmowa",
     "testPanelPin": "Przypnij prompt testowy",
-    "testPanelPinPlaceholder": "Przypnij prompt do ponownego uruchomienia…",
+    "testPanelPinPlaceholder": "Zapytaj albo przypnij prompt do ponownego użycia…",
     "testPanelReplay": "Wyślij ostatnią wiadomość ponownie",
     "testPanelResize": "Zmień szerokość panelu testowego",
     "testPanelUnpin": "Odepnij {text}",
-    "testPanelWhatAnswers": "Co odpowiada"
+    "testPanelWhatAnswers": "Co odpowiada",
+    "testPanelCompare": "Porównaj dwa obok siebie",
+    "testPanelComparedWith": "Porównywany z",
+    "testPanelCompareHint": "Dwa czaty odpowiadają obok siebie. Pytaj oba z pola poniżej, żeby dostały te same słowa.",
+    "testPanelChanges": "Co zmienia szkic",
+    "testPanelChangesTitle": "Co zmienia szkic",
+    "testPanelChangesWhy": "Testowany szkic na tle wersji {version}, tej opublikowanej.",
+    "testPanelPrompt": "Prompt",
+    "testPanelAsk": "Zapytaj",
+    "testPanelAskBoth": "Zapytaj oba",
+    "testPanelAskBothPlaceholder": "Zapytaj oba o to samo..."
   },
   "steps": {
     "skills-gallery": {

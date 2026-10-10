@@ -95,6 +95,13 @@ keeps a few pinned prompts to rerun in one click. Its width, what answers and th
 pins are remembered per agent in your browser. The chat frame sends `draft: true`,
 or `test: true` with an `environment_id`, on each turn.
 
+**Compare** puts two chats side by side - the draft and production, or two
+environments - and the box above them asks both the same thing at once, so the
+answers differ only by what answers. **What the draft changes** shows the draft
+against the published version, as the same diff the version history draws.
+Pressing <kbd>T</kbd> anywhere on the Builder, outside a text field, opens or closes
+the panel.
+
 ## Tracing per environment
 
 An environment can carry its own Logfire write token, sealed in

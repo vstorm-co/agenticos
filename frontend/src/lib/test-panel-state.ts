@@ -1,6 +1,6 @@
 /**
  * What the Builder's test panel remembers per agent (#2074): whether it is open,
- * its width, what answers and the pinned prompts.
+ * its width, what answers, what it is compared with and the pinned prompts.
  *
  * A per-viewer convenience, so browser storage - and read defensively: a private
  * window or blocked site data throws, and the panel then starts from defaults.
@@ -14,10 +14,18 @@ export interface TestPanelState {
   width: number;
   /** `draft`, or the id of the environment whose version answers. */
   mode: string;
+  /** What answers beside it, in the same terms, or `null` when not comparing. */
+  compare: string | null;
   pinned: string[];
 }
 
-const DEFAULTS: TestPanelState = { open: false, width: 440, mode: "draft", pinned: [] };
+const DEFAULTS: TestPanelState = {
+  open: false,
+  width: 440,
+  mode: "draft",
+  compare: null,
+  pinned: [],
+};
 
 const key = (agentId: string) => `agenticos:test-panel:${agentId}`;
 
@@ -30,6 +38,7 @@ export function readTestPanel(agentId: string): TestPanelState {
       open: stored.open === true,
       width: typeof stored.width === "number" ? stored.width : DEFAULTS.width,
       mode: typeof stored.mode === "string" ? stored.mode : DEFAULTS.mode,
+      compare: typeof stored.compare === "string" ? stored.compare : null,
       pinned: Array.isArray(stored.pinned)
         ? stored.pinned.filter((entry): entry is string => typeof entry === "string")
         : [],
