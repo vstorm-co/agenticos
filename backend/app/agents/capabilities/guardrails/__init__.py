@@ -6,10 +6,18 @@ from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.guardrails._capability import (
     GuardrailBlocked,
     GuardrailsConfig,
+    ScreenedStream,
     build_guardrails,
+    output_screen,
 )
 
-__all__ = ["GuardrailBlocked", "GuardrailsConfig", "build_guardrails"]
+__all__ = [
+    "GuardrailBlocked",
+    "GuardrailsConfig",
+    "ScreenedStream",
+    "build_guardrails",
+    "output_screen",
+]
 
 
 @register(

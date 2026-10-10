@@ -1,5 +1,5 @@
 ---
-source_sha: "227fb10cbddf"
+source_sha: "a75cb9b79f49"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1798,7 +1798,7 @@ que llamara él mismo a un modelo o a un embedding — deliberadamente no se exp
 
 ## Reglas de protección { #guardrails }
 
-Sin herramientas. Inspecciona el texto que circula por un run en tres bordes y o bien
+Sin herramientas. Inspecciona el texto que circula por un run en cuatro bordes y o bien
 **censura** una coincidencia o bien **bloquea** el run. Las comprobaciones son
 detectores ya hechos de `pydantic-ai-harness`, más un detector de números de
 teléfono que el harness no incluye; un agent son datos, así que la configuración
@@ -1809,6 +1809,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 | entrada | el prompt del usuario | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | salida | la respuesta del agent | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | resultado de herramienta | lo que devolvió una herramienta, antes de que lo lea el modelo | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Configuración | Valor por defecto | |
 |---|---|---|
@@ -1865,14 +1866,26 @@ bloqueado. El razonamiento no es la respuesta, así que una palabra clave bloque
 en él no termina el run: ese paso de razonamiento muestra
 `[reasoning withheld by the output guardrail]` en su lugar.
 
-**Lo que el filtro del stream aún no cubre.** Dos rutas transmitidas no se filtran:
-los argumentos de una llamada a herramienta mientras se transmiten y la respuesta
-transmitida de un delegado en el panel de delegación ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). El filtro del
-stream hereda los límites de tamaño del detector de teléfonos, así que una parte de
-la respuesta demasiado larga para él termina el run igual que lo haría la respuesta
-final. Como el filtro se engancha al flujo de eventos del run, las peticiones al
-modelo de un agent con guardrail se transmiten en streaming incluso a través de la
-API HTTP, así que su modelo debe admitir streaming.
+**Los argumentos de herramienta son un borde propio.** Cada texto que el agent pasa
+a una herramienta se revisa cuando llega la respuesta del modelo, antes de que la
+herramienta se ejecute. El valor redactado es lo que recibe la herramienta, lo que
+guarda la transcripción y lo que muestra el stream, y una palabra bloqueada termina
+el run antes de llamar a ninguna herramienta. Va aparte de la revisión de salida
+porque redactar un argumento cambia lo que hace la herramienta: un correo sale con
+un marcador donde estaba la clave. Mientras está activo, los argumentos de una
+llamada se retienen hasta que la llamada está completa, como la respuesta.
+
+**Un delegado transmite bajo la revisión de salida del run que delega.** El texto y
+el razonamiento que un delegado escribe en el panel de delegación pasan la misma
+revisión que la respuesta del run, en cada nivel de delegación. Una palabra
+bloqueada termina esa delegación antes de mostrar nada de ella, y el agent que
+delegó recibe que ha fallado.
+
+El filtro del stream hereda los límites de tamaño del detector de teléfonos, así que
+una parte de la respuesta demasiado larga para él termina el run igual que lo haría
+la respuesta final. Como el filtro se engancha al flujo de eventos del run, las
+peticiones al modelo de un agent con guardrail se transmiten en streaming incluso a
+través de la API HTTP, así que su modelo debe admitir streaming.
 
 **El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
 censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo

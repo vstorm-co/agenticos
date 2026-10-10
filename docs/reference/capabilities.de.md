@@ -1,5 +1,5 @@
 ---
-source_sha: "227fb10cbddf"
+source_sha: "a75cb9b79f49"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1893,7 +1893,7 @@ selbst ein Modell oder ein Embedding aufruft —, ist bewusst nicht freigegeben.
 
 ## Schutzregeln { #guardrails }
 
-Keine Tools. Prüft den Text, der durch einen Run fließt, an drei Kanten und
+Keine Tools. Prüft den Text, der durch einen Run fließt, an vier Kanten und
 **schwärzt** entweder einen Treffer oder **blockiert** den Run. Die Prüfungen sind
 fertige Detektoren aus `pydantic-ai-harness` und ein Detektor für Telefonnummern,
 den der Harness nicht mitbringt; ein Agent ist Daten, deshalb wählt und
@@ -1904,6 +1904,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Konfiguration | Standard | |
 |---|---|---|
@@ -1963,10 +1964,22 @@ gespeichert wird. Reasoning ist nicht die Antwort, daher beendet ein blockiertes
 Schlagwort dort den Run nicht: Dieser Reasoning-Schritt zeigt stattdessen
 `[reasoning withheld by the output guardrail]`.
 
-**Was der Stream-Filter noch nicht abdeckt.** Zwei gestreamte Pfade werden nicht
-geprüft: die Argumente eines Tool-Aufrufs, während sie gestreamt werden, und die
-eigene gestreamte Antwort eines Delegaten im Delegationspanel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Der
-Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
+**Tool-Argumente sind eine eigene Kante.** Jeder Text, den der Agent einem Tool
+übergibt, wird geprüft, sobald die Antwort des Modells eintrifft, bevor das Tool
+läuft. Den geschwärzten Wert erhält das Tool, speichert das Transkript und zeigt der
+Stream, und ein gesperrtes Stichwort beendet den Run, bevor ein Tool aufgerufen
+wird. Getrennt von der Ausgabeprüfung, weil das Schwärzen eines Arguments ändert,
+was das Tool tut: Eine E-Mail geht mit einem Platzhalter statt des Schlüssels
+hinaus. Solange sie aktiv ist, werden die Argumente eines Aufrufs zurückgehalten,
+bis der Aufruf vollständig ist, wie die Antwort.
+
+**Ein Delegat streamt unter der Ausgabeprüfung des delegierenden Runs.** Text und
+Reasoning, die ein Delegat im Delegationspanel schreibt, durchlaufen dieselbe
+Prüfung wie die Antwort des Runs, auf jeder Delegationsebene. Ein gesperrtes
+Stichwort beendet diese Delegation, bevor etwas davon gezeigt wird, und der
+delegierende Agent erfährt, dass sie fehlgeschlagen ist.
+
+Der Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
 Antwortteil, der dafür zu lang ist, den Run so beendet, wie es die endgültige Antwort
 täte. Weil sich der Filter in den Event-Stream des Runs einhängt, streamen die
 Modellanfragen eines Agents mit Guardrail auch über die HTTP-API, sein Modell muss

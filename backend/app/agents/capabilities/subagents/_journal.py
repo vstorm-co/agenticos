@@ -1019,6 +1019,11 @@ class DelegationJournal:
         therefore not a side effect of streaming: the recording path needs it too,
         and a delegation whose events nobody wants still has to be recorded.
 
+        What the delegate writes passes the delegating run's output check first,
+        when it has one. A text part with a blocked term ends the delegation
+        before any of it is shown, and the delegating agent hears that it
+        failed; its own answer is screened by the same check if it quotes one.
+
         Returns `None` - no streaming - when there is no sink on this run's deps,
         and when the delegation was started by something this capability does not
         intercept. Unlabelled frames are worse than none: a surface cannot tell
@@ -1038,10 +1043,17 @@ class DelegationJournal:
         public = delegation.stable_id or task_id
         labels = FrameLabels(task_id=public, subagent=delegation.name, depth=delegation.depth)
 
+        screen = self.runtime.output_screen
+
         async def stream(
-            _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
+            delegate_ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]
         ) -> None:
             await delegation.ensure_started(public, sink, self._definition_for(delegation))
+            if screen is not None:
+                # The delegating run's output check, fresh for this delegation so
+                # its released tail is the delegate's own (agenticos#2000).
+                fresh = await screen.for_run(delegate_ctx)
+                events = fresh.wrap_run_event_stream(delegate_ctx, stream=events)
             async for event in events:
                 frame = frame_for(event, labels)
                 if frame is not None:

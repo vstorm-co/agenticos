@@ -40,6 +40,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import (
     AgentSpec,
+    CapabilityBindingSpec,
     ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
@@ -841,6 +842,34 @@ class TestHowDeepDelegationGoes:
         # And one stash, because a delegation two levels down parks the run
         # somebody started and is continued from that run's stored state.
         assert nested.stash is prepared.runtime.stash
+
+    @pytest.mark.security
+    async def test_every_level_streams_under_the_delegating_runs_output_check(self):
+        """A delegate's text reaches the reader of the run, however deep it is,
+        so the run's own output check screens it (agenticos#2000)."""
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0, CapabilityBindingSpec(id="guardrails", config={"redact_secrets_out": True})
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.output_screen is not None
+        assert nested.output_screen is prepared.runtime.output_screen
+
+    async def test_without_an_output_check_nothing_screens_the_delegates(self):
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0,
+            CapabilityBindingSpec(
+                id="guardrails", enabled=False, config={"redact_secrets_out": True}
+            ),
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+
+        assert prepared.runtime.output_screen is None
 
     async def test_the_default_stops_a_delegate_from_delegating_at_all(self):
         """One level, which is what `max_depth=1` says and what an author reads.

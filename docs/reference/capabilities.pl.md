@@ -1,5 +1,5 @@
 ---
-source_sha: "227fb10cbddf"
+source_sha: "a75cb9b79f49"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1758,7 +1758,7 @@ embeddingi — celowo nie jest wystawiony.
 
 ## Zabezpieczenia { #guardrails }
 
-Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
+Bez narzędzi. Bada tekst płynący przez run na czterech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
 `pydantic-ai-harness` oraz detektor numerów telefonu, którego harness nie dostarcza;
 agent jest danymi, więc konfiguracja wybiera je i parametryzuje, zamiast nieść
@@ -1769,6 +1769,7 @@ pythonowego strażnika.
 | wejście | prompt użytkownika | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | wyjście | odpowiedź agenta | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | wynik narzędzia | to, co zwróciło narzędzie, zanim przeczyta to model | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumenty narzędzia | to, co agent przekazuje narzędziu, zanim narzędzie zadziała | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Konfiguracja | Domyślnie | |
 |---|---|---|
@@ -1826,13 +1827,26 @@ pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane sło
 kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
 `[reasoning withheld by the output guardrail]`.
 
-**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
-sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
-streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
-dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
-długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
-podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
-streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+**Argumenty narzędzi to osobna krawędź.** Każdy tekst, który agent przekazuje
+narzędziu, jest sprawdzany, gdy przychodzi odpowiedź modelu, zanim narzędzie
+zadziała. Zredagowaną wartość dostaje narzędzie, zapisuje transkrypt i pokazuje
+stream, a zablokowane słowo kończy run, zanim jakiekolwiek narzędzie zostanie
+wywołane. To osobna krawędź, a nie część kontroli wyjścia, bo redakcja argumentu
+zmienia to, co robi narzędzie: e-mail wychodzi z zamiennikiem w miejscu klucza.
+Gdy jest włączona, argumenty wywołania są wstrzymywane, aż wywołanie będzie
+kompletne, tak jak odpowiedź.
+
+**Delegat streamuje pod kontrolą wyjścia runu, który go wywołał.** Tekst i
+rozumowanie, które delegat pisze w panelu delegacji, przechodzą tę samą kontrolę co
+odpowiedź runu, na każdym poziomie delegacji. Zablokowane słowo kończy tę delegację,
+zanim cokolwiek z niej zostanie pokazane, a agent, który delegował, dowiaduje się,
+że się nie powiodła.
+
+Ekran streamu dziedziczy limity rozmiaru detektora numerów telefonów, więc część
+odpowiedzi za długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa.
+Ponieważ ekran podpina się pod strumień zdarzeń runu, żądania do modelu agenta z
+guardrailem są streamowane nawet przez HTTP API, więc jego model musi obsługiwać
+streaming.
 
 **Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
 dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją

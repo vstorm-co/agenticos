@@ -14,6 +14,7 @@ harness guardrail only reads the finished one (agenticos#1900).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai import Agent
@@ -30,6 +31,7 @@ from pydantic_ai.messages import (
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
+    ToolCallPartDelta,
     UserPromptPart,
 )
 from pydantic_ai.models.function import (
@@ -56,6 +58,7 @@ from app.agents.capabilities.guardrails import (
 from app.agents.capabilities.guardrails._capability import (
     WITHHELD_REASONING,
     ScreenedStream,
+    ScreenedToolArgs,
     _edge_detector,
     _keywords,
 )
@@ -743,3 +746,126 @@ async def test_a_waited_for_answer_is_still_redacted():
     result = await agent.run("go")
 
     assert result.output == "Here it is: [redacted:anthropic_key]. Keep it safe."
+
+
+# Tool arguments (agenticos#2000): an edge of its own, off unless configured.
+
+
+def test_the_tool_arguments_edge_is_off_unless_configured():
+    built = build_guardrails(GuardrailsConfig(redact_secrets_out=True))
+    assert built is not None
+    assert not any(isinstance(edge, ScreenedToolArgs) for edge in built.capabilities)
+
+    built = build_guardrails(GuardrailsConfig(redact_secrets_args=True))
+    assert built is not None
+    assert [type(edge) for edge in built.capabilities] == [ScreenedToolArgs]
+
+
+def _emails(sent: list[str]) -> Agent:
+    """An agent whose `send_email` tool records the body it was handed."""
+    agent = _agent(
+        GuardrailsConfig(redact_secrets_args=True, blocked_keywords_args="salary"),
+        _streams(
+            [
+                {
+                    0: DeltaToolCall(
+                        name="send_email",
+                        json_args='{"to": "ada@example.com", "body": "Use ',
+                        tool_call_id="c1",
+                    )
+                },
+                {0: DeltaToolCall(json_args="sk-ant-api03-ABCDEF")},
+                {0: DeltaToolCall(json_args='GHIJKLMNOPQR", "copies": 2}')},
+            ],
+            ["sent"],
+        ),
+    )
+
+    async def send_email(to: str, body: str, copies: int) -> str:
+        sent.append(body)
+        return "ok"
+
+    agent.tool_plain(send_email)
+    return agent
+
+
+@pytest.mark.security
+async def test_a_secret_in_a_tools_arguments_reaches_neither_the_tool_the_stream_nor_the_history():
+    """The reported leak: the arguments streamed raw as they were written, and the
+    tool and the stored call held them unredacted."""
+    sent: list[str] = []
+    agent = _emails(sent)
+    events: list[AgentStreamEvent] = []
+
+    async with agent.iter("go") as run:
+        async for node in run:
+            if Agent.is_model_request_node(node) or Agent.is_call_tools_node(node):
+                async with node.stream(run.ctx) as stream:
+                    async for event in stream:
+                        events.append(event)
+    assert run.result is not None
+
+    assert sent == ["Use [redacted:anthropic_key]"]
+    streamed = [
+        event
+        for event in events
+        if isinstance(event, PartStartEvent | PartEndEvent) and isinstance(event.part, ToolCallPart)
+    ]
+    assert streamed
+    assert all(SECRET not in str(event.part.args) for event in streamed)
+    assert not any(
+        isinstance(event, PartDeltaEvent) and isinstance(event.delta, ToolCallPartDelta)
+        for event in events
+    )
+    assert SECRET not in str(run.result.all_messages())
+
+
+@pytest.mark.security
+async def test_a_blocked_keyword_in_a_tools_arguments_ends_the_run_before_the_tool_runs():
+    sent: list[str] = []
+    args = '{"to": "ada@example.com", "body": "Her salary is attached", "copies": 1}'
+    model = _streams([{0: DeltaToolCall(name="send_email", json_args=args, tool_call_id="c1")}])
+
+    agent = _agent(GuardrailsConfig(blocked_keywords_args="salary"), model)
+
+    async def send_email(to: str, body: str, copies: int) -> str:
+        sent.append(body)
+        return "ok"
+
+    agent.tool_plain(send_email)
+
+    with pytest.raises(GuardrailBlocked) as blocked:
+        await agent.run("go")
+
+    assert blocked.value.edge == "tool_args"
+    assert "salary" not in str(blocked.value)
+    assert sent == []
+
+
+async def test_nested_arguments_are_screened_and_a_clean_call_is_left_alone():
+    screen = ScreenedToolArgs(
+        screen=_edge_detector(
+            redact_secrets_on=True,
+            redact_pii_on=False,
+            phone_regions=(),
+            keywords=[],
+            edge="tool_args",
+        )
+    )
+    clean = ModelResponse(
+        parts=[ToolCallPart(tool_name="t", args={"n": 3, "ok": True}), TextPart("x")]
+    )
+    nested = ModelResponse(
+        parts=[ToolCallPart(tool_name="t", args={"items": [{"key": SECRET}, 4], "note": None})]
+    )
+
+    assert (
+        await screen.after_model_request(MagicMock(), request_context=MagicMock(), response=clean)
+        is clean
+    )
+    screened = await screen.after_model_request(
+        MagicMock(), request_context=MagicMock(), response=nested
+    )
+    call = screened.parts[0]
+    assert isinstance(call, ToolCallPart)
+    assert call.args == {"items": [{"key": "[redacted:anthropic_key]"}, 4], "note": None}

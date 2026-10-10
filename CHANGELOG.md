@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Guardrails screen what an agent passes a tool.** A fourth edge,
+  `redact_secrets_args`, `redact_pii_args` and `blocked_keywords_args`, off by
+  default, checks every string in a tool call's arguments before the tool runs:
+  the tool, the stored call and the stream all get the redacted value, and a
+  blocked keyword ends the run as `guardrail_blocked`. A delegate's streamed text
+  and reasoning now pass its delegating run's output check in the delegation
+  panel (#2000).
 - **Organization API keys.** A member issues a key under **Settings → API keys**
   and calls the public API with `Authorization: Bearer aos_…` from a script,
   Postman or an MCP client, with no browser session. A key carries its issuer's
@@ -317,6 +324,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Self-query skips its inference at a budget cap** and searches unfiltered, as
+  query expansion, compaction and system reminders already did, instead of ending
+  the run (#1808, #1811).
 - **Workspace listings no longer decode every stored image on the event loop.**
   Both backends draw at most one screen of thumbnails per request, the decode
   runs on the file pool, and a workspace listed by id returns no tiles at all

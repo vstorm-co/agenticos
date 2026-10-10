@@ -1681,7 +1681,7 @@ deliberately not exposed.
 
 ## Guardrails
 
-No tools. Inspects the text flowing through a run at three edges and either
+No tools. Inspects the text flowing through a run at four edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
 `pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
 agent is data, so the config selects and parameterises them rather than carrying a
@@ -1692,6 +1692,7 @@ Python guard.
 | input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| tool arguments | what the agent passes a tool, before the tool runs | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Config | Default | |
 |---|---|---|
@@ -1742,12 +1743,23 @@ answer ends the run before any of the blocked text is shown or stored. Reasoning
 not the answer, so a blocked keyword there does not end the run: that reasoning step
 shows `[reasoning withheld by the output guardrail]` instead.
 
-**What the stream screen does not cover yet.** Two streamed paths are not screened:
-a tool call's arguments as they stream, and a delegate's own streamed answer in the
-delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
-size limits, so an answer part too long for it ends the run as the final answer
-would. Because the screen hooks the run's event stream, a guarded agent's model
-requests stream even through the HTTP API, so its model must support streaming.
+**Tool arguments are an edge of their own.** Each string the agent passes a tool
+is checked as the model's response arrives, before the tool runs. A redacted value
+is what the tool receives, what the transcript stores and what the stream shows,
+and a blocked keyword ends the run before any tool is called. It is separate from
+the output check because redacting an argument changes what the tool does: an
+e-mail goes out with a placeholder where the key was. While it is on, a call's
+arguments are held back until the call is complete, as the answer is.
+
+**A delegate streams under its delegating run's output check.** The text and
+reasoning a delegate writes in the delegation panel pass the same check as the
+run's own answer, at every level of delegation. A blocked keyword ends that
+delegation before any of it is shown, and the delegating agent is told it failed.
+
+The stream screen inherits the phone detector's size limits, so an answer part too
+long for it ends the run as the final answer would. Because the screen hooks the
+run's event stream, a guarded agent's model requests stream even through the HTTP
+API, so its model must support streaming.
 
 **The input edge changes what the model reads, not the transcript.** A redacted
 prompt reaches the model scrubbed, but the conversation stores the message as the

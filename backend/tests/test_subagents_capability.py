@@ -39,7 +39,7 @@ import pytest
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.exceptions import ApprovalRequired, UsageLimitExceeded
+from pydantic_ai.exceptions import ApprovalRequired, ModelRetry, UsageLimitExceeded
 from pydantic_ai.messages import (
     AgentStreamEvent,
     FinalResultEvent,
@@ -75,6 +75,7 @@ from app.agents.capabilities.approval import (
     approval_required_tools,
 )
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
+from app.agents.capabilities.guardrails import GuardrailsConfig, output_screen
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
 from app.agents.capabilities.subagents._capability import (
@@ -89,7 +90,7 @@ from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
-from app.agents.subagent_events import SubagentEvent, SubagentFinished
+from app.agents.subagent_events import SubagentEvent, SubagentFinished, SubagentTextDelta
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegateWorkspace,
@@ -100,6 +101,8 @@ from app.agents.subagent_runtime import (
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
+
+_SECRET = "sk-ant-api03-ABCDEFGHIJKLMNOPQR"
 
 ENTRY = SpendEntry(
     model_name="test", input_tokens=7, output_tokens=3, cost_usd=Decimal("0.25"), priced=True
@@ -2303,6 +2306,33 @@ class TestNarration:
         assert (outer.subagent, outer.depth, outer.parent_task_id) == ("editor", 0, None)
         assert (nested.subagent, nested.depth) == ("researcher", 1)
         assert nested.parent_task_id == outer.task_id
+
+    @pytest.mark.security
+    async def test_the_delegating_runs_output_check_screens_what_the_delegate_streams(self):
+        """The delegation panel shows the delegate's text to the reader of the run,
+        so the run's output check holds it to the same rule (agenticos#2000)."""
+        sink = Sink()
+        runtime = a_runtime(a_delegate(model=answering(f"The key is {_SECRET}.")))
+        runtime.output_screen = output_screen(GuardrailsConfig(redact_secrets_out=True))
+
+        await delegate_to(a_capability(runtime), a_context(sink))
+
+        shown = "".join(f.delta for f in sink.frames if isinstance(f, SubagentTextDelta))
+        assert shown == "The key is [redacted:anthropic_key]."
+
+    @pytest.mark.security
+    async def test_a_blocked_term_in_what_the_delegate_streams_is_never_shown(self):
+        """The delegation ends before any of the part is released; the delegating
+        agent is told it failed, and the run carries on under its own check."""
+        sink = Sink()
+        runtime = a_runtime(a_delegate(model=answering("The salary is 5k")))
+        runtime.output_screen = output_screen(GuardrailsConfig(blocked_keywords_out="salary"))
+
+        with pytest.raises(ModelRetry, match="GuardrailBlocked"):
+            await delegate_to(a_capability(runtime), a_context(sink))
+
+        assert "subagent_text_delta" not in sink.kinds
+        assert sink.kinds[-1] == "subagent_complete"
 
     async def test_a_delegation_that_produced_no_events_still_opens_its_panel(self):
         """A `subagent_complete` for a panel nobody opened is a delegation a

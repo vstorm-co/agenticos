@@ -1,5 +1,5 @@
 ---
-source_sha: "651afa0915fe"
+source_sha: "a968586e60fa"
 ---
 
 # Datenschutz { #data-protection }
@@ -162,7 +162,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Auf dem Transportweg, zu den Providern | HTTPS zu jedem katalogisierten Endpunkt. Eine eigene `base_url` wird ohne Host oder mit Zugangsdaten darin abgelehnt, aber **`http://` wird akzeptiert**, für ein Ollama oder ein Gateway im Netz des Deployments selbst; ein Klartext-HTTP-Profil, das aus diesem Netz hinauszeigt, sendet Prompts und Schlüssel im Klartext. Punkt 4 der Checkliste listet jedes solche Profil | `refused_field("base_url", ...)` im Model-Profile-Service; das Schema ist Sache des Betreibers |
 | Secrets in Antworten, Logs, Audit, Exporten | Kein Endpunkt gibt einen Klartext zurück; `SecretStr` überall; Specs referenzieren Secrets per Id | [Secrets](secrets.md#what-never-happens) |
 | Personenbezogene Daten in Logs | `app/core/logging.py` redigiert E-Mail-Adressen, JWTs, API-Schlüssel, Bearer-Token und `password=`-Paare aus jedem Log-Record, in API wie Worker | `tests/test_logging.py`; der Worker installiert es in `prefect_app.py` (#440) |
-| Personenbezogene Daten, die das Model erreichen | Die Capability `guardrails` redigiert IBANs, Kartennummern, US-Sozialversicherungsnummern, Telefonnummern und E-Mail-Adressen aus Prompts, Antworten und Tool-Ergebnissen, sofern konfiguriert | [Capabilities](reference/capabilities.md); ihre Tests unter `tests/` |
+| Personenbezogene Daten, die das Model erreichen | Die Capability `guardrails` redigiert IBANs, Kartennummern, US-Sozialversicherungsnummern, Telefonnummern und E-Mail-Adressen aus Prompts, Antworten, Tool-Ergebnissen und Tool-Argumenten, sofern konfiguriert | [Capabilities](reference/capabilities.md); ihre Tests unter `tests/` |
 | Personenbezogene Daten in einer Fehlerspalte | `rag_documents.error_message` und Verwandte halten Stufe und Klasse fest, nie den Text des Kunden | `app/services/rag/failures.py` (#423) |
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |

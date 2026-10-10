@@ -114,7 +114,12 @@ from app.agents.capabilities.channel_tools import (
     ChannelDirectory,
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
-from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.guardrails import (
+    GuardrailBlocked,
+    GuardrailsConfig,
+    ScreenedStream,
+    output_screen,
+)
 from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
@@ -276,6 +281,19 @@ def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """
     binding = delegation_binding(spec)
     return None if binding is None else SubagentsConfig.model_validate(binding.config)
+
+
+def _output_screen(spec: AgentSpec) -> ScreenedStream | None:
+    """The stream screen this spec's output check runs, or `None` without one.
+
+    Built from the spec's own guardrails binding - switched on, as the capability
+    is built only then - so its delegates' streamed text is held to the rule its
+    answer is (agenticos#2000).
+    """
+    for binding in spec.capabilities:
+        if binding.id == "guardrails" and binding.enabled:
+            return output_screen(GuardrailsConfig.model_validate(binding.config))
+    return None
 
 
 def _secret_ids(spec: AgentSpec) -> list[UUID]:
@@ -1714,6 +1732,9 @@ class _Delegation:
     """One stash for the whole tree, because a delegation three levels down parks
     the run somebody started and is continued from that run's stored state."""
 
+    output_screen: ScreenedStream | None = None
+    """The run's own output check, for what every level of the tree streams."""
+
     profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
     """The organization's model catalog, resolved at most once and only if asked for.
 
@@ -1761,6 +1782,7 @@ def _register_runtime(
         depth=depth,
         dynamic=dynamic,
         stash=delegation.stash,
+        output_screen=delegation.output_screen,
     )
     delegation.runtimes.append(runtime)
     return runtime
@@ -2805,6 +2827,7 @@ class AgentRunnerService:
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
+            output_screen=_output_screen(spec),
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
