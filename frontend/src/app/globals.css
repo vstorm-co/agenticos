@@ -1302,6 +1302,30 @@
     width 0.28s ease;
 }
 
+/* The welcome card's language row (#2072): plain buttons driver.js does not own,
+   drawn as the app's quiet pills, the current language marked. */
+.driver-popover.tour-popover .tour-language {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.driver-popover.tour-popover .tour-language button {
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  background: transparent;
+}
+
+.driver-popover.tour-popover .tour-language button:hover,
+.driver-popover.tour-popover .tour-language button[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
    pinned there would cover the prompt box it points at (#624). */
 .driver-popover.tour-popover.tour-popover-top {

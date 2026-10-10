@@ -67,8 +67,8 @@ describe("the line for one tool call", () => {
 
   it("joins the pattern to the file in the reader's language (#603)", () => {
     // The join used to be a literal `in`, English under every locale. The verb
-    // stays English here because `pl.json` has not translated it - the merge
-    // with `en.json` is what the app does in `src/i18n.ts`.
+    // and the join both come from `pl.json` now, merged over `en.json` the way
+    // `src/i18n.ts` does it.
     const tPl = createTranslator({
       locale: "pl",
       messages: { chat: { tools: { ...messages.chat.tools, ...plMessages.chat.tools } } },
@@ -76,7 +76,7 @@ describe("the line for one tool call", () => {
     }) as Translate;
 
     expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, tPl).label).toBe(
-      "Searched for TODO w app.py",
+      "Wyszukał TODO w app.py",
     );
   });
 

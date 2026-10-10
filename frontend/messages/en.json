@@ -3474,7 +3474,8 @@
         "title": "Give it what it needs",
         "body": "Share agents, knowledge, skills, context, apps and MCP servers with the whole department at once. Each member is told it is there."
       }
-    }
+    },
+    "chooseLanguage": "Language"
   },
   "organizations": {
     "accessLost": "You no longer have access to that organization.",

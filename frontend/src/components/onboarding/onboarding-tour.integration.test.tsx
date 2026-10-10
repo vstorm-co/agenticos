@@ -31,6 +31,12 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
+const localeRouter = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("@/lib/locale-navigation", () => ({
+  useRouter: () => localeRouter,
+  usePathname: () => "/dashboard",
+}));
+
 // The spotlight is the DOM/driver.js boundary; mocking it lets the test drive the
 // orchestration — which step's copy shows, and that Next advances — without
 // driver.js's real layout, which jsdom cannot provide. `waitForElement` resolves
@@ -129,6 +135,28 @@ describe("OnboardingTour", () => {
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
     expect(shownStep().popover?.progressText).toBe(`Step 1 of ${OWNER_LAUNCH}`);
+  });
+
+  it("offers the console's languages on the welcome card, and only there (#2072)", async () => {
+    servePermissions(OWNER);
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    const description = document.createElement("div");
+    shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    const choices = Array.from(description.querySelectorAll("button"));
+    expect(description.querySelector('[role="group"]')).toHaveAttribute("aria-label", "Language");
+    expect(choices.find((b) => b.getAttribute("aria-pressed") === "true")?.textContent).toContain(
+      "English",
+    );
+    choices.find((b) => b.textContent?.includes("English"))?.click();
+    choices.find((b) => b.textContent?.includes("Polski"))?.click();
+    expect(localeRouter.push).toHaveBeenCalledTimes(1);
+    expect(localeRouter.push).toHaveBeenCalledWith("/dashboard", { locale: "pl" });
+
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Start here"));
+    expect(shownStep().popover?.onPopoverRender).toBeUndefined();
   });
 
   it("advances to the next highlight when Next is clicked", async () => {

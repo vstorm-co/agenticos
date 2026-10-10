@@ -4,7 +4,7 @@ import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
@@ -18,11 +18,17 @@ import {
   waitForElement,
 } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
+import type { Locale } from "@/i18n";
+import {
+  usePathname as useLocalePathname,
+  useRouter as useLocaleRouter,
+} from "@/lib/locale-navigation";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
+import { appendLanguageChoice } from "./tour-language";
 
 /** How long the control that drives a transition is spotlighted before it fires. */
 const REVEAL_MS = 650;
@@ -82,6 +88,9 @@ export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale() as Locale;
+  const localeRouter = useLocaleRouter();
+  const localePathname = useLocalePathname();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
@@ -172,6 +181,15 @@ export function OnboardingTour() {
           onNextClick: () => (isLast ? completeWalk() : next()),
           onPrevClick: () => back(),
           onCloseClick: () => closeWalk(),
+          // The first card offers the console's languages, before the walk
+          // says anything else in one the reader may not read.
+          onPopoverRender:
+            step.id === "welcome"
+              ? (popover) =>
+                  appendLanguageChoice(popover.description, locale, t("chooseLanguage"), (next) =>
+                    localeRouter.push(localePathname, { locale: next }),
+                  )
+              : undefined,
         },
       };
       tour.highlight(driveStep);
@@ -274,6 +292,9 @@ export function OnboardingTour() {
     detailTargets,
     closeWalk,
     completeWalk,
+    locale,
+    localeRouter,
+    localePathname,
   ]);
 
   useEffect(() => () => driverRef.current?.destroy(), []);

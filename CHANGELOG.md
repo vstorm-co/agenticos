@@ -259,6 +259,11 @@ Two things are versioned separately from this file and worth knowing about:
   their first item; and the AI Architect links to an agent's test panel with
   `?test=open` (#2072, #2074).
 
+- **The console in Polish and German, whole.** Every screen but the legal pages
+  is translated into both - about two thousand Polish messages and the last
+  German ones - and the walkthrough's first card offers the language before it
+  says anything else (#2072).
+
 - **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
   answer streams natively under the question, with each tool call a step that goes
   from in progress to done or failed - as a timeline or as one plan - and a step

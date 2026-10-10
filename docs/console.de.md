@@ -1,5 +1,5 @@
 ---
-source_sha: "17bdd2f07d3f"
+source_sha: "8f91cff37ae7"
 ---
 
 # Die Konsole { #the-console }
@@ -262,6 +262,14 @@ erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
 kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
+
+## Sprachen { #languages }
+
+Die Konsole spricht Englisch, Polnisch und Deutsch, vollständig bis auf die
+rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet die
+drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird im Browser
+gespeichert. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
 
 ## Der nächste Schritt { #the-next-step }
 

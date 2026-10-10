@@ -235,6 +235,14 @@ labels on the agents you can see; tick several to widen it. You maintain an agen
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 
+## Languages
+
+The console speaks English, Polish and German, all of it except the legal
+pages, which stay in English. The walkthrough's first card offers the three, and
+the account menu changes the language at any time; the choice is remembered in
+the browser. Product words - agent, skill, run, budget, MCP and the rest of the
+list in [translating](howto/translate.md) - stay English in every language.
+
 ## The next step
 
 A page that is empty because nothing exists yet offers the way to make the first

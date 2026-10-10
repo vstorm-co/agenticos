@@ -1,5 +1,5 @@
 ---
-source_sha: "17bdd2f07d3f"
+source_sha: "8f91cff37ae7"
 ---
 
 # La consola { #the-console }
@@ -243,6 +243,15 @@ cada agent. Cada filtro es un menú de las etiquetas de los agents que puedes ve
 marca varias para ampliarlo. Las categories y los tags de un agent los mantienes desde su página
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
+
+## Idiomas { #languages }
+
+La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
+legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
+el menú de la cuenta cambia el idioma en cualquier momento; la elección se recuerda
+en el navegador. Las palabras del producto - agent, skill, run, budget, MCP y el
+resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
+los idiomas.
 
 ## El siguiente paso { #the-next-step }
 

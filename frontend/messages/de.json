@@ -655,6 +655,8 @@
     "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
     "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
+    "whoCanFindIt": "Wer es finden kann",
+    "preview": "Vorschau",
     "variablesSuggestions": "Variablen",
     "variablesTitle": "Variablen",
     "variablesHint": "Schreiben Sie '{{name}}' in die Anweisungen oder klicken Sie, um eine einzufügen. Sie werden zu Beginn jedes Gesprächs ausgefüllt.",
@@ -1159,6 +1161,7 @@
       "answerDelegate": "Delegat antworten",
       "answeringDelegate": "Antwortet einem Delegaten",
       "arguments": "Argumente",
+      "argumentsStreamed": "{size} bisher",
       "askingDelegateStop": "Bittet einen Delegaten anzuhalten",
       "availableContext": "Verfügbarer Kontext",
       "availableSteps": "Verfügbare Schritte",
@@ -1314,6 +1317,15 @@
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
     "whatWentWrong": "Was ist schiefgelaufen?",
+    "rail": {
+      "label": "Zu einer Nachricht springen",
+      "previous": "Vorherige Nachricht",
+      "next": "Nächste Nachricht",
+      "jumpTo": "Zur Nachricht von {author} springen",
+      "you": "Sie",
+      "agent": "Agent",
+      "empty": "Kein Text in dieser Nachricht"
+    },
     "browserHeading": "Browser",
     "browserClose": "Browser-Panel schließen",
     "browserGoal": "Ziel",
@@ -2355,7 +2367,9 @@
     "registering": "Wird registriert …",
     "ocrServerSetting": "OCR-Server",
     "ocrServerHint": "Wohin LiteParse Seiten zum Lesen sendet. Das eingebaute Tesseract läuft im Worker.",
-    "builtInTesseract": "Eingebautes Tesseract"
+    "builtInTesseract": "Eingebautes Tesseract",
+    "createKbDescription": "Laden Sie Dokumente hoch, sobald sie existiert. Agents durchsuchen sie, wenn sie ihnen zugeordnet oder im Chat ausgewählt ist.",
+    "whoCanSearchIt": "Wer sie durchsuchen kann"
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -2618,6 +2632,7 @@
     "fromRegistryHint": "Aus der öffentlichen MCP-Registry. Niemand hier hat ihn geprüft: Die Beschreibung stammt vom Herausgeber, und es gibt keinen Hinweis darauf, welches Credential er verlangt.",
     "manageConnectionsOn": "Verbindungen auf {name} verwalten",
     "name": "Tool-Präfix",
+    "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
     "namePrefixesToolNames": "Kleinbuchstaben, Ziffern und Bindestriche. Das Modell liest es vor jedem Tool-Aufruf, es muss also unter {scope, select, organization {den Servern der Organisation} other {Ihren Servern}} eindeutig sein.",
     "needsAuthorization": "Braucht Autorisierung",
@@ -3341,7 +3356,8 @@
         "title": "Geben Sie ihr, was sie braucht",
         "body": "Teilen Sie Agents, Wissen, Skills, Kontext, Apps und MCP-Server mit der ganzen Abteilung auf einmal. Jedes Mitglied wird benachrichtigt."
       }
-    }
+    },
+    "chooseLanguage": "Sprache"
   },
   "organizations": {
     "accessLost": "Sie haben keinen Zugriff mehr auf diese Organisation.",
@@ -3685,6 +3701,9 @@
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
       "skills": "Skills",
+      "categoriesHint": "Grobe Gruppen - Support, Finanzen, intern. Der Katalog filtert danach.",
+      "tagsHint": "Alles Feinere, wonach Sie später suchen möchten.",
+      "labelCount": "{used} von {max}",
       "thisPlatformMcp": "AgenticOS (diese Plattform)",
       "testPanelOpen": "Testen",
       "testPanelShortcut": "Neben dem Builder testen (T)"
@@ -3701,7 +3720,8 @@
       "pageExpectsTokenFrom": "Diese Seite erwartet ein Token aus Ihrer E-Mail zum Zurücksetzen. Fordern Sie einen neuen Link an, um fortzufahren.",
       "requestNewLink": "Neuen Link anfordern",
       "resetPassword": "Passwort zurücksetzen",
-      "tryAgain": "erneut versuchen"
+      "tryAgain": "erneut versuchen",
+      "tagline": "Ein Ort, um die KI-Agents Ihres Unternehmens zu <b>bauen</b>, <b>auszuführen</b> und zu <b>steuern</b>."
     },
     "channelLink": {
       "connectThisAccount": "Dieses Konto verbinden",
@@ -4955,6 +4975,7 @@
       }
     },
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
+    "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
     "whoCanUseIt": "Wer es nutzen darf"
   },
   "states": {
@@ -5014,7 +5035,6 @@
     "role2": "Rolle",
     "roleFor": "Rolle für {email}",
     "rolesUnavailable": "Die Rollenliste konnte nicht geladen werden, es gibt also keine Rolle, für die jemand eingeladen werden könnte. Laden Sie die Seite neu und versuchen Sie es erneut.",
-    "selectOrg": "Organisation wählen",
     "sending2": "Wird gesendet …",
     "sendInvite": "Einladung senden",
     "spentNoLimit": "${spent} in diesem Monat ausgegeben, ohne Limit.",
@@ -5023,7 +5043,8 @@
     "waiverAllowed": "Unterhaltungen dürfen Freigaben jetzt übergehen",
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
-    "you": "(Sie)"
+    "you": "(Sie)",
+    "selectOrg": "Organisation wählen"
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -5197,6 +5218,7 @@
     "droppedNotText": "{count, plural, =1 {Eine Datei war kein Text und wurde übersprungen} other {# Dateien waren kein Text und wurden übersprungen}}",
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
+    "bodyPlaceholder": "# Glossar\n\nWas ein Begriff hier bedeutet und was nicht.\n\n- **SLA** - die Reaktionszeit, die wir zusagen, nicht die Behebungszeit.\n",
     "whoCanUseIt": "Wer es nutzen darf"
   },
   "memory": {
