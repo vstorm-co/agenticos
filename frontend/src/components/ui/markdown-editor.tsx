@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { Code2, Eye } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -11,7 +11,8 @@ import { useTranslations } from "next-intl";
 
 interface MarkdownEditorProps {
   value: string;
-  onChange: (next: string) => void;
+  /** The new text, and where the caret is in it. */
+  onChange: (next: string, caret: number) => void;
   /** The control's accessible name. Required: a placeholder is not a label. */
   label: string;
   placeholder?: string;
@@ -46,6 +47,8 @@ interface MarkdownEditorProps {
    * It applies to the source textarea, which is the only place text is entered.
    */
   maxLength?: number;
+  /** Keys in the source view, for a caller completing what is being typed. */
+  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
 /**
@@ -73,6 +76,7 @@ export function MarkdownEditor({
   id,
   textareaRef,
   maxLength,
+  onKeyDown,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [mode, setMode] = useState<"source" | "preview">("source");
@@ -108,7 +112,8 @@ export function MarkdownEditor({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange(event.target.value, event.target.selectionStart)}
+          onKeyDown={onKeyDown}
           rows={rows}
           disabled={disabled}
           placeholder={placeholder}

@@ -259,6 +259,20 @@ export interface PersonalMcpServerRef {
 /** One MCP binding: the organization's connection, or each person's own account. */
 export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
 
+/** A custom variable, written `{{name}}` in an agent's instructions (#2065). */
+export interface PromptVariableSpec {
+  name: string;
+  value: string;
+  description?: string | null;
+}
+
+/** A system variable, filled in by the platform when a run starts. */
+export interface SystemPromptVariable {
+  name: string;
+  description: string;
+  example: string;
+}
+
 export interface AgentSpec {
   /**
    * Stamped by the server, never authored here.
@@ -272,7 +286,12 @@ export interface AgentSpec {
   spec_version?: number;
   name: string;
   description?: string | null;
+  /** The system prompt; `{{name}}` is filled in when each run starts (#2065). */
   instructions: string;
+  /** Custom variables the instructions may use. Optional here, always on the wire. */
+  variables?: PromptVariableSpec[];
+  /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
+  time_zone?: string;
   model_profile_id?: string | null;
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];

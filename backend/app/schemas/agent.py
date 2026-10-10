@@ -736,3 +736,15 @@ class TemplateInstallResult(BaseSchema):
     skills_installed: list[str] = Field(description="Gallery skills copied in for this agent")
     attach: list[str] = Field(description="What to attach before publishing")
     suggested_mcp: list[str] = Field(description="Catalog keys worth connecting")
+
+
+class PromptVariableRead(BaseSchema):
+    """A system variable an agent's instructions may write as `{{name}}` (#2065)."""
+
+    name: str
+    description: str
+    example: str
+
+
+class PromptVariableCatalog(BaseSchema):
+    items: list[PromptVariableRead]

@@ -659,7 +659,22 @@
     "whoCanFindIt": "Who can find it",
     "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
     "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
-    "preview": "Preview"
+    "preview": "Preview",
+    "variablesSuggestions": "Variables",
+    "variablesTitle": "Variables",
+    "variablesHint": "Write '{{name}}' in the instructions, or click one to insert it. They are filled in when each conversation starts.",
+    "variableValueFor": "Value of {name}",
+    "variableValue": "Value",
+    "variableNameRule": "Lower-case letters, digits and underscores, starting with a letter.",
+    "variableNameTaken": "That name is already a variable.",
+    "timeZoneLabel": "Time is told in",
+    "timeZoneSystem": "The deployment's time zone",
+    "timeZoneUser": "Each person's own time zone",
+    "timeZoneChosen": "A time zone I choose",
+    "removePromptVariable": "Remove {name}",
+    "promptVariableName": "Name",
+    "promptVariableNamePlaceholder": "support_email",
+    "addPromptVariable": "Add variable"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

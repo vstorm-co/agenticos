@@ -74,6 +74,7 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import prompt_variables
 from app.agents.audience import RunAudience, derive_audience
 from app.agents.capabilities.approval import (
     ApprovalDecision,
@@ -180,6 +181,7 @@ from app.repositories import (
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
+    user_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.schemas.agent import ParkedCall
@@ -1631,6 +1633,10 @@ class _Delegation:
     approvals: ApprovalChannel
     budget: _RunBudget
 
+    render_variables: Callable[[AgentSpec], AgentSpec]
+    """Fills a delegate's `{{variables}}` with this run's facts, as the run's own
+    agent had its filled (#2065)."""
+
     record: DelegationRecorder
     """One recorder for the whole tree, because there is one run row to hang a
     delegation off. A nested delegation's row points at the run somebody started
@@ -1734,7 +1740,7 @@ def _delegate_builder(
 
     def build() -> PydanticAgent[Any, Any]:
         return build_agent(
-            spec,
+            delegation.render_variables(spec),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -1915,6 +1921,40 @@ class AgentRunnerService:
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
 
+    async def _variable_renderer(
+        self,
+        ctx: AuthContext,
+        *,
+        organization_name: str | None,
+        surface: RunSurface,
+        user_name: str | None,
+        person_time_zone: str | None,
+    ) -> Callable[[AgentSpec], AgentSpec]:
+        """What fills `{{variables}}` for this run, the same for every agent in it (#2065).
+
+        The person is the run's real subject. A publisher standing in for an
+        unidentified asker is not named - their name and address are not the
+        visitor's - so the visitor is whoever the surface says (a channel's
+        display name) or "a visitor".
+        """
+        person = (
+            await user_repo.get_by_id(self.db, ctx.user_id)
+            if ctx.user_id is not None and not ctx.subject_is_publisher_fallback
+            else None
+        )
+        facts = prompt_variables.RunFacts(
+            now=datetime.now(UTC),
+            user_name=user_name or (person.full_name or person.email if person else None),
+            user_email=person.email if person else None,
+            organization_name=organization_name,
+            surface=surface.value,
+        )
+
+        def render(spec: AgentSpec) -> AgentSpec:
+            return prompt_variables.render(spec, facts, person_zone=person_time_zone)
+
+        return render
+
     async def _platform_resources(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
         """The credential the `platform` capability acts with, when it is bound.
 
@@ -2001,6 +2041,7 @@ class AgentRunnerService:
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        person_time_zone: str | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2045,6 +2086,9 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            person_time_zone: The person's own IANA time zone, when the surface
+                knows it - what an agent whose `time_zone` is `user` tells the
+                time in (#2065).
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2086,6 +2130,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            person_time_zone=person_time_zone,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2173,6 +2218,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        person_time_zone: str | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2220,6 +2266,15 @@ class AgentRunnerService:
         # which is what keeps the cap and the spend it is measured against - the
         # `period_spend` below - reading the same organization.
         organization = await self.organizations.get_by_id(ctx.organization_id)
+
+        render_variables = await self._variable_renderer(
+            ctx,
+            organization_name=organization.name if organization is not None else None,
+            surface=surface,
+            user_name=user_name,
+            person_time_zone=person_time_zone,
+        )
+        spec = render_variables(spec)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
@@ -2490,6 +2545,7 @@ class AgentRunnerService:
             resources=resources,
             approvals=channel,
             budget=run_budget,
+            render_variables=render_variables,
             runtimes=runtimes,
             delegations=delegations,
             stash=stash,
@@ -2596,6 +2652,7 @@ class AgentRunnerService:
         resources: dict[str, Any],
         approvals: ApprovalChannel,
         budget: _RunBudget,
+        render_variables: Callable[[AgentSpec], AgentSpec],
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
         stash: DelegationStash,
@@ -2652,6 +2709,7 @@ class AgentRunnerService:
             sender_present=sender_present,
             approvals=approvals,
             budget=budget,
+            render_variables=render_variables,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
             queued=delegations,
             attribution=attribution,

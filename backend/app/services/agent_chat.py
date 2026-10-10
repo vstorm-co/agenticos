@@ -35,6 +35,7 @@ from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import prompt_variables
 from app.agents.browser_events import BrowserEventSink
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
@@ -155,6 +156,19 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
         ) from exc
+
+
+def requested_time_zone(frame: Mapping[str, Any]) -> str | None:
+    """The person's own time zone, as their browser reported it (#2065).
+
+    Only what a run may use as a zone name: anything else is `None`, and the
+    agent then tells the time in its configured zone. Never a refusal - a clock
+    must not stop somebody's turn.
+    """
+    raw = frame.get("time_zone")
+    if not isinstance(raw, str) or len(raw) > 64 or not prompt_variables.is_time_zone(raw):
+        return None
+    return raw
 
 
 def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
@@ -318,6 +332,7 @@ class ChatAgentRunner:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        person_time_zone: str | None = None,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -404,6 +419,7 @@ class ChatAgentRunner:
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
             request_connection=request_connection,
+            person_time_zone=person_time_zone,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions

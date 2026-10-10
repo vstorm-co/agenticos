@@ -934,6 +934,24 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     return {**data, "capabilities": capabilities}
 
 
+class PromptVariableSpec(BaseModel):
+    """A custom variable: a name the instructions may write as `{{name}}`, and its text.
+
+    Written once and used in as many places as it needs, so the value that changes
+    - a support address, a policy version, a product name - changes in one place.
+    The name cannot be a system variable's (`app/agents/prompt_variables.py`),
+    which publish checks.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        pattern=r"^[a-z][a-z0-9_]{0,39}$", description="Lower case, as written in `{{name}}`"
+    )
+    value: str = Field(default="", max_length=4000, description="The text `{{name}}` becomes")
+    description: str | None = Field(default=None, max_length=200)
+
+
 class AgentSpec(BaseModel):
     """Everything that defines an agent's behaviour.
 
@@ -958,7 +976,24 @@ class AgentSpec(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     instructions: str = Field(
         default="",
-        description="The system prompt. The agent's behaviour lives here, not in code.",
+        description=(
+            "The system prompt. The agent's behaviour lives here, not in code. "
+            "`{{name}}` is filled in when each run starts, from a system variable "
+            "or one of `variables`."
+        ),
+    )
+    variables: list[PromptVariableSpec] = Field(
+        default_factory=list,
+        description="Custom variables the instructions may use as `{{name}}`",
+    )
+    time_zone: str = Field(
+        default="system",
+        max_length=64,
+        description=(
+            "The zone `{{current_time}}` and `{{current_date}}` are told in: "
+            "`system` for the deployment's, `user` for the person's own when the "
+            "surface knows it, or an IANA name such as `Europe/Warsaw`"
+        ),
     )
 
     model_profile_id: UUID | None = Field(

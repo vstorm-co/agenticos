@@ -48,6 +48,7 @@ export {
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
   useDelegationTree,
+  usePromptVariables,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";

@@ -84,6 +84,13 @@ Two things are versioned separately from this file and worth knowing about:
   was edited, and otherwise says who changed it and through what and waits for
   **Reload** or **Keep my changes**. A subscriber only hears about rows it may
   read, and a socket whose session, key or membership is gone is closed (#2061).
+- **Variables in an agent's instructions.** `{{current_date}}`, `{{current_time}}`,
+  `{{user_name}}`, `{{organization_name}}`, `{{channel}}` and the rest are filled in
+  when each run starts, and an agent can define its own. Typing `{{` in the
+  Builder's instructions opens the list; every variable is listed under the editor
+  with what it becomes, and the time is told in the deployment's zone, each
+  person's own or one chosen. Publishing refuses an unknown name. A visitor's
+  name is never the publisher's (#2065).
 - **Agents ask instead of guessing.** A new `ask_user` capability, built on
   `AskUser` from pydantic-ai-harness, gives an agent `ask_user_question`: up to ten
   multiple-choice questions with headers, option descriptions and multi-select.

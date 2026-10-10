@@ -3010,7 +3010,22 @@
     "youNotVisitorsWhich": "Dla Ciebie, nie dla odwiedzających - które to umiejscowienie.",
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
-    "zoomOut": "Pomniejsz"
+    "zoomOut": "Pomniejsz",
+    "variablesSuggestions": "Zmienne",
+    "variablesTitle": "Zmienne",
+    "variablesHint": "Wpisz '{{nazwa}}' w instrukcjach albo kliknij, aby wstawić. Są uzupełniane na początku każdej rozmowy.",
+    "variableValueFor": "Wartość {name}",
+    "variableValue": "Wartość",
+    "variableNameRule": "Małe litery, cyfry i podkreślenia, zaczynając od litery.",
+    "variableNameTaken": "Taka zmienna już istnieje.",
+    "timeZoneLabel": "Czas podawany w",
+    "timeZoneSystem": "Strefie wdrożenia",
+    "timeZoneUser": "Strefie każdej osoby",
+    "timeZoneChosen": "Wybranej strefie",
+    "removePromptVariable": "Usuń {name}",
+    "promptVariableName": "Nazwa",
+    "promptVariableNamePlaceholder": "support_email",
+    "addPromptVariable": "Dodaj zmienną"
   },
   "steps": {
     "skills-gallery": {

@@ -21,6 +21,7 @@ import type {
   CapabilityCatalog,
   DelegationTree,
   SpecialistSpec,
+  SystemPromptVariable,
 } from "@/types/agents";
 
 /** What promoting a specialist sends: the specialist whole, plus the model a null
@@ -471,6 +472,16 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
  * Cached indefinitely: the catalog changes when the backend is redeployed, not
  * while someone is building an agent.
  */
+/** The system variables any agent's instructions may write as `{{name}}` (#2065). */
+export function usePromptVariables() {
+  const { data } = useQuery({
+    queryKey: qk.agents.promptVariables(),
+    queryFn: () => apiClient.get<{ items: SystemPromptVariable[] }>("/agents/prompt-variables"),
+    staleTime: Infinity,
+  });
+  return { variables: data?.items ?? [] };
+}
+
 export function useCapabilityCatalog() {
   const { data, isLoading } = useQuery({
     queryKey: qk.agents.capabilityCatalog(),

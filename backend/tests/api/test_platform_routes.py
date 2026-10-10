@@ -247,6 +247,7 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
     Call(
         "POST",

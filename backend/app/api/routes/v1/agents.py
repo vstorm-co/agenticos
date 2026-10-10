@@ -24,6 +24,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.agents.capabilities import all_capabilities
+from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
@@ -62,6 +63,8 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PromptVariableCatalog,
+    PromptVariableRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
@@ -71,6 +74,21 @@ from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
 router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/prompt-variables",
+    response_model=PromptVariableCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_prompt_variables() -> Any:
+    """The system variables any agent's instructions may use, in the order to offer them."""
+    return PromptVariableCatalog(
+        items=[
+            PromptVariableRead(name=item.name, description=item.description, example=item.example)
+            for item in SYSTEM_VARIABLES
+        ]
+    )
 
 
 @router.get(

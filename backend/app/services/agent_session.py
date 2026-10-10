@@ -42,6 +42,7 @@ from app.services.agent_chat import (
     requested_approval_mode,
     requested_environment_id,
     requested_model_profile_id,
+    requested_time_zone,
 )
 from app.services.agent_runner import PersonalServiceGap
 from app.services.attachments import load_turn_attachments
@@ -487,6 +488,7 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
+                    person_time_zone=requested_time_zone(data),
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).

@@ -56,7 +56,8 @@ describe("the markdown editor", () => {
     await userEvent.type(screen.getByLabelText("Instructions"), "ab");
 
     expect(onChange).toHaveBeenCalledTimes(2);
-    expect(onChange).toHaveBeenLastCalledWith("b");
+    // With where the caret ended up, for a caller completing what is typed.
+    expect(onChange).toHaveBeenLastCalledWith("b", 1);
   });
 
   it("says the preview is empty rather than rendering nothing", async () => {

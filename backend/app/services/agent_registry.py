@@ -29,6 +29,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import prompt_variables
 from app.agents.capabilities import (
     FRAMEWORK_TOOL_NAMES,
     TOOL_NAME_PATTERN,
@@ -283,6 +284,38 @@ def _browser_choice_problems(config: BaseModel | None) -> list[str]:
     except ValueError as exc:
         return [f"Browser automation's endpoint cannot be used: {exc}."]
     return []
+
+
+def _variable_problems(spec: AgentSpec) -> _SpecProblems:
+    """Variables the instructions cannot fill, and custom ones that cannot be defined (#2065).
+
+    Refused here rather than left as literal braces for a run to send the model:
+    `{{custmer_name}}` reaching a customer is the typo nobody sees until then.
+    """
+    problems = _SpecProblems()
+
+    def refuse(field_name: str, message: str) -> None:
+        problems.messages.append(message)
+        problems.fields.append({"field": field_name, "message": message})
+
+    for name in prompt_variables.unknown_variables(spec):
+        refuse("instructions", f"The instructions use {{{{{name}}}}}, which is not a variable")
+    seen: set[str] = set()
+    for index, variable in enumerate(spec.variables):
+        if variable.name in prompt_variables.SYSTEM_NAMES:
+            refuse(
+                f"variables.{index}.name",
+                f"'{variable.name}' is a system variable and cannot be redefined",
+            )
+        elif variable.name in seen:
+            refuse(f"variables.{index}.name", f"'{variable.name}' is defined twice")
+        seen.add(variable.name)
+    if spec.time_zone not in (
+        prompt_variables.SYSTEM_TIME_ZONE,
+        prompt_variables.PERSON_TIME_ZONE,
+    ) and not prompt_variables.is_time_zone(spec.time_zone):
+        refuse("time_zone", f"'{spec.time_zone}' is not a time zone")
+    return problems
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -1328,6 +1361,7 @@ class AgentRegistryService:
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
+        problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))

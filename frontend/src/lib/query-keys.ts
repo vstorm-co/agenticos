@@ -68,6 +68,8 @@ export const qk = {
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+    // The system variables instructions may use; fixed for the deployment.
+    promptVariables: () => ["agents", "prompt-variables"] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,

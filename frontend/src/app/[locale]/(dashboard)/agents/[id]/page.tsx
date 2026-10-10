@@ -34,6 +34,9 @@ import { entryForConnection } from "@/lib/mcp-servers";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { InstructionsEditor } from "@/components/agents/instructions-editor";
+import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
+import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
@@ -81,7 +84,6 @@ import {
   CardTitle,
   Input,
   Label,
-  MarkdownEditor,
   Tabs,
   TabsContent,
   TabsList,
@@ -93,6 +95,7 @@ import {
   useAgents,
   useAgentVersions,
   useCapabilityCatalog,
+  usePromptVariables,
   useDelegationTree,
   useEmbeds,
   useExposures,
@@ -185,6 +188,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
+  const { variables: promptVariables } = usePromptVariables();
+  const instructionsBox = useRef<HTMLTextAreaElement>(null);
   const { profiles, profilesStatus } = useModelProviders();
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
@@ -655,6 +660,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // what the builder returns for one (native, both shapes on).
 
   const update = (changes: Partial<AgentSpec>) => setSpec({ ...spec, ...changes });
+  /** A variable from the panel, put where the caret is in the instructions. */
+  const insertVariableAtCaret = (name: string) => {
+    const field = instructionsBox.current;
+    const caret = field ? field.selectionStart : spec.instructions.length;
+    update({ instructions: insertVariable(spec.instructions, caret, null, name).text });
+  };
 
   const toggleCapability = (capabilityId: string) => {
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
@@ -1122,16 +1133,32 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <MarkdownEditor
+              <InstructionsEditor
                 // Named, because a placeholder is not a label: it is the only
                 // accessible name this control had, and it is the one thing that
                 // disappears the moment somebody types into it.
                 label={t("instructions2")}
                 value={spec.instructions}
                 onChange={(instructions) => update({ instructions })}
-                rows={10}
                 disabled={!canEdit}
                 placeholder={t("youAreSupportCopilot")}
+                textareaRef={instructionsBox}
+                variables={[
+                  ...promptVariables,
+                  ...(spec.variables ?? []).map((variable) => ({
+                    name: variable.name,
+                    description: variable.description ?? variable.value,
+                  })),
+                ]}
+              />
+              <PromptVariablesPanel
+                system={promptVariables}
+                custom={spec.variables ?? []}
+                timeZone={spec.time_zone ?? "system"}
+                disabled={!canEdit}
+                onInsert={insertVariableAtCaret}
+                onCustomChange={(variables) => update({ variables })}
+                onTimeZoneChange={(time_zone) => update({ time_zone })}
               />
               <div className="space-y-2" data-tour="agent-model-picker">
                 <Label>{t("model")}</Label>
