@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -32,7 +33,10 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
 
   if (!open) return null;
 
-  return (
+  // On `body`, not where it is declared: a sheet opened from inside a panel that
+  // makes its own stacking context - the chat's composer dock - otherwise sits
+  // under the fixed tab bar and the assistant's button, whatever its z-index.
+  return createPortal(
     <div className="fixed inset-0 z-50">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -40,7 +44,8 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
         aria-hidden="true"
       />
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
