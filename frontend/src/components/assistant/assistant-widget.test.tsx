@@ -191,6 +191,15 @@ describe("the AI Architect widget", () => {
     expect(screen.getByRole("button", { name: "Turn tips off" })).toBeInTheDocument();
   });
 
+  it("steps its button aside on a phone while the window is open", () => {
+    render(<AssistantWidget />);
+    const launcher = screen.getByRole("button", { name: "Open AI Architect" });
+
+    fireEvent.click(launcher);
+
+    expect(launcher).toHaveClass("hidden", "md:block");
+  });
+
   it("hides the window from its header without losing the conversation", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));

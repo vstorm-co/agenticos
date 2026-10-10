@@ -58,6 +58,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
       <div className="min-w-0 flex-1">
         <ChatContainer
           prompt={prompt}
+          agentFixed
           emptyState={(onPick) =>
             assistant && (
               <AssistantWelcome

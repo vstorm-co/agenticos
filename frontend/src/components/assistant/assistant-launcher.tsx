@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
 interface AssistantLauncherProps {
@@ -21,7 +22,12 @@ export function AssistantLauncher({ assistant, agentId, open, onToggle }: Assist
       aria-label={open ? t("close") : t("open", { name: assistant.name })}
       aria-expanded={open}
       onClick={onToggle}
-      className="bg-background border-border fixed right-4 bottom-20 z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 md:right-6 md:bottom-6"
+      // Over a full-screen window on a phone it would cover the conversation, and
+      // the window's own × closes it there.
+      className={cn(
+        "bg-background border-border fixed right-4 bottom-20 z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 md:right-6 md:bottom-6",
+        open && "hidden md:block",
+      )}
     >
       <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
     </button>

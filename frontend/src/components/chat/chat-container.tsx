@@ -96,9 +96,15 @@ interface ChatContainerProps {
   prompt?: ChatPrompt | null;
   /** What an empty conversation shows instead of the generic suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
+  /** The conversation is with one agent, chosen by the caller: no agent picker. */
+  agentFixed?: boolean;
 }
 
-export function ChatContainer({ prompt = null, emptyState }: ChatContainerProps = {}) {
+export function ChatContainer({
+  prompt = null,
+  emptyState,
+  agentFixed = false,
+}: ChatContainerProps = {}) {
   const {
     currentConversationId,
     currentMessages,
@@ -401,6 +407,7 @@ export function ChatContainer({ prompt = null, emptyState }: ChatContainerProps 
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
       emptyState={emptyState}
+      agentFixed={agentFixed}
     />
   );
 }
@@ -408,6 +415,7 @@ export function ChatContainer({ prompt = null, emptyState }: ChatContainerProps 
 interface ChatUIProps {
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
+  agentFixed: boolean;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
@@ -520,6 +528,7 @@ function ChatUI({
   onConnectionResponse,
   onStop,
   emptyState,
+  agentFixed,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   // Opened by the composer's microphone button; the glow around the box reads
@@ -753,7 +762,7 @@ function ChatUI({
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
-                        controlsSlot={<AgentPicker />}
+                        controlsSlot={agentFixed ? undefined : <AgentPicker />}
                         actionsSlot={
                           <>
                             <UsageMeter

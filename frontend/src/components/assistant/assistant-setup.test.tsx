@@ -74,6 +74,20 @@ describe("the AI Architect with no model", () => {
     expect(screen.queryByText(/Step 2/)).toBeNull();
   });
 
+  it("follows the conversation down as each message arrives", () => {
+    const follow = vi.spyOn(Element.prototype, "scrollIntoView");
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    const before = follow.mock.calls.length;
+
+    act(() => {
+      vi.advanceTimersByTime(TYPING_MS);
+    });
+
+    expect(follow.mock.calls.length).toBeGreaterThan(before);
+    follow.mockRestore();
+  });
+
   it("walks an administrator to the settings that connect the model", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));

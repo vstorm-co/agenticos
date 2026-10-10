@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -114,8 +114,11 @@ function Walkthrough({
   const t = useTranslations("assistantWidget");
   const [shown, setShown] = useState(1);
   const typing = shown < steps.length;
+  const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Follow the conversation as it is typed, the way a chat does.
+    end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
     if (!typing) return;
     const timer = setTimeout(() => setShown((count) => count + 1), TYPING_MS);
     return () => clearTimeout(timer);
@@ -136,6 +139,7 @@ function Walkthrough({
       ) : (
         action
       )}
+      <div ref={end} />
     </div>
   );
 }
