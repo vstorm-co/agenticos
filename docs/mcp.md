@@ -131,6 +131,17 @@ says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
 
+### Which calls wait for a person
+
+Every binding has an `approval` policy for its server's tools. The default,
+`writes`, holds every tool the server does not mark read-only (MCP's
+`readOnlyHint`) until a person approves the call, the same way a side-effecting
+capability tool waits: the card shows the exact arguments, and the approved ones
+are what runs. `all` holds every call; `none` lets every call through, for a
+server you trust with no person in the loop. The read-only hint is the server's
+own claim, so `writes` is only as strict as the server is honest — choose `all`
+for a server you do not control.
+
 ### Whose account a binding speaks through
 
 A binding is one of two kinds, and the Builder asks which on the card.
@@ -781,18 +792,17 @@ would be; a refusal comes back as a tool error naming the missing permission.
 Deliberately absent: deleting anything, publishing an agent, and touching a
 credential. A draft created here is published by a person in the console.
 Connected applications are listed under **Settings → API keys**, where
-disconnecting one ends its access and every token it holds. An approval step
-before the assistant's writes is tracked as #2060.
+disconnecting one ends its access and every token it holds. Calls that change
+something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
 
 ## What MCP does not get you
 
 - **A coverage guarantee.** Catalog entries are metadata. The tools are the
   vendor's, and they can change under you between one turn and the next.
-- **Automatic approval coverage.** Capability approval settings do not cover MCP
-  tools. In web chat, **Ask about everything** (`ask_all`) also gates MCP calls
-  handled by the runner; the default **Follow the agent** mode does not add that
-  gate. Restrict exposed tools and review the execution mode before enabling a
-  connection. See [approval modes](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Approval that knows what a tool does.** A binding's `writes` policy trusts
+  the server to mark its read-only tools; a tool marked read-only that changes
+  something runs unasked. Use `all` for a server you do not control, and
+  narrow `allowed_tools`. See [which calls wait](#which-calls-wait-for-a-person).
 - **Cost attribution.** What a server does on its own side is not in this
   platform's [budget](governance.md#budgets). Only the model tokens are.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce84e15a17d"
+source_sha: "1ea2723f80e6"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -143,6 +143,18 @@ Eine Connection, die noch niemand geprüft hat, hat keinen Katalog anzubieten, u
 die Auswahl sagt das und verweist auf die Server-Seite, wo eine Connection geprüft
 wird. Ein Binding, das bereits Tools benennt, zeigt diese, sodass sichtbar bleibt,
 woran es gebunden ist, und weiter eingegrenzt werden kann.
+
+### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
+
+Jedes Binding hat eine `approval`-Richtlinie für die Tools seines Servers. Die
+Vorgabe `writes` hält jedes Tool, das der Server nicht als nur lesend markiert
+(MCPs `readOnlyHint`), an, bis eine Person den Aufruf freigibt — so wie ein
+Capability-Tool mit Nebenwirkungen wartet: Die Karte zeigt die genauen Argumente,
+und ausgeführt werden die freigegebenen. `all` hält jeden Aufruf an; `none` lässt
+jeden durch, für einen Server, dem Sie ohne Person dazwischen vertrauen. Der
+Nur-lesen-Hinweis ist die Behauptung des Servers selbst, also ist `writes` nur so
+streng, wie der Server ehrlich ist — wählen Sie `all` für einen Server, den Sie
+nicht kontrollieren.
 
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 
@@ -845,19 +857,18 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 Bewusst fehlt: etwas löschen, einen Agent veröffentlichen und Zugangsdaten
 anfassen. Einen hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
 Verbundene Anwendungen stehen unter **Einstellungen → API-Schlüssel**, wo das
-Trennen ihren Zugriff samt jedem Token beendet. Ein Freigabeschritt vor den
-Schreibvorgängen des Assistenten wird als #2060 verfolgt.
+Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
+warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 
 - **Eine Abdeckungsgarantie.** Katalogeinträge sind Metadaten. Die Tools gehören
   dem Anbieter, und sie können sich unter Ihnen von einem Zug zum nächsten ändern.
-- **Automatische Freigabeabdeckung.** Freigabeeinstellungen einer Capability
-  decken MCP-Tools nicht ab. Im Webchat erfasst **Ask about everything**
-  (`ask_all`) auch MCP-Aufrufe, die der Runner ausführt; der Standardmodus
-  **Follow the agent** ergänzt dieses Gate nicht. Beschränken Sie die
-  verfügbaren Tools und prüfen Sie den Ausführungsmodus vor dem Aktivieren
-  einer Verbindung. Siehe [Freigabemodi](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Freigaben, die wissen, was ein Tool tut.** Die Richtlinie `writes` vertraut
+  darauf, dass der Server seine nur lesenden Tools markiert; ein so markiertes
+  Tool, das etwas ändert, läuft ungefragt. Nutzen Sie `all` für einen Server, den
+  Sie nicht kontrollieren, und schränken Sie `allowed_tools` ein. Siehe
+  [welche Aufrufe warten](#which-calls-wait-for-a-person).
 - **Kostenzuordnung.** Was ein Server auf seiner eigenen Seite tut, steht nicht im
   [Budget](governance.md#budgets) dieser Plattform. Nur die Modell-Token stehen
   darin.

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce84e15a17d"
+source_sha: "1ea2723f80e6"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -139,6 +139,18 @@ Una conexión que nadie ha sondeado todavía no tiene catálogo que ofrecer, y e
 selector lo dice y apunta a la página de servidores, que es donde se comprueba una
 conexión. Una vinculación que ya nombra herramientas muestra esas, así que aquello
 a lo que está vinculada sigue visible y todavía se puede estrechar.
+
+### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
+
+Cada vinculación tiene una política `approval` para las herramientas de su
+servidor. La predeterminada, `writes`, retiene toda herramienta que el servidor no
+marque como de solo lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe
+la llamada, igual que espera una herramienta de capability con efectos: la tarjeta
+muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene todas las
+llamadas; `none` las deja pasar todas, para un servidor en el que confías sin una
+persona de por medio. La marca de solo lectura la declara el propio servidor, así
+que `writes` es tan estricta como honesto sea el servidor: elige `all` para un
+servidor que no controlas.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
@@ -827,20 +839,18 @@ permiso que faltaba.
 A propósito no hay: borrar nada, publicar un agent ni tocar credenciales. Un
 borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
 aparecen en **Settings → API keys**, donde desconectar una termina su acceso y
-el de cada token que tiene. Un paso de aprobación antes de las escrituras del
-asistente se sigue como #2060.
+el de cada token que tiene. Las llamadas que cambian
+algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
-  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
-  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
-  predeterminado **Follow the agent** no añade esa puerta. Restringe las
-  herramientas disponibles y revisa el modo de ejecución antes de activar una
-  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Aprobaciones que saben qué hace una herramienta.** La política `writes` confía
+  en que el servidor marque sus herramientas de solo lectura; una herramienta así
+  marcada que cambia algo se ejecuta sin preguntar. Usa `all` para un servidor que
+  no controlas y acota `allowed_tools`. Consulta [qué llamadas esperan](#which-calls-wait-for-a-person).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

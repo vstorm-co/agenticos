@@ -20,9 +20,14 @@ import logging
 import re
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from pydantic_ai.tools import RunContext, ToolDefinition
+from pydantic_ai.toolsets import WrapperToolset
+from pydantic_ai.toolsets.abstract import ToolsetTool
+
+from app.agents.spec import McpApproval
 from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
@@ -75,6 +80,7 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    approval: McpApproval = "writes"
 
 
 @asynccontextmanager
@@ -217,7 +223,52 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return server.prefixed(tool_prefix(spec.name))
+    return ApprovalMarked(server.prefixed(tool_prefix(spec.name)), policy=spec.approval)
+
+
+NEEDS_APPROVAL = "agenticos_needs_approval"
+"""The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
+
+Top-level in the metadata, where an MCP server cannot write: what a server
+sends lands under `meta` and `annotations`, so it cannot mark its own tools safe.
+"""
+
+
+def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
+    """Whether a call to this MCP tool waits for a person, under `policy`.
+
+    `writes` trusts the server's `readOnlyHint` and nothing else: a tool that
+    does not say it only reads is treated as one that writes.
+    """
+    if policy == "all":
+        return True
+    if policy == "none":
+        return False
+    annotations = (tool.metadata or {}).get("annotations") or {}
+    return annotations.get("readOnlyHint") is not True
+
+
+@dataclass
+class ApprovalMarked(WrapperToolset[Any]):
+    """An MCP server's tools, each marked with whether it waits for approval."""
+
+    policy: McpApproval = "writes"
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        return {
+            name: replace(
+                tool,
+                tool_def=replace(
+                    tool.tool_def,
+                    metadata={
+                        **(tool.tool_def.metadata or {}),
+                        NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                    },
+                ),
+            )
+            for name, tool in tools.items()
+        }
 
 
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:

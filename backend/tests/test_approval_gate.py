@@ -54,6 +54,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
+from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -240,6 +241,65 @@ class TestGate:
             )
 
         assert tool.calls == []
+
+
+class TestMcpToolsMarkedByTheirBinding:
+    """#2060: an MCP tool carries its binding's verdict, and the gate honours it."""
+
+    @staticmethod
+    def _mcp(marked: bool, capability_id: str | None = None) -> ToolDefinition:
+        return ToolDefinition(
+            name="notion_create_page",
+            parameters_json_schema={"type": "object", "properties": {}},
+            capability_id=capability_id,
+            metadata={NEEDS_APPROVAL: marked, "annotations": None},
+        )
+
+    @pytest.mark.anyio
+    async def test_a_marked_mcp_tool_waits_for_a_person(self):
+        tool = _Recorder()
+        ask = _ctx(ApprovalGranted(tool_args={"title": "approved"}))
+
+        result = await ApprovalGate().wrap_tool_execute(
+            ask,
+            call=_call({"title": "proposed"}),
+            tool_def=self._mcp(marked=True),
+            args={"title": "proposed"},
+            handler=tool,
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].capability_id is None
+        assert tool.calls == [{"title": "approved"}]
+        assert result == "sent"
+
+    @pytest.mark.anyio
+    async def test_an_unmarked_mcp_tool_runs(self):
+        tool = _Recorder()
+
+        await ApprovalGate().wrap_tool_execute(
+            _ctx(None),
+            call=_call({}),
+            tool_def=self._mcp(marked=False),
+            args={},
+            handler=tool,
+        )
+
+        assert tool.calls == [{}]
+
+    @pytest.mark.anyio
+    async def test_a_capability_tool_cannot_be_marked_into_or_out_of_the_gate(self):
+        """The mark is read only off a tool no capability owns."""
+        tool = _Recorder()
+
+        await ApprovalGate().wrap_tool_execute(
+            _ctx(None),
+            call=_call({}),
+            tool_def=self._mcp(marked=True, capability_id="email"),
+            args={},
+            handler=tool,
+        )
+
+        assert tool.calls == [{}]
 
 
 class TestAskingAboutEverything:

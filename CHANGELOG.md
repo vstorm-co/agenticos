@@ -84,6 +84,11 @@ Two things are versioned separately from this file and worth knowing about:
   was edited, and otherwise says who changed it and through what and waits for
   **Reload** or **Keep my changes**. A subscriber only hears about rows it may
   read, and a socket whose session, key or membership is gone is closed (#2061).
+- **MCP tools wait for approval when they change something.** Every MCP binding
+  has an `approval` policy: `writes` (the default) holds each tool the server does
+  not mark read-only until a person approves the exact call, `all` holds every
+  call and `none` none. The card, the queue and the resume are the ones
+  capability tools use. Existing bindings take `writes` (#2060).
 - **Variables in an agent's instructions.** `{{current_date}}`, `{{current_time}}`,
   `{{user_name}}`, `{{organization_name}}`, `{{channel}}` and the rest are filled in
   when each run starts, and an agent can define its own. Typing `{{` in the

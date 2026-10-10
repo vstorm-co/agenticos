@@ -275,7 +275,7 @@ class TestMakeToolset:
         from pydantic_ai.toolsets import PrefixedToolset
 
         spec = McpServerSpec(name="github-work", url="https://example.com/mcp")
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
@@ -287,7 +287,7 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.tool_error_behavior == "failed"
+        assert _make_toolset(spec).wrapped.wrapped.tool_error_behavior == "failed"
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -297,7 +297,7 @@ class TestMakeToolset:
             url="https://example.com/mcp",
             allowed_tools=["search_issues"],
         )
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         filtered = toolset.wrapped
         assert isinstance(filtered, FilteredToolset)
@@ -308,6 +308,57 @@ class TestMakeToolset:
         blocked_tool.name = "delete_repo"
         assert filtered.filter_func(None, allowed_tool) is True
         assert filtered.filter_func(None, blocked_tool) is False
+
+
+class TestApprovalMarks:
+    """#2060: an MCP tool waits for a person unless its binding says otherwise."""
+
+    @pytest.mark.parametrize(
+        ("policy", "read_only", "expected"),
+        [
+            ("writes", True, False),
+            ("writes", False, True),
+            ("writes", None, True),
+            ("all", True, True),
+            ("none", False, False),
+        ],
+    )
+    def test_the_policy_and_the_read_only_hint_decide(self, policy, read_only, expected):
+        from app.agents.mcp import needs_approval
+
+        assert needs_approval(_mcp_tool("t", read_only), policy) is expected
+
+    @pytest.mark.anyio
+    async def test_every_tool_the_server_lists_carries_the_mark(self):
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import NEEDS_APPROVAL, ApprovalMarked
+
+        inner = MagicMock()
+        listed = {
+            name: ToolsetTool(
+                toolset=inner,
+                tool_def=_mcp_tool(name, read_only),
+                max_retries=1,
+                args_validator=MagicMock(),
+            )
+            for name, read_only in (("read", True), ("delete", False))
+        }
+        inner.get_tools = AsyncMock(return_value=listed)
+
+        marked = await ApprovalMarked(inner, policy="writes").get_tools(MagicMock())
+
+        assert marked["read"].tool_def.metadata[NEEDS_APPROVAL] is False
+        assert marked["delete"].tool_def.metadata[NEEDS_APPROVAL] is True
+        # What the server sent is kept beside the mark.
+        assert marked["read"].tool_def.metadata["annotations"] == {"readOnlyHint": True}
+
+
+def _mcp_tool(name, read_only):
+    from pydantic_ai.tools import ToolDefinition
+
+    annotations = None if read_only is None else {"readOnlyHint": read_only}
+    return ToolDefinition(name=name, metadata={"annotations": annotations, "meta": None})
 
 
 class TestBuildMcpToolsets:

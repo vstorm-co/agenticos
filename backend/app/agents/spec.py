@@ -578,6 +578,10 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
+McpApproval = Literal["writes", "all", "none"]
+"""How much of an MCP server's tools wait for a person (#2060)."""
+
+
 class OrgMcpServerRef(BaseModel):
     """One of the organization's MCP connections, used by every run of this agent.
 
@@ -606,6 +610,13 @@ class OrgMcpServerRef(BaseModel):
             "the connection allows, which is what a binding meant before this "
             "field existed. Narrowing only: the connection's own allowlist is an "
             "administrator's ceiling and this cannot reach past it."
+        ),
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
     )
 
@@ -660,6 +671,13 @@ class PersonalMcpServerRef(BaseModel):
         description=(
             "Which of the server's tools this agent may call, whoever's account "
             "answers. Null is every tool the person's own connection allows."
+        ),
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
     )
 

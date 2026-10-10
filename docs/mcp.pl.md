@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce84e15a17d"
+source_sha: "1ea2723f80e6"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -140,6 +140,17 @@ Połączenie, którego nikt jeszcze nie odpytał, nie ma katalogu do zaoferowani
 lista wyboru mówi to wprost i kieruje na stronę serwerów, bo tam sprawdza się
 połączenie. Powiązanie, które już wymienia narzędzia, pokazuje właśnie je, więc
 to, z czym jest związane, pozostaje widoczne i wciąż można je zawęzić.
+
+### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
+
+Każde powiązanie ma politykę `approval` dla narzędzi swojego serwera. Domyślna,
+`writes`, wstrzymuje każde narzędzie, którego serwer nie oznaczył jako tylko do
+odczytu (`readOnlyHint` w MCP), aż człowiek zatwierdzi wywołanie — tak samo jak
+narzędzie capability ze skutkami ubocznymi: karta pokazuje dokładne argumenty, a
+wykonywane są te zatwierdzone. `all` wstrzymuje każde wywołanie; `none` przepuszcza
+wszystkie, dla serwera, któremu ufasz bez człowieka w pętli. Wskazówka „tylko do
+odczytu” to deklaracja samego serwera, więc `writes` jest tak ścisłe, jak serwer
+jest uczciwy — dla serwera, którego nie kontrolujesz, wybierz `all`.
 
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
@@ -811,19 +822,17 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 Celowo nie ma tu usuwania czegokolwiek, publikowania agenta ani dotykania
 poświadczeń. Draft utworzony tutaj publikuje osoba w konsoli. Podłączone aplikacje są
 widoczne w **Ustawienia → Klucze API**, gdzie odłączenie kończy ich dostęp razem
-z każdym tokenem. Krok zatwierdzenia przed zapisami asystenta jest śledzony
-jako #2060.
+z każdym tokenem. Wywołania, które coś
+zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 
 - **Gwarancji pokrycia.** Wpisy katalogowe to metadane. Narzędzia należą do
   dostawcy i mogą zmienić ci się pod ręką między jedną turą a następną.
-- **Automatycznego objęcia zatwierdzeniami.** Ustawienia zatwierdzeń capability
-  nie obejmują narzędzi MCP. W czacie internetowym **Ask about everything**
-  (`ask_all`) obejmuje też wywołania MCP obsługiwane przez runner; domyślny tryb
-  **Follow the agent** nie dodaje tej bramki. Ogranicz dostępne narzędzia i sprawdź
-  tryb wykonania przed włączeniem połączenia. Zobacz
-  [tryby zatwierdzania](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Zatwierdzeń, które wiedzą, co robi narzędzie.** Polityka `writes` ufa, że
+  serwer oznaczył narzędzia tylko do odczytu; narzędzie tak oznaczone, które coś
+  zmienia, uruchamia się bez pytania. Dla serwera, którego nie kontrolujesz, użyj
+  `all` i zawęź `allowed_tools`. Zobacz [które wywołania czekają](#which-calls-wait-for-a-person).
 - **Przypisania kosztów.** To, co serwer robi po swojej stronie, nie jest
   w [budżecie](governance.md#budgets) tej platformy. Są w nim tylko tokeny
   modelu.

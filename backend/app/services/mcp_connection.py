@@ -1892,6 +1892,7 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            approval=ref.approval,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -1968,6 +1969,7 @@ async def _own_spec(
         url=connection.url,
         headers=headers,
         allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
+        approval=ref.approval,
     )
 
 
