@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
@@ -21,6 +22,7 @@ import {
   ListCardFootRow,
   PaginationBar,
 } from "@/components/ui";
+import { ROUTES } from "@/lib/constants";
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
@@ -82,6 +84,7 @@ export function RunHistoryTab({
 }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
+  const router = useRouter();
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
   // Names and faces for the table's Agent and User columns. The agent list
@@ -296,6 +299,7 @@ export function RunHistoryTab({
                     icon={Activity}
                     title={t("noRunsInWindow")}
                     description={t("widenTheWindowAbove")}
+                    cta={{ label: t("askAnAgent"), onClick: () => router.push(ROUTES.CHAT) }}
                   />
                 )
               ) : (

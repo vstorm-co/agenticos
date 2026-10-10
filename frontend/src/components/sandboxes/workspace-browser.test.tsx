@@ -709,6 +709,9 @@ describe("WorkspaceBrowser", () => {
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
       expect(screen.getByText(/No agent is holding a file yet/)).toBeVisible();
+      // And where files come from, with the way there (#2075).
+      expect(screen.getByText(/Sandbox capability keeps the files/)).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Open your agents" }));
     });
 
     it("reports a failure instead of an empty list", async () => {

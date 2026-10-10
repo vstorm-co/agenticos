@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Lock, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -19,6 +20,7 @@ import {
 import { usePermissions } from "@/hooks";
 import { useArtifactAgents, useArtifacts } from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -29,6 +31,7 @@ import { Perm } from "@/types/permissions";
  */
 export default function ArtifactsPage() {
   const t = useTranslations("artifacts");
+  const router = useRouter();
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [query, setQuery] = useState("");
@@ -98,6 +101,12 @@ export default function ArtifactsPage() {
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}
+            // Somebody with no apps yet is one agent away from one (#2075).
+            cta={
+              isFiltering
+                ? undefined
+                : { label: t("noneYetCta"), onClick: () => router.push(ROUTES.AGENTS) }
+            }
           />
         ) : (
           <div className="space-y-4">
