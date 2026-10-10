@@ -275,6 +275,8 @@ export const qk = {
       ["mcp-oauth", orgId, "request", requestId] as const,
     grants: (orgId: string) => ["mcp-oauth", orgId, "grants"] as const,
   },
+  // The organization's AI Architect: its agent, status and settings (#2063).
+  assistant: (orgId: string) => ["assistant", orgId] as const,
   apiKeys: {
     /** Every key query in one organization, for invalidating after a create or revoke. */
     all: (orgId: string) => ["api-keys", orgId] as const,

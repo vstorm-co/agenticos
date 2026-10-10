@@ -1,7 +1,21 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+
+import { inAssistantFrame } from "@/lib/assistant-frame";
+
+/** Where the AI Architect's frame keeps its selection: nowhere the console reads. */
+const kept = new Map<string, string>();
+const frameStorage: StateStorage = {
+  getItem: (name) => kept.get(name) ?? null,
+  setItem: (name, value) => {
+    kept.set(name, value);
+  },
+  removeItem: (name) => {
+    kept.delete(name);
+  },
+};
 
 /**
  * Which published agent the chat is addressed to.
@@ -17,7 +31,8 @@ import { persist } from "zustand/middleware";
  * leaves it alone, and it only takes effect when a conversation begins or the
  * live selection is empty or stale.
  *
- * Persisted to localStorage the same way the knowledge-base draft is, so the
+ * Persisted to localStorage the same way the knowledge-base draft is (except in
+ * the AI Architect's frame, which keeps its own in memory), so the
  * choice survives a refresh or a new tab. Only ids are kept: the name is
  * server state and is resolved where it is rendered, so a renamed agent does
  * not keep answering under its old label.
@@ -39,6 +54,10 @@ export const useAgentSelectionStore = create<AgentSelectionState>()(
     }),
     {
       name: "agent-selection",
+      // The assistant's frame selects its own agent (#2063). It shares this
+      // origin's localStorage with the console around it, so writing there would
+      // switch the main chat to the assistant on its next load.
+      storage: createJSONStorage(() => (inAssistantFrame() ? frameStorage : localStorage)),
       // Still version 1: adding `defaultAgentId` is backward-compatible - a
       // persisted state without it merges over the initial `null`.
       version: 1,

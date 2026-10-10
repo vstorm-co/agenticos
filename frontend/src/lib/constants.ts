@@ -18,6 +18,7 @@ export const ROUTES = {
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
   SETTINGS_MEMORY: "/settings/memory",
   SETTINGS_API_KEYS: "/settings/api-keys",
+  SETTINGS_ASSISTANT: "/settings/assistant",
   OAUTH_CONSENT: "/oauth/consent",
   MCP_SERVERS: "/mcp-servers",
   CHANNELS: "/channels",

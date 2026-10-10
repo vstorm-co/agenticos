@@ -1,3 +1,4 @@
+import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
@@ -78,6 +79,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <CommandPalette />
           <OnboardingTour />
           <OnboardingFlows />
+          {/* The AI Architect, in the corner of every page (#2063). */}
+          <AssistantWidget />
         </div>
       </CustomIconsProvider>
     </AuthGuard>

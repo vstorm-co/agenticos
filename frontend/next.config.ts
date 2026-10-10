@@ -81,6 +81,12 @@ const nextConfig: NextConfig = {
       // Relax framing for the file endpoint so the chat preview panel can
       // embed PDFs/HTML in an iframe from the same origin. Listed AFTER the
       // catch-all so its values win for matching headers.
+      // The AI Architect's conversation, framed by the console's corner widget
+      // (#2063) - the one page the console frames, and only from itself.
+      ...["/assistant-frame", "/:locale/assistant-frame"].map((source) => ({
+        source,
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      })),
       {
         source: "/api/files/:path*",
         headers: [

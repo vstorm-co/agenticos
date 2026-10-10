@@ -9,6 +9,7 @@ import {
   routing,
 } from "./lib/locale-routing";
 import { readPublicConfig } from "./lib/public-config";
+import { isAssistantFramePath } from "./lib/assistant-frame";
 import { contentSecurityPolicyHeader } from "./lib/security-headers";
 
 const handleI18nRouting = createMiddleware(routing);
@@ -95,7 +96,9 @@ function withContentSecurityPolicy(response: NextResponse, csp: string): NextRes
 
 export default function middleware(request: NextRequest): NextResponse {
   const nonce = generateNonce();
-  const { value: csp } = contentSecurityPolicyHeader(readPublicConfig(process.env), nonce);
+  const { value: csp } = contentSecurityPolicyHeader(readPublicConfig(process.env), nonce, {
+    framedBySelf: isAssistantFramePath(request.nextUrl.pathname),
+  });
 
   const restored = restorePickedLocale(request);
   if (restored) return withContentSecurityPolicy(restored, csp);

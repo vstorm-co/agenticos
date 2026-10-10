@@ -170,6 +170,7 @@ class AssistantService:
         return AssistantRead(
             status=status,
             agent_id=agent.id,
+            slug=agent.slug,
             name=agent.name,
             greeting=row.greeting,
             avatar_url=agent.avatar_url,

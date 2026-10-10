@@ -2679,7 +2679,8 @@
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
     "artifacts": "Artefakte",
-    "apiKeys": "API-Schlüssel"
+    "apiKeys": "API-Schlüssel",
+    "assistant": "Assistent"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3211,6 +3212,14 @@
       "settings-connected-apps": {
         "title": "Verbundene Anwendungen",
         "body": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen im erlaubten Rahmen - trennen Sie eine, um ihren Zugriff sofort zu beenden."
+      },
+      "assistant-widget": {
+        "title": "Ihr AI Architect",
+        "body": "Fragen Sie ihn alles zur Plattform – er baut mit Ihnen Agents, erklärt Fehler und findet Einstellungen. Seine Sprechblasen schlagen auf jeder Seite etwas vor; abschalten können Sie sie unter Einstellungen → Assistent."
+      },
+      "settings-assistant": {
+        "title": "Der Assistent der Organisation",
+        "body": "Geben Sie ihm einen Namen und eine Begrüßung und wählen Sie das Modell, auf dem er läuft. Alle, die Agents ausführen dürfen, sehen ihn in der Ecke jeder Seite."
       }
     }
   },
@@ -5538,15 +5547,6 @@
     "emptyTitle": "Keine verbundenen Anwendungen",
     "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier."
   },
-  "assistant": {
-    "title": "Plattform-Assistent",
-    "why": "Fragen Sie nach Ihren Agents, Runs und Wissensbasen oder lassen Sie ihn Dinge entwerfen und einrichten. Er handelt mit Ihren Berechtigungen und fragt, bevor er etwas ändert.",
-    "open": "Assistenten öffnen",
-    "draftWhy": "Er ist installiert, aber nicht veröffentlicht. Wählen Sie sein Modell, teilen Sie ihn mit der Organisation und veröffentlichen Sie ihn.",
-    "finish": "Einrichtung abschließen",
-    "setUp": "Assistenten einrichten",
-    "askAdmin": "Der Assistent ist in dieser Organisation noch nicht eingerichtet. Bitten Sie eine Administration, ihn aus den Agent-Vorlagen zu installieren."
-  },
   "liveUpdates": {
     "changedElsewhere": "{actor} hat das {surface} geändert, während Sie es bearbeitet haben. Laden Sie neu, um diese Version zu sehen, oder behalten Sie Ihre Änderungen und speichern Sie darüber.",
     "reload": "Neu laden",
@@ -5557,5 +5557,118 @@
       "mcp": "über MCP",
       "assistant": "über den Plattform-Assistenten"
     }
+  },
+  "assistantWidget": {
+    "open": "{name} öffnen",
+    "close": "Schließen",
+    "history": "Unterhaltungen",
+    "closeHistory": "Zurück zur Unterhaltung",
+    "noHistory": "Noch keine Unterhaltungen.",
+    "untitled": "Unterhaltung ohne Titel",
+    "newConversation": "Neue Unterhaltung",
+    "tipsOn": "Tipps wieder einschalten",
+    "tipsOff": "Tipps ausschalten",
+    "silenceHere": "Auf dieser Seite keine Tipps zeigen",
+    "greeting": "Hallo, ich bin {assistant}. Womit fangen wir an?",
+    "greetingNamed": "Hallo {person}, ich bin {assistant}. Womit fangen wir an?",
+    "tiles": {
+      "build": {
+        "label": "Mit mir einen Agent bauen",
+        "ask": "Ich möchte einen neuen Agent bauen. Stellen Sie mir nacheinander Fragen dazu, was er tun soll, und richten Sie ihn für mich ein."
+      },
+      "documents": {
+        "label": "Aus unseren Dokumenten antworten",
+        "ask": "Ein Agent soll auf Grundlage unserer Dokumente antworten. Führen Sie mich durch das Hinzufügen."
+      },
+      "lookAround": {
+        "label": "Was sehe ich hier?",
+        "ask": "Erklären Sie mir in einfachen Worten, was diese Plattform für mich tun kann.",
+        "askOnPage": "Ich bin auf der Seite „{title}“ ({path}). Erklären Sie mir in einfachen Worten, was ich hier sehe und was ich hier tun kann."
+      },
+      "recipes": {
+        "label": "Fertige Rezepte",
+        "ask": "Zeigen Sie mir die fertigen Rezepte – einen FAQ-Bot, ein Website-Widget, einen Slack-Bot, einen Wochenbericht – und helfen Sie mir bei der Auswahl."
+      }
+    },
+    "bubbles": {
+      "approvals": {
+        "say": "Etwas wartet auf Ihre Freigabe. Sollen wir es gemeinsam durchgehen?",
+        "ask": "Was wartet auf meine Freigabe? Erklären Sie jeden Punkt in einfachen Worten."
+      },
+      "firstSteps": {
+        "say": "Ihre Organisation hat noch keine Agents. Bauen wir gemeinsam den ersten?",
+        "ask": "Helfen Sie mir, unseren ersten Agent zu bauen. Fragen Sie mich, was er tun soll."
+      },
+      "agents": {
+        "say": "Brauchen Sie einen neuen Agent? Beschreiben Sie ihn in einem Satz, und ich baue ihn.",
+        "ask": "Ich möchte einen neuen Agent. Fragen Sie mich, was er tun soll, und bauen Sie ihn."
+      },
+      "agent": {
+        "say": "Unklar, was eine Einstellung hier bewirkt? Fragen Sie mich.",
+        "ask": "Erklären Sie die Einstellungen dieses Agents in einfachen Worten und schlagen Sie Verbesserungen vor."
+      },
+      "knowledge": {
+        "say": "Ich helfe Ihnen, Dokumente hinzuzufügen, damit Agents daraus antworten.",
+        "ask": "Helfen Sie mir, unsere Dokumente hinzuzufügen, damit ein Agent daraus antworten kann."
+      },
+      "runs": {
+        "say": "Ein Run ist fehlgeschlagen? Ich erkläre, was schiefging.",
+        "ask": "Sehen Sie sich die letzten Runs an und erklären Sie jeden Fehler in einfachen Worten – und was dagegen zu tun ist."
+      },
+      "skills": {
+        "say": "Skills bringen Agents bei, wie eine Aufgabe geht. Schreiben wir gemeinsam einen?",
+        "ask": "Helfen Sie mir, einen Skill zu schreiben. Fragen Sie mich, welche Aufgabe er beibringen soll."
+      },
+      "settings": {
+        "say": "Suchen Sie eine Einstellung? Sagen Sie mir, was Sie ändern möchten.",
+        "ask": "Ich möchte eine Einstellung ändern. Fragen Sie mich, welche, und zeigen Sie mir, wo sie ist."
+      },
+      "tipMcp": {
+        "say": "Wussten Sie schon? Agents können über MCP die Werkzeuge Ihres Unternehmens nutzen – CRM, Kalender, Tickets.",
+        "ask": "Wie kann ein Agent über MCP die Werkzeuge unseres Unternehmens nutzen? Erklären Sie es einfach."
+      },
+      "tipVariables": {
+        "say": "Wussten Sie schon? '{{' in den Instruktionen eines Agents fügt das heutige Datum, den Namen der Person und mehr ein.",
+        "ask": "Wie funktionieren Variablen in den Instruktionen eines Agents?"
+      },
+      "tipGroups": {
+        "say": "Wussten Sie schon? Über Gruppen können Sie einen Agent nur mit einer Abteilung teilen.",
+        "ask": "Wie teile ich einen Agent nur mit einer Gruppe oder Abteilung?"
+      },
+      "tipQuestions": {
+        "say": "Wussten Sie schon? Ein Agent kann Ihnen Fragen mit fertigen Antworten zum Anklicken stellen.",
+        "ask": "Wie stellt mir ein Agent während der Arbeit Fragen?"
+      }
+    },
+    "setup": {
+      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?",
+      "title": "Ein Modell verbinden",
+      "typing": "{name} schreibt…",
+      "openSettings": "Assistent-Einstellungen öffnen",
+      "steps": {
+        "intro": "Hallo, ich bin {name}. Ich helfe beim Bauen von Agents und beim Zurechtfinden auf der Plattform – aber zum Denken brauche ich ein Sprachmodell, und noch ist keins verbunden. So verbinden Sie eins. Es dauert etwa zwei Minuten.",
+        "key": "<b>Schritt 1: einen API-Schlüssel besorgen.</b> Melden Sie sich bei einem Modell-Provider an – Anthropic, OpenAI, Google oder einem anderen – und erstellen Sie in dessen Konsole einen API-Schlüssel. Das ist eine lange Zeichenfolge, oft beginnend mit „sk-“. Betreibt Ihr Unternehmen ein eigenes Modell, etwa auf Ollama oder vLLM, genügt dessen Adresse.",
+        "settings": "<b>Schritt 2: Einstellungen → Assistent öffnen.</b> Wählen Sie unter Modell den Provider und fügen Sie den Schlüssel ein. Er wandert verschlüsselt direkt in den Vault – niemand sieht ihn je wieder vollständig, ich auch nicht.",
+        "model": "<b>Schritt 3: ein Modell wählen und speichern.</b> Ein leistungsfähiges Modell mittlerer Preisklasse ist ein guter Start, und Sie können es jederzeit wechseln.",
+        "done": "<b>Das war's.</b> Kommen Sie hierher zurück, und ich begrüße Sie. Dieses Modell steht auch allen anderen Agents Ihrer Organisation zur Verfügung.",
+        "askAdmin": "<b>Wer das kann:</b> Nur ein Administrator Ihrer Organisation kann ein Modell verbinden. Bitten Sie ihn, diese Schritte zu befolgen – das dauert etwa zwei Minuten, danach bin ich für alle da."
+      }
+    }
+  },
+  "assistantSettings": {
+    "notForYou": "Ihre Rolle umfasst nicht das Ausführen von Agents, daher steht Ihnen der Assistent nicht zur Verfügung. Ein Administrator kann das ändern.",
+    "yours": "Ihre Tipps",
+    "yoursDescription": "Die Sprechblasen, die der Assistent Ihnen in der Konsole zeigt. Dieser Browser merkt sie sich.",
+    "showTips": "Tipps in Sprechblasen anzeigen",
+    "unsilence": "{count, plural, =1 {Tipps auf der 1 stummgeschalteten Seite wieder zeigen} other {Tipps auf den # stummgeschalteten Seiten wieder zeigen}}",
+    "organization": "Für die Organisation",
+    "organizationDescription": "Was alle in der Organisation sehen: Name und Begrüßung des Assistenten und das Modell, auf dem er läuft. Seine Kosten zählen wie die jedes Agents.",
+    "enabled": "Assistent eingeschaltet",
+    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie unten eins aus oder fügen Sie eins hinzu.",
+    "model": "Modell",
+    "name": "Name",
+    "greeting": "Begrüßung",
+    "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
+    "save": "Speichern"
   }
 }

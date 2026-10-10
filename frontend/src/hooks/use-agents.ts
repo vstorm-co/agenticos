@@ -466,12 +466,6 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
-/**
- * Everything an agent can be given.
- *
- * Cached indefinitely: the catalog changes when the backend is redeployed, not
- * while someone is building an agent.
- */
 /** The system variables any agent's instructions may write as `{{name}}` (#2065). */
 export function usePromptVariables() {
   const { data } = useQuery({
@@ -482,6 +476,12 @@ export function usePromptVariables() {
   return { variables: data?.items ?? [] };
 }
 
+/**
+ * Everything an agent can be given.
+ *
+ * Cached indefinitely: the catalog changes when the backend is redeployed, not
+ * while someone is building an agent.
+ */
 export function useCapabilityCatalog() {
   const { data, isLoading } = useQuery({
     queryKey: qk.agents.capabilityCatalog(),

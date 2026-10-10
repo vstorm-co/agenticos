@@ -19,6 +19,9 @@ class AssistantRead(BaseSchema):
         )
     )
     agent_id: UUID | None
+    slug: str | None = Field(
+        default=None, description="Its handle, which its default face is drawn from"
+    )
     name: str
     greeting: str | None
     avatar_url: str | None = None

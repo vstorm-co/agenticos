@@ -1,5 +1,5 @@
 ---
-source_sha: "5396f44a55e6"
+source_sha: "1477d03ed0f2"
 ---
 
 # Konsola { #the-console }
@@ -111,17 +111,32 @@ następnym otwarciu strony.
 
 ## Asystent { #the-assistant }
 
-Iskierka obok wyszukiwania otwiera **asystenta platformy**: agenta zainstalowanego
-z szablonu *Platform assistant* i powiązanego z
+Na każdej stronie, w prawym dolnym rogu, jest **AI Architekt**: agent, którego
+każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkich,
+którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 [serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
-albo co jest w bazie wiedzy; poproś o szkic agenta albo zaproszenie współpracownika,
-a najpierw pokaże ci dokładne wywołanie do zatwierdzenia. Działa z twoimi
-uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej.
+albo co jest w bazie wiedzy. Poproś o szkic agenta albo zaproszenie
+współpracownika, a najpierw pokaże ci dokładne wywołanie do zatwierdzenia. Działa
+z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
+koszty liczą się jak każdego agenta.
 
-Dopóki ktoś z `agents:edit` go nie zainstaluje i nie opublikuje — przycisk to
-proponuje — mówi, kto może to zrobić. Przy publikacji udostępnij go organizacji,
-żeby wszyscy mieli tego samego asystenta.
+Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
+żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
+Kliknięcie dymka zadaje mu pytanie; × wycisza tę stronę, a dzwonek w jego oknie
+wyłącza dymki w ogóle. Okno otwiera się na czterech kafelkach, więc pierwsza
+wiadomość to jedno kliknięcie, i ma własną historię rozmów. Na telefonie zajmuje
+cały ekran.
+
+Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
+krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz
+**Ustawienia → Asystent**, wybierz dostawcę i wklej klucz, a potem wybierz model.
+Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia organizacji; pozostali
+dowiadują się, kto może to zrobić.
+
+**Ustawienia → Asystent** to twoje własne wskazówki, a dla tego, kto może zmieniać
+ustawienia organizacji, także nazwa asystenta, jego powitanie i model oraz
+przełącznik, który wyłącza go dla wszystkich.
 
 ## Zmiany wprowadzone gdzie indziej { #changes-made-elsewhere }
 

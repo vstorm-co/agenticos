@@ -65,19 +65,32 @@ Two things are versioned separately from this file and worth knowing about:
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
   **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
-- **The AI Architect.** A sparkle beside search opens an agent, installed
-  from the new *AI Architect* template, that finds agents, runs, knowledge
-  bases, skills and members, explains a failed run, and - once a person approves
-  the exact call - drafts agents, creates knowledge bases, adds documents and
-  invites people. It reaches the platform through the platform's own MCP server
-  over the real protocol, in-process, with a credential minted for whoever is
-  asking (a new `platform` kind of MCP binding), so it can never do more than
-  they can; its write tools are held by the MCP approval gate. The MCP tool
-  `create_agent` is renamed `create_agent_draft`, which no longer collides with
-  delegation's. Migration `0109_internal_api_keys` (#1798).
+- **The AI Architect.** Every organization has one, without installing
+  anything: the first time anybody opens the console it is installed from the
+  *AI Architect* template as the organization's owner, shared with everyone, and
+  published on the organization's first model (migration
+  `0110_organization_assistants`). It lives in the corner of every page as the
+  agent's avatar, with a speech bubble that speaks to what is waiting - approvals,
+  an organization with no agents yet - or to the page, plus an occasional "Did
+  you know?"; × silences a page and a switch silences them all. Its window, full
+  screen on a phone, opens on a greeting and four tiles and keeps its own
+  conversation history. Before it has a model it types out a short conversation
+  explaining how to connect one, in every language, and only an administrator is
+  given the button to do it. It finds agents, runs, knowledge bases, skills and
+  members, explains a failed run, and - once a person approves the exact call -
+  drafts agents, creates knowledge bases, adds documents and invites people. It
+  reaches the platform through the platform's own MCP server over the real
+  protocol, in-process, with a credential minted for whoever is asking (a new
+  `platform` kind of MCP binding), so it can never do more than they can. Who
+  may talk to it is `agents:run`, as for any agent, and its cost counts like any
+  agent's. **Settings → Assistant** holds your own tips and, for whoever may
+  change the organization's settings, its name, greeting and model, and a switch
+  to turn it off. The MCP tool `create_agent` is renamed `create_agent_draft`,
+  which no longer collides with delegation's. Migration `0109_internal_api_keys`
+  (#1798, #2063).
 - **The console keeps up with changes made elsewhere.** A successful write
   through the public API — from a script's key, Claude Code over MCP, the
-  Platform assistant or another person's console — is announced over Redis to
+  AI Architect or another person's console — is announced over Redis to
   the organization's open consoles on the new `/api/v1/ws/events` socket, and
   each page with nothing unsaved refetches in place. The Builder stops autosaving
   when the agent it holds changes elsewhere: it takes the new draft when nothing

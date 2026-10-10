@@ -103,17 +103,31 @@ time you open the page.
 
 ## The assistant
 
-The sparkle beside search opens the **Platform assistant**: an agent installed
-from the *Platform assistant* template and bound to the
+Every page has the **AI Architect** in its bottom-right corner: an agent every
+organization gets without installing anything, shared with everyone who may run
+agents (`agents:run`). It is bound to the
 [platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which
 agents can answer refund questions, why last night's run failed, or what is in a
-knowledge base; ask it to draft an agent or invite a colleague, and it shows you
-the exact call to approve first. It acts with your permissions, so it finds and
-does what you could, and no more.
+knowledge base. Ask it to draft an agent or invite a colleague, and it first
+shows you the exact call to approve. It acts with your permissions, so it finds
+and does what you could, and no more. Its cost counts like any agent's.
 
-Until somebody with `agents:edit` installs and publishes it — the button offers
-to — it says who can. Share it with the organization when you publish it, so
-everyone gets the same assistant.
+A speech bubble above it speaks to what is waiting for you — approvals, an
+organization with no agents yet — or to the page you are on, and now and then
+offers a tip. Click the bubble to ask it; × silences that page, and the bell in
+its window turns the bubbles off. Its window opens on four tiles, so a first
+message is a click, and keeps its own conversation history. On a phone it fills
+the screen.
+
+Until the organization has a model, it cannot answer. Opening it then types out
+a short conversation explaining how to connect one: get an API key from a
+provider, open **Settings → Assistant**, choose the provider and paste the key,
+and pick a model. Only somebody who may change the organization's settings is
+given the button; anybody else is told who can do it.
+
+**Settings → Assistant** holds your own tips and, for whoever may change the
+organization's settings, the assistant's name, greeting and model, and a switch
+to turn it off for everyone.
 
 ## Changes made elsewhere
 

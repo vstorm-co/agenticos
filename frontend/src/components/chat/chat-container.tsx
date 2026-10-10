@@ -84,7 +84,21 @@ function useContextWindow(modelProfileId: string | null): number | null {
   return agents.find((agent) => agent.id === selectedAgentId)?.context_window_tokens ?? null;
 }
 
-export function ChatContainer() {
+/** A prompt to send for the reader, once - the AI Architect widget's bubbles. */
+export interface ChatPrompt {
+  /** Distinguishes two sends of the same words. */
+  id: number;
+  text: string;
+}
+
+interface ChatContainerProps {
+  /** Sent as soon as the socket is up, once per `id` (#2063). */
+  prompt?: ChatPrompt | null;
+  /** What an empty conversation shows instead of the generic suggestions. */
+  emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
+}
+
+export function ChatContainer({ prompt = null, emptyState }: ChatContainerProps = {}) {
   const {
     currentConversationId,
     currentMessages,
@@ -301,6 +315,15 @@ export function ChatContainer() {
     [messages, sendMessage],
   );
 
+  // A prompt handed in from outside - a bubble the reader clicked in the
+  // widget - goes out once the socket can carry it, and only once.
+  const sentPromptRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prompt === null || !isConnected || sentPromptRef.current === prompt.id) return;
+    sentPromptRef.current = prompt.id;
+    sendMessage(prompt.text);
+  }, [prompt, isConnected, sendMessage]);
+
   // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.
   const slashContext = {
@@ -377,11 +400,14 @@ export function ChatContainer() {
       pendingConnection={pendingConnection}
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
+      emptyState={emptyState}
     />
   );
 }
 
 interface ChatUIProps {
+  /** Replaces the generic empty-conversation suggestions. */
+  emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
@@ -493,6 +519,7 @@ function ChatUI({
   pendingConnection,
   onConnectionResponse,
   onStop,
+  emptyState,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   // Opened by the composer's microphone button; the glow around the box reads
@@ -585,7 +612,11 @@ function ChatUI({
               <ConversationSkeleton />
             ) : messages.length === 0 ? (
               <div className="flex h-full items-center">
-                <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
+                {emptyState ? (
+                  emptyState((picked) => sendMessage(picked))
+                ) : (
+                  <ChatEmptyState onPick={(picked) => sendMessage(picked)} />
+                )}
               </div>
             ) : (
               <MessageList messages={messages} onRegenerate={onRegenerate} />

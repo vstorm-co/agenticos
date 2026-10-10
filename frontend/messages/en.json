@@ -2816,7 +2816,8 @@
     "collapseSidebar": "Collapse the sidebar",
     "expandSidebar": "Expand the sidebar",
     "artifacts": "Artifacts",
-    "apiKeys": "API keys"
+    "apiKeys": "API keys",
+    "assistant": "Assistant"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3348,6 +3349,14 @@
       "settings-connected-apps": {
         "title": "Connected applications",
         "body": "Apps you signed in to with this account, like Claude Code. Each acts as you within what you allowed - disconnect one to end its access at once."
+      },
+      "assistant-widget": {
+        "title": "Your AI Architect",
+        "body": "Ask it anything about the platform - it builds agents with you, explains errors and finds settings. Its speech bubbles suggest what to do on each page; turn them off in Settings → Assistant."
+      },
+      "settings-assistant": {
+        "title": "The organization's assistant",
+        "body": "Name it, give it a greeting and choose the model it runs on. Everyone who may run agents sees it in the corner of every page."
       }
     }
   },
@@ -5680,15 +5689,6 @@
     "emptyTitle": "No connected applications",
     "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here."
   },
-  "assistant": {
-    "title": "Platform assistant",
-    "why": "Ask about your agents, runs and knowledge bases, or have it draft and set things up. It acts with your permissions, and asks before it changes anything.",
-    "open": "Open the assistant",
-    "draftWhy": "It is installed but not published. Choose its model, share it with the organization and publish it.",
-    "finish": "Finish setting it up",
-    "setUp": "Set up the assistant",
-    "askAdmin": "The assistant is not set up in this organization yet. Ask an administrator to install it from the agent templates."
-  },
   "liveUpdates": {
     "changedElsewhere": "{actor} changed this {surface} while you were editing it. Reload to see their version, or keep your changes to save over it.",
     "reload": "Reload",
@@ -5699,5 +5699,118 @@
       "mcp": "over MCP",
       "assistant": "through the Platform assistant"
     }
+  },
+  "assistantWidget": {
+    "open": "Open {name}",
+    "close": "Close",
+    "history": "Conversations",
+    "closeHistory": "Back to the conversation",
+    "noHistory": "No conversations yet.",
+    "untitled": "Untitled conversation",
+    "newConversation": "New conversation",
+    "tipsOn": "Turn tips back on",
+    "tipsOff": "Turn tips off",
+    "silenceHere": "Don't show tips on this page",
+    "greeting": "Hi, I'm {assistant}. What shall we do?",
+    "greetingNamed": "Hi {person}, I'm {assistant}. What shall we do?",
+    "tiles": {
+      "build": {
+        "label": "Build an agent with me",
+        "ask": "I'd like to build a new agent. Ask me what it should do, one question at a time, and set it up for me."
+      },
+      "documents": {
+        "label": "Answer from our documents",
+        "ask": "I want an agent to answer from our documents. Walk me through adding them."
+      },
+      "lookAround": {
+        "label": "What am I looking at?",
+        "ask": "Explain what this platform can do for me, in plain language.",
+        "askOnPage": "I'm on the page \"{title}\" ({path}). Explain what I'm looking at and what I can do here, in plain language."
+      },
+      "recipes": {
+        "label": "Ready-made recipes",
+        "ask": "Show me the ready-made recipes - a FAQ bot, a website widget, a Slack bot, a weekly report - and help me pick one."
+      }
+    },
+    "bubbles": {
+      "approvals": {
+        "say": "Something is waiting for your approval. Shall we go through it together?",
+        "ask": "What is waiting for my approval? Explain each item in plain language."
+      },
+      "firstSteps": {
+        "say": "Your organization has no agents yet. Shall we build the first one together?",
+        "ask": "Help me build our first agent. Ask me what it should do."
+      },
+      "agents": {
+        "say": "Want a new agent? Describe it in a sentence and I'll build it.",
+        "ask": "I'd like a new agent. Ask me what it should do and build it."
+      },
+      "agent": {
+        "say": "Not sure what a setting here does? Ask me.",
+        "ask": "Explain this agent's settings in plain language and suggest what to improve."
+      },
+      "knowledge": {
+        "say": "I can help you add documents so agents answer from them.",
+        "ask": "Help me add our documents so an agent can answer from them."
+      },
+      "runs": {
+        "say": "A run failed? I can explain what went wrong.",
+        "ask": "Look at the recent runs and explain any failure in plain language, with what to do about it."
+      },
+      "skills": {
+        "say": "Skills teach agents how to do a task. Shall we write one together?",
+        "ask": "Help me write a skill. Ask me which task it should teach."
+      },
+      "settings": {
+        "say": "Looking for a setting? Tell me what you want to change.",
+        "ask": "I want to change a setting. Ask me which one and show me where it is."
+      },
+      "tipMcp": {
+        "say": "Did you know? Agents can use your company's tools - CRM, calendar, tickets - through MCP.",
+        "ask": "How can an agent use our company's tools through MCP? Explain it simply."
+      },
+      "tipVariables": {
+        "say": "Did you know? Typing '{{' in an agent's instructions inserts today's date, the person's name and more.",
+        "ask": "How do variables in an agent's instructions work?"
+      },
+      "tipGroups": {
+        "say": "Did you know? Through groups you can share an agent with just one department.",
+        "ask": "How do I share an agent with only one group or department?"
+      },
+      "tipQuestions": {
+        "say": "Did you know? An agent can ask you questions with ready-made answers to click.",
+        "ask": "How does an agent ask me questions while it works?"
+      }
+    },
+    "setup": {
+      "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?",
+      "title": "Connecting a model",
+      "typing": "{name} is typing…",
+      "openSettings": "Open assistant settings",
+      "steps": {
+        "intro": "Hi, I'm {name}. I help build agents and find your way around the platform - but to think I need a language model, and none is connected yet. Here's how to connect one. It takes about two minutes.",
+        "key": "<b>Step 1: get an API key.</b> Sign in to a model provider - Anthropic, OpenAI, Google or another - and create an API key in its console. It's a long string, often starting with \"sk-\". If your company runs its own model, for example on Ollama or vLLM, its address is enough.",
+        "settings": "<b>Step 2: open Settings → Assistant.</b> Under Model, choose the provider and paste the key. It goes straight into the vault, encrypted - nobody sees it whole again, me included.",
+        "model": "<b>Step 3: choose a model and save.</b> A capable mid-priced model is a good start, and you can change it any time.",
+        "done": "<b>That's it.</b> Come back here and I'll say hello. Every other agent in your organization can use that model too.",
+        "askAdmin": "<b>Who can do it:</b> only an administrator of your organization can connect a model. Ask one to follow these steps - it takes about two minutes, and then I'm here for everyone."
+      }
+    }
+  },
+  "assistantSettings": {
+    "notForYou": "Your role doesn't include running agents, so the assistant isn't available to you. An administrator can change that.",
+    "yours": "Your tips",
+    "yoursDescription": "The speech bubbles the assistant shows you around the console. This browser remembers them.",
+    "showTips": "Show tips in speech bubbles",
+    "unsilence": "{count, plural, =1 {Show tips again on the 1 page I silenced} other {Show tips again on the # pages I silenced}}",
+    "organization": "For the organization",
+    "organizationDescription": "What everyone in the organization sees: the assistant's name, its greeting and the model it runs on. Its cost counts like any agent's.",
+    "enabled": "Assistant switched on",
+    "needsModel": "It has no model yet, so it cannot answer. Choose or add one below.",
+    "model": "Model",
+    "name": "Name",
+    "greeting": "Greeting",
+    "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
+    "save": "Save"
   }
 }

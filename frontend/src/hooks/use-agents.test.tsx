@@ -12,6 +12,7 @@ import {
   useAgents,
   useCapabilityCatalog,
   useDelegationTree,
+  usePromptVariables,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -843,5 +844,29 @@ describe("the delegation tree", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.tree).toBeNull();
+  });
+});
+
+describe("usePromptVariables", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the system variables an agent's instructions may use", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ name: "today", description: "Today's date", example: "2026-10-10" }],
+    });
+
+    const { result } = renderHook(() => usePromptVariables(), { wrapper });
+
+    await waitFor(() => expect(result.current.variables).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/prompt-variables");
+    expect(result.current.variables[0]?.name).toBe("today");
+  });
+
+  it("offers none while the catalog is still being read", () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => usePromptVariables(), { wrapper });
+
+    expect(result.current.variables).toEqual([]);
   });
 });

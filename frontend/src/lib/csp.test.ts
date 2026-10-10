@@ -68,6 +68,12 @@ describe("the console's content security policy", () => {
     expect(directives["frame-ancestors"]).toEqual(["'none'"]);
   });
 
+  it("lets the console frame the assistant's page, from itself alone", () => {
+    expect(
+      cspDirectives(DEFAULT_PUBLIC_CONFIG, NONCE, { framedBySelf: true })["frame-ancestors"],
+    ).toEqual(["'self'"]);
+  });
+
   it("keeps every fetch and form on this origin", () => {
     expect(directives["default-src"]).toEqual(["'self'"]);
     expect(directives["form-action"]).toEqual(["'self'"]);

@@ -98,7 +98,8 @@
     "collapseSidebar": "Zwiń panel boczny",
     "expandSidebar": "Rozwiń panel boczny",
     "artifacts": "Artefakty",
-    "apiKeys": "Klucze API"
+    "apiKeys": "Klucze API",
+    "assistant": "Asystent"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -1911,6 +1912,14 @@
       "settings-connected-apps": {
         "title": "Podłączone aplikacje",
         "body": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu w granicach tego, na co pozwolono — odłącz ją, żeby od razu zakończyć jej dostęp."
+      },
+      "assistant-widget": {
+        "title": "Twój AI Architekt",
+        "body": "Zapytaj go o cokolwiek na platformie - zbuduje z tobą agenta, wyjaśni błąd i znajdzie ustawienie. Jego dymki podpowiadają, co zrobić na każdej stronie; wyłączysz je w Ustawienia → Asystent."
+      },
+      "settings-assistant": {
+        "title": "Asystent organizacji",
+        "body": "Nadaj mu nazwę i powitanie oraz wybierz model, na którym działa. Widzi go w rogu każdej strony każdy, kto może uruchamiać agentów."
       }
     }
   },
@@ -3306,15 +3315,6 @@
     "emptyTitle": "Brak podłączonych aplikacji",
     "emptyWhy": "Dodaj AgenticOS do Claude Code albo innego klienta MCP i zaloguj się; pojawi się tutaj."
   },
-  "assistant": {
-    "title": "Asystent platformy",
-    "why": "Pytaj o swoich agentów, runy i bazy wiedzy albo poproś go o przygotowanie rzeczy. Działa z twoimi uprawnieniami i pyta, zanim cokolwiek zmieni.",
-    "open": "Otwórz asystenta",
-    "draftWhy": "Jest zainstalowany, ale nieopublikowany. Wybierz model, udostępnij go organizacji i opublikuj.",
-    "finish": "Dokończ konfigurację",
-    "setUp": "Skonfiguruj asystenta",
-    "askAdmin": "Asystent nie jest jeszcze skonfigurowany w tej organizacji. Poproś administratora o zainstalowanie go z szablonów agentów."
-  },
   "liveUpdates": {
     "changedElsewhere": "{actor} zmienił(a) to {surface} w trakcie twojej edycji. Przeładuj, aby zobaczyć tę wersję, albo zachowaj swoje zmiany i zapisz je zamiast niej.",
     "reload": "Przeładuj",
@@ -3325,5 +3325,118 @@
       "mcp": "przez MCP",
       "assistant": "przez asystenta platformy"
     }
+  },
+  "assistantWidget": {
+    "open": "Otwórz: {name}",
+    "close": "Zamknij",
+    "history": "Rozmowy",
+    "closeHistory": "Wróć do rozmowy",
+    "noHistory": "Nie ma jeszcze żadnych rozmów.",
+    "untitled": "Rozmowa bez tytułu",
+    "newConversation": "Nowa rozmowa",
+    "tipsOn": "Włącz podpowiedzi",
+    "tipsOff": "Wyłącz podpowiedzi",
+    "silenceHere": "Nie pokazuj podpowiedzi na tej stronie",
+    "greeting": "Cześć, jestem {assistant}. Co robimy?",
+    "greetingNamed": "Cześć {person}, jestem {assistant}. Co robimy?",
+    "tiles": {
+      "build": {
+        "label": "Zbuduj ze mną agenta",
+        "ask": "Chcę zbudować nowego agenta. Zadawaj mi po jednym pytaniu o to, co ma robić, i skonfiguruj go za mnie."
+      },
+      "documents": {
+        "label": "Odpowiedzi z naszych dokumentów",
+        "ask": "Chcę, żeby agent odpowiadał na podstawie naszych dokumentów. Przeprowadź mnie przez ich dodanie."
+      },
+      "lookAround": {
+        "label": "Na co patrzę?",
+        "ask": "Wyjaśnij prostym językiem, co ta platforma może dla mnie zrobić.",
+        "askOnPage": "Jestem na stronie „{title}” ({path}). Wyjaśnij prostym językiem, na co patrzę i co mogę tu zrobić."
+      },
+      "recipes": {
+        "label": "Gotowe przepisy",
+        "ask": "Pokaż mi gotowe przepisy - bot FAQ, widżet na stronę, bot na Slacku, cotygodniowy raport - i pomóż mi wybrać."
+      }
+    },
+    "bubbles": {
+      "approvals": {
+        "say": "Coś czeka na Twoją akceptację. Przejrzymy to razem?",
+        "ask": "Co czeka na moją akceptację? Wyjaśnij każdą pozycję prostym językiem."
+      },
+      "firstSteps": {
+        "say": "Twoja organizacja nie ma jeszcze agentów. Zbudujemy pierwszego razem?",
+        "ask": "Pomóż mi zbudować naszego pierwszego agenta. Zapytaj, co ma robić."
+      },
+      "agents": {
+        "say": "Potrzebujesz nowego agenta? Opisz go jednym zdaniem, a ja go zbuduję.",
+        "ask": "Chcę nowego agenta. Zapytaj mnie, co ma robić, i zbuduj go."
+      },
+      "agent": {
+        "say": "Nie wiesz, co robi któreś ustawienie? Zapytaj mnie.",
+        "ask": "Wyjaśnij prostym językiem ustawienia tego agenta i podpowiedz, co poprawić."
+      },
+      "knowledge": {
+        "say": "Pomogę Ci dodać dokumenty, żeby agenci odpowiadali na ich podstawie.",
+        "ask": "Pomóż mi dodać nasze dokumenty, żeby agent mógł z nich odpowiadać."
+      },
+      "runs": {
+        "say": "Jakiś run się nie udał? Wyjaśnię, co poszło nie tak.",
+        "ask": "Przejrzyj ostatnie runy i wyjaśnij prostym językiem każdy błąd oraz co z nim zrobić."
+      },
+      "skills": {
+        "say": "Skille uczą agentów, jak wykonać zadanie. Napiszemy jeden razem?",
+        "ask": "Pomóż mi napisać skill. Zapytaj, jakiego zadania ma uczyć."
+      },
+      "settings": {
+        "say": "Szukasz ustawienia? Powiedz, co chcesz zmienić.",
+        "ask": "Chcę zmienić ustawienie. Zapytaj, które, i pokaż mi, gdzie jest."
+      },
+      "tipMcp": {
+        "say": "Czy wiesz, że agenci mogą korzystać z narzędzi Twojej firmy - CRM, kalendarza, zgłoszeń - przez MCP?",
+        "ask": "Jak agent może korzystać z narzędzi naszej firmy przez MCP? Wyjaśnij to prosto."
+      },
+      "tipVariables": {
+        "say": "Czy wiesz, że wpisanie '{{' w instrukcjach agenta wstawia dzisiejszą datę, imię osoby i nie tylko?",
+        "ask": "Jak działają zmienne w instrukcjach agenta?"
+      },
+      "tipGroups": {
+        "say": "Czy wiesz, że przez grupy możesz udostępnić agenta tylko jednemu działowi?",
+        "ask": "Jak udostępnić agenta tylko jednej grupie lub działowi?"
+      },
+      "tipQuestions": {
+        "say": "Czy wiesz, że agent może zadawać Ci pytania z gotowymi odpowiedziami do kliknięcia?",
+        "ask": "Jak agent zadaje mi pytania w trakcie pracy?"
+      }
+    },
+    "setup": {
+      "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?",
+      "title": "Podpinanie modelu",
+      "typing": "{name} pisze…",
+      "openSettings": "Otwórz ustawienia asystenta",
+      "steps": {
+        "intro": "Cześć, jestem {name}. Pomagam budować agentów i odnaleźć się na platformie - ale żeby myśleć, potrzebuję modelu językowego, a żaden nie jest jeszcze podpięty. Pokażę Ci, jak to zrobić. To zajmie około dwóch minut.",
+        "key": "<b>Krok 1: zdobądź klucz API.</b> Zaloguj się u dostawcy modeli - Anthropic, OpenAI, Google lub innego - i utwórz klucz API w jego konsoli. To długi ciąg znaków, często zaczynający się od „sk-”. Jeśli Twoja firma ma własny model, np. na Ollamie albo vLLM, wystarczy jego adres.",
+        "settings": "<b>Krok 2: otwórz Ustawienia → Asystent.</b> W sekcji Model wybierz dostawcę i wklej klucz. Trafi prosto do vaulta, zaszyfrowany - nikt już nie zobaczy go w całości, ja też nie.",
+        "model": "<b>Krok 3: wybierz model i zapisz.</b> Na start dobry jest mocny model ze średniej półki cenowej - zmienisz go w każdej chwili.",
+        "done": "<b>To wszystko.</b> Wróć tutaj, a od razu się przywitam. Z tego modelu mogą korzystać też wszyscy inni agenci w Twojej organizacji.",
+        "askAdmin": "<b>Kto może to zrobić:</b> model podpina tylko administrator Twojej organizacji. Poproś go o te kroki - zajmą mu około dwóch minut, a potem będę tu dla wszystkich."
+      }
+    }
+  },
+  "assistantSettings": {
+    "notForYou": "Twoja rola nie obejmuje uruchamiania agentów, więc asystent nie jest dla Ciebie dostępny. Administrator może to zmienić.",
+    "yours": "Twoje podpowiedzi",
+    "yoursDescription": "Dymki, które asystent pokazuje Ci w konsoli. Ta przeglądarka je zapamiętuje.",
+    "showTips": "Pokazuj podpowiedzi w dymkach",
+    "unsilence": "{count, plural, one {Pokaż znów podpowiedzi na # wyciszonej stronie} other {Pokaż znów podpowiedzi na # wyciszonych stronach}}",
+    "organization": "Dla organizacji",
+    "organizationDescription": "To, co widzą wszyscy w organizacji: nazwa asystenta, jego powitanie i model, na którym działa. Jego koszty liczą się jak każdego agenta.",
+    "enabled": "Asystent włączony",
+    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz lub dodaj model poniżej.",
+    "model": "Model",
+    "name": "Nazwa",
+    "greeting": "Powitanie",
+    "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
+    "save": "Zapisz"
   }
 }

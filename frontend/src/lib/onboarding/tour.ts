@@ -130,6 +130,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // (see its own docstring), so it is anchored here the way `dashboard-customize`
   // is: "?"-only, ungated, because every membership has its own inbox.
   { id: "notification-bell", page: ROUTES.DASHBOARD, target: "notification-bell" },
+  // The AI Architect's corner button, on every page alike and anchored here for
+  // the same reason. Optional and gated: it is drawn only for somebody who may
+  // run agents, and only once the organization's assistant exists (#2063).
+  {
+    id: "assistant-widget",
+    page: ROUTES.DASHBOARD,
+    target: "assistant-widget",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
@@ -577,6 +587,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "settings-connected-apps",
     page: SETTINGS_DETAIL,
     target: "connected-apps",
+    optional: true,
+  },
+  // The organization half of Settings → Assistant, drawn only for somebody who
+  // may change the organization's settings.
+  {
+    id: "settings-assistant",
+    page: SETTINGS_DETAIL,
+    target: "assistant-settings",
+    permission: Perm.orgSettings,
     optional: true,
   },
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5396f44a55e6"
+source_sha: "1477d03ed0f2"
 ---
 
 # La consola { #the-console }
@@ -109,17 +109,32 @@ un puñado de las más recientes, la próxima vez que abras la página.
 
 ## El asistente { #the-assistant }
 
-El destello junto a la búsqueda abre el **asistente de la plataforma**: un agent
-instalado desde la plantilla *Platform assistant* y vinculado al
-[servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server). Pregúntale
-qué agents responden dudas de reembolsos, por qué falló el run de anoche o qué hay
-en una base de conocimiento; pídele que esboce un agent o invite a un compañero, y
-primero te mostrará la llamada exacta para que la apruebes. Actúa con tus
-permisos, así que encuentra y hace lo que tú podrías, y nada más.
+Cada página tiene al **AI Architect** en su esquina inferior derecha: un agent que
+toda organización recibe sin instalar nada, compartido con todos los que pueden
+ejecutar agents (`agents:run`). Está vinculado al
+[servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).
+Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
+o qué hay en una base de conocimiento. Pídele que esboce un agent o invite a un
+compañero, y primero te mostrará la llamada exacta para que la apruebes. Actúa con
+tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
+cuenta como el de cualquier agent.
 
-Hasta que alguien con `agents:edit` lo instale y lo publique — el botón lo ofrece —,
-dice quién puede hacerlo. Compártelo con la organización al publicarlo, para que
-todos tengan el mismo asistente.
+Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
+sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
+consejo. Haz clic en el bocadillo para preguntarle; × silencia esa página, y la
+campana de su ventana apaga los bocadillos. Su ventana se abre con cuatro
+mosaicos, para que el primer mensaje sea un clic, y guarda su propio historial de
+conversaciones. En un teléfono ocupa toda la pantalla.
+
+Mientras la organización no tenga un modelo, no puede responder. Al abrirlo
+escribe entonces una breve conversación sobre cómo conectar uno: consigue una clave
+de API de un provider, abre **Settings → Assistant**, elige el provider y pega la clave,
+y escoge un modelo. Solo quien puede cambiar los ajustes de la organización recibe
+el botón; a los demás se les dice quién puede hacerlo.
+
+**Settings → Assistant** guarda tus propios consejos y, para quien puede cambiar los
+ajustes de la organización, el nombre del asistente, su saludo y su modelo, y un
+interruptor para apagarlo para todos.
 
 ## Cambios hechos en otro lugar { #changes-made-elsewhere }
 

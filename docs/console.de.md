@@ -1,5 +1,5 @@
 ---
-source_sha: "5396f44a55e6"
+source_sha: "1477d03ed0f2"
 ---
 
 # Die Konsole { #the-console }
@@ -120,18 +120,33 @@ Seite.
 
 ## Der Assistent { #the-assistant }
 
-Das Funkeln neben der Suche öffnet den **Plattform-Assistenten**: einen Agent, der
-aus der Vorlage *Platform assistant* installiert und an
-[den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden ist.
+Unten rechts auf jeder Seite sitzt der **AI Architect**: ein Agent, den jede
+Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agents
+ausführen dürfen (`agents:run`). Er ist an
+[den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.
 Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
-letzter Nacht fehlschlug oder was in einer Wissensbasis steht; lassen Sie ihn einen
+letzter Nacht fehlschlug oder was in einer Wissensbasis steht. Lassen Sie ihn einen
 Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst den genauen
 Aufruf zur Freigabe. Er handelt mit Ihren Berechtigungen, findet und tut also, was
-Sie könnten, und nicht mehr.
+Sie könnten, und nicht mehr. Seine Kosten zählen wie die jedes Agents.
 
-Bis jemand mit `agents:edit` ihn installiert und veröffentlicht — die Schaltfläche
-bietet es an —, sagt er, wer das kann. Teilen Sie ihn beim Veröffentlichen mit der
-Organisation, damit alle denselben Assistenten haben.
+Eine Sprechblase über ihm spricht an, was auf Sie wartet — Freigaben, eine
+Organisation ohne Agents — oder die Seite, auf der Sie sind, und bietet ab und zu
+einen Tipp an. Ein Klick auf die Sprechblase fragt ihn; × schaltet die Seite
+stumm, und die Glocke in seinem Fenster schaltet die Sprechblasen ganz ab. Sein
+Fenster öffnet sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist, und
+führt einen eigenen Verlauf. Auf dem Telefon füllt es den Bildschirm.
+
+Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
+er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel
+beim Provider besorgen, **Einstellungen → Assistent** öffnen, den Provider wählen
+und den Schlüssel einfügen, dann ein Modell auswählen. Die Schaltfläche bekommt
+nur, wer die Einstellungen der Organisation ändern darf; alle anderen erfahren,
+wer das kann.
+
+**Einstellungen → Assistent** enthält Ihre eigenen Tipps und, für alle, die die
+Einstellungen der Organisation ändern dürfen, Namen, Begrüßung und Modell des
+Assistenten sowie einen Schalter, der ihn für alle abschaltet.
 
 ## Änderungen von anderswo { #changes-made-elsewhere }
 
