@@ -3656,7 +3656,10 @@
       "transcriptionProvider": "Sprachtranskription",
       "transcriptionProviderHint": "Welcher Provider eine Sprachnachricht in Text verwandelt, bevor der Agent sie liest.",
       "webhook": "Webhook",
-      "webhookToken": "Kein Webhook-Token"
+      "webhookToken": "Kein Webhook-Token",
+      "slackManifestWhy": "Legen Sie die Slack-App aus ihrem Manifest an: in Slack Create New App, From a manifest, und einfügen. Schaltflächen, /agent, der Assistenten-Bereich und App Home sind dabei.",
+      "slackManifestCopy": "Slack-App-Manifest kopieren",
+      "slackManifestCopied": "Manifest kopiert. Fügen Sie es in Slack unter Create New App, From a manifest ein."
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

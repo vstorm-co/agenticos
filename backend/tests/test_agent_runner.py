@@ -37,6 +37,7 @@ from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.ask_user import DECLINED
 from pydantic_ai_harness.planning import PlanItem
 
+from app.agents.ask_user import park_the_question
 from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import (
@@ -2132,6 +2133,23 @@ class TestApprovals:
 
 
 class TestParking:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("parks", [True, False])
+    async def test_a_chat_run_parks_its_questions_and_another_does_not(self, parks: bool):
+        """A chat asks the question as buttons later, so its run parks on it (#2064)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.deps.ask_questions = None
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="ok"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hi", parks_questions=parks)
+
+        assert (prepared.built.deps.ask_questions is park_the_question) is parks
+
     @pytest.mark.anyio
     async def test_a_parked_run_stores_what_it_needs_to_continue(self):
         """Without the message history, "approve" has nothing to resume into."""

@@ -807,6 +807,29 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
     Enterprise-Managed Authorization on that page are all unused too — leave them
     alone.
 
+### The Slack app, from one manifest
+
+The steps above build the app by hand. The bot's settings here also offer **Copy
+Slack app manifest**: in Slack choose *Create New App → From a manifest*, paste,
+install, and paste the bot token and signing secret back here. The manifest
+points every request at this deployment and switches on what makes the bot an
+app rather than a bot:
+
+- **The assistant pane.** A new thread in Slack's AI split view is offered three
+  suggested prompts, and the thread says *is thinking…* while the agent works.
+- **App Home.** The bot's own tab names its agent, says how many of the person's
+  runs wait for an approval, and links to the console and the AI Architect.
+- **`/agent <question>`** asks the agent where it was typed, and the message
+  shortcut **Ask the agent about this** asks about a message in its own thread.
+  Both run exactly as a mention does: the same link check, limits and audit.
+- **Buttons** on approvals and questions — see
+  [Approvals and questions as buttons](#approvals-and-questions-as-buttons).
+- **Unfurls.** A console link to one of the organization's agents shows its name.
+
+Answers still stream by editing the reply in place. A bot serves exactly one
+agent, so there is no agent picker in a direct message; a second agent is a
+second bot.
+
 ### Scopes and events
 
 Thirteen bot token scopes, each earning its place by a call the adapter makes:
@@ -928,6 +951,12 @@ from polling to webhook mode has to have its webhook registered before it will
 answer anything: the secret is minted when the mode changes, and Telegram only
 learns it when the webhook is registered.
 
+The bot sets its command menu - `/agents` says which agent answers and what it
+does, beside `/new`, `/link` and `/help` - shows *typing…* while it works and
+names the step it is on, sends answers as Telegram HTML converted from the
+agent's Markdown so code blocks and links survive, and answers a forum group's
+topic in that topic.
+
 ## Mattermost
 
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its
@@ -1035,6 +1064,11 @@ exists for. Instance-metadata addresses are the exception and are refused. The
 boundary that actually holds is the permission to manage channel bots, not this
 check.
 
+Approvals and questions arrive as buttons. Mattermost calls each button back at
+`https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, so the
+Mattermost server has to reach the API; on a private network, add the API's host
+to *System Console → Developer → Allow untrusted internal connections to*.
+
 ## A bot that cannot start stops, rather than retrying
 
 Telegram polling, Slack Socket Mode and the Mattermost event stream all run
@@ -1060,6 +1094,24 @@ logged before each wait names the delay it is about to wait, and the same loop
 serves all three platforms, so the policy cannot drift between them.
 
 ---
+
+## Approvals and questions as buttons
+
+A run started in Slack, Telegram or Mattermost can stop for a person: a gated
+tool call waits for a decision, or the agent asks an `ask_user` question. The
+chat is offered the choices where it is — a message per approval with
+**Approve** and **Reject**, a message per question with its options and **Skip**.
+Pressing one decides or answers, the run continues, and its answer is posted in
+the same chat; the pressed message keeps what was asked and shows what was
+chosen.
+
+A press acts as the person who pressed it, through their linked account: deciding
+needs `approvals:decide`, and only the person a question was put to can answer
+it. An unlinked presser is told to send `/link`. A run waits for an answer for
+`QUESTION_EXPIRY_HOURS` and for a decision for `APPROVAL_EXPIRY_HOURS`, as
+anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
+carries this deployment's own signature over its value and a press without it is
+refused.
 
 ## What every channel shares
 

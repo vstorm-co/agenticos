@@ -83,7 +83,12 @@ from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
-from app.agents.ask_user import QuestionItem, answers_to_response, wire_questions
+from app.agents.ask_user import (
+    QuestionItem,
+    answers_to_response,
+    park_the_question,
+    wire_questions,
+)
 from app.agents.audience import RunAudience, derive_audience
 from app.agents.capabilities.approval import (
     ApprovalDecision,
@@ -3769,6 +3774,7 @@ class AgentRunnerService:
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        parks_questions: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3801,6 +3807,10 @@ class AgentRunnerService:
 
         An empty answer with the run in `awaiting_approval` means a tool call
         is parked; the caller shows the queue rather than an answer.
+
+        `parks_questions` is for a surface that can put an `ask_user` question to
+        its person later - a chat, as buttons: the question parks the run in
+        `awaiting_answer` instead of being answered as declined (#2064).
         """
         prepared = await self.prepare(
             ctx,
@@ -3815,6 +3825,8 @@ class AgentRunnerService:
             environment_id=environment_id,
             on_compaction=on_compaction,
         )
+        if parks_questions:
+            prepared.built.deps.ask_questions = park_the_question
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
         # would hand the model a path where it should have been handed a picture.

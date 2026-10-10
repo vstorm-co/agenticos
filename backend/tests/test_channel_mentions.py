@@ -22,7 +22,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.channels.base import (
     ROOM_HANDLES,
     channel_key,
@@ -587,6 +587,42 @@ class TestAnswer:
         assert execute.call_args.args[2] == "what is the refund window"
         assert execute.call_args.kwargs["conversation_id"] == conversation_id
         assert answer.text == "42 days"
+
+    @pytest.mark.parametrize(
+        ("status", "parked"),
+        [
+            (RunStatus.AWAITING_ANSWER.value, True),
+            (RunStatus.AWAITING_APPROVAL.value, True),
+            (RunStatus.COMPLETED.value, False),
+        ],
+    )
+    async def test_a_turn_that_stopped_for_somebody_names_its_run(self, status: str, parked: bool):
+        """Its question is asked here as buttons, so the run parks rather than the
+        question being read as declined - and the chat is told which run (#2064)."""
+        run = MagicMock(id=uuid.uuid4(), status=status)
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = _bound()
+            execute = AsyncMock(return_value=("", run))
+            runner_cls.return_value.execute = execute
+
+            answer = await ChannelAgentRouter(MagicMock()).answer(
+                "@support which tone?",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=_BOT_ID,
+                user_id=uuid.uuid4(),
+            )
+
+        assert execute.call_args.kwargs["parks_questions"] is True
+        assert answer.parked_run_id == (run.id if parked else None)
 
 
 def _serving(*slugs: str) -> AsyncMock:

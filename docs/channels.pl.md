@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "6e891ee0d892"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -832,6 +832,29 @@ wywołujący — wartością `RATE_LIMIT_RUN_PER_MINUTE`.
     i Enterprise-Managed Authorization na tej stronie też są nieużywane —
     zostaw je w spokoju.
 
+### Aplikacja Slack z jednego manifestu { #the-slack-app-from-one-manifest }
+
+Kroki powyżej budują aplikację ręcznie. Ustawienia bota tutaj oferują też
+**Skopiuj manifest aplikacji Slack**: w Slacku wybierz *Create New App → From a
+manifest*, wklej, zainstaluj i wklej tu z powrotem token bota oraz signing secret.
+Manifest kieruje każde żądanie do tego deploymentu i włącza to, co robi z bota
+aplikację:
+
+- **Panel asystenta.** Nowy wątek w widoku AI Slacka dostaje trzy podpowiedzi, a
+  wątek pokazuje *is thinking…*, gdy agent pracuje.
+- **App Home.** Własna zakładka bota podaje jego agenta, mówi, ile runów tej osoby
+  czeka na akceptację, i linkuje do konsoli oraz AI Architekta.
+- **`/agent <pytanie>`** pyta agenta tam, gdzie to wpisano, a skrót wiadomości
+  **Ask the agent about this** pyta o wiadomość w jej własnym wątku. Oba działają
+  dokładnie jak wzmianka: to samo sprawdzenie powiązania, limity i audyt.
+- **Przyciski** przy akceptacjach i pytaniach — zob.
+  [Akceptacje i pytania jako przyciski](#approvals-and-questions-as-buttons).
+- **Unfurle.** Link z konsoli do agenta organizacji pokazuje jego nazwę.
+
+Odpowiedzi nadal strumieniują się przez edycję odpowiedzi na miejscu. Bot obsługuje
+dokładnie jednego agenta, więc w wiadomości prywatnej nie ma wyboru agenta; drugi
+agent to drugi bot.
+
 ### Scope'y i eventy { #scopes-and-events }
 
 Trzynaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
@@ -955,6 +978,12 @@ z pollingu na tryb webhooka musi mieć zarejestrowany webhook, zanim cokolwiek
 odpowie: sekret jest wybijany przy zmianie trybu, a Telegram dowiaduje się o nim
 dopiero przy rejestracji webhooka.
 
+Bot ustawia swoje menu komend — `/agents` mówi, który agent odpowiada i co robi,
+obok `/new`, `/link` i `/help` — pokazuje *pisze…* w trakcie pracy i nazywa krok,
+na którym jest, wysyła odpowiedzi jako HTML Telegrama przekonwertowany z Markdownu
+agenta, więc bloki kodu i linki przetrwają, a w grupie z tematami odpowiada w tym
+samym temacie.
+
 ## Mattermost { #mattermost }
 
 Mattermost jest self-hostowany, więc bot niesie **URL twojego serwera** obok
@@ -1064,6 +1093,11 @@ którego to istnieje. Adresy metadanych instancji są wyjątkiem i są odrzucane
 Granicą, która faktycznie trzyma, jest uprawnienie do zarządzania botami kanałów,
 a nie to sprawdzenie.
 
+Akceptacje i pytania przychodzą jako przyciski. Mattermost wywołuje każdy przycisk
+pod `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, więc serwer
+Mattermost musi sięgać do API; w sieci prywatnej dodaj host API w *System Console →
+Developer → Allow untrusted internal connections to*.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
@@ -1091,6 +1125,23 @@ odczeka, a ta sama pętla obsługuje wszystkie trzy platformy, więc polityka ni
 może się między nimi rozjechać.
 
 ---
+
+## Akceptacje i pytania jako przyciski { #approvals-and-questions-as-buttons }
+
+Run uruchomiony w Slacku, Telegramie lub Mattermoście może zatrzymać się dla
+człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje pytanie
+`ask_user`. Czat dostaje wybory tam, gdzie jest — wiadomość na każdą akceptację z
+**Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
+Naciśnięcie decyduje albo odpowiada, run idzie dalej, a jego odpowiedź trafia do
+tego samego czatu; naciśnięta wiadomość zachowuje pytanie i pokazuje wybór.
+
+Naciśnięcie działa jako osoba, która nacisnęła, przez jej powiązane konto:
+decyzja wymaga `approvals:decide`, a na pytanie może odpowiedzieć tylko osoba,
+której je zadano. Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
+na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, jak
+wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
+więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
+naciśnięcie bez niego jest odrzucane.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 

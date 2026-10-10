@@ -19,6 +19,8 @@ from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import (
+    agent_exposure_repo,
+    agent_repo,
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
@@ -32,6 +34,7 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
+    CHANNEL_COMMANDS,
     ChannelAdapter,
     ChannelDirectoryUnsupported,
     IncomingAttachment,
@@ -51,6 +54,7 @@ from app.services.channels.mentions import (
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.channels.prompts import ChannelPrompts
 from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -231,6 +235,9 @@ def _empty_answer(answered: Any) -> str:
     """
     if answered.awaiting_approval_run_id is not None:
         return _needs_approval(answered.awaiting_approval_run_id)
+    if answered.status == RunStatus.AWAITING_ANSWER:
+        # The question itself follows, as its own message with buttons (#2064).
+        return "I have a question for you before I go on."
     if answered.status == RunStatus.BUDGET_EXCEEDED:
         return "This assistant has reached its usage limit."
     return "Sorry, I could not produce an answer to that. Please try again."
@@ -650,6 +657,15 @@ class ChannelMessageRouter:
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
         await self._deliver(bot, incoming, answer, answered, handle())
+        # What the run stopped for - a decision, a question - offered here as
+        # buttons rather than as a link to the console (#2064, #2067).
+        if answered.parked_run_id is not None:
+            await ChannelPrompts(db).offer(
+                bot,
+                platform=incoming.platform,
+                platform_chat_id=incoming.platform_chat_id,
+                run_id=answered.parked_run_id,
+            )
         return True
 
     async def _post_failure(
@@ -1162,14 +1178,23 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/help":
-            return (
-                "Available commands:\n"
-                "/start - Show welcome message\n"
-                "/new - Start a new conversation\n"
-                "/help - Show this help\n"
-                "/link - Connect your chat account to your account here\n"
-                "/unlink - Unlink your account"
+            return "Available commands:\n" + "\n".join(
+                f"/{name} - {what}" for name, what in CHANNEL_COMMANDS
             )
+
+        if cmd == "/agents":
+            # A bot serves exactly one agent, so "which agents are here" is "who am
+            # I" - asked the way a chat asks it (#2068).
+            binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+            agent = (
+                await agent_repo.get(db, binding.agent_id, organization_id=bot.organization_id)
+                if binding is not None
+                else None
+            )
+            if agent is None:
+                return "No agent answers on this bot yet - ask an administrator to add one."
+            about = f": {agent.description}" if agent.description else "."
+            return f"I am {agent.name}{about}\nAsk me anything, or send /new to start over."
 
         if cmd == "/new":
             admitted, issuer = await _admission()

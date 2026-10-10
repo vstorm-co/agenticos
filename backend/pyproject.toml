@@ -727,6 +727,14 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    # Approvals and questions offered as buttons in a chat, and the Slack app
+    # around the bot (#2064, #2067, #2068).
+    "app/services/channels/prompts.py",
+    "app/services/channels/slack_app.py",
+    "app/services/channels/slack_manifest.py",
+    "app/services/channels/telegram_format.py",
+    "app/services/channels/telegram_press.py",
+    "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
     "app/services/embed_session.py",
@@ -1115,6 +1123,14 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    # Approvals and questions offered as buttons in a chat, and the Slack app
+    # around the bot (#2064, #2067, #2068).
+    "app/services/channels/prompts.py",
+    "app/services/channels/slack_app.py",
+    "app/services/channels/slack_manifest.py",
+    "app/services/channels/telegram_format.py",
+    "app/services/channels/telegram_press.py",
+    "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
     # One visitor's turn on a public widget: who it runs as, how often they may

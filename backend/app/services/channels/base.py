@@ -263,6 +263,82 @@ class OutgoingMessage:
     api_base_url: str | None = None
 
 
+CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
+    ("start", "Say hello"),
+    ("agents", "Who answers here, and what it does"),
+    ("new", "Start a new conversation"),
+    ("link", "Connect your chat account to your account"),
+    ("unlink", "Disconnect your account"),
+    ("help", "Show the commands"),
+)
+"""The commands every channel bot answers, for `/help` and Telegram's command menu."""
+
+
+PRESS_PREFIX = "aos:"
+"""What a button's value starts with, so a press is told from other callbacks."""
+
+
+def press_value(prompt_id: str, choice: int | None) -> str:
+    """The value a button carries: the prompt it answers and which choice, or skip.
+
+    Short on purpose - a Telegram button's `callback_data` holds 64 bytes - and
+    naming nothing but the row: what the choice means is read back from it.
+    """
+    return f"{PRESS_PREFIX}{prompt_id}:{'s' if choice is None else choice}"
+
+
+def read_press(value: str) -> tuple[str, int | None] | None:
+    """The prompt and choice a button's value names, or `None` for anything else."""
+    if not value.startswith(PRESS_PREFIX):
+        return None
+    prompt_id, _, choice = value.removeprefix(PRESS_PREFIX).partition(":")
+    if choice == "s":
+        return prompt_id, None
+    if not choice.isdigit():
+        return None
+    return prompt_id, int(choice)
+
+
+@dataclass
+class ChannelChoice:
+    """One button: what it reads, and the value a press sends back."""
+
+    label: str
+    value: str
+    style: str | None = None
+    """`primary` or `danger` where a platform colours buttons, `None` for neither."""
+
+
+@dataclass
+class PromptMessage:
+    """A message with buttons - an approval to decide or a question to answer."""
+
+    platform_chat_id: str
+    text: str
+    choices: list[ChannelChoice]
+    bot_id: str = ""
+    """The bot posting it, for a platform whose buttons call back a per-bot URL."""
+    api_base_url: str | None = None
+
+
+@dataclass
+class IncomingPress:
+    """Somebody pressed one of the bot's buttons."""
+
+    platform: str
+    bot_id: str
+    platform_user_id: str
+    platform_chat_id: str
+    value: str
+    platform_username: str | None = None
+    message_id: str | None = None
+    """The message the button was on, so the answer can replace the buttons."""
+    prompt_text: str | None = None
+    """What that message said, where the platform hands it back with the press."""
+    ack_id: str | None = None
+    """What a platform needs told the press arrived - Telegram's callback query id."""
+
+
 class ChannelAdapter(ABC):
     """One messaging platform, behind the interface the router speaks.
 
@@ -521,6 +597,41 @@ class ChannelAdapter(ABC):
     @abstractmethod
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse raw platform payload into IncomingMessage. Return None to ignore."""
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """Post a message with a button per choice.
+
+        This default is for a platform with no buttons: the choices are written
+        out under the text, and deciding happens in the console the text points
+        at. Slack, Telegram and Mattermost override it.
+        """
+        listed = "\n".join(f"- {choice.label}" for choice in prompt.choices)
+        await self.send_message(
+            bot_token,
+            OutgoingMessage(
+                platform_chat_id=prompt.platform_chat_id,
+                text=f"{prompt.text}\n{listed}",
+                api_base_url=prompt.api_base_url,
+            ),
+        )
+
+    async def acknowledge(  # noqa: B027 - most platforms need no acknowledgement
+        self, bot_token: str, press: IncomingPress
+    ) -> None:
+        """Tell the platform the press arrived, before the work it starts.
+
+        Telegram spins the pressed button until it is told; the others answered
+        the press with the request's own 200.
+        """
+
+    async def settle_prompt(  # noqa: B027 - a no-op where nothing can be edited, as `typing`
+        self, bot_token: str, press: IncomingPress, text: str
+    ) -> None:
+        """Replace the pressed message's buttons with what was chosen.
+
+        Silent where the platform cannot edit a message: the answer that follows
+        says what happened anyway.
+        """
 
 
 RECONNECT_FLOOR_SECONDS = 5.0

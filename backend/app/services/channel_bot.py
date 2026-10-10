@@ -35,6 +35,7 @@ from app.services.channels import (
     get_adapter,
     inbound_webhook_url,
 )
+from app.services.channels.slack_manifest import slack_manifest
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.speech_to_text import is_offered as stt_is_offered
 
@@ -336,6 +337,21 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def slack_manifest(self, bot_id: UUID) -> dict[str, Any]:
+        """The Slack app manifest for one of this organization's Slack bots (#2067).
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a Slack bot.
+        """
+        bot = await self.get(bot_id)
+        if bot.platform != "slack":
+            raise BadRequestError(
+                message="Only a Slack bot has a Slack app manifest",
+                details={"bot_id": str(bot_id), "platform": bot.platform},
+            )
+        return slack_manifest(bot)
 
     async def find_active(self, bot_id: UUID) -> ChannelBot | None:
         """Return an active bot by ID, or None (inbound webhook / poller path)."""

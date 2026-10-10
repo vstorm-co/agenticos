@@ -57,6 +57,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
 from app.db.models.organization_assistant import OrganizationAssistant
+from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -74,6 +75,7 @@ from app.db.models.artifact import (
 __all__ = [
     "ApiKey",
     "OrganizationAssistant",
+    "ChannelPrompt",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
     "OAuthClient",

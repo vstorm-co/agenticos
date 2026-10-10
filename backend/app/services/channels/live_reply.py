@@ -54,6 +54,21 @@ _DOING: dict[str, str] = {
     "create_chart": "Drawing a chart…",
     "run_python": "Running some code…",
     "run_shell": "Running a command…",
+    # The rest of what an agent commonly does while a chat waits (#2068).
+    "search_documents": "Looking through the documents…",
+    "web_fetch": "Reading a web page…",
+    "browse_web": "Browsing the web…",
+    "browse_page": "Browsing the web…",
+    "generate_image": "Drawing an image…",
+    "publish_artifact": "Building a page…",
+    "search_conversations": "Looking through earlier conversations…",
+    "read_context": "Reading the background notes…",
+    "execute": "Running a command…",
+    "read_file": "Reading a file…",
+    "write_file": "Writing a file…",
+    "edit_file": "Editing a file…",
+    "task": "Asking a specialist…",
+    "ask_user_question": "Preparing a question…",
 }
 
 WORKING = "…"

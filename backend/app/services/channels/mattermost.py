@@ -52,13 +52,16 @@ from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
+    PromptMessage,
     split_thread,
     supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.webhooks import inbound_actions_url, sign_press
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +252,92 @@ class MattermostAdapter(ChannelAdapter):
                 json={"message": msg.text},
             )
         response.raise_for_status()
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """An approval or a question as an interactive message, a button per choice.
+
+        Mattermost posts a press to the button's integration URL - this
+        deployment's - with the `context` it was given. Nothing in that request is
+        signed by Mattermost, so the context carries this deployment's own
+        signature over the bot and the value, and a press without it is ignored.
+        """
+        if not prompt.api_base_url:
+            raise ValueError("Mattermost bot has no server URL. Set it on the bot before sending.")
+        channel_id, root_id = split_thread(prompt.platform_chat_id)
+        bot_id = prompt.bot_id
+        body: dict[str, Any] = {
+            "channel_id": channel_id,
+            "message": prompt.text,
+            "props": {
+                "attachments": [
+                    {
+                        "text": "",
+                        "actions": [
+                            {
+                                "id": f"aos{index}",
+                                "name": choice.label,
+                                "style": {"primary": "primary", "danger": "danger"}.get(
+                                    choice.style or "", "default"
+                                ),
+                                "integration": {
+                                    "url": inbound_actions_url(bot_id),
+                                    "context": {
+                                        "value": choice.value,
+                                        "text": prompt.text,
+                                        "signature": sign_press(bot_id, choice.value),
+                                    },
+                                },
+                            }
+                            for index, choice in enumerate(prompt.choices)
+                        ],
+                    }
+                ]
+            },
+        }
+        if root_id:
+            body["root_id"] = root_id
+        async with self._client() as client:
+            response = await client.post(
+                f"{prompt.api_base_url.rstrip('/')}/api/v4/posts",
+                headers=self._headers(bot_token),
+                json=body,
+            )
+        response.raise_for_status()
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """Take the buttons off the pressed post, leaving what was asked and chosen."""
+        base_url = self._base_urls.get(press.bot_id)
+        if press.message_id is None or base_url is None:
+            return
+        shown = f"{press.prompt_text}\n**{text}**" if press.prompt_text else f"**{text}**"
+        async with self._client() as client:
+            response = await client.put(
+                f"{base_url}/api/v4/posts/{press.message_id}/patch",
+                headers=self._headers(bot_token),
+                json={"message": shown, "props": {"attachments": []}},
+            )
+        response.raise_for_status()
+
+    @staticmethod
+    def parse_press(payload: dict[str, Any], bot_id: str) -> IncomingPress | None:
+        """A pressed button, if its context carries this deployment's signature."""
+        context = payload.get("context") or {}
+        value = context.get("value")
+        signature = context.get("signature")
+        if not isinstance(value, str) or not isinstance(signature, str):
+            return None
+        if not secrets.compare_digest(signature, sign_press(bot_id, value)):
+            return None
+        return IncomingPress(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=str(payload.get("user_id", "")),
+            platform_chat_id=str(payload.get("channel_id", "")),
+            value=value,
+            platform_username=payload.get("user_name"),
+            message_id=payload.get("post_id"),
+            prompt_text=context.get("text") if isinstance(context.get("text"), str) else None,
+        )
 
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:
         """Say the bot is composing, over the socket we already hold.

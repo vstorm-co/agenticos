@@ -3797,7 +3797,10 @@
       "transcriptionProvider": "Voice transcription",
       "transcriptionProviderHint": "Which provider turns a voice message into text before the agent reads it.",
       "webhook": "Webhook",
-      "webhookToken": "No webhook token"
+      "webhookToken": "No webhook token",
+      "slackManifestWhy": "Create the Slack app from its manifest: in Slack, Create New App, From a manifest, and paste. Buttons, /agent, the assistant pane and App Home come with it.",
+      "slackManifestCopy": "Copy Slack app manifest",
+      "slackManifestCopied": "Manifest copied. Paste it in Slack under Create New App, From a manifest."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

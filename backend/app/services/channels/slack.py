@@ -31,9 +31,12 @@ from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
+    ChannelChoice,
     IncomingAttachment,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
+    PromptMessage,
     split_thread,
     supervise_stream,
     thread_key,
@@ -73,6 +76,23 @@ which is a bound on a runaway cursor rather than on any real room.
 
 _FILE_HOSTS = ("slack.com", "slack-files.com")
 """Where Slack serves a file's `url_private`; the bot token is sent nowhere else."""
+
+
+_BUTTON_LABEL = 75
+"""The longest text Slack takes on a button."""
+
+
+def _button(choice: ChannelChoice, index: int) -> dict[str, Any]:
+    """One Block Kit button. `action_id` must be unique within its block."""
+    button: dict[str, Any] = {
+        "type": "button",
+        "action_id": f"aos_{index}",
+        "text": {"type": "plain_text", "text": choice.label[:_BUTTON_LABEL]},
+        "value": choice.value,
+    }
+    if choice.style is not None:
+        button["style"] = choice.style
+    return button
 
 
 def _slack_file_host(url: str) -> str | None:
@@ -141,9 +161,24 @@ class SlackAdapter(ChannelAdapter):
         kwargs: dict[str, Any] = {"channel": channel, "text": msg.text}
         if thread_ts:
             kwargs["thread_ts"] = thread_ts
+            await self._working(bot_token, channel, thread_ts)
         response = await self._web(bot_token).chat_postMessage(**kwargs)
         posted = response.get("ts")
         return str(posted) if posted else None
+
+    async def _working(self, bot_token: str, channel: str, thread_ts: str) -> None:
+        """Say "is thinking…" in Slack's assistant pane while the agent works (#2067).
+
+        Only an assistant thread has that status, and Slack clears it when the
+        answer is posted; anywhere else the call is refused, which is the
+        ordinary case and not worth a log line beyond debug.
+        """
+        try:
+            await self._web(bot_token).assistant_threads_setStatus(
+                channel_id=channel, thread_ts=thread_ts, status="is thinking…"
+            )
+        except Exception:
+            logger.debug("No assistant status for %s:%s", channel, thread_ts, exc_info=True)
 
     async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
         """Rewrite a message already in the channel."""
@@ -192,6 +227,39 @@ class SlackAdapter(ChannelAdapter):
             return
 
         await client.chat_postMessage(**kwargs)
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """An approval or a question as a Block Kit message with a button per choice."""
+        channel, thread_ts = split_thread(prompt.platform_chat_id)
+        kwargs: dict[str, Any] = {
+            "channel": channel,
+            "text": prompt.text,
+            "blocks": [
+                {"type": "section", "text": {"type": "mrkdwn", "text": prompt.text}},
+                {
+                    "type": "actions",
+                    "elements": [
+                        _button(choice, index) for index, choice in enumerate(prompt.choices)
+                    ],
+                },
+            ],
+        }
+        if thread_ts:
+            kwargs["thread_ts"] = thread_ts
+        await self._web(bot_token).chat_postMessage(**kwargs)
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """Take the buttons off the pressed message, leaving what was asked and chosen."""
+        if press.message_id is None:
+            return
+        channel, _thread = split_thread(press.platform_chat_id)
+        shown = f"{press.prompt_text}\n*{text}*" if press.prompt_text else f"*{text}*"
+        await self._web(bot_token).chat_update(
+            channel=channel,
+            ts=press.message_id,
+            text=shown,
+            blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": shown}}],
+        )
 
     #
     # `channels:read`, `groups:read` and `channels:history` on the Slack app -
@@ -482,6 +550,10 @@ class SlackAdapter(ChannelAdapter):
                 # bot was named - and every Socket Mode message then looked like a
                 # platform that does not report mentions, which the router answers.
                 await self._handle_event(req.payload, bot_id)
+            elif req.type in ("interactive", "slash_commands"):
+                # Buttons, the message shortcut and `/agent`, over the socket
+                # rather than the request URLs the manifest names (#2067).
+                await self._handle_interaction(req.type, req.payload, bot_id)
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         try:
@@ -745,6 +817,24 @@ class SlackAdapter(ChannelAdapter):
             )
         return response.content
 
+    async def _handle_interaction(self, kind: str, payload: dict[str, Any], bot_id: str) -> None:
+        """One Socket Mode interaction or slash command, routed like its webhook twin."""
+        from app.services.channels.slack_app import parse_command, parse_press, parse_shortcut
+        from app.worker.background.channel import process_channel_event, process_channel_press
+
+        if kind == "slash_commands":
+            command = parse_command({key: str(value) for key, value in payload.items()}, bot_id)
+            if command is not None:
+                await process_channel_event(command)
+            return
+        press = parse_press(payload, bot_id)
+        if press is not None:
+            await process_channel_press(press)
+            return
+        shortcut = parse_shortcut(payload, bot_id)
+        if shortcut is not None:
+            await process_channel_event(shortcut)
+
     async def _handle_event(self, payload: dict[str, Any], bot_id: str) -> None:
         """Route one `events_api` payload, whole.
 
@@ -756,6 +846,12 @@ class SlackAdapter(ChannelAdapter):
         reached the router with `addressed` unset, which it answers, so the bot
         replied to everything said in a channel it had been invited to.
         """
+        from app.services.channels.slack_app import SURFACE_EVENTS
+        from app.worker.background.channel import process_slack_surface
+
+        if (payload.get("event") or {}).get("type") in SURFACE_EVENTS:
+            await process_slack_surface(payload, bot_id)
+            return
         incoming = self.parse_incoming(payload, bot_id)
         if incoming is None:
             return

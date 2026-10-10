@@ -13,6 +13,7 @@ one (`app/services/channels/dedupe.py`, #167).
 """
 
 import logging
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -22,7 +23,7 @@ from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
-from app.worker.background.channel import process_channel_event
+from app.worker.background.channel import process_channel_event, process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -67,3 +68,29 @@ async def mattermost_webhook(
 
     spawn(process_channel_event(incoming), name=f"mattermost_event:{bot_id}")
     return Response(status_code=200)
+
+
+@router.post("/{bot_id}/actions", status_code=200, response_model=None)
+async def mattermost_action(
+    bot_id: UUID,
+    request: Request,
+    bot_service: ChannelBotSvc,
+) -> Any:
+    """Receive a press on one of the bot's buttons (#2064, #2068).
+
+    Mattermost signs nothing here, so the button's own context carries this
+    deployment's signature and a press without it is dropped. Answered at once
+    with an empty update; the post loses its buttons when the press is handled.
+    """
+    bot = await bot_service.find_active(bot_id)
+    if bot is None:
+        return {}
+    adapter = get_adapter("mattermost")
+    if isinstance(adapter, MattermostAdapter):
+        adapter.remember_server(str(bot_id), bot.api_base_url or "")
+    payload: dict[str, Any] = await request.json()
+    press = MattermostAdapter.parse_press(payload, str(bot_id))
+    if press is None:
+        raise HTTPException(status_code=403, detail="Unsigned button press")
+    spawn(process_channel_press(press), name=f"mattermost_press:{bot_id}")
+    return {}

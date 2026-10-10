@@ -1576,6 +1576,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.
         ("POST", f"{V1}/mattermost/{{bot_id}}/webhook"),
+        # A button pressed in a chat and Slack's `/agent` (#2064, #2067, #2068):
+        # Slack signs both like its events; Mattermost signs nothing, so each
+        # button carries this deployment's own signature over its value, and the
+        # presser is resolved through their linked account before anything acts.
+        ("POST", f"{V1}/slack/{{bot_id}}/interactions"),
+        ("POST", f"{V1}/slack/{{bot_id}}/commands"),
+        ("POST", f"{V1}/mattermost/{{bot_id}}/actions"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

@@ -201,3 +201,22 @@ class TestTheAskUserCard:
 
     def test_a_picked_answer_is_shown_by_its_labels(self) -> None:
         assert render_answer({"selected": ["eu", "us"]}) == "eu, us"
+
+
+@pytest.mark.anyio
+async def test_a_surface_that_answers_later_parks_the_question() -> None:
+    """A chat puts the question as buttons once the turn ends (#2064)."""
+    from pydantic_ai.exceptions import CallDeferred
+    from pydantic_ai_harness.ask_user import AskUserRequest
+
+    from app.agents.ask_user import park_the_question
+
+    with pytest.raises(CallDeferred):
+        await park_the_question(AskUserRequest(questions=()))
+
+
+def test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval() -> None:
+    from app.agents.ask_user import parked_status
+
+    assert parked_status("ask_user_question") == "awaiting_answer"
+    assert parked_status("send_email") == "awaiting_approval"

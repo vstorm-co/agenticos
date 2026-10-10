@@ -118,6 +118,26 @@ Two things are versioned separately from this file and worth knowing about:
   with what it becomes, and the time is told in the deployment's zone, each
   person's own or one chosen. Publishing refuses an unknown name. A visitor's
   name is never the publisher's (#2065).
+- **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
+  channel run that stops for a decision, or for an `ask_user` question - which
+  now parks a channel run instead of being read as declined - is offered in the
+  chat as a message per approval or question with a button per choice. A press
+  acts as the presser's linked member (`approvals:decide` to decide; only the
+  person asked may answer), continues the run and posts its answer there. Slack
+  presses arrive at a new interactions URL, Telegram's as callback queries,
+  Mattermost's at a new actions URL with this deployment's own signature on each
+  button. Migration `0111_channel_prompts` (#2064, #2068).
+- **Telegram feels native.** A command menu with a new `/agents` (also on
+  Slack and Mattermost: which agent answers here, and what it does), *typing…*
+  while it works, answers sent as Telegram HTML converted from the agent's
+  Markdown so code and links survive, and a forum group's topic answered in that
+  topic. Every channel's working status names more of what the agent is doing
+  (#2068).
+- **The Slack bot is a Slack app.** **Copy Slack app manifest** on a Slack bot
+  creates the whole app in one paste: the assistant pane with suggested prompts
+  and an *is thinking…* status, an App Home tab with the agent and what waits on
+  the person, `/agent <question>`, the message shortcut *Ask the agent about
+  this*, and unfurls for console links to agents (#2067).
 - **The chat on a phone works like a messaging app.** The console's shell
   follows the visual viewport, so the composer stays above an iOS or Android
   keyboard and the conversation stays on its last message while it opens; the tab

@@ -43,6 +43,9 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
+    "tests/test_ask_user.py::test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval": "the stored step status a parked call reads, no refusal",
+    "tests/test_channel_prompts.py::TestOffering::test_each_approval_and_each_question_is_its_own_message": "what a chat is offered, display, no refusal",
     "tests/test_agent_runner.py::TestParkedQuestions::test_a_question_parked_beside_an_approval_is_declined_when_it_resumes": "a question's resume answer beside an approval, no refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_the_permission_table_has_no_stale_entries": "meta test of gate-fixture hygiene, no runtime refusal",

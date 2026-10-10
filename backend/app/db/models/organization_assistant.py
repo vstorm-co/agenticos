@@ -3,8 +3,8 @@
 The assistant is an ordinary agent, installed and published for the
 organization the first time anybody opens the console. This row is what makes
 it *the* assistant: the widget finds it here rather than by guessing from a
-slug in a paged list, and the run check reads it to let every member - a
-Viewer included - talk to it.
+slug in a paged list, and the run check reads it to refuse an assistant an
+administrator switched off.
 """
 
 import uuid

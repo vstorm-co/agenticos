@@ -536,3 +536,27 @@ class TestGetForOrgLocking:
         await channel_bot_repo.get_for_org(session, uuid.uuid4(), organization_id=uuid.uuid4())
 
         assert "FOR UPDATE" not in self._sql(session)
+
+
+class TestTheSlackManifest:
+    """A Slack bot's app manifest, for the console to hand an administrator (#2067)."""
+
+    @pytest.mark.anyio
+    async def test_a_slack_bot_has_one(self):
+        bot = MagicMock(platform="slack", id=uuid.uuid4())
+        bot.name = "Support"
+        service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+        with patch.object(service, "get", new=AsyncMock(return_value=bot)):
+            manifest = await service.slack_manifest(bot.id)
+
+        assert manifest["display_information"]["name"] == "Support"
+
+    @pytest.mark.anyio
+    async def test_another_platform_has_none(self):
+        service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+        bot = MagicMock(platform="telegram", id=uuid.uuid4())
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=bot)),
+            pytest.raises(BadRequestError, match="Only a Slack bot"),
+        ):
+            await service.slack_manifest(bot.id)

@@ -74,6 +74,9 @@ from app.services.usage_report import (
 # *about* an agent, not to it.
 _MENTION = re.compile(r"^\s*@([a-z0-9][a-z0-9-]{0,63})\b[:,]?\s*(.*)$", re.DOTALL)
 
+# What a channel turn can end waiting on that the chat itself can settle.
+_PARKED = (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
+
 # Which surface a run is stamped with, so run history can be filtered by where
 # it came from. Anything else is recorded as an API run rather than guessed at -
 # which is why every platform this router serves has to be in here. Mattermost
@@ -206,6 +209,10 @@ class AnsweredTurn:
     on a product they reach through a bot - which is most of the way to not
     telling them at all.
     """
+
+    parked_run_id: UUID | None = None
+    """The run, when it stopped for somebody in this chat - a decision or a question -
+    so the chat is offered the choices as buttons (#2064, #2067)."""
 
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
@@ -357,6 +364,8 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
+            # A question is asked here as buttons and answered later (#2064).
+            parks_questions=True,
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
@@ -387,6 +396,7 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
         )
 
@@ -463,6 +473,8 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
+            # A question is asked here as buttons and answered later (#2064).
+            parks_questions=True,
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
@@ -487,6 +499,7 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
         )
 

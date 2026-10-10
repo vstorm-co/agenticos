@@ -15,6 +15,7 @@ it is absent rather than proceed unattended.
 from typing import Any
 
 from pydantic import BaseModel, Field
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, AskUserResponse
 from subagents_pydantic_ai import current_subagent_state
@@ -163,3 +164,13 @@ def parked_status(tool_name: str) -> str:
     is waiting on an approval.
     """
     return "awaiting_answer" if tool_name == ASK_USER_TOOL else "awaiting_approval"
+
+
+async def park_the_question(request: AskUserRequest) -> AskUserResponse:
+    """The question channel of a surface that answers later: the run parks on it.
+
+    For a chat, where the question is put as buttons once the turn has ended and
+    a press continues the run (#2064). Raising `CallDeferred` from inside the
+    tool is what ends the run waiting on this call.
+    """
+    raise CallDeferred

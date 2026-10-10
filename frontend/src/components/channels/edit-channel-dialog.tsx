@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
 
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
@@ -19,6 +20,7 @@ import {
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
+import { useCopySlackManifest } from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
@@ -234,6 +236,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
           </div>
         )}
 
+        {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
+
         {bot.platform === "slack" && (
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
@@ -333,5 +337,29 @@ export function EditChannelDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The Slack app, set up in one paste (#2067): the manifest names every URL Slack
+ * calls, so the administrator creates the app from it instead of copying them.
+ */
+function SlackManifest({ botId }: { botId: string }) {
+  const t = useTranslations("pages.channels");
+  const copy = useCopySlackManifest();
+  return (
+    <div className="border-border flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center">
+      <p className="text-muted-foreground flex-1 text-sm">{t("slackManifestWhy")}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => copy.mutate(botId)}
+        disabled={copy.isPending}
+      >
+        <ClipboardCopy className="h-4 w-4" />
+        {t("slackManifestCopy")}
+      </Button>
+    </div>
   );
 }

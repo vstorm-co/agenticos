@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "6e891ee0d892"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -885,6 +885,32 @@ Aufrufer — auf `RATE_LIMIT_RUN_PER_MINUTE`.
     und Enterprise-Managed Authorization auf dieser Seite sind ebenfalls alle
     ungenutzt — lassen Sie sie in Ruhe.
 
+### Die Slack-App aus einem Manifest { #the-slack-app-from-one-manifest }
+
+Die Schritte oben bauen die App von Hand. Die Einstellungen des Bots hier bieten
+auch **Slack-App-Manifest kopieren**: In Slack *Create New App → From a manifest*
+wählen, einfügen, installieren und Bot-Token und Signing Secret hier wieder
+einfügen. Das Manifest richtet jede Anfrage auf diese Bereitstellung und schaltet
+ein, was aus dem Bot eine App macht:
+
+- **Der Assistenten-Bereich.** Ein neuer Thread in Slacks KI-Ansicht bekommt drei
+  vorgeschlagene Prompts, und der Thread zeigt *is thinking…*, während der Agent
+  arbeitet.
+- **App Home.** Der eigene Reiter des Bots nennt seinen Agent, sagt, wie viele
+  Runs der Person auf eine Freigabe warten, und verlinkt Konsole und AI Architect.
+- **`/agent <Frage>`** fragt den Agent dort, wo es getippt wurde, und die
+  Nachrichten-Abkürzung **Ask the agent about this** fragt zu einer Nachricht in
+  ihrem eigenen Thread. Beide laufen genau wie eine Erwähnung: dieselbe
+  Verknüpfungsprüfung, dieselben Limits und dasselbe Audit.
+- **Schaltflächen** bei Freigaben und Fragen — siehe
+  [Freigaben und Fragen als Schaltflächen](#approvals-and-questions-as-buttons).
+- **Unfurls.** Ein Konsolen-Link auf einen Agent der Organisation zeigt dessen
+  Namen.
+
+Antworten streamen weiterhin, indem die Antwort an Ort und Stelle bearbeitet wird.
+Ein Bot bedient genau einen Agent, daher gibt es in einer Direktnachricht keine
+Agent-Auswahl; ein zweiter Agent ist ein zweiter Bot.
+
 ### Scopes und Events { #scopes-and-events }
 
 Dreizehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
@@ -1017,6 +1043,12 @@ der Webhook registriert werden, bevor er irgendetwas beantwortet: das Secret wir
 geprägt, wenn der Modus wechselt, und Telegram erfährt es erst, wenn der Webhook
 registriert wird.
 
+Der Bot setzt sein Befehlsmenü — `/agents` sagt, welcher Agent antwortet und was
+er tut, neben `/new`, `/link` und `/help` —, zeigt *schreibt…*, während er
+arbeitet, und nennt den Schritt, an dem er ist, sendet Antworten als Telegram-HTML,
+umgewandelt aus dem Markdown des Agents, damit Codeblöcke und Links erhalten
+bleiben, und antwortet im Thema einer Forengruppe in diesem Thema.
+
 ## Mattermost { #mattermost }
 
 Mattermost ist selbst gehostet, also trägt ein Bot **die URL Ihres Servers**
@@ -1136,6 +1168,12 @@ Instanz-Metadaten-Adressen sind die Ausnahme und werden abgelehnt. Die Grenze, d
 tatsächlich hält, ist die Berechtigung, Channel-Bots zu verwalten, nicht diese
 Prüfung.
 
+Freigaben und Fragen kommen als Schaltflächen. Mattermost ruft jede Schaltfläche
+unter `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions` zurück, also
+muss der Mattermost-Server die API erreichen; in einem privaten Netz tragen Sie
+den Host der API unter *System Console → Developer → Allow untrusted internal
+connections to* ein.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
@@ -1165,6 +1203,24 @@ Schleife bedient alle drei Plattformen, sodass die Regel zwischen ihnen nicht
 auseinanderlaufen kann.
 
 ---
+
+## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
+
+Ein in Slack, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
+der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
+ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
+pro Frage mit ihren Optionen und **Skip**. Ein Druck entscheidet oder antwortet,
+der Run läuft weiter, und seine Antwort erscheint im selben Chat; die gedrückte
+Nachricht behält die Frage und zeigt die Wahl.
+
+Ein Druck handelt als die Person, die gedrückt hat, über ihr verknüpftes Konto:
+Entscheiden braucht `approvals:decide`, und nur die gefragte Person kann eine
+Frage beantworten. Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
+wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
+eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
+nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
+über ihren Wert, und ein Druck ohne sie wird abgelehnt.
 
 ## Was jeder Kanal gemeinsam hat { #what-every-channel-shares }
 
