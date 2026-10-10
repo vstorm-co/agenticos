@@ -22,6 +22,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
+import { AddToAgent } from "@/components/agents/add-to-agent";
 import { useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
@@ -204,6 +205,8 @@ export default function RAGPage() {
 
 function KBCard({ kb }: { kb: KnowledgeBase }) {
   const t = useTranslations("pages.kb");
+  const { can } = usePermissions();
+  const canAdd = can(Perm.agentsEdit);
   const meta = SCOPE_META[kb.scope];
 
   // The class list below is a class list, not a message. It was in
@@ -262,7 +265,17 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t(meta.labelKey)}</span>
           </span>
-          <ArrowUpRight className="h-4 w-4 shrink-0" />
+          {/* Above the card's link, and in the arrow's place for whoever may give
+              it to an agent - the next step after filling a base (#2075). */}
+          {canAdd ? (
+            <AddToAgent
+              resource={{ kind: "collection", id: kb.id }}
+              name={kb.name}
+              className="pointer-events-auto relative z-10 -my-1 h-8 text-xs"
+            />
+          ) : (
+            <ArrowUpRight className="h-4 w-4 shrink-0" />
+          )}
         </div>
       </div>
     </div>
