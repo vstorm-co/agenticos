@@ -1,5 +1,5 @@
 ---
-source_sha: "a6f20542143f"
+source_sha: "f3a9cc7f1767"
 ---
 
 # Artefakte { #artifacts }
@@ -28,7 +28,7 @@ Die Seite kommt von einer von drei Stellen:
 
 - **Eine Datei im Workspace des Agents**, die auf `.html` oder `.md` endet. Das
   ist der übliche Fall für einen Agent mit der Capability
-  [Dateien & Shell](reference/capabilities.md#files-shell): Er schreibt
+  [Sandbox](reference/capabilities.md#files-shell): Er schreibt
   `report.html`, führt aus, was auch immer sie baut, und veröffentlicht dann die
   Datei. Die Bytes werden über das eigene Workspace-Backend des Runs gelesen,
   deshalb funktioniert das auf jedem Sandbox-Backend.

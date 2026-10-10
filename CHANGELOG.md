@@ -131,6 +131,17 @@ Two things are versioned separately from this file and worth knowing about:
   its own - as its owner, with the token in the vault and an audit entry - the
   first time it lists its sandboxes or runs an agent that needs one. The AI
   Architect is installed with files and code on such a deployment (#2070).
+- **Capabilities explained in plain words, under plainer names.** The Builder
+  lists each capability with what it lets the agent do, and its panel adds two
+  or three example uses, what it needs and what it never does - in English,
+  Polish and German. Categories read "Work with data" or "The web", and five
+  capabilities that tune how a run is carried fold under **Advanced**. Renamed
+  across the API, the console and the docs: Files & shell is **Sandbox**, Run
+  Python **Calculations**, Memory files **Memory**, Conversation search **Past
+  conversations**, Web fetch **Read web pages**, Browser automation **Web
+  browser** (and **Web browser (step by step)**), Context management **Long
+  conversations**, System reminders **Instruction reminders**. Ids, the spec
+  and the docs' anchors are unchanged (#2070, #2075).
 - **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
   channel run that stops for a decision, or for an `ask_user` question - which
   now parks a channel run instead of being read as declined - is offered in the

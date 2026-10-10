@@ -52,7 +52,7 @@ organization that only runs a modified copy internally owes nobody a release.
    capabilities of its own [by design](../reference/capabilities.md#delegation) -
    only what the parent explicitly shares reaches it, so without this step
    every invented specialist could delegate but could not search.
-4. Enable **Web search** (method DuckDuckGo) and **Web fetch** on the parent
+4. Enable **Web search** (method DuckDuckGo) and **Read web pages** on the parent
    itself - sharing only reaches a delegate what the parent is bound to.
 5. Enable **Planning** and **Artifacts**.
 6. Set a budget and a step limit for the trial. The recorded run used 40 steps

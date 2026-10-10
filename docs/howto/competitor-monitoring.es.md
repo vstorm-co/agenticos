@@ -1,5 +1,5 @@
 ---
-source_sha: "d510b0c748f8"
+source_sha: "eaed0d094904"
 title: "Vigila páginas web en busca de cambios con una programación"
 description: "Consulta dos páginas según una programación, compara cada una con lo que se registró la última vez, e informa solo de lo que cambió."
 ---
@@ -61,10 +61,10 @@ sin contenedor.
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Web fetch**. Restringe `allowed_domains` a
+2. En **Toolbox**, activa **Read web pages**. Restringe `allowed_domains` a
    `github.com` y `example.com`, para que al agent no se le pueda pedir que
    consulte ninguna otra cosa.
-3. Activa **Files & shell**. Deja el backend en **Files** (el backend
+3. Activa **Sandbox**. Deja el backend en **Files** (el backend
    `state` — sin shell, sin conexión de sandbox) y el ámbito en **This
    conversation** — los valores por defecto son exactamente lo que necesita
    esta receta.

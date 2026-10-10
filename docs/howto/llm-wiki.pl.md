@@ -1,5 +1,5 @@
 ---
-source_sha: "2db3d6fc670a"
+source_sha: "3e585eb46567"
 title: "Zbuduj LLM wiki, które prowadzi agent"
 description: "Daj agentowi workspace, który przetrwa między rozmowami, i plik schematu, a potem pozwól mu zamieniać surowe notatki w małe, powiązane wiki w Markdownie."
 ---
@@ -42,8 +42,8 @@ Fakt referencyjny, który strona wiki musi przenieść przez obie notatki: Alice
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Files & shell**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`.
-3. Ustaw **session scope na `user`**, a nie domyślne `conversation`. Workspace o zakresie rozmowy w kolejnym czacie zaczyna od zera, a to dokładnie ten błąd „wiki wszystko zapomina”, który sprawdza ta strona. Workspace o zakresie agenta współdzieli każdy w organizacji, kto rozmawia z tym agentem, co jest złym modelem współdzielenia dla wiki jednej osoby. `user` trzyma jeden workspace dla danej osoby we wszystkich rozmowach i powierzchniach, przez które dociera do agenta, i dla nikogo innego. Co współdzieli każdy zakres, opisuje [Files & shell](../reference/capabilities.md#files-shell).
+2. W **Toolbox** włącz **Sandbox**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`.
+3. Ustaw **session scope na `user`**, a nie domyślne `conversation`. Workspace o zakresie rozmowy w kolejnym czacie zaczyna od zera, a to dokładnie ten błąd „wiki wszystko zapomina”, który sprawdza ta strona. Workspace o zakresie agenta współdzieli każdy w organizacji, kto rozmawia z tym agentem, co jest złym modelem współdzielenia dla wiki jednej osoby. `user` trzyma jeden workspace dla danej osoby we wszystkich rozmowach i powierzchniach, przez które dociera do agenta, i dla nikogo innego. Co współdzieli każdy zakres, opisuje [Sandbox](../reference/capabilities.md#files-shell).
 4. Ustaw budżet i limit kroków na czas próby.
 5. Wpisz poniższe instrukcje, a potem **Publish**.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d457ec305b9"
+source_sha: "1986f3e8ba0a"
 ---
 
 # Wybór modelu { #choosing-a-model }
@@ -99,7 +99,7 @@ Zanim więc zmienisz model, sprawdź trzy rzeczy:
 - **`default_top_k` w capability wiedzy.** Osiem fragmentów tam, gdzie
   wystarczyłyby trzy, to najczęstsze ciche przepalanie budżetu.
 - **Instrukcje, które się powtarzają.** Są czytane w każdej turze.
-- **[Zarządzanie kontekstem](reference/capabilities.md)**, które utrzymuje długą
+- **[Długie rozmowy](reference/capabilities.md)**, które utrzymuje długą
   rozmowę wewnątrz okna, zamiast wysyłać ją w całości od nowa.
 
 [Budżety](governance.md#budgets) są zabezpieczeniem, a nie planem: budżet

@@ -20,7 +20,7 @@ published page back.
 The page comes from one of three places:
 
 - **A file in the agent's workspace**, ending in `.html` or `.md`. This is the
-  usual case for an agent with the [Files & shell](reference/capabilities.md#files-shell)
+  usual case for an agent with the [Sandbox](reference/capabilities.md#files-shell)
   capability: it writes `report.html`, runs whatever builds it, then publishes
   the file. The bytes are read through the run's own workspace backend, so it
   works on every sandbox backend.

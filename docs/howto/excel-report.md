@@ -52,7 +52,7 @@ grand total 194,000.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Files & shell**. Choose **Container**, select
+2. In **Toolbox**, enable **Sandbox**. Choose **Container**, select
    your sandbox connection and the `workbench` runtime, and keep the
    conversation scope.
 3. Set a budget for the trial, then set the instructions below and

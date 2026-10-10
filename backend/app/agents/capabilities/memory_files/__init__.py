@@ -46,7 +46,7 @@ class MemoryFilesConfig(BaseModel):
 
 @register(
     id=MEMORY_FILES_CAPABILITY_ID,
-    name="Memory files",
+    name="Memory",
     category="knowledge",
     description=(
         "Let the agent keep its own notes across conversations, indexed by a "

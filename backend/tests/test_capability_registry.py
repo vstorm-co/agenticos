@@ -5,6 +5,7 @@ that contributes nothing is not attached, and a spec asking for something
 ungranted fails while a person is looking at a form rather than mid-run.
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -921,3 +922,43 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+
+MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
+
+
+class TestConsoleCapabilityGuide:
+    """The console explains every capability, under the registry's own name (#2070).
+
+    The console reads a capability's name and its plain-language guide from its
+    message catalogs, so a person reads it in their language. That copy is a second
+    place a capability is named: a capability added here with no entry there is shown
+    to a Polish reader in English with no examples, and one renamed here keeps its old
+    name in the Builder while the API, the AI Architect and the docs use the new one.
+    """
+
+    @staticmethod
+    def _guide(locale: str) -> dict[str, dict[str, str]]:
+        catalog = json.loads((MESSAGES_PATH / f"{locale}.json").read_text(encoding="utf-8"))
+        return catalog["capabilityGuide"]
+
+    def test_every_capability_has_an_entry_and_no_entry_is_orphaned(self):
+        registered = sorted(definition.id for definition in all_capabilities())
+
+        for locale in ("en", "pl", "de"):
+            assert sorted(self._guide(locale)) == registered, locale
+
+    def test_the_english_name_is_the_registry_name(self):
+        guide = self._guide("en")
+
+        assert {d.id: d.name for d in all_capabilities()} == {
+            cap_id: entry["name"] for cap_id, entry in guide.items()
+        }
+
+    def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
+        for locale in ("en", "pl", "de"):
+            for cap_id, entry in self._guide(locale).items():
+                assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), (
+                    locale,
+                    cap_id,
+                )

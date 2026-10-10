@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
@@ -488,5 +489,16 @@ export function useCapabilityCatalog() {
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
     staleTime: Infinity,
   });
-  return { capabilities: data?.items ?? [], isLoading };
+  const guide = useCapabilityGuide();
+  // Named and described in the reader's language wherever the console has the
+  // words, so the list, the panel and the map beside it all say "Sandbox" (#2070).
+  const capabilities = useMemo(
+    () =>
+      (data?.items ?? []).map((entry) => {
+        const plain = guide(entry.id);
+        return plain ? { ...entry, name: plain.name, description: plain.does } : entry;
+      }),
+    [data, guide],
+  );
+  return { capabilities, isLoading };
 }

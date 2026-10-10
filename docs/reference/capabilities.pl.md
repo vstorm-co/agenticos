@@ -1,5 +1,5 @@
 ---
-source_sha: "819895897d3c"
+source_sha: "62429d6d30db"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -23,37 +23,45 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
     strony. Builder rysuje swój wybór i formularze konfiguracji z tej odpowiedzi.
     Jeśli oba źródła się różnią, rację ma API.
 
+Builder nazywa każdą capability w języku konsoli i objaśnia ją prostymi słowami:
+co pozwala zrobić agentowi, dwa lub trzy przykłady użycia, czego wymaga i czego
+nigdy nie robi. Poniższe nazwy są polskimi odpowiednikami nazw z konsoli. Pięć
+capability, które dostrajają sposób prowadzenia runu - długie rozmowy, odciążenie
+z obrazów, przypomnienia instrukcji, limity wyników narzędzi i wyszukiwanie
+narzędzi - jest zwiniętych w grupie **Zaawansowane**, dopóki ktoś jej nie otworzy,
+nie zacznie szukać albo nie włączy jednej z nich.
+
 ## Co jest dostarczane { #what-ships }
 
 | id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
 |---|---|---|---|---|---|
-| `knowledge` | Wyszukiwanie w bazie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
 | `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
-| `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
-| `conversation_search` | Wyszukiwanie w rozmowach | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Wyszukiwanie w sieci | badania | `web_search` | `web:read` | dla usług płatnych |
-| `web_fetch` | Pobieranie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatyzacja przeglądarki (wybór) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
-| `browser_use` | Automatyzacja przeglądarki | badania | `browse_web` | `web:browse` | przez dodatek `browser-use` |
-| `code_execution` | Uruchamianie Pythona | analiza | `run_python` | `code:execute` | — |
-| `sandbox` | Pliki i powłoka | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Przeglądarka (krok po kroku) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
+| `browser_use` | Przeglądarka | badania | `browse_web` | `web:browse` | przez dodatek `browser-use` |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
 | `subagents` | Delegowanie | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
-| `system_reminders` | Przypomnienia systemowe | rozumowanie | brak, celowo | — | — |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — |
 | `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — |
 | `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
-| `guardrails` | Guardrails | użytkowe | brak, celowo | — | — |
-| `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
-| `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
-| `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
 | `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Pytanie do użytkownika | narzędzia | `ask_user_question` | — | — |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -80,7 +88,7 @@ osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*,
 publikacja odrzuca spec, który próbuje ją nieść — zobacz
 [Podgląd kanału czatu](#chat-channel-lookup).
 
-## Wyszukiwanie w bazie wiedzy { #knowledge-search }
+## Wyszukiwanie wiedzy { #knowledge-search }
 
 `search_documents` — *Search the organization's documents for passages relevant to
 a question.*
@@ -244,7 +252,7 @@ dołączana, tak samo jak `knowledge` powiązane z zerem kolekcji. Plikami zarz�
 się pod `/api/v1/context`, a wiąże się je z agentem po id
 (`AgentSpec.context_ids`).
 
-## Pliki pamięci { #memory-files }
+## Pamięć { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -387,7 +395,7 @@ w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, wi
 twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
 mieć możliwości skierowania go na własny serwer.
 
-## Wyszukiwanie w rozmowach { #conversation-search }
+## Poprzednie rozmowy { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -443,7 +451,7 @@ Operator, który w ogóle nie chce, by agenci czytali rozmowy, wstrzymuje zakres
 `conversations:read`, co wyłącza to w całym deploymencie. Nie ma ustawienia,
 które poszerzałoby korpus.
 
-## Wyszukiwanie w sieci { #web-search }
+## Wyszukiwanie w internecie { #web-search }
 
 `web_search` — *Search the public web for current information.*
 
@@ -483,7 +491,7 @@ Wyszukiwanie znajduje stronę; nie czyta jej. Czytanie to
 [Pobieranie stron](#web-fetch) poniżej i jest osobną capability z osobnym
 zakresem.
 
-## Pobieranie stron { #web-fetch }
+## Czytanie stron { #web-fetch }
 
 `web_fetch` — *Read the full page at a URL, as Markdown.*
 
@@ -588,7 +596,7 @@ Strona przychodzi jako Markdown, przycięta na `max_content_chars`; PDF albo obr
 przychodzą jako treść binarna, którą model czyta natywnie. Nic tego nie streszcza
 — to, co zrobić ze stroną, należy do instrukcji agenta.
 
-## Automatyzacja przeglądarki (wybór) { #browser-automation-choose }
+## Przeglądarka (krok po kroku) { #browser-automation-choose }
 
 `browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
 
@@ -685,7 +693,7 @@ tym jednym narzędziu, podając polecenie instalacji.
 każdy krok z prawdopodobieństwem, z jakim silnik go znalazł — zobacz
 [konsolę](../console.md). `preview` wyłączone zostawia narrację i usuwa obrazy.
 
-## Automatyzacja przeglądarki { #browser-automation }
+## Przeglądarka { #browser-automation }
 
 `browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
 
@@ -736,7 +744,7 @@ capability, instaluje `agenticos[browser-use]` i dostarcza Chromium; powiązany
 agent, którego deployment tego nie ma, głośno zawodzi na tym jednym narzędziu,
 podając polecenie instalacji.
 
-## Uruchamianie Pythona { #run-python }
+## Obliczenia { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
 
@@ -754,7 +762,7 @@ jedynymi limitami wartymi ustawienia.
     powinien potrzebować operatora ani ponownego wdrożenia — a górne granice są
     ograniczone, a nie otwarte.
 
-## Pliki i powłoka { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *odczyt.*
 `write_file`, `edit_file`, `execute` — *zapis i uruchamianie.*
@@ -1438,7 +1446,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.
 
-## Przypomnienia systemowe { #system-reminders }
+## Przypomnienia instrukcji { #system-reminders }
 
 Bez narzędzi. Powtarza wskazówki sterujące w trakcie runa, żeby długa sesja
 przestała dryfować od swoich instrukcji — porażką, którą to naprawia, jest zanik
@@ -1501,7 +1509,7 @@ kwartale" na podstawie daty odcięcia swojego treningu.
 |---|---|---|
 | `timezone` | `UTC` | dowolna nazwa IANA, np. `Europe/Warsaw` |
 
-## Zarządzanie kontekstem { #context-management }
+## Długie rozmowy { #context-management }
 
 Bez narzędzi. Przycina historię wiadomości długiego runa przed każdym żądaniem, więc
 run, który uderzyłby w limit modelu, pracuje dalej. Strategie pochodzą z
@@ -1591,7 +1599,7 @@ raportuje każdy agent, niezależnie od tego, czy kompaktuje — zobacz
 Ostrzeżenie ma największe znaczenie dla agenta, który *nie* będzie kompaktował,
 bo to on dochodzi do sufitu i dostaje odmowę.
 
-## Odciążanie mediów { #media-offload }
+## Odciążenie z obrazów { #media-offload }
 
 Brak narzędzi. Zapisuje duże części skompaktowanej rozmowy do magazynu i zostawia
 w zapisanej historii referencję `media+sha256://…`. Magazyny adresowane treścią
@@ -1634,7 +1642,7 @@ wysłaniem żądania, i właśnie to utrzymuje poprawność runa. Przepisanie ic
 który model pobiera sam, to inna funkcja i wymagałaby publicznego URL-a, którego
 ten magazyn świadomie nie wystawia.
 
-## Limity wyjścia narzędzi { #tool-output-limits }
+## Limity wyników narzędzi { #tool-output-limits }
 
 Jedno narzędzie, `read_tool_result`. Tam gdzie `compaction` przycina historię
 *wewnątrz* okna między żądaniami, to powstrzymuje przerośnięty zwrot narzędzia przed
@@ -1748,7 +1756,7 @@ zwykłe żądania do modelu, opakowane przez tego samego strażnika. Jedyny kszt
 który by mu umknął — własna funkcja wyszukująca, która sama woła model albo
 embeddingi — celowo nie jest wystawiony.
 
-## Guardrails { #guardrails }
+## Zabezpieczenia { #guardrails }
 
 Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
@@ -1842,7 +1850,7 @@ narzędzi harnessu nie jest przeniesiony: [zatwierdzenia](../governance.md) już
 parkują run per narzędzie na decyzję człowieka, a druga, sterowana regułami droga do
 tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
 
-## Podgląd kanału czatu { #chat-channel-lookup }
+## Informacje o kanale czatu { #chat-channel-lookup }
 
 `get_channel_info` — *Describe the channel this conversation is happening in.*
 `list_channel_members` — *List the people in this channel.*
@@ -1882,7 +1890,7 @@ Trzy własności obowiązują na każdej platformie:
   żadnego katalogu, więc capability nie jest w ogóle dołączana — z tego samego
   powodu, dla którego nie jest dołączane `knowledge` bez kolekcji.
 
-## Pytanie do użytkownika { #ask-the-user }
+## Pytania do użytkownika { #ask-the-user }
 
 Gdy agent potrzebuje decyzji, którą może podjąć tylko człowiek, pyta zamiast
 zgadywać: `ask_user_question` przyjmuje od jednego do dziesięciu pytań

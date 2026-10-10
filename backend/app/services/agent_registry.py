@@ -262,7 +262,7 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
         await asyncio.to_thread(validate_cdp_url, config)
     except ValueError as exc:
         return [
-            f"Browser automation's remote endpoint cannot be reached from here: {exc} "
+            f"The web browser's remote endpoint cannot be reached from here: {exc} "
             "Point it at a public browser service, not a loopback or internal address."
         ]
     return []
@@ -286,7 +286,7 @@ def _browser_choice_problems(config: BaseModel | None) -> list[str]:
     try:
         validate_browser_choice_cdp_url(config)
     except ValueError as exc:
-        return [f"Browser automation's endpoint cannot be used: {exc}."]
+        return [f"The web browser's endpoint cannot be used: {exc}."]
     return []
 
 

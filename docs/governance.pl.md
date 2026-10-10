@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "732f57c0c0e6"
 ---
 
 # Governance { #governance }
@@ -151,8 +151,8 @@ zobaczy. Dlatego licznik należy do przygotowanego runa, a nie do powierzchni.
 Otwarcie go nie jest krokiem, o którym nowa powierzchnia musi wiedzieć, bo nie
 ma sposobu, żeby wykonać przygotowanego agenta bez niego.
 
-[Zarządzanie kontekstem](reference/capabilities.md#context-management) to ta
-druga taka rzecz. Jego strategia podsumowująca zapisuje podsumowanie przez
+Capability [Długie rozmowy](reference/capabilities.md#context-management) to ta
+druga taka rzecz. Jej strategia podsumowująca zapisuje podsumowanie przez
 agenta, którego buduje sama, więc to żądanie nie przechodzi przez żadną bramkę
 budżetu; capability księguje to, co kosztowało, na tym samym liczniku. Bycie
 *poza* bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
@@ -196,8 +196,8 @@ komunikatem, z którym da się coś zrobić. Workspace odmawia zapisu. **Okno
 kontekstu** zostaje odrzucone przez providera, w środku odpowiedzi, a run po
 prostu się wywraca.
 
-Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpięte
-[zarządzanie kontekstem](reference/capabilities.md#context-management), bo
+Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpiętą
+capability [Długie rozmowy](reference/capabilities.md#context-management), bo
 ostrzeżenie liczy się najbardziej dla agenta, który *nie* będzie kompaktował.
 Raportuje on, ile tokenów niosło ostatnie żądanie tury, *po* ewentualnym
 kompaktowaniu: odczyt spada, gdy kompaktowanie działa, bo mierzy to, co wyszło, a

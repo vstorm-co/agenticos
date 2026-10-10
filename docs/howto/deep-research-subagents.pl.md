@@ -1,5 +1,5 @@
 ---
-source_sha: "7a88ee3f4d56"
+source_sha: "926f21066868"
 title: "Zbadaj pytanie z subagentami i opublikuj raport"
 description: "Podziel pytanie na niezależne pytania cząstkowe, deleguj każde do jednorazowego specjalisty i opublikuj porównanie ze źródłami jako artefakt."
 ---
@@ -40,7 +40,7 @@ Obowiązek udostępnienia kodu w GPLv3 uruchamia dystrybucja, a nie modyfikacja:
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
 2. W **Toolbox** włącz **Delegation**. Włącz `allow_dynamic`, czyli ustawienie, które pozwala modelowi wymyślić jednorazowego specjalistę do pytania cząstkowego, dla którego nikt wcześniej go nie przygotował. Ustaw tryb na **Async**, żeby trzy pytania cząstkowe szły jednocześnie, a nie po kolei, i zostaw limit rozgałęzień na 3.
 3. Nadal w Delegation przełącz **Share Web search with delegates** i **Share Web fetch with delegates**. Specjalista wymyślony przez model [celowo](../reference/capabilities.md#delegation) nie dostaje własnych capabilities. Trafia do niego tylko to, co rodzic jawnie udostępni, więc bez tego kroku każdy wymyślony specjalista mógłby delegować, ale nie mógłby szukać.
-4. Włącz **Web search** (metoda DuckDuckGo) i **Web fetch** u samego rodzica. Udostępnić delegatowi można tylko to, co ma przypisane rodzic.
+4. Włącz **Web search** (metoda DuckDuckGo) i **Read web pages** u samego rodzica. Udostępnić delegatowi można tylko to, co ma przypisane rodzic.
 5. Włącz **Planning** i **Artifacts**.
 6. Ustaw budżet i limit kroków na czas próby. Zapisany run użył 40 kroków i kosztował około 0,43 USD.
 7. Wpisz poniższe instrukcje, a potem **Publish**.

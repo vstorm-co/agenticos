@@ -1,5 +1,5 @@
 ---
-source_sha: "819895897d3c"
+source_sha: "62429d6d30db"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -22,6 +22,15 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
     página. El Builder dibuja su selector y sus formularios de configuración a
     partir de esa respuesta. Si ambos se contradicen, la API tiene razón.
 
+El Builder nombra cada capability en el idioma de la consola y la explica con
+palabras sencillas: qué le permite hacer al agent, dos o tres ejemplos de uso, qué
+necesita y qué no hace nunca. La consola no tiene traducción al español, así que
+allí se ven los nombres en inglés que da la tabla de la versión inglesa. Cinco
+capabilities que solo ajustan cómo se lleva un run - conversaciones largas,
+imágenes fuera del historial, recordatorio de instrucciones, límites de resultados
+de herramientas y búsqueda de herramientas - quedan plegadas bajo **Advanced**
+hasta que alguien abre el grupo, busca o activa una de ellas.
+
 ## Qué se entrega { #what-ships }
 
 | id | Nombre | Categoría | Herramientas | Scope | Clave |
@@ -29,29 +38,29 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
-| `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
-| `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
-| `browser_use` | Automatización del navegador | research | `browse_web` | `web:browse` | mediante el extra `browser-use` |
-| `code_execution` | Ejecutar Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Archivos y shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
+| `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Navegador web (paso a paso) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
+| `browser_use` | Navegador web | research | `browse_web` | `web:browse` | mediante el extra `browser-use` |
+| `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
 | `subagents` | Delegación | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — |
-| `system_reminders` | Recordatorios del sistema | reasoning | ninguna, a propósito | — | — |
+| `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — |
 | `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — |
 | `clock` | Fecha y hora | utility | ninguna, a propósito | — | — |
-| `guardrails` | Guardrails | utility | ninguna, a propósito | — | — |
-| `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
-| `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
-| `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
+| `guardrails` | Reglas de protección | utility | ninguna, a propósito | — | — |
+| `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — |
+| `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — |
+| `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — |
 | `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -244,7 +253,7 @@ adjunta, igual que `knowledge` vinculada sin colecciones tampoco se adjunta. Los
 archivos se gestionan bajo `/api/v1/context` y se vinculan a un agent por id
 (`AgentSpec.context_ids`).
 
-## Archivos de memoria { #memory-files }
+## Memoria { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -391,7 +400,7 @@ clave viaja en una cabecera `Authorization`, así que quien construya un agent y
 pueda vincular una clave compartida sin poder leerla no debe poder apuntarla a un
 servidor propio.
 
-## Búsqueda de conversaciones { #conversation-search }
+## Conversaciones anteriores { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -491,7 +500,7 @@ Una búsqueda encuentra una página; no la lee. Leerla es
 [Lectura de páginas web](#web-fetch), más abajo, y es una capability aparte con un
 scope aparte.
 
-## Lectura de páginas web { #web-fetch }
+## Leer páginas web { #web-fetch }
 
 `web_fetch` — *Lee la página completa de una URL, como Markdown.*
 
@@ -593,7 +602,7 @@ Una página llega como Markdown, truncada en `max_content_chars`; un PDF o una
 imagen llegan como contenido binario que el modelo lee de forma nativa. Nada la
 resume: qué hacer con una página corresponde a las instrucciones del agent.
 
-## Automatización del navegador (elección) { #browser-automation-choose }
+## Navegador web (paso a paso) { #browser-automation-choose }
 
 `browse_page` — *Recorre una página web hacia un objetivo, una acción elegida cada vez.*
 
@@ -697,7 +706,7 @@ en la que está y cada paso con la probabilidad con la que el motor lo encontró
 consulta [la consola](../console.md). Con `preview` desactivado se conserva la
 narración y se omiten las imágenes.
 
-## Automatización del navegador { #browser-automation }
+## Navegador web { #browser-automation }
 
 `browse_web` — *Delega una tarea web abierta en un agente de navegador autónomo.*
 
@@ -749,7 +758,7 @@ instala `agenticos[browser-use]` y proporciona un Chromium; un agent vinculado c
 despliegue no lo tenga falla ruidosamente en esa única herramienta, con la línea de
 instalación.
 
-## Ejecutar Python { #run-python }
+## Cálculos { #run-python }
 
 `run_python` — *Ejecuta un pequeño programa en Python para calcular algo.*
 
@@ -767,7 +776,7 @@ que el tiempo y la memoria son los únicos límites que merece la pena fijar.
     no debería necesitar a un operador ni un redespliegue, y los topes están
     acotados en vez de ser abiertos.
 
-## Archivos y shell { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *lectura.*
 `write_file`, `edit_file`, `execute` — *escritura y ejecución.*
@@ -1468,7 +1477,7 @@ Sin poner significa el esfuerzo por defecto del propio provider. Un nivel que un
 provider no tenga se asigna al más cercano que tenga, de modo que un spec sigue
 siendo portable al cambiar de modelo.
 
-## Recordatorios del sistema { #system-reminders }
+## Recordatorio de instrucciones { #system-reminders }
 
 Sin herramientas. Reitera las pautas de guía en mitad del run para que una sesión
 larga deje de alejarse de sus instrucciones; el fallo que arregla es el desvanecido
@@ -1532,7 +1541,7 @@ seguridad sobre «este trimestre» a partir de su fecha de corte de entrenamient
 |---|---|---|
 | `timezone` | `UTC` | cualquier nombre IANA, p. ej. `Europe/Warsaw` |
 
-## Gestión del contexto { #context-management }
+## Conversaciones largas { #context-management }
 
 Sin herramientas. Recorta el historial de mensajes de un run largo antes de cada
 petición, para que un run que habría alcanzado el límite del modelo siga funcionando.
@@ -1626,7 +1635,7 @@ estaba la ventana lo informa cada agent, compacte o no; consulta
 El aviso importa sobre todo al agent que *no* va a compactar, que es el que llega al
 techo y recibe un rechazo.
 
-## Descarga de medios { #media-offload }
+## Imágenes fuera del historial { #media-offload }
 
 Ninguna herramienta. Escribe las partes grandes de una conversación compactada en
 el almacenamiento y deja en el historial guardado una referencia
@@ -1671,7 +1680,7 @@ salga la petición, y eso es lo que mantiene correcto el run. Reescribirlas a un
 URL que el modelo descargue por su cuenta es otra función y necesitaría la URL
 pública que este almacén deliberadamente no emite.
 
-## Límites de salida de herramientas { #tool-output-limits }
+## Límites de resultados de herramientas { #tool-output-limits }
 
 Una herramienta, `read_tool_result`. Donde `compaction` recorta el historial *dentro*
 de la ventana entre peticiones, esta impide de entrada que un retorno de herramienta
@@ -1787,7 +1796,7 @@ idas y vueltas del descubrimiento son peticiones corrientes al modelo que envuel
 mismo guardián. La única forma que se le escaparía — un callable de búsqueda a medida
 que llamara él mismo a un modelo o a un embedding — deliberadamente no se expone.
 
-## Guardrails { #guardrails }
+## Reglas de protección { #guardrails }
 
 Sin herramientas. Inspecciona el texto que circula por un run en tres bordes y o bien
 **censura** una coincidencia o bien **bloquea** el run. Las comprobaciones son
@@ -1882,7 +1891,7 @@ veredicto `approve` de herramienta del harness no se ha portado: las
 humana, y una segunda vía, guiada por reglas, al mismo mecanismo es justo lo que evita
 una única puerta.
 
-## Consulta del canal de chat { #chat-channel-lookup }
+## Información del canal de chat { #chat-channel-lookup }
 
 `get_channel_info` — *Describe el canal en el que está ocurriendo esta conversación.*
 `list_channel_members` — *Lista las personas de este canal.*

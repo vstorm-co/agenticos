@@ -1,5 +1,5 @@
 ---
-source_sha: "5d457ec305b9"
+source_sha: "1986f3e8ba0a"
 ---
 
 # Ein Modell wählen { #choosing-a-model }
@@ -102,7 +102,7 @@ Prüfen Sie also drei Dinge, bevor Sie das Modell wechseln:
 - **`default_top_k` bei der Knowledge-Capability.** Acht Chunks, wo drei genügen
   würden, sind die häufigste stille Mehrausgabe.
 - **Instruktionen, die sich wiederholen.** Sie werden bei jedem einzelnen Zug gelesen.
-- **[Kontextverwaltung](reference/capabilities.md)**, die eine lange Unterhaltung
+- **[Lange Gespräche](reference/capabilities.md)**, die eine lange Unterhaltung
   im Fenster hält, statt sie vollständig erneut zu senden.
 
 [Budgets](governance.md#budgets) sind das Auffangnetz, nicht der Plan: Ein Budget

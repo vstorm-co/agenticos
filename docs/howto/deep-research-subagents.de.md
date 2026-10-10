@@ -1,5 +1,5 @@
 ---
-source_sha: "7a88ee3f4d56"
+source_sha: "926f21066868"
 title: "Eine Frage mit Subagents recherchieren und einen Bericht veröffentlichen"
 description: "Zerlegen Sie eine Frage in unabhängige Teilfragen, delegieren Sie jede an einen einmaligen Spezialisten und veröffentlichen Sie einen belegten Vergleich als Artefakt."
 ---
@@ -40,7 +40,7 @@ Die Quellcodepflicht der GPLv3 wird durch Weitergabe ausgelöst, nicht durch Än
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
 2. Aktivieren Sie in der **Toolbox** **Delegation**. Schalten Sie `allow_dynamic` ein, die Einstellung, mit der das Modell einen einmaligen Spezialisten für eine Teilfrage erfinden darf, für die niemand vorab einen geschrieben hat. Setzen Sie den Modus auf **Async**, damit die drei Teilfragen gleichzeitig statt nacheinander laufen, und lassen Sie die Fan-out-Obergrenze bei 3.
 3. Schalten Sie, weiterhin unter Delegation, **Share Web search with delegates** und **Share Web fetch with delegates** ein. Ein vom Modell erfundener Spezialist bekommt [absichtlich](../reference/capabilities.md#delegation) keine eigenen Capabilities. Nur was der Parent ausdrücklich teilt, erreicht ihn, sodass ohne diesen Schritt jeder erfundene Spezialist zwar delegieren, aber nicht suchen könnte.
-4. Aktivieren Sie **Web search** (Methode DuckDuckGo) und **Web fetch** beim Parent selbst. Teilen erreicht einen Delegate nur mit dem, woran der Parent gebunden ist.
+4. Aktivieren Sie **Web search** (Methode DuckDuckGo) und **Read web pages** beim Parent selbst. Teilen erreicht einen Delegate nur mit dem, woran der Parent gebunden ist.
 5. Aktivieren Sie **Planning** und **Artifacts**.
 6. Legen Sie Budget und Schrittlimit für den Versuch fest. Der festgehaltene Run nutzte 40 Schritte und kostete etwa 0,43 USD.
 7. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.

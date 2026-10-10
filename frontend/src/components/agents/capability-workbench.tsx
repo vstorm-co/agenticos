@@ -29,6 +29,23 @@ import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
+/**
+ * Capabilities that tune how a run is carried rather than what the agent can do.
+ *
+ * Kept below the rest, folded, because each one answers a problem somebody meets
+ * only after an agent is working - a long conversation, a huge tool result, dozens
+ * of MCP tools - and a list that opens on them reads as a list of things to
+ * understand before starting (#2070).
+ */
+const ADVANCED_CAPABILITIES: ReadonlySet<string> = new Set([
+  "compaction",
+  "media",
+  "system_reminders",
+  "tool_output_limits",
+  "tool_search",
+]);
+const ADVANCED = "advanced";
+
 interface CapabilityWorkbenchProps {
   /**
    * Which agent's capabilities these are.
@@ -114,8 +131,10 @@ export function CapabilityWorkbench({
   configProblems,
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
+  const tc = useTranslations("capabilityCategories");
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Filtered, not paged: this column is navigation, and a capability that moved
   // to page two of its own picker is one nobody finds. The tools are searched
@@ -132,12 +151,26 @@ export function CapabilityWorkbench({
             entry.tools.some((tool) => tool.name.toLowerCase().includes(needle)),
         )
       : catalog;
-    const names = [...new Set(matching.map((entry) => entry.category))].sort();
+    const groupOf = (entry: CapabilityCatalogEntry) =>
+      ADVANCED_CAPABILITIES.has(entry.id) ? ADVANCED : entry.category;
+    const names = [...new Set(matching.map(groupOf))].filter((name) => name !== ADVANCED).sort();
+    if (matching.some((entry) => groupOf(entry) === ADVANCED)) names.push(ADVANCED);
     return names.map((name) => ({
       name,
-      entries: matching.filter((entry) => entry.category === name),
+      entries: matching.filter((entry) => groupOf(entry) === name),
     }));
   }, [catalog, query]);
+  const advancedCount = catalog.filter((entry) => ADVANCED_CAPABILITIES.has(entry.id)).length;
+  // Never folded over something switched on or being read, nor while searching:
+  // a match the reader cannot see is a search that found nothing.
+  const advancedForced =
+    query.trim() !== "" ||
+    catalog.some(
+      (entry) =>
+        ADVANCED_CAPABILITIES.has(entry.id) && (enabled.has(entry.id) || entry.id === focusedId),
+    );
+  const advancedOpen = showAdvanced || advancedForced;
+  const sandboxSubtitle = (key: ReturnType<typeof backendLabel>) => (key ? t(key) : undefined);
 
   // Falls back to the first thing on the list rather than to nothing: an empty
   // right-hand column on first load reads as a panel that failed to render.
@@ -188,43 +221,62 @@ export function CapabilityWorkbench({
           )}
           {categories.map((category) => (
             <div key={category.name} className="space-y-1">
-              <p className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
-                {category.name}
-              </p>
-              {category.entries.map((entry) => (
-                <CapabilityRow
-                  key={entry.id}
-                  entry={entry}
-                  enabled={enabled.has(entry.id)}
-                  focused={focused?.id === entry.id}
-                  disabled={disabled}
-                  // "7 tools" is the least useful thing to say about the
-                  // workspace in a list: which backend it runs is what somebody
-                  // is scanning for, and it is the only capability whose row can
-                  // answer that.
-                  subtitle={
-                    entry.id === SANDBOX_ID
-                      ? backendLabel(
-                          selected.find((binding) => binding.id === entry.id),
-                          enabled.has(entry.id),
-                        )
-                      : entry.id === SUBAGENTS_ID
-                        ? // Who it hands work to, which is the only thing about
-                          // delegation worth scanning a list for. "10 tools" is
-                          // true of every agent that has it.
-                          t("delegateCount", {
-                            count:
-                              subagents.length +
-                              readSubagentsConfig(
-                                selected.find((binding) => binding.id === entry.id),
-                              ).inline.length,
-                          })
-                        : undefined
-                  }
-                  onFocus={() => setFocusedId(entry.id)}
-                  onToggle={() => onToggle(entry.id)}
-                />
-              ))}
+              {category.name === ADVANCED && !advancedForced && (
+                <button
+                  type="button"
+                  aria-expanded={advancedOpen}
+                  onClick={() => setShowAdvanced((open) => !open)}
+                  className="text-muted-foreground hover:text-foreground px-1 text-xs underline-offset-2 hover:underline"
+                >
+                  {advancedOpen
+                    ? t("hideAdvancedCapabilities")
+                    : t("showAdvancedCapabilities", { count: advancedCount })}
+                </button>
+              )}
+              {(category.name !== ADVANCED || advancedOpen) && (
+                <p className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
+                  {/* A category the console has no words for yet - one added in
+                      Python first - keeps the registry's own. */}
+                  {tc.has(`${category.name}`) ? tc(`${category.name}`) : category.name}
+                </p>
+              )}
+              {(category.name !== ADVANCED || advancedOpen) &&
+                category.entries.map((entry) => (
+                  <CapabilityRow
+                    key={entry.id}
+                    entry={entry}
+                    enabled={enabled.has(entry.id)}
+                    focused={focused?.id === entry.id}
+                    disabled={disabled}
+                    // "7 tools" is the least useful thing to say about the
+                    // workspace in a list: which backend it runs is what somebody
+                    // is scanning for, and it is the only capability whose row can
+                    // answer that.
+                    subtitle={
+                      entry.id === SANDBOX_ID
+                        ? sandboxSubtitle(
+                            backendLabel(
+                              selected.find((binding) => binding.id === entry.id),
+                              enabled.has(entry.id),
+                            ),
+                          )
+                        : entry.id === SUBAGENTS_ID
+                          ? // Who it hands work to, which is the only thing about
+                            // delegation worth scanning a list for. "10 tools" is
+                            // true of every agent that has it.
+                            t("delegateCount", {
+                              count:
+                                subagents.length +
+                                readSubagentsConfig(
+                                  selected.find((binding) => binding.id === entry.id),
+                                ).inline.length,
+                            })
+                          : undefined
+                    }
+                    onFocus={() => setFocusedId(entry.id)}
+                    onToggle={() => onToggle(entry.id)}
+                  />
+                ))}
             </div>
           ))}
         </div>
@@ -336,15 +388,23 @@ export function CapabilityWorkbench({
   );
 }
 
-/** What the workspace row says it is, rather than how many tools it has. */
-function backendLabel(binding: CapabilityBindingSpec | undefined, enabled: boolean): string {
-  if (!enabled) return "no workspace";
+/**
+ * What the workspace row says it gives the agent, once it gives anything.
+ *
+ * A catalog key: before it is switched on the row says what the capability is
+ * for, like every other row.
+ */
+function backendLabel(
+  binding: CapabilityBindingSpec | undefined,
+  enabled: boolean,
+): "workspaceFilesAndShell" | "workspaceFilesOnly" | undefined {
+  if (!enabled) return undefined;
   const backend = (binding?.config as { backend?: string } | undefined)?.backend ?? "state";
   // The kind of host - a container service or Daytona - belongs to the
   // connection rather than the spec, so the row says what the agent gets and not
   // where it runs. "Where" is on the connection, which the detail panel names.
-  if (backend === "service") return "files and a shell";
-  return "files, no shell";
+  if (backend === "service") return "workspaceFilesAndShell";
+  return "workspaceFilesOnly";
 }
 
 function CapabilityRow({
@@ -389,11 +449,10 @@ function CapabilityRow({
             <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label={t("actsWorld")} />
           )}
         </span>
-        <span className="text-muted-foreground mt-0.5 block text-xs">
-          {subtitle ??
-            (entry.tools.length === 0
-              ? t("noToolsChangesHow")
-              : t("toolCount", { count: entry.tools.length }))}
+        {/* What it lets the agent do, which is what somebody scanning the list is
+            deciding on; how many tools that takes is on the Tools tab. */}
+        <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs">
+          {subtitle ?? entry.description}
         </span>
       </button>
 

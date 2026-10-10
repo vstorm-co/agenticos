@@ -368,7 +368,6 @@
     "noSignMarketingPage": "No sign-in - a marketing page",
     "noSitesAllowedWidget": "No sites allowed - this widget cannot open anywhere",
     "noSpecialistsYet": "No specialists. One is worth adding when publishing a whole agent would be too much ceremony for the job.",
-    "noToolsChangesHow": "no tools - changes how it runs",
     "nobodySetHearAdd": "Nobody is set to hear this. Add an audience, or switch the alert off.",
     "notAvailableAnyChannel": "Not available on any channel yet.",
     "notIndexedCount": "{count, plural, =1 {1 not indexed} other {# not indexed}}",
@@ -675,7 +674,14 @@
     "promptVariableName": "Name",
     "promptVariableNamePlaceholder": "support_email",
     "addPromptVariable": "Add variable",
-    "runAwaitingAnswer": "Waiting for an answer"
+    "runAwaitingAnswer": "Waiting for an answer",
+    "capabilityForExample": "For example",
+    "capabilityNeeds": "Needs",
+    "capabilityNever": "Never",
+    "showAdvancedCapabilities": "{count, plural, =1 {Show 1 advanced capability} other {Show # advanced capabilities}}",
+    "hideAdvancedCapabilities": "Hide advanced capabilities",
+    "workspaceFilesAndShell": "files and a shell",
+    "workspaceFilesOnly": "files, no shell"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -961,7 +967,7 @@
       "attached": "Attached to the chat",
       "close": "Close the file panel",
       "empty": "Nothing yet. Files the agent writes, and anything you attach, appear here.",
-      "noWorkspace": "This agent keeps no files. Give it the Files & shell capability to let it write, read and run things here.",
+      "noWorkspace": "This agent keeps no files. Give it the Sandbox capability to let it write, read and run things here.",
       "show": "Show the files",
       "showWithCount": "Show the files ({count})",
       "storedSuffix": "{size} stored",
@@ -5827,5 +5833,226 @@
     "greeting": "Greeting",
     "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
     "save": "Save"
+  },
+  "capabilityGuide": {
+    "artifacts": {
+      "name": "Artifacts",
+      "does": "Lets the agent publish a finished page - a report, a small dashboard - under a link people open in a browser.",
+      "example1": "A weekly sales summary page",
+      "example2": "A one-page project brief to share with a client",
+      "needs": "Nothing extra.",
+      "never": "Never shares a page by itself: it stays private to the person until they share it."
+    },
+    "ask_user": {
+      "name": "Ask the user",
+      "does": "Lets the agent ask a few multiple-choice questions instead of guessing.",
+      "example1": "Formal or casual tone?",
+      "example2": "Which of these three files should I use?",
+      "needs": "Nothing extra.",
+      "never": "Never answers for the person. In Slack or Telegram it waits for their reply."
+    },
+    "browser_choice": {
+      "name": "Web browser (step by step)",
+      "does": "Lets the agent work through a web page by choosing, one at a time, among the actions the page really offers.",
+      "example1": "Find a product page and read its price",
+      "example2": "Go through a site's search step by step",
+      "needs": "An API key in the vault for the model that picks each step.",
+      "never": "Never acts without a person's approval, unless you change that."
+    },
+    "browser_use": {
+      "name": "Web browser",
+      "does": "Gives the agent a real web browser that clicks through sites on its own to finish a task.",
+      "example1": "Check a supplier's portal for new invoices",
+      "example2": "Fill in a long web form",
+      "needs": "A browser host set up by an administrator. A task takes minutes and costs more than a web search.",
+      "never": "Never acts without a person's approval, unless you change that."
+    },
+    "channel_tools": {
+      "name": "Chat channel lookup",
+      "does": "In Slack, Telegram or Mattermost, lets the agent see who is in the channel, what it is for and what was said earlier.",
+      "example1": "Catch up on a thread before answering",
+      "example2": "Mention the right person in a reply",
+      "needs": "A bot in that channel. It is switched on per bot, under where the agent is available.",
+      "never": "Never reads a channel its bot has not been added to."
+    },
+    "charts": {
+      "name": "Charts",
+      "does": "Draws a chart in the conversation, so people see the numbers instead of reading them.",
+      "example1": "Sales this month by region, as bars",
+      "example2": "Support tickets per week, as a line",
+      "needs": "Nothing extra.",
+      "never": "Never changes the data it draws."
+    },
+    "clock": {
+      "name": "Date and time",
+      "does": "Tells the agent today's date and time, so it does not guess.",
+      "example1": "What is due this week?",
+      "example2": "How many days until the deadline?",
+      "needs": "Nothing extra.",
+      "never": "Adds no tools; it only tells the agent the time."
+    },
+    "code_execution": {
+      "name": "Calculations",
+      "does": "Lets the agent work out numbers with a short Python program instead of estimating them.",
+      "example1": "Total a column of figures somebody pasted",
+      "example2": "Compare two loan offers month by month",
+      "needs": "Nothing extra.",
+      "never": "Keeps nothing between messages and cannot reach the internet. For files that stay, use the Sandbox."
+    },
+    "compaction": {
+      "name": "Long conversations",
+      "does": "Shortens the oldest part of a long conversation so the agent keeps going instead of hitting the model's limit.",
+      "example1": "A working session that lasts all day in one chat",
+      "needs": "Nothing extra.",
+      "never": "Never deletes the conversation: people still see all of it."
+    },
+    "context": {
+      "name": "Context",
+      "does": "Gives the agent your company's standing information - a glossary, a policy, a brand voice - every time it answers.",
+      "example1": "Always use the product names from the glossary",
+      "example2": "Follow the refund policy word for word",
+      "needs": "Context files, written under Context and picked in this panel.",
+      "never": "Never changes the files; the agent only reads them."
+    },
+    "conversation_search": {
+      "name": "Past conversations",
+      "does": "Lets the agent look up what was said in earlier conversations with the same person.",
+      "example1": "What did we decide about the launch date last week?",
+      "example2": "Pick up a task where the last chat left off",
+      "needs": "Nothing extra.",
+      "never": "Never reads anybody else's conversations, and is off in group chats."
+    },
+    "guardrails": {
+      "name": "Guardrails",
+      "does": "Hides passwords or personal data, or stops a run, when a message or an answer matches a rule you set.",
+      "example1": "Remove card numbers before they reach the model",
+      "example2": "Stop the agent discussing salaries",
+      "needs": "Rules, set in this panel.",
+      "never": "Never changes anything a rule does not match."
+    },
+    "image_generation": {
+      "name": "Image generation",
+      "does": "Creates an image from a description.",
+      "example1": "A header picture for a blog post",
+      "example2": "A rough mock-up of a poster",
+      "needs": "An API key for the image provider in the vault. Each image is billed by that provider.",
+      "never": "Never posts an image anywhere; it appears in the conversation."
+    },
+    "knowledge": {
+      "name": "Knowledge search",
+      "does": "Lets the agent answer from your documents and say which one each answer came from.",
+      "example1": "Answer staff questions from the HR handbook",
+      "example2": "Find the termination clause in the contracts",
+      "needs": "A knowledge base with documents, picked in this panel.",
+      "never": "Never searches a knowledge base this agent is not connected to."
+    },
+    "media": {
+      "name": "Media offload",
+      "does": "Moves images out of a long conversation's history, so it stays small and cheaper to send.",
+      "example1": "Long chats with many screenshots",
+      "needs": "Nothing extra.",
+      "never": "Never deletes an image."
+    },
+    "memory_files": {
+      "name": "Memory",
+      "does": "Lets the agent keep notes from one conversation to the next, so it does not start from zero.",
+      "example1": "Remember somebody's team and what they work on",
+      "example2": "Keep a running list of open questions",
+      "needs": "Nothing extra.",
+      "never": "Never shows one person's notes to another. In a group chat the notes belong to the chat."
+    },
+    "memory_mem0": {
+      "name": "Memory (mem0)",
+      "does": "Lets the agent remember facts and recall them by meaning, stored in a mem0 service.",
+      "example1": "Remember that a customer prefers email to phone calls",
+      "needs": "A mem0 account, cloud or self-hosted, and its API key in the vault.",
+      "never": "Never shows one person's memories to another. In a group chat they belong to the chat."
+    },
+    "planning": {
+      "name": "Planning",
+      "does": "Lets the agent write a checklist for a bigger task and tick off each step, so the person sees its progress.",
+      "example1": "Prepare a monthly report in five visible steps",
+      "needs": "Nothing extra.",
+      "never": "Never gives the agent permission to do anything; a plan is only a list."
+    },
+    "sandbox": {
+      "name": "Sandbox",
+      "does": "Gives the agent its own small computer: it creates and edits files and runs code, and the files are still there next time.",
+      "example1": "Clean up a spreadsheet and hand back the result",
+      "example2": "Write a script, run it and fix it until it works",
+      "example3": "Keep a draft report it updates over several days",
+      "needs": "A sandbox. A standard deployment sets one up on its own; otherwise an administrator adds one under Sandboxes.",
+      "never": "Never reaches your computer or other company systems. Changing files and running commands wait for a person's approval, unless you change that."
+    },
+    "skills": {
+      "name": "Skills",
+      "does": "Lets the agent follow your written how-tos, loading one when the task needs it.",
+      "example1": "Write a proposal the way your sales team does",
+      "example2": "Follow the checklist for a new client",
+      "needs": "Skills, written under Skills and picked in this panel.",
+      "never": "Never changes a skill; the agent only reads it."
+    },
+    "subagents": {
+      "name": "Delegation",
+      "does": "Lets the agent hand part of a job to another agent and use its answer.",
+      "example1": "A front-desk agent that passes legal questions to the legal agent",
+      "example2": "Research several topics side by side",
+      "needs": "Other agents, or specialists defined in this panel. Each handover costs what that agent's run costs.",
+      "never": "Never gives another agent more access than it already has."
+    },
+    "system_reminders": {
+      "name": "Instruction reminders",
+      "does": "Repeats the agent's key instructions during a long task, so it does not drift away from them.",
+      "example1": "A long research task that has to keep the requested format",
+      "needs": "Nothing extra.",
+      "never": "Adds no tools; it only repeats the instructions."
+    },
+    "thinking": {
+      "name": "Thinking",
+      "does": "Lets the model think before it answers - slower and more expensive, but better on problems with several steps.",
+      "example1": "Compare three versions of a contract",
+      "example2": "Work out a schedule with many constraints",
+      "needs": "A model that supports it.",
+      "never": "Adds no tools; it changes how the model answers."
+    },
+    "tool_output_limits": {
+      "name": "Tool output limits",
+      "does": "Shortens a very large tool result, so it is not sent to the model again with every message.",
+      "example1": "A search that returns a huge spreadsheet",
+      "needs": "Nothing extra.",
+      "never": "Never changes the data itself, only how much of it the model reads at once."
+    },
+    "tool_search": {
+      "name": "Tool search",
+      "does": "Lets an agent with many tools find the right one when it needs it, instead of reading all of them every time.",
+      "example1": "An agent connected to several MCP servers with dozens of tools",
+      "needs": "Nothing extra.",
+      "never": "Never adds a tool; it only hides tools until the agent looks for one."
+    },
+    "web_fetch": {
+      "name": "Read web pages",
+      "does": "Lets the agent open a link and read the page.",
+      "example1": "Summarise an article somebody pasted",
+      "example2": "Read a provider's pricing page",
+      "needs": "Nothing extra.",
+      "never": "Never logs in or fills in a form; it only reads."
+    },
+    "web_research": {
+      "name": "Web search",
+      "does": "Lets the agent search the internet for current information.",
+      "example1": "What changed in this regulation this year?",
+      "example2": "Find three competitors and their prices",
+      "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
+      "never": "Never sends your documents to the search engine, only the search words."
+    }
+  },
+  "capabilityCategories": {
+    "analysis": "Work with data",
+    "channels": "Chat channels",
+    "knowledge": "Knowledge and memory",
+    "reasoning": "Thinking and planning",
+    "research": "The web",
+    "utility": "Everyday",
+    "advanced": "Advanced"
   }
 }

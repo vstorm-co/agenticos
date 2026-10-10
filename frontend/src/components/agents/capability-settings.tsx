@@ -30,6 +30,7 @@ import {
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
+import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type {
@@ -400,6 +401,7 @@ export function CapabilityDetail({
         </div>
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
+        <CapabilityGuideNotes capabilityId={definition.id} />
 
         {/* Always the tab shell, even for the capability whose Settings is one
             select: every panel then reads the same way, and "this one looks
@@ -1156,4 +1158,31 @@ function withoutToolOverride(
     tool_overrides[toolId] = remaining;
   }
   return { ...binding, tool_overrides };
+}
+
+/**
+ * What a capability is for, beyond its one sentence: a few uses, what it needs and
+ * what it never does - the three questions somebody who is not a developer asks
+ * before switching it on (#2070). Nothing where the console has no words for it.
+ */
+function CapabilityGuideNotes({ capabilityId }: { capabilityId: string }) {
+  const t = useTranslations("agents");
+  const guide = useCapabilityGuide()(capabilityId);
+  if (!guide) return null;
+  return (
+    <dl className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
+      <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
+      <dd>
+        <ul className="list-disc space-y-0.5 pl-4">
+          {guide.examples.map((example) => (
+            <li key={example}>{example}</li>
+          ))}
+        </ul>
+      </dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
+      <dd>{guide.needs}</dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
+      <dd>{guide.never}</dd>
+    </dl>
+  );
 }

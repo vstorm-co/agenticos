@@ -140,7 +140,7 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
-[Context management](reference/capabilities.md#context-management) is the other
+[Long conversations](reference/capabilities.md#context-management) is the other
 one. Its summarizing strategy writes the summary through an agent it builds
 itself, so that request passes no budget guard; the capability books what it cost
 against the same meter. Being *outside* the guard has one consequence worth
@@ -181,7 +181,7 @@ message somebody can act on. A workspace refuses a write. A **context window** i
 refused by the provider, mid-answer, and the run simply fails.
 
 Every agent therefore carries a gauge — not only one with
-[context management](reference/capabilities.md#context-management) bound, because
+[Long conversations](reference/capabilities.md#context-management) bound, because
 the warning matters most to the agent that will *not* compact. It reports how
 many tokens the last request of a turn carried, *after* any compaction: the
 reading falls when compaction works, because it measures what went out rather

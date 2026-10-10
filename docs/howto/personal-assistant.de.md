@@ -1,5 +1,5 @@
 ---
-source_sha: "54d365e1b9c3"
+source_sha: "fc6566006c49"
 title: "Einen persönlichen Assistenten bauen, der sich an Sie erinnert"
 description: "Geben Sie einem Agent ein Gedächtnis für Ihre Vorlieben, prüfen Sie, dass eine spätere Konversation sie anwendet, und bestätigen Sie dann, dass er eine auf Wunsch vergessen kann."
 ---
@@ -11,7 +11,7 @@ Bauen Sie einen Assistenten, der über Konversationen hinweg eigene Notizen übe
 ## Was Sie brauchen { #what-you-need }
 
 - Eine [laufende Installation](../install.md) mit einem Modellprofil.
-- Keine Sandbox, kein Embedding-Modell und keine MCP-Verbindung. [Memory files](../reference/capabilities.md#memory-files) funktionieren ohne jede Bindung.
+- Keine Sandbox, kein Embedding-Modell und keine MCP-Verbindung. [Gedächtnis](../reference/capabilities.md#memory-files) funktioniert ohne jede Bindung.
 
 ## Die Eingabe vorbereiten { #prepare-the-input }
 
@@ -26,7 +26,7 @@ Summary format: short bullet points, not paragraphs
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Memory files**, **Date and time** und **Conversation search**. Fügen Sie **Web search** hinzu, wenn das Briefing unten etwas nachschlagen soll; die Prüfungen hier brauchen es nicht.
+2. Aktivieren Sie in der **Toolbox** **Memory**, **Date and time** und **Past conversations**. Fügen Sie **Web search** hinzu, wenn das Briefing unten etwas nachschlagen soll; die Prüfungen hier brauchen es nicht.
 3. Legen Sie Budget und Schrittlimit für den Versuch fest. Die festgehaltenen Runs nutzten 5–15 Schritte und kosteten jeweils etwa 0,01–0,04 USD.
 4. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a6f20542143f"
+source_sha: "f3a9cc7f1767"
 ---
 
 # Artefactos { #artifacts }
@@ -26,7 +26,7 @@ que vuelve a leer una página publicada.
 La página sale de uno de tres sitios:
 
 - **Un archivo del workspace del agent**, terminado en `.html` o `.md`. Es el
-  caso habitual para un agent con la capability [Archivos y shell](reference/capabilities.md#files-shell):
+  caso habitual para un agent con la capability [Sandbox](reference/capabilities.md#files-shell):
   escribe `report.html`, ejecuta lo que haga falta para construirlo y después
   publica el archivo. Los bytes se leen a través del propio backend de workspace
   del run, así que funciona con todos los backends de sandbox.

@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "732f57c0c0e6"
 ---
 
 # Governance { #governance }
@@ -158,8 +158,8 @@ Also gehört der Zähler zum vorbereiteten Run und nicht zur Oberfläche. Einen 
 öffnen ist kein Schritt, von dem eine neue Oberfläche wissen muss, denn es gibt
 keinen Weg, einen vorbereiteten Agent ohne ihn auszuführen.
 
-[Context-Management](reference/capabilities.md#context-management) ist das
-andere. Seine zusammenfassende Strategie schreibt die Zusammenfassung über einen
+Die Capability [Lange Gespräche](reference/capabilities.md#context-management) ist das
+andere. Ihre zusammenfassende Strategie schreibt die Zusammenfassung über einen
 Agent, den sie selbst baut, sodass diese Anfrage an keinem Budget-Guard
 vorbeikommt; die Capability bucht ihre Kosten gegen denselben Zähler.
 *Außerhalb* des Guards zu liegen hat eine Konsequenz, die man kennen sollte: Die
@@ -204,8 +204,8 @@ einer Nachricht ab, mit der jemand etwas anfangen kann. Ein Workspace lehnt eine
 Schreibvorgang ab. Ein **Context-Window** wird vom Provider abgelehnt, mitten in
 der Antwort, und der Run scheitert einfach.
 
-Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundenem
-[Context-Management](reference/capabilities.md#context-management), denn die
+Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundener
+Capability [Lange Gespräche](reference/capabilities.md#context-management), denn die
 Warnung zählt am meisten für den Agent, der *nicht* kompaktieren wird. Sie
 meldet, wie viele Token die letzte Anfrage eines Turns getragen hat, *nach* jeder
 Kompaktierung: Der Wert fällt, wenn die Kompaktierung wirkt, weil er misst, was

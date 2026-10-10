@@ -43,7 +43,7 @@ class ConversationSearchConfig(BaseModel):
 
 @register(
     id=CONVERSATION_SEARCH_CAPABILITY_ID,
-    name="Conversation search",
+    name="Past conversations",
     category="knowledge",
     description=(
         "Let the agent search what was said in past conversations and open one in "

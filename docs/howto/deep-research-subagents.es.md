@@ -1,5 +1,5 @@
 ---
-source_sha: "7a88ee3f4d56"
+source_sha: "926f21066868"
 title: "Investiga una pregunta con subagents y publica un informe"
 description: "Divide una pregunta en subpreguntas independientes, delega cada una en un especialista de un solo uso y publica una comparación con fuentes como artefacto."
 ---
@@ -40,7 +40,7 @@ La obligación de publicar el código de la GPLv3 la activa la distribución, no
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
 2. En **Toolbox**, activa **Delegation**. Activa `allow_dynamic`, el ajuste que permite al modelo inventar un especialista de un solo uso para una subpregunta para la que nadie escribió uno de antemano. Pon el modo en **Async**, para que las tres subpreguntas se ejecuten a la vez y no una tras otra, y deja el límite de ramificación en 3.
 3. Todavía en Delegation, activa **Share Web search with delegates** y **Share Web fetch with delegates**. Un especialista inventado por el modelo no recibe capabilities propias [por diseño](../reference/capabilities.md#delegation): solo le llega lo que el padre comparte explícitamente, así que sin este paso cada especialista inventado podría delegar pero no buscar.
-4. Activa **Web search** (método DuckDuckGo) y **Web fetch** en el propio padre: compartir solo hace llegar a un delegado aquello a lo que el padre está vinculado.
+4. Activa **Web search** (método DuckDuckGo) y **Read web pages** en el propio padre: compartir solo hace llegar a un delegado aquello a lo que el padre está vinculado.
 5. Activa **Planning** y **Artifacts**.
 6. Fija un budget y un límite de pasos para la prueba. El run registrado usó 40 pasos y costó unos 0,43 USD.
 7. Escribe las instrucciones de abajo y luego pulsa **Publish**.

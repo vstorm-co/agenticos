@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "732f57c0c0e6"
 ---
 
 # Governance { #governance }
@@ -150,7 +150,7 @@ pertenece al run preparado y no a la superficie. Abrir uno no es un paso que una
 superficie nueva tenga que conocer, porque no hay forma de ejecutar un agent
 preparado sin él.
 
-La [gestión de contexto](reference/capabilities.md#context-management) es el otro
+La capability [Conversaciones largas](reference/capabilities.md#context-management) es el otro
 caso. Su estrategia de resumen escribe el resumen a través de un agent que
 construye ella misma, así que esa petición no pasa por ninguna guarda de budget; la
 capability apunta lo que costó contra el mismo medidor. Estar *fuera* de la guarda
@@ -194,7 +194,7 @@ que alguien puede actuar. Un workspace rechaza una escritura. Un **context windo
 lo rechaza el provider, a media respuesta, y el run simplemente falla.
 
 Por eso cada agent lleva un indicador — no solo el que tenga enlazada la
-[gestión de contexto](reference/capabilities.md#context-management), porque el aviso
+capability [Conversaciones largas](reference/capabilities.md#context-management), porque el aviso
 importa más en el agent que *no* va a compactar. Informa de cuántos tokens llevaba
 la última petición de un turno, *después* de cualquier compactación: la lectura baja
 cuando la compactación funciona, porque mide lo que salió y no lo que guarda la

@@ -221,7 +221,7 @@ beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
 
 **Einem Durchlauf zusehen.** Ein Agent mit
-[Browser-Automatisierung](reference/capabilities.md#browser-automation-choose) öffnet
+[Webbrowser](reference/capabilities.md#browser-automation-choose) öffnet
 ein Panel neben dem Transkript, sobald er eine Seite durchzuarbeiten beginnt: das
 Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit der
 Wahrscheinlichkeit, mit der die Engine ihn gewählt hat. Diese Zahl ist der Grund,

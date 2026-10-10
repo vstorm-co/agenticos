@@ -1,5 +1,5 @@
 ---
-source_sha: "a6f20542143f"
+source_sha: "f3a9cc7f1767"
 ---
 
 # Artefakty { #artifacts }
@@ -25,7 +25,7 @@ odczytuje opublikowaną stronę z powrotem.
 Strona pochodzi z jednego z trzech miejsc:
 
 - **Z pliku w workspace'ie agenta**, zakończonego na `.html` albo `.md`. To
-  zwykły przypadek dla agenta z capability [Files & shell](reference/capabilities.md#files-shell):
+  zwykły przypadek dla agenta z capability [Sandbox](reference/capabilities.md#files-shell):
   zapisuje `report.html`, uruchamia to, co go buduje, a potem publikuje plik.
   Bajty są czytane przez własny backend workspace'u runa, więc działa to na
   każdym backendzie sandboksa.

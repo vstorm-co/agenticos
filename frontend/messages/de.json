@@ -368,7 +368,6 @@
     "noSignMarketingPage": "Keine Anmeldung – eine Marketingseite",
     "noSitesAllowedWidget": "Keine Sites erlaubt – dieses Widget kann nirgends öffnen",
     "noSpecialistsYet": "Keine Spezialisten. Einer lohnt sich, wenn einen ganzen Agent zu veröffentlichen für die Aufgabe zu viel Aufwand wäre.",
-    "noToolsChangesHow": "keine Tools – ändert, wie er läuft",
     "nobodySetHearAdd": "Niemand ist eingestellt, das zu hören. Fügen Sie einen Empfängerkreis hinzu, oder schalten Sie die Warnung ab.",
     "notAvailableAnyChannel": "Noch auf keinem Kanal verfügbar.",
     "notIndexedCount": "{count, plural, =1 {1 nicht indexiert} other {# nicht indexiert}}",
@@ -671,7 +670,14 @@
     "promptVariableName": "Name",
     "promptVariableNamePlaceholder": "support_email",
     "addPromptVariable": "Variable hinzufügen",
-    "runAwaitingAnswer": "Wartet auf eine Antwort"
+    "runAwaitingAnswer": "Wartet auf eine Antwort",
+    "capabilityForExample": "Zum Beispiel",
+    "capabilityNeeds": "Braucht",
+    "capabilityNever": "Nie",
+    "showAdvancedCapabilities": "{count, plural, =1 {1 erweiterte Capability zeigen} other {# erweiterte Capabilities zeigen}}",
+    "hideAdvancedCapabilities": "Erweiterte Capabilities ausblenden",
+    "workspaceFilesAndShell": "Dateien und eine Shell",
+    "workspaceFilesOnly": "Dateien, keine Shell"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -957,7 +963,7 @@
       "attached": "An den Chat angehängt",
       "close": "Den Dateibereich schließen",
       "empty": "Noch nichts. Dateien, die der Agent schreibt, und alles, was Sie anhängen, erscheinen hier.",
-      "noWorkspace": "Dieser Agent bewahrt keine Dateien auf. Geben Sie ihm die Capability „Dateien & Shell“, damit er hier schreiben, lesen und Dinge ausführen kann.",
+      "noWorkspace": "Dieser Agent bewahrt keine Dateien auf. Geben Sie ihm die Capability „Sandbox“, damit er hier schreiben, lesen und Dinge ausführen kann.",
       "show": "Die Dateien anzeigen",
       "showWithCount": "Die Dateien anzeigen ({count})",
       "storedSuffix": "{size} gespeichert",
@@ -5685,5 +5691,226 @@
     "greeting": "Begrüßung",
     "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
     "save": "Speichern"
+  },
+  "capabilityGuide": {
+    "artifacts": {
+      "name": "Artefakte",
+      "does": "Der Agent veröffentlicht eine fertige Seite - einen Bericht, ein kleines Dashboard - unter einem Link, der sich im Browser öffnet.",
+      "example1": "Eine Seite mit der wöchentlichen Verkaufsübersicht",
+      "example2": "Ein einseitiges Projektbriefing für einen Kunden",
+      "needs": "Nichts weiter.",
+      "never": "Teilt nie selbst etwas: Die Seite bleibt privat, bis die Person sie teilt."
+    },
+    "ask_user": {
+      "name": "Rückfragen",
+      "does": "Der Agent stellt ein paar Fragen mit Antworten zur Auswahl, statt zu raten.",
+      "example1": "Förmlicher oder lockerer Ton?",
+      "example2": "Welche dieser drei Dateien soll ich nehmen?",
+      "needs": "Nichts weiter.",
+      "never": "Antwortet nie für die Person. In Slack oder Telegram wartet er auf ihre Antwort."
+    },
+    "browser_choice": {
+      "name": "Webbrowser (Schritt für Schritt)",
+      "does": "Der Agent arbeitet sich durch eine Webseite und wählt jeweils eine der Aktionen, die die Seite wirklich anbietet.",
+      "example1": "Eine Produktseite finden und den Preis lesen",
+      "example2": "Schritt für Schritt durch die Suche einer Website gehen",
+      "needs": "Ein API-Schlüssel im Vault für das Modell, das jeden Schritt wählt.",
+      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "browser_use": {
+      "name": "Webbrowser",
+      "does": "Der Agent bekommt einen echten Webbrowser und klickt sich selbst durch Websites, um eine Aufgabe zu erledigen.",
+      "example1": "Im Portal eines Lieferanten nach neuen Rechnungen sehen",
+      "example2": "Ein langes Webformular ausfüllen",
+      "needs": "Ein Browser-Host, den ein Administrator einrichtet. Eine Aufgabe dauert Minuten und kostet mehr als eine Websuche.",
+      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "channel_tools": {
+      "name": "Infos zum Chat-Kanal",
+      "does": "In Slack, Telegram oder Mattermost sieht der Agent, wer im Kanal ist, wofür er da ist und was vorher geschrieben wurde.",
+      "example1": "Einen Thread nachlesen, bevor er antwortet",
+      "example2": "In der Antwort die richtige Person erwähnen",
+      "needs": "Ein Bot in diesem Kanal. Eingeschaltet wird das pro Bot, dort, wo der Agent verfügbar ist.",
+      "never": "Liest nie einen Kanal, in den sein Bot nicht aufgenommen wurde."
+    },
+    "charts": {
+      "name": "Diagramme",
+      "does": "Zeichnet ein Diagramm ins Gespräch, damit man die Zahlen sieht, statt sie zu lesen.",
+      "example1": "Umsatz dieses Monats nach Region, als Balken",
+      "example2": "Support-Tickets pro Woche, als Linie",
+      "needs": "Nichts weiter.",
+      "never": "Ändert nie die Daten, die es zeichnet."
+    },
+    "clock": {
+      "name": "Datum und Uhrzeit",
+      "does": "Sagt dem Agenten das heutige Datum und die Uhrzeit, damit er nicht raten muss.",
+      "example1": "Was ist diese Woche fällig?",
+      "example2": "Wie viele Tage bis zur Frist?",
+      "needs": "Nichts weiter.",
+      "never": "Fügt keine Tools hinzu; sagt nur die Zeit."
+    },
+    "code_execution": {
+      "name": "Berechnungen",
+      "does": "Der Agent rechnet mit einem kurzen Python-Programm, statt zu schätzen.",
+      "example1": "Eine eingefügte Zahlenspalte summieren",
+      "example2": "Zwei Kreditangebote Monat für Monat vergleichen",
+      "needs": "Nichts weiter.",
+      "never": "Behält nichts zwischen Nachrichten und erreicht das Internet nicht. Für Dateien, die bleiben sollen, gibt es die Sandbox."
+    },
+    "compaction": {
+      "name": "Lange Gespräche",
+      "does": "Kürzt den ältesten Teil eines langen Gesprächs, damit der Agent weiterarbeiten kann, statt an das Limit des Modells zu stoßen.",
+      "example1": "Eine ganztägige Arbeitssitzung in einem Chat",
+      "needs": "Nichts weiter.",
+      "never": "Löscht nie das Gespräch: Man sieht es weiterhin vollständig."
+    },
+    "context": {
+      "name": "Kontext",
+      "does": "Gibt dem Agenten bei jeder Antwort die festen Informationen Ihres Unternehmens - ein Glossar, eine Richtlinie, eine Markenstimme.",
+      "example1": "Immer die Produktnamen aus dem Glossar verwenden",
+      "example2": "Die Erstattungsrichtlinie wörtlich befolgen",
+      "needs": "Kontextdateien, unter Kontext geschrieben und in diesem Bereich ausgewählt.",
+      "never": "Ändert die Dateien nie; der Agent liest sie nur."
+    },
+    "conversation_search": {
+      "name": "Frühere Gespräche",
+      "does": "Der Agent schlägt nach, was in früheren Gesprächen mit derselben Person gesagt wurde.",
+      "example1": "Was haben wir letzte Woche zum Starttermin beschlossen?",
+      "example2": "Eine Aufgabe dort fortsetzen, wo der letzte Chat aufhörte",
+      "needs": "Nichts weiter.",
+      "never": "Liest nie die Gespräche anderer und ist in Gruppenchats aus."
+    },
+    "guardrails": {
+      "name": "Schutzregeln",
+      "does": "Verbirgt Passwörter oder personenbezogene Daten oder stoppt einen Run, wenn eine Nachricht oder Antwort auf eine Regel passt.",
+      "example1": "Kartennummern entfernen, bevor sie das Modell erreichen",
+      "example2": "Den Agenten nicht über Gehälter sprechen lassen",
+      "needs": "Regeln, in diesem Bereich festgelegt.",
+      "never": "Ändert nie etwas, auf das keine Regel passt."
+    },
+    "image_generation": {
+      "name": "Bilderzeugung",
+      "does": "Erstellt ein Bild aus einer Beschreibung.",
+      "example1": "Ein Titelbild für einen Blogbeitrag",
+      "example2": "Ein grober Entwurf für ein Plakat",
+      "needs": "Ein API-Schlüssel des Bildanbieters im Vault. Jedes Bild rechnet dieser Anbieter ab.",
+      "never": "Veröffentlicht nie ein Bild; es erscheint im Gespräch."
+    },
+    "knowledge": {
+      "name": "Wissenssuche",
+      "does": "Der Agent antwortet aus Ihren Dokumenten und sagt, aus welchem jede Antwort stammt.",
+      "example1": "Fragen der Belegschaft aus dem Personalhandbuch beantworten",
+      "example2": "Die Kündigungsklausel in den Verträgen finden",
+      "needs": "Eine Wissensdatenbank mit Dokumenten, in diesem Bereich ausgewählt.",
+      "never": "Durchsucht nie eine Wissensdatenbank, mit der dieser Agent nicht verbunden ist."
+    },
+    "media": {
+      "name": "Bilder auslagern",
+      "does": "Lagert Bilder aus dem Verlauf eines langen Gesprächs aus, damit er klein und günstiger zu senden bleibt.",
+      "example1": "Lange Chats mit vielen Screenshots",
+      "needs": "Nichts weiter.",
+      "never": "Löscht nie ein Bild."
+    },
+    "memory_files": {
+      "name": "Gedächtnis",
+      "does": "Der Agent behält Notizen von einem Gespräch zum nächsten, damit er nicht von vorn anfängt.",
+      "example1": "Sich merken, in welchem Team jemand ist und woran die Person arbeitet",
+      "example2": "Eine Liste offener Fragen führen",
+      "needs": "Nichts weiter.",
+      "never": "Zeigt die Notizen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
+    },
+    "memory_mem0": {
+      "name": "Gedächtnis (mem0)",
+      "does": "Der Agent merkt sich Fakten und findet sie nach ihrer Bedeutung wieder, gespeichert in einem mem0-Dienst.",
+      "example1": "Sich merken, dass ein Kunde E-Mail statt Anrufen bevorzugt",
+      "needs": "Ein mem0-Konto, in der Cloud oder selbst gehostet, und sein API-Schlüssel im Vault.",
+      "never": "Zeigt die Erinnerungen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
+    },
+    "planning": {
+      "name": "Planung",
+      "does": "Der Agent schreibt eine Checkliste für eine größere Aufgabe und hakt jeden Schritt ab, damit man den Fortschritt sieht.",
+      "example1": "Einen Monatsbericht in fünf sichtbaren Schritten erstellen",
+      "needs": "Nichts weiter.",
+      "never": "Gibt dem Agenten nie eine Berechtigung; ein Plan ist nur eine Liste."
+    },
+    "sandbox": {
+      "name": "Sandbox",
+      "does": "Der Agent bekommt einen eigenen kleinen Computer: Er erstellt und bearbeitet Dateien und führt Code aus, und die Dateien sind beim nächsten Mal noch da.",
+      "example1": "Eine Tabelle bereinigen und das Ergebnis zurückgeben",
+      "example2": "Ein Skript schreiben, ausführen und korrigieren, bis es läuft",
+      "example3": "Einen Berichtsentwurf über mehrere Tage fortschreiben",
+      "needs": "Eine Sandbox. Ein Standard-Deployment richtet sie selbst ein; sonst fügt ein Administrator sie unter Sandboxes hinzu.",
+      "never": "Erreicht nie Ihren Computer oder andere Systeme des Unternehmens. Dateien ändern und Befehle ausführen warten auf die Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "skills": {
+      "name": "Skills",
+      "does": "Der Agent folgt Ihren schriftlichen Anleitungen und lädt einen Skill, wenn die Aufgabe ihn braucht.",
+      "example1": "Ein Angebot so schreiben, wie es Ihr Vertrieb tut",
+      "example2": "Die Checkliste für einen neuen Kunden abarbeiten",
+      "needs": "Skills, unter Skills geschrieben und in diesem Bereich ausgewählt.",
+      "never": "Ändert nie einen Skill; der Agent liest ihn nur."
+    },
+    "subagents": {
+      "name": "Delegation",
+      "does": "Der Agent gibt einen Teil der Arbeit an einen anderen Agenten ab und nutzt dessen Antwort.",
+      "example1": "Ein Empfangsagent, der Rechtsfragen an den Rechtsagenten weitergibt",
+      "example2": "Mehrere Themen parallel recherchieren",
+      "needs": "Andere Agenten oder in diesem Bereich definierte Spezialisten. Jede Übergabe kostet so viel wie ein Run dieses Agenten.",
+      "never": "Gibt einem anderen Agenten nie mehr Zugriff, als er schon hat."
+    },
+    "system_reminders": {
+      "name": "Erinnerung an Anweisungen",
+      "does": "Wiederholt die wichtigsten Anweisungen während einer langen Aufgabe, damit der Agent nicht von ihnen abweicht.",
+      "example1": "Eine lange Recherche, die das gewünschte Format einhalten muss",
+      "needs": "Nichts weiter.",
+      "never": "Fügt keine Tools hinzu; wiederholt nur die Anweisungen."
+    },
+    "thinking": {
+      "name": "Nachdenken",
+      "does": "Das Modell denkt nach, bevor es antwortet - langsamer und teurer, aber besser bei Problemen mit mehreren Schritten.",
+      "example1": "Drei Vertragsversionen vergleichen",
+      "example2": "Einen Zeitplan mit vielen Bedingungen ausarbeiten",
+      "needs": "Ein Modell, das es unterstützt.",
+      "never": "Fügt keine Tools hinzu; ändert, wie das Modell antwortet."
+    },
+    "tool_output_limits": {
+      "name": "Grenzen für Tool-Ergebnisse",
+      "does": "Kürzt ein sehr großes Tool-Ergebnis, damit es nicht mit jeder Nachricht erneut ans Modell geht.",
+      "example1": "Eine Suche, die eine riesige Tabelle zurückgibt",
+      "needs": "Nichts weiter.",
+      "never": "Ändert nie die Daten selbst, nur wie viel davon das Modell auf einmal liest."
+    },
+    "tool_search": {
+      "name": "Tool-Suche",
+      "does": "Ein Agent mit vielen Tools findet das richtige, wenn er es braucht, statt jedes Mal alle zu lesen.",
+      "example1": "Ein Agent, der mit mehreren MCP-Servern mit Dutzenden Tools verbunden ist",
+      "needs": "Nichts weiter.",
+      "never": "Fügt nie ein Tool hinzu; blendet Tools nur aus, bis der Agent eines sucht."
+    },
+    "web_fetch": {
+      "name": "Webseiten lesen",
+      "does": "Der Agent öffnet einen Link und liest die Seite.",
+      "example1": "Einen eingefügten Artikel zusammenfassen",
+      "example2": "Die Preisseite eines Anbieters lesen",
+      "needs": "Nichts weiter.",
+      "never": "Meldet sich nie an und füllt keine Formulare aus; liest nur."
+    },
+    "web_research": {
+      "name": "Websuche",
+      "does": "Der Agent sucht im Internet nach aktuellen Informationen.",
+      "example1": "Was hat sich dieses Jahr an dieser Vorschrift geändert?",
+      "example2": "Drei Wettbewerber und ihre Preise finden",
+      "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
+      "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    }
+  },
+  "capabilityCategories": {
+    "analysis": "Mit Daten arbeiten",
+    "channels": "Chat-Kanäle",
+    "knowledge": "Wissen und Gedächtnis",
+    "reasoning": "Denken und Planen",
+    "research": "Das Web",
+    "utility": "Alltag",
+    "advanced": "Erweitert"
   }
 }

@@ -18,6 +18,13 @@ tools listed.
     renders its picker and its configuration forms from that response. If the two
     disagree, the API is right.
 
+The Builder names each capability in the console's language and explains it in
+plain words: what it lets the agent do, two or three example uses, what it needs
+and what it never does. The names below are the English ones. Five capabilities
+that tune how a run is carried - long conversations, image offload, instruction
+reminders, tool output limits and tool search - are folded under **Advanced**
+until somebody opens it, searches, or switches one on.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key |
@@ -25,25 +32,25 @@ tools listed.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
-| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
-| `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
-| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
-| `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
+| `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Web browser (step by step) | research | `browse_page` | `web:browse` | via the `browser` extra |
+| `browser_use` | Web browser | research | `browse_web` | `web:browse` | via the `browser-use` extra |
+| `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
-| `system_reminders` | System reminders | reasoning | none, by design | — | — |
+| `system_reminders` | Instruction reminders | reasoning | none, by design | — | — |
 | `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
-| `compaction` | Context management | utility | none, by design | — | — |
+| `compaction` | Long conversations | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
@@ -225,7 +232,7 @@ turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
 
-## Memory files
+## Memory { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -362,7 +369,7 @@ allowlist refuses self-hosted mem0 outright, which is deliberate: the key travel
 in an `Authorization` header, so a builder who may bind but not read a shared key
 must not be able to point it at a server of their own.
 
-## Conversation search
+## Past conversations { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -455,7 +462,7 @@ Search finds a page; it does not read one. Reading is
 [Web fetch](#web-fetch) below, and it is a separate capability with a separate
 scope.
 
-## Web fetch
+## Read web pages { #web-fetch }
 
 `web_fetch` — *Read the full page at a URL, as Markdown.*
 
@@ -552,7 +559,7 @@ A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
 to do with a page belongs to the agent's instructions.
 
-## Browser automation (choose)
+## Web browser (step by step) { #browser-automation-choose }
 
 `browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
 
@@ -656,7 +663,7 @@ each step with the probability the engine found it at — see
 [the console](../console.md). `preview` off keeps the narration and drops the
 pictures.
 
-## Browser automation
+## Web browser { #browser-automation }
 
 `browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
 
@@ -704,7 +711,7 @@ is not installed by default. An operator who wants the capability installs
 `agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
 lacks it fails the one tool loudly, with the install line.
 
-## Run Python
+## Calculations { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
 
@@ -721,7 +728,7 @@ memory are the only limits worth setting.
     An author raising a limit for one data-heavy agent should not need an
     operator or a redeploy — and the ceilings are capped rather than open-ended.
 
-## Files & shell
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *reading.*
 `write_file`, `edit_file`, `execute` — *writing and running.*
@@ -1368,7 +1375,7 @@ work that needs several steps held in mind at once.
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.
 
-## System reminders
+## Instruction reminders { #system-reminders }
 
 No tools. Re-states steering guidance mid-run so a long session stops drifting
 from its instructions — the failure this fixes is instruction fade, where after
@@ -1430,7 +1437,7 @@ about "this quarter" from its training cutoff.
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
 
-## Context management
+## Long conversations { #context-management }
 
 No tools. Trims a long run's message history before each request, so a run that
 would have hit the model's limit keeps working instead. The strategies come from

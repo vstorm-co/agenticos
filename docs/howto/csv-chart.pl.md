@@ -1,5 +1,5 @@
 ---
-source_sha: "1176d12d1a25"
+source_sha: "c2f42c5e922e"
 title: "Zamień CSV na wykres, który możesz sprawdzić"
 description: "Dołącz mały syntetyczny plik sprzedaży, pozwól agentowi policzyć i narysować go w sandboksie, a potem uzgodnij każdą liczbę z wierszami źródła."
 ---
@@ -37,7 +37,7 @@ Pierwsza sesja buduje obraz `workbench`, około 2 GB. Na świeżym hoście licz 
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Files & shell**. Wybierz **Container**, nie **Files**: workspace Files nie ma powłoki, więc agent nie może uruchomić skryptu. Wybierz połączenie i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
+2. W **Toolbox** włącz **Sandbox**. Wybierz **Container**, nie **Files**: workspace Files nie ma powłoki, więc agent nie może uruchomić skryptu. Wybierz połączenie i runtime `workbench`, a zakres zostaw na poziomie rozmowy.
 3. Włącz **Charts**. Rysuje liczby, które agent już ma, więc wykres pokazuje to, co policzył skrypt.
 4. Ustaw budżet i limit kroków na czas próby. Zapisany run użył 25 kroków i kosztował około 0,11 USD.
 5. Wpisz poniższe instrukcje, a potem **Publish**.

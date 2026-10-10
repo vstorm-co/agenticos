@@ -211,7 +211,7 @@ def _compile(config: SystemRemindersConfig) -> list[CompiledReminder]:
 
 @register(
     id="system_reminders",
-    name="System reminders",
+    name="Instruction reminders",
     category="reasoning",
     description=(
         "Re-state guidance mid-run so a long session stops drifting from its instructions."

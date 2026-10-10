@@ -369,6 +369,24 @@ describe("useCapabilityCatalog", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.capabilities[0]?.id).toBe("knowledge");
   });
+
+  it("names and describes each capability in the console's words", async () => {
+    // "Sandbox", not the registry's sentence, everywhere the Builder lists it;
+    // one the console has no words for keeps the registry's (#2070).
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "sandbox", name: "Sandbox", category: "analysis", description: "Registry words." },
+        { id: "from_a_plugin", name: "Plugin", category: "x", description: "Its own words." },
+      ],
+      total: 2,
+    });
+    const { result } = renderHook(() => useCapabilityCatalog(), { wrapper });
+    await waitFor(() => expect(result.current.capabilities).toHaveLength(2));
+
+    const [sandbox, plugin] = result.current.capabilities;
+    expect(sandbox?.description).toMatch(/^Gives the agent its own small computer/);
+    expect(plugin?.description).toBe("Its own words.");
+  });
 });
 
 /**

@@ -1,5 +1,5 @@
 ---
-source_sha: "74107fac73b3"
+source_sha: "79a1554f42b0"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
 description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
@@ -43,7 +43,7 @@ CLI Codex może używać innych providerów, ale jego zadania w chmurze, przegl�
 
 ### Wykonywanie kodu jako zarządzana capability { #code-execution-as-a-governed-capability }
 
-Codex uruchamia polecenia w sandboksie systemu operacyjnego na maszynie dewelopera albo w kontenerze w chmurze. AgenticOS daje agentom [Run Python](../reference/capabilities.md#run-python), interpreter Monty bez dostępu do sieci i systemu plików, oraz workspace [Files & shell](../reference/capabilities.md#files-shell) w [kontenerach równoległych](../sandbox.md#isolation-plainly). Obie włącza się dla każdego agenta osobno, z limitami i ustawieniem zatwierdzania.
+Codex uruchamia polecenia w sandboksie systemu operacyjnego na maszynie dewelopera albo w kontenerze w chmurze. AgenticOS daje agentom [Calculations](../reference/capabilities.md#run-python), interpreter Monty bez dostępu do sieci i systemu plików, oraz workspace [Sandbox](../reference/capabilities.md#files-shell) w [kontenerach równoległych](../sandbox.md#isolation-plainly). Obie włącza się dla każdego agenta osobno, z limitami i ustawieniem zatwierdzania.
 
 ## Kiedy Codex jest właściwym narzędziem { #when-codex-is-the-right-tool }
 
@@ -75,7 +75,7 @@ Tak. Inżynier może użyć Codex do napisania i przejrzenia nowej capability w 
 
 ### Czy agenci AgenticOS mogą uruchamiać kod? { #can-agenticos-agents-run-code }
 
-Tak. Run Python wykonuje kod bez dostępu do sieci i systemu plików, a Files & shell daje agentowi workspace w izolowanych kontenerach. Obie włącza się dla każdego agenta osobno.
+Tak. Obliczenia wykonują Pythona bez dostępu do sieci i systemu plików, a Sandbox daje agentowi workspace w izolowanych kontenerach. Obie włącza się dla każdego agenta osobno.
 
 ## Powiązane porównania { #related-comparisons }
 

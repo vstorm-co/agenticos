@@ -1,5 +1,5 @@
 ---
-source_sha: "5b846962a129"
+source_sha: "46ef69419b31"
 title: "Construye un informe de Excel y una presentación a partir de datos"
 description: "Adjunta un pequeño CSV sintético y haz que un agent en una sandbox produzca un libro con fórmulas y un gráfico, más una presentación de tres diapositivas; después abre ambos y comprueba los números."
 ---
@@ -42,7 +42,7 @@ Totales de referencia, calculados a mano: por región North 54.000, South 39.000
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
 3. Fija un budget para la prueba, escribe las instrucciones de abajo y pulsa **Publish**.
 
 ```text

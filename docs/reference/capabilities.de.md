@@ -1,5 +1,5 @@
 ---
-source_sha: "819895897d3c"
+source_sha: "62429d6d30db"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -23,6 +23,14 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
     Konfigurationsformulare aus dieser Antwort. Widersprechen sich die beiden, hat
     die API recht.
 
+Der Builder benennt jede Capability in der Sprache der Konsole und erklärt sie in
+einfachen Worten: was sie den Agenten tun lässt, zwei oder drei Beispiele, was sie
+braucht und was sie nie tut. Die Namen unten sind die deutschen der Konsole. Fünf
+Capabilities, die nur einstellen, wie ein Run getragen wird - lange Gespräche,
+Bilder auslagern, Erinnerung an Anweisungen, Grenzen für Tool-Ergebnisse und
+Tool-Suche -, sind unter **Erweitert** eingeklappt, bis jemand den Bereich öffnet,
+sucht oder eine davon einschaltet.
+
 ## Was ausgeliefert wird { #what-ships }
 
 | id | Name | Kategorie | Tools | Scope | Schlüssel |
@@ -30,30 +38,30 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
-| `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
-| `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` |
-| `browser_use` | Browser-Automatisierung | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
-| `code_execution` | Python ausführen | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Dateien & Shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
+| `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Webbrowser (Schritt für Schritt) | research | `browse_page` | `web:browse` | über das Extra `browser` |
+| `browser_use` | Webbrowser | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
+| `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |
-| `system_reminders` | Systemerinnerungen | reasoning | keine, mit Absicht | — | — |
+| `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — |
 | `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — |
 | `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — |
-| `guardrails` | Guardrails | utility | keine, mit Absicht | — | — |
-| `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
-| `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
-| `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
+| `guardrails` | Schutzregeln | utility | keine, mit Absicht | — | — |
+| `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — |
+| `media` | Bilder auslagern | utility | keine, mit Absicht | — | — |
+| `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — |
 | `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
-| `ask_user` | Den Nutzer fragen | utility | `ask_user_question` | — | — |
+| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -252,7 +260,7 @@ angehängt, genauso wie `knowledge` ohne Collections nicht angehängt wird. Date
 werden unter `/api/v1/context` verwaltet und per id an einen Agent gebunden
 (`AgentSpec.context_ids`).
 
-## Gedächtnisdateien { #memory-files }
+## Gedächtnis { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -408,7 +416,7 @@ ist Absicht: Der Schlüssel reist in einem `Authorization`-Header, deshalb darf
 jemand, der einen geteilten Schlüssel binden, aber nicht lesen darf, ihn nicht auf
 einen eigenen Server richten können.
 
-## Unterhaltungssuche { #conversation-search }
+## Frühere Gespräche { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -511,7 +519,7 @@ Die Suche findet eine Seite; sie liest keine. Das Lesen ist der
 [Webabruf](#web-fetch) weiter unten, und er ist eine eigene Capability mit einem
 eigenen Scope.
 
-## Webabruf { #web-fetch }
+## Webseiten lesen { #web-fetch }
 
 `web_fetch` — *Liest die vollständige Seite unter einer URL, als Markdown.*
 
@@ -623,7 +631,7 @@ oder ein Bild kommt als Binärinhalt an, den das Modell nativ liest. Nichts fass
 es zusammen — was mit einer Seite zu tun ist, gehört in die Instruktionen des
 Agents.
 
-## Browser-Automatisierung (Auswahl) { #browser-automation-choose }
+## Webbrowser (Schritt für Schritt) { #browser-automation-choose }
 
 `browse_page` — *Arbeitet eine Webseite Schritt für Schritt auf ein Ziel hin durch, eine gewählte Aktion nach der anderen.*
 
@@ -728,7 +736,7 @@ auf der sie ist, und jeden Schritt mit der Wahrscheinlichkeit, mit der die Engin
 gefunden hat — siehe [die Konsole](../console.md). `preview` aus behält die Erzählung
 und lässt die Bilder weg.
 
-## Browser-Automatisierung { #browser-automation }
+## Webbrowser { #browser-automation }
 
 `browse_web` — *Übergibt eine offene Webaufgabe an einen autonomen Browser-Agent.*
 
@@ -782,7 +790,7 @@ Betreiber, der die Capability will, installiert `agenticos[browser-use]` und ste
 ein Chromium bereit; ein gebundener Agent, dessen Deployment es nicht hat, lässt
 dieses eine Tool laut scheitern, mit der Installationszeile.
 
-## Python ausführen { #run-python }
+## Berechnungen { #run-python }
 
 `run_python` — *Führt ein kleines Python-Programm aus, um etwas zu berechnen.*
 
@@ -800,7 +808,7 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
     einen Betreiber noch ein erneutes Deployment brauchen — und die Obergrenzen
     sind gedeckelt statt offen.
 
-## Dateien & Shell { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *Lesen.*
 `write_file`, `edit_file`, `execute` — *Schreiben und Ausführen.*
@@ -1544,7 +1552,7 @@ Ungesetzt bedeutet den eigenen Standardaufwand des Providers. Eine Stufe, die ei
 Provider nicht hat, wird auf die nächstliegende abgebildet, sodass ein Spec über
 einen Modellwechsel hinweg portabel bleibt.
 
-## Systemerinnerungen { #system-reminders }
+## Erinnerung an Anweisungen { #system-reminders }
 
 Keine Tools. Wiederholt steuernde Hinweise mitten im Run, damit eine lange Sitzung
 nicht von ihren Instruktionen abdriftet — das Versagen, das dies behebt, ist das
@@ -1612,7 +1620,7 @@ nachdenkt.
 |---|---|---|
 | `timezone` | `UTC` | ein beliebiger IANA-Name, z. B. `Europe/Warsaw` |
 
-## Kontextverwaltung { #context-management }
+## Lange Gespräche { #context-management }
 
 Keine Tools. Stutzt die Nachrichtenhistorie eines langen Runs vor jeder Anfrage,
 sodass ein Run, der sonst an die Grenze des Modells gestoßen wäre, weiterarbeitet.
@@ -1713,7 +1721,7 @@ meldet jeder Agent, ob er komprimiert oder nicht — siehe
 Die Warnung zählt am meisten für den Agent, der *nicht* komprimieren wird, denn das
 ist der, der an die Decke stößt und abgelehnt wird.
 
-## Medien-Auslagerung { #media-offload }
+## Bilder auslagern { #media-offload }
 
 Keine Tools. Schreibt die großen Teile einer verdichteten Konversation in den
 Speicher und hinterlässt in der gespeicherten Historie eine
@@ -1762,7 +1770,7 @@ wieder eingesetzt, und genau das hält den Run korrekt. Sie in eine URL
 umzuschreiben, die das Modell selbst abruft, ist eine andere Funktion und bräuchte
 die öffentliche URL, die dieser Speicher bewusst nicht ausgibt.
 
-## Grenzen für Tool-Ausgaben { #tool-output-limits }
+## Grenzen für Tool-Ergebnisse { #tool-output-limits }
 
 Ein Tool, `read_tool_result`. Wo `compaction` die Historie *innerhalb* des Fensters
 zwischen zwei Anfragen stutzt, verhindert dies, dass eine übergroße Tool-Rückgabe
@@ -1883,7 +1891,7 @@ die Runden zur Entdeckung sind gewöhnliche Modellanfragen, die derselbe Guard
 umschließt. Die eine Form, die ihm entgehen würde — eine eigene Suchfunktion, die
 selbst ein Modell oder ein Embedding aufruft —, ist bewusst nicht freigegeben.
 
-## Guardrails { #guardrails }
+## Schutzregeln { #guardrails }
 
 Keine Tools. Prüft den Text, der durch einen Run fließt, an drei Kanten und
 **schwärzt** entweder einen Treffer oder **blockiert** den Run. Die Prüfungen sind
@@ -1982,7 +1990,7 @@ strukturierte Abbildung ohne Textdetektor, deshalb sind sie keine Kante. Und das
 menschliche Entscheidung, und ein zweiter, regelgetriebener Pfad zu demselben
 Mechanismus ist das, was eine einzige Tür vermeidet.
 
-## Chat-Kanal-Abfrage { #chat-channel-lookup }
+## Infos zum Chat-Kanal { #chat-channel-lookup }
 
 `get_channel_info` — *Beschreibt den Kanal, in dem diese Unterhaltung stattfindet.*
 `list_channel_members` — *Listet die Personen in diesem Kanal auf.*
@@ -2026,7 +2034,7 @@ Drei Eigenschaften gelten auf jeder Plattform:
   nicht erst angehängt — aus demselben Grund, aus dem `knowledge` ohne Collections
   nicht angehängt wird.
 
-## Den Nutzer fragen { #ask-the-user }
+## Rückfragen { #ask-the-user }
 
 Braucht ein Agent eine Entscheidung, die nur der Mensch treffen kann, fragt er,
 statt zu raten: `ask_user_question` nimmt eine bis zehn Multiple-Choice-Fragen,

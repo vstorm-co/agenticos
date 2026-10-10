@@ -122,7 +122,7 @@ class WebFetchConfig(BaseModel):
 
 @register(
     id="web_fetch",
-    name="Web fetch",
+    name="Read web pages",
     category="research",
     description="Read the page behind a URL, so an agent can follow a link it found.",
     tools=(
