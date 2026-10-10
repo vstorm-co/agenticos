@@ -29,9 +29,10 @@ export interface Organization {
   /**
    * Dollars every agent in this organization may spend between the first of the
    * month and the next, or `null` for no ceiling. It is the limit *over* each
-   * agent's own: an agent can tighten it, never loosen it.
+   * agent's own: an agent can tighten it, never loosen it. A decimal string, as
+   * the API serializes the column ("100.000000").
    */
-  monthly_budget_usd: number | null;
+  monthly_budget_usd: string | null;
   /**
    * Whether a chat session here may grant standing consent to gated tool calls -
    * `approve_all` in the composer's approval control. Off unless somebody who
