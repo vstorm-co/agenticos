@@ -679,6 +679,14 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * Whether this field is folded under "Advanced settings" (#2070).
+   *
+   * A capability marks limits, cache lifetimes, prompts and tuning this way
+   * through `json_schema_extra`, so the form shows the decisions that change
+   * what an agent does first and the rest a click away.
+   */
+  "x-advanced"?: boolean;
+  /**
    * Values a field suggests without restricting itself to them.
    *
    * The open counterpart of `enum`: the backend validates a plain string, so the

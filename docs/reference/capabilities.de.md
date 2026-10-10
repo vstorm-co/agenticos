@@ -1,5 +1,5 @@
 ---
-source_sha: "a75cb9b79f49"
+source_sha: "a12974d5df2f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -30,6 +30,10 @@ Capabilities, die nur einstellen, wie ein Run getragen wird - lange Gespräche,
 Bilder auslagern, Erinnerung an Anweisungen, Grenzen für Tool-Ergebnisse und
 Tool-Suche -, sind unter **Erweitert** eingeklappt, bis jemand den Bereich öffnet,
 sucht oder eine davon einschaltet.
+
+In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
+Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
+die sich von selbst öffnen, wo eines davon gesetzt wurde.
 
 ## Was ausgeliefert wird { #what-ships }
 

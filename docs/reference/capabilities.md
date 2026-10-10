@@ -25,6 +25,10 @@ that tune how a run is carried - long conversations, image offload, instruction
 reminders, tool output limits and tool search - are folded under **Advanced**
 until somebody opens it, searches, or switches one on.
 
+In a capability's settings, limits, cache lifetimes, prompts and other tuning sit
+folded under **Advanced settings**, which opens by itself wherever one of them was
+set.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key |

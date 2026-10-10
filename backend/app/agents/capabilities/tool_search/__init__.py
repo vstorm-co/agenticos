@@ -27,6 +27,7 @@ class ToolSearchConfig(BaseModel):
         ge=1,
         le=50,
         description="How many matches the local search returns; ignored for native search.",
+        json_schema_extra={"x-advanced": True},
     )
 
 

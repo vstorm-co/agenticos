@@ -157,6 +157,7 @@ class SystemRemindersConfig(BaseModel):
     cache_ttl: Literal["5m", "1h"] = Field(
         default="5m",
         description="Cache lifetime of the breakpoint placed before the tail reminder",
+        json_schema_extra={"x-advanced": True},
     )
 
 

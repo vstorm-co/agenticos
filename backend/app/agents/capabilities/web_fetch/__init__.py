@@ -61,6 +61,7 @@ class WebFetchConfig(BaseModel):
             "four characters per token. Ignored under native fetch, which the "
             "provider bounds itself."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     allowed_domains: list[str] | None = Field(
         default=None,

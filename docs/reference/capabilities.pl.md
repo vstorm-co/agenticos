@@ -1,5 +1,5 @@
 ---
-source_sha: "a75cb9b79f49"
+source_sha: "a12974d5df2f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -30,6 +30,10 @@ capability, które dostrajają sposób prowadzenia runu - długie rozmowy, odci�
 z obrazów, przypomnienia instrukcji, limity wyników narzędzi i wyszukiwanie
 narzędzi - jest zwiniętych w grupie **Zaawansowane**, dopóki ktoś jej nie otworzy,
 nie zacznie szukać albo nie włączy jednej z nich.
+
+W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie są
+zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
+któreś z nich zostało ustawione.
 
 ## Co jest dostarczane { #what-ships }
 

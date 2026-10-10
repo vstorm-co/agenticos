@@ -103,6 +103,7 @@ class SandboxConfig(BaseModel):
             "agent: everyone who talks to this agent - files are shared between "
             "people in the organization."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     runtime: str | None = Field(
         default=None,

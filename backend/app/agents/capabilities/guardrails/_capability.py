@@ -203,6 +203,7 @@ class GuardrailsConfig(BaseModel):
             f"and {MAX_PHONE_REGIONS_CHARS} characters. "
             "A number written with + is redacted whatever is listed"
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
     @field_validator("phone_regions")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Eye, EyeOff } from "lucide-react";
 
 import {
   Input,
@@ -85,23 +85,56 @@ export function SchemaForm({
   if (properties.length === 0) return null;
 
   const set = (key: string, fieldValue: unknown) => onChange({ ...value, [key]: fieldValue });
+  const field = ([key, property]: [string, JsonSchemaProperty]) => (
+    <SchemaField
+      key={key}
+      id={`${idPrefix}-${key}`}
+      name={key}
+      property={property}
+      value={value[key]}
+      required={schema.required?.includes(key) ?? false}
+      disabled={disabled}
+      error={errors?.[key]}
+      onChange={(fieldValue) => set(key, fieldValue)}
+    />
+  );
+  const basic = properties.filter(([, property]) => property["x-advanced"] !== true);
+  const advanced = properties.filter(([, property]) => property["x-advanced"] === true);
 
   return (
     <div className="space-y-4">
-      {properties.map(([key, property]) => (
-        <SchemaField
-          key={key}
-          id={`${idPrefix}-${key}`}
-          name={key}
-          property={property}
-          value={value[key]}
-          required={schema.required?.includes(key) ?? false}
-          disabled={disabled}
-          error={errors?.[key]}
-          onChange={(fieldValue) => set(key, fieldValue)}
-        />
-      ))}
+      {basic.map(field)}
+      {advanced.length > 0 && (
+        <AdvancedFields
+          // Open where something in it was set or refused: a value hidden behind
+          // a fold is a value nobody remembers choosing.
+          open={advanced.some(([key]) => value[key] !== undefined || errors?.[key] !== undefined)}
+        >
+          {advanced.map(field)}
+        </AdvancedFields>
+      )}
     </div>
+  );
+}
+
+/**
+ * The settings a capability works without touching, folded away (#2070).
+ *
+ * A field is here because its capability marks it `x-advanced`: limits, cache
+ * lifetimes, prompts and tuning that change how well something runs rather than
+ * what it does. Fewer decisions up front for whoever is building their first
+ * agent, and nothing taken away from whoever needs one.
+ */
+function AdvancedFields({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const t = useTranslations("agents");
+  return (
+    <details className="group" open={open}>
+      <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+        <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+        {t("advancedSettings")}
+      </summary>
+      <div className="mt-3 space-y-4">{children}</div>
+    </details>
   );
 }
 

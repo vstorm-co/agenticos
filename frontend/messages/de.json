@@ -168,6 +168,7 @@
     "compareVersion": "v{version} vergleichen",
     "comparing": "Vergleicht",
     "configurationSchema": "Konfigurationsschema",
+    "advancedSettings": "Erweiterte Einstellungen",
     "connectServerFirst": "Verbinden Sie diesen Server zuerst",
     "connectedOnly": "Nur verbundene",
     "connectionNoLongerAllows": "Diese Verbindung erlaubt <code>{runtime}</code> nicht mehr. Wählen Sie eine, die sie erlaubt, sonst scheitert der Agent an seinem ersten Tool-Aufruf.",

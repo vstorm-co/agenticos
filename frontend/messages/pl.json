@@ -168,6 +168,7 @@
     "compareVersion": "Porównaj v{version}",
     "comparing": "Porównywanie",
     "configurationSchema": "Schemat konfiguracji",
+    "advancedSettings": "Ustawienia zaawansowane",
     "connectServerFirst": "Najpierw połącz ten serwer",
     "connectedOnly": "Tylko połączone",
     "connectionNoLongerAllows": "To połączenie nie zezwala już na <code>{runtime}</code>. Wybierz taki, na który zezwala, albo agent zawiedzie przy pierwszym wywołaniu narzędzia.",

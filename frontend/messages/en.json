@@ -168,6 +168,7 @@
     "compareVersion": "Compare v{version}",
     "comparing": "Comparing",
     "configurationSchema": "Configuration schema",
+    "advancedSettings": "Advanced settings",
     "connectServerFirst": "Connect this server first",
     "connectedOnly": "Connected only",
     "connectionNoLongerAllows": "This connection no longer allows <code>{runtime}</code>. Pick one it does, or the agent fails on its first tool call.",

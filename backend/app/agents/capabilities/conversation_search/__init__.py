@@ -38,6 +38,7 @@ class ConversationSearchConfig(BaseModel):
             "How many conversations one search returns at most. Each brings back a "
             "short passage, so a high number costs context on every search."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a75cb9b79f49"
+source_sha: "a12974d5df2f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -30,6 +30,10 @@ capabilities que solo ajustan cómo se lleva un run - conversaciones largas,
 imágenes fuera del historial, recordatorio de instrucciones, límites de resultados
 de herramientas y búsqueda de herramientas - quedan plegadas bajo **Advanced**
 hasta que alguien abre el grupo, busca o activa una de ellas.
+
+En los ajustes de una capability, los límites, la vida de la caché, los prompts y
+el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
+solos donde alguno se haya establecido.
 
 ## Qué se entrega { #what-ships }
 

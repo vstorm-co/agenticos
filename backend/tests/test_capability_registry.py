@@ -587,6 +587,27 @@ class TestRegistration:
         assert "available" in exc.value.details
 
 
+class TestAdvancedSettings:
+    """Fields the Builder folds under "Advanced settings" (#2070)."""
+
+    def test_a_folded_field_is_never_one_publishing_needs(self):
+        """A required field behind a fold is a refusal at publish with nothing on
+        screen to answer it."""
+        for definition in all_capabilities():
+            schema = definition.config_json_schema() or {}
+            required = set(schema.get("required", []))
+            for name, field in schema.get("properties", {}).items():
+                if field.get("x-advanced"):
+                    assert name not in required, (definition.id, name)
+
+    def test_tuning_is_folded_and_the_choices_are_not(self):
+        knowledge = get("knowledge").config_json_schema() or {}
+        properties = knowledge["properties"]
+
+        assert properties["default_top_k"].get("x-advanced") is True
+        assert "x-advanced" not in properties["query_analysis_mode"]
+
+
 class TestConfigValidation:
     def test_valid_config_is_parsed_into_its_schema(self):
         config = get("knowledge").validate_config({"default_top_k": 8})

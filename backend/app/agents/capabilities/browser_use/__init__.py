@@ -52,14 +52,17 @@ class BrowserUseConfig(BaseModel):
         ge=1,
         le=100,
         description="Hard cap on the browser agent's steps per call; each step is one model request.",
+        json_schema_extra={"x-advanced": True},
     )
     use_vision: bool = Field(
         default=True,
         description="Send page screenshots to the browser agent's model; better on visual layouts, more tokens.",
+        json_schema_extra={"x-advanced": True},
     )
     headless: bool = Field(
         default=True,
         description="Run a locally launched browser without a visible window (playwright mode only).",
+        json_schema_extra={"x-advanced": True},
     )
 
     @model_validator(mode="after")
