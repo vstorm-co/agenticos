@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "f2db8cef8a07"
 ---
 
 # Configuración { #configuration }
@@ -472,6 +472,7 @@ permanente para el otro, así que cada definición de servicio lleva la suya.
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Cuánto espera una llamada a herramienta aparcada antes de que el barrido horario la deniegue por tiempo |
+| `QUESTION_EXPIRY_HOURS` | `24` | Cuánto espera un run la respuesta a una pregunta del agent antes de que el mismo barrido lo termine |
 
 Tres días porque tiene que abarcar un fin de semana: la aprobación que llega el
 viernes por la tarde es la que nadie decide, y caducarla el sábado sería caducarla

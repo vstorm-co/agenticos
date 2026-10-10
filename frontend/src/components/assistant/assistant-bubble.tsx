@@ -34,7 +34,7 @@ export function AssistantBubble({
   return (
     <div
       className={cn(
-        "bg-background border-border fixed right-4 bottom-36 z-50 max-w-[17rem] rounded-2xl rounded-br-sm border shadow-lg md:right-6 md:bottom-24",
+        "bg-background border-border fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 max-w-[17rem] rounded-2xl rounded-br-sm border shadow-lg md:right-6 md:bottom-24",
         !proactive && "hidden md:block",
       )}
     >

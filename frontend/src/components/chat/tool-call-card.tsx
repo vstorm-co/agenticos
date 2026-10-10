@@ -148,7 +148,7 @@ export function ToolCallCard({
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
-  const isParked = toolCall.status === "awaiting_approval";
+  const isParked = toolCall.status === "awaiting_approval" || toolCall.status === "awaiting_answer";
   const isError = toolCall.status === "error";
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against

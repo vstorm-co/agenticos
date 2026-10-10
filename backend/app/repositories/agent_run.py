@@ -1482,7 +1482,13 @@ async def count_unfinished_in_environment(
         select(func.count(AgentRun.id)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.environment_id == environment_id,
-            AgentRun.status.in_([RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value]),
+            AgentRun.status.in_(
+                [
+                    RunStatus.RUNNING.value,
+                    RunStatus.AWAITING_APPROVAL.value,
+                    RunStatus.AWAITING_ANSWER.value,
+                ]
+            ),
         )
     )
     return int(result or 0)
@@ -1765,6 +1771,27 @@ async def list_approvals_for_run(
             ToolApproval.organization_id == organization_id,
         )
         .order_by(ToolApproval.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_unanswered_runs(
+    db: AsyncSession, *, older_than: datetime, limit: int = 500
+) -> list[AgentRun]:
+    """Every run parked on a question since before `older_than` (#2064).
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the expiry sweep, which settles each run in its own
+    organization. Do not copy this shape into anything a route can reach.
+    """
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at < older_than,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
     )
     return list(result.scalars().all())
 

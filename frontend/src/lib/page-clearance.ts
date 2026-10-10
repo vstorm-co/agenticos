@@ -27,4 +27,5 @@ export const PAGE_CLEARANCE = "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb
  * bar on a phone, send button included. The bar is `min-h-[56px]` and a 1px
  * border, plus the inset; `lg` has no bar.
  */
-export const TAB_BAR_CLEARANCE = "pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] lg:pb-0";
+export const TAB_BAR_CLEARANCE =
+  "pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] lg:pb-0 [html[data-typing]_&]:pb-0";

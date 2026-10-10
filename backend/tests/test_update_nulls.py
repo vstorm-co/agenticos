@@ -53,6 +53,7 @@ from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
@@ -66,6 +67,7 @@ from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
 from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.artifact import ArtifactPublicLinkUpdate, ArtifactUpdate
+from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
@@ -99,6 +101,9 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ArtifactPublicLinkUpdate: Artifact,
+    # The organization's assistant row; its agent-shaped fields go to the agent's
+    # draft spec through the same `writable`, over `Agent` (#2063).
+    AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,

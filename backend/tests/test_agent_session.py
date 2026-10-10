@@ -54,6 +54,7 @@ import anyio
 import pytest
 from fastapi import WebSocketDisconnect
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.messages import (
     BinaryContent,
     FinalResultEvent,
@@ -2886,6 +2887,61 @@ class TestASocketThatWentAway:
 
         assert answered == [[]]
         assert not task.cancelled()
+
+    async def test_the_runs_own_question_left_open_parks_the_run(self):
+        """An `ask_user` card the person walked away from is not a decline: the run
+        parks on it, and answering it later - on this device or another -
+        continues the run (#2064)."""
+        session = _session()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        parked: list[bool] = []
+
+        async def turn() -> None:
+            # What the run does with it: the tool call ends deferred.
+            try:
+                await session._ask_questions(request)
+            except CallDeferred:
+                parked.append(True)
+
+        session._turn_task = asyncio.create_task(turn())
+        await _wait(asked)
+
+        await session.shutdown()
+
+        assert parked == [True]
+        assert session._round_parks is False
+
+    async def test_a_delegates_question_left_open_is_still_no_answer(self):
+        """Only the run's own agent parks: a delegate asking through `ask_parent`
+        has nowhere to park, so it carries on with what it had."""
+        session = _session()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Region",
+                    question="Which region?",
+                    options=(QuestionOption(label="EU"), QuestionOption(label="US")),
+                ),
+            )
+        )
+        with patch.object(agent_session_module, "asking_delegate", return_value="researcher"):
+            asking = asyncio.create_task(session._ask_questions(request))
+            await _wait(asked)
+        session._turn_task = asking
+
+        await session.shutdown()
+
+        assert (await asking).cancelled
 
     async def test_a_connection_nobody_can_make_no_longer_holds_the_turn_open(self):
         """The same for a run waiting on `connect_account`: nobody is there to

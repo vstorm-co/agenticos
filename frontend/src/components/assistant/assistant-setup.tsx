@@ -84,7 +84,7 @@ export function AssistantSetup({
             setOpen(true);
             setEverOpened(true);
           }}
-          className="bg-background border-border fixed right-4 bottom-36 z-50 max-w-[17rem] rounded-2xl rounded-br-sm border px-4 py-3 text-left text-sm leading-snug shadow-lg md:right-6 md:bottom-24"
+          className="bg-background border-border fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 max-w-[17rem] rounded-2xl rounded-br-sm border px-4 py-3 text-left text-sm leading-snug shadow-lg md:right-6 md:bottom-24"
         >
           {t("setup.bubble")}
         </button>

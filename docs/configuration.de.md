@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "f2db8cef8a07"
 ---
 
 # Konfiguration { #configuration }
@@ -480,6 +480,7 @@ Service-Definition ihre eigene.
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Wie lange ein geparkter Tool-Aufruf wartet, bevor der stündliche Durchlauf ihn per Timeout ablehnt |
+| `QUESTION_EXPIRY_HOURS` | `24` | Wie lange ein Run auf die Antwort auf eine Frage des Agents wartet, bevor derselbe Durchlauf ihn beendet |
 
 Drei Tage, weil es ein Wochenende überspannen muss: Die Freigabe, die am
 Freitagnachmittag eintrifft, ist die, über die niemand entscheidet, und sie am

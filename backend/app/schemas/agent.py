@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
+from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
@@ -611,6 +612,28 @@ class ParkedCall(BaseSchema):
     tool_args: dict[str, Any] = Field(default_factory=dict)
 
 
+class ParkedQuestion(BaseSchema):
+    """An `ask_user_question` call a run is waiting on its person to answer (#2064)."""
+
+    tool_call_id: str = Field(description="The call to answer, which is what a client posts.")
+    questions: list[QuestionItem] = Field(
+        description="The questions, as the console's question card draws them."
+    )
+
+
+class QuestionAnswers(BaseSchema):
+    """The person's answers to the questions a run parked on."""
+
+    responses: dict[str, list[dict[str, Any]]] = Field(
+        min_length=1,
+        description=(
+            "Per parked call, the answers the question card sends: a list parallel "
+            "to its questions, each `{selected, answer, skipped}`. A call left out is "
+            "answered as declined."
+        ),
+    )
+
+
 class RunStep(BaseSchema):
     """One tool call an execution of a run made, and what came back from it."""
 
@@ -685,6 +708,13 @@ class AgentRunResult(BaseSchema):
             "that started it. The continuation runs over HTTP rather than the socket a "
             "conversation streams, so this response is the only place the new calls can "
             "arrive."
+        ),
+    )
+    questions: list[ParkedQuestion] = Field(
+        default_factory=list,
+        description=(
+            "The questions the run is now waiting on its person to answer, which is "
+            "empty unless it stopped on one again - the same reason `parked` exists."
         ),
     )
 

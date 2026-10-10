@@ -95,7 +95,15 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
-  status: "pending" | "running" | "completed" | "error" | "awaiting_approval" | "unfinished";
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "error"
+    | "awaiting_approval"
+    /** A question its person left unanswered; answering it continues the run (#2064). */
+    | "awaiting_answer"
+    | "unfinished";
   /**
    * How much of the arguments has streamed, in characters, while the model is
    * still writing them - the `pending` state. A large argument (a whole report

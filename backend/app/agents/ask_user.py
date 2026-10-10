@@ -15,6 +15,7 @@ it is absent rather than proceed unattended.
 from typing import Any
 
 from pydantic import BaseModel, Field
+from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, AskUserResponse
 from subagents_pydantic_ai import current_subagent_state
 
@@ -152,3 +153,13 @@ def format_answers(questions: list[dict[str, Any]], answers: list[dict[str, Any]
         a = answers[i] if i < len(answers) else None
         lines.append(f"Q: {q.get('question', '')}\nA: {render_answer(a)}")
     return "\n\n".join(lines)
+
+
+def parked_status(tool_name: str) -> str:
+    """What a stored step reads while its run waits on a person (#2064).
+
+    An `ask_user_question` call parks only ever as a question - it is never
+    gated, being itself a question to the person - and every other parked call
+    is waiting on an approval.
+    """
+    return "awaiting_answer" if tool_name == ASK_USER_TOOL else "awaiting_approval"

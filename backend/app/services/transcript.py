@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.agents.ask_user import parked_status
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -465,7 +466,7 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status="awaiting_approval" if call.tool_call_id in parked else "running",
+                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

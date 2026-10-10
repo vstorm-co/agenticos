@@ -674,7 +674,8 @@
     "removePromptVariable": "Remove {name}",
     "promptVariableName": "Name",
     "promptVariableNamePlaceholder": "support_email",
-    "addPromptVariable": "Add variable"
+    "addPromptVariable": "Add variable",
+    "runAwaitingAnswer": "Waiting for an answer"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -986,7 +987,8 @@
       "stopRecording": "Stop recording",
       "uploadFailed": "Upload failed",
       "voiceInput": "Voice input",
-      "voiceUnsupported": "Voice input is only supported in Chrome. Use Chrome for speech-to-text."
+      "voiceUnsupported": "Voice input is only supported in Chrome. Use Chrome for speech-to-text.",
+      "addToMessage": "Add to message"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",

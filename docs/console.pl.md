@@ -1,5 +1,5 @@
 ---
-source_sha: "847a0d40a27d"
+source_sha: "bb3e47ca3bb7"
 ---
 
 # Konsola { #the-console }
@@ -197,6 +197,12 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
+klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera, pasek
+zakładek chowa się na czas pisania, Enter zaczyna nową linię, a załącznik i
+dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
+przybliżał.
 
 **Obserwowanie przeglądania.** Agent z
 [automatyzacją przeglądarki](reference/capabilities.md#browser-automation-choose)

@@ -32,6 +32,7 @@ import pytest
 from fastapi.routing import APIRoute, APIWebSocketRoute, RouteContext, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 
+from app.agents.ask_user import QuestionItem
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
@@ -39,7 +40,7 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
-from app.schemas.agent import ParkedCall
+from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
@@ -1208,6 +1209,9 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             async def parked_calls(self, *args: Any, **kwargs: Any) -> list[Any]:
                 return []
 
+            async def parked_questions(self, *args: Any, **kwargs: Any) -> list[Any]:
+                return []
+
         overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/resume"))
@@ -1752,3 +1756,72 @@ class TestEveryPublicRouteIsDeliberate:
             if _depends_on_a_caller(route) or _required_permissions(route)
         )
         assert not gated, f"/public routes demanding an authenticated caller: {gated}"
+
+
+class TestAQuestionTheRunParkedOn:
+    """Answering an agent's question after the page that showed it is gone (#2064).
+
+    No permission gate: the run asked one person, and the service decides that
+    the caller is them. Every role reaches the routes; whose answer counts is the
+    service's to say, and is tested there.
+    """
+
+    def _run(self) -> MagicMock:
+        return MagicMock(
+            id=uuid4(),
+            status="completed",
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            input_tokens=3,
+            output_tokens=2,
+        )
+
+    async def test_the_person_reads_what_they_were_asked(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        question = ParkedQuestion(
+            tool_call_id="ask-1",
+            questions=[QuestionItem(question="How formal?", header="Tone")],
+        )
+        service = MagicMock(
+            get_run=AsyncMock(return_value=run),
+            parked_questions=AsyncMock(return_value=[question]),
+        )
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.get(_url(f"/runs/{run.id}/questions"))
+
+        assert response.status_code == 200
+        assert response.json()[0]["tool_call_id"] == "ask-1"
+        assert response.json()[0]["questions"][0]["header"] == "Tone"
+
+    async def test_an_answer_continues_the_run_and_says_what_it_did(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        service = MagicMock(
+            answer=AsyncMock(
+                return_value=RunSegment(
+                    output="Done, casually.", run=run, tool_calls=[], settled={}
+                )
+            ),
+            parked_calls=AsyncMock(return_value=[]),
+            parked_questions=AsyncMock(return_value=[]),
+        )
+        body = {"responses": {"ask-1": [{"selected": ["Casual"]}]}}
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.post(_url(f"/runs/{run.id}/answers"), json=body)
+
+        assert response.status_code == 200
+        assert response.json()["output"] == "Done, casually."
+        assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_an_answer_with_nothing_in_it_is_refused_before_the_service(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        service = MagicMock(answer=AsyncMock())
+        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+            response = await client.post(_url(f"/runs/{uuid4()}/answers"), json={"responses": {}})
+
+        assert response.status_code == 422
+        service.answer.assert_not_called()

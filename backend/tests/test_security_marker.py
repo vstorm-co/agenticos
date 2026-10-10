@@ -43,6 +43,7 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_agent_runner.py::TestParkedQuestions::test_a_question_parked_beside_an_approval_is_declined_when_it_resumes": "a question's resume answer beside an approval, no refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_the_permission_table_has_no_stale_entries": "meta test of gate-fixture hygiene, no runtime refusal",
     "tests/api/test_platform_routes.py::TestPermissionIntrospectionIsOpenToEveryMember::test_every_role_can_read_its_own_permissions": "permission introspection is open to every role, no refusal",

@@ -452,6 +452,7 @@ permanent false alarm on the other, so each service definition carries its own.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |
 
 Three days because it has to span a weekend: the approval that arrives on Friday
 afternoon is the one nobody decides, and expiring it on Saturday would be expiring

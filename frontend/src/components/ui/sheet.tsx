@@ -14,7 +14,8 @@ interface SheetProps {
 interface SheetContentProps {
   children: React.ReactNode;
   className?: string;
-  side?: "left" | "right";
+  /** `bottom` is a phone's action sheet - full width, up from the bottom edge. */
+  side?: "left" | "right" | "bottom";
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -52,9 +53,13 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
       role="dialog"
       aria-modal="true"
       className={cn(
-        "panel-strong fixed inset-y-0 z-50 flex w-72 flex-col",
+        "panel-strong fixed z-50 flex flex-col",
         "animate-in duration-300",
-        side === "left" ? "slide-in-from-left left-0" : "slide-in-from-right right-0",
+        side === "bottom"
+          ? "slide-in-from-bottom inset-x-0 bottom-0 rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+          : "inset-y-0 w-72",
+        side === "left" && "slide-in-from-left left-0",
+        side === "right" && "slide-in-from-right right-0",
         className,
       )}
     >

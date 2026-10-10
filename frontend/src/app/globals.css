@@ -2073,3 +2073,15 @@
     outline-color: transparent;
   }
 }
+
+/* A form field on a phone is never under 16px: iOS zooms the page into any
+   smaller field the moment it is focused, and the whole console lurches
+   sideways under the person's thumb (#2066). Desktop keeps each field's own
+   size. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

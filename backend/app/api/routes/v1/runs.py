@@ -20,6 +20,7 @@ from app.api.deps import (
 from app.api.public_api import PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
+from app.api.routes.v1._run_results import run_result
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -29,7 +30,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, ParkedCall, RunStep, SettledCall
+from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion, QuestionAnswers
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -383,41 +384,31 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     last outstanding call is what makes this call possible, not what performs
     it.
     """
-    segment = await service.resume(ctx, run_id)
-    run = segment.run
-    return AgentRunResult(
-        run_id=run.id,
-        output=segment.output,
-        status=run.status,
-        cost_usd=run.cost_usd,
-        cost_is_partial=run.cost_is_partial,
-        input_tokens=run.input_tokens,
-        output_tokens=run.output_tokens,
-        # What the continuation actually did. Nothing else carries it: the run
-        # executes inside this request rather than on the socket the conversation
-        # streams, so a caller given only the answer had to draw the second half
-        # of a turn out of nothing.
-        steps=[
-            RunStep(
-                tool_call_id=call.tool_call_id,
-                tool_name=call.tool_name,
-                args=call.args,
-                result=call.result,
-            )
-            for call in segment.tool_calls
-        ],
-        # And what the approved call returned. It belongs to a step the caller
-        # drew before the run parked, so it updates that step rather than adding
-        # one - the alternative is the same command twice in one turn.
-        settled=[
-            SettledCall(tool_call_id=tool_call_id, result=result)
-            for tool_call_id, result in segment.settled.items()
-        ],
-        # Empty unless the continuation stopped again, which it does whenever the
-        # agent reaches a second gated call. Without it a caller was told the run is
-        # still awaiting approval and given nothing to approve.
-        parked=await service.parked_calls(ctx, run),
-    )
+    return await run_result(service, ctx, await service.resume(ctx, run_id))
+
+
+@router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])
+async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """The questions this run is waiting on you to answer (#2064).
+
+    A run whose agent asked something you left unanswered parks, and reopening the
+    conversation is where the card comes back - the frame that carried it live
+    went with the page. Empty unless the run is waiting on *your* answer.
+    """
+    run = await service.get_run(ctx, run_id)
+    return await service.parked_questions(ctx, run)
+
+
+@router.post("/runs/{run_id}/answers", response_model=AgentRunResult)
+async def answer_run(
+    run_id: UUID, data: QuestionAnswers, service: AgentRunnerSvc, ctx: Auth
+) -> Any:
+    """Answer the questions a run parked on, and continue it (#2064).
+
+    Only the person the run asked may answer. The continuation runs here, like a
+    resume, and its answer comes back in the response.
+    """
+    return await run_result(service, ctx, await service.answer(ctx, run_id, data.responses))
 
 
 @router.get(

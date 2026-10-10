@@ -26,6 +26,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
+from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     credential_repo,
@@ -80,12 +81,14 @@ class AssistantService:
         administrator making the change, so the version history says who did it.
         """
         row, agent = await self._installed(ctx.organization_id)
-        own = data.model_dump(include={"enabled", "greeting"}, exclude_unset=True)
+        own = writable(
+            data, over=OrganizationAssistant, exclude={"name", "model_profile_id", "collection_ids"}
+        )
         if own:
             row = await organization_assistant_repo.update(self.db, row=row, update_data=own)
-        spec_changes = data.model_dump(
-            include={"name", "model_profile_id", "collection_ids"}, exclude_unset=True
-        )
+        # The agent's `name` column refuses a null, so `writable` over it drops one;
+        # `model_profile_id: null` is kept - it is how the model is taken away.
+        spec_changes = writable(data, over=Agent, exclude={"enabled", "greeting"})
         if spec_changes:
             spec = AgentSpec.model_validate(agent.draft_spec).model_copy(update=spec_changes)
             agent = await self.registry.save_draft(ctx, agent.id, spec)

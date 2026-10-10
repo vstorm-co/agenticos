@@ -118,13 +118,26 @@ Two things are versioned separately from this file and worth knowing about:
   with what it becomes, and the time is told in the deployment's zone, each
   person's own or one chosen. Publishing refuses an unknown name. A visitor's
   name is never the publisher's (#2065).
+- **The chat on a phone works like a messaging app.** The console's shell
+  follows the visual viewport, so the composer stays above an iOS or Android
+  keyboard and the conversation stays on its last message while it opens; the tab
+  bar and the AI Architect's button step aside while somebody types; every form
+  field is 16px on a phone, so iOS no longer zooms into it; Enter starts a new line
+  on a touch keyboard; attaching and dictating sit behind one **+** sheet; and the
+  composer, the sheet and the widget respect the notch and home indicator. A
+  `mobile` Playwright project covers what an emulated phone can (#2066).
 - **Agents ask instead of guessing.** A new `ask_user` capability, built on
   `AskUser` from pydantic-ai-harness, gives an agent `ask_user_question`: up to ten
   multiple-choice questions with headers, option descriptions and multi-select.
   The console asks them as a carousel card - one question per slide, a typed
   answer, Back, Skip and a summary before sending - on the same channel a
   delegate's questions already used. On by default in every new agent, every
-  template and every draft created over MCP (#2064).
+  template and every draft created over MCP. A question left unanswered parks the
+  run in a new `awaiting_answer` status instead of being read as declined: the
+  card comes back when the person reopens the conversation, answering it through
+  `POST /runs/{run_id}/answers` continues the run, and after
+  `QUESTION_EXPIRY_HOURS` (24) the approval sweep ends it as cancelled with the
+  step closed as unanswered (#2064).
 - **`X-Organization-Id` documented as it behaves.** A session without the header
   acts in the caller's personal organization; a key acts in its own and answers
   `400` to a header naming another (#1903).

@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.ask_user import parked_status
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -944,7 +945,7 @@ class ConversationService:
             tool_name=data.tool_name,
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
-            status="awaiting_approval" if parked else "running",
+            status=parked_status(data.tool_name) if parked else "running",
         )
 
     async def complete_tool_call(

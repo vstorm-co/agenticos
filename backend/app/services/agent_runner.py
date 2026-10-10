@@ -66,15 +66,24 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelResponse,
+    ToolCallPart,
+    UserContent,
+)
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.workspaces import Workspace
+from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
+from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
+from app.agents.ask_user import QuestionItem, answers_to_response, wire_questions
 from app.agents.audience import RunAudience, derive_audience
 from app.agents.capabilities.approval import (
     ApprovalDecision,
@@ -181,7 +190,7 @@ from app.repositories import (
     user_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
-from app.schemas.agent import ParkedCall
+from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -605,6 +614,14 @@ class PausedRunState(BaseModel):
     )
     tool_call_ids: dict[str, str] = Field(
         description="Approval id -> the tool call it parked, so a decision can be replayed"
+    )
+    questions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The run's own `ask_user_question` calls left unanswered, by tool call id "
+            "(#2064). Answered from the person's reply on resume - or as declined, "
+            "where the run parked on an approval in the same step"
+        ),
     )
     delegated_approvals: dict[str, str] = Field(
         default_factory=dict,
@@ -1263,6 +1280,18 @@ def _outcome(
     return agent_run.result
 
 
+def _question_calls(state: PausedRunState) -> dict[str, ToolCallPart]:
+    """The parked `ask_user_question` calls, as the model made them, by tool call id."""
+    wanted = set(state.questions)
+    return {
+        part.tool_call_id: part
+        for message in ModelMessagesTypeAdapter.validate_python(state.messages)
+        if isinstance(message, ModelResponse)
+        for part in message.parts
+        if isinstance(part, ToolCallPart) and part.tool_call_id in wanted
+    }
+
+
 def _classify_output(
     result: AgentRunResult[str | DeferredToolRequests], *, parked: dict[str, str]
 ) -> tuple[RunStatus, str, PausedRunState | None]:
@@ -1276,11 +1305,21 @@ def _classify_output(
     chat surface re-raises so the waiting caller is told why) and stay with each.
     """
     if isinstance(result.output, DeferredToolRequests):
+        questions = [
+            call.tool_call_id for call in result.output.calls if call.tool_name == ASK_USER_TOOL
+        ]
         paused = PausedRunState(
             messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
             tool_call_ids=parked,
+            questions=questions,
         )
-        return RunStatus.AWAITING_APPROVAL, "", paused
+        # Waiting on a decision outranks waiting on an answer: the approval queue
+        # is where somebody can release it, and a question in the same step is
+        # answered as declined when that happens.
+        status = (
+            RunStatus.AWAITING_ANSWER if questions and not parked else RunStatus.AWAITING_APPROVAL
+        )
+        return status, "", paused
     return RunStatus.COMPLETED, result.output, None
 
 
@@ -3845,8 +3884,19 @@ class AgentRunnerService:
             if approval.status == ApprovalStatus.PENDING.value
         ]
 
-    async def resume(self, ctx: AuthContext, run_id: UUID) -> RunSegment:
+    async def resume(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        answers: Mapping[str, object] | None = None,
+    ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
+
+        `answers` is what a run parked on `ask_user` questions continues with: each
+        parked question's tool result, keyed by its call (#2064). A run waiting on
+        an answer is refused without one for every question; a run that parked on
+        an approval in the same step answers its questions as declined.
 
         Runs the *version the run was parked on*, not whatever is published now:
         the stored conversation was produced by that spec, and continuing it
@@ -3887,7 +3937,7 @@ class AgentRunnerService:
         )
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
-        if run.status != RunStatus.AWAITING_APPROVAL.value:
+        if run.status not in (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value):
             raise BadRequestError(
                 message="This run is not waiting for approval",
                 details={"run_id": str(run_id), "status": run.status},
@@ -3898,8 +3948,18 @@ class AgentRunnerService:
                 details={"run_id": str(run_id)},
             )
         state = PausedRunState.model_validate(run.paused_state)
+        given = answers or {}
+        if run.status == RunStatus.AWAITING_ANSWER.value and any(
+            question not in given for question in state.questions
+        ):
+            raise BadRequestError(
+                message="This run is waiting for an answer from the person it asked",
+                details={"run_id": str(run_id)},
+            )
 
         decided, plan = await self._decisions(ctx, run=run, state=state)
+        for question in state.questions:
+            plan.results.calls[question] = given.get(question, DECLINED)
 
         agent, spec = await self._parked_spec(ctx, run)
         # The continuation traces where the original did: the environment that
@@ -4047,6 +4107,77 @@ class AgentRunnerService:
                 ),
                 details={"run_id": str(run.id), "status": run.status},
             ) from exc
+
+    async def answer(
+        self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
+    ) -> RunSegment:
+        """Answer the questions a run parked on, and continue it (#2064).
+
+        `responses` holds, per parked call, the answers the question card sends - a
+        list parallel to the questions, read as leniently as a live card's answers
+        are. Only the person the run ran as may answer: the questions were put to
+        them, and an answer is words in their mouth. A question left out is
+        answered as declined, which the model is told and carries on from.
+
+        Raises:
+            NotFoundError: If the run is not in this organization.
+            AuthorizationError: If the caller is not the person it asked.
+            BadRequestError: If the run is not waiting for an answer, or an
+                answer names a question it did not ask.
+        """
+        run = await self.get_run(ctx, run_id)
+        if run.status != RunStatus.AWAITING_ANSWER.value or run.paused_state is None:
+            raise BadRequestError(
+                message="This run is not waiting for an answer",
+                details={"run_id": str(run_id), "status": run.status},
+            )
+        if run.user_id != ctx.user_id:
+            raise AuthorizationError(message="Only the person it asked can answer this question")
+        state = PausedRunState.model_validate(run.paused_state)
+        unknown = sorted(set(responses) - set(state.questions))
+        if unknown:
+            raise BadRequestError(
+                message="An answer names a question this run did not ask",
+                details={"tool_call_ids": unknown},
+            )
+        asked = {
+            tool_call_id: AskUserRequest.from_tool_call(call)
+            for tool_call_id, call in _question_calls(state).items()
+        }
+        results: dict[str, object] = {
+            tool_call_id: ask_user_result(
+                asked[tool_call_id],
+                answers_to_response(asked[tool_call_id], responses[tool_call_id]),
+            )
+            if tool_call_id in responses
+            else DECLINED
+            for tool_call_id in state.questions
+        }
+        return await self.resume(ctx, run_id, answers=results)
+
+    async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
+        """The questions this run is waiting on the caller to answer, right now.
+
+        Only for the person it asked - to anybody else a run waiting on somebody's
+        answer has nothing to offer them - and empty for a run not waiting at all.
+        """
+        if (
+            run.status != RunStatus.AWAITING_ANSWER.value
+            or run.paused_state is None
+            or run.user_id != ctx.user_id
+        ):
+            return []
+        state = PausedRunState.model_validate(run.paused_state)
+        return [
+            ParkedQuestion(
+                tool_call_id=tool_call_id,
+                questions=[
+                    QuestionItem.model_validate(item)
+                    for item in wire_questions(AskUserRequest.from_tool_call(call))
+                ],
+            )
+            for tool_call_id, call in _question_calls(state).items()
+        ]
 
     async def _decisions(
         self, ctx: AuthContext, *, run: AgentRun, state: PausedRunState

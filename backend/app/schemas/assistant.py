@@ -39,4 +39,4 @@ class AssistantUpdate(BaseSchema):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     greeting: str | None = Field(default=None, max_length=500)
     model_profile_id: UUID | None = None
-    collection_ids: list[UUID] | None = None
+    collection_ids: list[UUID] = Field(default_factory=list)

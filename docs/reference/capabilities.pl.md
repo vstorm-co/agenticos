@@ -1,5 +1,5 @@
 ---
-source_sha: "15a509a9c6b6"
+source_sha: "e48316b831b8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1887,6 +1887,15 @@ Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
 domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
 wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
 dowiaduje się, że osoba odmówiła.
+
+Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
+otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
+odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
+urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
+może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
+`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+(`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
+osoba nie odpowiedziała na czas.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

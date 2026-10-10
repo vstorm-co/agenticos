@@ -1,5 +1,5 @@
 ---
-source_sha: "847a0d40a27d"
+source_sha: "bb3e47ca3bb7"
 ---
 
 # Die Konsole { #the-console }
@@ -213,6 +213,12 @@ werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe
 gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
+
+**Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
+Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
+Nachricht, wenn sie aufgeht, die Tab-Leiste tritt beim Tippen zur Seite, Enter
+beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
+Felder sind nie so klein, dass iOS hineinzoomt.
 
 **Einem Durchlauf zusehen.** Ein Agent mit
 [Browser-Automatisierung](reference/capabilities.md#browser-automation-choose) öffnet

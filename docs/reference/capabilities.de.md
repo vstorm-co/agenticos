@@ -1,5 +1,5 @@
 ---
-source_sha: "15a509a9c6b6"
+source_sha: "e48316b831b8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2030,6 +2030,16 @@ Das Tool und sein Schema stammen aus `AskUser` in pydantic-ai-harness. Es ist in
 jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abschalten.
 Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
 Agent, dass die Person abgelehnt hat.
+
+Eine unbeantwortete Frage beendet die Arbeit des Agents nicht endgültig. Verlässt
+die Person die offene Karte, parkt der Run darauf — im Run-Verlauf als **Wartet
+auf eine Antwort** — und die Karte kehrt zurück, sobald sie die Unterhaltung
+wieder öffnet, auf jedem Gerät. Die Antwort setzt den Run dort fort, wo er
+stehen blieb. Antworten kann nur die gefragte Person, über
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` liest die Karte
+zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
+abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
+geantwortet hat.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

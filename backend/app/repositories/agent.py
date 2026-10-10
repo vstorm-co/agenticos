@@ -398,7 +398,9 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
             or_(
                 AgentRun.status == RunStatus.RUNNING.value,
                 and_(
-                    AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+                    AgentRun.status.in_(
+                        [RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value]
+                    ),
                     AgentRun.paused_state.isnot(None),
                 ),
             )

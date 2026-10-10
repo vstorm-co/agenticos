@@ -3,6 +3,7 @@ import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { OnScreenKeyboard } from "@/components/layout/on-screen-keyboard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
@@ -25,7 +26,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
-        <div className="flex h-screen flex-col">
+        <OnScreenKeyboard />
+        {/* As tall as what can be seen, keyboard and address bar included -
+            see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
+        <div className="flex h-[var(--app-height,100dvh)] flex-col">
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}

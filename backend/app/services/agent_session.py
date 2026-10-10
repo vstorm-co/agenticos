@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
@@ -123,6 +124,10 @@ def _turn_failed(exc: Exception) -> str:
     )
 
 
+class _LeftUnanswered(Exception):
+    """The socket went away while the run's own question card was open."""
+
+
 class AgentSession:
     """One WebSocket session with the AI agent."""
 
@@ -161,6 +166,10 @@ class AgentSession:
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        # Whether the open round is the run's own `ask_user` card, which outlives
+        # the socket: left unanswered, it parks the run rather than being read as
+        # declined (#2064). A delegate's question has no such afterlife.
+        self._round_parks = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -342,7 +351,10 @@ class AgentSession:
         # wait ends.
         fut = self._ask_user_future
         if fut is not None and not fut.done():
-            fut.set_result([])
+            if self._round_parks:
+                fut.set_exception(_LeftUnanswered())
+            else:
+                fut.set_result([])
         # The same for a run waiting on a connection: nobody is there to make it.
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
@@ -513,7 +525,8 @@ class AgentSession:
                     # Stored as `awaiting_approval`, so reloading the page keeps
                     # saying the step is waiting on a person (#601). The frame
                     # below carries the same calls to whoever is watching live.
-                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
+                    | set(turn.questions),
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
@@ -693,11 +706,18 @@ class AgentSession:
         async with self._ask_lock:
             self._pending_questions = [question.question for question in request.questions]
             self._pending_asked_by = asking_delegate()
+            self._round_parks = self._pending_asked_by is None
             try:
                 answers = await self._send_and_wait(wire_questions(request))
+            except _LeftUnanswered:
+                # The person went away with the card open: the run parks on the
+                # call, and answering it later - here or on another device -
+                # continues it.
+                raise CallDeferred from None
             finally:
                 self._pending_questions = None
                 self._pending_asked_by = None
+                self._round_parks = False
         return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -29,6 +29,12 @@ async def approval_expiry_sweep_flow() -> int:
     """
     async with get_db_context() as db:
         expired = await ApprovalService(db).expire_stale()
+        # Questions an agent asked that nobody answered park their runs the same
+        # way, on their own shorter clock (#2064).
+        unanswered = await ApprovalService(db).expire_unanswered()
+
+    if unanswered:
+        logger.warning("Question sweep: %d run(s) ended with a question unanswered", unanswered)
 
     if expired:
         # Worth a warning rather than an info: each one is a decision somebody

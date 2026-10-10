@@ -1692,6 +1692,15 @@ class TestResumingIntoADelegation:
     run's stored state the continuation comes out of.
     """
 
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these runs is the organization's assistant's (#2063)."""
+        with patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_the_reassembled_tree_holds_the_place_the_parked_delegate_left(self):
         parked_at = "the-parents-task-call"
         frame = {

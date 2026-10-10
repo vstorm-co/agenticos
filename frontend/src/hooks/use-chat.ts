@@ -15,7 +15,6 @@ import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
   AskUserAnswer,
-  AskUserChoice,
   AskUserQuestion,
   BrowserFrame,
   ChatMessageFile,
@@ -32,7 +31,8 @@ import type {
   TurnUsage,
   WSEvent,
 } from "@/types";
-import type { ParkedCall, ResumedRun } from "@/types/runs";
+import type { ParkedCall, ParkedQuestion, ResumedRun, WireQuestion } from "@/types/runs";
+import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import {
   applyDelegationFrame,
   closeOpenDelegations,
@@ -171,6 +171,17 @@ export function useChat(options: UseChatOptions = {}) {
   // effect reads as "a reloaded parked run".
   const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // Set when those questions belong to a run parked on them - asked of somebody
+  // who left before answering - so the answer continues the run over HTTP
+  // rather than going to a socket whose turn ended long ago (#2064).
+  const [parkedQuestion, setParkedQuestion] = useState<{
+    runId: string;
+    toolCallId: string;
+    messageId: string | null;
+  } | null>(null);
+  // Runs this hook has already put a parked question up for, as the approvals
+  // ref above does for the same reason.
+  const questionOfferedForRef = useRef<Set<string>>(new Set());
   // A run paused until the person connects one of their own services, or `null`.
   const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
   // Whether a run on the server is still waiting on that card. Beside the state
@@ -671,24 +682,8 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "ask_user": {
-          const { questions } = wsEvent.data as {
-            questions: {
-              question: string;
-              header?: string | null;
-              options?: AskUserChoice[];
-              multi_select?: boolean;
-              allow_custom: boolean;
-            }[];
-          };
-          setPendingQuestions(
-            (questions ?? []).map((q) => ({
-              question: q.question,
-              header: q.header,
-              options: q.options ?? [],
-              multiSelect: q.multi_select ?? false,
-              allowCustom: q.allow_custom,
-            })),
-          );
+          const { questions } = wsEvent.data as { questions: WireQuestion[] };
+          setPendingQuestions(toAskUserQuestions(questions ?? []));
           break;
         }
 
@@ -996,8 +991,10 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setParkedQuestion(null);
     setPendingConnection(null);
     approvalOfferedForRef.current = new Set();
+    questionOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -1055,6 +1052,7 @@ export function useChat(options: UseChatOptions = {}) {
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setParkedQuestion(null);
     setPendingConnection(null);
     // The card goes with the conversation it was in, and the run waiting on it
     // is told to carry on without - or it holds the turn open behind a card
@@ -1149,6 +1147,181 @@ export function useChat(options: UseChatOptions = {}) {
     [],
   );
 
+  /** Put an agent's unanswered question back in front of its person (#2064). */
+  const offerParkedQuestion = useCallback(
+    (question: ParkedQuestion, runId: string, messageId: string | null) => {
+      setPendingQuestions(toAskUserQuestions(question.questions));
+      setParkedQuestion({ runId, toolCallId: question.tool_call_id, messageId });
+    },
+    [],
+  );
+
+  /**
+   * Draw what a continued run did, however it was continued - decided approvals,
+   * or an answered question - and put back whatever it is now waiting on.
+   *
+   * `settledIds` are the steps already on screen in the message that parked: the
+   * continuation reports them too, and drawing them again would put one call in
+   * the turn twice.
+   */
+  const showContinuation = useCallback(
+    (resumed: ResumedRun, runId: string, settledIds: Set<string>) => {
+      // Close whatever delegate parked here. The resume ran over HTTP and its
+      // frames went nowhere this socket can see, so a delegation panel left
+      // `awaiting_approval` never got its `subagent_complete` and would read
+      // "waiting for approval" forever - the answer above it, the panel below it
+      // frozen. The resumed run's own status is the outcome those panels take;
+      // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
+      setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
+      // A continuation can stop again: the agent reaches a second gated call and
+      // parks on it. Nothing announces that here - the resume ran over HTTP, so
+      // no `tool_approval_required` frame arrives - so the panel used to close on
+      // a run that was still blocked, and the only way to finish it was the
+      // approvals queue on another page.
+      const parkedAgain = resumed.parked ?? [];
+      const parkedAgainIds = new Set(parkedAgain.map((call) => call.tool_call_id));
+      // And it can ask again: a question its person is not here to answer live,
+      // because the continuation runs over HTTP (#2064).
+      const askedAgain = resumed.questions ?? [];
+      const askedAgainIds = new Set(askedAgain.map((question) => question.tool_call_id));
+      // What the continuation did, as steps. Nothing else carries them: the
+      // agent ran inside the resume request, so its `tool_call` frames went to
+      // that response and not to this socket. Drawing only the answer left the
+      // second half of the turn missing - approve a command and nothing appears
+      // to run, then a second approval arrives for a step nobody has seen, and
+      // the transcript ends with a reply that accounts for neither.
+      //
+      // The calls just decided are dropped: their steps are already on screen in
+      // the message that parked, and were marked finished above.
+      const steps: ToolCall[] = (resumed.steps ?? [])
+        .filter((step) => !settledIds.has(step.tool_call_id))
+        .map((step) => ({
+          id: step.tool_call_id,
+          name: step.tool_name,
+          args: step.args,
+          result: step.result ?? undefined,
+          // A call with a pending approval against it has not run and never
+          // will until somebody decides - the state the panel below is asking
+          // about, not a spinner that resolves.
+          status: parkedAgainIds.has(step.tool_call_id)
+            ? "awaiting_approval"
+            : askedAgainIds.has(step.tool_call_id)
+              ? "awaiting_answer"
+              : "completed",
+        }));
+      // **The answer is shown, not discarded.** `resume_run` runs the agent and
+      // returns what it said, but it returns it *here* - over HTTP, to the caller
+      // - and not over the socket this conversation is streaming. So the reply
+      // used to exist and be thrown away: the panel vanished, a toast said the
+      // run was continuing, and the chat then sat unchanged forever. Reloading
+      // the page showed the finished turn, which is how this looked like an
+      // approval that did nothing.
+      //
+      // One message for the whole continuation, steps then answer, which is the
+      // order they happened in and the order a reloaded conversation replays
+      // them in. Nothing is added for a continuation that neither called
+      // anything nor said anything - a resume into a refusal has both empty.
+      const continuation = clientId();
+      if (steps.length > 0 || resumed.output) {
+        // A finished assistant message, which is also what makes the file panel
+        // re-read: `turns` counts those, and a resumed call is usually the one
+        // that was gated - an `execute`, a write - so the workspace beside the
+        // transcript is exactly what changed.
+        addMessage({
+          id: continuation,
+          role: "assistant",
+          content: resumed.output,
+          toolCalls: steps,
+          parts: buildAssistantParts(steps, resumed.output, continuation),
+          timestamp: new Date(),
+          conversationId: conversationId || undefined,
+          // The same run as the turn that parked, which is what draws the two as
+          // one turn instead of as two agents answering the same question.
+          runId,
+          // What the run has cost *in total*, which is what the row carries -
+          // the continuation's own share would read as the price of the whole
+          // answer. Drawn once, under the end of the turn; the figure the
+          // parked segment recorded is superseded rather than added to.
+          usage: {
+            input_tokens: resumed.input_tokens,
+            output_tokens: resumed.output_tokens,
+            cost_usd: resumed.cost_usd ?? "0",
+            cost_is_partial: resumed.cost_is_partial,
+            // A resume is not told where the run stands against its budget, and
+            // an invented percentage is worse than a bar that is not drawn.
+            budget_percent: null,
+            agent_budget_percent: null,
+            sandbox: null,
+            context: null,
+          },
+          // The agent that was answering when the run parked. Without it the
+          // continuation rendered under the generic robot with no name beside it,
+          // so the second half of one turn looked like a different agent had
+          // written it - the same turn, two faces.
+          agentId: turnAgentIdRef.current ?? undefined,
+        });
+      }
+      if (parkedAgain.length > 0) {
+        setPendingApproval({
+          actionRequests: parkedAgain.map((call) => ({
+            id: call.id,
+            tool_call_id: call.tool_call_id ?? "",
+            tool_name: call.tool_name,
+            args: call.tool_args,
+          })),
+          reviewConfigs: parkedAgain.map((call) => ({
+            tool_name: call.tool_name,
+            allow_edit: false,
+          })),
+          runId,
+          // The message the new step was just drawn in, not the one that parked
+          // first. Deciding writes the outcome back onto the step it belongs to,
+          // and pointing at the older message meant every decision after the
+          // first landed on a tool call that message does not contain.
+          messageId: continuation,
+        });
+      }
+      // The continuation spent money too, and it reports the run's total rather
+      // than its own share - which is exactly why this re-reads the sum instead
+      // of adding to it. See `refreshConversationCost`.
+      if (askedAgain.length > 0) {
+        offerParkedQuestion(askedAgain[0]!, runId, continuation);
+      }
+      void refreshConversationCost();
+    },
+    [addMessage, conversationId, offerParkedQuestion, refreshConversationCost],
+  );
+
+  // The same for a question: an agent asked something and its person left
+  // before answering, so the run parked on it (#2064). Reopening the
+  // conversation is where the card comes back - and only for the person asked,
+  // which the endpoint decides by answering everybody else with nothing.
+  useEffect(() => {
+    if (pendingQuestions !== null || isProcessing) return;
+    const askedMessage = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer"),
+      );
+    if (askedMessage === undefined || askedMessage.runId === undefined) return;
+    const runId = askedMessage.runId;
+    if (questionOfferedForRef.current.has(runId)) return;
+    questionOfferedForRef.current.add(runId);
+    const conversation = activeConversationId;
+    void (async () => {
+      try {
+        const asked = await apiClient.get<ParkedQuestion[]>(`/runs/${runId}/questions`);
+        if (asked.length === 0 || panelsBelongTo.current !== conversation) return;
+        offerParkedQuestion(asked[0]!, runId, askedMessage.id);
+      } catch {
+        // Quiet, like the approval restore above: the transcript still says the
+        // step is waiting, and a toast over it buys nothing.
+      }
+    })();
+  }, [messages, pendingQuestions, isProcessing, activeConversationId, offerParkedQuestion]);
+
   const sendResumeDecisions = useCallback(
     async (decisions: Decision[]) => {
       // Read from state and listed in the deps below. A ref would avoid
@@ -1206,118 +1379,11 @@ export function useChat(options: UseChatOptions = {}) {
             }
           }
         }
-        // Close whatever delegate parked here. The resume ran over HTTP and its
-        // frames went nowhere this socket can see, so a delegation panel left
-        // `awaiting_approval` never got its `subagent_complete` and would read
-        // "waiting for approval" forever - the answer above it, the panel below it
-        // frozen. The resumed run's own status is the outcome those panels take;
-        // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
-        setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
-        // A continuation can stop again: the agent reaches a second gated call and
-        // parks on it. Nothing announces that here - the resume ran over HTTP, so
-        // no `tool_approval_required` frame arrives - so the panel used to close on
-        // a run that was still blocked, and the only way to finish it was the
-        // approvals queue on another page.
-        const parkedAgain = resumed.parked ?? [];
-        const parkedAgainIds = new Set(parkedAgain.map((call) => call.tool_call_id));
-        // What the continuation did, as steps. Nothing else carries them: the
-        // agent ran inside the resume request, so its `tool_call` frames went to
-        // that response and not to this socket. Drawing only the answer left the
-        // second half of the turn missing - approve a command and nothing appears
-        // to run, then a second approval arrives for a step nobody has seen, and
-        // the transcript ends with a reply that accounts for neither.
-        //
-        // The calls just decided are dropped: their steps are already on screen in
-        // the message that parked, and were marked finished above.
-        const decided = new Set(parked.actionRequests.map((request) => request.tool_call_id));
-        const steps: ToolCall[] = (resumed.steps ?? [])
-          .filter((step) => !decided.has(step.tool_call_id))
-          .map((step) => ({
-            id: step.tool_call_id,
-            name: step.tool_name,
-            args: step.args,
-            result: step.result ?? undefined,
-            // A call with a pending approval against it has not run and never
-            // will until somebody decides - the state the panel below is asking
-            // about, not a spinner that resolves.
-            status: parkedAgainIds.has(step.tool_call_id) ? "awaiting_approval" : "completed",
-          }));
-        // **The answer is shown, not discarded.** `resume_run` runs the agent and
-        // returns what it said, but it returns it *here* - over HTTP, to the caller
-        // - and not over the socket this conversation is streaming. So the reply
-        // used to exist and be thrown away: the panel vanished, a toast said the
-        // run was continuing, and the chat then sat unchanged forever. Reloading
-        // the page showed the finished turn, which is how this looked like an
-        // approval that did nothing.
-        //
-        // One message for the whole continuation, steps then answer, which is the
-        // order they happened in and the order a reloaded conversation replays
-        // them in. Nothing is added for a continuation that neither called
-        // anything nor said anything - a resume into a refusal has both empty.
-        const continuation = clientId();
-        if (steps.length > 0 || resumed.output) {
-          // A finished assistant message, which is also what makes the file panel
-          // re-read: `turns` counts those, and a resumed call is usually the one
-          // that was gated - an `execute`, a write - so the workspace beside the
-          // transcript is exactly what changed.
-          addMessage({
-            id: continuation,
-            role: "assistant",
-            content: resumed.output,
-            toolCalls: steps,
-            parts: buildAssistantParts(steps, resumed.output, continuation),
-            timestamp: new Date(),
-            conversationId: conversationId || undefined,
-            // The same run as the turn that parked, which is what draws the two as
-            // one turn instead of as two agents answering the same question.
-            runId: parked.runId,
-            // What the run has cost *in total*, which is what the row carries -
-            // the continuation's own share would read as the price of the whole
-            // answer. Drawn once, under the end of the turn; the figure the
-            // parked segment recorded is superseded rather than added to.
-            usage: {
-              input_tokens: resumed.input_tokens,
-              output_tokens: resumed.output_tokens,
-              cost_usd: resumed.cost_usd ?? "0",
-              cost_is_partial: resumed.cost_is_partial,
-              // A resume is not told where the run stands against its budget, and
-              // an invented percentage is worse than a bar that is not drawn.
-              budget_percent: null,
-              agent_budget_percent: null,
-              sandbox: null,
-              context: null,
-            },
-            // The agent that was answering when the run parked. Without it the
-            // continuation rendered under the generic robot with no name beside it,
-            // so the second half of one turn looked like a different agent had
-            // written it - the same turn, two faces.
-            agentId: turnAgentIdRef.current ?? undefined,
-          });
-        }
-        if (parkedAgain.length > 0) {
-          setPendingApproval({
-            actionRequests: parkedAgain.map((call) => ({
-              id: call.id,
-              tool_call_id: call.tool_call_id ?? "",
-              tool_name: call.tool_name,
-              args: call.tool_args,
-            })),
-            reviewConfigs: parkedAgain.map((call) => ({
-              tool_name: call.tool_name,
-              allow_edit: false,
-            })),
-            runId: parked.runId,
-            // The message the new step was just drawn in, not the one that parked
-            // first. Deciding writes the outcome back onto the step it belongs to,
-            // and pointing at the older message meant every decision after the
-            // first landed on a tool call that message does not contain.
-            messageId: continuation,
-          });
-        }
-        // The continuation spent money too, and it reports the run's total rather
-        // than its own share - which is exactly why this re-reads the sum instead
-        // of adding to it. See `refreshConversationCost`.
-        void refreshConversationCost();
+        showContinuation(
+          resumed,
+          parked.runId,
+          new Set(parked.actionRequests.map((request) => request.tool_call_id)),
+        );
       } catch (error) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalStatus !== null) {
@@ -1339,25 +1405,52 @@ export function useChat(options: UseChatOptions = {}) {
         toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [
-      pendingApproval,
-      updateToolCallPart,
-      decideApproval,
-      resumeRun,
-      addMessage,
-      conversationId,
-      refreshConversationCost,
-      tErrors,
-    ],
+    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, showContinuation, tErrors],
+  );
+
+  /** Answer a question a run parked on, which continues the run (#2064). */
+  const answerParkedQuestion = useCallback(
+    async (parked: NonNullable<typeof parkedQuestion>, answers: AskUserAnswer[]) => {
+      setPendingQuestions(null);
+      setParkedQuestion(null);
+      if (parked.messageId !== null) {
+        updateToolCallPart(parked.messageId, parked.toolCallId, { status: "running" });
+      }
+      try {
+        const resumed = await apiClient.post<ResumedRun>(`/runs/${parked.runId}/answers`, {
+          responses: { [parked.toolCallId]: answers },
+        });
+        if (parked.messageId !== null) {
+          const settled = (resumed.settled ?? []).find(
+            (call) => call.tool_call_id === parked.toolCallId,
+          );
+          updateToolCallPart(parked.messageId, parked.toolCallId, {
+            status: "completed",
+            result: settled?.result,
+          });
+        }
+        showContinuation(resumed, parked.runId, new Set([parked.toolCallId]));
+      } catch (error) {
+        // The run is still parked unless the continuation itself failed, which the
+        // backend recorded; either way the person is told, and the transcript keeps
+        // its waiting step until they reload.
+        toast.error(getErrorMessage(error, tErrors));
+      }
+    },
+    [updateToolCallPart, showContinuation, tErrors],
   );
 
   const sendAskUserResponses = useCallback(
     (answers: AskUserAnswer[]) => {
+      if (parkedQuestion !== null) {
+        void answerParkedQuestion(parkedQuestion, answers);
+        return;
+      }
       if (!isConnected) return;
       setPendingQuestions(null);
       sendMessage({ type: "ask_user_response", answers });
     },
-    [isConnected, sendMessage],
+    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage],
   );
 
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */

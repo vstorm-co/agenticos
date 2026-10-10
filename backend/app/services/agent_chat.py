@@ -263,6 +263,11 @@ class ChatTurn:
     decision.
     """
 
+    questions: tuple[str, ...] = ()
+    """The `ask_user_question` calls this turn parked on, by tool call id - asked
+    of somebody who left before answering (#2064). Their steps are stored waiting,
+    and answering them continues the run."""
+
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
 
@@ -563,6 +568,7 @@ class ChatAgentRunner:
             agent_version_id=prepared.run.agent_version_id,
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
+            questions=tuple(paused.questions) if paused is not None else (),
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
             overhead_tokens=prepared.built.context.overhead,

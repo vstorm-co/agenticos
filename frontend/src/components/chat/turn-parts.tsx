@@ -316,7 +316,13 @@ export function mustShowEveryStep(parts: MessagePart[]): boolean {
   return parts.some((part) => {
     const call = part.toolCall;
     if (!call) return false;
-    if (call.status === "error" || call.status === "awaiting_approval") return true;
+    if (
+      call.status === "error" ||
+      call.status === "awaiting_approval" ||
+      call.status === "awaiting_answer"
+    ) {
+      return true;
+    }
     return toolEntry(call.name)?.opensOnSight === true;
   });
 }

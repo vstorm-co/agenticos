@@ -28,6 +28,10 @@ export function useFollowContent(
       scrolling.scrollTop = scrolling.scrollHeight;
     });
     observer.observe(growing);
+    // And the scroller itself, which shrinks when a phone's keyboard opens: the
+    // content did not grow, so without this the last message slid under the
+    // keyboard while the reader was following along (#2066).
+    observer.observe(scrolling);
     return () => observer.disconnect();
   }, [scroller, content, paused]);
 }

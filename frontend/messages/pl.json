@@ -3037,7 +3037,8 @@
     "removePromptVariable": "Usuń {name}",
     "promptVariableName": "Nazwa",
     "promptVariableNamePlaceholder": "support_email",
-    "addPromptVariable": "Dodaj zmienną"
+    "addPromptVariable": "Dodaj zmienną",
+    "runAwaitingAnswer": "Oczekuje na odpowiedź"
   },
   "steps": {
     "skills-gallery": {

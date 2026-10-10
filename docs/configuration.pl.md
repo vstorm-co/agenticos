@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "f2db8cef8a07"
 ---
 
 # Konfiguracja { #configuration }
@@ -459,6 +459,7 @@ drugiego, więc każda definicja usługi nosi własną.
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Jak długo zaparkowane wywołanie narzędzia czeka, zanim cogodzinne zamiatanie odrzuci je przez timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | Jak długo run czeka na odpowiedź na pytanie agenta, zanim to samo zamiatanie go zakończy |
 
 Trzy dni, bo musi objąć weekend: zatwierdzenie, które przychodzi w piątek po
 południu, jest tym, o którym nikt nie decyduje, a wygaszenie go w sobotę byłoby

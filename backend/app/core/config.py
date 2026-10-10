@@ -281,6 +281,9 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long an agent's unanswered `ask_user` question keeps its run parked
+    # before the run is ended with the question expired (#2064).
+    QUESTION_EXPIRY_HOURS: int = 24
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in

@@ -2533,6 +2533,8 @@ class TestBindingAnMcpServerToAnAgent:
                 # Null rather than a list: the binding narrows nothing, so it
                 # gets whatever the connection allows.
                 "allowed_tools": None,
+                # Tools that change something wait for a person by default (#2060).
+                "approval": "writes",
             }
         ]
 

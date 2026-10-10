@@ -1801,6 +1801,15 @@ default in every new agent and every template, and an author can switch it off.
 Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
 the person declined.
 
+A question nobody answers does not stop the agent's work for good. If the person
+leaves with the card open, the run parks on it - **Waiting for an answer** in run
+history - and the card comes back when they reopen the conversation, on any
+device. Answering it continues the run from where it stopped. Only the person
+asked can answer, through `POST /runs/{run_id}/answers`; `GET
+/runs/{run_id}/questions` reads the card back. After a day
+(`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
+the person did not answer in time.
+
 ## What a binding may change
 
 The catalog is the deployment's answer to "what exists". A spec's

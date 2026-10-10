@@ -289,4 +289,27 @@ describe("ChatInput attachments", () => {
 
     await waitFor(() => expect(state.upload).toHaveBeenCalledTimes(2));
   });
+
+  it("sends on Enter at a desk, and starts a new line on a touch keyboard", async () => {
+    // A phone's keyboard has no Shift to hold for a line break, and the send
+    // button is a thumb away (#2066).
+    const onSend = vi.fn();
+    const { unmount } = render(<ChatInput onSend={onSend} />);
+    const box = screen.getByRole("textbox");
+    expect(box).toHaveAttribute("enterkeyhint", "send");
+    await userEvent.type(box, "hi{Enter}");
+    expect(onSend).toHaveBeenCalledOnce();
+    unmount();
+
+    const desk = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    onSend.mockClear();
+    render(<ChatInput onSend={onSend} />);
+    const touch = screen.getByRole("textbox");
+    expect(touch).toHaveAttribute("enterkeyhint", "enter");
+    await userEvent.type(touch, "one{Enter}two");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(touch).toHaveValue("one\ntwo");
+    window.matchMedia = desk;
+  });
 });

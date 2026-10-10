@@ -670,7 +670,8 @@
     "removePromptVariable": "{name} entfernen",
     "promptVariableName": "Name",
     "promptVariableNamePlaceholder": "support_email",
-    "addPromptVariable": "Variable hinzufügen"
+    "addPromptVariable": "Variable hinzufügen",
+    "runAwaitingAnswer": "Wartet auf eine Antwort"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -982,7 +983,8 @@
       "stopRecording": "Aufnahme stoppen",
       "uploadFailed": "Upload fehlgeschlagen",
       "voiceInput": "Spracheingabe",
-      "voiceUnsupported": "Spracheingabe wird nur in Chrome unterstützt. Nutzen Sie Chrome für Sprache-zu-Text."
+      "voiceUnsupported": "Spracheingabe wird nur in Chrome unterstützt. Nutzen Sie Chrome für Sprache-zu-Text.",
+      "addToMessage": "Zur Nachricht hinzufügen"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",
