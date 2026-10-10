@@ -53,6 +53,10 @@ import * as orgGroups from "./orgs/[id]/groups/route";
 import * as orgGroup from "./orgs/[id]/groups/[groupId]/route";
 import * as orgGroupMembers from "./orgs/[id]/groups/[groupId]/members/route";
 import * as orgGroupMember from "./orgs/[id]/groups/[groupId]/members/[userId]/route";
+import * as orgGroupResources from "./orgs/[id]/groups/[groupId]/resources/route";
+import * as orgGroupShareable from "./orgs/[id]/groups/[groupId]/shareable/route";
+import * as orgGroupShares from "./orgs/[id]/groups/[groupId]/shares/route";
+import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route";
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
 import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
@@ -127,6 +131,10 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/groups/[groupId]", orgGroup],
   ["orgs/[id]/groups/[groupId]/members", orgGroupMembers],
   ["orgs/[id]/groups/[groupId]/members/[userId]", orgGroupMember],
+  ["orgs/[id]/groups/[groupId]/resources", orgGroupResources],
+  ["orgs/[id]/groups/[groupId]/shareable", orgGroupShareable],
+  ["orgs/[id]/groups/[groupId]/shares", orgGroupShares],
+  ["orgs/[id]/groups/[groupId]/spend.csv", orgGroupSpendCsv],
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],
   ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
