@@ -214,8 +214,9 @@ export default function DashboardPage() {
   // every other page in the product puts its primary in (`New agent` on
   // Agents, `New collection` on Knowledge bases).
   const headerActions = (
-    <div className="flex items-center gap-2">
-      <div data-tour="dashboard-customize" className="flex items-center gap-2">
+    // Wrapping, because three buttons are wider than a phone (#2075).
+    <div className="flex flex-wrap items-center gap-2">
+      <div data-tour="dashboard-customize" className="flex flex-wrap items-center gap-2">
         <DashboardPresetMenu
           presets={presets}
           isCustom={isCustom}
