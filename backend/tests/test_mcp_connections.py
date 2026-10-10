@@ -41,7 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.secret_kinds import GithubOAuthAppSecret
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.mcp_connection import McpConnection
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionRead,
@@ -1306,6 +1306,24 @@ class TestAccountAuthorized:
         assert McpConnectionRead.from_model(usable).authorized is True
         gone = _connection(auth_token="sealed", secret_key_version=999)
         assert McpConnectionRead.from_model(gone).authorized is False
+
+    def test_a_grant_the_sweep_could_not_renew_reads_as_one_to_authorize_again(self):
+        """Not as a server that stopped answering: the person's next step is to
+        sign in again, which is what the list and the Builder offer (#2073)."""
+        expired = _connection(
+            auth_type="oauth",
+            oauth_payload='{"t":1}',
+            last_status="error",
+            last_error=AUTHORIZATION_EXPIRED,
+        )
+        down = _connection(
+            auth_type="oauth", oauth_payload='{"t":1}', last_status="error", last_error="timeout"
+        )
+
+        assert expired.authorization_expired is True
+        assert McpConnectionRead.from_model(expired).authorized is False
+        assert down.authorization_expired is False
+        assert McpConnectionRead.from_model(down).authorized is True
 
 
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:

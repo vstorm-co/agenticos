@@ -81,3 +81,26 @@ async def test_a_server_s_call_log(service: MagicMock) -> None:
     assert resp.json()["total"] == 1
     assert resp.json()["items"][0]["tool"] == "search"
     assert service.recent_calls.await_args.kwargs == {"connection_id": connection_id}
+
+
+@pytest.mark.parametrize(("scope", "said"), [("org", "org"), ("user", "user")])
+async def test_a_finished_consent_names_the_connection_and_whose_it_is(
+    service: MagicMock, scope: str, said: str
+) -> None:
+    """So the console can offer to add an organization's server to an agent on
+    its return (#2075), and offer nothing for a member's own."""
+    connection = McpConnection(id=uuid.uuid4(), scope=scope, name="notion")
+    service.oauth_callback = AsyncMock(return_value=connection)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            f"{V1}/me/mcp-connections/oauth/callback", json={"state": "s", "code": "c"}
+        )
+
+    assert response.json() == {
+        "ok": True,
+        "connection_name": "notion",
+        "connection_id": str(connection.id),
+        "scope": said,
+        "error": None,
+    }

@@ -1,5 +1,5 @@
 ---
-source_sha: "746500d703d8"
+source_sha: "57668d8e8424"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -511,6 +511,9 @@ Serwer, do którego agent jest podpięty kontem organizacji, pokazuje na swojej
 karcie w Builderze, czy odpowiedział przy ostatnim sprawdzeniu, kiedy to było i
 co zwrócił, jeśli się nie udało; kto zarządza serwerami MCP, może sprawdzić go
 tam ponownie.
+Konto OAuth, którego logowania nie udało się odnowić, jest pokazywane jako
+wymagające autoryzacji, a nie nieosiągalne, z przyciskiem **Autoryzuj**, by
+zalogować się ponownie.
 
 Na stronie MCP każde konto organizacji wymienia agentów, którzy są do niego
 podpięci, a **O co pytały agenty** pokazuje ostatnie wywołania jego narzędzi:
@@ -519,6 +522,9 @@ odpowiedzi nie jest pokazywana - zostaje w rozmowie. Każde wywołanie zapisuje 
 je obsłużyło, więc własne połączenie członka o tej samej nazwie nie trafia na
 listę, a wywołania sprzed tej zmiany nie są pokazywane wcale. API: `used_by` w `GET /api/v1/mcp-connections` i
 `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Dodaj do agenta** wpina konto w wersję roboczą wybranego agenta, a
+podłączenie konta kluczem lub zakończenie logowania proponuje to samo.
 
 ## Katalog { #the-catalog }
 

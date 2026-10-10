@@ -486,6 +486,8 @@ so they win over a user connection that happens to pick the same name.
 A server the agent is bound to through the organization's account shows on its
 card in the Builder whether it answered its last check, when that was and what
 it said if it failed; whoever manages MCP servers can check it again there.
+An OAuth account whose sign-in could not be renewed is shown as needing
+authorization rather than as unreachable, with **Authorize** to sign in again.
 
 On the MCP page, each of the organization's accounts names the agents bound to
 it, and **What agents asked it** lists the latest calls agents made to its
@@ -494,6 +496,9 @@ asked and answered is not shown - it stays in the conversation. Each call record
 member's own connection with the same name is not listed, and calls from before
 that was recorded are not listed at all. API: `used_by` on `GET /api/v1/mcp-connections`, and
 `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Add to an agent** binds an account into a chosen agent's draft, and connecting
+one with a key, or finishing its sign-in, offers the same.
 
 ## The catalog
 

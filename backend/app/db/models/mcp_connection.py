@@ -57,6 +57,16 @@ if TYPE_CHECKING:
     from app.db.models.user import User
 
 
+AUTHORIZATION_EXPIRED = "Authorization expired - reconnect this server"
+"""What the OAuth sweep records on a grant it could not renew.
+
+Read back by :attr:`McpConnection.authorization_expired`, so the one sentence is
+both the reason a person reads and the mark that the account needs authorizing
+again - a renewal that later succeeds, a fresh consent or a passing check
+overwrites it.
+"""
+
+
 class McpConnection(Base, TimestampMixin):
     """One MCP server connection, owned by a member or by an organization."""
 
@@ -262,6 +272,20 @@ class McpConnection(Base, TimestampMixin):
         return (
             f"<McpConnection(name={self.name} scope={self.scope} "
             f"url={self.url} enabled={self.is_enabled})>"
+        )
+
+    @property
+    def authorization_expired(self) -> bool:
+        """Whether the OAuth sweep found this grant past renewal (#2073).
+
+        A grant the provider revoked, or whose refresh token outlived itself,
+        still has its payload written, so `account_authorized` cannot see it; the
+        sweep's mark is how a person learns before an agent fails on it.
+        """
+        return (
+            self.auth_type == "oauth"
+            and self.last_status == "error"
+            and self.last_error == AUTHORIZATION_EXPIRED
         )
 
     @property

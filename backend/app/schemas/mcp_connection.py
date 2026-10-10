@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -148,7 +149,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             is_enabled=connection.is_enabled,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
-            authorized=connection.account_authorized,
+            # An expired grant reads as one to authorize again, on the list and in
+            # the Builder, rather than as a server that stopped answering (#2073).
+            authorized=connection.account_authorized and not connection.authorization_expired,
             granted_scopes=connection.granted_scopes,
             last_status=connection.last_status,
             last_error=connection.last_error,
@@ -372,4 +375,8 @@ class McpOAuthCallback(BaseSchema):
 class McpOAuthCallbackResult(BaseSchema):
     ok: bool
     connection_name: str | None = None
+    # Which connection the consent completed and whose it is, so the console can
+    # offer to add an organization's server to an agent on its return (#2075).
+    connection_id: UUID | None = None
+    scope: Literal["user", "org"] | None = None
     error: str | None = None

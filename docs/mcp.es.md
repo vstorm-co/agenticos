@@ -1,5 +1,5 @@
 ---
-source_sha: "746500d703d8"
+source_sha: "57668d8e8424"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -525,6 +525,9 @@ Un servidor al que el agent está vinculado con la cuenta de la organización
 muestra en su tarjeta del Builder si respondió en la última comprobación, cuándo
 fue y qué dijo si falló; quien gestiona los servidores MCP puede volver a
 comprobarlo ahí.
+Una cuenta OAuth cuyo inicio de sesión no se pudo renovar se muestra como
+pendiente de autorización y no como inalcanzable, con **Autorizar** para volver
+a iniciar sesión.
 
 En la página MCP, cada cuenta de la organización nombra los agents vinculados a
 ella, y **What agents asked it** lista las últimas llamadas a sus herramientas:
@@ -533,6 +536,9 @@ respondió no se muestra: se queda en la conversación. Cada llamada registra la
 la atendió, así que la conexión propia de un miembro con el mismo nombre no
 aparece, y las llamadas anteriores a ese registro no aparecen en absoluto. API: `used_by` en
 `GET /api/v1/mcp-connections` y `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Añadir a un agent** vincula una cuenta al borrador del agent elegido, y
+conectar una con una clave, o terminar su inicio de sesión, ofrece lo mismo.
 
 ## El catálogo { #the-catalog }
 

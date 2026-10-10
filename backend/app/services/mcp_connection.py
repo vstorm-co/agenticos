@@ -77,7 +77,7 @@ from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
-from app.db.models.mcp_connection import McpConnection
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -502,7 +502,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
             db_connection=connection,
             update_data={
                 "last_status": "ok" if healthy else "error",
-                "last_error": None if healthy else "Authorization expired - reconnect this server",
+                "last_error": None if healthy else AUTHORIZATION_EXPIRED,
                 "last_checked_at": datetime.now(UTC),
             },
         )

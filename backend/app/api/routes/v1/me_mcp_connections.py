@@ -119,7 +119,12 @@ async def complete_mcp_oauth(
         connection = await service.oauth_callback(state=data.state, code=data.code)
     except (OAuthError, NotFoundError) as exc:
         return McpOAuthCallbackResult(ok=False, error=str(exc))
-    return McpOAuthCallbackResult(ok=True, connection_name=connection.name)
+    return McpOAuthCallbackResult(
+        ok=True,
+        connection_name=connection.name,
+        connection_id=connection.id,
+        scope="org" if connection.scope == "org" else "user",
+    )
 
 
 @router.post("/{connection_id}/test", response_model=McpConnectionTestResult)

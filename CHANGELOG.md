@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An MCP account goes to an agent from where it lives.** Each usable
+  organization account on a server offers **Add to an agent**, and connecting one
+  with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **A capability's tuning is folded under Advanced settings.** Limits, cache
+  lifetimes, prompts and similar fields - thirty-two across seventeen
+  capabilities - sit behind a fold that opens by itself where one was set (#2070).
 - **Guardrails screen what an agent passes a tool.** A fourth edge,
   `redact_secrets_args`, `redact_pii_args` and `blocked_keywords_args`, off by
   default, checks every string in a tool call's arguments before the tool runs:
@@ -324,6 +330,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An MCP account whose OAuth sign-in could not be renewed asks to be authorized
+  again** on the server list and in the Builder, instead of reading as a server
+  that stopped answering (#2073).
 - **Self-query skips its inference at a budget cap** and searches unfiltered, as
   query expansion, compaction and system reminders already did, instead of ending
   the run (#1808, #1811).
