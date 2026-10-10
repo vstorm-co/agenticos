@@ -114,8 +114,11 @@ organization gets without installing anything, shared with everyone who may run
 agents (`agents:run`). It is bound to the
 [platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which
 agents can answer refund questions, why last night's run failed, or what is in a
-knowledge base. Ask it to draft an agent or invite a colleague, and it first
-shows you the exact call to approve. It acts with your permissions, so it finds
+knowledge base.
+
+Ask it to draft an agent or invite a colleague, and it first shows you what to approve: an
+agent draft as the draft itself - where it is created, its name, what it may do
+and its instructions - and anything else as the exact call. It acts with your permissions, so it finds
 and does what you could, and no more. Its cost counts like any agent's.
 
 A speech bubble above it speaks to what is waiting for you — approvals, an

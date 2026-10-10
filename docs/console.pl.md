@@ -1,5 +1,5 @@
 ---
-source_sha: "8f91cff37ae7"
+source_sha: "cb8a35a07876"
 ---
 
 # Konsola { #the-console }
@@ -122,8 +122,12 @@ każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkic
 którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 [serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
-albo co jest w bazie wiedzy. Poproś o szkic agenta albo zaproszenie
-współpracownika, a najpierw pokaże ci dokładne wywołanie do zatwierdzenia. Działa
+albo co jest w bazie wiedzy.
+
+Poproś o szkic agenta albo zaproszenie
+współpracownika, a najpierw pokaże ci, co
+zatwierdzasz: szkic agenta jako sam szkic - gdzie powstanie, jego nazwę, co może
+robić i jego instrukcje - a wszystko inne jako dokładne wywołanie. Działa
 z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
 koszty liczą się jak każdego agenta.
 

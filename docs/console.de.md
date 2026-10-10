@@ -1,5 +1,5 @@
 ---
-source_sha: "8f91cff37ae7"
+source_sha: "cb8a35a07876"
 ---
 
 # Die Konsole { #the-console }
@@ -132,9 +132,12 @@ Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agent
 ausführen dürfen (`agents:run`). Er ist an
 [den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.
 Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
-letzter Nacht fehlschlug oder was in einer Wissensbasis steht. Lassen Sie ihn einen
-Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst den genauen
-Aufruf zur Freigabe. Er handelt mit Ihren Berechtigungen, findet und tut also, was
+letzter Nacht fehlschlug oder was in einer Wissensbasis steht.
+
+Lassen Sie ihn einen
+Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst, was Sie freigeben: einen
+Agent-Entwurf als den Entwurf selbst - wo er angelegt wird, sein Name, was er tun
+darf und seine Anweisungen - und alles andere als den genauen Aufruf. Er handelt mit Ihren Berechtigungen, findet und tut also, was
 Sie könnten, und nicht mehr. Seine Kosten zählen wie die jedes Agents.
 
 Eine Sprechblase über ihm spricht an, was auf Sie wartet — Freigaben, eine

@@ -19,6 +19,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The AI Architect's agent draft is approved as a draft.** The approval card
+  shows where it is created, its name, what it may do in the capabilities' plain
+  names and its instructions, instead of the tool call's JSON (#1799).
 - **An MCP account goes to an agent from where it lives.** Each usable
   organization account on a server offers **Add to an agent**, and connecting one
   with a key or finishing its OAuth sign-in offers the same in the toast (#2075).

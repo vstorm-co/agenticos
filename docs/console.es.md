@@ -1,5 +1,5 @@
 ---
-source_sha: "8f91cff37ae7"
+source_sha: "cb8a35a07876"
 ---
 
 # La consola { #the-console }
@@ -120,8 +120,12 @@ toda organización recibe sin instalar nada, compartido con todos los que pueden
 ejecutar agents (`agents:run`). Está vinculado al
 [servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).
 Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
-o qué hay en una base de conocimiento. Pídele que esboce un agent o invite a un
-compañero, y primero te mostrará la llamada exacta para que la apruebes. Actúa con
+o qué hay en una base de conocimiento.
+
+Pídele que esboce un agent o invite a un
+compañero, y primero te mostrará lo que apruebas: el borrador
+de un agent como el propio borrador - dónde se crea, su nombre, qué puede hacer y
+sus instrucciones - y todo lo demás como la llamada exacta. Actúa con
 tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
 cuenta como el de cualquier agent.
 

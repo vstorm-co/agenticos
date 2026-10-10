@@ -1153,6 +1153,12 @@
     "tokensDetail": "{input, number} Eingabe · {output, number} Ausgabe-Token",
     "tokensDetailPartial": "{input, number} Eingabe · {output, number} Ausgabe-Token — eine Untergrenze: Für ein Modell in diesem Run gab es keinen Preis",
     "toolApprovalRequired": "Tool-Freigabe erforderlich",
+    "draftProposalTitle": "Ein neuer Agent-Entwurf",
+    "draftProposalIn": "Wird in {organization} angelegt",
+    "draftProposalHere": "Wird in dieser Organisation angelegt",
+    "draftProposalCapabilities": "Was er tun darf",
+    "draftProposalInstructions": "Anweisungen",
+    "draftProposalNotPublished": "Nichts wird veröffentlicht: Du prüfst den Entwurf im Builder und veröffentlichst ihn dort.",
     "tools": {
       "activeTasks": "Laufende Aufgaben",
       "addStep": "Schritt hinzufügen",

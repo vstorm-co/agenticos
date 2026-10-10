@@ -1153,6 +1153,12 @@
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "tokensDetailPartial": "{input, number} input · {output, number} output tokens — a floor: some model in this run had no price",
     "toolApprovalRequired": "Tool approval required",
+    "draftProposalTitle": "A new agent draft",
+    "draftProposalIn": "Created in {organization}",
+    "draftProposalHere": "Created in this organization",
+    "draftProposalCapabilities": "What it may do",
+    "draftProposalInstructions": "Instructions",
+    "draftProposalNotPublished": "Nothing is published: you review the draft in the Builder and publish it there.",
     "tools": {
       "activeTasks": "Active Tasks",
       "addStep": "Add Step",

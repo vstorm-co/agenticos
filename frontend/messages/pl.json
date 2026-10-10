@@ -1153,6 +1153,12 @@
     "tokensDetail": "{input, number} tokenów wejścia · {output, number} wyjścia",
     "tokensDetailPartial": "{input, number} tokenów wejścia · {output, number} wyjścia — wartość minimalna: któryś model w tym runie nie miał ceny",
     "toolApprovalRequired": "Wymagane zatwierdzenie narzędzia",
+    "draftProposalTitle": "Nowa wersja robocza agenta",
+    "draftProposalIn": "Powstanie w {organization}",
+    "draftProposalHere": "Powstanie w tej organizacji",
+    "draftProposalCapabilities": "Co będzie mógł robić",
+    "draftProposalInstructions": "Instrukcje",
+    "draftProposalNotPublished": "Nic nie zostanie opublikowane: przejrzysz wersję roboczą w Builderze i tam ją opublikujesz.",
     "tools": {
       "activeTasks": "Aktywne zadania",
       "addStep": "Dodaj krok",
