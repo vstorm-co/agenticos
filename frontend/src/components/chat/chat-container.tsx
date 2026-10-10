@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
+import type { ChatTesting } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -100,6 +101,8 @@ interface ChatContainerProps {
   agentFixed?: boolean;
   /** Files to attach to the next message, handed in from outside (#2063). */
   incomingFiles?: IncomingFiles | null;
+  /** The Builder's test panel: what answers, and that every turn is a test (#2074). */
+  testing?: ChatTesting;
 }
 
 export function ChatContainer({
@@ -107,6 +110,7 @@ export function ChatContainer({
   emptyState,
   agentFixed = false,
   incomingFiles = null,
+  testing,
 }: ChatContainerProps = {}) {
   const {
     currentConversationId,
@@ -196,6 +200,7 @@ export function ChatContainer({
     onConversationCreated: handleConversationCreated,
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
+    testing,
   });
 
   // The reader pressing the notice's button has gone to look for the answer, so
@@ -232,7 +237,6 @@ export function ChatContainer({
     setAvailableFiles(attachments);
   }, [attachments, setAvailableFiles]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
@@ -299,10 +303,14 @@ export function ChatContainer({
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Auto-scroll on every messages update unless user has scrolled up
+  // Auto-scroll on every messages update unless user has scrolled up. The
+  // transcript scrolls itself rather than calling `scrollIntoView`, which also
+  // scrolls every page framing the chat - the Builder under its test panel
+  // jumped to its foot on each answer (#2074).
   useEffect(() => {
     if (userScrolledUpRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
@@ -399,7 +407,6 @@ export function ChatContainer({
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
-      messagesEndRef={messagesEndRef}
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
       pendingApproval={pendingApproval}
@@ -479,7 +486,6 @@ interface ChatUIProps {
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -522,7 +528,6 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
-  messagesEndRef,
   transcriptRef,
   scrollContainerRef,
   pendingApproval,
@@ -644,7 +649,6 @@ function ChatUI({
                 column. An agent asked to compare two pages browses both at
                 once, and a single card would hide half of what it is doing. */}
             <BrowserCards browses={browses} />
-            <div ref={messagesEndRef} />
           </div>
         </div>
         {/* The floating dock: banners, the composer, the caption. Over the

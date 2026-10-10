@@ -440,4 +440,16 @@ describe("the model narrowing", () => {
 
     expect(lastOptions()).toMatchObject({ modelLabel: "gpt-4o-mini" });
   });
+
+  it.each([
+    ["Only test runs", true],
+    ["Without test runs", false],
+  ])("narrows to the Builder's test runs or away from them (%s)", async (option, isTest) => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+
+    expect(lastOptions()).toMatchObject({ isTest });
+  });
 });

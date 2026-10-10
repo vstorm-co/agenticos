@@ -43,6 +43,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test",
   "agent-publish",
 ];
 
@@ -234,7 +235,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agent-test"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -242,7 +243,7 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

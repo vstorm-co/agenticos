@@ -86,11 +86,14 @@ const nextConfig: NextConfig = {
       // embed PDFs/HTML in an iframe from the same origin. Listed AFTER the
       // catch-all so its values win for matching headers.
       // The AI Architect's conversation, framed by the console's corner widget
-      // (#2063) - the one page the console frames, and only from itself.
-      ...["/assistant-frame", "/:locale/assistant-frame"].map((source) => ({
-        source,
-        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
-      })),
+      // (#2063), and the Builder's test panel (#2074) - the pages the console
+      // frames, and only from itself. Mirrors CONSOLE_FRAME_PATHS.
+      ...["/assistant-frame", "/agent-test-frame"]
+        .flatMap((path) => [path, `/:locale${path}`])
+        .map((source) => ({
+          source,
+          headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+        })),
       {
         source: "/api/files/:path*",
         headers: [

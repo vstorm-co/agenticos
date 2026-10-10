@@ -172,6 +172,7 @@ export const qk = {
         userId?: string;
         conversationId?: string;
         agentVersionId?: string;
+        isTest?: boolean;
         skip?: number;
       } = {},
     ) =>
@@ -189,6 +190,7 @@ export const qk = {
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
         opts.agentVersionId ?? "any-version",
+        opts.isTest ?? "tests-included",
         opts.skip ?? 0,
       ] as const,
     detail: (id: string) => ["runs", id] as const,

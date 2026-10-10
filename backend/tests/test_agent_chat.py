@@ -47,6 +47,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
 )
 from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
@@ -370,6 +371,19 @@ class TestAddressingAnEnvironment:
     @pytest.mark.parametrize("frame", [{}, {"environment_id": None}, {"environment_id": ""}])
     def test_a_frame_that_names_no_environment_gets_the_default(self, frame):
         assert requested_environment_id(frame) is None
+
+    @pytest.mark.parametrize(
+        ("frame", "expected"),
+        [
+            ({}, (False, False)),
+            ({"test": True}, (True, False)),
+            ({"draft": True}, (True, True)),
+            # Only a literal true: a string is not a request to run the draft.
+            ({"draft": "true", "test": 1}, (False, False)),
+        ],
+    )
+    def test_the_test_panel_s_flags_are_read_only_when_true(self, frame, expected):
+        assert tuple(requested_testing(frame)) == expected
 
     def test_a_named_environment_is_read_back_as_its_id(self):
         environment_id = uuid.uuid4()

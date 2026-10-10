@@ -694,7 +694,21 @@
     "knowledgeReachWarning": "{count, plural, =1 {1 Quelle ist mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.} other {# Quellen sind mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.}}",
     "knowledgeReachNarrower": "enger geteilt",
     "knowledgeReachEveryone": "Alle",
-    "knowledgeReachPeople": "Ausgewählte Personen"
+    "knowledgeReachPeople": "Ausgewählte Personen",
+    "testPanel": "Test",
+    "testPanelClose": "Testbereich schließen",
+    "testPanelDraft": "Entwurf - unveröffentlichte Änderungen",
+    "testPanelDraftHint": "Antwortet mit dem zuletzt gespeicherten Entwurf, als Test-Run. Nichts wird veröffentlicht.",
+    "testPanelDraftSaving": "Die letzte Änderung wird gespeichert - senden Sie danach, um sie zu testen.",
+    "testPanelEnvironment": "{name} (Version {version})",
+    "testPanelEnvironmentHint": "Antwortet mit {name}, Version {version}, als Test-Run.",
+    "testPanelNew": "Neues Gespräch",
+    "testPanelPin": "Test-Prompt anheften",
+    "testPanelPinPlaceholder": "Prompt zum erneuten Ausführen anheften…",
+    "testPanelReplay": "Letzte Nachricht erneut senden",
+    "testPanelResize": "Breite des Testbereichs ändern",
+    "testPanelUnpin": "{text} lösen",
+    "testPanelWhatAnswers": "Was antwortet"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -3257,6 +3271,10 @@
       "groups-list": {
         "title": "Ihre Gruppen",
         "body": "Die Seite jeder Gruppe zeigt ihre Personen und alles, was mit ihr geteilt ist. Wählen Sie beim Erstellen eines Agents, Skills oder einer Wissensdatenbank eine Gruppe, damit es dieser Abteilung bleibt."
+      },
+      "agent-test": {
+        "title": "Beim Bauen ausprobieren",
+        "body": "Öffnet neben dem Builder einen Chat, der als unveröffentlichter Entwurf oder als beliebige Umgebung antwortet. Test-Runs werden gezählt und budgetiert und in der Aktivität markiert."
       }
     }
   },
@@ -3602,7 +3620,8 @@
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
       "skills": "Skills",
-      "thisPlatformMcp": "AgenticOS (diese Plattform)"
+      "thisPlatformMcp": "AgenticOS (diese Plattform)",
+      "testPanelOpen": "Testen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -4134,7 +4153,12 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "testFilter": "Test-Runs",
+      "testRun": "Test",
+      "testRunsHidden": "Ohne Test-Runs",
+      "testRunsIncluded": "Mit Test-Runs",
+      "testRunsOnly": "Nur Test-Runs"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -4748,7 +4772,7 @@
     "addFile": "Datei hinzufügen",
     "apply": "Übernehmen",
     "applyChangeTo": "Die Änderung an {name} übernehmen",
-    "availableEveryAgentOrganization": "Er steht jedem Agent in dieser Organisation zur Verfügung, sobald Sie ihn erstellen.",
+    "availableEveryAgentOrganization": "Wählen Sie unten, wer ihn nutzen darf. Ein Agent liest ihn, sobald er ihm hinzugefügt wurde.",
     "cancel": "Abbrechen",
     "cancel2": "Abbrechen",
     "category": "Kategorie",
@@ -5057,7 +5081,7 @@
     "modeLinkHint": "Bleibt aus dem Prompt heraus; der Agent liest sie bei Bedarf.",
     "sizeWithFormat": "{format} · {size}",
     "newContext": "Neue Kontextdatei",
-    "availableEveryAgentOrganization": "Sie steht jedem Agent in dieser Organisation zur Verfügung, sobald Sie sie erstellen.",
+    "availableEveryAgentOrganization": "Wählen Sie unten, wer sie nutzen darf. Ein Agent liest sie, sobald sie ihm hinzugefügt wurde.",
     "name": "Name",
     "howItIsReferredTo": "Wie diese Datei referenziert wird; das lässt sich später nicht mehr ändern.",
     "mode": "Modus",

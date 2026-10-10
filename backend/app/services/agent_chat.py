@@ -27,7 +27,7 @@ import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
@@ -169,6 +169,24 @@ def requested_time_zone(frame: Mapping[str, Any]) -> str | None:
     if not isinstance(raw, str) or len(raw) > 64 or not prompt_variables.is_time_zone(raw):
         return None
     return raw
+
+
+class Testing(NamedTuple):
+    """Whether a turn comes from the Builder's test panel, and runs the draft (#2074)."""
+
+    test: bool
+    draft: bool
+
+
+def requested_testing(frame: Mapping[str, Any]) -> Testing:
+    """What the test panel asked of this turn.
+
+    Only a literal `true` counts, so a client that sends nothing - every chat that
+    is not the test panel - runs the published version and is not a test. Running
+    the draft is always a test.
+    """
+    draft = frame.get("draft") is True
+    return Testing(test=draft or frame.get("test") is True, draft=draft)
 
 
 def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
@@ -338,6 +356,7 @@ class ChatAgentRunner:
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         person_time_zone: str | None = None,
+        testing: Testing = Testing(test=False, draft=False),
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -425,6 +444,8 @@ class ChatAgentRunner:
             approval_mode=approval_mode,
             request_connection=request_connection,
             person_time_zone=person_time_zone,
+            draft=testing.draft,
+            test=testing.test,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions

@@ -18,13 +18,16 @@ export type ToFrame =
   /** Show or hide the list of earlier conversations. */
   | { type: `${typeof PREFIX}history` }
   /** Attach this file - a screenshot of the page - to the next message. */
-  | { type: `${typeof PREFIX}attach`; file: File };
+  | { type: `${typeof PREFIX}attach`; file: File }
+  /** Send the last thing the reader asked again - the Builder's test panel (#2074). */
+  | { type: `${typeof PREFIX}replay` };
 
 export const ASK = `${PREFIX}ask` as const;
 export const CONTEXT = `${PREFIX}context` as const;
 export const NEW = `${PREFIX}new` as const;
 export const HISTORY = `${PREFIX}history` as const;
 export const ATTACH = `${PREFIX}attach` as const;
+export const REPLAY = `${PREFIX}replay` as const;
 
 /** A message from this origin, of a kind the frame knows, or `null`. */
 export function readToFrame(event: MessageEvent, origin: string): ToFrame | null {
@@ -50,6 +53,7 @@ export function readToFrame(event: MessageEvent, origin: string): ToFrame | null
   }
   if (message.type === NEW) return { type: NEW };
   if (message.type === HISTORY) return { type: HISTORY };
+  if (message.type === REPLAY) return { type: REPLAY };
   if (message.type === ATTACH && message.file instanceof File) {
     return { type: ATTACH, file: message.file };
   }

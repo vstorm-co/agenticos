@@ -2088,6 +2088,8 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
         person_time_zone: str | None = None,
+        draft: bool = False,
+        test: bool = False,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2135,6 +2137,13 @@ class AgentRunnerService:
             person_time_zone: The person's own IANA time zone, when the surface
                 knows it - what an agent whose `time_zone` is `user` tells the
                 time in (#2065).
+            draft: Run the unpublished draft instead of a version, for the
+                Builder's test panel (#2074). The caller must be able to edit the
+                agent, the draft must pass the checks a publish makes, and the
+                run keeps a frozen copy of it, so a parked call continues on
+                exactly what it was running. It names no environment.
+            test: Mark the run as a test - a draft always is - so Activity can
+                tell trying an agent from using it. Budgeted like any run.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2143,9 +2152,20 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
-        agent, spec, version_id = await self.registry.get_runnable_spec(
-            ctx, agent_id, environment_id=effective_environment_id
-        )
+        test_spec: dict[str, Any] | None = None
+        if draft:
+            if effective_environment_id is not None:
+                raise BadRequestError(
+                    message="A draft has no environment - test it, or test an environment",
+                    details={"environment_id": str(effective_environment_id)},
+                )
+            agent, spec = await self.registry.get_draft_spec(ctx, agent_id)
+            version_id: UUID | None = None
+            test_spec = spec.model_dump(mode="json")
+        else:
+            agent, spec, version_id = await self.registry.get_runnable_spec(
+                ctx, agent_id, environment_id=effective_environment_id
+            )
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2177,6 +2197,8 @@ class AgentRunnerService:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
             person_time_zone=person_time_zone,
+            is_test=test or draft,
+            test_spec=test_spec,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2265,6 +2287,8 @@ class AgentRunnerService:
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
         person_time_zone: str | None = None,
+        is_test: bool = False,
+        test_spec: dict[str, Any] | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2447,7 +2471,11 @@ class AgentRunnerService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                agent_version_id=version_id or agent.current_version_id,
+                # A draft under test has no version; naming the current one
+                # would credit its answers to something it did not run.
+                agent_version_id=(
+                    None if test_spec is not None else version_id or agent.current_version_id
+                ),
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 conversation_id=conversation_id,
@@ -2459,6 +2487,8 @@ class AgentRunnerService:
                 provider=model_spec.provider,
                 secret_id=model_spec.secret_id,
                 started_at=datetime.now(UTC),
+                is_test=is_test,
+                test_spec=test_spec,
             )
 
         # Two lookups, because the caps they feed meter two different things. The
@@ -4290,6 +4320,10 @@ class AgentRunnerService:
         """
         agent = await self.registry.get(ctx, run.agent_id, perm=Perm.AGENTS_RUN)
         await self.registry.refuse_a_switched_off_assistant(agent.id)
+        if run.test_spec is not None:
+            # A draft under test continues on the copy it started with, not on
+            # whatever the draft has become since (#2074).
+            return agent, AgentSpec.model_validate(run.test_spec)
         version = (
             None
             if run.agent_version_id is None

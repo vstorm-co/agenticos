@@ -325,4 +325,10 @@ describe("the run the panel beside the table is showing", () => {
       "aria-selected",
     );
   });
+
+  it("marks a run from the Builder's test panel (#2074)", () => {
+    render(<RunTable runs={[run({ is_test: true })]} />);
+
+    expect(within(row()).getByText("test")).toBeVisible();
+  });
 });

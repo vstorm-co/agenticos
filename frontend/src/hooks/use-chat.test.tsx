@@ -2144,6 +2144,36 @@ describe("useChat - what goes out with a turn", () => {
   });
 });
 
+describe("useChat - the Builder's test panel", () => {
+  it.each([
+    [
+      { draft: true, environmentId: null },
+      { test: true, draft: true },
+    ],
+    [
+      { draft: false, environmentId: "env-dev" },
+      { test: true, environment_id: "env-dev" },
+    ],
+    [{ draft: false, environmentId: null }, { test: true }],
+  ])("marks every turn a test, of the draft or an environment (%o)", (testing, expected) => {
+    const { result } = renderHook(() => useChat({ testing }), { wrapper });
+
+    act(() => result.current.sendMessage("try it"));
+
+    expect(frame(0)).toMatchObject(expected);
+    if (!testing.draft) expect(frame(0)).not.toHaveProperty("draft");
+    if (!testing.environmentId) expect(frame(0)).not.toHaveProperty("environment_id");
+  });
+
+  it("sends nothing of the sort from the ordinary chat", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("hello"));
+
+    expect(frame(0)).not.toHaveProperty("test");
+  });
+});
+
 describe("useChat - a socket that went away mid-answer", () => {
   it("ends the turn on screen and asks for the transcript to be re-read", () => {
     // Every frame that ends a turn arrives on the socket, so a drop ends nothing:

@@ -58,6 +58,8 @@ export interface AgentRun {
    * it is `false` on any surface that does not, never absent.
    */
   down_rated: boolean;
+  /** Started from the Builder's test panel (#2074); optional on surfaces that predate it. */
+  is_test?: boolean;
   /**
    * The thread the run ran inside, or null when it ran with no conversation -
    * an API call, a resumed run. `AgentRunRead` has carried it all along; the

@@ -159,6 +159,7 @@ export function RunHistoryTab({
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
+    isTest: filters.test === "all" ? undefined : filters.test === "only",
     skip: page * PAGE_SIZE,
     // Not asked without the permission: `GET /runs` refuses that caller, so the
     // request would be a predictable 403 drawn as a failure card below.
@@ -183,6 +184,7 @@ export function RunHistoryTab({
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;
   if (filters.versionId !== "all") exportParams.agent_version_id = filters.versionId;
+  if (filters.test !== "all") exportParams.test = String(filters.test === "only");
 
   return (
     // A column that fills the height its caller gives it: the filters and the

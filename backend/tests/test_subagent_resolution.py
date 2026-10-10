@@ -1730,6 +1730,7 @@ class TestResumingIntoADelegation:
             surface="api",
             status=RunStatus.AWAITING_APPROVAL.value,
             paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
+            test_spec=None,
             model_label="gpt-4.1",
             input_tokens=0,
             output_tokens=0,

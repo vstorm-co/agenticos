@@ -92,7 +92,13 @@ export function WidgetRoot({ children }: { children: React.ReactNode }) {
     return () => element?.removeEventListener("pointerdown", keep);
   }, []);
   return (
-    <div ref={root} data-tour="assistant-widget" className="pointer-events-auto">
+    // The Builder's test panel takes the corner the widget sits in, and is a chat
+    // of its own; the Architect comes back when it closes.
+    <div
+      ref={root}
+      data-tour="assistant-widget"
+      className="pointer-events-auto [html[data-test-panel]_&]:hidden"
+    >
       {children}
     </div>
   );

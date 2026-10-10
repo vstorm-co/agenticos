@@ -19,6 +19,9 @@ class AgentRunRead(BaseSchema):
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
     surface: str
+    is_test: bool = Field(
+        default=False, description="Started from the Builder's test panel (#2074)"
+    )
     status: str
     model_label: str | None = None
     provider: str | None = Field(

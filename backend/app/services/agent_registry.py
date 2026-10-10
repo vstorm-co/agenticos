@@ -2580,6 +2580,27 @@ class AgentRegistryService:
                 details={"agent_id": str(agent_id)},
             )
 
+    async def get_draft_spec(self, ctx: AuthContext, agent_id: UUID) -> tuple[Agent, AgentSpec]:
+        """The draft as it stands, for the Builder's test panel to run (#2074).
+
+        Whoever may edit the agent may try what they are editing - nothing is
+        published, and the run is recorded as a test. The draft is checked the
+        way a publish checks it, so a test refuses what a publish would, with the
+        same list of problems, rather than failing halfway through a turn.
+
+        Raises:
+            NotFoundError: If the caller may not edit this agent.
+            BadRequestError: If it is archived, or the draft would not publish.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        return agent, spec
+
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None
     ) -> tuple[Agent, AgentSpec, UUID]:

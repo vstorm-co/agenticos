@@ -696,7 +696,21 @@
     "knowledgeReachWarning": "{count, plural, =1 {1 source is shared with fewer people than this agent. Everyone the agent reaches gets answers drawn from it.} other {# sources are shared with fewer people than this agent. Everyone the agent reaches gets answers drawn from them.}}",
     "knowledgeReachNarrower": "shared more narrowly",
     "knowledgeReachEveryone": "Everyone",
-    "knowledgeReachPeople": "Chosen people"
+    "knowledgeReachPeople": "Chosen people",
+    "testPanel": "Test",
+    "testPanelClose": "Close the test panel",
+    "testPanelDraft": "Draft - your unpublished changes",
+    "testPanelDraftHint": "Answers with your latest saved draft, as a test run. Nothing is published.",
+    "testPanelDraftSaving": "Saving your latest change - send once it is saved to test it.",
+    "testPanelEnvironment": "{name} (version {version})",
+    "testPanelEnvironmentHint": "Answers with {name}, version {version}, as a test run.",
+    "testPanelNew": "New conversation",
+    "testPanelPin": "Pin a test prompt",
+    "testPanelPinPlaceholder": "Pin a prompt to rerun…",
+    "testPanelReplay": "Send the last message again",
+    "testPanelResize": "Resize the test panel",
+    "testPanelUnpin": "Unpin {text}",
+    "testPanelWhatAnswers": "What answers"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3390,6 +3404,10 @@
       "groups-list": {
         "title": "Your groups",
         "body": "Each group's page lists its people and everything shared with it. Choose a group when you create an agent, skill or knowledge base to keep it for that department."
+      },
+      "agent-test": {
+        "title": "Try it as you build",
+        "body": "Opens a chat beside the Builder that answers as your unpublished draft, or as any environment. Test runs are counted and budgeted, and marked in Activity."
       }
     }
   },
@@ -3738,7 +3756,8 @@
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
       "labelCount": "{used} of {max}",
-      "thisPlatformMcp": "AgenticOS (this platform)"
+      "thisPlatformMcp": "AgenticOS (this platform)",
+      "testPanelOpen": "Test"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -4271,7 +4290,12 @@
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "testFilter": "Test runs",
+      "testRun": "test",
+      "testRunsHidden": "Without test runs",
+      "testRunsIncluded": "With test runs",
+      "testRunsOnly": "Only test runs"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -4885,7 +4909,7 @@
     "addFile": "Add file",
     "apply": "Apply",
     "applyChangeTo": "Apply the change to {name}",
-    "availableEveryAgentOrganization": "It is available to every agent in this organization the moment you create it.",
+    "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "category": "Category",
@@ -5194,7 +5218,7 @@
     "modeLinkHint": "Left out of the prompt; the agent reads it on demand.",
     "sizeWithFormat": "{format} · {size}",
     "newContext": "New context file",
-    "availableEveryAgentOrganization": "It is available to every agent in this organization the moment you create it.",
+    "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "name": "Name",
     "howItIsReferredTo": "How this file is referred to; it cannot change afterwards.",
     "mode": "Mode",

@@ -1,0 +1,48 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { readTestPanel, writeTestPanel } from "./test-panel-state";
+
+beforeEach(() => window.localStorage.clear());
+
+describe("the test panel's remembered state", () => {
+  it("starts closed, on the draft, with nothing pinned", () => {
+    expect(readTestPanel("a1")).toEqual({ open: false, width: 440, mode: "draft", pinned: [] });
+  });
+
+  it("keeps each agent's own", () => {
+    writeTestPanel("a1", { open: true, width: 600, mode: "env-1", pinned: ["refunds?"] });
+
+    expect(readTestPanel("a1")).toEqual({
+      open: true,
+      width: 600,
+      mode: "env-1",
+      pinned: ["refunds?"],
+    });
+    expect(readTestPanel("a2").open).toBe(false);
+  });
+
+  it("reads past whatever else is stored there", () => {
+    window.localStorage.setItem(
+      "agenticos:test-panel:a1",
+      JSON.stringify({ open: "yes", width: "wide", mode: 3, pinned: ["ok", 4] }),
+    );
+
+    expect(readTestPanel("a1")).toEqual({ open: false, width: 440, mode: "draft", pinned: ["ok"] });
+
+    window.localStorage.setItem("agenticos:test-panel:a1", JSON.stringify({ pinned: "x" }));
+    expect(readTestPanel("a1").pinned).toEqual([]);
+  });
+
+  it("starts from defaults where storage refuses, and stores nothing then", () => {
+    window.localStorage.setItem("agenticos:test-panel:a1", "{not json");
+    expect(readTestPanel("a1").mode).toBe("draft");
+
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(() =>
+      writeTestPanel("a1", { open: true, width: 440, mode: "draft", pinned: [] }),
+    ).not.toThrow();
+    setItem.mockRestore();
+  });
+});

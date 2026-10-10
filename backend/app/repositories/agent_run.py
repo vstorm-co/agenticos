@@ -59,11 +59,15 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    is_test: bool = False,
+    test_spec: dict[str, Any] | None = None,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
+        is_test=is_test,
+        test_spec=test_spec,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
@@ -358,6 +362,8 @@ class RunFilters:
             been renamed or deleted, and the dashboard's model card counts these
             same strings - so "the runs behind this bar" is the same set on both
             screens.
+        is_test: Only test runs from the Builder's panel, or only real ones
+            (#2074). Unset lists both.
     """
 
     statuses: Sequence[str] | None = None
@@ -371,6 +377,7 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     rated: RunRating | None = None
+    is_test: bool | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -401,6 +408,8 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
+        if self.is_test is not None:
+            clauses.append(AgentRun.is_test.is_(self.is_test))
         return clauses
 
 

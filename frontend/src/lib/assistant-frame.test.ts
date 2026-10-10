@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { inAssistantFrame, isAssistantFramePath } from "./assistant-frame";
+import { inAssistantFrame, isConsoleFramePath } from "./assistant-frame";
 
-describe("isAssistantFramePath", () => {
+describe("isConsoleFramePath", () => {
   it("recognises the frame with or without a locale prefix", () => {
-    expect(isAssistantFramePath("/assistant-frame")).toBe(true);
-    expect(isAssistantFramePath("/pl/assistant-frame")).toBe(true);
-    expect(isAssistantFramePath("/pl")).toBe(false);
-    expect(isAssistantFramePath("/agents")).toBe(false);
-    expect(isAssistantFramePath("/assistant-frame/x")).toBe(false);
+    expect(isConsoleFramePath("/assistant-frame")).toBe(true);
+    expect(isConsoleFramePath("/pl/assistant-frame")).toBe(true);
+    expect(isConsoleFramePath("/pl")).toBe(false);
+    expect(isConsoleFramePath("/agents")).toBe(false);
+    expect(isConsoleFramePath("/assistant-frame/x")).toBe(false);
+  });
+
+  it("recognises the Builder's test frame", () => {
+    expect(isConsoleFramePath("/agent-test-frame")).toBe(true);
+    expect(isConsoleFramePath("/de/agent-test-frame")).toBe(true);
   });
 });
 

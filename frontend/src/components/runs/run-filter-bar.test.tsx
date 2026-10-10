@@ -44,13 +44,17 @@ vi.mock("@/stores", () => ({
   useOrgStore: (selector: (state: { activeOrgId: string | null }) => unknown) => selector(org),
 }));
 
-function renderBar(agentId: string | null = "agent-1", filters = DEFAULT_RUN_FILTERS) {
+function renderBar(
+  agentId: string | null = "agent-1",
+  filters = DEFAULT_RUN_FILTERS,
+  onChange = vi.fn(),
+) {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <RunFilterBar
         filters={filters}
         period={PERIOD}
-        onChange={vi.fn()}
+        onChange={onChange}
         agentId={agentId}
         onAgentChange={vi.fn()}
       />
@@ -145,5 +149,17 @@ describe("the model facet", () => {
 
     expect(await screen.findByRole("option", { name: "claude-sonnet-5" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Any model" })).toBeInTheDocument();
+  });
+});
+
+describe("test runs (#2074)", () => {
+  it("hides or keeps only the Builder's test runs", async () => {
+    const onChange = vi.fn();
+    renderBar("agent-1", DEFAULT_RUN_FILTERS, onChange);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test runs" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Only test runs" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ test: "only" }));
   });
 });

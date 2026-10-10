@@ -1931,6 +1931,10 @@
       "groups-list": {
         "title": "Twoje grupy",
         "body": "Strona każdej grupy pokazuje jej ludzi i wszystko, co jej udostępniono. Wybierz grupę przy tworzeniu agenta, skilla albo bazy wiedzy, żeby zostały dla tego działu."
+      },
+      "agent-test": {
+        "title": "Testuj w trakcie budowania",
+        "body": "Otwiera obok Buildera czat, który odpowiada jako nieopublikowany szkic albo dowolne środowisko. Runy testowe są liczone i rozliczane w budżecie, a w Aktywności są oznaczone."
       }
     }
   },
@@ -2060,7 +2064,7 @@
     "addFile": "Dodaj plik",
     "apply": "Zastosuj",
     "applyChangeTo": "Zastosuj zmianę w {name}",
-    "availableEveryAgentOrganization": "Jest dostępny dla każdego agenta w tej organizacji od chwili, gdy go utworzysz.",
+    "availableEveryAgentOrganization": "Poniżej wybierz, kto może z niego korzystać. Agent czyta go, gdy zostanie do niego dodany.",
     "cancel": "Anuluj",
     "cancel2": "Anuluj",
     "category": "Kategoria",
@@ -3078,7 +3082,21 @@
     "knowledgeReachWarning": "{count, plural, one {1 źródło jest udostępnione węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nim.} few {# źródła są udostępnione węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.} many {# źródeł jest udostępnionych węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.} other {# źródła jest udostępnionego węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.}}",
     "knowledgeReachNarrower": "udostępnione węższemu gronu",
     "knowledgeReachEveryone": "Wszyscy",
-    "knowledgeReachPeople": "Wybrane osoby"
+    "knowledgeReachPeople": "Wybrane osoby",
+    "testPanel": "Test",
+    "testPanelClose": "Zamknij panel testowy",
+    "testPanelDraft": "Szkic - nieopublikowane zmiany",
+    "testPanelDraftHint": "Odpowiada ostatnio zapisany szkic, jako run testowy. Nic nie jest publikowane.",
+    "testPanelDraftSaving": "Zapisywanie ostatniej zmiany - wyślij po zapisaniu, żeby ją przetestować.",
+    "testPanelEnvironment": "{name} (wersja {version})",
+    "testPanelEnvironmentHint": "Odpowiada {name}, wersja {version}, jako run testowy.",
+    "testPanelNew": "Nowa rozmowa",
+    "testPanelPin": "Przypnij prompt testowy",
+    "testPanelPinPlaceholder": "Przypnij prompt do ponownego uruchomienia…",
+    "testPanelReplay": "Wyślij ostatnią wiadomość ponownie",
+    "testPanelResize": "Zmień szerokość panelu testowego",
+    "testPanelUnpin": "Odepnij {text}",
+    "testPanelWhatAnswers": "Co odpowiada"
   },
   "steps": {
     "skills-gallery": {

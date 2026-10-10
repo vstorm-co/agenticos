@@ -87,6 +87,9 @@ async def list_runs(
     exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
     agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
+    test: bool | None = Query(
+        None, description="Only runs from the Builder's test panel, or only the rest"
+    ),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
     ),
@@ -144,6 +147,7 @@ async def list_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            is_test=test,
         ),
         order_by=order_by,
         descending=descending,
@@ -183,6 +187,7 @@ async def export_runs(
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
     rated: RunRating | None = Query(None),
+    test: bool | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
 
@@ -209,6 +214,7 @@ async def export_runs(
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
             rated=rated,
+            is_test=test,
         ),
     )
     return csv_response(result)

@@ -267,6 +267,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // Trying it beside the Builder before publishing (#2074).
+  {
+    id: "agent-test",
+    page: AGENT_BUILDER,
+    target: "agent-test",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,

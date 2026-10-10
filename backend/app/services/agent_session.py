@@ -43,6 +43,7 @@ from app.services.agent_chat import (
     requested_approval_mode,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
     requested_time_zone,
 )
 from app.services.agent_runner import PersonalServiceGap
@@ -501,6 +502,9 @@ class AgentSession:
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
                     person_time_zone=requested_time_zone(data),
+                    # The Builder's test panel: the draft, or a version, marked
+                    # as a test either way (#2074).
+                    testing=requested_testing(data),
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).

@@ -180,6 +180,8 @@ def _parked_run(**overrides):
         # Same reasoning for the environment: None keeps the resume path from
         # looking up observability for an environment that does not exist.
         environment_id=None,
+        # A published version's run; a test of the draft is its own case (#2074).
+        test_spec=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
         paused_state={"messages": [], "tool_call_ids": {}},

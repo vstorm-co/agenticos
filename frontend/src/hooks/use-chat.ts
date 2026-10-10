@@ -83,12 +83,29 @@ interface UseChatOptions {
    * turn actually lands.
    */
   onTurnInterrupted?: () => void;
+  /**
+   * The Builder's test panel (#2074): every turn is a test run, of the draft or
+   * of one environment's version. Absent everywhere else.
+   */
+  testing?: ChatTesting;
+}
+
+/** What the test panel runs: the unpublished draft, or an environment (null is the default). */
+export interface ChatTesting {
+  draft: boolean;
+  environmentId: string | null;
 }
 
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted } = options;
+  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted, testing } =
+    options;
+  // Read at send time, like the model and the approval mode below.
+  const testingRef = useRef<ChatTesting | undefined>(testing);
+  useEffect(() => {
+    testingRef.current = testing;
+  }, [testing]);
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
   // no catalog message holds it, so it belongs to the copy the guard has never
@@ -924,6 +941,12 @@ export function useChat(options: UseChatOptions = {}) {
       // rather than downgraded if this caller may not waive (#925).
       if (approvalModeRef.current !== "follow_agent") {
         payload.approval_mode = approvalModeRef.current;
+      }
+      const test = testingRef.current;
+      if (test) {
+        payload.test = true;
+        if (test.draft) payload.draft = true;
+        else if (test.environmentId) payload.environment_id = test.environmentId;
       }
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected

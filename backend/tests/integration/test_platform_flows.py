@@ -4784,3 +4784,90 @@ class TestPublishingIsNotDeploying:
         after = await environments.list_for_agent(tenant.ctx, agent.id)
         assert next(row for row in after if row.is_default).version_id == newest.id
         assert agent.current_version_id == newest.id
+
+
+class TestTheBuildersTestPanel:
+    """Trying an agent while building it (#2074): the draft runs without a publish,
+    as a test, on a frozen copy - and only for somebody who may edit it."""
+
+    async def _agent(self, db, tenant: Tenant, *, published: bool):
+        profile = await _keyed_model_profile(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx,
+            AgentSpec(name="Refunds", instructions="Answer refunds.", model_profile_id=profile.id),
+        )
+        if published:
+            await registry.publish(tenant.ctx, agent.id)
+        return agent
+
+    async def test_a_draft_that_was_never_published_answers_as_a_test(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+        assert await _answer(prepared) == "thirty days"
+        run = prepared.run
+        assert run.is_test
+        assert run.agent_version_id is None
+        assert run.test_spec is not None and run.test_spec["instructions"] == "Answer refunds."
+
+    async def test_a_parked_test_continues_on_the_draft_it_started_with(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+        runner = AgentRunnerService(db)
+        prepared = await runner.prepare(tenant.ctx, agent.id, draft=True)
+        agent.draft_spec = {**agent.draft_spec, "instructions": "Something else entirely."}
+        await db.flush()
+
+        _, spec = await runner._parked_spec(tenant.ctx, prepared.run)
+
+        assert spec.instructions == "Answer refunds."
+
+    async def test_a_published_version_tried_from_the_panel_is_marked_a_test(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=True)
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, test=True)
+
+        assert prepared.run.is_test
+        assert prepared.run.agent_version_id == agent.current_version_id
+        assert prepared.run.test_spec is None
+
+    @pytest.mark.security
+    async def test_somebody_who_may_not_edit_the_agent_cannot_run_its_draft(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=True)
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        with pytest.raises(NotFoundError):
+            await AgentRunnerService(db).prepare(viewer, agent.id, draft=True)
+
+    async def test_a_draft_runs_in_no_environment(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+
+        with pytest.raises(BadRequestError, match="A draft has no environment"):
+            await AgentRunnerService(db).prepare(
+                tenant.ctx, agent.id, draft=True, environment_id=uuid.uuid4()
+            )
+
+    async def test_a_draft_that_would_not_publish_does_not_run(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Broken", collection_ids=[uuid.uuid4()])
+        )
+
+        with pytest.raises(BadRequestError):
+            await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+    async def test_an_archived_agent_s_draft_does_not_run(self, db) -> None:
+        tenant = await _tenant(db, name="Builder")
+        agent = await self._agent(db, tenant, published=False)
+        agent.status = "archived"
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="archived"):
+            await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)

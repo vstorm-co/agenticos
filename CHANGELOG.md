@@ -230,6 +230,16 @@ Two things are versioned separately from this file and worth knowing about:
   says when a client made at the provider is needed. Connecting a server from the
   Builder binds it and opens its tools from the check that just ran (#2073).
 
+- **A test panel beside the Builder.** **Test** opens the real chat beside the
+  Builder, resizable and remembered per agent, answering as the unpublished
+  draft or as any environment's version. A draft test needs no publish - it
+  passes the publish checks, runs for whoever may edit the agent, and a parked
+  call continues on the draft it started with. Every turn is a test run,
+  budgeted like any other and marked and filterable in Activity
+  (`?test=` on the runs list and export). The panel starts over, replays the
+  last message and reruns pinned prompts. Chat frames take `draft` and `test`;
+  migration `0113_test_runs` (#2074).
+
 ### Fixed
 
 - **Workspace listings no longer decode every stored image on the event loop.**
