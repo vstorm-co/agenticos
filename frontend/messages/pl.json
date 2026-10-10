@@ -2423,21 +2423,35 @@
     "searchJump": "Szukaj lub przejdź do…"
   },
   "legal": {
+    "acceptAll": "Zaakceptuj wszystkie",
+    "aggregatedAnonymizedUsageData": "Zagregowane, zanonimizowane dane o korzystaniu.",
+    "analytics": "Analityczne",
+    "back": "Wstecz",
+    "close": "Zamknij",
+    "cookieBannerBody": "Niezbędne cookies utrzymują Cię zalogowanego. Opcjonalne pomagają nam zrozumieć, jak używany jest produkt. Zobacz naszą <policy>Politykę Cookies</policy>.",
     "cookies": {
       "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć.",
       "title": "Polityka Cookies"
     },
+    "essential": "Niezbędne",
     "eyebrow": "Dokumenty",
+    "functional": "Funkcjonalne",
     "lastUpdated": "Ostatnia aktualizacja {date}",
+    "preferences": "Preferencje",
     "privacy": {
       "summary": "Co zbieramy, po co i co możesz z tym zrobić. Nie trenujemy na Twoich danych - nigdy.",
       "title": "Polityka Prywatności"
     },
+    "rejectOptional": "Odrzuć opcjonalne",
+    "remembersPreferencesThemeCookie": "Zapamiętuje preferencje (motyw, wybór cookies).",
+    "requiredKeepYouSigned": "Wymagane, by utrzymać Cię zalogowanego. Nie można ich wyłączyć.",
+    "savePreferences": "Zapisz preferencje",
     "seeAlso": "Zobacz też",
     "terms": {
       "summary": "Umowa prawna między Tobą a {appName}. Prostym językiem gdzie się da; precyzyjnie gdzie musimy.",
       "title": "Regulamin"
-    }
+    },
+    "weUseCookies": "Używamy cookies"
   },
   "mcp": {
     "accessToken": "Token dostępu",
