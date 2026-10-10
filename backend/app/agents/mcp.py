@@ -23,6 +23,7 @@ from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
@@ -85,6 +86,9 @@ class McpServerSpec:
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
+    # The organization's connection row this server is, so a call can be
+    # recorded against it. None for a member's own connection and for `/mcp`.
+    connection_id: UUID | None = None
 
 
 @asynccontextmanager
@@ -275,6 +279,25 @@ class ApprovalMarked(WrapperToolset[Any]):
             )
             for name, tool in tools.items()
         }
+
+
+@dataclass
+class ToolOrigins(WrapperToolset[Any]):
+    """An organization server's tools, each noted in `seen` as having come from it.
+
+    `seen` is one mapping shared by every server of a run, filled as the run
+    lists its tools: the exact name the model calls, mapped to the connection
+    that serves it, so the transcript records the call against that connection
+    rather than inferring it from a prefix another connection may share (#2072).
+    """
+
+    connection_id: UUID
+    seen: dict[str, UUID]
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        self.seen.update(dict.fromkeys(tools, self.connection_id))
+        return tools
 
 
 PLATFORM_MCP_NAME = "agenticos"

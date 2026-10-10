@@ -490,9 +490,9 @@ it said if it failed; whoever manages MCP servers can check it again there.
 On the MCP page, each of the organization's accounts names the agents bound to
 it, and **What agents asked it** lists the latest calls agents made to its
 tools: which tool, which agent, how it went and the run it was part of. What was
-asked and answered is not shown - it stays in the conversation. Calls are found
-by the tool prefix, so a renamed connection lists only calls made under its
-current name. API: `used_by` on `GET /api/v1/mcp-connections`, and
+asked and answered is not shown - it stays in the conversation. Each call records the connection that served it, so a
+member's own connection with the same name is not listed, and calls from before
+that was recorded are not listed at all. API: `used_by` on `GET /api/v1/mcp-connections`, and
 `GET /api/v1/mcp-connections/{id}/calls`.
 
 ## The catalog

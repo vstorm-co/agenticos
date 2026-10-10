@@ -531,6 +531,7 @@ class AgentSession:
                     # below carries the same calls to whoever is watching live.
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
+                    mcp_origins=turn.mcp_origins,
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
@@ -662,6 +663,7 @@ class AgentSession:
             agent_id=agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
+            mcp_origins=run.mcp_origins,
         )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:

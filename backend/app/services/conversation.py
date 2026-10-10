@@ -929,13 +929,15 @@ class ConversationService:
         data: ToolCallCreate,
         *,
         parked: bool = False,
+        mcp_connection_id: UUID | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
         `parked` is a keyword rather than a field on `ToolCallCreate` for the
         reason `MessageCreate` carries no `run_id`: the schema is bindable from
         a request body, and whether a call is awaiting a person is the runner's
-        fact, not a caller's claim.
+        fact, not a caller's claim - as is `mcp_connection_id`, the organization
+        MCP connection that served the call.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -946,6 +948,7 @@ class ConversationService:
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
             status=parked_status(data.tool_name) if parked else "running",
+            mcp_connection_id=mcp_connection_id,
         )
 
     async def complete_tool_call(

@@ -489,6 +489,35 @@ class TestPersistAssistantTurnRecordsWhatItCost:
         assert written.cost_usd == Decimal("0.0125")
 
     @pytest.mark.anyio
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self):
+        """What a server's call log reads (#2072); a tool no organization
+        connection served is stored against none."""
+        from app.services.agent import persist_assistant_turn
+
+        service = self._conv_service()
+        linear = uuid.uuid4()
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_assistant_turn(
+                str(uuid.uuid4()),
+                "answered",
+                None,
+                [
+                    {"tool_call_id": "c1", "tool_name": "linear_search", "args": {}},
+                    {"tool_call_id": "c2", "tool_name": "web_search", "args": {}},
+                ],
+                organization_id=uuid.uuid4(),
+                mcp_origins={"linear_search": linear},
+            )
+
+        assert [
+            call.kwargs["mcp_connection_id"] for call in service.start_tool_call.await_args_list
+        ] == [linear, None]
+
+    @pytest.mark.anyio
     async def test_a_turn_nobody_could_measure_records_nothing_rather_than_zero(self):
         """Null reads back as "not recorded". Zeroes would say the answer was free."""
         from app.services.agent import persist_assistant_turn

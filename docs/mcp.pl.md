@@ -1,5 +1,5 @@
 ---
-source_sha: "46def0afafcb"
+source_sha: "746500d703d8"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -515,9 +515,9 @@ tam ponownie.
 Na stronie MCP każde konto organizacji wymienia agentów, którzy są do niego
 podpięci, a **O co pytały agenty** pokazuje ostatnie wywołania jego narzędzi:
 które narzędzie, który agent, jak poszło i w którym runie. Treść pytań i
-odpowiedzi nie jest pokazywana - zostaje w rozmowie. Wywołania są znajdowane po
-prefiksie narzędzi, więc połączenie o zmienionej nazwie pokazuje tylko
-wywołania pod obecną nazwą. API: `used_by` w `GET /api/v1/mcp-connections` i
+odpowiedzi nie jest pokazywana - zostaje w rozmowie. Każde wywołanie zapisuje połączenie, które
+je obsłużyło, więc własne połączenie członka o tej samej nazwie nie trafia na
+listę, a wywołania sprzed tej zmiany nie są pokazywane wcale. API: `used_by` w `GET /api/v1/mcp-connections` i
 `GET /api/v1/mcp-connections/{id}/calls`.
 
 ## Katalog { #the-catalog }

@@ -1564,9 +1564,14 @@ class TestConversationServiceToolCalls:
                 return_value=MockToolCall(message_id=msg_id, tool_name="send_email")
             )
 
-            await service.start_tool_call(msg_id, mock_data, parked=True)
+            connection_id = uuid4()
+            await service.start_tool_call(
+                msg_id, mock_data, parked=True, mcp_connection_id=connection_id
+            )
 
-            assert mock_repo.create_tool_call.call_args.kwargs["status"] == "awaiting_approval"
+            written = mock_repo.create_tool_call.call_args.kwargs
+            assert written["status"] == "awaiting_approval"
+            assert written["mcp_connection_id"] == connection_id
 
     @pytest.mark.anyio
     async def test_start_tool_call_verifies_message_exists(self, service: ConversationService):

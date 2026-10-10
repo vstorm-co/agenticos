@@ -1099,6 +1099,14 @@ class PreparedRun:
     the keyboard can fix them.
     """
 
+    mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
+    """Which organization MCP connection served each tool, by the name called.
+
+    Filled while the run lists its tools (`ResolvedMcpToolsets.origins`), and
+    read when its calls are written, so a server's call log lists its own calls
+    and not those of a member's connection that happens to share its name.
+    """
+
     workspace_at_start: set[str] | None = None
     """Every path the workspace held before the turn ran.
 
@@ -2695,6 +2703,7 @@ class AgentRunnerService:
             approvals=channel,
             workspace=workspace,
             materialised_skills=materialised,
+            mcp_origins=resolved.origins,
             workspace_at_start=started_with,
             # Only personal gaps reach the chat's connect card - a prefix collision
             # is the agent author's to fix by renaming a connection, not something
@@ -4587,6 +4596,7 @@ class AgentRunnerService:
                     # the conversation is read back, not as a call that ran (#601).
                     parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
                     model_label=prepared.built.model_label,
+                    mcp_origins=prepared.mcp_origins,
                     # The last request's own size, for the anchor a replayed history
                     # is measured against - see `build_message_history`.
                     context_used_tokens=prepared.built.context.latest,

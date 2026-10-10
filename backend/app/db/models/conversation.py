@@ -343,6 +343,10 @@ class ToolCall(Base):
         started_at: When the tool call started
         completed_at: When the tool call completed
         duration_ms: Execution time in milliseconds
+        mcp_connection_id: The organization's MCP connection that served the
+            call, when one did - what a server's call log reads (#2072). Not
+            inferred from the tool name: a member's own connection can share
+            the server's name and so its prefix.
     """
 
     __tablename__ = "tool_calls"
@@ -362,6 +366,12 @@ class ToolCall(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mcp_connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     message: Mapped["Message"] = relationship("Message", back_populates="tool_calls")
 

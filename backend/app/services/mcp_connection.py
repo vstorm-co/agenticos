@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -47,6 +47,7 @@ from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
+    ToolOrigins,
     platform_spec,
     prefix_collisions,
     probe_error_message,
@@ -1521,14 +1522,16 @@ class McpConnectionService:
     ) -> list[McpToolCallRead]:
         """What agents asked one organization server to do, newest first (#2072).
 
-        Found by the tool prefix the server's calls carry, so a server renamed
-        since is found under its current name only. The caller must reach the
-        server; arguments and results are never read.
+        Found by the connection each call recorded, so a member's own connection
+        that shares the server's name is not listed here, and calls from before it
+        was recorded are not listed at all. The tool is named without the prefix
+        the server's current name gives it. The caller must reach the server;
+        arguments and results are never read.
         """
         connection = await self._get_org(ctx, connection_id)
         prefix = tool_prefix(connection.name)
         calls = await conversation_repo.recent_tool_calls(
-            self.db, organization_id=ctx.organization_id, tool_prefix=prefix, limit=limit
+            self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
         )
         return [
             McpToolCallRead(
@@ -1937,6 +1940,10 @@ class ResolvedMcpToolsets:
 
     toolsets: list[Any]
     unavailable: list[UnavailableBinding]
+    origins: dict[str, UUID] = field(default_factory=dict)
+    """Each tool an organization connection serves, by the name the model calls,
+    mapped to that connection. Filled as the run lists its tools, so read it once
+    the run has run - it is what the transcript records each call against."""
 
 
 async def build_toolsets_for_agent(
@@ -2031,6 +2038,7 @@ async def build_toolsets_for_agent(
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             approval=ref.approval,
+            connection_id=connection.id,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -2061,9 +2069,17 @@ async def build_toolsets_for_agent(
                     kept_binding=bindings[id(kept)],
                 )
             )
+    origins: dict[str, UUID] = {}
     return ResolvedMcpToolsets(
-        toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
+        toolsets=[
+            toolset
+            if spec.connection_id is None
+            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
+            for spec, toolset in reachable
+            if id(spec) not in dropped
+        ],
         unavailable=unavailable,
+        origins=origins,
     )
 
 

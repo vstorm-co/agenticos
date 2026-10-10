@@ -20,6 +20,7 @@ from app.agents.mcp import (
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
+    ToolOrigins,
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
@@ -107,6 +108,14 @@ class _AnyIdMap(dict):
 
     def get(self, _key, _default=None):
         return self._value
+
+
+def _attached(resolved: mcp_connection_service.ResolvedMcpToolsets) -> list[object]:
+    """The toolsets attached, without the wrapper noting an org server's tools."""
+    return [
+        toolset.wrapped if isinstance(toolset, ToolOrigins) else toolset
+        for toolset in resolved.toolsets
+    ]
 
 
 def _batch(value):
@@ -354,6 +363,23 @@ class TestApprovalMarks:
         assert marked["read"].tool_def.metadata["annotations"] == {"readOnlyHint": True}
 
 
+class TestToolOrigins:
+    @pytest.mark.anyio
+    async def test_every_tool_listed_is_noted_under_its_connection(self):
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(return_value={"linear_search": "a", "linear_create": "b"})
+        connection_id = uuid4()
+        seen = {"notion_search": uuid4()}
+
+        tools = await ToolOrigins(inner, connection_id=connection_id, seen=seen).get_tools(
+            MagicMock()
+        )
+
+        assert tools == {"linear_search": "a", "linear_create": "b"}
+        assert seen["linear_search"] == seen["linear_create"] == connection_id
+        assert "notion_search" in seen
+
+
 def _mcp_tool(name, read_only):
     from pydantic_ai.tools import ToolDefinition
 
@@ -502,7 +528,7 @@ class TestToolsetsForAgent:
             AsyncMock(), organization_id=uuid4(), refs=[OrgMcpServerRef(connection_id=bound.id)]
         )
 
-        assert toolsets.toolsets == ["linear"]
+        assert _attached(toolsets) == ["linear"]
         assert [spec.name for spec in seen[0]] == ["linear"]
 
     @pytest.mark.anyio
@@ -531,7 +557,7 @@ class TestToolsetsForAgent:
         )
 
         assert [spec.name for spec in seen[0]] == ["github", "GitHub"]
-        assert resolved.toolsets == ["github"]
+        assert _attached(resolved) == ["github"]
         assert resolved.unavailable == [
             UnavailablePrefixCollision(
                 server="GitHub",
@@ -574,7 +600,7 @@ class TestToolsetsForAgent:
             ],
         )
 
-        assert resolved.toolsets == ["GitHub"]
+        assert _attached(resolved) == ["GitHub"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -601,7 +627,7 @@ class TestToolsetsForAgent:
         )
 
         assert [spec.name for spec in seen[0]] == ["github", "github"]
-        assert resolved.toolsets == ["github"]
+        assert _attached(resolved) == ["github"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -669,7 +695,7 @@ class TestToolsetsForAgent:
             AsyncMock(), organization_id=uuid4(), refs=[OrgMcpServerRef(connection_id=uuid4())]
         )
 
-        assert toolsets.toolsets == []
+        assert _attached(toolsets) == []
         assert seen[0] == []
 
     @pytest.mark.anyio
@@ -832,7 +858,7 @@ class TestEachPersonsOwnAccount:
             ("notion", "https://mine.example.com/mcp")
         ]
         assert seen[0][0].allowed_tools == ["search"]
-        assert resolved.toolsets == ["notion"]
+        assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -858,7 +884,7 @@ class TestEachPersonsOwnAccount:
         )
 
         assert [spec.name for spec in seen[0]] == ["notion", "notion"]
-        assert resolved.toolsets == ["notion"]
+        assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == [
             UnavailablePrefixCollision(
                 server="notion",
@@ -868,6 +894,33 @@ class TestEachPersonsOwnAccount:
                 kept_binding="the connection 'notion'",
             )
         ]
+
+    @pytest.mark.anyio
+    async def test_only_the_organization_server_notes_the_connection_its_calls_are_logged_under(
+        self, monkeypatch
+    ):
+        """A server's call log reads the connection recorded on each call (#2072),
+        so the organization's server notes its own, sharing one mapping per run,
+        and a person's own account notes nothing - its calls are not the server's."""
+        self._capture(monkeypatch)
+        shared = _connection(name="linear", url="https://org.example/mcp", scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(shared)
+        )
+        self._owns(monkeypatch, [_connection(name="my-notion", catalog_key="notion")])
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=shared.id), self._personal()],
+            sender_user_id=uuid4(),
+        )
+
+        organization, personal = resolved.toolsets
+        assert isinstance(organization, ToolOrigins)
+        assert organization.connection_id == shared.id
+        assert organization.seen is resolved.origins
+        assert personal == "notion"
 
     @pytest.mark.anyio
     async def test_the_lookup_is_scoped_to_the_sender_and_the_service(self, monkeypatch):
@@ -907,7 +960,7 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert resolved.toolsets == []
+        assert _attached(resolved) == []
         assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
     @pytest.mark.anyio
@@ -927,7 +980,7 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert resolved.toolsets == []
+        assert _attached(resolved) == []
         assert resolved.unavailable == [UnavailablePersonalService("notion", "undecided")]
 
     @pytest.mark.anyio
@@ -1032,7 +1085,7 @@ class TestEachPersonsOwnAccount:
         )
 
         assert [spec.name for spec in seen[0]] == ["linear"]
-        assert resolved.toolsets == ["linear"]
+        assert _attached(resolved) == ["linear"]
         assert resolved.unavailable == [UnavailablePersonalService("notion", "nobody_to_speak_as")]
 
 

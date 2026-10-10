@@ -1,5 +1,5 @@
 ---
-source_sha: "46def0afafcb"
+source_sha: "746500d703d8"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -529,9 +529,9 @@ comprobarlo ahí.
 En la página MCP, cada cuenta de la organización nombra los agents vinculados a
 ella, y **What agents asked it** lista las últimas llamadas a sus herramientas:
 qué herramienta, qué agent, cómo fue y en qué run. Lo que se preguntó y se
-respondió no se muestra: se queda en la conversación. Las llamadas se encuentran
-por el prefijo de las herramientas, así que una conexión renombrada solo lista
-las llamadas hechas con su nombre actual. API: `used_by` en
+respondió no se muestra: se queda en la conversación. Cada llamada registra la conexión que
+la atendió, así que la conexión propia de un miembro con el mismo nombre no
+aparece, y las llamadas anteriores a ese registro no aparecen en absoluto. API: `used_by` en
 `GET /api/v1/mcp-connections` y `GET /api/v1/mcp-connections/{id}/calls`.
 
 ## El catálogo { #the-catalog }

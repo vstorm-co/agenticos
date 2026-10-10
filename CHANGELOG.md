@@ -248,7 +248,9 @@ Two things are versioned separately from this file and worth knowing about:
   answered, when, and why not, with **Check now** for whoever manages MCP
   servers. On the MCP page each organization account names the agents bound to
   it, and **What agents asked it** lists the latest tool calls agents made to it -
-  tool, agent, outcome and run, never the arguments or results. API: `used_by` on
+  tool, agent, outcome and run, never the arguments or results. Each call records
+  the connection that served it (migration `0118_tool_call_mcp_connection`), so a
+  member's own connection with the same name is not listed. API: `used_by` on
   `GET /mcp-connections` and `GET /mcp-connections/{id}/calls` (#2072).
 
 - **The next step, wherever a page ends.** Builders see a **Get started**

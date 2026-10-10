@@ -1,5 +1,5 @@
 ---
-source_sha: "46def0afafcb"
+source_sha: "746500d703d8"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -540,9 +540,9 @@ dort erneut prüfen.
 Auf der MCP-Seite nennt jedes Konto der Organisation die Agents, die daran
 gebunden sind, und **Was Agents gefragt haben** listet die letzten Aufrufe ihrer
 Tools: welches Tool, welcher Agent, wie es lief und in welchem Run. Was gefragt
-und geantwortet wurde, wird nicht gezeigt - es bleibt im Gespräch. Aufrufe
-werden über das Tool-Präfix gefunden, daher zeigt eine umbenannte Verbindung nur
-Aufrufe unter ihrem aktuellen Namen. API: `used_by` an
+und geantwortet wurde, wird nicht gezeigt - es bleibt im Gespräch. Jeder Aufruf speichert die Verbindung, die ihn bedient hat; die eigene
+Verbindung eines Mitglieds mit demselben Namen erscheint daher nicht, und
+Aufrufe aus der Zeit davor erscheinen gar nicht. API: `used_by` an
 `GET /api/v1/mcp-connections` und `GET /api/v1/mcp-connections/{id}/calls`.
 
 ## Der Katalog { #the-catalog }

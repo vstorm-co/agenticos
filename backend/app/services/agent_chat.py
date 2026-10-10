@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -251,6 +251,8 @@ class OpenedRun:
     run_id: UUID
     model_label: str
     agent_version_id: UUID | None
+    mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
+    """The run's own `PreparedRun.mcp_origins`, filled as it lists its tools."""
 
 
 @dataclass(frozen=True)
@@ -301,6 +303,10 @@ class ChatTurn:
     comes off a response, so within one run it is unknown until one arrives -
     and a one-request turn, which is most of them, never gets that far (#49).
     """
+
+    mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
+    """Which organization MCP connection served each tool, by the name called -
+    what the surface stores each call against (`PreparedRun.mcp_origins`)."""
 
     usage: UsageReport | None = None
     """What the turn cost, and how full its workspace is.
@@ -484,6 +490,7 @@ class ChatAgentRunner:
                     run_id=prepared.run.id,
                     model_label=prepared.built.model_label,
                     agent_version_id=prepared.run.agent_version_id,
+                    mcp_origins=prepared.mcp_origins,
                 )
             )
 
@@ -590,6 +597,7 @@ class ChatAgentRunner:
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
             questions=tuple(paused.questions) if paused is not None else (),
+            mcp_origins=prepared.mcp_origins,
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
             overhead_tokens=prepared.built.context.overhead,

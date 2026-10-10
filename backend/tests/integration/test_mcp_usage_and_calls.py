@@ -77,7 +77,13 @@ async def _agent(
 
 
 async def _called(
-    db: AsyncSession, organization: Organization, agent: Agent | None, tool: str, ago: int
+    db: AsyncSession,
+    organization: Organization,
+    agent: Agent | None,
+    tool: str,
+    ago: int,
+    *,
+    served_by: McpConnection | None = None,
 ) -> None:
     conversation = Conversation(organization_id=organization.id)
     db.add(conversation)
@@ -100,6 +106,7 @@ async def _called(
             status="completed",
             started_at=_NOW - timedelta(minutes=ago),
             duration_ms=120,
+            mcp_connection_id=served_by.id if served_by else None,
         )
     )
     await db.flush()
@@ -130,11 +137,10 @@ class TestWhatItWasAskedToDo:
         organization, owner = await _setup(db)
         notion = await _server(db, organization, "notion-work")
         writer = await _agent(db, organization, "Writer", [])
-        await _called(db, organization, writer, "notion_work_search", ago=5)
-        await _called(db, organization, None, "notion_work_create_page", ago=1)
-        await _called(db, organization, writer, "notion_search", ago=2)
+        await _called(db, organization, writer, "notion_work_search", ago=5, served_by=notion)
+        await _called(db, organization, None, "notion_work_create_page", ago=1, served_by=notion)
         other, _ = await _setup(db)
-        await _called(db, other, None, "notion_work_search", ago=0)
+        await _called(db, other, None, "notion_work_search", ago=0, served_by=notion)
 
         calls = await McpConnectionService(db).recent_calls(owner, connection_id=notion.id)
 
@@ -144,6 +150,20 @@ class TestWhatItWasAskedToDo:
         ]
         assert "args" not in calls[0].model_dump()
         assert "result" not in calls[0].model_dump()
+
+    async def test_a_same_named_connection_and_unrecorded_calls_are_not_its_own(
+        self, db: AsyncSession
+    ) -> None:
+        """A member's own Notion carries the server's prefix; neither its calls nor
+        those written before the connection was recorded are this server's."""
+        organization, owner = await _setup(db)
+        notion = await _server(db, organization, "notion")
+        await _called(db, organization, None, "notion_search", ago=3)
+        await _called(db, organization, None, "notion_fetch", ago=2, served_by=notion)
+
+        calls = await McpConnectionService(db).recent_calls(owner, connection_id=notion.id)
+
+        assert [call.tool for call in calls] == ["fetch"]
 
     async def test_another_organizations_server_is_not_found(self, db: AsyncSession) -> None:
         organization, _owner = await _setup(db)

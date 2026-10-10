@@ -670,14 +670,15 @@ class ToolCallSeen(NamedTuple):
 
 
 async def recent_tool_calls(
-    db: AsyncSession, *, organization_id: UUID, tool_prefix: str, limit: int
+    db: AsyncSession, *, organization_id: UUID, connection_id: UUID, limit: int
 ) -> list[ToolCallSeen]:
-    """The organization's latest tool calls whose name opens with `tool_prefix` (#2072).
+    """The organization's latest tool calls one MCP connection served (#2072).
 
-    What one MCP server was asked to do, newest first: its tools reach a model
-    as `{prefix}_{tool}`, so the prefix is what identifies the server in a
-    recorded call. The arguments and results are not read - they are the
-    conversation's, and an audit of the server is not a window into it.
+    What the server was asked to do, newest first, by the connection recorded on
+    each call - not by the tool-name prefix, which a member's own connection to
+    the same service shares. Calls written before the connection was recorded
+    have none and are not listed. The arguments and results are not read - they
+    are the conversation's, and an audit of the server is not a window into it.
     """
     result = await db.execute(
         select(
@@ -694,7 +695,7 @@ async def recent_tool_calls(
         .outerjoin(Agent, Agent.id == Message.agent_id)
         .where(
             Conversation.organization_id == organization_id,
-            ToolCall.tool_name.startswith(f"{tool_prefix}_", autoescape=True),
+            ToolCall.mcp_connection_id == connection_id,
         )
         .order_by(ToolCall.started_at.desc())
         .limit(limit)
@@ -1082,6 +1083,7 @@ async def create_tool_call(
     args: dict[str, Any],
     started_at: datetime,
     status: str = "running",
+    mcp_connection_id: UUID | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1098,6 +1100,7 @@ async def create_tool_call(
         args=args,
         started_at=started_at,
         status=status,
+        mcp_connection_id=mcp_connection_id,
     )
     db.add(tool_call)
     await db.flush()
