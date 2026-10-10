@@ -2058,3 +2058,18 @@
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
 }
+
+/* A control the AI Architect pointed at (#2063): a ring that pulses three times
+   and is gone, so the reader's eye lands on it without a coach mark to dismiss. */
+.assistant-highlight {
+  outline: 2px solid var(--foreground);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+  animation: assistant-highlight 1s ease-in-out 3;
+}
+@keyframes assistant-highlight {
+  50% {
+    outline-offset: 8px;
+    outline-color: transparent;
+  }
+}

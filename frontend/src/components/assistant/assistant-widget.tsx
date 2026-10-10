@@ -1,26 +1,48 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellOff, History, MessageSquarePlus, X } from "lucide-react";
+import { flushSync } from "react-dom";
+import { BellOff, Camera, History, MessageSquarePlus, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 
-import { useAgents, useApprovals, usePermissions } from "@/hooks";
 import { useAssistant } from "@/hooks/use-assistant";
+import { useAssistantSignals } from "@/hooks/use-assistant-signals";
 import { ASSISTANT_FRAME_PATH } from "@/lib/assistant-frame";
-import { ASK, CONTEXT, HISTORY, NEW, type ToFrame } from "@/lib/assistant-messages";
-import { bubbleFor, pageOf, readPreferences, setBubblesOff } from "@/lib/assistant-bubbles";
+import { consoleLink, pointAt } from "@/lib/assistant-highlight";
+import { captureThisTab } from "@/lib/assistant-screenshot";
+import {
+  ASK,
+  ATTACH,
+  CONTEXT,
+  HISTORY,
+  NEW,
+  readFromFrame,
+  type ToFrame,
+} from "@/lib/assistant-messages";
+import {
+  bubbleFor,
+  isProactive,
+  markRunSeen,
+  pageOf,
+  readPreferences,
+  setBubblesOff,
+} from "@/lib/assistant-bubbles";
 import { cn } from "@/lib/utils";
+import { useRouter } from "@/lib/locale-navigation";
 import { defaultLocale } from "@/i18n";
-import { Perm } from "@/types/permissions";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
-import { AssistantFace, AssistantLauncher, WINDOW_CLASSES } from "./assistant-launcher";
+import { AssistantFace, AssistantLauncher, WINDOW_CLASSES, WidgetRoot } from "./assistant-launcher";
 import { AssistantSetup } from "./assistant-setup";
 
 /** How long a page is looked at before the bubble speaks. */
 const BUBBLE_DELAY_MS = 3000;
+
+/** Where the window is full screen, and covers the page a link opens. */
+const PHONE = "(max-width: 767px)";
 
 /** Counts page views across the widget's life, for the occasional tip. */
 let visits = 0;
@@ -49,9 +71,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   const t = useTranslations("assistantWidget");
   const locale = useLocale();
   const pathname = usePathname();
-  const { can } = usePermissions();
-  const { agents, isLoading: agentsLoading } = useAgents();
-  const { total: pendingApprovals } = useApprovals({ enabled: can(Perm.approvalsDecide) });
+  const signals = useAssistantSignals();
   const [open, setOpen] = useState(false);
   const [everOpened, setEverOpened] = useState(false);
   // The page the bubble has waited out its moment on; on any other it is quiet.
@@ -60,6 +80,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   const frame = useRef<HTMLIFrameElement>(null);
   const loaded = useRef(false);
   const queued = useRef<ToFrame[]>([]);
+  const router = useRouter();
 
   const post = useCallback((message: ToFrame) => {
     const target = frame.current?.contentWindow;
@@ -95,11 +116,37 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     return () => element.removeEventListener("load", onLoad);
   }, [everOpened, context, post]);
 
+  // "Show me where": a console link the Architect wrote opens here, and on a
+  // phone the full-screen window steps aside so the page can be seen.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const message = readFromFrame(event, window.location.origin, frame.current?.contentWindow);
+      const link = message && consoleLink(message.href, window.location.origin);
+      if (!link) return;
+      if (window.matchMedia(PHONE).matches) setOpen(false);
+      router.push(link.path);
+      if (link.anchor) void pointAt(link.anchor);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [router]);
+
+  const failedRun = signals.failedRunId !== preferences.seenRun ? signals.failedRunId : null;
   const bubble = bubbleFor(
     pathname,
-    { pendingApprovals, noAgents: !agentsLoading && agents.length === 0 },
+    {
+      stuck: signals.stuckIn !== null,
+      pendingApprovals: signals.pendingApprovals,
+      failedRun: failedRun !== null,
+      noAgents: signals.noAgents,
+    },
     visits,
   );
+  // Asking about a failed run, or waving it away, is hearing about it.
+  const heard = () => {
+    if (bubble === "failedRun" && failedRun !== null) markRunSeen(failedRun);
+    setPreferences(readPreferences());
+  };
   const speaking =
     readyOn === pathname &&
     !open &&
@@ -117,19 +164,38 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     post({ type: ASK, text });
   };
 
+  // The window steps aside while the page is photographed, so the screenshot
+  // shows the page rather than the conversation about it.
+  const screenshot = async () => {
+    // Committed before the capture starts, or the first frame still has it.
+    flushSync(() => setOpen(false));
+    try {
+      const file = await captureThisTab();
+      if (file) post({ type: ATTACH, file });
+    } catch {
+      toast.error(t("screenshotFailed"));
+    } finally {
+      setOpen(true);
+    }
+  };
+
   const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   return (
-    <div data-tour="assistant-widget">
+    <WidgetRoot>
       {everOpened && (
         <div
           role="dialog"
+          data-assistant-window
           aria-label={assistant.name}
           className={cn(WINDOW_CLASSES, !open && "hidden")}
         >
           <header className="border-border flex items-center gap-2 border-b px-3 py-2">
             <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
             <p className="min-w-0 flex-1 truncate text-sm font-semibold">{assistant.name}</p>
+            <HeaderButton label={t("screenshot")} onClick={() => void screenshot()}>
+              <Camera className="h-4 w-4" />
+            </HeaderButton>
             <HeaderButton label={t("history")} onClick={() => post({ type: HISTORY })}>
               <History className="h-4 w-4" />
             </HeaderButton>
@@ -162,9 +228,13 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
       {speaking && (
         <AssistantBubble
           bubble={bubble}
-          proactive={bubble === "approvals" || bubble === "firstSteps"}
-          onAsk={ask}
-          onSilence={() => setPreferences(readPreferences())}
+          values={{ run: failedRun ?? "", form: signals.stuckIn ?? "" }}
+          proactive={isProactive(bubble)}
+          onAsk={(text) => {
+            heard();
+            ask(text);
+          }}
+          onSilence={heard}
           path={pathname}
         />
       )}
@@ -175,7 +245,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         open={open}
         onToggle={() => (open ? setOpen(false) : openWindow())}
       />
-    </div>
+    </WidgetRoot>
   );
 }
 

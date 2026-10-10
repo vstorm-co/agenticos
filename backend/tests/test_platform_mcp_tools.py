@@ -101,6 +101,7 @@ def server(api: MagicMock) -> FastMCP:
         ),
         ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 20, "skip": 0}})),
         ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
+        ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
         ("list_knowledge_bases", {}, ("GET", "/kb", {})),
         (
             "create_knowledge_base",
@@ -147,6 +148,59 @@ async def test_each_tool_is_one_public_api_call(
     method, path, kwargs = call
     assert api.request.await_args.args == (method, path)
     assert api.request.await_args.kwargs == kwargs
+
+
+ME = {"organization_id": ORG, "user_id": "u-1"}
+
+
+def _draft(**overrides: Any) -> dict[str, Any]:
+    return {
+        "id": str(AGENT),
+        "name": "Bot",
+        "owner_user_id": "u-1",
+        "current_version_id": None,
+    } | overrides
+
+
+class TestUndoingADraft:
+    async def test_a_draft_you_created_and_never_published_is_deleted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.side_effect = [ME, _draft(), None]
+
+        result = await server.call_tool("discard_agent_draft", {"agent_id": str(AGENT)})
+
+        assert api.request.await_args.args == ("DELETE", f"/agents/{AGENT}")
+        assert result.structured_content == {"discarded": str(AGENT), "name": "Bot"}
+
+    @pytest.mark.parametrize(
+        ("agent", "reason"),
+        [
+            (_draft(owner_user_id="u-2"), "you created yourself"),
+            (_draft(current_version_id=str(RUN)), "has been published"),
+        ],
+    )
+    async def test_somebody_else_s_or_a_published_agent_is_refused(
+        self, api: MagicMock, agent: dict[str, Any], reason: str
+    ) -> None:
+        api.request.side_effect = [ME, agent]
+        api.refuse = MagicMock(side_effect=ToolError("refused"))
+        tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
+
+        with pytest.raises(ToolError):
+            await tool.function(agent_id=AGENT)
+
+        assert reason in api.refuse.call_args.args[0]
+        assert ("DELETE", f"/agents/{AGENT}") not in [c.args for c in api.request.await_args_list]
+
+    @pytest.mark.parametrize("answers", [[{"refused": "no"}], [ME, {"refused": "no"}]])
+    async def test_a_refused_lookup_is_passed_back_untouched(
+        self, api: MagicMock, answers: list[dict[str, Any]]
+    ) -> None:
+        api.request.side_effect = answers
+        tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
+
+        assert await tool.function(agent_id=AGENT) == {"refused": "no"}
 
 
 def _token() -> AccessToken:
@@ -247,3 +301,8 @@ class TestChainedCalls:
         assert await tools["invite_member"].function(email="ada@example.com") == refusal
         assert tools["invite_member"].writes and not tools["list_members"].writes
         assert tools["whoami"].summary.startswith("Which organization")
+
+
+async def test_refuse_answers_the_way_an_api_refusal_does() -> None:
+    with pytest.raises(ToolError, match="nope"):
+        _api(lambda request: httpx.Response(200)).refuse("nope")

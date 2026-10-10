@@ -119,6 +119,18 @@ its window turns the bubbles off. Its window opens on four tiles, so a first
 message is a click, and keeps its own conversation history. On a phone it fills
 the screen.
 
+When it names a page, the link opens in the console behind the window and
+points at the control it means — the button that creates an agent, the tab with
+the approvals. The camera in its header shows it the page you are on: your
+browser asks which tab to share, and one picture is attached to your next
+message.
+
+It plans longer jobs as a checklist you can watch, keeps notes about
+you between conversations, can tell you what your agents cost, and can undo an
+agent draft it made by mistake — never anything else. Besides approvals and an
+empty organization, its bubble speaks up when a run of yours has just failed
+and when a form has been open, unfinished, for a minute.
+
 Until the organization has a model, it cannot answer. Opening it then types out
 a short conversation explaining how to connect one: get an API key from a
 provider, open **Settings → Assistant**, choose the provider and paste the key,

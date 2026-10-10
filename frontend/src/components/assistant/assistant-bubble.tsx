@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 
 interface AssistantBubbleProps {
   bubble: BubbleKey;
+  /** What the bubble's words name: the failed run, the form somebody is stuck in. */
+  values: { run: string; form: string };
   /** Something waiting for the reader rather than a suggestion - shown on a phone too. */
   proactive: boolean;
   path: string;
@@ -22,6 +24,7 @@ interface AssistantBubbleProps {
  */
 export function AssistantBubble({
   bubble,
+  values,
   proactive,
   path,
   onAsk,
@@ -37,10 +40,10 @@ export function AssistantBubble({
     >
       <button
         type="button"
-        onClick={() => onAsk(t(`bubbles.${bubble}.ask`))}
+        onClick={() => onAsk(t(`bubbles.${bubble}.ask`, values))}
         className="block w-full px-4 py-3 pr-9 text-left text-sm leading-snug"
       >
-        {t(`bubbles.${bubble}.say`)}
+        {t(`bubbles.${bubble}.say`, values)}
       </button>
       <button
         type="button"

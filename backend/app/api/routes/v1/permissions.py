@@ -27,6 +27,7 @@ async def get_my_permissions(ctx: Auth) -> Any:
     """Effective permissions for the caller in the active organization."""
     return MyPermissions(
         organization_id=str(ctx.organization_id),
+        user_id=str(ctx.user_id),
         role=ctx.role,
         is_app_admin=ctx.is_app_admin,
         permissions=[

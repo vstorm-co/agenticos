@@ -5638,6 +5638,14 @@
       "tipQuestions": {
         "say": "Wussten Sie schon? Ein Agent kann Ihnen Fragen mit fertigen Antworten zum Anklicken stellen.",
         "ask": "Wie stellt mir ein Agent während der Arbeit Fragen?"
+      },
+      "stuck": {
+        "say": "Hängen Sie bei „{form}“ fest? Ich führe Sie durch.",
+        "ask": "Ich fülle „{form}“ aus und weiß nicht, was hinein soll. Führen Sie mich Feld für Feld durch, in einfachen Worten."
+      },
+      "failedRun": {
+        "say": "Einer Ihrer Runs ist fehlgeschlagen. Soll ich erklären, was passiert ist?",
+        "ask": "Warum ist mein Run {run} fehlgeschlagen? Erklären Sie es in einfachen Worten und sagen Sie mir, was ich ändern kann."
       }
     },
     "setup": {
@@ -5653,7 +5661,9 @@
         "done": "<b>Das war's.</b> Kommen Sie hierher zurück, und ich begrüße Sie. Dieses Modell steht auch allen anderen Agents Ihrer Organisation zur Verfügung.",
         "askAdmin": "<b>Wer das kann:</b> Nur ein Administrator Ihrer Organisation kann ein Modell verbinden. Bitten Sie ihn, diese Schritte zu befolgen – das dauert etwa zwei Minuten, danach bin ich für alle da."
       }
-    }
+    },
+    "screenshot": "Diese Seite zeigen",
+    "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein."
   },
   "assistantSettings": {
     "notForYou": "Ihre Rolle umfasst nicht das Ausführen von Agents, daher steht Ihnen der Assistent nicht zur Verfügung. Ein Administrator kann das ändern.",

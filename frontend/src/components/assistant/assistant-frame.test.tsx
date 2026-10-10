@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatPrompt } from "@/components/chat/chat-container";
-import { ASK, CONTEXT, HISTORY, NEW } from "@/lib/assistant-messages";
+import { ASK, ATTACH, CONTEXT, HISTORY, NAVIGATE, NEW } from "@/lib/assistant-messages";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantFrame } from "./assistant-frame";
@@ -39,12 +39,23 @@ vi.mock("@/components/chat/chat-container", () => ({
   ChatContainer: ({
     prompt,
     emptyState,
+    incomingFiles,
+    agentFixed,
   }: {
     prompt: ChatPrompt | null;
     emptyState: (onPick: (text: string) => void) => React.ReactNode;
+    incomingFiles: { id: number; files: File[] } | null;
+    agentFixed: boolean;
   }) => (
-    <div>
+    <div data-agent-fixed={String(agentFixed)}>
       <output>{prompt ? `${prompt.id}:${prompt.text}` : "no prompt"}</output>
+      <p data-testid="incoming">
+        {incomingFiles ? `${incomingFiles.id}:${incomingFiles.files[0]!.name}` : "none"}
+      </p>
+      {/* The plain anchor the chat's markdown draws for a link the model wrote. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+      <a href="/agents?highlight=agents-new">console link</a>
+      <a href="https://docs.example">outside link</a>
       {emptyState((text) => state.selectConversation(`picked:${text}`))}
     </div>
   ),
@@ -187,5 +198,50 @@ describe("the assistant's welcome", () => {
 
     expect(screen.queryByText(/What shall we do/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Ready-made recipes" })).toBeNull();
+  });
+});
+
+describe("the frame's links and files", () => {
+  it("talks to its one agent, with no picker", () => {
+    render(<AssistantFrame agentId="a1" />);
+
+    expect(document.querySelector("[data-agent-fixed]")).toHaveAttribute(
+      "data-agent-fixed",
+      "true",
+    );
+  });
+
+  it("opens a console link in the console rather than in the frame", () => {
+    const parent = vi.spyOn(window.parent, "postMessage");
+    render(<AssistantFrame agentId="a1" />);
+
+    const link = screen.getByText("console link");
+    const opened = fireEvent.click(link);
+
+    expect(opened).toBe(false);
+    expect(parent).toHaveBeenCalledWith(
+      { type: NAVIGATE, href: "/agents?highlight=agents-new" },
+      window.location.origin,
+    );
+    parent.mockRestore();
+  });
+
+  it("leaves a link to anywhere else alone", () => {
+    const parent = vi.spyOn(window.parent, "postMessage");
+    render(<AssistantFrame agentId="a1" />);
+
+    fireEvent.click(screen.getByText("outside link"));
+
+    expect(parent).not.toHaveBeenCalled();
+    parent.mockRestore();
+  });
+
+  it("attaches each screenshot the console sends", () => {
+    render(<AssistantFrame agentId="a1" />);
+
+    send({ type: ATTACH, file: new File(["a"], "one.png") });
+    expect(screen.getByTestId("incoming")).toHaveTextContent("1:one.png");
+    send({ type: ATTACH, file: new File(["b"], "two.png") });
+    expect(screen.getByTestId("incoming")).toHaveTextContent("2:two.png");
   });
 });

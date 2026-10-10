@@ -3406,6 +3406,14 @@
       "tipQuestions": {
         "say": "Czy wiesz, że agent może zadawać Ci pytania z gotowymi odpowiedziami do kliknięcia?",
         "ask": "Jak agent zadaje mi pytania w trakcie pracy?"
+      },
+      "stuck": {
+        "say": "Formularz „{form}” sprawia kłopot? Przeprowadzę Cię przez niego.",
+        "ask": "Wypełniam „{form}” i nie wiem, co wpisać. Przeprowadź mnie przez to pole po polu, prostym językiem."
+      },
+      "failedRun": {
+        "say": "Jeden z Twoich runów się nie udał. Wyjaśnić, co się stało?",
+        "ask": "Dlaczego mój run {run} się nie udał? Wyjaśnij to prostym językiem i powiedz, co mogę zmienić."
       }
     },
     "setup": {
@@ -3421,7 +3429,9 @@
         "done": "<b>To wszystko.</b> Wróć tutaj, a od razu się przywitam. Z tego modelu mogą korzystać też wszyscy inni agenci w Twojej organizacji.",
         "askAdmin": "<b>Kto może to zrobić:</b> model podpina tylko administrator Twojej organizacji. Poproś go o te kroki - zajmą mu około dwóch minut, a potem będę tu dla wszystkich."
       }
-    }
+    },
+    "screenshot": "Pokaż mu tę stronę",
+    "screenshotFailed": "Nie udało się zrobić zrzutu ekranu. Wklej go do rozmowy samodzielnie."
   },
   "assistantSettings": {
     "notForYou": "Twoja rola nie obejmuje uruchamiania agentów, więc asystent nie jest dla Ciebie dostępny. Administrator może to zmienić.",

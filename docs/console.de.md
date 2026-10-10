@@ -1,5 +1,5 @@
 ---
-source_sha: "1477d03ed0f2"
+source_sha: "847a0d40a27d"
 ---
 
 # Die Konsole { #the-console }
@@ -136,6 +136,19 @@ einen Tipp an. Ein Klick auf die Sprechblase fragt ihn; × schaltet die Seite
 stumm, und die Glocke in seinem Fenster schaltet die Sprechblasen ganz ab. Sein
 Fenster öffnet sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist, und
 führt einen eigenen Verlauf. Auf dem Telefon füllt es den Bildschirm.
+
+Nennt er eine Seite, öffnet der Link sie in der Konsole hinter dem Fenster und
+zeigt auf das gemeinte Bedienelement — die Schaltfläche, die einen Agent anlegt,
+den Reiter mit den Freigaben. Die Kamera in seiner Kopfzeile zeigt ihm die Seite,
+auf der Sie sind: Der Browser fragt, welchen Tab Sie teilen, und ein Bild hängt
+an Ihrer nächsten Nachricht.
+
+Längere Aufgaben plant er als Checkliste, die Sie
+verfolgen können, er merkt sich Notizen über Sie zwischen Unterhaltungen, sagt
+Ihnen, was Ihre Agents kosten, und kann einen versehentlich angelegten
+Agent-Entwurf rückgängig machen — sonst nichts. Neben Freigaben und einer leeren
+Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
+fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
 Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
 er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel

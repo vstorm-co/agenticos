@@ -10,7 +10,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
-import { AssistantFace, AssistantLauncher, WINDOW_CLASSES } from "./assistant-launcher";
+import { AssistantFace, AssistantLauncher, WINDOW_CLASSES, WidgetRoot } from "./assistant-launcher";
 
 /** How long the assistant "types" each message of the walkthrough. */
 export const TYPING_MS = 900;
@@ -42,10 +42,11 @@ export function AssistantSetup({
   const steps = assistant.can_configure ? STEPS : [...STEPS.slice(0, -1), "askAdmin" as const];
 
   return (
-    <div data-tour="assistant-widget">
+    <WidgetRoot>
       {everOpened && (
         <div
           role="dialog"
+          data-assistant-window
           aria-label={t("setup.title")}
           className={cn(WINDOW_CLASSES, !open && "hidden")}
         >
@@ -98,7 +99,7 @@ export function AssistantSetup({
           setEverOpened(true);
         }}
       />
-    </div>
+    </WidgetRoot>
   );
 }
 

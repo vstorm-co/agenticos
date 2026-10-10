@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container";
+import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useConversations } from "@/hooks/use-conversations";
-import { ASK, CONTEXT, NEW, readToFrame } from "@/lib/assistant-messages";
+import { consoleLink } from "@/lib/assistant-highlight";
+import { ASK, ATTACH, CONTEXT, NAVIGATE, NEW, readToFrame } from "@/lib/assistant-messages";
 import { useAgentSelectionStore } from "@/stores";
 
 import { AssistantHistory } from "./assistant-history";
@@ -26,6 +28,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
   const [prompt, setPrompt] = useState<ChatPrompt | null>(null);
   const [page, setPage] = useState<PageContext | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [incoming, setIncoming] = useState<IncomingFiles | null>(null);
 
   useEffect(() => {
     select(agentId);
@@ -33,6 +36,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
 
   useEffect(() => {
     let asked = 0;
+    let attached = 0;
     const onMessage = (event: MessageEvent) => {
       const message = readToFrame(event, window.location.origin);
       if (message === null) return;
@@ -41,6 +45,9 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
         setPrompt({ id: asked, text: message.text });
       } else if (message.type === CONTEXT) {
         setPage({ path: message.path, title: message.title });
+      } else if (message.type === ATTACH) {
+        attached += 1;
+        setIncoming({ id: attached, files: [message.file] });
       } else if (message.type === NEW) {
         setShowHistory(false);
         void startNewChat();
@@ -52,6 +59,20 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
     return () => window.removeEventListener("message", onMessage);
   }, [startNewChat]);
 
+  // A console link in the conversation opens in the console, not in this
+  // frame: "show me where" is about the page behind the window.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const anchor = (event.target as Element | null)?.closest?.("a");
+      const href = anchor?.getAttribute("href") ?? null;
+      if (consoleLink(href, window.location.origin) === null) return;
+      event.preventDefault();
+      window.parent.postMessage({ type: NAVIGATE, href }, window.location.origin);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
+
   return (
     <div className="relative flex min-h-0 flex-1">
       {showHistory && <AssistantHistory agentId={agentId} onClose={() => setShowHistory(false)} />}
@@ -59,6 +80,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
         <ChatContainer
           prompt={prompt}
           agentFixed
+          incomingFiles={incoming}
           emptyState={(onPick) =>
             assistant && (
               <AssistantWelcome

@@ -111,6 +111,17 @@ interface ChatInputProps {
    * the width of the row and were read past on every message.
    */
   actionsSlot?: ReactNode;
+  /**
+   * Files handed in from outside the composer - the AI Architect's screenshot of
+   * the page (#2063) - attached as if picked, once per `id`.
+   */
+  incoming?: IncomingFiles | null;
+}
+
+/** Files to attach from outside the composer, once per `id`. */
+export interface IncomingFiles {
+  id: number;
+  files: File[];
 }
 
 export function ChatInput({
@@ -124,6 +135,7 @@ export function ChatInput({
   mic,
   controlsSlot,
   actionsSlot,
+  incoming = null,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -336,6 +348,13 @@ export function ChatInput({
     },
     [chatMaxUploadSizeMb, t, tErrors],
   );
+
+  const attachedIncoming = useRef<number | null>(null);
+  useEffect(() => {
+    if (incoming === null || attachedIncoming.current === incoming.id) return;
+    attachedIncoming.current = incoming.id;
+    void uploadFiles(incoming.files);
+  }, [incoming, uploadFiles]);
 
   /**
    * A paste long enough to be a document becomes one.

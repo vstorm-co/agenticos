@@ -1,5 +1,5 @@
 ---
-source_sha: "1477d03ed0f2"
+source_sha: "847a0d40a27d"
 ---
 
 # La consola { #the-console }
@@ -125,6 +125,18 @@ consejo. Haz clic en el bocadillo para preguntarle; × silencia esa página, y l
 campana de su ventana apaga los bocadillos. Su ventana se abre con cuatro
 mosaicos, para que el primer mensaje sea un clic, y guarda su propio historial de
 conversaciones. En un teléfono ocupa toda la pantalla.
+
+Cuando nombra una página, el enlace la abre en la consola detrás de la ventana y
+señala el control al que se refiere — el botón que crea un agent, la pestaña de
+aprobaciones. La cámara de su cabecera le muestra la página en la que estás: el
+navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
+mensaje.
+
+Planifica los trabajos largos como una lista que puedes seguir, guarda
+notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y puede
+deshacer un borrador de agent que creó por error — nada más. Además de las
+aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
+acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
 Mientras la organización no tenga un modelo, no puede responder. Al abrirlo
 escribe entonces una breve conversación sobre cómo conectar uno: consigue una clave

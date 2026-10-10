@@ -8,7 +8,7 @@ import { useAgents, useChat, useConversationWorkspace, useModelProviders } from 
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
-import { ChatInput } from "./chat-input";
+import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
@@ -98,12 +98,15 @@ interface ChatContainerProps {
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   /** The conversation is with one agent, chosen by the caller: no agent picker. */
   agentFixed?: boolean;
+  /** Files to attach to the next message, handed in from outside (#2063). */
+  incomingFiles?: IncomingFiles | null;
 }
 
 export function ChatContainer({
   prompt = null,
   emptyState,
   agentFixed = false,
+  incomingFiles = null,
 }: ChatContainerProps = {}) {
   const {
     currentConversationId,
@@ -408,6 +411,7 @@ export function ChatContainer({
       onStop={stopGeneration}
       emptyState={emptyState}
       agentFixed={agentFixed}
+      incomingFiles={incomingFiles}
     />
   );
 }
@@ -416,6 +420,7 @@ interface ChatUIProps {
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   agentFixed: boolean;
+  incomingFiles: IncomingFiles | null;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
@@ -529,6 +534,7 @@ function ChatUI({
   onStop,
   emptyState,
   agentFixed,
+  incomingFiles,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   // Opened by the composer's microphone button; the glow around the box reads
@@ -759,6 +765,7 @@ function ChatUI({
                         slashContext={slashContext}
                         commands={slashCommands}
                         attachmentSlot={attachmentSlot}
+                        incoming={incomingFiles}
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.

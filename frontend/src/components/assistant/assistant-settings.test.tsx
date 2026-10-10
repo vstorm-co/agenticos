@@ -104,7 +104,7 @@ describe("Settings → Assistant", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Show tips again on the 1 page I silenced" }),
     );
-    expect(JSON.parse(localStorage.getItem("assistant-bubbles")!)).toEqual({
+    expect(JSON.parse(localStorage.getItem("assistant-bubbles")!)).toMatchObject({
       silenced: [],
       off: true,
     });

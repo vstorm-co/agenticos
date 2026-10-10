@@ -70,3 +70,7 @@ class PlatformApi:
                 f"{error.get('message', 'The request was refused')}"
             )
         return body
+
+    def refuse(self, message: str) -> Any:
+        """Refuse a call the way the API's own refusals are answered."""
+        return self._on_refusal(message)

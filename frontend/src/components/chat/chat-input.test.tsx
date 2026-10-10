@@ -277,4 +277,16 @@ describe("ChatInput attachments", () => {
     expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
     expect(state.upload).not.toHaveBeenCalled();
   });
+
+  it("attaches files handed in from outside once per hand-off, as if picked", async () => {
+    // The AI Architect's screenshot of the page arrives this way (#2063).
+    const shot = new File(["png"], "screenshot.png", { type: "image/png" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    await waitFor(() => expect(state.upload).toHaveBeenCalledWith(shot));
+
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot] }} />);
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledTimes(2));
+  });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea2723f80e6"
+source_sha: "4a9c2f107b8b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -811,16 +811,19 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run` | `runs:view` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | — |
 | `invite_member` | `members:manage` |
 
-Celowo nie ma tu usuwania czegokolwiek, publikowania agenta ani dotykania
-poświadczeń. Draft utworzony tutaj publikuje osoba w konsoli. Podłączone aplikacje są
+Celowo nie ma tu publikowania agenta, dotykania poświadczeń ani usuwania
+czegokolwiek poza draftem agenta, który wywołujący sam utworzył i nigdy nie
+opublikował - to cofnięcie draftu utworzonego przez pomyłkę. Draft utworzony
+tutaj publikuje osoba w konsoli. Podłączone aplikacje są
 widoczne w **Ustawienia → Klucze API**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).

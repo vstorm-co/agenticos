@@ -3,13 +3,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   bubbleFor,
   pageOf,
+  isProactive,
+  markRunSeen,
   readPreferences,
   resetSilenced,
   setBubblesOff,
   silencePage,
 } from "./assistant-bubbles";
 
-const QUIET = { pendingApprovals: 0, noAgents: false };
+const QUIET = { stuck: false, pendingApprovals: 0, failedRun: false, noAgents: false };
 
 afterEach(() => {
   localStorage.clear();
@@ -17,9 +19,21 @@ afterEach(() => {
 });
 
 describe("bubbleFor", () => {
-  it("puts what is waiting before everything else", () => {
-    expect(bubbleFor("/agents", { pendingApprovals: 2, noAgents: true }, 1)).toBe("approvals");
-    expect(bubbleFor("/agents", { pendingApprovals: 0, noAgents: true }, 1)).toBe("firstSteps");
+  it("puts what is waiting before everything else, a stuck form first", () => {
+    const all = { stuck: true, pendingApprovals: 2, failedRun: true, noAgents: true };
+    expect(bubbleFor("/agents", all, 1)).toBe("stuck");
+    expect(bubbleFor("/agents", { ...all, stuck: false }, 1)).toBe("approvals");
+    expect(bubbleFor("/agents", { ...all, stuck: false, pendingApprovals: 0 }, 1)).toBe(
+      "failedRun",
+    );
+    expect(bubbleFor("/agents", { ...QUIET, noAgents: true }, 1)).toBe("firstSteps");
+  });
+
+  it("tells a phone only what is waiting", () => {
+    expect(
+      ["stuck", "approvals", "failedRun", "firstSteps"].every((key) => isProactive(key as never)),
+    ).toBe(true);
+    expect(isProactive("agents")).toBe(false);
   });
 
   it("speaks to the page the reader is on, with or without a locale", () => {
@@ -53,7 +67,7 @@ describe("preferences", () => {
     silencePage("/agents");
     setBubblesOff(true);
 
-    expect(readPreferences()).toEqual({ silenced: ["/agents"], off: true });
+    expect(readPreferences()).toEqual({ silenced: ["/agents"], off: true, seenRun: null });
   });
 
   it("lets every silenced page speak again without touching the switch", () => {
@@ -62,21 +76,26 @@ describe("preferences", () => {
 
     resetSilenced();
 
-    expect(readPreferences()).toEqual({ silenced: [], off: true });
+    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null });
+  });
+
+  it("remembers the failed run the reader has heard about", () => {
+    markRunSeen("run-1");
+    expect(readPreferences().seenRun).toBe("run-1");
   });
 
   it("reads anything unreadable as the default", () => {
     localStorage.setItem("assistant-bubbles", "not json");
-    expect(readPreferences()).toEqual({ silenced: [], off: false });
+    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null });
 
     localStorage.setItem("assistant-bubbles", JSON.stringify({ silenced: [1, "/kb"], off: "yes" }));
-    expect(readPreferences()).toEqual({ silenced: ["/kb"], off: false });
+    expect(readPreferences()).toEqual({ silenced: ["/kb"], off: false, seenRun: null });
 
     localStorage.setItem("assistant-bubbles", JSON.stringify({ off: true }));
-    expect(readPreferences()).toEqual({ silenced: [], off: true });
+    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null });
 
     localStorage.setItem("assistant-bubbles", "42");
-    expect(readPreferences()).toEqual({ silenced: [], off: false });
+    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null });
   });
 
   it("survives storage that refuses to be written", () => {

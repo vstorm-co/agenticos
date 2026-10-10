@@ -6,7 +6,8 @@ is one name, one description and one call for every caller.
 
 Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
-it will be refused. Nothing here deletes, publishes or touches a credential.
+it will be refused. Nothing here publishes or touches a credential, and the one
+thing that deletes is undoing an agent draft its caller owns and never published.
 """
 
 from __future__ import annotations
@@ -81,6 +82,36 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if conversation_id is not None:
             body["conversation_id"] = str(conversation_id)
         return await api.request("POST", f"/agents/{agent_id}/run", json=body)
+
+    async def discard_agent_draft(agent_id: UUID) -> dict[str, Any]:
+        """Undo an agent draft you created: delete it, if it was never published.
+
+        Refused for an agent somebody else owns or one that has a published version -
+        undoing is for a draft made by mistake, not for retiring an agent. Needs
+        `agents:delete` on it.
+        """
+        me = await api.request("GET", "/me/permissions")
+        if "user_id" not in me:
+            return me
+        agent = await api.request("GET", f"/agents/{agent_id}")
+        if "id" not in agent:
+            return agent
+        if agent.get("owner_user_id") != me["user_id"]:
+            return api.refuse("Only an agent draft you created yourself can be undone")
+        if agent.get("current_version_id") is not None:
+            return api.refuse(
+                "This agent has been published, so it is not undone from here - "
+                "archive or delete it in the console"
+            )
+        await api.request("DELETE", f"/agents/{agent_id}")
+        return {"discarded": str(agent_id), "name": agent.get("name")}
+
+    async def get_spend(days: int = 30) -> dict[str, Any]:
+        """What the organization's agents cost: month to date, and per agent over `days`.
+
+        Needs `runs:view`.
+        """
+        return await api.request("GET", "/spend", params={"days": days})
 
     async def list_runs(
         agent_id: UUID | None = None, limit: int = 20, skip: int = 0
@@ -168,9 +199,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_agents, False),
         (get_agent, False),
         (create_agent_draft, True),
+        (discard_agent_draft, True),
         (run_agent, True),
         (list_runs, False),
         (get_run, False),
+        (get_spend, False),
         (list_knowledge_bases, False),
         (create_knowledge_base, True),
         (add_document, True),

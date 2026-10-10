@@ -781,16 +781,19 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run` | `runs:view` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | — |
 | `invite_member` | `members:manage` |
 
-Deliberately absent: deleting anything, publishing an agent, and touching a
-credential. A draft created here is published by a person in the console.
+Deliberately absent: publishing an agent, touching a credential, and deleting
+anything but an agent draft its caller created and never published - the undo
+for a draft made by mistake. A draft created here is published by a person in
+the console.
 Connected applications are listed under **Settings → API keys**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.

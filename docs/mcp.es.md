@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea2723f80e6"
+source_sha: "4a9c2f107b8b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -828,16 +828,18 @@ permiso que faltaba.
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run` | `runs:view` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | — |
 | `invite_member` | `members:manage` |
 
-A propósito no hay: borrar nada, publicar un agent ni tocar credenciales. Un
-borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
+un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
+creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
 aparecen en **Settings → API keys**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).

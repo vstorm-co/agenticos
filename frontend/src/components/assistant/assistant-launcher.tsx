@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -58,3 +59,28 @@ export function AssistantFace({
 /** Where the assistant's window sits: full screen on a phone, a panel above the button otherwise. */
 export const WINDOW_CLASSES =
   "bg-background border-border fixed z-50 flex flex-col overflow-hidden shadow-2xl inset-0 md:inset-auto md:right-6 md:bottom-24 md:h-[min(640px,80vh)] md:w-[400px] md:rounded-2xl md:border";
+
+/**
+ * The widget's root: usable above an open dialog, without closing it.
+ *
+ * A modal dialog turns pointer events off on the page and closes on a press
+ * outside itself - which is everything the widget is. The Architect is most
+ * useful exactly when somebody is stuck in a form, so the widget takes pointer
+ * events back and keeps its presses from reaching the document, where the
+ * dialog listens for them.
+ */
+export function WidgetRoot({ children }: { children: React.ReactNode }) {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Set by the time an effect runs: the div is this component's only output.
+    const element = root.current;
+    const keep = (event: PointerEvent) => event.stopPropagation();
+    element?.addEventListener("pointerdown", keep);
+    return () => element?.removeEventListener("pointerdown", keep);
+  }, []);
+  return (
+    <div ref={root} data-tour="assistant-widget" className="pointer-events-auto">
+      {children}
+    </div>
+  );
+}

@@ -5780,6 +5780,14 @@
       "tipQuestions": {
         "say": "Did you know? An agent can ask you questions with ready-made answers to click.",
         "ask": "How does an agent ask me questions while it works?"
+      },
+      "stuck": {
+        "say": "Stuck on \"{form}\"? I can walk you through it.",
+        "ask": "I'm filling in \"{form}\" and I'm not sure what to put. Walk me through it one field at a time, in plain words."
+      },
+      "failedRun": {
+        "say": "One of your runs failed. Want me to explain what happened?",
+        "ask": "Why did my run {run} fail? Explain it in plain words and tell me what I can change."
       }
     },
     "setup": {
@@ -5795,7 +5803,9 @@
         "done": "<b>That's it.</b> Come back here and I'll say hello. Every other agent in your organization can use that model too.",
         "askAdmin": "<b>Who can do it:</b> only an administrator of your organization can connect a model. Ask one to follow these steps - it takes about two minutes, and then I'm here for everyone."
       }
-    }
+    },
+    "screenshot": "Show it this page",
+    "screenshotFailed": "The screenshot could not be taken. Paste one into the conversation instead."
   },
   "assistantSettings": {
     "notForYou": "Your role doesn't include running agents, so the assistant isn't available to you. An administrator can change that.",

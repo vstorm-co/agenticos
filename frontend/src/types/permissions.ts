@@ -20,6 +20,7 @@ export interface PermissionEntry {
 
 export interface MyPermissions {
   organization_id: string;
+  user_id: string;
   role: OrgRole | "";
   is_app_admin: boolean;
   permissions: PermissionEntry[];

@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea2723f80e6"
+source_sha: "4a9c2f107b8b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -846,16 +846,19 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `whoami` | — |
 | `list_agents`, `get_agent` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run` | `runs:view` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | — |
 | `invite_member` | `members:manage` |
 
-Bewusst fehlt: etwas löschen, einen Agent veröffentlichen und Zugangsdaten
-anfassen. Einen hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
+Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
+löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie
+veröffentlicht hat - das Rückgängigmachen eines versehentlichen Entwurfs. Einen
+hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
 Verbundene Anwendungen stehen unter **Einstellungen → API-Schlüssel**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.

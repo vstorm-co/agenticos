@@ -1,5 +1,5 @@
 ---
-source_sha: "1477d03ed0f2"
+source_sha: "847a0d40a27d"
 ---
 
 # Konsola { #the-console }
@@ -127,6 +127,18 @@ Kliknięcie dymka zadaje mu pytanie; × wycisza tę stronę, a dzwonek w jego ok
 wyłącza dymki w ogóle. Okno otwiera się na czterech kafelkach, więc pierwsza
 wiadomość to jedno kliknięcie, i ma własną historię rozmów. Na telefonie zajmuje
 cały ekran.
+
+Gdy wskazuje stronę, link otwiera się w konsoli za oknem i podświetla kontrolkę,
+o którą chodzi — przycisk tworzący agenta, zakładkę z akceptacjami. Aparat w
+nagłówku okna pokazuje mu stronę, na której jesteś: przeglądarka pyta, którą
+kartę udostępnić, a jedno zdjęcie trafia jako załącznik do twojej następnej
+wiadomości.
+
+Dłuższe zadania planuje jako listę kroków, którą widać na bieżąco,
+zapamiętuje notatki o tobie między rozmowami, powie, ile kosztują twoi agenci, i
+może cofnąć draft agenta, który utworzył przez pomyłkę — nic poza tym. Oprócz
+akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
+udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
 Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
 krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz

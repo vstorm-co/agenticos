@@ -83,7 +83,16 @@ Two things are versioned separately from this file and worth knowing about:
   protocol, in-process, with a credential minted for whoever is asking (a new
   `platform` kind of MCP binding), so it can never do more than they can. Who
   may talk to it is `agents:run`, as for any agent, and its cost counts like any
-  agent's. **Settings → Assistant** holds your own tips and, for whoever may
+  agent's. A console link it writes opens behind its window and rings the
+  control it names; the camera in its header attaches a screenshot of the
+  page; it plans longer jobs with a visible checklist, keeps memory files, reads
+  spend with a new `get_spend` MCP tool, and undoes an agent draft it made with
+  `discard_agent_draft` - the one delete on the MCP server, refused for anything
+  published or owned by somebody else. Its bubble also speaks up about the
+  reader's own failed run and a form left open for a minute, and works above an
+  open dialog without closing it. `/me/permissions` now names the caller's
+  `user_id`. Its template carries recipes (FAQ bot, website widget, Slack bot,
+  weekly report) and a plain-words glossary. **Settings → Assistant** holds your own tips and, for whoever may
   change the organization's settings, its name, greeting and model, and a switch
   to turn it off. The MCP tool `create_agent` is renamed `create_agent_draft`,
   which no longer collides with delegation's. Migration `0109_internal_api_keys`
