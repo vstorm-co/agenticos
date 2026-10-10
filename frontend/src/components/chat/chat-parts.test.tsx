@@ -303,9 +303,7 @@ describe("the empty chat", () => {
 
     await userEvent.click(screen.getByText("Summarize my docs"));
 
-    expect(onPick).toHaveBeenCalledWith(
-      "Summarize the key points from my latest indexed documents.",
-    );
+    expect(onPick).toHaveBeenCalledWith("Summarize the key points from my latest documents.");
   });
 
   it("names the agent that will answer", () => {

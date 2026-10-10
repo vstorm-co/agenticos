@@ -150,6 +150,11 @@ Two things are versioned separately from this file and worth knowing about:
   are named. The listings carry `used_by`. Page descriptions for agents,
   context, knowledge bases and sandboxes are rewritten in plain words, and
   Workspaces is **Agent files** in the navigation (#2075).
+- **The phone chat is no longer covered by the AI Architect's button**, which
+  sat on the composer's send controls; on a phone it steps out of the chat page,
+  where the agent picker reaches the assistant. The chat's opening suggestions
+  are everyday tasks rather than developer ones, and the phone tab bar says
+  **Knowledge** instead of "KB" (#2075).
 - **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
   channel run that stops for a decision, or for an `ask_user` question - which
   now parks a channel run instead of being read as declined - is offered in the

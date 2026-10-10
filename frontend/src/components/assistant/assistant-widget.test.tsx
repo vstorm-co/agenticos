@@ -343,6 +343,20 @@ describe("the AI Architect widget", () => {
     expect(launcher).toHaveClass("hidden", "md:block");
   });
 
+  it("steps out of a phone's chat composer, and stays on every other page", () => {
+    // The corner it sits in is the composer's send controls there (#2075).
+    state.pathname = "/pl/chat";
+    const { unmount } = render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open AI Architect" })).toHaveClass("max-md:hidden");
+    unmount();
+
+    state.pathname = "/agents";
+    render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open AI Architect" })).not.toHaveClass(
+      "max-md:hidden",
+    );
+  });
+
   it("hides the window from its header without losing the conversation", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));

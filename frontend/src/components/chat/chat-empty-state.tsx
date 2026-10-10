@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, BookOpen, Code2, FileSearch, Sparkles } from "lucide-react";
+import { ArrowUpRight, BookOpen, FileSearch, Mail, Sparkles } from "lucide-react";
 
 import { useTranslations } from "next-intl";
 
@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks";
 const PROMPTS = [
   { icon: FileSearch, id: "docs" },
   { icon: BookOpen, id: "concept" },
-  { icon: Code2, id: "code" },
+  { icon: Mail, id: "email" },
   { icon: Sparkles, id: "brainstorm" },
 ] as const;
 

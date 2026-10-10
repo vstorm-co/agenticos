@@ -244,6 +244,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         agentId={agentId}
         open={open}
         onToggle={() => (open ? setOpen(false) : openWindow())}
+        overComposer={pageOf(pathname).startsWith("/chat")}
       />
     </WidgetRoot>
   );
