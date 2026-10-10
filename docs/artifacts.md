@@ -1,18 +1,18 @@
-# Artifacts
+# Apps { #artifacts }
 
-An **artifact** is a page an agent published: a report, a small dashboard, a
+An **app** is a page an agent published: a report, a small dashboard, a
 one-page summary somebody opens in a browser. It has a link that stays the same
 when the agent publishes it again, so "every Monday, publish the week's numbers
 to this page" is one link people bookmark rather than a new one each week.
 
-An artifact is not a file. A chart, a generated PDF and a workspace file already
-have a home in the chat and in the [workspace](sandbox.md). An artifact is the
+An app is not a file. A chart, a generated PDF and a workspace file already
+have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
 ## Publishing one
 
-Turn on the **Artifacts** capability for the agent. It adds two tools:
+Turn on the **Apps** capability for the agent. It adds two tools:
 `publish_artifact`, which the model calls when the result is something a person
 should open rather than read once in the chat, and `read_artifact`, which reads a
 published page back.
@@ -20,7 +20,7 @@ published page back.
 The page comes from one of three places:
 
 - **A file in the agent's workspace**, ending in `.html` or `.md`. This is the
-  usual case for an agent with the [Files & shell](reference/capabilities.md#files-shell)
+  usual case for an agent with the [Sandbox](reference/capabilities.md#files-shell)
   capability: it writes `report.html`, runs whatever builds it, then publishes
   the file. The bytes are read through the run's own workspace backend, so it
   works on every sandbox backend.
@@ -49,8 +49,8 @@ so; an edit can still name text past the cut.
 
 ## One name, one link
 
-The identity of an artifact is its **name within the agent** - `weekly-report`,
-`churn-dashboard`. Publishing under the same name updates the same artifact,
+The identity of an app is its **name within the agent** - `weekly-report`,
+`churn-dashboard`. Publishing under the same name updates the same app,
 from any surface: the chat, the API, a [trigger](triggers.md) or a workflow. A
 new name makes a new page. The name is lower-case letters, digits and hyphens,
 up to 64 characters.
@@ -62,14 +62,14 @@ republish the page production readers have bookmarked. The environment is read
 from the run itself, never from the model, and the list and the page name it.
 
 The name is shared by everybody who runs the agent, but the page is not. A run
-republishes an existing artifact only when the person it acts for owns it or
+republishes an existing app only when the person it acts for owns it or
 holds `artifacts:edit` on it - from the role or from an `edit` grant, the same
 rule as managing it in the console. Anybody else's run is told the name is taken
 and publishes under another one, so a colleague asking the same shared agent for
 a `weekly-report` cannot replace the page behind your link.
 
 Every publication is a new **version**. Nothing is overwritten, so the version
-list on the artifact's page is the page's history. Two things keep that history
+list on the app's page is the page's history. Two things keep that history
 bounded:
 
 - Publishing exactly the bytes the current version holds adds no version. The
@@ -129,19 +129,19 @@ The bundled **`artifact-pages`** [skill](skills.md) teaches an agent to use them
 templates (a dashboard and a report), the house style and its components, icons
 instead of emoji, and how to change a page
 with `read_artifact`. A new organization gets it with the other bundled skills, an
-existing one through `seed-skills`, and the Artifacts capability's **Page style**
+existing one through `seed-skills`, and the Apps capability's **Page style**
 tab in the Builder offers it. Edit the skill to describe your own brand, and the
 agent follows it.
 
 ## Who can open it
 
-A new artifact is **private** to the person the publishing run acted for: the
+A new app is **private** to the person the publishing run acted for: the
 person in the chat, or the creator of a trigger.
 
 Its link - the one the chat card and the agent's reply point at - opens the page
 itself, filling the window under one strip with its title, its version and
 **Share**. Nobody gets in through that link alone: it opens only for a signed-in
-member the rules below already let in. It names the organization the artifact is
+member the rules below already let in. It names the organization the app is
 in (`?org=`), so a member of several lands in the right one.
 
 Under **Share**, anybody who may manage it can share it three ways:
@@ -149,13 +149,13 @@ Under **Share**, anybody who may manage it can share it three ways:
 | Reach | How | Who |
 |---|---|---|
 | Specific people | A grant, at `read` or `edit` | Those members, in this organization |
-| The organization | Visibility set to the whole organization | Every member whose role reaches shared artifacts |
+| The organization | Visibility set to the whole organization | Every member whose role reaches shared apps |
 | Anyone with the link | **Create a public link** | Anybody holding the address, without an account |
 
 Sharing and visibility use the same panel and the same rules as agents and
-skills; see [Permissions](permissions.md). Managing an artifact - sharing it,
+skills; see [Permissions](permissions.md). Managing an app - sharing it,
 its public link and its settings, restoring a version, deleting it - needs
-`artifacts:edit` on that artifact, from the role or from an `edit` grant.
+`artifacts:edit` on that app, from the role or from an `edit` grant.
 Opening it needs `artifacts:view`.
 
 The agent cannot widen who reads a page. It publishes; a person decides who sees
@@ -174,7 +174,7 @@ once. **Turn off** removes it. Both are recorded in the audit trail. A page
 somebody already has open keeps showing until its signed content address
 expires, at most `ARTIFACT_VIEW_TTL_SECONDS` (five minutes by default).
 
-A revoked member is in the same position: they lose the artifact on their next
+A revoked member is in the same position: they lose the app on their next
 request, and a page they already had open stays for that same window at most.
 
 Under the link, **Share** holds its settings. They stay when the link is replaced,
@@ -208,7 +208,7 @@ somebody else's site.
 
 ## How the page is isolated
 
-An artifact is HTML with script in it, written by a model that may have read
+An app is HTML with script in it, written by a model that may have read
 something hostile. It is served so that nothing it does can reach the console or
 the person looking at it:
 
@@ -241,7 +241,7 @@ the person looking at it:
   fresh address each time they draw the frame, and minting one through a public
   link is itself limited per link.
 
-The **Artifacts** list draws each card's current page as a live thumbnail
+The **Apps** list draws each card's current page as a live thumbnail
 through the same kind of frame, with script and nothing else: no dialogs, no
 popups, no forms. Script, so a dashboard whose charts a library draws is not an
 empty canvas on its card. The thumbnail is inert - no pointer events, out of the
@@ -257,19 +257,34 @@ hardening a security review may ask for, not a requirement. Set the variable for
 the backend and for the frontend, which adds that origin to its `frame-src`. See
 [Configuration](configuration.md#published-artifacts).
 
+## Following a page
+
+**Follow** on a page's bar puts a notice in your inbox each time it gets a new
+version - an agent republished it with different content, or somebody restored
+an older version. A republish that changes nothing tells nobody, so a schedule
+that found nothing new stays quiet. The person whose run or restore made the
+version is not told about their own change.
+
+Following gives no access. Anybody who can open the page can follow it, and a
+follower who loses access stops receiving notices without unfollowing. The
+inbox checks access again when it is read, so a notice about a page that is no
+longer yours to open disappears with that access. The notice can also be sent
+by email; turn either channel off under **Settings → Notifications → App
+updated**.
+
 ## Retention and deletion
 
-Artifacts are a [retention class](governance.md#the-classes) of their own,
+Apps are a [retention class](governance.md#the-classes) of their own,
 measured from the **last publication** - a report republished every week is
-alive however old its first version is. Like every class, it keeps artifacts for
+alive however old its first version is. Like every class, it keeps apps for
 ever until an organization or the deployment sets a period.
 
-Deleting an artifact - by hand or by retention - removes every version, its
+Deleting an app - by hand or by retention - removes every version, its
 stored bytes, its grants and its public link. Deleting the agent does not delete
-its artifacts: they stay readable and simply have no publisher. Deleting a named
+its apps: they stay readable and simply have no publisher. Deleting a named
 environment does the same to the pages published from it, so they never land on
 the default environment's page of the same name. Deleting the organization
-removes them. A deleted person's artifacts stay and lose their owner, the way
+removes them. A deleted person's apps stay and lose their owner, the way
 their agents and skills do.
 
 The bytes live in the deployment's [file storage](configuration.md#uploaded-files-at-rest),

@@ -59,7 +59,9 @@ export function MobileTabBar() {
     <nav
       role="navigation"
       aria-label={t("primary")}
-      className="border-foreground/10 bg-background fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] lg:hidden"
+      // Out of the way while somebody types: on top of a phone's keyboard it takes
+      // a fifth of what is left of the screen (#2066, `useOnScreenKeyboard`).
+      className="border-foreground/10 bg-background fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] lg:hidden [html[data-typing]_&]:hidden"
     >
       {items.map((item) => {
         const active = isActive(item);

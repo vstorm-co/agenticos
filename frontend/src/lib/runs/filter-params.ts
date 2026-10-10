@@ -27,6 +27,8 @@ export interface RunFilters {
   versionId: string;
   /** The model as a run recorded it - the label the dashboard's bars count. */
   model: string;
+  /** Runs from the Builder's test panel: only them, none of them, or both (#2074). */
+  test: "all" | "only" | "hide";
 }
 
 export const DEFAULT_RUN_FILTERS: RunFilters = {
@@ -36,6 +38,7 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
   userId: "all",
   versionId: "all",
   model: "all",
+  test: "all",
 };
 
 /** The URL name of each filter. `person` reads better in a pasted link than `userId`. */
@@ -46,9 +49,11 @@ const PARAM: Record<keyof RunFilters, string> = {
   userId: "person",
   versionId: "version",
   model: "model",
+  test: "test",
 };
 
 const RATINGS = new Set(["up", "down"]);
+const TESTS = new Set(["only", "hide"]);
 
 /** Activity's three tabs, in the order the strip draws them. */
 export const RUNS_TABS = ["runs", "approvals", "spend"] as const;
@@ -82,6 +87,7 @@ export function parseRunsTab(param: string | null, canDecide: boolean): RunsTab 
 export function parseRunFilters(params: URLSearchParams): RunFilters {
   const read = (key: keyof RunFilters) => params.get(PARAM[key])?.trim() || "all";
   const rated = read("rated");
+  const test = read("test");
   return {
     status: read("status") as RunFilters["status"],
     surface: read("surface"),
@@ -89,6 +95,7 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     userId: read("userId"),
     versionId: read("versionId"),
     model: read("model"),
+    test: TESTS.has(test) ? (test as RunFilters["test"]) : "all",
   };
 }
 

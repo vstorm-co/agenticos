@@ -4,6 +4,7 @@ description: A general-purpose agent in the style of Claude Code - it reads befo
   acts, plans multi-step work, edits files and runs commands in its workspace,
   researches the web, delegates to specialists and verifies what it did.
 capabilities:
+- ask_user
 - id: sandbox
   config:
     include_execute: true

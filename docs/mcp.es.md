@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "57668d8e8424"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -60,7 +60,13 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
-Dos tipos, y la diferencia es lo importante.
+Dos tipos, y la diferencia es lo importante. El diálogo de conexión lo pregunta
+como una sola elección en palabras sencillas: **One shared account** (una cuenta
+compartida) - configurada una vez, normalmente por un admin con una cuenta de
+servicio, y usada por todos los agents - o **My own account** (tu propia cuenta),
+usada por ti y por los agents configurados para actuar como cada persona. Un
+servidor del catálogo con inicio de sesión (Notion, Linear, Gmail) recomienda la
+cuenta de cada persona; uno que pide una clave recomienda la compartida.
 
 **Personal** (MCP servers → You) está limitada a un miembro y la alcanza su propio
 asistente, y también un agent vinculado a la cuenta propia de cada persona cuando
@@ -71,9 +77,20 @@ personal no tiene ninguna, y su dueño puede pertenecer a varias, así que atarl
 la que estuviera activa cuando la añadió haría el token ilegible en el momento en
 que cambiara de una a otra.
 
-**Organización** está limitada a la organización, protegida por
-`connections:manage`, y es el único tipo que el spec de un agent publicado puede
-nombrar *por id*.
+**Organización** está limitada a la organización, protegida por `mcp:manage`, y
+es el único tipo que el spec de un agent publicado puede nombrar *por id*.
+
+Un servidor de la organización puede pertenecer a un departamento. En **Who can
+use it** el diálogo de conexión ofrece **Everyone**, por defecto, o **Chosen
+groups or people**, que se encuentran escribiendo; el servidor pasa entonces a ser
+privado y compartido con cada uno a nivel `use`. Ellos y quien lo conectó lo ven y
+lo vinculan; owners y admins ven todos los servidores. Su botón **Who can use it**
+lo cambia después.
+
+Un agent que ya lo usa sigue funcionando para todos los que
+pueden ejecutarlo: la elección decide quién puede escoger el servidor, no quién
+recibe respuestas a través de él, por eso el Builder lo marca en
+[de dónde viene el conocimiento de un agent](departments.md#where-an-agents-knowledge-comes-from).
 
 Un agent publicado que alcanzara herramientas distintas según la sesión de quien
 lo construyó no podría revisarse ni razonarse, que es toda la razón de la
@@ -83,8 +100,11 @@ nombra el servicio, y quien habla con el agent aporta su propia conexión a él.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Dos nombres, y responden a preguntas distintas { #two-names-and-they-answer-different-questions }
@@ -139,6 +159,18 @@ Una conexión que nadie ha sondeado todavía no tiene catálogo que ofrecer, y e
 selector lo dice y apunta a la página de servidores, que es donde se comprueba una
 conexión. Una vinculación que ya nombra herramientas muestra esas, así que aquello
 a lo que está vinculada sigue visible y todavía se puede estrechar.
+
+### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
+
+Cada vinculación tiene una política `approval` para las herramientas de su
+servidor. La predeterminada, `writes`, retiene toda herramienta que el servidor no
+marque como de solo lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe
+la llamada, igual que espera una herramienta de capability con efectos: la tarjeta
+muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene todas las
+llamadas; `none` las deja pasar todas, para un servidor en el que confías sin una
+persona de por medio. La marca de solo lectura la declara el propio servidor, así
+que `writes` es tan estricta como honesto sea el servidor: elige `all` para un
+servidor que no controlas.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
@@ -440,7 +472,11 @@ de conexión que el spec pueda guardar — así que la tarjeta abre el diálogo 
 conexión **ahí mismo**.
 
 Un servidor de token o sin credenciales se conecta sin salir de la página, y la
-nueva conexión queda marcada para el agent en cuanto existe.
+nueva conexión queda marcada para el agent en cuanto existe. Conectar comprueba el
+servidor, y sus herramientas aparecen enseguida a partir de esa comprobación, así
+que elegir un servidor, conectarlo y decidir qué puede llamar el agent es un solo
+camino. Una comprobación fallida dice por qué en el aviso, y la conexión se queda
+para corregirla.
 
 !!! info "OAuth abre una pestaña"
 
@@ -482,6 +518,27 @@ Dos conexiones cuyos nombres se reducen al mismo prefijo se deduplican — gana 
 primera, con un aviso que nombra a la perdedora. Los servidores gestionados por el
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
+
+### Estado, uso y llamadas { #health-users-and-calls }
+
+Un servidor al que el agent está vinculado con la cuenta de la organización
+muestra en su tarjeta del Builder si respondió en la última comprobación, cuándo
+fue y qué dijo si falló; quien gestiona los servidores MCP puede volver a
+comprobarlo ahí.
+Una cuenta OAuth cuyo inicio de sesión no se pudo renovar se muestra como
+pendiente de autorización y no como inalcanzable, con **Autorizar** para volver
+a iniciar sesión.
+
+En la página MCP, cada cuenta de la organización nombra los agents vinculados a
+ella, y **What agents asked it** lista las últimas llamadas a sus herramientas:
+qué herramienta, qué agent, cómo fue y en qué run. Lo que se preguntó y se
+respondió no se muestra: se queda en la conversación. Cada llamada registra la conexión que
+la atendió, así que la conexión propia de un miembro con el mismo nombre no
+aparece, y las llamadas anteriores a ese registro no aparecen en absoluto. API: `used_by` en
+`GET /api/v1/mcp-connections` y `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Añadir a un agent** vincula una cuenta al borrador del agent elegido, y
+conectar una con una clave, o terminar su inicio de sesión, ofrece lo mismo.
 
 ## El catálogo { #the-catalog }
 
@@ -749,6 +806,14 @@ aquí.
 introspeccionan al conectar, y nada de él necesita estar antes en el catálogo. El
 catálogo le ahorra a alguien buscar una URL; no es una puerta.
 
+Escribir la dirección de un servidor propio le pregunta si se puede iniciar sesión:
+el mismo descubrimiento que hace un flujo OAuth (RFC 9728, luego RFC 8414), sin
+registrar nada, mediante `POST /api/v1/me/mcp-connections/probe`. Si se puede,
+**OAuth** queda elegido y Conectar abre el inicio de sesión; si el servidor no
+registra aplicaciones por sí mismo, el diálogo pide un client ID y un secreto
+creados en el proveedor; si no publica metadatos OAuth, queda un token o ninguna
+credencial.
+
 Para añadir una entrada a la lista, ver
 [Añadir un servidor al catálogo de MCP](howto/add-mcp-server.md).
 
@@ -773,17 +838,74 @@ proveedor. Una entrada del registro no equivale a una prueba completa de la
 integración con AgenticOS. Revisa los modos de aprobación descritos abajo antes
 de activar herramientas de escritura.
 
+## AgenticOS como servidor MCP { #agenticos-as-an-mcp-server }
+
+Todo lo anterior es la plataforma llamando a otros servidores. También es uno:
+**`/mcp`** en el host de la API habla MCP sobre streamable HTTP, así que Claude
+Code, Claude Desktop o cualquier cliente MCP puede operar la organización —
+listar y crear agents, ejecutarlos, leer los runs y su coste, llenar y buscar
+bases de conocimiento, invitar a miembros.
+
+El servidor está construido sobre [FastMCP](https://gofastmcp.com): sirve el
+protocolo y los endpoints de OAuth 2.1, y AgenticOS aporta las herramientas y cada
+decisión detrás de un inicio de sesión.
+
+El cliente inicia sesión por el navegador: se registra, abre la página de
+consentimiento de la consola, donde eliges la organización y lo que puede hacer, y
+recibe un token que dura una hora y se renueva solo. No se pega ninguna clave.
+
+El registro no necesita credenciales, así que se limita por dirección como el
+inicio de sesión, y un cliente con el que nadie completó el inicio de sesión se
+olvida al cabo de un día.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+O conéctate con una [clave de API de la organización](api.md#organization-api-keys),
+para un cliente que no puede abrir un navegador:
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+La conexión actúa como el miembro que emitió la clave, dentro de los permisos de
+la clave. Cada herramienta es una llamada a la [API pública](api.md) con esa
+clave, así que se rechaza, se limita y se audita exactamente igual que la misma
+petición por HTTP; un rechazo vuelve como error de la herramienta nombrando el
+permiso que faltaba.
+
+| Herramienta | Necesita |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
+| `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, sobre un borrador tuyo que nunca se publicó |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
+un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
+creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+aparecen en **Settings → API keys**, donde desconectar una termina su acceso y
+el de cada token que tiene. Las llamadas que cambian
+algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
-  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
-  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
-  predeterminado **Follow the agent** no añade esa puerta. Restringe las
-  herramientas disponibles y revisa el modo de ejecución antes de activar una
-  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Aprobaciones que saben qué hace una herramienta.** La política `writes` confía
+  en que el servidor marque sus herramientas de solo lectura; una herramienta así
+  marcada que cambia algo se ejecuta sin preguntar. Usa `all` para un servidor que
+  no controlas y acota `allowed_tools`. Consulta [qué llamadas esperan](#which-calls-wait-for-a-person).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

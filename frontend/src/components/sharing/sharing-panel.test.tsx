@@ -45,6 +45,8 @@ function group(id: string, name: string): Group {
     organization_id: "org-1",
     name,
     description: null,
+    icon: null,
+    monthly_budget_usd: null,
     member_count: 3,
     created_at: "2026-01-01T00:00:00Z",
   };
@@ -330,7 +332,7 @@ describe("SharingPanel", () => {
       <SharingPanel resourceType="artifact" resourceId="r1" canManage />,
     );
 
-    expect(screen.getByText(/Who reaches this artifact without being named/)).toBeInTheDocument();
+    expect(screen.getByText(/Who reaches this app without being named/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/secret/i);
   });
 

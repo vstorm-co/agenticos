@@ -1,5 +1,5 @@
 ---
-source_sha: "2db3d6fc670a"
+source_sha: "3e585eb46567"
 title: "Ein LLM-Wiki bauen, das der Agent pflegt"
 description: "Geben Sie einem Agent einen Workspace, der Konversationen überdauert, und eine Schema-Datei, und lassen Sie ihn rohe Notizen in ein kleines, verlinktes Markdown-Wiki verwandeln."
 ---
@@ -42,8 +42,8 @@ Die Referenztatsache, die eine Wiki-Seite über beide Notizen hinweg tragen muss
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Files & shell**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`.
-3. Setzen Sie den **Session-Scope auf `user`**, nicht auf den Standard `conversation`. Ein Workspace mit Konversations-Scope beginnt im nächsten Chat leer, und genau diesen Fehler "das Wiki vergisst alles" prüft diese Seite. Einer mit Agent-Scope wird von allen in der Organisation geteilt, die mit diesem Agent sprechen, und das ist das falsche Freigabemodell für das Wiki einer Person. `user` behält einen Workspace für die Person über jede Konversation und jede Oberfläche, über die sie den Agent erreicht, und für niemanden sonst. Was jeder Scope teilt, steht unter [Files & shell](../reference/capabilities.md#files-shell).
+2. Aktivieren Sie in der **Toolbox** **Sandbox**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`.
+3. Setzen Sie den **Session-Scope auf `user`**, nicht auf den Standard `conversation`. Ein Workspace mit Konversations-Scope beginnt im nächsten Chat leer, und genau diesen Fehler "das Wiki vergisst alles" prüft diese Seite. Einer mit Agent-Scope wird von allen in der Organisation geteilt, die mit diesem Agent sprechen, und das ist das falsche Freigabemodell für das Wiki einer Person. `user` behält einen Workspace für die Person über jede Konversation und jede Oberfläche, über die sie den Agent erreicht, und für niemanden sonst. Was jeder Scope teilt, steht unter [Sandbox](../reference/capabilities.md#files-shell).
 4. Legen Sie Budget und Schrittlimit für den Versuch fest.
 5. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 

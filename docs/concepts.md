@@ -162,10 +162,10 @@ do not lend it their **identity**. Nobody is listening to an unattended run, so
 it answers to no identified person, the same as an embedded widget visitor. These
 per-person stores are closed to it:
 
-- [Memory files](reference/capabilities.md#memory-files) and
+- [Memory](reference/capabilities.md#memory-files) and
   [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
   conversation has no memory.
-- [Conversation search](reference/capabilities.md#conversation-search): both
+- [Past conversations](reference/capabilities.md#conversation-search): both
   tools refuse.
 - A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
 - [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is

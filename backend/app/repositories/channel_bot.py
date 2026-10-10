@@ -111,8 +111,13 @@ async def create(
     access_policy: dict | None = None,
     slack_signing_secret_encrypted: str | None = None,
     slack_app_token_encrypted: str | None = None,
+    command_token_encrypted: str | None = None,
     speech_to_text_provider: str | None = None,
     speech_to_text_model: str | None = None,
+    ack_reaction: str | None = None,
+    stream_answers: bool = True,
+    step_display: str = "timeline",
+    rate_answers: bool = True,
 ) -> ChannelBot:
     """Create a new channel bot owned by an organization."""
     bot = ChannelBot(
@@ -121,6 +126,10 @@ async def create(
         name=name,
         speech_to_text_provider=speech_to_text_provider,
         speech_to_text_model=speech_to_text_model,
+        ack_reaction=ack_reaction,
+        stream_answers=stream_answers,
+        step_display=step_display,
+        rate_answers=rate_answers,
         token_encrypted=token_encrypted,
         secret_key_version=secret_key_version,
         webhook_mode=webhook_mode,
@@ -130,6 +139,7 @@ async def create(
         access_policy=access_policy or dict(DEFAULT_ACCESS_POLICY),
         slack_signing_secret_encrypted=slack_signing_secret_encrypted,
         slack_app_token_encrypted=slack_app_token_encrypted,
+        command_token_encrypted=command_token_encrypted,
     )
     db.add(bot)
     await db.flush()

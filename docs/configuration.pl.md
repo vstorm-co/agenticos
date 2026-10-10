@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "6fe9ef2b0740"
 ---
 
 # Konfiguracja { #configuration }
@@ -459,6 +459,7 @@ drugiego, więc każda definicja usługi nosi własną.
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Jak długo zaparkowane wywołanie narzędzia czeka, zanim cogodzinne zamiatanie odrzuci je przez timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | Jak długo run czeka na odpowiedź na pytanie agenta, zanim to samo zamiatanie go zakończy |
 
 Trzy dni, bo musi objąć weekend: zatwierdzenie, które przychodzi w piątek po
 południu, jest tym, o którym nikt nie decyduje, a wygaszenie go w sobotę byłoby
@@ -676,16 +677,16 @@ tak samo jak źródło `gdrive` nazywa konto serwisowe. Endpoint i region nadal 
 się do tych ustawień, bo żadne z nich nie nazywa principala — mówią, gdzie jest
 magazyn, a nie kto pyta.
 
-## Opublikowane artefakty { #published-artifacts }
+## Opublikowane aplikacje { #published-artifacts }
 
 Strony, które agenci publikują za pomocą capability `artifacts`. Ich bajty leżą w
 opisanym wyżej magazynie plików; te zmienne je ograniczają i mówią, skąd są
-serwowane. Zobacz [Artefakty](artifacts.md).
+serwowane. Zobacz [Aplikacje](artifacts.md).
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 

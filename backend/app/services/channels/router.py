@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -19,6 +19,8 @@ from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import (
+    agent_exposure_repo,
+    agent_repo,
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
@@ -32,6 +34,7 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
+    CHANNEL_COMMANDS,
     ChannelAdapter,
     ChannelDirectoryUnsupported,
     IncomingAttachment,
@@ -44,13 +47,20 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
-from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
+from app.services.channels.live_reply import (
+    WORKING,
+    AnswerSink,
+    LiveReply,
+    StreamedReply,
+    channel_stream,
+)
 from app.services.channels.mentions import (
     AnsweredTurn,
     ChannelAgentRouter,
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.channels.prompts import ChannelPrompts
 from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -92,7 +102,7 @@ class _ChatLocks:
         return len(self._held)
 
     @asynccontextmanager
-    async def hold(self, bot_id: str, chat_id: str) -> AsyncIterator[None]:
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncGenerator[None, None]:
         key = f"{bot_id}:{chat_id}"
         lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
         self._held[key] = (lock, waiting + 1)
@@ -231,6 +241,9 @@ def _empty_answer(answered: Any) -> str:
     """
     if answered.awaiting_approval_run_id is not None:
         return _needs_approval(answered.awaiting_approval_run_id)
+    if answered.status == RunStatus.AWAITING_ANSWER:
+        # The question itself follows, as its own message with buttons (#2064).
+        return "I have a question for you before I go on."
     if answered.status == RunStatus.BUDGET_EXCEEDED:
         return "This assistant has reached its usage limit."
     return "Sorry, I could not produce an answer to that. Please try again."
@@ -440,7 +453,14 @@ class ChannelMessageRouter:
         ):
             return
 
-        live, handle = await self._open_reply(bot, incoming)
+        await self._acknowledge(bot, incoming)
+        streamed = await self._open_streamed(bot, incoming) if bot.stream_answers else None
+        live: AnswerSink | None
+        handle: str | None
+        if streamed is not None:
+            live, handle = streamed, streamed.handle
+        else:
+            live, handle = await self._open_reply(bot, incoming)
 
         # Loaded before the run, so the turn being run is the prompt and
         # everything before it is the history. The turn itself is written by the
@@ -478,6 +498,7 @@ class ChannelMessageRouter:
             handle=lambda: handle,
             files=files,
             file_refusals=file_refusals,
+            streamed=streamed,
         )
 
     async def _deliver(
@@ -487,6 +508,7 @@ class ChannelMessageRouter:
         answer: str,
         answered: Any,
         handle: str | None,
+        streamed: StreamedReply | None = None,
     ) -> None:
         """Finish the turn in the message the person has been watching.
 
@@ -495,14 +517,32 @@ class ChannelMessageRouter:
         the silence this replaced. A chart or a produced file still needs a
         second post: no platform lets a message gain an attachment by being
         edited.
+
+        A finished answer is offered thumbs to rate it (#2084): in a streamed
+        answer as it ends, on an edited one once the edit landed.
         """
         text = answer or _empty_answer(answered)
-        if handle is not None:
-            adapter = get_adapter(incoming.platform)
-            try:
-                await adapter.update_reply(
-                    unseal_bot_token(bot), self._message(bot, incoming, text), handle
+        rated = (
+            str(answered.run_id)
+            if bot.rate_answers
+            and answered.run_id is not None
+            and answered.status == RunStatus.COMPLETED
+            else None
+        )
+        if streamed is not None:
+            if not await self._finish_streamed(bot, incoming, streamed, text, rated):
+                await self._send_reply(
+                    bot, incoming, text, answered.attachments, image_png=answered.image_png
                 )
+                return
+            if answered.image_png is None and not answered.attachments:
+                return
+            text = ""
+        elif handle is not None:
+            adapter = get_adapter(incoming.platform)
+            token = unseal_bot_token(bot)
+            try:
+                await adapter.update_reply(token, self._message(bot, incoming, text), handle)
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -513,6 +553,8 @@ class ChannelMessageRouter:
                     "live reply final edit failed; re-posting the answer whole", exc_info=True
                 )
             else:
+                if rated is not None:
+                    await self._offer_feedback(bot, incoming, text, handle, rated)
                 if answered.image_png is None and not answered.attachments:
                     return
                 text = ""
@@ -599,6 +641,7 @@ class ChannelMessageRouter:
         handle: Callable[[], str | None],
         files: list[Any],
         file_refusals: list[str],
+        streamed: StreamedReply | None = None,
     ) -> bool:
         """Run one turn's answering coroutine and answer, refuse or apologise once.
 
@@ -638,22 +681,40 @@ class ChannelMessageRouter:
             return False
         except AppException as exc:
             await self._discard_files(db, files)
-            await self._post_failure(bot, incoming, handle(), exc.message)
+            await self._post_failure(bot, incoming, handle(), exc.message, streamed)
             return True
         except Exception:
             logger.exception("Agent run failed for bot %s", incoming.bot_id)
             await self._discard_files(db, files)
             await self._post_failure(
-                bot, incoming, handle(), "Sorry, something went wrong. Please try again."
+                bot,
+                incoming,
+                handle(),
+                "Sorry, something went wrong. Please try again.",
+                streamed,
             )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle())
+        await self._deliver(bot, incoming, answer, answered, handle(), streamed)
+        # What the run stopped for - a decision, a question - offered here as
+        # buttons rather than as a link to the console (#2064, #2067).
+        if answered.parked_run_id is not None:
+            await ChannelPrompts(db).offer(
+                bot,
+                platform=incoming.platform,
+                platform_chat_id=incoming.platform_chat_id,
+                run_id=answered.parked_run_id,
+            )
         return True
 
     async def _post_failure(
-        self, bot: ChannelBot, incoming: IncomingMessage, handle: str | None, message: str
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        handle: str | None,
+        message: str,
+        streamed: StreamedReply | None = None,
     ) -> None:
         """Show a refusal or apology, replacing an open live reply rather than
         stranding its placeholder.
@@ -667,7 +728,14 @@ class ChannelMessageRouter:
         placeholder was opened - a crash before the first token, a refusal on the
         default path - it is `_refuse_if_named`, silent in a room it was not named
         in.
+
+        A streamed answer is ended as failed and then rewritten as the refusal,
+        so its steps and partial text do not read as an answer.
         """
+        if streamed is not None:
+            if not await self._finish_streamed(bot, incoming, streamed, message, None, failed=True):
+                await self._send_reply(bot, incoming, message)
+            return
         if handle is not None:
             adapter = get_adapter(incoming.platform)
             try:
@@ -708,6 +776,8 @@ class ChannelMessageRouter:
             nonlocal opened
             if not opened:
                 opened = True
+                # Only now is the question known to be ours to answer.
+                await self._acknowledge(bot, incoming)
                 state["handle"] = await self._post_placeholder(
                     adapter, token, bot, incoming, text or WORKING
                 )
@@ -1162,14 +1232,23 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/help":
-            return (
-                "Available commands:\n"
-                "/start - Show welcome message\n"
-                "/new - Start a new conversation\n"
-                "/help - Show this help\n"
-                "/link - Connect your chat account to your account here\n"
-                "/unlink - Unlink your account"
+            return "Available commands:\n" + "\n".join(
+                f"/{name} - {what}" for name, what in CHANNEL_COMMANDS
             )
+
+        if cmd == "/agents":
+            # A bot serves exactly one agent, so "which agents are here" is "who am
+            # I" - asked the way a chat asks it (#2068).
+            binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+            agent = (
+                await agent_repo.get(db, binding.agent_id, organization_id=bot.organization_id)
+                if binding is not None
+                else None
+            )
+            if agent is None:
+                return "No agent answers on this bot yet - ask an administrator to add one."
+            about = f": {agent.description}" if agent.description else "."
+            return f"I am {agent.name}{about}\nAsk me anything, or send /new to start over."
 
         if cmd == "/new":
             admitted, issuer = await _admission()
@@ -1348,6 +1427,75 @@ class ChannelMessageRouter:
             await adapter.update_reply(token, self._message(bot, incoming, text), handle)
 
         return LiveReply(push), handle
+
+    async def _open_streamed(
+        self, bot: ChannelBot, incoming: IncomingMessage
+    ) -> StreamedReply | None:
+        """An answer the platform renders natively as it streams, where it can (#2084)."""
+        native = await get_adapter(incoming.platform).open_answer(
+            unseal_bot_token(bot),
+            incoming,
+            steps="plan" if bot.step_display == "plan" else "timeline",
+        )
+        return None if native is None else StreamedReply(native)
+
+    async def _finish_streamed(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        streamed: StreamedReply,
+        text: str,
+        rated: str | None,
+        *,
+        failed: bool = False,
+    ) -> bool:
+        """End a streamed answer with `text`; `False` when it has to be posted instead.
+
+        What was streamed stays when `text` continues it. When it does not - a
+        guardrail rewrote the answer, or this is a refusal - the message is
+        rewritten whole, so nobody is left reading the text that was taken back.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        try:
+            if not await streamed.finish(text, failed=failed, feedback_run_id=rated):
+                await adapter.update_reply(
+                    token, self._message(bot, incoming, text), streamed.handle
+                )
+        except Exception:
+            logger.warning("Could not finish a streamed answer; posting it whole", exc_info=True)
+            return False
+        return True
+
+    async def _offer_feedback(
+        self, bot: ChannelBot, incoming: IncomingMessage, text: str, handle: str, run_id: str
+    ) -> None:
+        """Thumbs under an edited answer; a platform refusing them costs nothing else."""
+        try:
+            await get_adapter(incoming.platform).offer_feedback(
+                unseal_bot_token(bot),
+                self._message(bot, incoming, text),
+                handle,
+                run_id,
+                bot_id=str(bot.id),
+            )
+        except Exception:
+            logger.warning("Could not offer feedback on an answer", exc_info=True)
+
+    async def _acknowledge(self, bot: ChannelBot, incoming: IncomingMessage) -> None:
+        """React to the question with the bot's emoji, when it has one (#2084).
+
+        Never fatal: an emoji the workspace does not have, or a missing scope,
+        costs the reaction and nothing else.
+        """
+        if not bot.ack_reaction:
+            return
+        try:
+            await get_adapter(incoming.platform).acknowledge_message(
+                unseal_bot_token(bot), incoming, bot.ack_reaction
+            )
+        except Exception:
+            logger.warning("Could not react to a message on %s", incoming.platform, exc_info=True)
 
     async def _refuse_if_named(
         self, bot: ChannelBot, incoming: IncomingMessage, message: str

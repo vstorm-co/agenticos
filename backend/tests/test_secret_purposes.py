@@ -75,7 +75,7 @@ class TestTheCatalog:
 
         A purpose missing here makes the picker offer every `api_key` in the
         vault for a key that only TypeSafe will answer - and the capability's own
-        label, "Browser automation (choose)", is what the button would ask for a
+        label, "Web browser (step by step)", is what the button would ask for a
         key *for*, which tells nobody which account to open.
         """
         from app.agents.capabilities import get as capability

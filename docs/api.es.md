@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "d0d20e768913"
 ---
 
 # La API HTTP { #the-http-api }
@@ -19,12 +19,53 @@ Tres formas de entrar, para tres llamantes distintos.
 
 | | Cabecera | Para |
 |---|---|---|
-| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa como tal. De vida corta, se renueva con un refresh token |
-| **API key** | `X-API-Key: <key>` | De servicio a servicio. Sin ningún usuario detrás |
-| **Cookie de sesión** | la pone la consola | Solo el navegador — el token es HttpOnly y nunca llega a JavaScript |
+| **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
+| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
+| **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
 
-Las claves se comparan con `secrets.compare_digest`, nunca con `==`, y una clave
-se guarda igual que [cualquier otra credencial](secrets.md).
+### Claves de API de la organización { #organization-api-keys }
+
+Una clave la emite un miembro, en una organización, desde **Settings → API keys**
+(o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
+ese miembro, limitada dos veces:
+
+- **A los permisos con los que se emitió.** Elige una plantilla — *Read-only*,
+  *Knowledge ingest*, *Full access* — o marca permisos del
+  [catálogo](permissions.md). Solo puedes conceder lo que tienes.
+- **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
+  membresía del emisor, así que degradarlo limita al instante cada una de sus
+  claves, y sacarlo de la organización detiene todas las claves que emitió. Un
+  permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
+  una fila; nunca amplía una clave más allá de sus permisos.
+
+La clave se muestra **una vez**, en la respuesta que la crea. Solo se guarda su
+SHA-256, y nunca aparece en una línea de log, una entrada de auditoría ni el
+cuerpo de un error. Las listas muestran su prefijo (`aos_1a2b3c4d`), que es
+también como una entrada de auditoría nombra la clave que actuó: cada entrada
+registrada durante una petición autenticada con clave lleva `via_api_key` en sus
+detalles. Una clave puede caducar, y revocarla (`DELETE /api/v1/api-keys/{id}`)
+surte efecto en su siguiente petición.
+
+```bash
+curl "$BASE/api/v1/me/permissions" \
+  -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Conviene conocer dos rechazos:
+
+- **`403` "API keys are not accepted on this endpoint"**: las claves solo se
+  aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
+  RAG, skills, archivos de contexto, aplicaciones, los servicios de ML,
+  `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
+  organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
+  una organización y la gestión de claves en sí siguen siendo solo de sesión, para
+  que una clave filtrada no pueda acuñar su sucesora.
+- **`401` "Invalid, expired or revoked API key"**: la misma frase en cada caso,
+  para que una clave equivocada no aprenda nada sobre qué claves existen.
+
+Cada clave tiene además su propio límite, `RATE_LIMIT_API_KEY_PER_MINUTE`
+peticiones por minuto (600 por defecto), y un run o una llamada de ML que haga
+cuenta contra esos límites para la clave y no para su emisor.
 
 ### Sesiones y revocación { #sessions-and-revocation }
 
@@ -41,21 +82,24 @@ por una renovación rutinaria.
 
 ## La cabecera de organización { #the-organization-header }
 
-**`X-Organization-Id` viaja en todas las peticiones**, y no es un adorno
-opcional: decide en qué inquilino actúa la llamada.
+**Una clave de API actúa en su propia organización** y no necesita cabecera.
+Enviar `X-Organization-Id` con una clave solo se permite si nombra esa misma
+organización; nombrar otra responde `400` con
+`details.header = "X-Organization-Id"` en lugar de cambiar de inquilino.
 
-Un llamante que pertenece a tres organizaciones es un principal distinto en cada
-una, con un rol distinto y grants distintos. Si omites la cabecera, la petición no
-tiene inquilino en el que actuar; si envías la equivocada, obtienes un rechazo
-idéntico a que el recurso no exista — deliberadamente, para que los ids no se
-puedan sondear.
+**Un token de sesión toma el inquilino de `X-Organization-Id`.** Quien pertenece
+a tres organizaciones es un principal distinto en cada una, con otro rol y otros
+permisos concedidos, así que envía la cabecera en cada petición. Si falta, la
+petición vuelve a la **organización personal** del llamante: un script que la
+olvide actúa allí, con los agents, permisos y budget de esa organización, y no
+recibe ningún error. Envía la equivocada y obtendrás un rechazo idéntico al de un
+recurso inexistente, a propósito, para que los ids no se puedan sondear.
 
 ## Ejecutar un agent { #running-an-agent }
 
 ```bash
 curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
@@ -107,25 +151,111 @@ datos personales. Los controla `ml:invoke`, no `agents:run`, y
 
 ```bash
 curl -X POST "$BASE/api/v1/ml/privacy/pii" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
   -H "Content-Type: application/json" \
   -d '{"text": "write to ada@example.com"}'
+```
+
+## Ejemplos paso a paso { #worked-examples }
+
+Cada uno funciona con una clave de la organización en `$AGENTICOS_KEY` y el origen
+de la API en `$BASE`. Crea la clave en **Settings → API keys** con los permisos que
+nombra el ejemplo; la consola la muestra una vez.
+
+**Sube un documento a una base de conocimiento y búscalo** — una clave con
+`collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
+ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
+no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado.
+
+```bash
+# Find the knowledge base, upload a file into it, and search it.
+curl "$BASE/api/v1/kb" -H "Authorization: Bearer $AGENTICOS_KEY"
+
+curl -X POST "$BASE/api/v1/kb/$KB_ID/documents" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -F "file=@policy.pdf"
+
+curl -X POST "$BASE/api/v1/rag/search" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"collection_name\": \"$COLLECTION_NAME\", \"query\": \"refund window\"}"
+```
+
+**Ejecuta un agent y consulta lo que costó** — `agents:run` y `runs:view`. La
+lectura del run trae su estado, sus tokens y su coste.
+
+```bash
+RUN_ID=$(curl -s -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarise this week'"'"'s tickets"}' | jq -r .run_id)
+
+curl "$BASE/api/v1/runs/$RUN_ID" -H "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+**Invita a un miembro** — `members:manage`. La invitación se envía por correo; la
+respuesta trae su token una vez, por si el correo del invitante no llega.
+
+```bash
+curl -X POST "$BASE/api/v1/orgs/$ORG_ID/invitations" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "new.hire@example.com", "role": "member"}'
+```
+
+**Reintenta lo que chocó con el límite, y nada más.** Un `429` trae `Retry-After`;
+cualquier otro rechazo es definitivo para esa petición, y un `401` significa que la
+clave ya no existe — revocada, caducada o su emisor eliminado —, así que
+reintentarlo solo gasta el límite.
+
+```python
+import time
+
+import httpx
+
+
+def call(client: httpx.Client, method: str, path: str, **kwargs) -> httpx.Response:
+    for _ in range(5):
+        response = client.request(method, path, **kwargs)
+        if response.status_code != 429:
+            response.raise_for_status()
+            return response
+        time.sleep(int(response.headers.get("Retry-After", "60")))
+    response.raise_for_status()
+    return response
+
+
+client = httpx.Client(
+    base_url="https://agenticos.example.com/api/v1",
+    headers={"Authorization": f"Bearer {KEY}"},
+)
+print(call(client, "GET", "/me/permissions").json())
 ```
 
 ## Streaming { #streaming }
 
 Dos endpoints WebSocket, para dos públicos.
 
-- **`/api/v1/ws/agent`** — el autenticado, el que usa la consola. Un frame que
-  lleva `agent_id` ejecuta ese agent publicado; un frame sin él llega al
-  asistente general.
+- **`/api/v1/ws/agent`**: el autenticado que usa la consola. Un frame con
+  `agent_id` ejecuta ese agent publicado; un frame sin él llega al asistente
+  general. Autentícate con el subprotocolo `access_token.<token>`, donde el token
+  es un JWT de sesión. Una clave de API de la organización se rechaza aquí: un
+  turno en este socket es una persona al teclado, con sus conexiones personales.
+  Las integraciones ejecutan agents con `POST /api/v1/agents/{id}/run`.
 - **`/api/v1/embed/{public_key}/ws`** — el público, detrás de un
   [embed](channels.md), para un visitante que no tiene cuenta.
 
 Los dos emiten tokens según llegan (un agent con guardrail de salida transmite paso
 a paso, consulta [Guardrails](reference/capabilities.md#guardrails)) y los dos
 producen un run corriente, con la misma contabilidad que todo lo demás.
+
+Un tercero, **`/api/v1/ws/events`**, solo escucha. Es como una consola abierta
+[se mantiene al día con los cambios hechos en otro lugar](console.md#changes-made-elsewhere):
+autenticado igual, con la organización en `?organization_id=`, envía un frame JSON
+por cada escritura correcta a través de la API pública en esa organización —
+`resource`, `id`, `action` (`created`, `updated` o `deleted`), `surface`
+(`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
+que quien llama puede leer.
 
 ## Errores { #errors }
 
@@ -163,28 +293,41 @@ Un `401` lleva `WWW-Authenticate: Bearer`. Una lectura entre inquilinos responde
 
 ## Estabilidad, con franqueza { #stability-honestly }
 
-**Todavía no hay una promesa de compatibilidad publicada, ni una librería
-cliente.** La API es pública desde el primer commit y el contrato de versionado
-es trabajo de la
-[hoja de ruta](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)
-(R10).
+**La API pública tiene una promesa de compatibilidad escrita; el resto de
+`/api/v1` no.** Las rutas que puede llamar una clave de API están en su propio
+documento OpenAPI en **`/api/v1/public/openapi.json`**, servido en todos los
+entornos. Dentro de v1, un cambio en una de ellas es aditivo — una ruta nueva, un
+campo opcional nuevo, un campo de respuesta o un valor de enum nuevos —, y un
+cliente debe ignorar los campos de respuesta que no conozca. Quitar o renombrar algo
+solo ocurre después de marcarlo como `deprecated` en ese documento durante al menos
+90 días y listarlo en las [notas de versión](release-notes.md); un cambio que no se
+pueda hacer así va a `/api/v2`, junto a v1.
 
-En la práctica las formas han sido estables y el prefijo `/api/v1` significa que
-un cambio incompatible aterrizaría al lado del actual y no encima de él — pero
-hasta que eso esté por escrito, trátala como lo que es: una API contra la que
-deberías fijar las pruebas de tu integración.
+El primer cambio de nombre bajo esa regla son las aplicaciones (#2071): lo que eran
+artefactos se sirve en `/api/v1/apps` y `/api/v1/public/apps`, y las rutas antiguas
+`/api/v1/artifacts` y `/api/v1/public/artifacts` responden igual, marcadas como
+`deprecated`, hasta que pasen los 90 días. Los nombres de los permisos
+(`artifacts:view`, `artifacts:edit`), los de las herramientas y las direcciones
+desde las que se sirve una página publicada conservan su nombre.
 
-El único formato que *sí* lleva una promesa es el
-[spec del agent](reference/spec.md), que está versionado y solo avanza.
+Las rutas propias de la consola no tienen esa promesa y cambian con la consola; una
+clave no puede llamarlas. Todavía no hay biblioteca cliente.
+
+El [spec del agent](reference/spec.md) tiene su propia promesa: está versionado y
+solo avanza.
 
 ## Recapitulación { #recap }
 
 - **`/docs`** en el despliegue es la referencia generada; está desactivada en
   producción por diseño.
-- Tres formas de entrar: **JWT, `X-API-Key` o la cookie de la consola**.
-- **`X-Organization-Id` decide el inquilino** en todas las peticiones, y la
+- Tres formas de entrar: **una clave de API de la organización, un JWT o la
+  cookie de la consola**.
+- Una clave lleva la autoridad de su emisor **limitada a sus permisos y al rol
+  actual del emisor**, se muestra una vez y solo funciona en la API pública.
+- **Una clave actúa en su propia organización; una sesión lee
+  `X-Organization-Id`** y sin ella vuelve a la organización personal. La
   equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
-- **Todavía no hay promesa de compatibilidad ni SDK** (R10); el spec del agent es
-  el único formato versionado.
+- **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
+  cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.

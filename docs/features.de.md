@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "9ec557af51bd"
 ---
 
 # Funktionen { #features }
@@ -94,10 +94,10 @@ sagen.
 | Der Agent kann… | Einschalten |
 |---|---|
 | **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
-| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory files · Memory (mem0) · Conversation search |
-| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Web fetch · Browser automation |
-| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Run Python · Files & shell · Charts · Image generation |
-| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Context management |
+| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
+| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
+| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Calculations · Sandbox · Charts · Image generation |
+| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
 | **Innerhalb der Linien bleiben** — schwärzen oder blockieren, was nicht durch darf, begrenzen, was ein Tool zurückgeben darf, wissen, welches Datum heute ist | Guardrails · Tool output limits · Date and time |
 
 Jede bringt ihre eigenen Einstellungen mit, ihren eigenen Permission-Scope und —

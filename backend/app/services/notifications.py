@@ -63,11 +63,12 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
 from app.services.notification_center import NotificationCenterService, absolute_context_url
-from app.services.spend import organization_spend_since
+from app.services.spend import month_start, organization_spend_since
 
 # Who answers for the organization. Owners and admins because they answer for
 # the spend; a builder can create an agent but is not who gets called when the
@@ -112,6 +113,9 @@ ReportPeriod = Literal["weekly", "monthly"]
 
 _PERIOD_DAYS: dict[ReportPeriod, int] = {"weekly": 7, "monthly": 30}
 
+BUDGET_WARNING_SHARE = Decimal("0.8")
+"""How much of a department's month is spent before its lead hears about it."""
+
 
 class NotificationService:
     """Resolves who hears about a run, and writes the notification (#1598).
@@ -145,10 +149,17 @@ class NotificationService:
         raise, so the agent's `budget` alert says who is told - by default the
         admins and the owner. The organization's cap is nobody's to raise from a
         spec: it stopped this run and is about to stop every other one, so it
-        goes to the administrators regardless of what any agent asks for.
+        goes to the administrators regardless of what any agent asks for. A
+        department's is set by an administrator and is its lead's to argue for,
+        so it reaches both (#2072).
         """
         if scope is BudgetScope.ORGANIZATION:
             recipients = await self._administrator_ids(run.organization_id)
+        elif scope is BudgetScope.GROUP:
+            groups = await self._capped_groups(run)
+            recipients = await self._department_audience(
+                run.organization_id, [group.id for group in groups]
+            )
         else:
             recipients = await self._audience_ids(
                 spec.notifications.budget,
@@ -182,6 +193,56 @@ class NotificationService:
             # transaction that just recorded the run's own outcome.
             use_savepoint=True,
         )
+
+    async def department_budget_warnings(self, run: AgentRun) -> None:
+        """Warn when a department this run's person is in has used 80% of its month (#2072).
+
+        Checked after every run, because any run can be the one that crosses.
+        Once per department per month: the occurrence is the department and the
+        month, so the run that crosses tells its lead and the administrators and
+        every later one is a no-op insert.
+        """
+        for group in await self._capped_groups(run):
+            spent = await agent_run_repo.sum_cost_since(
+                self.db,
+                organization_id=run.organization_id,
+                since=month_start(),
+                group_id=group.id,
+            )
+            if spent < group.monthly_budget_usd * BUDGET_WARNING_SHARE:
+                continue
+            recipients = await self._department_audience(run.organization_id, [group.id])
+            share = int(spent / group.monthly_budget_usd * 100)
+            await self._center.write(
+                recipients=list(recipients),
+                event_type=NotificationEventType.BUDGET_WARNING,
+                occurrence_id=f"{group.id}:{month_start():%Y-%m}",
+                summary=(
+                    f"{group.name} has used {share}% of its "
+                    f"${group.monthly_budget_usd:.2f} monthly budget."
+                ),
+                context_url=self._link(f"/groups/{group.id}", run.organization_id),
+                render_context={
+                    "group_name": group.name,
+                    "spent": f"{spent:.2f}",
+                    "limit": f"{group.monthly_budget_usd:.2f}",
+                },
+                organization_id=run.organization_id,
+                use_savepoint=True,
+            )
+
+    async def _capped_groups(self, run: AgentRun) -> list[group_repo.CappedGroup]:
+        """The capped departments of whoever started the run; none for a run nobody did."""
+        if run.user_id is None:
+            return []
+        return await group_repo.capped_groups_for_member(
+            self.db, organization_id=run.organization_id, user_id=run.user_id
+        )
+
+    async def _department_audience(self, organization_id: UUID, group_ids: list[UUID]) -> set[UUID]:
+        """The administrators, and whoever leads these departments."""
+        administrators = await self._administrator_ids(organization_id)
+        return administrators | set(await group_repo.lead_ids(self.db, group_ids))
 
     async def approval_requested(
         self, run: AgentRun, *, agent: Agent, spec: AgentSpec, approvals: list[ToolApproval]
@@ -465,6 +526,79 @@ class NotificationService:
                 "sync_url": absolute_context_url(collection_path),
             },
             organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def artifact_version_published(
+        self,
+        *,
+        recipients: list[UUID],
+        organization_id: UUID,
+        artifact_id: UUID,
+        title: str,
+        version_number: int,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """A page somebody follows got a new version (#1977).
+
+        `recipients` are followers the caller has already checked can still
+        read the page; the inbox checks again at read time
+        (`ContentGate.ARTIFACTS_VIEW`), so access lost in between hides the row.
+        One occurrence per version, so a retried publish tells nobody twice.
+        """
+        if not recipients:
+            return
+        page_path = self._link(f"/apps/{artifact_id}", organization_id)
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.ARTIFACT_VERSION_PUBLISHED,
+            occurrence_id=f"{artifact_id}:{version_number}",
+            summary=f"'{title}' has a new version (v{version_number}).",
+            context_url=page_path,
+            render_context={
+                "artifact_id": str(artifact_id),
+                "artifact_title": title,
+                "version": version_number,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            use_savepoint=True,
+        )
+
+    async def resource_shared(
+        self,
+        *,
+        recipients: list[UUID],
+        organization_id: UUID,
+        resource_kind: str,
+        resource_id: UUID,
+        name: str,
+        path: str,
+        group_name: str,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """Something was shared with a group the recipients are in (#2072).
+
+        One occurrence per resource and group, so sharing the same thing twice
+        tells nobody twice. The summary names what and with which group; the
+        link opens it.
+        """
+        if not recipients:
+            return
+        await self._center.write(
+            recipients=recipients,
+            event_type=NotificationEventType.RESOURCE_SHARED,
+            occurrence_id=f"{resource_kind}:{resource_id}:{group_name}",
+            summary=f"'{name}' was shared with {group_name}.",
+            context_url=self._link(path, organization_id),
+            render_context={
+                "resource_kind": resource_kind,
+                "resource_id": str(resource_id),
+                "resource_name": name,
+                "group_name": group_name,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
             use_savepoint=True,
         )
 

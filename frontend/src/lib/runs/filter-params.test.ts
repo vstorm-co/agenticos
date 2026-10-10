@@ -25,6 +25,7 @@ const narrowed: RunFilters = {
   userId: "user-1",
   versionId: "ver-2",
   model: "gpt-4o-mini",
+  test: "only",
 };
 
 describe("run filters in the URL", () => {

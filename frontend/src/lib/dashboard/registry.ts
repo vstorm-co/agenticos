@@ -39,6 +39,7 @@ export type WidgetId =
   | "approvals"
   | "recent-failures"
   | "budget-headroom"
+  | "department-spend"
   | "mcp-health"
   | "knowledge-freshness"
   | "members"
@@ -442,6 +443,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
   },
+  "department-spend": {
+    id: "department-spend",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+  },
   "mcp-health": {
     id: "mcp-health",
     gate: holds(Perm.mcpManage),
@@ -517,7 +525,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true },
   },
   // The pages agents published that the caller may open, newest first. What
-  // `GET /artifacts` itself asks, and nothing more.
+  // `GET /apps` itself asks, and nothing more.
   artifacts: {
     id: "artifacts",
     gate: holds(Perm.artifactsView),

@@ -334,6 +334,7 @@ nav:
       - Keep it under control:
           - permissions.md
           - directory.md
+          - departments.md
           - governance.md
           - secrets.md
           - data-protection.md
@@ -353,6 +354,7 @@ nav:
       - reference/capabilities.md
       - reference/permissions.md
       - reference/components.md
+      - reference/glossary.md
   - Resources:
       - resources/index.md
       - Development - contributing:

@@ -43,7 +43,7 @@ at all.
 
 ## Budgets
 
-!!! abstract "Two levels, and they are not variations on one number"
+!!! abstract "Three levels, and they are not variations on one number"
 
     An agent's cap measured against the organization's total is exhausted by its
     neighbours' runs; the organization's measured against one agent is no ceiling
@@ -52,6 +52,7 @@ at all.
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
+| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
 A **new organization starts with the organization ceiling already set** — the
@@ -85,6 +86,19 @@ listing - the *published* version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+### A department's cap
+
+A [department](departments.md#a-departments-budget) can carry its own monthly
+cap. It sits between the other two: a run is checked against the agent's cap,
+then each capped department of the person who started it, then the
+organization's. Each department meters its own members' month, so a person in
+Finance and Sales is stopped by whichever of the two runs out first, and the
+refusal names it - *Sales department monthly budget exhausted*.
+
+The department's lead and the administrators hear when it passes 80% of its
+month, once, and again when its cap stops a run. A run nobody started - a
+schedule, a channel visitor - belongs to no department and is not counted.
 
 ### Enforcement is before the request
 
@@ -140,7 +154,7 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
-[Context management](reference/capabilities.md#context-management) is the other
+[Long conversations](reference/capabilities.md#context-management) is the other
 one. Its summarizing strategy writes the summary through an agent it builds
 itself, so that request passes no budget guard; the capability books what it cost
 against the same meter. Being *outside* the guard has one consequence worth
@@ -181,7 +195,7 @@ message somebody can act on. A workspace refuses a write. A **context window** i
 refused by the provider, mid-answer, and the run simply fails.
 
 Every agent therefore carries a gauge — not only one with
-[context management](reference/capabilities.md#context-management) bound, because
+[Long conversations](reference/capabilities.md#context-management) bound, because
 the warning matters most to the agent that will *not* compact. It reports how
 many tokens the last request of a turn carried, *after* any compaction: the
 reading falls when compaction works, because it measures what went out rather
@@ -1476,7 +1490,7 @@ where the per-tenant periods are set.
 | Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
 | Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
-| Artifacts | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
+| Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
 | Audit | Entries on this organization's trail | When the entry was recorded |

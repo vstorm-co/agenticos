@@ -54,6 +54,7 @@ import anyio
 import pytest
 from fastapi import WebSocketDisconnect
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.messages import (
     BinaryContent,
     FinalResultEvent,
@@ -76,6 +77,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, Question, QuestionOption
 from subagents_pydantic_ai import SubAgentState, TaskStatus
 
 # The library binds this itself around every delegation and exports the reader
@@ -1268,7 +1270,16 @@ class TestAskingTheUser:
                 "ask_user",
                 {
                     "questions": [
-                        {"question": "Which region?", "options": ["eu", "us"], "allow_custom": True}
+                        {
+                            "question": "Which region?",
+                            "header": None,
+                            "options": [
+                                {"label": "eu", "description": None},
+                                {"label": "us", "description": None},
+                            ],
+                            "multi_select": False,
+                            "allow_custom": True,
+                        }
                     ]
                 },
             )
@@ -1279,6 +1290,52 @@ class TestAskingTheUser:
         )
 
         assert await asking == "eu"
+
+    async def test_an_ask_user_card_is_answered_with_the_picked_labels(self):
+        """#2064: the `ask_user` capability's batch goes out as one card on the same
+        frame, and the picks come back keyed by header - each pair also landing on
+        the turn's timeline the moment the answer arrives."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Audience",
+                    question="Who will use it?",
+                    options=(QuestionOption(label="Everyone"), QuestionOption(label="My team")),
+                ),
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+
+        asking = asyncio.create_task(session._ask_questions(request))
+        await _wait(asked)
+        [(kind, payload)] = _sent_events(session)
+        await session.handle_frame(
+            {
+                "type": "ask_user_response",
+                "answers": [{"selected": ["My team"]}, {"answer": "Friendly but brief"}],
+            }
+        )
+        response = await asking
+
+        assert kind == "ask_user"
+        assert [item["header"] for item in payload["questions"]] == ["Audience", "Tone"]
+        assert response.answers == (
+            AskUserAnswer(header="Audience", selected=("My team",)),
+            AskUserAnswer(header="Tone", custom_answer="Friendly but brief"),
+        )
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.answer) for part in stored] == [
+            ("Who will use it?", "My team"),
+            ("How should it sound?", "Friendly but brief"),
+        ]
 
     async def test_an_answered_question_is_recorded_on_the_turns_timeline(self):
         """The whole point of #502: the question and the answer land on the running
@@ -2830,6 +2887,61 @@ class TestASocketThatWentAway:
 
         assert answered == [[]]
         assert not task.cancelled()
+
+    async def test_the_runs_own_question_left_open_parks_the_run(self):
+        """An `ask_user` card the person walked away from is not a decline: the run
+        parks on it, and answering it later - on this device or another -
+        continues the run (#2064)."""
+        session = _session()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        parked: list[bool] = []
+
+        async def turn() -> None:
+            # What the run does with it: the tool call ends deferred.
+            try:
+                await session._ask_questions(request)
+            except CallDeferred:
+                parked.append(True)
+
+        session._turn_task = asyncio.create_task(turn())
+        await _wait(asked)
+
+        await session.shutdown()
+
+        assert parked == [True]
+        assert session._round_parks is False
+
+    async def test_a_delegates_question_left_open_is_still_no_answer(self):
+        """Only the run's own agent parks: a delegate asking through `ask_parent`
+        has nowhere to park, so it carries on with what it had."""
+        session = _session()
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Region",
+                    question="Which region?",
+                    options=(QuestionOption(label="EU"), QuestionOption(label="US")),
+                ),
+            )
+        )
+        with patch.object(agent_session_module, "asking_delegate", return_value="researcher"):
+            asking = asyncio.create_task(session._ask_questions(request))
+            await _wait(asked)
+        session._turn_task = asking
+
+        await session.shutdown()
+
+        assert (await asking).cancelled
 
     async def test_a_connection_nobody_can_make_no_longer_holds_the_turn_open(self):
         """The same for a run waiting on `connect_account`: nobody is there to

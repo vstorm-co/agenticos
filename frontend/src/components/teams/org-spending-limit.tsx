@@ -18,8 +18,10 @@ import { useTranslations } from "next-intl";
 const FIELD = "monthly_budget_usd";
 
 /** How the stored cap is shown in the input. An empty box means no ceiling. */
-function asInputValue(limit: number | null): string {
-  return limit === null ? "" : String(limit);
+function asInputValue(limit: string | null): string {
+  // Through `Number`: the API serializes the Decimal column as "100.000000",
+  // and the box read back six zeros nobody typed (#2075).
+  return limit === null ? "" : String(Number(limit));
 }
 
 /**

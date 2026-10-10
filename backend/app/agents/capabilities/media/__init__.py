@@ -42,6 +42,7 @@ class MediaConfig(BaseModel):
             "Binary or text parts at least this large are written to storage and "
             "replaced with a reference in the stored history."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 

@@ -30,18 +30,20 @@ class CodeExecutionConfig(BaseModel):
         gt=0,
         le=120,
         description="Wall-clock budget for one call, in seconds",
+        json_schema_extra={"x-advanced": True},
     )
     max_memory_mb: int = Field(
         default=DEFAULT_MAX_MEMORY_MB,
         ge=16,
         le=4096,
         description="Memory cap for one call, in megabytes",
+        json_schema_extra={"x-advanced": True},
     )
 
 
 @register(
     id="code_execution",
-    name="Run Python",
+    name="Calculations",
     category="analysis",
     description="Compute with a short Python program in a restricted sandbox.",
     tools=(

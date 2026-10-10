@@ -8,6 +8,7 @@ import {
   ingestionProblems,
   overrideSize,
   sameIngestion,
+  settleHiddenFields,
   toNumber,
 } from "./ingestion-config";
 import type { Translate } from "@/lib/agent-step-captions";
@@ -204,5 +205,61 @@ describe("sameIngestion", () => {
     });
 
     expect(sameIngestion(DEFAULT_INGESTION_CONFIG, zero)).toBe(false);
+  });
+});
+
+describe("settleHiddenFields", () => {
+  const scanning = config({ pdf_parser: "liteparse", ocr: true });
+
+  it("puts a refused OCR pair back to the defaults when OCR is turned off", () => {
+    // The field showing the error goes away with OCR, so keeping the value would
+    // disable submit with nothing on screen to fix (#1930).
+    const settled = settleHiddenFields(
+      { ...scanning, ocr: false, ocr_language: "pl", liteparse_dpi: 9000 },
+      t,
+    );
+
+    expect(settled.ocr_language).toBe(DEFAULT_INGESTION_CONFIG.ocr_language);
+    expect(settled.liteparse_dpi).toBe(DEFAULT_INGESTION_CONFIG.liteparse_dpi);
+    expect(ingestionProblems(settled, t)).toEqual({});
+  });
+
+  it("keeps a valid hidden value, so switching back finds what was set", () => {
+    const settled = settleHiddenFields({ ...scanning, ocr: false, ocr_language: "pol" }, t);
+
+    expect(settled.ocr_language).toBe("pol");
+  });
+
+  it("leaves a refused value alone while its field is on screen", () => {
+    // Somebody halfway through typing is shown the problem, not overruled.
+    const settled = settleHiddenFields({ ...scanning, ocr_language: "pl" }, t);
+
+    expect(settled.ocr_language).toBe("pl");
+  });
+
+  it("settles LiteParse's own limits when another parser is chosen", () => {
+    const settled = settleHiddenFields(
+      config({ pdf_parser: "pymupdf", max_pages: 0, parse_timeout_seconds: 0 }),
+      t,
+    );
+
+    expect(settled.max_pages).toBe(DEFAULT_INGESTION_CONFIG.max_pages);
+    expect(settled.parse_timeout_seconds).toBe(DEFAULT_INGESTION_CONFIG.parse_timeout_seconds);
+  });
+
+  it("settles an emptied image prompt once images are no longer described", () => {
+    const settled = settleHiddenFields(
+      config({
+        describe_images: false,
+        image_description: { ...DEFAULT_INGESTION_CONFIG.image_description, prompt: "" },
+      }),
+      t,
+    );
+
+    expect(settled.image_description.prompt).toBe(DEFAULT_IMAGE_PROMPT);
+  });
+
+  it("returns the same object when nothing hidden is refused", () => {
+    expect(settleHiddenFields(DEFAULT_INGESTION_CONFIG, t)).toBe(DEFAULT_INGESTION_CONFIG);
   });
 });

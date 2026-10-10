@@ -3,6 +3,7 @@ name: Shift and Safety
 description: Runs the handover so the next shift starts informed, and logs safety
   observations blamelessly.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

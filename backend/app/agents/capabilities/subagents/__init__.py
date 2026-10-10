@@ -150,6 +150,7 @@ class SubagentsConfig(BaseModel):
             "ceiling on a background delegation launching a background delegation "
             "until a dozen agents are running against one budget."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     max_result_chars: int = Field(
         default=2000,
@@ -161,6 +162,7 @@ class SubagentsConfig(BaseModel):
             "returns it in full, so nothing is lost - this only decides how much of "
             "five specialists' work arrives in one turn's context."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     share_with_delegates: list[str] = Field(
         default_factory=list,

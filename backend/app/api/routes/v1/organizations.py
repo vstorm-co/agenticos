@@ -3,10 +3,19 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.api.deps import CurrentUser, OrganizationSvc, OrganizationTeardownSvc, RetentionSvc
+from app.api.deps import (
+    CurrentUser,
+    OrganizationSvc,
+    OrganizationTeardownSvc,
+    PathOrgAuth,
+    RetentionSvc,
+    require_in_path_org,
+)
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
+from app.core.permissions import Perm
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -16,6 +25,12 @@ from app.schemas.organization import (
 from app.schemas.retention import RetentionRead, RetentionUpdate
 
 router = APIRouter()
+
+# Reading an organization and changing its settings are in the public API, so an
+# integration or the platform's own MCP server can do them (#2057). Creating,
+# listing and deleting organizations stay with a signed-in person: a key belongs
+# to one organization and has no business making or ending one.
+_SETTINGS = Depends(require_in_path_org(Perm.ORG_SETTINGS))
 
 
 @router.get("", response_model=OrganizationList)
@@ -38,33 +53,33 @@ async def create_organization(
     return await service.read_for_user(org.id, user.id)
 
 
-@router.get("/{org_id}", response_model=OrganizationRead)
+@router.get("/{org_id}", response_model=OrganizationRead, dependencies=[PUBLIC])
 async def get_organization(
     org_id: UUID,
     service: OrganizationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """Get a single organization the current user is a member of."""
-    return await service.read_for_user(org_id, user.id)
+    return await service.read_for_user(org_id, ctx.subject_id)
 
 
-@router.patch("/{org_id}", response_model=OrganizationRead)
+@router.patch("/{org_id}", response_model=OrganizationRead, dependencies=[PUBLIC, _SETTINGS])
 async def update_organization(
     org_id: UUID,
     data: OrganizationUpdate,
     service: OrganizationSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """Update organization name or avatar. Requires Admin or Owner role."""
-    org = await service.update(org_id, data, requester_id=user.id)
-    return await service.read_for_user(org.id, user.id)
+    org = await service.update(org_id, data, requester_id=ctx.subject_id)
+    return await service.read_for_user(org.id, ctx.subject_id)
 
 
-@router.get("/{org_id}/retention", response_model=RetentionRead)
+@router.get("/{org_id}/retention", response_model=RetentionRead, dependencies=[PUBLIC])
 async def get_organization_retention(
     org_id: UUID,
     service: RetentionSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """How long this organization keeps each class of data, and what bounds it.
 
@@ -72,18 +87,18 @@ async def get_organization_retention(
     what the deployment allows - a page showing only the last cannot explain why
     the number it displays is not the number somebody typed.
     """
-    return await service.read(org_id, requester_id=user.id)
+    return await service.read(org_id, requester_id=ctx.subject_id)
 
 
-@router.put("/{org_id}/retention", response_model=RetentionRead)
+@router.put("/{org_id}/retention", response_model=RetentionRead, dependencies=[PUBLIC, _SETTINGS])
 async def set_organization_retention(
     org_id: UUID,
     data: RetentionUpdate,
     service: RetentionSvc,
-    user: CurrentUser,
+    ctx: PathOrgAuth,
 ) -> Any:
     """Set what this organization keeps. Requires Admin or Owner role."""
-    return await service.update(org_id, data, actor_user_id=user.id)
+    return await service.update(org_id, data, actor_user_id=ctx.subject_id)
 
 
 @router.delete("/{org_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

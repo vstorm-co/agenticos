@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -51,7 +51,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
 ## Budgets { #budgets }
 
-!!! abstract "Zwei Ebenen, und sie sind keine Varianten einer Zahl"
+!!! abstract "Drei Ebenen, und sie sind keine Varianten einer Zahl"
 
     Das Cap eines Agents, gemessen an der Gesamtsumme der Organisation, wird von
     den Runs seiner Nachbarn aufgebraucht; das der Organisation, gemessen an
@@ -61,6 +61,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 | Ebene | Gesetzt in | Misst | Angehoben von |
 |---|---|---|---|
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
+| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run *und* jeder Ingestion in der Organisation | wer `budgets:manage` hält |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
@@ -97,6 +98,21 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+### Das Cap einer Abteilung { #a-departments-cap }
+
+Eine [Abteilung](departments.md#a-departments-budget) kann ein eigenes
+monatliches Cap tragen. Es liegt zwischen den anderen beiden: Ein Run wird gegen
+das Cap des Agents geprüft, dann gegen jede Abteilung mit Cap, in der die Person
+ist, die ihn gestartet hat, dann gegen das der Organisation. Jede Abteilung misst
+den Monat ihrer eigenen Mitglieder, sodass eine Person in Finanzen und Vertrieb
+von derjenigen gestoppt wird, die zuerst ausgeschöpft ist, und die Ablehnung
+nennt sie - *Sales department monthly budget exhausted*.
+
+Die Leitung der Abteilung und die Administratoren werden einmal benachrichtigt,
+wenn sie 80 % ihres Monats überschreitet, und erneut, wenn ihr Cap einen Run
+stoppt. Ein Run, den niemand gestartet hat - ein Zeitplan, ein Besucher in einem
+Kanal - gehört zu keiner Abteilung und wird nicht gezählt.
 
 ### Durchgesetzt wird vor der Anfrage { #enforcement-is-before-the-request }
 
@@ -158,8 +174,8 @@ Also gehört der Zähler zum vorbereiteten Run und nicht zur Oberfläche. Einen 
 öffnen ist kein Schritt, von dem eine neue Oberfläche wissen muss, denn es gibt
 keinen Weg, einen vorbereiteten Agent ohne ihn auszuführen.
 
-[Context-Management](reference/capabilities.md#context-management) ist das
-andere. Seine zusammenfassende Strategie schreibt die Zusammenfassung über einen
+Die Capability [Lange Gespräche](reference/capabilities.md#context-management) ist das
+andere. Ihre zusammenfassende Strategie schreibt die Zusammenfassung über einen
 Agent, den sie selbst baut, sodass diese Anfrage an keinem Budget-Guard
 vorbeikommt; die Capability bucht ihre Kosten gegen denselben Zähler.
 *Außerhalb* des Guards zu liegen hat eine Konsequenz, die man kennen sollte: Die
@@ -204,8 +220,8 @@ einer Nachricht ab, mit der jemand etwas anfangen kann. Ein Workspace lehnt eine
 Schreibvorgang ab. Ein **Context-Window** wird vom Provider abgelehnt, mitten in
 der Antwort, und der Run scheitert einfach.
 
-Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundenem
-[Context-Management](reference/capabilities.md#context-management), denn die
+Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundener
+Capability [Lange Gespräche](reference/capabilities.md#context-management), denn die
 Warnung zählt am meisten für den Agent, der *nicht* kompaktieren wird. Sie
 meldet, wie viele Token die letzte Anfrage eines Turns getragen hat, *nach* jeder
 Kompaktierung: Der Wert fällt, wenn die Kompaktierung wirkt, weil er misst, was
@@ -1683,7 +1699,7 @@ Ort für die Fristen je Tenant.
 | Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
 | Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
-| Artefakte | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Apps | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |

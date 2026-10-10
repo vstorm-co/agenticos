@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, FilePlus, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -84,6 +90,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const { create, categories, suggestedCategories } = useSkills();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
   // Held until the skill exists. A dropped folder is the common way a skill
@@ -146,6 +153,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
         // Whitespace-only means "no category" - the backend refuses an empty
         // string but takes null as uncategorized.
         category: category.trim() === "" ? null : category.trim(),
+        ...audiencePayload(audience),
       });
       // Files go up after the skill exists, because a resource hangs off a
       // skill id - there is nothing to attach them to before this point. A
@@ -158,6 +166,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setDescription("");
       setCategory("");
       setContent("");
+      setAudience(EVERYONE);
       setFiles([]);
       setOpenPath(null);
       setAdding(false);
@@ -226,6 +235,11 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               />
               <FieldNote error={errors.category}>{t("optionalGroupsListingNever")}</FieldNote>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("whoCanUseIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
 
           <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">

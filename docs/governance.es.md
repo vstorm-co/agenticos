@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ verifica contra el secreto propio del trigger es un 403 que nunca llega al runne
 
 ## Budgets { #budgets }
 
-!!! abstract "Dos niveles, y no son variaciones de un mismo número"
+!!! abstract "Tres niveles, y no son variaciones de un mismo número"
 
     El tope de un agent medido contra el total de la organización lo agotan los
     runs de sus vecinos; el de la organización medido contra un solo agent no es
@@ -58,6 +58,7 @@ verifica contra el secreto propio del trigger es un 403 que nunca llega al runne
 | Nivel | Se fija en | Mide | Lo sube |
 |---|---|---|---|
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
+| **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run *y* cada ingesta de la organización | quien tenga `budgets:manage` |
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
@@ -91,6 +92,21 @@ de agents — el número de la versión *publicada*, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+### El tope de un departamento { #a-departments-cap }
+
+Un [departamento](departments.md#a-departments-budget) puede llevar su propio
+tope mensual. Se sitúa entre los otros dos: un run se comprueba contra el tope
+del agent, luego contra cada departamento con tope de la persona que lo inició y
+por último contra el de la organización. Cada departamento mide el mes de sus
+propios miembros, así que a una persona de Finanzas y Ventas la detiene el que
+se agote primero, y el rechazo lo nombra - *Sales department monthly budget
+exhausted*.
+
+El responsable del departamento y los administradores reciben un aviso cuando
+supera el 80% de su mes, y otro cuando su tope detiene un run. Un run que no
+inició nadie - una programación, un visitante en un canal - no pertenece a
+ningún departamento y no se cuenta.
 
 ### Se aplica antes de la petición { #enforcement-is-before-the-request }
 
@@ -150,7 +166,7 @@ pertenece al run preparado y no a la superficie. Abrir uno no es un paso que una
 superficie nueva tenga que conocer, porque no hay forma de ejecutar un agent
 preparado sin él.
 
-La [gestión de contexto](reference/capabilities.md#context-management) es el otro
+La capability [Conversaciones largas](reference/capabilities.md#context-management) es el otro
 caso. Su estrategia de resumen escribe el resumen a través de un agent que
 construye ella misma, así que esa petición no pasa por ninguna guarda de budget; la
 capability apunta lo que costó contra el mismo medidor. Estar *fuera* de la guarda
@@ -194,7 +210,7 @@ que alguien puede actuar. Un workspace rechaza una escritura. Un **context windo
 lo rechaza el provider, a media respuesta, y el run simplemente falla.
 
 Por eso cada agent lleva un indicador — no solo el que tenga enlazada la
-[gestión de contexto](reference/capabilities.md#context-management), porque el aviso
+capability [Conversaciones largas](reference/capabilities.md#context-management), porque el aviso
 importa más en el agent que *no* va a compactar. Informa de cuántos tokens llevaba
 la última petición de un turno, *después* de cualquier compactación: la lectura baja
 cuando la compactación funciona, porque mide lo que salió y no lo que guarda la
@@ -1550,7 +1566,7 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 | Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
 | Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox | El último uso |
-| Artefactos | Una [página publicada](artifacts.md) con todas sus versiones, sus bytes almacenados (**antes** que las filas, como en las conversaciones), sus grants y su enlace público | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
+| Aplicaciones | Una [página publicada](artifacts.md) con todas sus versiones, sus bytes almacenados (**antes** que las filas, como en las conversaciones), sus grants y su enlace público | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
 | Auditoría | Entradas en el rastro de esta organización | El momento de la entrada |

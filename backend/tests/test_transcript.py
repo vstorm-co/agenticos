@@ -476,6 +476,26 @@ class TestWritingTheTranscript:
         assert (written["tool_name"], written["args"]) == ("send_email", {"to": "ada@example.com"})
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "sent"
 
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self, conversations):
+        """What a server's call log reads (#2072): the connection, not a prefix
+        that a member's own connection to the same service shares."""
+        linear = uuid.uuid4()
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="file it",
+            answer="filed",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="c1", tool_name="linear_create", args={}),
+                RecordedToolCall(tool_call_id="c2", tool_name="send_email", args={}),
+            ],
+            mcp_origins={"linear_create": linear},
+        )
+
+        assert [
+            call.kwargs["mcp_connection_id"]
+            for call in conversations.create_tool_call.await_args_list
+        ] == [linear, None]
+
     async def test_a_call_that_never_returned_is_left_open_rather_than_completed(
         self, conversations
     ):

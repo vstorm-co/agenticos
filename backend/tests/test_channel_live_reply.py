@@ -351,6 +351,15 @@ class TestAnEmptyAnswerTellsItsReasonsApart:
         assert "usage limit" in message
         assert "approval" not in message
 
+    def test_a_run_waiting_on_an_answer_says_a_question_follows(self):
+        """The question itself follows as its own message with buttons (#2064)."""
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.router import _empty_answer
+
+        message = _empty_answer(self._answered(status=RunStatus.AWAITING_ANSWER))
+
+        assert "question" in message and "approval" not in message
+
     def test_an_answer_empty_for_any_other_reason_does_not_claim_approval(self):
         from app.db.models.agent_run import RunStatus
         from app.services.channels.router import _empty_answer
@@ -485,3 +494,48 @@ class TestAScreenedAnswerInTheChat:
         assert push.await_args_list
         assert all(secret not in call.args[0] for call in push.await_args_list)
         assert reply.text == "Here it is: [redacted:anthropic_key]."
+
+
+class TestAParkedTurnOffersItsChoices:
+    """A turn that stopped for somebody puts the choices in the chat (#2064, #2067)."""
+
+    async def _run(self, parked_run_id: object) -> AsyncMock:
+        from app.services.channels.router import ChannelMessageRouter
+
+        router = ChannelMessageRouter()
+        answered = MagicMock(text="", refused=[], parked_run_id=parked_run_id)
+        offer = AsyncMock()
+
+        async def turn() -> object:
+            return answered
+
+        with (
+            patch.object(router, "_deliver", new=AsyncMock()),
+            patch("app.services.channels.router.ChannelPrompts") as prompts,
+        ):
+            prompts.return_value.offer = offer
+            handled = await router._run_turn(
+                MagicMock(),
+                MagicMock(platform="slack", platform_chat_id="C1:1.0"),
+                MagicMock(),
+                run=turn(),
+                handle=lambda: None,
+                files=[],
+                file_refusals=[],
+            )
+        assert handled is True
+        return offer
+
+    async def test_a_parked_run_is_offered_where_it_was_asked(self):
+        offer = await self._run("run-1")
+
+        assert offer.await_args.kwargs == {
+            "platform": "slack",
+            "platform_chat_id": "C1:1.0",
+            "run_id": "run-1",
+        }
+
+    async def test_a_finished_run_offers_nothing(self):
+        offer = await self._run(None)
+
+        offer.assert_not_awaited()

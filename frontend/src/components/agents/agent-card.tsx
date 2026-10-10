@@ -31,6 +31,8 @@ import { cn, formatDate } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
+import { groupsLabel } from "@/components/sharing/audience-chip";
+
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 const CHANNEL_LABEL: Record<string, string> = {
   slack: "Slack",
@@ -47,9 +49,15 @@ const CHANNEL_LABEL: Record<string, string> = {
 export function accessSummary(
   agent: Agent,
   t: (key: string, values?: Record<string, number>) => string,
+  tAudience: (key: string, values: Record<string, string | number>) => string,
 ): { icon: LucideIcon; label: string } {
   if (agent.visibility === "org") return { icon: Building2, label: t("visibilityOrg") };
   if (agent.visibility === "team") return { icon: Users, label: t("visibilityTeam") };
+  // Its departments by name, which is what a person deciding whether to use it
+  // wants to know (#2072).
+  if (agent.shared_groups?.length) {
+    return { icon: Users, label: groupsLabel(agent.shared_groups, tAudience) };
+  }
   const count = agent.shared_user_count ?? 0;
   if (count > 0) return { icon: Users, label: t("sharedWithCount", { count }) };
   return { icon: Lock, label: t("visibilityPrivate") };
@@ -233,7 +241,8 @@ export function AgentCard({
 
 function AccessChip({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
-  const { icon: Icon, label } = accessSummary(agent, t);
+  const tAudience = useTranslations("audience");
+  const { icon: Icon, label } = accessSummary(agent, t, tAudience);
   return (
     <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
       <Icon className="h-3 w-3" aria-hidden />

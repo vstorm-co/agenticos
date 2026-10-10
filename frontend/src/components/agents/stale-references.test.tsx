@@ -45,6 +45,8 @@ describe("staleReferences", () => {
       mcp_servers: [
         { account: "organization", connection_id: "c1", allowed_tools: null },
         { account: "personal", catalog_key: "notion", allowed_tools: null },
+        // This deployment's own server is never gone.
+        { account: "platform" },
       ],
     });
 

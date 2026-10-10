@@ -3,6 +3,7 @@ name: Incident Assistant
 description: Turns an alert into a severity, an owner and a first testable hypothesis,
   and keeps the updates flowing.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - web_fetch

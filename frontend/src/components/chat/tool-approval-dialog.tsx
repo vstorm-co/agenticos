@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  AGENT_DRAFT_TOOL,
+  AgentDraftProposal,
+  draftArgs,
+} from "@/components/chat/agent-draft-proposal";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { toolEntry } from "@/lib/tool-catalog";
@@ -63,21 +68,29 @@ export function ToolApprovalDialog({
       <ul className="space-y-2">
         {actionRequests.map((action) => {
           const entry = toolEntry(action.tool_name);
+          // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
+          const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
           return (
             <li key={action.id} className="border-border space-y-1.5 rounded-lg border p-2.5">
               {/* The catalog's name where it has one - "Run Python" rather than
                   `run_python`, the same words the step above it uses. */}
               <span className="text-xs font-medium">
-                {entry?.displayNameKey === undefined
-                  ? action.tool_name
-                  : tTools(entry.displayNameKey)}
+                {draft !== null
+                  ? t("draftProposalTitle")
+                  : entry?.displayNameKey === undefined
+                    ? action.tool_name
+                    : tTools(entry.displayNameKey)}
               </span>
               {/* Read-only, and scrolling rather than wrapping: a shell command is
                   read by its structure, and a 300-character one reflowed to the left
                   margin is unreadable in exactly the moment somebody has to judge it. */}
-              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed whitespace-pre">
-                {argumentLines(action)}
-              </pre>
+              {draft !== null ? (
+                <AgentDraftProposal draft={draft} />
+              ) : (
+                <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed whitespace-pre">
+                  {argumentLines(action)}
+                </pre>
+              )}
             </li>
           );
         })}

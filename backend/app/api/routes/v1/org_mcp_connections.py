@@ -29,12 +29,13 @@ from app.schemas.mcp_connection import (
     GithubOAuthStart,
     McpConnectionRead,
     McpConnectionTestResult,
-    McpOAuthStart,
     McpOAuthStartResult,
+    McpToolCallList,
     McpToolRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionList,
     OrgMcpConnectionUpdate,
+    OrgMcpOAuthStart,
 )
 
 router = APIRouter()
@@ -48,8 +49,12 @@ router = APIRouter()
 async def list_org_mcp_connections(service: McpConnectionSvc, ctx: Auth) -> Any:
     """The MCP servers this organization has connected."""
     items, total = await service.list_for_org(ctx)
+    used = await service.used_by(ctx, items)
     return OrgMcpConnectionList(
-        items=[McpConnectionRead.from_model(c) for c in items],
+        items=[
+            McpConnectionRead.from_model(c).model_copy(update={"used_by": used[c.id]})
+            for c in items
+        ],
         total=total,
     )
 
@@ -73,7 +78,7 @@ async def create_org_mcp_connection(
     response_model=McpOAuthStartResult,
     dependencies=[Depends(require(Perm.MCP_MANAGE))],
 )
-async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ctx: Auth) -> Any:
+async def start_org_mcp_oauth(data: OrgMcpOAuthStart, service: McpConnectionSvc, ctx: Auth) -> Any:
     """Begin the OAuth flow for a server the organization will own.
 
     Somebody consents, and the connection that comes back belongs to the
@@ -93,6 +98,7 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
             catalog_key=data.catalog_key,
             client_id=data.client_id,
             client_secret=data.client_secret,
+            audience=data,
         )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -202,6 +208,21 @@ async def delete_org_mcp_connection(
 ) -> None:
     """Remove a connection. Agents still naming it lose that server, not the run."""
     await service.delete_for_org(ctx, connection_id=connection_id)
+
+
+@router.get(
+    "/{connection_id}/calls",
+    response_model=McpToolCallList,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def list_org_mcp_tool_calls(connection_id: UUID, service: McpConnectionSvc, ctx: Auth) -> Any:
+    """The latest tool calls agents made to this server: which tool, which agent, how it went.
+
+    Never the arguments or results, which belong to the conversations they were
+    made in.
+    """
+    items = await service.recent_calls(ctx, connection_id=connection_id)
+    return McpToolCallList(items=items, total=len(items))
 
 
 @router.post(

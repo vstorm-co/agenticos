@@ -2,6 +2,7 @@
 
 import { CalendarClock } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
 import { TriggerRow } from "@/components/triggers/trigger-row";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 
 /**
  * Every schedule and event trigger across the organization - the body of the
@@ -43,6 +45,7 @@ import { getErrorMessage } from "@/lib/api-error";
  */
 export function ScheduledTab() {
   const t = useTranslations("triggers");
+  const router = useRouter();
   const tErrors = useTranslations("errors");
   const { triggers, isLoading, isError, error } = useOrgTriggers();
   const list = useListControls({
@@ -84,6 +87,7 @@ export function ScheduledTab() {
             icon={CalendarClock}
             title={t("activityEmptyTitle")}
             description={t("activityEmptyDescription")}
+            cta={{ label: t("activityEmptyAction"), onClick: () => router.push(ROUTES.AGENTS) }}
           />
         ) : (
           <div className="space-y-3 p-5">

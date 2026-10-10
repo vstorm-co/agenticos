@@ -25,7 +25,7 @@ of its directory, you may not need the native LDAP sign-in at all. See
 
 A group is a named set of members inside one organization: *Finance*,
 *Support team*, *Platform admins*. You share an agent, a skill, a collection, a
-context file, a vault secret or an artifact with a group the same way you share
+context file, a vault secret or an app with a group the same way you share
 it with a person, from the resource's **Sharing** panel. One grant then reaches
 everyone in the group.
 

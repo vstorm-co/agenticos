@@ -25,9 +25,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
@@ -35,13 +35,14 @@ from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import prompt_variables
 from app.agents.browser_events import BrowserEventSink
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
-from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -157,6 +158,37 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
         ) from exc
 
 
+def requested_time_zone(frame: Mapping[str, Any]) -> str | None:
+    """The person's own time zone, as their browser reported it (#2065).
+
+    Only what a run may use as a zone name: anything else is `None`, and the
+    agent then tells the time in its configured zone. Never a refusal - a clock
+    must not stop somebody's turn.
+    """
+    raw = frame.get("time_zone")
+    if not isinstance(raw, str) or len(raw) > 64 or not prompt_variables.is_time_zone(raw):
+        return None
+    return raw
+
+
+class Testing(NamedTuple):
+    """Whether a turn comes from the Builder's test panel, and runs the draft (#2074)."""
+
+    test: bool
+    draft: bool
+
+
+def requested_testing(frame: Mapping[str, Any]) -> Testing:
+    """What the test panel asked of this turn.
+
+    Only a literal `true` counts, so a client that sends nothing - every chat that
+    is not the test panel - runs the published version and is not a test. Running
+    the draft is always a test.
+    """
+    draft = frame.get("draft") is True
+    return Testing(test=draft or frame.get("test") is True, draft=draft)
+
+
 def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
     """Which named environment this turn should run, if any.
 
@@ -219,6 +251,8 @@ class OpenedRun:
     run_id: UUID
     model_label: str
     agent_version_id: UUID | None
+    mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
+    """The run's own `PreparedRun.mcp_origins`, filled as it lists its tools."""
 
 
 @dataclass(frozen=True)
@@ -249,6 +283,11 @@ class ChatTurn:
     decision.
     """
 
+    questions: tuple[str, ...] = ()
+    """The `ask_user_question` calls this turn parked on, by tool call id - asked
+    of somebody who left before answering (#2064). Their steps are stored waiting,
+    and answering them continues the run."""
+
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
 
@@ -264,6 +303,10 @@ class ChatTurn:
     comes off a response, so within one run it is unknown until one arrives -
     and a one-request turn, which is most of them, never gets that far (#49).
     """
+
+    mcp_origins: Mapping[str, UUID] = field(default_factory=dict)
+    """Which organization MCP connection served each tool, by the name called -
+    what the surface stores each call against (`PreparedRun.mcp_origins`)."""
 
     usage: UsageReport | None = None
     """What the turn cost, and how full its workspace is.
@@ -308,6 +351,7 @@ class ChatAgentRunner:
         prompt_message_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        ask_questions: QuestionsCallback | None = None,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
@@ -317,6 +361,8 @@ class ChatAgentRunner:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        person_time_zone: str | None = None,
+        testing: Testing = Testing(test=False, draft=False),
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -342,6 +388,8 @@ class ChatAgentRunner:
                 refusal happens inside `prepare`.
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
+            ask_questions: How the `ask_user` capability puts a card of
+                multiple-choice questions to that person (#2064).
             stream: Iterates the run and forwards its events to the client.
             on_run_open: Told the run row as soon as `prepare` has opened one,
                 so a surface can persist what it streamed even when this method
@@ -401,12 +449,16 @@ class ChatAgentRunner:
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
             request_connection=request_connection,
+            person_time_zone=person_time_zone,
+            draft=testing.draft,
+            test=testing.test,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions
         # tell it to ask first has no way to ask; without `subagent_events`, a
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
+        prepared.deps.ask_questions = ask_questions
         prepared.deps.subagent_events = subagent_events
         # And the third: summarising a long history is a whole model request
         # between two of this turn's own, where nothing streams. Without this the
@@ -438,6 +490,7 @@ class ChatAgentRunner:
                     run_id=prepared.run.id,
                     model_label=prepared.built.model_label,
                     agent_version_id=prepared.run.agent_version_id,
+                    mcp_origins=prepared.mcp_origins,
                 )
             )
 
@@ -543,6 +596,8 @@ class ChatAgentRunner:
             agent_version_id=prepared.run.agent_version_id,
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
+            questions=tuple(paused.questions) if paused is not None else (),
+            mcp_origins=prepared.mcp_origins,
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
             overhead_tokens=prepared.built.context.overhead,

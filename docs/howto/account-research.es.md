@@ -1,5 +1,5 @@
 ---
-source_sha: "bfce080544ad"
+source_sha: "58528fa9516e"
 title: "Infórmate sobre una empresa antes de una llamada"
 description: "Investiga una organización pública con búsqueda web y descarga de páginas, y obtén un informe de una página en el que cada dato lleva su fuente y su fecha."
 ---
@@ -17,7 +17,7 @@ Construye un agent que investiga una organización y escribe un informe de una p
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Web search** (método DuckDuckGo) y **Web fetch**.
+2. En **Toolbox**, activa **Web search** (método DuckDuckGo) y **Read web pages**.
 3. Fija un budget y un límite de pasos para la prueba. El run registrado usó 20 pasos y costó unos 0,26 USD.
 4. Escribe las instrucciones de abajo y luego pulsa **Publish**.
 

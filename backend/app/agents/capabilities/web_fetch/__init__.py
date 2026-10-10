@@ -61,6 +61,7 @@ class WebFetchConfig(BaseModel):
             "four characters per token. Ignored under native fetch, which the "
             "provider bounds itself."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     allowed_domains: list[str] | None = Field(
         default=None,
@@ -122,7 +123,7 @@ class WebFetchConfig(BaseModel):
 
 @register(
     id="web_fetch",
-    name="Web fetch",
+    name="Read web pages",
     category="research",
     description="Read the page behind a URL, so an agent can follow a link it found.",
     tools=(

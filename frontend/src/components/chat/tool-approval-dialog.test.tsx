@@ -20,6 +20,9 @@ vi.mock("@/hooks", () => ({
     can: (permission: Permission) => held.permissions.includes(permission),
   }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizationList: () => ({ data: [] }),
+}));
 
 beforeEach(() => {
   held.permissions = [Perm.approvalsDecide];
@@ -140,5 +143,20 @@ describe("the tool approval dialog", () => {
 
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  });
+
+  it("shows the AI Architect's agent draft as a draft, not as a call (#1799)", () => {
+    mount([
+      action("a-1", {
+        tool_name: "agenticos_create_agent_draft",
+        args: { name: "Helpdesk", instructions: "Answer from the handbook." },
+      }),
+      action("a-2", { tool_name: "agenticos_create_agent_draft", args: { instructions: "x" } }),
+    ]);
+
+    expect(screen.getByText("A new agent draft")).toBeVisible();
+    expect(screen.getByText("Helpdesk")).toBeVisible();
+    // Arguments that are not a draft are shown as they are.
+    expect(screen.getByText("agenticos_create_agent_draft")).toBeVisible();
   });
 });

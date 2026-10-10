@@ -30,6 +30,7 @@ import {
   type ToolPickerState,
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
+import { useCreatedToast } from "@/hooks/use-created-toast";
 import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
@@ -48,6 +49,7 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -135,6 +137,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const { organization, personal, recordTools } = useMcpServers();
+  const createdToast = useCreatedToast();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
@@ -288,11 +291,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     name: string,
     scope: Scope = "personal",
     client?: McpOAuthClient,
+    audience?: AudiencePayload,
   ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
+        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client, ...audience },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -400,6 +404,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         name,
         scope,
         mcpOAuthClient(values.clientId, values.clientSecret),
+        scope === "organization" ? values.audience : undefined,
       );
       return;
     }
@@ -416,12 +421,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           // and a personal connection without it can never be matched to a
           // binding to each person's own account.
           ...(row.entry ? { catalog_key: row.entry.key } : {}),
+          ...(scope === "organization" ? values.audience : {}),
         });
-        toast.success(
-          scope === "organization"
-            ? t("connectedForOrg", { name })
-            : t("connectedForYou", { name }),
-        );
+        // The organization's account is what an agent binds, so its toast offers
+        // to add it to one (#2075); a member's own is reached through bindings
+        // to each person's account, never added by id.
+        if (scope === "organization") {
+          createdToast(t("connectedForOrg", { name }), { kind: "mcp", id: created.id }, name);
+        } else {
+          toast.success(t("connectedForYou", { name }));
+        }
         closeDraft();
         void handleTools(scope, created);
       } else {

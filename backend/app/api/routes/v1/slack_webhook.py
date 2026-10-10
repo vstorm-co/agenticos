@@ -1,5 +1,6 @@
 """Slack Events API webhook endpoint."""
 
+import json
 import logging
 from typing import Any
 from uuid import UUID
@@ -7,10 +8,23 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
+from app.api.routes.v1._slack_requests import verified_form
 from app.core.background import spawn
 from app.services.channel_bot import unseal_slack_signing_secret
 from app.services.channels import get_adapter
-from app.worker.background.channel import process_channel_event
+from app.services.channels.slack_app import (
+    SURFACE_EVENTS,
+    parse_command,
+    parse_feedback_comment,
+    parse_press,
+    parse_shortcut,
+)
+from app.worker.background.channel import (
+    process_channel_event,
+    process_channel_press,
+    process_feedback_comment,
+    process_slack_surface,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +94,51 @@ async def slack_events(
     event = payload.get("event", {})
     if not event:
         return Response(status_code=200)
+    if event.get("type") in SURFACE_EVENTS:
+        spawn(process_slack_surface(payload, str(bot_id)), name=f"slack_surface:{bot_id}")
+        return Response(status_code=200)
 
     incoming = adapter.parse_incoming(payload, str(bot_id))
     if incoming is None:
         return Response(status_code=200)
 
     spawn(process_channel_event(incoming), name=f"slack_event:{bot_id}")
+    return Response(status_code=200)
+
+
+@router.post("/{bot_id}/interactions", status_code=200, response_model=None)
+async def slack_interactions(bot_id: UUID, request: Request, bot_service: ChannelBotSvc) -> Any:
+    """Receive a button press or a message shortcut (#2067).
+
+    Answered at once, like an event, with the work done in the background.
+    """
+    form = await verified_form(bot_id, request, bot_service)
+    if form is None:
+        return Response(status_code=200)
+    payload: dict[str, Any] = json.loads(form.get("payload") or "{}")
+    # The "what was wrong?" modal: an empty 200 is what closes it.
+    comment = parse_feedback_comment(payload, str(bot_id))
+    if comment is not None:
+        spawn(process_feedback_comment(comment), name=f"slack_feedback:{bot_id}")
+        return Response(status_code=200)
+    press = parse_press(payload, str(bot_id))
+    if press is not None:
+        spawn(process_channel_press(press), name=f"slack_press:{bot_id}")
+        return Response(status_code=200)
+    shortcut = parse_shortcut(payload, str(bot_id))
+    if shortcut is not None:
+        spawn(process_channel_event(shortcut), name=f"slack_shortcut:{bot_id}")
+    return Response(status_code=200)
+
+
+@router.post("/{bot_id}/commands", status_code=200, response_model=None)
+async def slack_commands(bot_id: UUID, request: Request, bot_service: ChannelBotSvc) -> Any:
+    """Receive `/agent <question>`, answered in the channel it was typed in (#2067)."""
+    form = await verified_form(bot_id, request, bot_service)
+    if form is None:
+        return Response(status_code=200)
+    incoming = parse_command(form, str(bot_id))
+    if incoming is None:
+        return {"response_type": "ephemeral", "text": "Ask a question after `/agent`."}
+    spawn(process_channel_event(incoming), name=f"slack_command:{bot_id}")
     return Response(status_code=200)

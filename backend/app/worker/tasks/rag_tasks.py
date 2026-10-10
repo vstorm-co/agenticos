@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 import tempfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -137,7 +137,7 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
 @asynccontextmanager
 async def _ingestion_service(
     *, processor: DocumentProcessor, organization_id: UUID | None, tenant: UUID | None
-) -> AsyncIterator[IngestionService]:
+) -> AsyncGenerator[IngestionService, None]:
     """An ingester that reads documents the way the collection asked to be read.
 
     `organization_id` is the flow's own, and scopes embedding resolution to the
@@ -1104,7 +1104,7 @@ OVERLAPPING_RUN = "Another sync of this source is still running, so this one did
 
 
 @asynccontextmanager
-async def _exclusive_source_run(source_id: str) -> AsyncIterator[bool]:
+async def _exclusive_source_run(source_id: str) -> AsyncGenerator[bool, None]:
     """Whether this run is the only one of its source, held for as long as it runs.
 
     A connection of its own, kept open for the whole sync, because the lock

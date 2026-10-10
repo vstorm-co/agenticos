@@ -127,6 +127,21 @@ export function RunFilterBar({
           <SelectItem value="down">{t("ratedDown")}</SelectItem>
         </SelectContent>
       </Select>
+      {/* Somebody trying an agent in the Builder is not somebody using it
+          (#2074): counted and budgeted all the same, and told apart here. */}
+      <Select
+        value={filters.test}
+        onValueChange={(value) => set({ test: value as RunFilters["test"] })}
+      >
+        <SelectTrigger className="h-8 w-[150px]" aria-label={t("testFilter")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("testRunsIncluded")}</SelectItem>
+          <SelectItem value="hide">{t("testRunsHidden")}</SelectItem>
+          <SelectItem value="only">{t("testRunsOnly")}</SelectItem>
+        </SelectContent>
+      </Select>
       <ModelSelect
         period={period}
         model={filters.model}

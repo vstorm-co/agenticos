@@ -28,6 +28,7 @@ from app.api.deps import (
     limit_public_artifact,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
@@ -47,7 +48,7 @@ from app.schemas.artifact import (
 )
 from app.services.artifact import library_file
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 public_router = APIRouter()
 content_router = APIRouter()
 embed_router = APIRouter()
@@ -112,6 +113,18 @@ async def restore_artifact_version(
 ) -> Any:
     """Make a kept version current again, as a new version. History is never rewritten."""
     return await service.restore_version(ctx, artifact_id, version_id)
+
+
+@router.put("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Be notified in the inbox when the page gets a new version."""
+    return await service.follow(ctx, artifact_id)
+
+
+@router.delete("/{artifact_id}/follow", response_model=ArtifactDetail)
+async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Stop being notified about new versions."""
+    return await service.unfollow(ctx, artifact_id)
 
 
 @router.get("/{artifact_id}/view", response_model=ArtifactView)

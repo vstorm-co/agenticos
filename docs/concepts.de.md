@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "6763956ff2b1"
 ---
 
 # Begriffe { #concepts }
@@ -178,15 +178,15 @@ niemand zu, also antwortet er keiner identifizierten Person, genau wie ein
 Besucher eines eingebetteten Widgets. Diese pro Person geführten Speicher sind
 für ihn verschlossen:
 
-- [Gedächtnisdateien](reference/capabilities.md#memory-files) und
+- [Gedächtnis](reference/capabilities.md#memory-files) und
   [mem0](reference/capabilities.md#memory-mem0): Jedes Tool antwortet, dass die
   Unterhaltung kein Gedächtnis hat.
-- [Unterhaltungssuche](reference/capabilities.md#conversation-search): Beide
+- [Frühere Gespräche](reference/capabilities.md#conversation-search): Beide
   Tools verweigern.
 - Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
   Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
   warum.
-- [Artefakte](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
+- [Apps](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
   Seite ist für den Ersteller privat, aber `read_artifact` lehnt ab, sodass eine
   Auslösung eine ganze Seite neu veröffentlicht, statt eine zu bearbeiten.
 

@@ -1,7 +1,7 @@
 ---
-source_sha: "7a88ee3f4d56"
+source_sha: "c7ac418a906b"
 title: "Zbadaj pytanie z subagentami i opublikuj raport"
-description: "Podziel pytanie na niezależne pytania cząstkowe, deleguj każde do jednorazowego specjalisty i opublikuj porównanie ze źródłami jako artefakt."
+description: "Podziel pytanie na niezależne pytania cząstkowe, deleguj każde do jednorazowego specjalisty i opublikuj porównanie ze źródłami jako aplikację."
 ---
 
 # Zbadaj pytanie z subagentami i opublikuj raport { #research-a-question-with-subagents-and-publish-a-report }
@@ -40,8 +40,8 @@ Obowiązek udostępnienia kodu w GPLv3 uruchamia dystrybucja, a nie modyfikacja:
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
 2. W **Toolbox** włącz **Delegation**. Włącz `allow_dynamic`, czyli ustawienie, które pozwala modelowi wymyślić jednorazowego specjalistę do pytania cząstkowego, dla którego nikt wcześniej go nie przygotował. Ustaw tryb na **Async**, żeby trzy pytania cząstkowe szły jednocześnie, a nie po kolei, i zostaw limit rozgałęzień na 3.
 3. Nadal w Delegation przełącz **Share Web search with delegates** i **Share Web fetch with delegates**. Specjalista wymyślony przez model [celowo](../reference/capabilities.md#delegation) nie dostaje własnych capabilities. Trafia do niego tylko to, co rodzic jawnie udostępni, więc bez tego kroku każdy wymyślony specjalista mógłby delegować, ale nie mógłby szukać.
-4. Włącz **Web search** (metoda DuckDuckGo) i **Web fetch** u samego rodzica. Udostępnić delegatowi można tylko to, co ma przypisane rodzic.
-5. Włącz **Planning** i **Artifacts**.
+4. Włącz **Web search** (metoda DuckDuckGo) i **Read web pages** u samego rodzica. Udostępnić delegatowi można tylko to, co ma przypisane rodzic.
+5. Włącz **Planning** i **Aplikacje**.
 6. Ustaw budżet i limit kroków na czas próby. Zapisany run użył 40 kroków i kosztował około 0,43 USD.
 7. Wpisz poniższe instrukcje, a potem **Publish**.
 
@@ -77,12 +77,12 @@ Model wywołuje `delegate` trzy razy, raz na licencję. Każde wywołanie to oso
 | Obowiązek z GPLv3 | Tekst licencji, zmiany w każdym pliku i pełny kod źródłowy przy dystrybucji |
 | Każde twierdzenie | Ma URL źródła tuż obok, a nie zebrany na jednej liście na końcu |
 | Sprzeczność albo luka | Raport mówi o niej wprost albo stwierdza, że jej nie było |
-| Artefakt | **Artifacts** wymienia `licence-comparison`, prywatny dla Ciebie |
+| Aplikacja | **Aplikacje** wymienia `licence-comparison`, prywatną dla Ciebie |
 | Pytanie z dwóch części, z których tylko jedna ma prawdziwe źródło (np. o licencję, która nie istnieje) | Raport mówi, że nie potwierdził tej części, zamiast wymyślać odpowiedź |
 
 !!! example "Zapisano na v0.0.504, 25 września 2026"
 
-    Model: Claude Sonnet 4.6 przez OpenRouter. Agent napisał plan z czterech kroków, a potem w jednej turze trzy razy wywołał `delegate`: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, wszystkie asynchronicznie. Wszystkie trzy zaparkowały do zatwierdzenia w jednym kroku. Po zatwierdzeniu run wywołał `wait_tasks` i dostał `3/3 finished`. Raport dokładnie zgadzał się z tabelą referencyjną, cytował strony OSI, Apache.org, GNU.org i FAQ FSF i kończył się zdaniem „No source disagreements found” z wymienieniem zgodnych źródeł. Opublikował `licence-comparison` jako artefakt HTML. Łączny koszt: 0,43 USD razem ze wszystkimi trzema delegacjami. Dynamiczny specjalista nie ma osobnego wiersza `agent_runs`, bo nie jest opublikowanym agentem.
+    Model: Claude Sonnet 4.6 przez OpenRouter. Agent napisał plan z czterech kroków, a potem w jednej turze trzy razy wywołał `delegate`: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, wszystkie asynchronicznie. Wszystkie trzy zaparkowały do zatwierdzenia w jednym kroku. Po zatwierdzeniu run wywołał `wait_tasks` i dostał `3/3 finished`. Raport dokładnie zgadzał się z tabelą referencyjną, cytował strony OSI, Apache.org, GNU.org i FAQ FSF i kończył się zdaniem „No source disagreements found” z wymienieniem zgodnych źródeł. Opublikował `licence-comparison` jako aplikację HTML. Łączny koszt: 0,43 USD razem ze wszystkimi trzema delegacjami. Dynamiczny specjalista nie ma osobnego wiersza `agent_runs`, bo nie jest opublikowanym agentem.
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
@@ -94,7 +94,7 @@ Model wywołuje `delegate` trzy razy, raz na licencję. Każde wywołanie to oso
 
 ## Zapisz próbę { #record-the-trial }
 
-Zachowaj pytanie, plan napisany przez agenta, nazwę i wynik każdej delegacji, cytowane źródła, artefakt i jego wersję oraz koszt z Activity. Człowiek nadal czyta artefakt obok faktów referencyjnych, zanim mu zaufa, decyduje, kto może go czytać, i ocenia, czy sekcja „could not confirm” jest uczciwa, czy ukrywa wyszukiwanie, które należało powtórzyć.
+Zachowaj pytanie, plan napisany przez agenta, nazwę i wynik każdej delegacji, cytowane źródła, aplikację i jej wersję oraz koszt z Activity. Człowiek nadal czyta aplikację obok faktów referencyjnych, zanim mu zaufa, decyduje, kto może go czytać, i ocenia, czy sekcja „could not confirm” jest uczciwa, czy ukrywa wyszukiwanie, które należało powtórzyć.
 
 ## Kolejne kroki { #next-steps }
 

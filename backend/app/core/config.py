@@ -281,6 +281,9 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long an agent's unanswered `ask_user` question keeps its run parked
+    # before the run is ended with the question expired (#2064).
+    QUESTION_EXPIRY_HOURS: int = 24
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in
@@ -573,6 +576,11 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many requests one organization API key may make per minute, across
+    # every public route. A key is a program, not a person, so the bound is on
+    # what one integration can do to the deployment; a run or an ML call is
+    # additionally counted against its own, smaller limit.
+    RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

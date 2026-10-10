@@ -96,6 +96,7 @@ export function RunTable({
                 className="text-destructive h-3.5 w-3.5 shrink-0"
               />
             )}
+            {run.is_test && <Badge variant="outline">{t("testRun")}</Badge>}
           </div>
           {run.parent_run_id !== null && (
             <Badge variant="outline" className="block w-fit" title={t("delegatedCostIsAlreadyIn")}>

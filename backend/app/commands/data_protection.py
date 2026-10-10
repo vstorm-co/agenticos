@@ -125,6 +125,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # sharing decision recorded on the artifact, not a destination the
         # capability sends anything to.
         "artifacts",
+        # Questions go to the person running the agent, on the surface they are
+        # already using.
+        "ask_user",
         "channel_tools",
         "charts",
         "clock",

@@ -4,13 +4,20 @@ import asyncio
 import contextlib
 import hmac
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
+from aiogram.types import (
+    BotCommand,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReactionTypeEmoji,
+)
 from aiogram.types import Message as AiogramMessage
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
@@ -18,14 +25,21 @@ from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.base import (
+    CHANNEL_COMMANDS,
     ChannelAdapter,
     IncomingAttachment,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
+    PromptMessage,
+    feedback_value,
+    split_thread,
     supervise_stream,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.telegram_format import to_telegram_html
+from app.services.channels.telegram_press import parse_press
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +57,30 @@ _MEDIA_FIELDS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+_REACTIONS = {
+    "eyes": "👀",
+    "+1": "👍",
+    "thumbsup": "👍",
+    "ok_hand": "👌",
+    "fire": "🔥",
+    "thinking_face": "🤔",
+    "writing_hand": "✍",
+    "zap": "⚡",
+    "hourglass": "⏳",
+}
+"""Telegram reacts with the emoji itself, and only from a fixed set; these are the
+names Slack and Mattermost use for ones that set holds. Another name is skipped."""
+
+
+def _where(platform_chat_id: str) -> dict[str, Any]:
+    """The chat a message goes to, and the forum topic within it if there is one."""
+    chat, thread = split_thread(platform_chat_id)
+    where: dict[str, Any] = {"chat_id": chat}
+    if thread:
+        where["message_thread_id"] = int(thread)
+    return where
+
+
 class TelegramAdapter(ChannelAdapter):
     """Concrete Telegram adapter using aiogram v3."""
 
@@ -55,7 +93,7 @@ class TelegramAdapter(ChannelAdapter):
     @contextlib.asynccontextmanager
     async def _bot(
         bot_token: str, *, default: DefaultBotProperties | None = None
-    ) -> AsyncIterator[Bot]:
+    ) -> AsyncGenerator[Bot, None]:
         """A Telegram bot bound to one token, its TLS session closed on the way out.
 
         aiogram opens a fresh session per `Bot` and leaks the connection if it is
@@ -71,14 +109,20 @@ class TelegramAdapter(ChannelAdapter):
             await bot.session.close()
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
-        """Send the message that will become the answer, and return its id."""
+        """Send the message that will become the answer, and return its id.
+
+        "typing…" first, in the chat's header, so the bot reads as working from
+        the moment the question lands (#2068). Never fatal: it is decoration.
+        """
         async with self._bot(bot_token) as bot:
+            with contextlib.suppress(Exception):
+                await bot.send_chat_action(action="typing", **_where(msg.platform_chat_id))
             sent = await bot.send_message(
-                chat_id=msg.platform_chat_id,
                 text=msg.text,
                 reply_to_message_id=int(msg.reply_to_message_id)
                 if msg.reply_to_message_id
                 else None,
+                **_where(msg.platform_chat_id),
             )
         return str(sent.message_id)
 
@@ -91,27 +135,29 @@ class TelegramAdapter(ChannelAdapter):
         """
         async with self._bot(bot_token) as bot:
             await bot.edit_message_text(
-                chat_id=msg.platform_chat_id, message_id=int(handle), text=msg.text
+                chat_id=_where(msg.platform_chat_id)["chat_id"],
+                message_id=int(handle),
+                text=msg.text,
             )
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
 
-        Tries Markdown parse mode first; falls back to plain text if
-        Telegram rejects the formatting (common with LLM-generated markdown).
+        As HTML converted from the agent's Markdown (#2068) - Telegram's own
+        Markdown rejects half of what a model writes - and as plain text if even
+        that is refused, so the answer always arrives.
         """
         reply_to = int(msg.reply_to_message_id) if msg.reply_to_message_id else None
-        async with self._bot(
-            bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
-        ) as bot:
+        where = _where(msg.platform_chat_id)
+        async with self._bot(bot_token) as bot:
             if msg.image_png is not None:
                 from aiogram.types import BufferedInputFile
 
                 await bot.send_photo(
-                    chat_id=msg.platform_chat_id,
                     photo=BufferedInputFile(msg.image_png, filename=msg.image_filename),
                     caption=msg.text,
                     reply_to_message_id=reply_to,
+                    **where,
                 )
                 return
             if msg.attachments:
@@ -119,17 +165,14 @@ class TelegramAdapter(ChannelAdapter):
                 return
             try:
                 await bot.send_message(
-                    chat_id=msg.platform_chat_id,
-                    text=msg.text,
-                    parse_mode=msg.parse_mode,  # type: ignore[arg-type]
+                    text=to_telegram_html(msg.text),
+                    parse_mode=ParseMode.HTML,
                     reply_to_message_id=reply_to,
+                    **where,
                 )
             except TelegramBadRequest:
                 await bot.send_message(
-                    chat_id=msg.platform_chat_id,
-                    text=msg.text,
-                    parse_mode=None,
-                    reply_to_message_id=reply_to,
+                    text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
                 )
 
     @staticmethod
@@ -145,25 +188,18 @@ class TelegramAdapter(ChannelAdapter):
         from aiogram.types import BufferedInputFile
 
         caption: str | None = msg.text if len(msg.text) <= 1024 else None
+        where = _where(msg.platform_chat_id)
         if caption is None:
-            try:
-                await bot.send_message(
-                    chat_id=msg.platform_chat_id, text=msg.text, reply_to_message_id=reply_to
-                )
-            except TelegramBadRequest:
-                await bot.send_message(
-                    chat_id=msg.platform_chat_id,
-                    text=msg.text,
-                    parse_mode=None,
-                    reply_to_message_id=reply_to,
-                )
+            await bot.send_message(
+                text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
+            )
 
         for index, attachment in enumerate(msg.attachments):
             await bot.send_document(
-                chat_id=msg.platform_chat_id,
                 document=BufferedInputFile(attachment.content, filename=attachment.filename),
                 caption=caption if index == 0 else None,
                 reply_to_message_id=reply_to,
+                **where,
             )
 
     #
@@ -300,6 +336,13 @@ class TelegramAdapter(ChannelAdapter):
             async def on_message(message: AiogramMessage) -> None:
                 await self._handle_update(message, bot_id)
 
+            # Buttons on approvals and questions (#2064, #2068). A handler is what
+            # makes aiogram ask Telegram for `callback_query` updates at all.
+            @dp.callback_query()
+            async def on_press(query: CallbackQuery) -> None:
+                await self._handle_press(query, bot_id)
+
+            await self._offer_commands(bot)
             await connection_state.record_up(bot_id)
             beat = asyncio.create_task(connection_state.heartbeat(bot_id))
             try:
@@ -317,11 +360,25 @@ class TelegramAdapter(ChannelAdapter):
                 with contextlib.suppress(asyncio.CancelledError):
                     await beat
 
+    @staticmethod
+    async def _offer_commands(bot: Bot) -> None:
+        """The bot's command menu - the `/` button beside the chat's input (#2068).
+
+        Never fatal: a bot without a menu still answers every command typed.
+        """
+        try:
+            await bot.set_my_commands(
+                [BotCommand(command=name, description=what) for name, what in CHANNEL_COMMANDS]
+            )
+        except Exception:
+            logger.warning("Could not set the Telegram command menu", exc_info=True)
+
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Register a webhook URL with Telegram."""
         async with self._bot(bot_token) as bot:
             try:
                 await bot.set_webhook(url=url, secret_token=secret)
+                await self._offer_commands(bot)
                 return True
             except Exception:
                 logger.exception("Failed to register Telegram webhook")
@@ -387,6 +444,10 @@ class TelegramAdapter(ChannelAdapter):
         # a DM (#556).
         chat_type: str = "private" if chat.get("type") == "private" else "group"
         platform_chat_id: str = str(chat.get("id", ""))
+        # A forum group's topic is its own conversation, answered in that topic
+        # rather than in General (#2068) - folded in the way a Slack thread is.
+        if msg_data.get("is_topic_message") and msg_data.get("message_thread_id"):
+            platform_chat_id = f"{platform_chat_id}:{msg_data['message_thread_id']}"
         platform_user_id: str = str(from_user.get("id", ""))
 
         username: str | None = from_user.get("username")
@@ -469,6 +530,93 @@ class TelegramAdapter(ChannelAdapter):
             if buffer is None:
                 raise ValueError(f"Telegram returned no bytes for {attachment.filename}")
             return buffer.read()
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """An approval or a question with an inline keyboard, a button per row."""
+        async with self._bot(bot_token) as bot:
+            await bot.send_message(
+                text=prompt.text,
+                **_where(prompt.platform_chat_id),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text=choice.label, callback_data=choice.value)]
+                        for choice in prompt.choices
+                    ]
+                ),
+            )
+
+    async def offer_feedback(
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Thumbs under a finished answer, as an inline keyboard on it (#2084)."""
+        async with self._bot(bot_token) as bot:
+            await bot.edit_message_reply_markup(
+                chat_id=_where(msg.platform_chat_id)["chat_id"],
+                message_id=int(handle),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="👍", callback_data=feedback_value(run_id, helpful=True)
+                            ),
+                            InlineKeyboardButton(
+                                text="👎", callback_data=feedback_value(run_id, helpful=False)
+                            ),
+                        ]
+                    ]
+                ),
+            )
+
+    async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
+        """Take the thumbs off the answer once one is pressed."""
+        if press.message_id is None:
+            return
+        async with self._bot(bot_token) as bot:
+            await bot.edit_message_reply_markup(
+                chat_id=press.platform_chat_id, message_id=int(press.message_id), reply_markup=None
+            )
+
+    async def acknowledge_message(
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to the question with the bot's emoji, where Telegram allows it (#2084)."""
+        emoji = _REACTIONS.get(reaction)
+        if emoji is None or not incoming.message_id:
+            return
+        async with self._bot(bot_token) as bot:
+            await bot.set_message_reaction(
+                chat_id=_where(incoming.platform_chat_id)["chat_id"],
+                message_id=int(incoming.message_id),
+                reaction=[ReactionTypeEmoji(emoji=emoji)],
+            )
+
+    async def acknowledge(self, bot_token: str, press: IncomingPress) -> None:
+        """Stop the pressed button spinning; it does until the bot answers the query."""
+        if press.ack_id is None:
+            return
+        async with self._bot(bot_token) as bot:
+            await bot.answer_callback_query(callback_query_id=press.ack_id)
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """Take the keyboard off the pressed message, leaving what was asked and chosen."""
+        if press.message_id is None:
+            return
+        shown = f"{press.prompt_text}\n{text}" if press.prompt_text else text
+        async with self._bot(bot_token) as bot:
+            await bot.edit_message_text(
+                chat_id=press.platform_chat_id, message_id=int(press.message_id), text=shown
+            )
+
+    async def _handle_press(self, query: CallbackQuery, bot_id: str) -> None:
+        """A press from the polling loop, through the same parser as the webhook's."""
+        from app.worker.background.channel import process_channel_press
+
+        press = parse_press(
+            {"callback_query": query.model_dump(mode="json", by_alias=True, exclude_none=True)},
+            bot_id,
+        )
+        if press is not None:
+            await process_channel_press(press)
 
     async def _handle_update(self, message: AiogramMessage, bot_id: str) -> None:
         """Route one update from the polling loop, through the one parser.

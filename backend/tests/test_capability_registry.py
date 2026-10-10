@@ -5,6 +5,7 @@ that contributes nothing is not attached, and a spec asking for something
 ungranted fails while a person is looking at a form rather than mid-run.
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -139,6 +140,9 @@ class TestToolDeclarations:
     # assertions here are about names, not about search results.
     RESOURCES = {
         "kb_collection_names": ["kb_1"],
+        # The credential the runner mints for the person a run acts for; without
+        # one `platform` builds nothing, and its tools would escape the check.
+        "platform_credential": SecretStr("aos_0123abcdsecret"),
         # Any object at all: `channel_tools` builds when a run is in a channel
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
@@ -583,6 +587,27 @@ class TestRegistration:
         assert "available" in exc.value.details
 
 
+class TestAdvancedSettings:
+    """Fields the Builder folds under "Advanced settings" (#2070)."""
+
+    def test_a_folded_field_is_never_one_publishing_needs(self):
+        """A required field behind a fold is a refusal at publish with nothing on
+        screen to answer it."""
+        for definition in all_capabilities():
+            schema = definition.config_json_schema() or {}
+            required = set(schema.get("required", []))
+            for name, field in schema.get("properties", {}).items():
+                if field.get("x-advanced"):
+                    assert name not in required, (definition.id, name)
+
+    def test_tuning_is_folded_and_the_choices_are_not(self):
+        knowledge = get("knowledge").config_json_schema() or {}
+        properties = knowledge["properties"]
+
+        assert properties["default_top_k"].get("x-advanced") is True
+        assert "x-advanced" not in properties["query_analysis_mode"]
+
+
 class TestConfigValidation:
     def test_valid_config_is_parsed_into_its_schema(self):
         config = get("knowledge").validate_config({"default_top_k": 8})
@@ -918,3 +943,62 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+
+MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
+
+
+class TestConsoleCapabilityGuide:
+    """The console explains every capability, under the registry's own name (#2070).
+
+    The console reads a capability's name and its plain-language guide from its
+    message catalogs, so a person reads it in their language. That copy is a second
+    place a capability is named: a capability added here with no entry there is shown
+    to a Polish reader in English with no examples, and one renamed here keeps its old
+    name in the Builder while the API, the AI Architect and the docs use the new one.
+    """
+
+    @staticmethod
+    def _guide(locale: str) -> dict[str, dict[str, str]]:
+        catalog = json.loads((MESSAGES_PATH / f"{locale}.json").read_text(encoding="utf-8"))
+        return catalog["capabilityGuide"]
+
+    def test_every_capability_has_an_entry_and_no_entry_is_orphaned(self):
+        registered = sorted(definition.id for definition in all_capabilities())
+
+        for locale in ("en", "pl", "de"):
+            assert sorted(self._guide(locale)) == registered, locale
+
+    def test_the_english_name_is_the_registry_name(self):
+        guide = self._guide("en")
+
+        assert {d.id: d.name for d in all_capabilities()} == {
+            cap_id: entry["name"] for cap_id, entry in guide.items()
+        }
+
+    def test_the_glossary_names_each_capability_as_the_console_does(self):
+        """`docs/reference/glossary*.md` is the one list of names (#2075); a
+        capability renamed or added in the console and not there is a glossary
+        that has started to disagree with the screen it explains."""
+        docs = MESSAGES_PATH.parents[1] / "docs" / "reference"
+        for locale, page in (
+            ("en", "glossary.md"),
+            ("pl", "glossary.pl.md"),
+            ("de", "glossary.de.md"),
+        ):
+            text = (docs / page).read_text(encoding="utf-8")
+            rows = {
+                cap_id: name.strip()
+                for name, cap_id in re.findall(r"^\| ([^|`]+) \| `([a-z_0-9]+)` \|$", text, re.M)
+            }
+            assert rows == {
+                cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()
+            }, locale
+
+    def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
+        for locale in ("en", "pl", "de"):
+            for cap_id, entry in self._guide(locale).items():
+                assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), (
+                    locale,
+                    cap_id,
+                )

@@ -22,7 +22,7 @@ export async function unlockPublicArtifact(
   password: string,
 ): Promise<OpenPublicArtifact> {
   const response = await fetch(
-    `${apiUrl}/api/v1/public/artifacts/${encodeURIComponent(publicKey)}/unlock`,
+    `${apiUrl}/api/v1/public/apps/${encodeURIComponent(publicKey)}/unlock`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

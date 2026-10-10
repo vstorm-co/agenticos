@@ -3,6 +3,7 @@ name: Onboarding Document Checker
 description: Checks an identity pack for completeness and consistency, and lists exactly
   what blocks onboarding.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

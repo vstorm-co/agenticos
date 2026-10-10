@@ -226,8 +226,9 @@ def build_knowledge_toolset(
             except Exception:
                 logger.exception("knowledge_facet_lookup_failed")
                 return steer(ctx, _UNAVAILABLE)
-            # Outside any broad `except`: `BudgetExceeded` and a defect in the
-            # inference must reach the runner, not read as an unavailable search.
+            # Outside any broad `except`: a defect in the inference must reach
+            # the runner, not read as an unavailable search. At a budget cap the
+            # inference returns None and the search runs unfiltered.
             inferred = await infer_filters_from_query(
                 ctx.model,
                 query,

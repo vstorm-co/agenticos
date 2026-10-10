@@ -3,6 +3,7 @@ name: Integration Support
 description: Answers integrator questions with a request they can paste, and diagnoses
   from status codes.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - web_fetch

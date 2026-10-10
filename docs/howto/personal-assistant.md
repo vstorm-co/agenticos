@@ -10,7 +10,7 @@ Build an assistant that keeps its own notes about the person it talks to, across
 ## What you need
 
 - A [running installation](../install.md) with a model profile.
-- No sandbox, no embedding model and no MCP connection — [memory files](../reference/capabilities.md#memory-files) work with nothing bound.
+- No sandbox, no embedding model and no MCP connection — [Memory](../reference/capabilities.md#memory-files) works with nothing bound.
 
 ## Prepare the input
 
@@ -25,7 +25,7 @@ Summary format: short bullet points, not paragraphs
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Memory files**, **Date and time** and **Conversation search**. Add **Web search** if you want the brief below to look anything up; the checks here do not need it.
+2. In **Toolbox**, enable **Memory**, **Date and time** and **Past conversations**. Add **Web search** if you want the brief below to look anything up; the checks here do not need it.
 3. Set a budget and a step limit for the trial. The recorded runs used 5–15 steps and cost about 0.01–0.04 USD each.
 4. Set the instructions below, then **Publish**.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d457ec305b9"
+source_sha: "1986f3e8ba0a"
 ---
 
 # Elegir un modelo { #choosing-a-model }
@@ -102,7 +102,7 @@ Así que antes de cambiar el modelo, comprueba tres cosas:
 - **`default_top_k` en la capability de conocimiento.** Ocho fragmentos donde
   bastarían tres es el sobrecoste silencioso más común.
 - **Instrucciones que se repiten.** Se leen en cada turno, sin excepción.
-- **[La gestión del contexto](reference/capabilities.md)**, que mantiene una
+- **[Conversaciones largas](reference/capabilities.md)**, que mantiene una
   conversación larga dentro de la ventana en lugar de reenviarla entera.
 
 [Los budgets](governance.md#budgets) son la red de seguridad, no el plan: un

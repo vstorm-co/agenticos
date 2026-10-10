@@ -116,7 +116,7 @@ class BrowserChoiceConfig(BaseModel):
     """
     decision_base_url: str | None = Field(
         default=None,
-        json_schema_extra={"x-placeholder": VENDOR_DECISION_ENDPOINT},
+        json_schema_extra={"x-advanced": True, "x-placeholder": VENDOR_DECISION_ENDPOINT},
         description=(
             "Where that model runs. Empty is the vendor's own public endpoint "
             f"({VENDOR_DECISION_ENDPOINT}), which is where page content goes "
@@ -139,6 +139,7 @@ class BrowserChoiceConfig(BaseModel):
             "step. Lower is cheaper and blinder; the loop's answer to a page too "
             "dense for the cap is to scroll."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     min_confidence: float = Field(
         default=0.0,
@@ -148,6 +149,7 @@ class BrowserChoiceConfig(BaseModel):
             "Refuse to act on a pick the decision model scored below this, ending "
             "the browse as blocked. 0 acts on every pick and reports the score."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     preview: bool = Field(
         default=True,
@@ -164,6 +166,7 @@ class BrowserChoiceConfig(BaseModel):
             "The browser's viewport width in pixels, which is also how wide the "
             "frames are. It decides what the agent can see without scrolling."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 
@@ -266,7 +269,7 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
 
 @register(
     id="browser_choice",
-    name="Browser automation (choose)",
+    name="Web browser (step by step)",
     category="research",
     description="Work through a web page by choosing one of the actions it actually offers.",
     tools=(

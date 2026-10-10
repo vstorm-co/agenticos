@@ -3,6 +3,7 @@ name: Operations Watch
 description: Watches stock cover and supplier commitments, and turns both into decisions
   with dates.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - code_execution

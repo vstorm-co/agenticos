@@ -5,6 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { ContextCard } from "./context-card";
 import type { ContextFileSummary } from "@/types/providers";
 
+// Its own spec covers the picker; a card only has to offer it for the right thing.
+vi.mock("@/components/agents/add-to-agent", () => ({
+  AddToAgent: ({ resource }: { resource: { kind: string; id: string } }) => (
+    <span>{`add-to-agent ${resource.kind} ${resource.id}`}</span>
+  ),
+}));
+
 const FILE: ContextFileSummary = {
   id: "c1",
   name: "glossary",
@@ -12,6 +19,7 @@ const FILE: ContextFileSummary = {
   format: "md",
   mode: "inject",
   enabled: true,
+  visibility: "org",
   size_bytes: 2048,
   excerpt: "# Glossary\n\nARR - annual recurring revenue",
 };
@@ -111,5 +119,9 @@ describe("ContextCard", () => {
     );
     expect(screen.queryByText(/term,meaning/)).toBeNull();
     expect(screen.queryByText("Glossary")).toBeNull();
+  });
+  it("offers to give the file to an agent", () => {
+    renderCard();
+    expect(screen.getByText("add-to-agent context c1")).toBeInTheDocument();
   });
 });

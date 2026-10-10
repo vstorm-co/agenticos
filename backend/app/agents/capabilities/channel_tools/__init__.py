@@ -57,6 +57,7 @@ class ChannelToolsConfig(BaseModel):
         description=(
             "Members, search results or messages returned when the model does not ask for a number"
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 

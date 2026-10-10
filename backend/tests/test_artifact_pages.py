@@ -35,6 +35,16 @@ pytestmark = pytest.mark.anyio
 PATH = "app.services.artifact"
 
 
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository is mocked call by call here, and following is its own
+    concern - `TestFollowing` in `test_artifact_followers.py` covers it."""
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
 
@@ -416,6 +426,7 @@ class TestAppendingAVersion:
                 sha256="a" * 64,
                 storage_path="p",
                 run_id=None,
+                actor_user_id=None,
             )
         assert create.await_args.kwargs["number"] == 3
         assert artifact.published_at > datetime(2026, 9, 22, tzinfo=UTC)

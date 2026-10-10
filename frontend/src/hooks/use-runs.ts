@@ -77,6 +77,8 @@ export function useRuns(
     conversationId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
     agentVersionId?: string;
+    /** Only test runs from the Builder's panel (true), only the rest (false) (#2074). */
+    isTest?: boolean;
     /** Rows to skip - the pager's, always a multiple of the page size. */
     skip?: number;
   },
@@ -93,6 +95,7 @@ export function useRuns(
     userId,
     conversationId,
     agentVersionId,
+    isTest,
     skip,
   } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
@@ -109,6 +112,7 @@ export function useRuns(
       userId,
       conversationId,
       agentVersionId,
+      isTest,
       skip,
     }),
     queryFn: () => {
@@ -124,6 +128,7 @@ export function useRuns(
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;
+      if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
       if (modelLabel) params.model_label = modelLabel;

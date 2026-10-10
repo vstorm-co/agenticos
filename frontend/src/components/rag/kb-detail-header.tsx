@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AddToAgent } from "@/components/agents/add-to-agent";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -60,6 +61,7 @@ export function KBDetailHeader({
       }
       actions={
         <>
+          <AddToAgent resource={{ kind: "collection", id: kb.id }} name={kb.name} size="default" />
           <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             {t("refresh")}

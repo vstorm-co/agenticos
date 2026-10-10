@@ -20,6 +20,7 @@ from app.agents.mcp import (
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
+    ToolOrigins,
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
@@ -40,7 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.secret_kinds import GithubOAuthAppSecret
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.mcp_connection import McpConnection
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionRead,
@@ -107,6 +108,14 @@ class _AnyIdMap(dict):
 
     def get(self, _key, _default=None):
         return self._value
+
+
+def _attached(resolved: mcp_connection_service.ResolvedMcpToolsets) -> list[object]:
+    """The toolsets attached, without the wrapper noting an org server's tools."""
+    return [
+        toolset.wrapped if isinstance(toolset, ToolOrigins) else toolset
+        for toolset in resolved.toolsets
+    ]
 
 
 def _batch(value):
@@ -275,7 +284,7 @@ class TestMakeToolset:
         from pydantic_ai.toolsets import PrefixedToolset
 
         spec = McpServerSpec(name="github-work", url="https://example.com/mcp")
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
@@ -287,7 +296,7 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.tool_error_behavior == "failed"
+        assert _make_toolset(spec).wrapped.wrapped.tool_error_behavior == "failed"
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -297,7 +306,7 @@ class TestMakeToolset:
             url="https://example.com/mcp",
             allowed_tools=["search_issues"],
         )
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         filtered = toolset.wrapped
         assert isinstance(filtered, FilteredToolset)
@@ -308,6 +317,74 @@ class TestMakeToolset:
         blocked_tool.name = "delete_repo"
         assert filtered.filter_func(None, allowed_tool) is True
         assert filtered.filter_func(None, blocked_tool) is False
+
+
+class TestApprovalMarks:
+    """#2060: an MCP tool waits for a person unless its binding says otherwise."""
+
+    @pytest.mark.parametrize(
+        ("policy", "read_only", "expected"),
+        [
+            ("writes", True, False),
+            ("writes", False, True),
+            ("writes", None, True),
+            ("all", True, True),
+            ("none", False, False),
+        ],
+    )
+    def test_the_policy_and_the_read_only_hint_decide(self, policy, read_only, expected):
+        from app.agents.mcp import needs_approval
+
+        assert needs_approval(_mcp_tool("t", read_only), policy) is expected
+
+    @pytest.mark.anyio
+    async def test_every_tool_the_server_lists_carries_the_mark(self):
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import NEEDS_APPROVAL, ApprovalMarked
+
+        inner = MagicMock()
+        listed = {
+            name: ToolsetTool(
+                toolset=inner,
+                tool_def=_mcp_tool(name, read_only),
+                max_retries=1,
+                args_validator=MagicMock(),
+            )
+            for name, read_only in (("read", True), ("delete", False))
+        }
+        inner.get_tools = AsyncMock(return_value=listed)
+
+        marked = await ApprovalMarked(inner, policy="writes").get_tools(MagicMock())
+
+        assert marked["read"].tool_def.metadata[NEEDS_APPROVAL] is False
+        assert marked["delete"].tool_def.metadata[NEEDS_APPROVAL] is True
+        # What the server sent is kept beside the mark.
+        assert marked["read"].tool_def.metadata["annotations"] == {"readOnlyHint": True}
+
+
+class TestToolOrigins:
+    @pytest.mark.anyio
+    async def test_every_tool_listed_is_noted_under_its_connection(self):
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(return_value={"linear_search": "a", "linear_create": "b"})
+        connection_id = uuid4()
+        seen = {"notion_search": uuid4()}
+
+        tools = await ToolOrigins(inner, connection_id=connection_id, seen=seen).get_tools(
+            MagicMock()
+        )
+
+        assert tools == {"linear_search": "a", "linear_create": "b"}
+        assert seen["linear_search"] == seen["linear_create"] == connection_id
+        assert "notion_search" in seen
+
+
+def _mcp_tool(name, read_only):
+    from pydantic_ai.tools import ToolDefinition
+
+    annotations = None if read_only is None else {"readOnlyHint": read_only}
+    return ToolDefinition(name=name, metadata={"annotations": annotations, "meta": None})
 
 
 class TestBuildMcpToolsets:
@@ -451,7 +528,7 @@ class TestToolsetsForAgent:
             AsyncMock(), organization_id=uuid4(), refs=[OrgMcpServerRef(connection_id=bound.id)]
         )
 
-        assert toolsets.toolsets == ["linear"]
+        assert _attached(toolsets) == ["linear"]
         assert [spec.name for spec in seen[0]] == ["linear"]
 
     @pytest.mark.anyio
@@ -480,7 +557,7 @@ class TestToolsetsForAgent:
         )
 
         assert [spec.name for spec in seen[0]] == ["github", "GitHub"]
-        assert resolved.toolsets == ["github"]
+        assert _attached(resolved) == ["github"]
         assert resolved.unavailable == [
             UnavailablePrefixCollision(
                 server="GitHub",
@@ -523,7 +600,7 @@ class TestToolsetsForAgent:
             ],
         )
 
-        assert resolved.toolsets == ["GitHub"]
+        assert _attached(resolved) == ["GitHub"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -550,7 +627,7 @@ class TestToolsetsForAgent:
         )
 
         assert [spec.name for spec in seen[0]] == ["github", "github"]
-        assert resolved.toolsets == ["github"]
+        assert _attached(resolved) == ["github"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -618,7 +695,7 @@ class TestToolsetsForAgent:
             AsyncMock(), organization_id=uuid4(), refs=[OrgMcpServerRef(connection_id=uuid4())]
         )
 
-        assert toolsets.toolsets == []
+        assert _attached(toolsets) == []
         assert seen[0] == []
 
     @pytest.mark.anyio
@@ -781,7 +858,7 @@ class TestEachPersonsOwnAccount:
             ("notion", "https://mine.example.com/mcp")
         ]
         assert seen[0][0].allowed_tools == ["search"]
-        assert resolved.toolsets == ["notion"]
+        assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == []
 
     @pytest.mark.anyio
@@ -807,7 +884,7 @@ class TestEachPersonsOwnAccount:
         )
 
         assert [spec.name for spec in seen[0]] == ["notion", "notion"]
-        assert resolved.toolsets == ["notion"]
+        assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == [
             UnavailablePrefixCollision(
                 server="notion",
@@ -817,6 +894,33 @@ class TestEachPersonsOwnAccount:
                 kept_binding="the connection 'notion'",
             )
         ]
+
+    @pytest.mark.anyio
+    async def test_only_the_organization_server_notes_the_connection_its_calls_are_logged_under(
+        self, monkeypatch
+    ):
+        """A server's call log reads the connection recorded on each call (#2072),
+        so the organization's server notes its own, sharing one mapping per run,
+        and a person's own account notes nothing - its calls are not the server's."""
+        self._capture(monkeypatch)
+        shared = _connection(name="linear", url="https://org.example/mcp", scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(shared)
+        )
+        self._owns(monkeypatch, [_connection(name="my-notion", catalog_key="notion")])
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=shared.id), self._personal()],
+            sender_user_id=uuid4(),
+        )
+
+        organization, personal = resolved.toolsets
+        assert isinstance(organization, ToolOrigins)
+        assert organization.connection_id == shared.id
+        assert organization.seen is resolved.origins
+        assert personal == "notion"
 
     @pytest.mark.anyio
     async def test_the_lookup_is_scoped_to_the_sender_and_the_service(self, monkeypatch):
@@ -856,7 +960,7 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert resolved.toolsets == []
+        assert _attached(resolved) == []
         assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
     @pytest.mark.anyio
@@ -876,7 +980,7 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert resolved.toolsets == []
+        assert _attached(resolved) == []
         assert resolved.unavailable == [UnavailablePersonalService("notion", "undecided")]
 
     @pytest.mark.anyio
@@ -981,7 +1085,7 @@ class TestEachPersonsOwnAccount:
         )
 
         assert [spec.name for spec in seen[0]] == ["linear"]
-        assert resolved.toolsets == ["linear"]
+        assert _attached(resolved) == ["linear"]
         assert resolved.unavailable == [UnavailablePersonalService("notion", "nobody_to_speak_as")]
 
 
@@ -1202,6 +1306,24 @@ class TestAccountAuthorized:
         assert McpConnectionRead.from_model(usable).authorized is True
         gone = _connection(auth_token="sealed", secret_key_version=999)
         assert McpConnectionRead.from_model(gone).authorized is False
+
+    def test_a_grant_the_sweep_could_not_renew_reads_as_one_to_authorize_again(self):
+        """Not as a server that stopped answering: the person's next step is to
+        sign in again, which is what the list and the Builder offer (#2073)."""
+        expired = _connection(
+            auth_type="oauth",
+            oauth_payload='{"t":1}',
+            last_status="error",
+            last_error=AUTHORIZATION_EXPIRED,
+        )
+        down = _connection(
+            auth_type="oauth", oauth_payload='{"t":1}', last_status="error", last_error="timeout"
+        )
+
+        assert expired.authorization_expired is True
+        assert McpConnectionRead.from_model(expired).authorized is False
+        assert down.authorization_expired is False
+        assert McpConnectionRead.from_model(down).authorized is True
 
 
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:
@@ -2070,6 +2192,44 @@ class TestMcpConnectionService:
         assert error is not None and "authorized" in error
         update_data = repo.update.call_args.kwargs["update_data"]
         assert (update_data["last_status"], update_data["last_error"]) == ("error", error)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("registration", "expected"),
+        [("https://srv/register", (True, True)), (None, (True, False))],
+    )
+    async def test_a_server_added_by_address_says_whether_people_can_sign_in(
+        self, service, monkeypatch, registration, expected
+    ):
+        """The discovery a sign-in runs, registering nothing (#2073)."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=registration,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=MagicMock(),
+        )
+        register = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        probed = await service.probe_sign_in("https://srv/mcp")
+
+        assert (probed.sign_in, probed.registers_clients) == expected
+        register.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_server_with_no_oauth_metadata_offers_no_sign_in(self, service, monkeypatch):
+        _allow_any_url(monkeypatch)
+        monkeypatch.setattr(
+            mcp_oauth, "discover", AsyncMock(side_effect=mcp_oauth.OAuthError("none"))
+        )
+
+        probed = await service.probe_sign_in("https://srv/mcp")
+
+        assert (probed.sign_in, probed.registers_clients) == (False, False)
 
     @pytest.mark.anyio
     async def test_oauth_start_will_not_take_over_a_token_based_connection(

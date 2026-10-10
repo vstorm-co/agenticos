@@ -1,5 +1,5 @@
 ---
-source_sha: "54d365e1b9c3"
+source_sha: "fc6566006c49"
 title: "Construye un asistente personal que te recuerda"
 description: "Dale a un agent memoria de tus preferencias, comprueba que una conversación posterior las aplica y confirma después que puede olvidar una cuando se lo pides."
 ---
@@ -11,7 +11,7 @@ Construye un asistente que lleva sus propias notas sobre la persona con la que h
 ## Qué necesitas { #what-you-need }
 
 - Una [instalación en marcha](../install.md) con un perfil de modelo.
-- Sin sandbox, sin modelo de embeddings y sin conexión MCP: [memory files](../reference/capabilities.md#memory-files) funciona sin nada vinculado.
+- Sin sandbox, sin modelo de embeddings y sin conexión MCP: [Memoria](../reference/capabilities.md#memory-files) funciona sin nada vinculado.
 
 ## Prepara la entrada { #prepare-the-input }
 
@@ -26,7 +26,7 @@ Summary format: short bullet points, not paragraphs
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Memory files**, **Date and time** y **Conversation search**. Añade **Web search** si quieres que el resumen de abajo busque algo; las comprobaciones de esta página no lo necesitan.
+2. En **Toolbox**, activa **Memory**, **Date and time** y **Past conversations**. Añade **Web search** si quieres que el resumen de abajo busque algo; las comprobaciones de esta página no lo necesitan.
 3. Fija un budget y un límite de pasos para la prueba. Los runs registrados usaron entre 5 y 15 pasos y costaron entre 0,01 y 0,04 USD cada uno.
 4. Escribe las instrucciones de abajo y luego pulsa **Publish**.
 

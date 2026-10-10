@@ -16,7 +16,7 @@ const PUBLISHED = {
   version: 3,
   name: "weekly-report",
   title: "Weekly report",
-  url: "https://console.example/artifacts/a1",
+  url: "https://console.example/apps/a1",
   created: false,
   unchanged: false,
   visibility: "private",
@@ -62,7 +62,7 @@ describe("PublishedArtifactResult", () => {
         }}
       />,
     );
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/artifacts/a1?version=v%203");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/apps/a1?version=v%203");
     expect(screen.getByText("Version 3 · open the page")).toBeInTheDocument();
     // The preview is of that version too, not of whatever the link shows today.
     expect(screen.getByTestId("thumbnail")).toHaveTextContent("a1@v 3");

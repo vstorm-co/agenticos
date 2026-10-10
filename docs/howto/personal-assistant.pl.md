@@ -1,5 +1,5 @@
 ---
-source_sha: "54d365e1b9c3"
+source_sha: "fc6566006c49"
 title: "Zbuduj osobistego asystenta, który Cię pamięta"
 description: "Daj agentowi pamięć o Twoich preferencjach, sprawdź, czy późniejsza rozmowa je stosuje, a potem upewnij się, że potrafi jedną zapomnieć na prośbę."
 ---
@@ -11,7 +11,7 @@ Zbuduj asystenta, który prowadzi własne notatki o osobie, z którą rozmawia, 
 ## Czego potrzebujesz { #what-you-need }
 
 - [Działająca instalacja](../install.md) z profilem modelu.
-- Bez sandboksa, modelu embeddingów i połączenia MCP. [Memory files](../reference/capabilities.md#memory-files) działają bez niczego przypisanego.
+- Bez sandboksa, modelu embeddingów i połączenia MCP. [Pamięć](../reference/capabilities.md#memory-files) działa bez niczego przypisanego.
 
 ## Przygotuj dane wejściowe { #prepare-the-input }
 
@@ -26,7 +26,7 @@ Summary format: short bullet points, not paragraphs
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Memory files**, **Date and time** i **Conversation search**. Dodaj **Web search**, jeśli brief poniżej ma coś wyszukiwać; sprawdzenia tutaj tego nie wymagają.
+2. W **Toolbox** włącz **Memory**, **Date and time** i **Past conversations**. Dodaj **Web search**, jeśli brief poniżej ma coś wyszukiwać; sprawdzenia tutaj tego nie wymagają.
 3. Ustaw budżet i limit kroków na czas próby. Zapisane runy używały 5–15 kroków i kosztowały około 0,01–0,04 USD każdy.
 4. Wpisz poniższe instrukcje, a potem **Publish**.
 

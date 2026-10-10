@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_BUILDER,
   KB_DETAIL,
+  GROUP_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -43,6 +44,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test",
   "agent-publish",
 ];
 
@@ -63,6 +65,7 @@ describe("pageKey", () => {
   it("collapses every concrete collection route onto the one KB identity", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
+    expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -201,12 +204,15 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its five tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory stop
-    // is optional - its card renders only where an agent has written something.
+    // Settings collapses its seven tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The memory, API
+    // key and assistant stops are optional - each card renders on one tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
       "my-memory",
+      "settings-api-keys",
+      "settings-connected-apps",
+      "settings-assistant",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
@@ -231,7 +237,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agent-test"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -239,7 +245,7 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

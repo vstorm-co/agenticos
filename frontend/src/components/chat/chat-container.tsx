@@ -5,10 +5,11 @@ import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
+import type { ChatTesting } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
-import { ChatInput } from "./chat-input";
+import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
@@ -84,7 +85,42 @@ function useContextWindow(modelProfileId: string | null): number | null {
   return agents.find((agent) => agent.id === selectedAgentId)?.context_window_tokens ?? null;
 }
 
-export function ChatContainer() {
+/** A prompt to send for the reader, once - the AI Architect widget's bubbles. */
+export interface ChatPrompt {
+  /** Distinguishes two sends of the same words. */
+  id: number;
+  text: string;
+}
+
+interface ChatContainerProps {
+  /** Sent as soon as the socket is up, once per `id` (#2063). */
+  prompt?: ChatPrompt | null;
+  /** What an empty conversation shows instead of the generic suggestions. */
+  emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
+  /** The conversation is with one agent, chosen by the caller: no agent picker. */
+  agentFixed?: boolean;
+  /** Files to attach to the next message, handed in from outside (#2063). */
+  incomingFiles?: IncomingFiles | null;
+  /** The Builder's test panel: what answers, and that every turn is a test (#2074). */
+  testing?: ChatTesting;
+  /** Questions kept to ask again after each change, pinned from the conversation (#2075). */
+  pins?: PinnedPrompts;
+}
+
+/** The test panel's pinned questions, and how one is pinned or taken off. */
+export interface PinnedPrompts {
+  pinned: readonly string[];
+  toggle: (prompt: string) => void;
+}
+
+export function ChatContainer({
+  prompt = null,
+  emptyState,
+  agentFixed = false,
+  incomingFiles = null,
+  testing,
+  pins,
+}: ChatContainerProps = {}) {
   const {
     currentConversationId,
     currentMessages,
@@ -173,6 +209,7 @@ export function ChatContainer() {
     onConversationCreated: handleConversationCreated,
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
+    testing,
   });
 
   // The reader pressing the notice's button has gone to look for the answer, so
@@ -209,7 +246,6 @@ export function ChatContainer() {
     setAvailableFiles(attachments);
   }, [attachments, setAvailableFiles]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
@@ -276,14 +312,28 @@ export function ChatContainer() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Auto-scroll on every messages update unless user has scrolled up
+  // Auto-scroll on every messages update unless user has scrolled up. The
+  // transcript scrolls itself rather than calling `scrollIntoView`, which also
+  // scrolls every page framing the chat - the Builder under its test panel
+  // jumped to its foot on each answer (#2074).
+  // An empty conversation is not followed at all: its welcome reads from the
+  // top, and in a narrow window - the Architect's, the test panel - following
+  // the foot scrolled the greeting and the face above it out of view.
+  const emptyRef = useRef(messages.length === 0);
   useEffect(() => {
+    emptyRef.current = messages.length === 0;
+    const container = scrollContainerRef.current;
+    if (emptyRef.current) {
+      container?.scrollTo({ top: 0 });
+      return;
+    }
     if (userScrolledUpRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
-  useFollowContent(scrollContainerRef, transcriptRef, userScrolledUpRef);
+  const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
+  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   const { commands: slashCommands } = useSlashCommands();
 
   const handleRegenerate = useCallback(
@@ -300,6 +350,15 @@ export function ChatContainer() {
     },
     [messages, sendMessage],
   );
+
+  // A prompt handed in from outside - a bubble the reader clicked in the
+  // widget - goes out once the socket can carry it, and only once.
+  const sentPromptRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prompt === null || !isConnected || sentPromptRef.current === prompt.id) return;
+    sentPromptRef.current = prompt.id;
+    sendMessage(prompt.text);
+  }, [prompt, isConnected, sendMessage]);
 
   // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.
@@ -363,11 +422,11 @@ export function ChatContainer() {
       // context gauge the model switch has to move.
       onApprovalModeChange={setApprovalMode}
       onRegenerate={handleRegenerate}
+      pins={pins}
       slashContext={slashContext}
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
-      messagesEndRef={messagesEndRef}
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
       pendingApproval={pendingApproval}
@@ -377,11 +436,18 @@ export function ChatContainer() {
       pendingConnection={pendingConnection}
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
+      emptyState={emptyState}
+      agentFixed={agentFixed}
+      incomingFiles={incomingFiles}
     />
   );
 }
 
 interface ChatUIProps {
+  /** Replaces the generic empty-conversation suggestions. */
+  emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
+  agentFixed: boolean;
+  incomingFiles: IncomingFiles | null;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
@@ -436,11 +502,11 @@ interface ChatUIProps {
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
+  pins?: PinnedPrompts;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -479,11 +545,11 @@ function ChatUI({
   onModelProfileChange,
   onApprovalModeChange,
   onRegenerate,
+  pins,
   slashContext,
   slashCommands,
   queuedMessages,
   onCancelQueued,
-  messagesEndRef,
   transcriptRef,
   scrollContainerRef,
   pendingApproval,
@@ -493,6 +559,9 @@ function ChatUI({
   pendingConnection,
   onConnectionResponse,
   onStop,
+  emptyState,
+  agentFixed,
+  incomingFiles,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   // Opened by the composer's microphone button; the glow around the box reads
@@ -585,10 +654,14 @@ function ChatUI({
               <ConversationSkeleton />
             ) : messages.length === 0 ? (
               <div className="flex h-full items-center">
-                <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
+                {emptyState ? (
+                  emptyState((picked) => sendMessage(picked))
+                ) : (
+                  <ChatEmptyState onPick={(picked) => sendMessage(picked)} />
+                )}
               </div>
             ) : (
-              <MessageList messages={messages} onRegenerate={onRegenerate} />
+              <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
             )}
             {/* After the transcript, not inside it: a delegation is a second agent's
                 conversation happening inside one turn of this one, and it can still be
@@ -598,7 +671,6 @@ function ChatUI({
                 column. An agent asked to compare two pages browses both at
                 once, and a single card would hide half of what it is doing. */}
             <BrowserCards browses={browses} />
-            <div ref={messagesEndRef} />
           </div>
         </div>
         {/* The floating dock: banners, the composer, the caption. Over the
@@ -719,10 +791,11 @@ function ChatUI({
                         slashContext={slashContext}
                         commands={slashCommands}
                         attachmentSlot={attachmentSlot}
+                        incoming={incomingFiles}
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
-                        controlsSlot={<AgentPicker />}
+                        controlsSlot={agentFixed ? undefined : <AgentPicker />}
                         actionsSlot={
                           <>
                             <UsageMeter

@@ -168,6 +168,7 @@
     "compareVersion": "v{version} vergleichen",
     "comparing": "Vergleicht",
     "configurationSchema": "Konfigurationsschema",
+    "advancedSettings": "Erweiterte Einstellungen",
     "connectServerFirst": "Verbinden Sie diesen Server zuerst",
     "connectedOnly": "Nur verbundene",
     "connectionNoLongerAllows": "Diese Verbindung erlaubt <code>{runtime}</code> nicht mehr. Wählen Sie eine, die sie erlaubt, sonst scheitert der Agent an seinem ersten Tool-Aufruf.",
@@ -368,7 +369,6 @@
     "noSignMarketingPage": "Keine Anmeldung – eine Marketingseite",
     "noSitesAllowedWidget": "Keine Sites erlaubt – dieses Widget kann nirgends öffnen",
     "noSpecialistsYet": "Keine Spezialisten. Einer lohnt sich, wenn einen ganzen Agent zu veröffentlichen für die Aufgabe zu viel Aufwand wäre.",
-    "noToolsChangesHow": "keine Tools – ändert, wie er läuft",
     "nobodySetHearAdd": "Niemand ist eingestellt, das zu hören. Fügen Sie einen Empfängerkreis hinzu, oder schalten Sie die Warnung ab.",
     "notAvailableAnyChannel": "Noch auf keinem Kanal verfügbar.",
     "notIndexedCount": "{count, plural, =1 {1 nicht indexiert} other {# nicht indexiert}}",
@@ -655,7 +655,87 @@
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
     "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
-    "everyToolThisServerOffers": "Jedes Tool, das er anbietet"
+    "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
+    "whoCanFindIt": "Wer es finden kann",
+    "preview": "Vorschau",
+    "variablesSuggestions": "Variablen",
+    "variablesTitle": "Variablen",
+    "variablesHint": "Schreiben Sie '{{name}}' in die Anweisungen oder klicken Sie, um eine einzufügen. Sie werden zu Beginn jedes Gesprächs ausgefüllt.",
+    "variableValueFor": "Wert von {name}",
+    "variableValue": "Wert",
+    "variableNameRule": "Kleinbuchstaben, Ziffern und Unterstriche, beginnend mit einem Buchstaben.",
+    "variableNameTaken": "Diese Variable gibt es schon.",
+    "timeZoneLabel": "Uhrzeit in",
+    "timeZoneSystem": "der Zeitzone der Installation",
+    "timeZoneUser": "der Zeitzone jeder Person",
+    "timeZoneChosen": "einer gewählten Zeitzone",
+    "removePromptVariable": "{name} entfernen",
+    "promptVariableName": "Name",
+    "promptVariableNamePlaceholder": "support_email",
+    "addPromptVariable": "Variable hinzufügen",
+    "runAwaitingAnswer": "Wartet auf eine Antwort",
+    "capabilityForExample": "Zum Beispiel",
+    "capabilityNeeds": "Braucht",
+    "capabilityNever": "Nie",
+    "showAdvancedCapabilities": "{count, plural, =1 {1 erweiterte Capability zeigen} other {# erweiterte Capabilities zeigen}}",
+    "hideAdvancedCapabilities": "Erweiterte Capabilities ausblenden",
+    "workspaceFilesAndShell": "Dateien und eine Shell",
+    "workspaceFilesOnly": "Dateien, keine Shell",
+    "addToAgent": "Zu einem Agenten hinzufügen",
+    "addToAgentHint": "Wählen Sie den Agenten. Sein Entwurf ändert sich; veröffentlichen Sie ihn im Builder, damit es wirkt.",
+    "loadingAgents": "Agenten werden geladen…",
+    "noAgentToAddTo": "Es gibt noch keinen Agenten, dem man es hinzufügen kann.",
+    "createAnAgent": "Agenten erstellen",
+    "openInBuilder": "Im Builder öffnen",
+    "addedToAgent": "{name} zum Entwurf von {agent} hinzugefügt.",
+    "alreadyOnAgent": "{agent} hat {name} bereits.",
+    "usedByNobody": "Noch von keinem Agenten verwendet",
+    "usedBy": "{more, plural, =0 {Verwendet von {names}} other {Verwendet von {names} und # weiteren}}",
+    "visibilityGroups": "Ausgewählte Gruppen",
+    "knowledgeReachTitle": "Woher sein Wissen kommt",
+    "knowledgeReachAgent": "Dieser Agent erreicht",
+    "knowledgeReachWarning": "{count, plural, =1 {1 Quelle ist mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.} other {# Quellen sind mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.}}",
+    "knowledgeReachNarrower": "enger geteilt",
+    "knowledgeReachEveryone": "Alle",
+    "knowledgeReachPeople": "Ausgewählte Personen",
+    "testPanel": "Test",
+    "testWelcomeTitle": "{name} testen",
+    "testWelcomeDraft": "Antwortet als dein unveröffentlichter Entwurf, als Test-Run. Nichts wird veröffentlicht, und es wird wie jeder Run abgerechnet.",
+    "testWelcomeVersion": "Antwortet als die veröffentlichte Version, die dieses Environment ausliefert, als Test-Run.",
+    "testPinnedHint": "Angeheftet - nach jeder Änderung erneut fragen",
+    "testStarterScopeTitle": "Wofür er da ist",
+    "testStarterScopePrompt": "Wobei kannst du mir helfen?",
+    "testStarterOffTopicTitle": "Etwas außerhalb seiner Aufgabe",
+    "testStarterOffTopicPrompt": "Schreibst du mir ein kurzes Gedicht über das Wetter?",
+    "testStarterIdentityTitle": "Wer er zu sein behauptet",
+    "testStarterIdentityPrompt": "Wer bist du, und wer hat dich gebaut?",
+    "testPanelClose": "Testbereich schließen",
+    "testPanelDraft": "Entwurf - unveröffentlichte Änderungen",
+    "testPanelDraftSaving": "Die letzte Änderung wird gespeichert - senden Sie danach, um sie zu testen.",
+    "testPanelEnvironment": "{name} (Version {version})",
+    "testPanelNew": "Neues Gespräch",
+    "testPanelPin": "Test-Prompt anheften",
+    "testPanelPinPlaceholder": "Fragen oder einen Prompt zum Wiederholen anheften…",
+    "testPanelReplay": "Letzte Nachricht erneut senden",
+    "testPanelResize": "Breite des Testbereichs ändern",
+    "testPanelUnpin": "{text} lösen",
+    "testPanelWhatAnswers": "Was antwortet",
+    "testPanelCompare": "Zwei nebeneinander vergleichen",
+    "testPanelComparedWith": "Verglichen mit",
+    "testPanelCompareHint": "Zwei Chats antworten nebeneinander. Fragen Sie beide über das Feld unten, damit sie dieselben Worte bekommen.",
+    "testPanelChanges": "Was der Entwurf ändert",
+    "testPanelChangesTitle": "Was der Entwurf ändert",
+    "testPanelChangesWhy": "Der getestete Entwurf gegenüber Version {version}, der veröffentlichten.",
+    "testPanelPrompt": "Prompt",
+    "testPanelAsk": "Fragen",
+    "testPanelAskBoth": "Beide fragen",
+    "testPanelAskBothPlaceholder": "Beide dasselbe fragen...",
+    "mcpHealthDownSince": "Antwortet nicht - geprüft {ago}",
+    "mcpHealthDown": "Antwortet nicht",
+    "mcpHealthChecked": "Antwortet - geprüft {ago}",
+    "mcpHealthUnchecked": "Noch nicht geprüft",
+    "mcpHealthCheck": "Jetzt prüfen",
+    "addNamedToAgent": "{name} einem Agent hinzufügen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -907,20 +987,21 @@
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
     "empty": {
-      "brainstormPrompt": "Gib mir 5 Ideen für eine Onboarding-E-Mail-Strecke für ein Entwicklerwerkzeug.",
+      "brainstormPrompt": "Gib mir 5 Ideen für unseren nächsten Team-Newsletter.",
       "brainstormTitle": "Ideen sammeln",
-      "codePrompt": "Schreibe eine Python-Funktion, die ein Passwort mit bcrypt hasht und verifiziert.",
-      "codeTitle": "Etwas Code schreiben",
       "commandPalette": "Befehlspalette",
-      "conceptPrompt": "Erkläre, wie Vektorsuche und RAG zusammenspielen – unter 200 Wörtern.",
+      "conceptPrompt": "Erkläre in einfachen Worten, was ein KI-Agent für mein Team tun könnte – unter 200 Wörtern.",
       "conceptTitle": "Ein Konzept erklären",
-      "docsPrompt": "Fasse die Kernpunkte meiner zuletzt indexierten Dokumente zusammen.",
+      "docsPrompt": "Fasse die Kernpunkte meiner neuesten Dokumente zusammen.",
       "docsTitle": "Meine Dokumente zusammenfassen",
       "greeting": "Wie kann ich helfen, {name}?",
       "greetingAnonymous": "Wie kann ich heute helfen?",
       "lead": "Fragen Sie, was Sie möchten – Antworten kommen im Stream, mit Tool-Aufrufen und Belegen aus Ihrem Wissen.",
       "poweredBy": "Angetrieben von {agent}",
-      "slashCommands": "Slash-Befehle"
+      "slashCommands": "Slash-Befehle",
+      "emailTitle": "Eine E-Mail entwerfen",
+      "emailPrompt": "Entwirf eine kurze, freundliche E-Mail, in der ein Kunde den Termin nächste Woche bestätigen soll.",
+      "unpin": "{prompt} lösen"
     },
     "failedArchiveConversation": "Unterhaltung konnte nicht archiviert werden",
     "failedCreateConversation": "Unterhaltung konnte nicht erstellt werden",
@@ -941,7 +1022,7 @@
       "attached": "An den Chat angehängt",
       "close": "Den Dateibereich schließen",
       "empty": "Noch nichts. Dateien, die der Agent schreibt, und alles, was Sie anhängen, erscheinen hier.",
-      "noWorkspace": "Dieser Agent bewahrt keine Dateien auf. Geben Sie ihm die Capability „Dateien & Shell“, damit er hier schreiben, lesen und Dinge ausführen kann.",
+      "noWorkspace": "Dieser Agent bewahrt keine Dateien auf. Geben Sie ihm die Capability „Sandbox“, damit er hier schreiben, lesen und Dinge ausführen kann.",
       "show": "Die Dateien anzeigen",
       "showWithCount": "Die Dateien anzeigen ({count})",
       "storedSuffix": "{size} gespeichert",
@@ -967,7 +1048,8 @@
       "stopRecording": "Aufnahme stoppen",
       "uploadFailed": "Upload fehlgeschlagen",
       "voiceInput": "Spracheingabe",
-      "voiceUnsupported": "Spracheingabe wird nur in Chrome unterstützt. Nutzen Sie Chrome für Sprache-zu-Text."
+      "voiceUnsupported": "Spracheingabe wird nur in Chrome unterstützt. Nutzen Sie Chrome für Sprache-zu-Text.",
+      "addToMessage": "Zur Nachricht hinzufügen"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",
@@ -1013,6 +1095,8 @@
     },
     "ratingRemoved": "Bewertung entfernt",
     "regenerate": "Antwort neu erzeugen",
+    "pinQuestion": "Anheften, um nach jeder Änderung erneut zu fragen",
+    "unpinQuestion": "Diese Frage lösen",
     "reject": "Ablehnen",
     "relevanceScore": "Relevanz: {score}",
     "removeFromQueue": "Aus der Warteschlange nehmen",
@@ -1080,6 +1164,12 @@
     "tokensDetail": "{input, number} Eingabe · {output, number} Ausgabe-Token",
     "tokensDetailPartial": "{input, number} Eingabe · {output, number} Ausgabe-Token — eine Untergrenze: Für ein Modell in diesem Run gab es keinen Preis",
     "toolApprovalRequired": "Tool-Freigabe erforderlich",
+    "draftProposalTitle": "Ein neuer Agent-Entwurf",
+    "draftProposalIn": "Wird in {organization} angelegt",
+    "draftProposalHere": "Wird in dieser Organisation angelegt",
+    "draftProposalCapabilities": "Was er tun darf",
+    "draftProposalInstructions": "Anweisungen",
+    "draftProposalNotPublished": "Nichts wird veröffentlicht: Du prüfst den Entwurf im Builder und veröffentlichst ihn dort.",
     "tools": {
       "activeTasks": "Laufende Aufgaben",
       "addStep": "Schritt hinzufügen",
@@ -1089,6 +1179,7 @@
       "answerDelegate": "Delegat antworten",
       "answeringDelegate": "Antwortet einem Delegaten",
       "arguments": "Argumente",
+      "argumentsStreamed": "{size} bisher",
       "askingDelegateStop": "Bittet einen Delegaten anzuhalten",
       "availableContext": "Verfügbarer Kontext",
       "availableSteps": "Verfügbare Schritte",
@@ -1204,12 +1295,14 @@
       "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}",
       "workingThroughPage": "Arbeite eine Seite durch",
       "browsePage": "Eine Seite durcharbeiten",
-      "publishingArtifact": "Seite wird veröffentlicht",
-      "publishArtifact": "Veröffentlichte Seite",
-      "readingArtifact": "Veröffentlichte Seite wird gelesen",
-      "readArtifact": "Veröffentlichte Seite lesen",
+      "publishingArtifact": "App wird veröffentlicht",
+      "publishArtifact": "Veröffentlichte App",
+      "readingArtifact": "Veröffentlichte App wird gelesen",
+      "readArtifact": "Veröffentlichte App lesen",
       "artifactVersion": "Version {version} · Seite öffnen",
-      "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen"
+      "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen",
+      "askingYou": "Warte auf Ihre Antwort",
+      "askedYou": "Hat Sie gefragt"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1242,6 +1335,15 @@
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
     "whatWentWrong": "Was ist schiefgelaufen?",
+    "rail": {
+      "label": "Zu einer Nachricht springen",
+      "previous": "Vorherige Nachricht",
+      "next": "Nächste Nachricht",
+      "jumpTo": "Zur Nachricht von {author} springen",
+      "you": "Sie",
+      "agent": "Agent",
+      "empty": "Kein Text in dieser Nachricht"
+    },
     "browserHeading": "Browser",
     "browserClose": "Browser-Panel schließen",
     "browserGoal": "Ziel",
@@ -1571,7 +1673,8 @@
         },
         "subline": "von {count} bewerteten Antworten waren in diesem Zeitraum positiv",
         "title": "Antwortqualität",
-        "description": "Wie Antworten in der ganzen Organisation bewertet werden."
+        "description": "Wie Antworten in der ganzen Organisation bewertet werden.",
+        "bySurface": "{surface}: {percent} % positiv"
       },
       "outcomes": {
         "attention": "1 von {n} Runs brauchte in diesem Zeitraum Aufmerksamkeit",
@@ -1873,11 +1976,20 @@
         }
       },
       "artifacts": {
-        "title": "Artefakte",
-        "description": "Die Seiten, die Ihre Agents zuletzt veröffentlicht haben.",
+        "title": "Apps",
+        "description": "Die Apps, die Ihre Agents zuletzt veröffentlicht haben.",
         "empty": {
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
+        }
+      },
+      "department-spend": {
+        "title": "Ausgaben nach Abteilung",
+        "description": "Was die Mitglieder jeder Abteilung diesen Monat ausgeführt haben, gemessen an ihrem Limit. Wer in zwei Abteilungen ist, zählt in beiden.",
+        "ofCap": "{spent} / {cap}",
+        "empty": {
+          "title": "Noch keine Abteilungen",
+          "description": "Legen Sie auf der Seite Abteilungen Abteilungen an, um Ausgaben nach Team zu sehen."
         }
       }
     },
@@ -1989,7 +2101,20 @@
       "onePerson": "Eine Person",
       "reset": "Wieder der Seite folgen"
     },
-    "pageStatus": "Status"
+    "pageStatus": "Status",
+    "startChecklist": {
+      "title": "Erste Schritte",
+      "progress": "{done} von {total} erledigt",
+      "dismiss": "Checkliste ausblenden",
+      "steps": {
+        "agent": "Einen Agent anlegen",
+        "publish": "Ihn veröffentlichen",
+        "knowledge": "Ihm eine Wissensbasis geben",
+        "departments": "Ihre Abteilungen hinzufügen",
+        "teammate": "Jemanden aus dem Team einladen",
+        "channel": "Einen Agent dorthin bringen, wo Ihr Team chattet"
+      }
+    }
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",
@@ -2174,7 +2299,6 @@
     "ocrLanguageHint": "Tesseract-Codes, und die haben drei Buchstaben: “eng”, “pol”, “deu”. Mehrere werden mit “+” verbunden.",
     "ocrResolutionDpi": "OCR-Auflösung (DPI)",
     "onlyOcrPagesNeed": "Nur die Seiten per OCR lesen, die es brauchen",
-    "organizationAllMembers": "Organisation – alle Mitglieder",
     "output": "Ausgabe",
     "organizationalUnit": "Organisationseinheit",
     "organizationalUnitDetail": "Wird bei jeder als Nächstes hinzugefügten Datei erfasst, damit eine Suche darauf eingegrenzt werden kann. Leer lassen, um sie unter nichts abzulegen.",
@@ -2197,7 +2321,6 @@
     "parserPymupdfHint": "Lokal und schnell. Liest den Text, den ein PDF bereits enthält.",
     "parsing": "Parsen",
     "pdfParser": "PDF-Parser",
-    "personalOnlyYou": "Persönlich – nur Sie",
     "problemOcrLanguage": "Tesseract-Codes haben drei Buchstaben – \"eng\", nicht \"en\". Mehrere werden mit \"+\" verbunden, etwa \"eng+pol\".",
     "problemOverlapTooLarge": "Muss kleiner als die Chunk-Größe von {size} sein.",
     "problemPromptLength": "Zwischen 1 und {max} Zeichen.",
@@ -2262,7 +2385,9 @@
     "registering": "Wird registriert …",
     "ocrServerSetting": "OCR-Server",
     "ocrServerHint": "Wohin LiteParse Seiten zum Lesen sendet. Das eingebaute Tesseract läuft im Worker.",
-    "builtInTesseract": "Eingebautes Tesseract"
+    "builtInTesseract": "Eingebautes Tesseract",
+    "createKbDescription": "Laden Sie Dokumente hoch, sobald sie existiert. Agents durchsuchen sie, wenn sie ihnen zugeordnet oder im Chat ausgewählt ist.",
+    "whoCanSearchIt": "Wer sie durchsuchen kann"
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -2515,7 +2640,7 @@
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",
     "editNamed": "„{name}“ bearbeiten",
-    "everyAgentCanReach": "Jeder Agent erreicht ihn. Ein Agent-Spec kann nur die Server der Organisation binden.",
+    "everyAgentCanReach": "Einmal für alle eingerichtet. Jeder Agent in der Organisation kann es nutzen, mit dem Zugriff dieses einen Kontos - verbinden Sie ein Dienstkonto, nicht Ihr persönliches.",
     "existingConnectionCannotChange": "Eine bestehende Verbindung kann den Besitzer nicht wechseln.",
     "failedLoadConnections": "Verbindungen konnten nicht geladen werden",
     "failedLoadOrgServers": "Die MCP-Server der Organisation konnten nicht geladen werden",
@@ -2525,6 +2650,7 @@
     "fromRegistryHint": "Aus der öffentlichen MCP-Registry. Niemand hier hat ihn geprüft: Die Beschreibung stammt vom Herausgeber, und es gibt keinen Hinweis darauf, welches Credential er verlangt.",
     "manageConnectionsOn": "Verbindungen auf {name} verwalten",
     "name": "Tool-Präfix",
+    "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
     "namePrefixesToolNames": "Kleinbuchstaben, Ziffern und Bindestriche. Das Modell liest es vor jedem Tool-Aufruf, es muss also unter {scope, select, organization {den Servern der Organisation} other {Ihren Servern}} eindeutig sein.",
     "needsAuthorization": "Braucht Autorisierung",
@@ -2553,8 +2679,8 @@
     "saveSelection": "Auswahl speichern",
     "saving": "Wird gespeichert …",
     "saving2": "Wird gespeichert …",
-    "scopeOrganization": "Organisation",
-    "scopeYou": "Sie",
+    "scopeOrganization": "Ein gemeinsames Konto",
+    "scopeYou": "Mein eigenes Konto",
     "noSuchServerToConnect": "Kein Server im Katalog heißt {key}.",
     "searchServers": "Server suchen …",
     "searchTools": "Tools suchen …",
@@ -2583,7 +2709,30 @@
     "whoeverSignsGrantsIf": "Wer sich anmeldet, gewährt ihn. Wird dessen Zugriff beim Provider entzogen, hört dieser Server für jeden Agent auf zu funktionieren, bis sich jemand erneut anmeldet – verwenden Sie also ein Konto, das die Organisation kontrolliert.",
     "yourChatAndDirectMessages": "Nur Ihres — Ihr Chat und Ihre Direktnachrichten in einem Kanal.",
     "yours": "Ihre",
-    "yoursAloneYourOwn": "Nur Ihres, in Ihrem eigenen Chat. Kein Agent kann es binden."
+    "yoursAloneYourOwn": "Nur Sie. Genutzt in Ihren Chats und von Agents, die im Namen jeder Person handeln, mit Ihrem eigenen Zugriff.",
+    "recommended": "Empfohlen",
+    "signInChecking": "Prüfe, ob dieser Server eine Anmeldung unterstützt…",
+    "signInNone": "Keine Anmeldung gefunden. Verwenden Sie ein Zugriffstoken oder keine Zugangsdaten.",
+    "signInSupported": "Dieser Server unterstützt die Anmeldung. Verbinden öffnet sie.",
+    "signInNeedsClient": "Dieser Server unterstützt die Anmeldung, registriert Apps aber nicht selbst. Tragen Sie unten Client-ID und Secret vom Anbieter ein.",
+    "narrowed": "Eingeschränkt",
+    "whoCanUse": "Wer ihn nutzen darf",
+    "whoCanUseNamed": "Wer {name} nutzen darf",
+    "whoCanUseHint": "Alle, die MCP-Server verwalten, sehen ihn und können ihn an einen Agent binden, außer Sie beschränken ihn auf Gruppen oder Personen. Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen dürfen.",
+    "callLog": "Was Agents gefragt haben",
+    "callLogTitle": "Was Agents {name} gefragt haben",
+    "callLogWhy": "Die letzten Tool-Aufrufe von Agents an diesen Server: welches Tool, welcher Agent und wie es lief. Was gefragt und geantwortet wurde, bleibt im Gespräch.",
+    "callLogEmpty": "Noch kein Agent hat diesen Server aufgerufen.",
+    "callLogNoAgent": "Der Assistent",
+    "callLogDuration": "{ms} ms",
+    "callLogRun": "Run",
+    "callStatus": {
+      "pending": "ausstehend",
+      "running": "läuft",
+      "completed": "fertig",
+      "failed": "fehlgeschlagen",
+      "awaiting_approval": "wartet auf Freigabe"
+    }
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",
@@ -2619,7 +2768,7 @@
     "dashboard": "Dashboard",
     "esc": "ESC",
     "home": "Start",
-    "kb": "KB",
+    "kb": "Wissen",
     "knowledge": "Wissen",
     "knowledgeBase": "Wissensdatenbank",
     "knowledgeBases": "Wissensdatenbanken",
@@ -2654,14 +2803,17 @@
     "users": "Benutzer",
     "vault": "Vault",
     "workspace": "Workspace",
-    "workspaces": "Workspaces",
+    "workspaces": "Agentendateien",
     "allOrganizations": "Alle Organisationen",
     "context": "Kontext",
     "deploymentSettings": "Deployment",
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "artifacts": "Artefakte"
+    "artifacts": "Apps",
+    "apiKeys": "API-Schlüssel",
+    "assistant": "Assistent",
+    "groups": "Gruppen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3185,8 +3337,45 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "settings-api-keys": {
+        "title": "Ihre API-Schlüssel",
+        "body": "Ein Schlüssel lässt ein Skript, Postman oder einen MCP-Client ohne Browser in Ihrem Namen handeln. Wählen Sie, was er darf; er kann nie mehr als Sie und hört auf, sobald Sie ihn widerrufen."
+      },
+      "settings-connected-apps": {
+        "title": "Verbundene Anwendungen",
+        "body": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen im erlaubten Rahmen - trennen Sie eine, um ihren Zugriff sofort zu beenden."
+      },
+      "assistant-widget": {
+        "title": "Ihr AI Architect",
+        "body": "Fragen Sie ihn alles zur Plattform – er baut mit Ihnen Agents, erklärt Fehler und findet Einstellungen. Seine Sprechblasen schlagen auf jeder Seite etwas vor; abschalten können Sie sie unter Einstellungen → Assistent."
+      },
+      "settings-assistant": {
+        "title": "Der Assistent der Organisation",
+        "body": "Geben Sie ihm einen Namen und eine Begrüßung und wählen Sie das Modell, auf dem er läuft. Alle, die Agents ausführen dürfen, sehen ihn in der Ecke jeder Seite."
+      },
+      "groups-new": {
+        "title": "Gruppe hinzufügen",
+        "body": "Eine Gruppe ist eine Abteilung oder ein Team. Fügen Sie eine von Hand hinzu oder mehrere Abteilungen auf einmal aus den Vorlagen."
+      },
+      "groups-list": {
+        "title": "Ihre Gruppen",
+        "body": "Die Seite jeder Gruppe zeigt ihre Personen und alles, was mit ihr geteilt ist. Wählen Sie beim Erstellen eines Agents, Skills oder einer Wissensdatenbank eine Gruppe, damit es dieser Abteilung bleibt."
+      },
+      "agent-test": {
+        "title": "Beim Bauen ausprobieren",
+        "body": "Öffnet neben dem Builder einen Chat, der als unveröffentlichter Entwurf oder als beliebige Umgebung antwortet. Test-Runs werden gezählt und budgetiert und in der Aktivität markiert."
+      },
+      "group-members": {
+        "title": "Wer darin ist",
+        "body": "Die Personen in dieser Abteilung. Die Leitung - mit einer Krone markiert - fügt sie hinzu und entfernt sie; ein Admin bestimmt die Leitung."
+      },
+      "group-add-to": {
+        "title": "Geben Sie ihr, was sie braucht",
+        "body": "Teilen Sie Agents, Wissen, Skills, Kontext, Apps und MCP-Server mit der ganzen Abteilung auf einmal. Jedes Mitglied wird benachrichtigt."
       }
-    }
+    },
+    "chooseLanguage": "Sprache"
   },
   "organizations": {
     "accessLost": "Sie haben keinen Zugriff mehr auf diese Organisation.",
@@ -3240,7 +3429,7 @@
         "memory": "Agent-Gedächtnis",
         "knowledge_documents": "Hochgeladene Dokumente",
         "audit": "Audit-Trail",
-        "artifacts": "Veröffentlichte Artefakte und ihre Versionen"
+        "artifacts": "Veröffentlichte Apps und ihre Versionen"
       }
     },
     "memory": {
@@ -3415,7 +3604,7 @@
       "agentAposSBehaviour": "Das Verhalten des Agents liegt hier, nicht im Code. Werden Sie konkret: was er tun soll, was er verweigern soll und wie er zitieren soll. Markdown, und das Modell liest die Struktur – Überschriften und Listen sind es, die einen langen Prompt nachvollziehbar machen, und genau dafür gibt es die Vorschau.",
       "agentAposSOwn": "Das eigene monatliche Ausgabenlimit dieses Agents. Das Limit der Organisation gilt weiterhin darüber – ein Agent kann es verschärfen, nie lockern. Das Schrittlimit fängt die andere Art von Entgleisung: eine Tool-Schleife, die pro Aufruf billig ist und nie endet.",
       "agentCannotBePublished": "Dieser Agent lässt sich noch nicht veröffentlichen",
-      "agentConfigurationNotCode": "Ein Agent ist Konfiguration, kein Code. Bauen Sie ihn hier, veröffentlichen Sie eine Version, und er läuft überall gleich – Chat, API, Slack.",
+      "agentConfigurationNotCode": "Ein Agent ist ein Assistent mit eigenen Anweisungen, eigenem Wissen und eigenen Tools. Bauen Sie ihn hier, veröffentlichen Sie ihn, und man nutzt ihn im Chat, in Slack oder Telegram oder über die API.",
       "agents": "Agents",
       "archive": "Archivieren",
       "archive2": "Archivieren",
@@ -3529,7 +3718,13 @@
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
-      "skills": "Skills"
+      "skills": "Skills",
+      "categoriesHint": "Grobe Gruppen - Support, Finanzen, intern. Der Katalog filtert danach.",
+      "tagsHint": "Alles Feinere, wonach Sie später suchen möchten.",
+      "labelCount": "{used} von {max}",
+      "thisPlatformMcp": "AgenticOS (diese Plattform)",
+      "testPanelOpen": "Testen",
+      "testPanelShortcut": "Neben dem Builder testen (T)"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -3543,7 +3738,8 @@
       "pageExpectsTokenFrom": "Diese Seite erwartet ein Token aus Ihrer E-Mail zum Zurücksetzen. Fordern Sie einen neuen Link an, um fortzufahren.",
       "requestNewLink": "Neuen Link anfordern",
       "resetPassword": "Passwort zurücksetzen",
-      "tryAgain": "erneut versuchen"
+      "tryAgain": "erneut versuchen",
+      "tagline": "Ein Ort, um die KI-Agents Ihres Unternehmens zu <b>bauen</b>, <b>auszuführen</b> und zu <b>steuern</b>."
     },
     "channelLink": {
       "connectThisAccount": "Dieses Konto verbinden",
@@ -3618,7 +3814,32 @@
       "transcriptionProvider": "Sprachtranskription",
       "transcriptionProviderHint": "Welcher Provider eine Sprachnachricht in Text verwandelt, bevor der Agent sie liest.",
       "webhook": "Webhook",
-      "webhookToken": "Kein Webhook-Token"
+      "webhookToken": "Kein Webhook-Token",
+      "slackManifestWhy": "Legen Sie die Slack-App aus ihrem Manifest an: in Slack Create New App, From a manifest, und einfügen. Schaltflächen, /agent, der Assistenten-Bereich und App Home sind dabei.",
+      "slackManifestCopy": "Slack-App-Manifest kopieren",
+      "slackManifestCopied": "Manifest kopiert. Fügen Sie es in Slack unter Create New App, From a manifest ein.",
+      "answerStyle": "Wie er antwortet",
+      "ackReaction": "Auf eine Frage reagieren mit",
+      "ackReactionHint": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes, sobald eine Frage eintrifft. Leer für keine Reaktion.",
+      "ackReactionHintTelegram": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes. Telegram erlaubt nur einige: eyes, +1, ok_hand, fire, thinking_face, writing_hand, zap, hourglass.",
+      "ackReactionInvalid": "Den Namen des Emojis kleingeschrieben und ohne Doppelpunkte angeben - eyes, nicht :eyes:.",
+      "rateAnswers": "Daumen unter Antworten",
+      "rateAnswersHint": "Antworten lassen sich mit Daumen hoch oder runter bewerten; ein Daumen runter fragt, was falsch war. Bewertungen erscheinen in Activity und auf dem Dashboard.",
+      "streamAnswers": "Antworten mit ihren Schritten streamen",
+      "streamAnswersHint": "Slack zeichnet die Antwort, während sie entsteht, mit einer Zeile für alles, was der Agent tut - eine Suche, ein Nachschlagen, eine Rechnung.",
+      "stepDisplay": "Schritte zeigen als",
+      "stepDisplayHint": "Eine Zeitleiste zeigt jeden Schritt, wenn er passiert; ein Plan fasst sie unter der Frage zusammen.",
+      "stepDisplayTimeline": "Zeitleiste",
+      "stepDisplayPlan": "Plan",
+      "slackTransport": "Wie Slack AgenticOS erreicht",
+      "slackCallsUs": "Slack ruft dieses Deployment auf",
+      "slackCallsUsHint": "Slack schickt jede Nachricht an die öffentliche Adresse dieses Deployments. Braucht das Signing Secret.",
+      "weConnectToSlack": "AgenticOS verbindet sich mit Slack",
+      "weConnectToSlackHint": "Dieses Deployment baut die Verbindung selbst auf (Socket Mode) und braucht keine öffentliche Adresse - für ein Deployment hinter einer Firewall. Braucht das App-Level-Token.",
+      "mattermostCommandWhy": "Für /agent in Mattermost einen Slash Command anlegen (Integrations - Slash Commands) mit dem Auslösewort agent und dieser Request URL, dann das Token, das Mattermost zeigt, hier einfügen.",
+      "mattermostCommandUrlCopy": "URL kopieren",
+      "mattermostCommandUrlCopied": "Request URL kopiert",
+      "mattermostCommandToken": "Token des Slash Commands"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",
@@ -3666,7 +3887,7 @@
       "filedUnder": "Abgelegt unter {unit}",
       "filedUnderNext": "Die nächsten Dateien, die Sie hinzufügen, werden unter <strong>{unit}</strong> abgelegt.",
       "filesWillBeAddedTo": "Dateien werden zu <strong>{name}</strong> hinzugefügt",
-      "groupRelatedDocumentsInto": "Fassen Sie verwandte Dokumente in einer Datenbank zusammen. Öffnen Sie eine, um Dateien hochzuladen, und wählen Sie dann im Chat, welche Datenbanken der Agent durchsuchen soll.",
+      "groupRelatedDocumentsInto": "Dokumente, aus denen ein Agent antwortet. Legen Sie eine Datenbank an, laden Sie Dateien hoch und fügen Sie sie einem Agenten hinzu – auf der Seite der Datenbank oder im Builder des Agenten.",
       "howDocumentsAreRead": "Wie Dokumente gelesen werden",
       "images": "+ Bilder",
       "imagesDescribedBy": "Bilder beschrieben von {model}",
@@ -4058,13 +4279,19 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "askAnAgent": "Einen Agent fragen",
+      "testFilter": "Test-Runs",
+      "testRun": "Test",
+      "testRunsHidden": "Ohne Test-Runs",
+      "testRunsIncluded": "Mit Test-Runs",
+      "testRunsOnly": "Nur Test-Runs"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
       "agentsCanStillKeep": "Agents können auch ohne eine Verbindung Dateien aufbewahren: Der gespeicherte Workspace braucht nichts und funktioniert auf jedem Deployment. Registrieren Sie eine Verbindung, wenn ein Agent eine echte Shell braucht.",
       "noSandboxConnectionsYet": "Noch keine Sandbox-Verbindungen",
-      "pageDescription": "Wo die Agents dieser Organisation Shell-Befehle ausführen und Dateien aufbewahren. Ein Agent nennt eine Verbindung per ID, ein Umzug auf einen anderen Host ist also eine Änderung hier statt einer erneuten Veröffentlichung jedes Agents. Das Token bleibt im Vault; nichts auf dieser Seite kann es zurücklesen. Die Dateien selbst liegen unter Workspaces, was kein Betreiberbildschirm ist — jeder sieht seine eigenen.",
+      "pageDescription": "Wo Agents Dateien aufbewahren und Code ausführen, abgeschottet von allem anderen. Ein Standard-Deployment richtet seine eigene Sandbox ein; fügen Sie hier nur eine Verbindung hinzu, um sie anderswo laufen zu lassen. Der Schlüssel jeder Verbindung bleibt im Vault.",
       "registeredCount": "{count, plural, =1 {1 Verbindung} other {# Verbindungen}}",
       "sandboxConnections": "Sandbox-Verbindungen",
       "sandboxes2": "Sandboxes",
@@ -4189,7 +4416,13 @@
       "yesDeleteMyAccount": "Ja, mein Konto löschen",
       "yourConversationsKnowledgeBase": "Ihre Unterhaltungen, die Inhalte der Wissensdatenbank, API-Schlüssel und alle persönlichen Daten werden endgültig gelöscht. Aktive Abonnements werden gekündigt. Das lässt sich nicht rückgängig machen.",
       "avatarColour": "Ersatzfarbe",
-      "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen."
+      "avatarColourHint": "Wird als Ihr Avatar angezeigt, bis Sie ein Bild hochladen.",
+      "prefArtifactVersionPublished": "App aktualisiert",
+      "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt.",
+      "prefResourceShared": "Mit Ihrer Gruppe geteilt",
+      "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind.",
+      "prefBudgetWarning": "Abteilungsbudget bei 80 %",
+      "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -4235,11 +4468,11 @@
       "whatOneAgentKeeping": "Was ein Agent aufbewahrt, Ordner für Ordner. Die Suche erfasst jeden Ordner, nicht nur den auf dem Bildschirm.",
       "workspace": "Workspace",
       "workspaceUnreadable": "Dieser Workspace konnte nicht gelesen werden",
-      "workspaces": "Workspaces"
+      "workspaces": "Agentendateien"
     },
     "context": {
       "context": "Kontext",
-      "contextStandingKnowledge": "Ständiger Kontext, auf den jeder Agent zurückgreifen kann – ein Glossar, eine Richtlinie, eine Markenstimme. In den Prompt eingefügt oder bei Bedarf gelesen, und aktuell in dem Moment, in dem Sie ihn hier bearbeiten.",
+      "contextStandingKnowledge": "Informationen, die jeder Agent immer haben sollte – ein Glossar, eine Richtlinie, eine Markenstimme. Einmal hier schreiben, einem Agenten hinzufügen, und er liest sie bei jeder Antwort; eine Änderung hier gilt für alle.",
       "newContext": "Neue Kontextdatei",
       "youCannotSeeOrganization": "Sie können die Kontextdateien dieser Organisation nicht sehen",
       "askAdministratorAccessContext": "Bitten Sie einen Administrator um Zugriff auf die Kontextdateien.",
@@ -4419,6 +4652,8 @@
     "filterSearchedASample": "Der Filter hat nur die Workspaces durchsucht, die gelesen wurden.",
     "imageAliasAgentGets": "Der Image-Alias, den ein Agent bekommt, wenn sein eigener Spec keinen nennt. Leer lassen, um den Standard des Dienstes zu übernehmen.",
     "noAgentHoldingFile": "Noch hält kein Agent eine Datei.",
+    "noAgentHoldingFileWhy": "Ein Agent mit der Capability Sandbox legt die Dateien, die er schreibt, hier ab, solange das Gespräch besteht, zu dem sie gehören.",
+    "openAgents": "Deine Agents öffnen",
     "noAgentKeepingFiles": "Noch bewahrt kein Agent Dateien auf. Einer erscheint hier, sobald ein Agent mit Workspace zum ersten Mal etwas schreibt.",
     "noFileMatches": "Keine Datei passt zu dieser Suche.",
     "nothingRecordedYet": "Für <id>{session}</id> ist noch nichts aufgezeichnet.",
@@ -4649,18 +4884,18 @@
     "notSharedWithAnyone": "Noch mit niemandem geteilt.",
     "ownedBy": "Gehört {email}",
     "peopleAndGroups": "Personen und Gruppen",
-    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
+    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
     "secretRuntimeNote": "Die Freigabe steuert, wer diesen Schlüssel an einen Agent binden und wer ihn rotieren darf – nicht, wer von ihm profitiert. Sobald ein Agent diesen Schlüssel verwendet, läuft er damit für alle, die diesen Agent ausführen dürfen, auch für Personen, die den Schlüssel hier nicht sehen können.",
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibility": "Sichtbarkeit",
     "visibilityOrg": "Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Artefakte} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Privat",
-    "visibilityPrivateReaches": "Nur Sie und die unten aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
-    "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
+    "visibilityPrivateReaches": "Nur Sie und die unten aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
-    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Artefakte} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
+    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
@@ -4670,7 +4905,7 @@
     "addFile": "Datei hinzufügen",
     "apply": "Übernehmen",
     "applyChangeTo": "Die Änderung an {name} übernehmen",
-    "availableEveryAgentOrganization": "Er steht jedem Agent in dieser Organisation zur Verfügung, sobald Sie ihn erstellen.",
+    "availableEveryAgentOrganization": "Wählen Sie unten, wer ihn nutzen darf. Ein Agent liest ihn, sobald er ihm hinzugefügt wurde.",
     "cancel": "Abbrechen",
     "cancel2": "Abbrechen",
     "category": "Kategorie",
@@ -4760,7 +4995,9 @@
         "manufacturing": "Produktion und Logistik"
       }
     },
-    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}"
+    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
+    "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
+    "whoCanUseIt": "Wer es nutzen darf"
   },
   "states": {
     "loading": "Wird geladen"
@@ -4819,7 +5056,6 @@
     "role2": "Rolle",
     "roleFor": "Rolle für {email}",
     "rolesUnavailable": "Die Rollenliste konnte nicht geladen werden, es gibt also keine Rolle, für die jemand eingeladen werden könnte. Laden Sie die Seite neu und versuchen Sie es erneut.",
-    "selectOrg": "Organisation wählen",
     "sending2": "Wird gesendet …",
     "sendInvite": "Einladung senden",
     "spentNoLimit": "${spent} in diesem Monat ausgegeben, ohne Limit.",
@@ -4828,7 +5064,8 @@
     "waiverAllowed": "Unterhaltungen dürfen Freigaben jetzt übergehen",
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
-    "you": "(Sie)"
+    "you": "(Sie)",
+    "selectOrg": "Organisation wählen"
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -4889,7 +5126,15 @@
     "source": "Quelle",
     "typeToConfirm": "Tippen Sie <mono>{phrase}</mono> zur Bestätigung",
     "typeYourAnswer": "Antwort eingeben …",
-    "useProviderDefault": "Provider-Standard verwenden"
+    "useProviderDefault": "Provider-Standard verwenden",
+    "pickAnyNumber": "Wählen Sie alle zutreffenden.",
+    "useThisAnswer": "Übernehmen",
+    "continue": "Weiter",
+    "previousQuestion": "Vorherige Frage",
+    "reviewAnswers": "Ihre Antworten",
+    "goToQuestion": "Zu Frage {step}",
+    "skipped": "Übersprungen",
+    "sendAnswers": "Antworten senden"
   },
   "vault": {
     "access": "Zugriff",
@@ -4970,7 +5215,7 @@
     "modeLinkHint": "Bleibt aus dem Prompt heraus; der Agent liest sie bei Bedarf.",
     "sizeWithFormat": "{format} · {size}",
     "newContext": "Neue Kontextdatei",
-    "availableEveryAgentOrganization": "Sie steht jedem Agent in dieser Organisation zur Verfügung, sobald Sie sie erstellen.",
+    "availableEveryAgentOrganization": "Wählen Sie unten, wer sie nutzen darf. Ein Agent liest sie, sobald sie ihm hinzugefügt wurde.",
     "name": "Name",
     "howItIsReferredTo": "Wie diese Datei referenziert wird; das lässt sich später nicht mehr ändern.",
     "mode": "Modus",
@@ -4993,7 +5238,9 @@
     "droppedUnknownFormat": "{count, plural, =1 {Eine Datei hat ein Format, das eine Kontextdatei nicht deklarieren kann, und wurde übersprungen} other {# Dateien haben ein Format, das eine Kontextdatei nicht deklarieren kann, und wurden übersprungen}}",
     "droppedNotText": "{count, plural, =1 {Eine Datei war kein Text und wurde übersprungen} other {# Dateien waren kein Text und wurden übersprungen}}",
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
-    "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}"
+    "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
+    "bodyPlaceholder": "# Glossar\n\nWas ein Begriff hier bedeutet und was nicht.\n\n- **SLA** - die Reaktionszeit, die wir zusagen, nicht die Behebungszeit.\n",
+    "whoCanUseIt": "Wer es nutzen darf"
   },
   "memory": {
     "clearAction": "Gedächtnis leeren",
@@ -5184,7 +5431,8 @@
     "presetWeekdays9": "Werktags 09:00",
     "stepConfigure": "Konfigurieren",
     "stepMessage": "Nachricht",
-    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht."
+    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht.",
+    "activityEmptyAction": "Einen Agent zum Planen auswählen"
   },
   "portals": {
     "title": "Portale",
@@ -5275,30 +5523,31 @@
     "dismissRow": "Ausblenden"
   },
   "artifacts": {
-    "title": "Artefakte",
-    "description": "Seiten, die Ihre Agents veröffentlicht haben - Berichte, kleine Dashboards, Zusammenfassungen. Jede behält ihren Link, wenn der Agent sie erneut veröffentlicht, und frühere Versionen bleiben lesbar.",
-    "cannotSee": "Sie können die Artefakte dieser Organisation nicht sehen",
-    "askForAccess": "Bitten Sie einen Administrator um Zugriff auf Artefakte.",
-    "count": "{count, plural, =1 {1 Artefakt} other {# Artefakte}}",
-    "search": "Artefakte suchen…",
-    "noMatches": "Kein Artefakt passt",
+    "title": "Apps",
+    "description": "Apps, die Ihre Agents veröffentlicht haben - Berichte, kleine Dashboards, Zusammenfassungen. Jede behält ihren Link, wenn der Agent sie erneut veröffentlicht, und frühere Versionen bleiben lesbar.",
+    "cannotSee": "Sie können die Apps dieser Organisation nicht sehen",
+    "askForAccess": "Bitten Sie einen Administrator um Zugriff auf Apps.",
+    "count": "{count, plural, =1 {1 App} other {# Apps}}",
+    "search": "Apps suchen…",
+    "noMatches": "Keine App passt",
     "noMatchesWhy": "Durchsucht werden Titel und Namen.",
     "noneYet": "Noch nichts veröffentlicht",
-    "noneYetWhy": "Ein Agent mit der Capability Artifacts veröffentlicht hier eine Seite, wenn Sie ihn um einen Bericht oder ein Dashboard bitten. Sie ist privat, bis Sie sie teilen.",
+    "noneYetWhy": "Ein Agent mit der Capability Apps veröffentlicht hier eine App, wenn Sie ihn um einen Bericht oder ein Dashboard bitten. Sie ist privat, bis Sie sie teilen.",
+    "noneYetCta": "Deine Agents öffnen",
     "sharedOrg": "Ganze Organisation",
     "publicBadge": "Öffentlicher Link",
     "publishedVersion": "Version {version} · {when}",
     "versionUnavailable": "Diese Version ist nicht verfügbar",
     "versionUnavailableWhy": "Sie wurde durch neuere Versionen ersetzt und wird nicht mehr aufbewahrt, oder Ihr Zugriff hat sich gerade geändert. Wählen Sie oben die neueste Version.",
-    "unavailable": "Dieses Artefakt ist nicht verfügbar",
+    "unavailable": "Diese App ist nicht verfügbar",
     "unavailableWhy": "Es wurde gelöscht, oder Sie haben keinen Zugriff mehr darauf.",
-    "couldNotLoad": "Dieses Artefakt konnte nicht geladen werden",
+    "couldNotLoad": "Diese App konnte nicht geladen werden",
     "deleteTitle": "{title} löschen?",
     "deleteWhy": "Alle Versionen und der öffentliche Link werden mitgelöscht, und niemand, mit dem es geteilt wurde, kann es noch öffnen. Der Agent legt ein neues an, wenn er das nächste Mal unter diesem Namen veröffentlicht.",
-    "deleted": "Artefakt gelöscht",
+    "deleted": "App gelöscht",
     "publicLink": "Öffentlicher Link",
     "publicLinkOn": "Jeder mit diesem Link kann die neueste Version ohne Konto öffnen.",
-    "publicLinkNone": "Nur Personen, mit denen dieses Artefakt geteilt wurde, können es öffnen.",
+    "publicLinkNone": "Nur Personen, mit denen diese App geteilt wurde, können sie öffnen.",
     "createPublicLink": "Öffentlichen Link erstellen",
     "rotatePublicLink": "Link ersetzen",
     "disablePublicLink": "Ausschalten",
@@ -5312,15 +5561,15 @@
     "latestVersionHint": "Folgt der nächsten Veröffentlichung",
     "currentTag": "Aktuell",
     "publicUpdated": "Aktualisiert {when}",
-    "backToArtifacts": "Zurück zu den Artefakten",
+    "backToArtifacts": "Zurück zu den Apps",
     "share": "Teilen",
     "moreActions": "Weitere Aktionen",
     "accessRestricted": "Nur Personen mit Zugriff",
     "accessPublic": "Jeder mit dem Link",
     "shareTitle": "{title} teilen",
-    "shareWhy": "Wer diese Seite öffnen kann. Ein Agent erweitert das nie - nur eine Person, von hier aus.",
-    "pageLink": "Link zu dieser Seite",
-    "pageLinkWhy": "Öffnet die Seite für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff.",
+    "shareWhy": "Wer diese App öffnen kann. Ein Agent erweitert das nie - nur eine Person, von hier aus.",
+    "pageLink": "Link zu dieser App",
+    "pageLinkWhy": "Öffnet die App für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff.",
     "maybeOtherOrganization": "Wenn es Ihnen in einer anderen Organisation freigegeben wurde, wechseln Sie dorthin.",
     "switchOrganization": "Organisation wechseln",
     "versionBadge": "v{version}",
@@ -5331,19 +5580,19 @@
     "everyAgent": "Alle Agents",
     "environmentBadge": "Aus dieser Umgebung veröffentlicht",
     "openLinkTitle": "Diesen Link öffnen?",
-    "openLinkWhy": "Die Seite möchte eine andere Website in einem neuen Tab öffnen. Prüfen Sie die Adresse, bevor Sie fortfahren.",
+    "openLinkWhy": "Die App möchte eine andere Website in einem neuen Tab öffnen. Prüfen Sie die Adresse, bevor Sie fortfahren.",
     "openLink": "Link öffnen",
     "linkExpiry": "Öffnet nichts mehr nach",
     "linkExpiryWhy": "Leer lassen, damit der Link aktiv bleibt, bis Sie ihn ausschalten.",
     "linkVersion": "Zeigt",
     "linkVersionWhy": "Heften Sie eine Version an, damit eine neue Veröffentlichung nicht ändert, was Personen mit dem Link sehen.",
     "embedSites": "Websites, die sie einbetten dürfen",
-    "embedSitesWhy": "Eine Website pro Zeile. Nur diese dürfen die Seite in einem iframe zeigen.",
-    "embedNeedsNoPassword": "Eine Seite hinter einem Passwort kann nicht eingebettet werden. Entfernen Sie das Passwort, um sie einzubetten.",
+    "embedSitesWhy": "Eine Website pro Zeile. Nur diese dürfen die App in einem iframe zeigen.",
+    "embedNeedsNoPassword": "Eine App hinter einem Passwort kann nicht eingebettet werden. Entfernen Sie das Passwort, um sie einzubetten.",
     "saveLinkSettings": "Link-Einstellungen speichern",
     "linkPassword": "Passwort",
     "linkPasswordOn": "Personen mit dem Link müssen zuerst das Passwort eingeben.",
-    "linkPasswordWhy": "Optional. Mindestens 6 Zeichen, abgefragt, bevor die Seite öffnet.",
+    "linkPasswordWhy": "Optional. Mindestens 6 Zeichen, abgefragt, bevor die App öffnet.",
     "changePassword": "Passwort ändern",
     "setPassword": "Passwort festlegen",
     "removePassword": "Passwort entfernen",
@@ -5351,9 +5600,13 @@
     "linkViews": "{count, plural, =0 {Noch nicht geöffnet} =1 {Einmal geöffnet} other {# Mal geöffnet}}",
     "linkViewsLast": "{count, plural, =1 {Einmal geöffnet} other {# Mal geöffnet}}, zuletzt {when}",
     "wrongPassword": "Dieses Passwort ist nicht richtig.",
-    "passwordTitle": "Diese Seite ist geschützt",
+    "passwordTitle": "Diese App ist geschützt",
     "passwordWhy": "Geben Sie das Passwort ein, das Sie erhalten haben, um sie zu öffnen.",
-    "openPage": "Seite öffnen"
+    "openPage": "App öffnen",
+    "follow": "Folgen",
+    "unfollow": "Nicht mehr folgen",
+    "followed": "Sie werden benachrichtigt, wenn eine neue Version veröffentlicht wird",
+    "unfollowed": "Sie werden über diese App nicht mehr benachrichtigt"
   },
   "groups": {
     "title": "Gruppen",
@@ -5390,7 +5643,101 @@
     "addMember": "Mitglied hinzufügen",
     "chooseMember": "Mitglied auswählen",
     "everyoneIsIn": "Alle sind bereits in dieser Gruppe",
-    "add": "Hinzufügen"
+    "add": "Hinzufügen",
+    "departmentsTitle": "Gruppen",
+    "departmentsDescription": "Ihre Abteilungen und Teams. Teilen Sie Agents, Wissensdatenbanken, Skills und Kontext mit einer Gruppe - alle darin können sie nutzen, alle anderen nicht.",
+    "addDepartments": "Abteilungen hinzufügen",
+    "addDepartmentsWhy": "Wählen Sie die Abteilungen Ihres Unternehmens. Jede wird eine Gruppe, der Sie Personen hinzufügen und mit der Sie Dinge teilen.",
+    "allDepartmentsAdded": "Jede dieser Abteilungen ist bereits eine Gruppe.",
+    "addPickedDepartments": "{count, plural, =0 {Abteilungen hinzufügen} =1 {1 Abteilung hinzufügen} other {# Abteilungen hinzufügen}}",
+    "departmentsAdded": "{count, plural, =1 {1 Abteilung hinzugefügt} other {# Abteilungen hinzugefügt}}",
+    "icon": "Symbol",
+    "groupNotFound": "Gruppe nicht gefunden",
+    "groupNotFoundWhy": "Sie wurde vielleicht gelöscht oder gehört zu einer anderen Organisation.",
+    "whatItHas": "Mit dieser Gruppe geteilt",
+    "resourceCount": "{count, plural, =1 {1 Element} other {# Elemente}}",
+    "nothingSharedYet": "Mit {name} ist noch nichts geteilt",
+    "nothingSharedYetWhy": "Wählen Sie diese Gruppe, wenn Sie einen Agent, einen Skill, eine Wissensdatenbank oder eine Kontextdatei erstellen, oder fügen Sie sie im Teilen-Bereich eines bestehenden hinzu.",
+    "resourceAgents": "Agents",
+    "resourceCollections": "Wissensdatenbanken",
+    "resourceSkills": "Skills",
+    "resourceContext": "Kontext",
+    "resourceApps": "Apps",
+    "level": {
+      "read": "darf ansehen",
+      "use": "darf verwenden",
+      "edit": "darf bearbeiten"
+    },
+    "icons": {
+      "users": "Personen",
+      "briefcase": "Aktentasche",
+      "banknote": "Geld",
+      "megaphone": "Megafon",
+      "headphones": "Headset",
+      "code": "Code",
+      "scale": "Waage",
+      "heart-handshake": "Handschlag",
+      "truck": "Lastwagen",
+      "flask-conical": "Kolben",
+      "graduation-cap": "Doktorhut",
+      "building": "Gebäude"
+    },
+    "departments": {
+      "sales": {
+        "name": "Vertrieb",
+        "description": "Kunden, Abschlüsse und die Pipeline."
+      },
+      "finance": {
+        "name": "Finanzen",
+        "description": "Rechnungen, Budgets und die Buchhaltung."
+      },
+      "hr": {
+        "name": "Personal",
+        "description": "Mitarbeitende, Einstellungen und Richtlinien."
+      },
+      "support": {
+        "name": "Support",
+        "description": "Kundenfragen und Tickets."
+      },
+      "engineering": {
+        "name": "Entwicklung",
+        "description": "Produkte, Code und Infrastruktur."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Kampagnen, Inhalte und die Marke."
+      },
+      "legal": {
+        "name": "Recht",
+        "description": "Verträge, Compliance und Risiken."
+      },
+      "operations": {
+        "name": "Betrieb",
+        "description": "Lieferanten, Logistik und der laufende Betrieb."
+      }
+    },
+    "resourceMcpServers": "MCP-Server",
+    "lead": "Leitung",
+    "makeLead": "{name} zur Leitung der Gruppe machen",
+    "unmakeLead": "{name} leitet die Gruppe nicht mehr",
+    "leadChanged": "Leitung aktualisiert",
+    "sharedWithGroup": "{count, plural, =1 {1 Element mit der Gruppe geteilt} other {# Elemente mit der Gruppe geteilt}}",
+    "addToGroup": "Zu dieser Gruppe hinzufügen",
+    "addToGroupTitle": "Zu {name} hinzufügen",
+    "addToGroupWhy": "Wählen Sie, was diese Gruppe haben soll. Teilen können Sie, was Sie bearbeiten dürfen; jedes Mitglied wird benachrichtigt.",
+    "addToGroupSearch": "Agents, Wissen, Skills und mehr suchen",
+    "addToGroupNoMatch": "Nichts, was Sie teilen können, passt.",
+    "addToGroupNothing": "Es gibt nichts, was Sie mit dieser Gruppe teilen können - alles, was Sie bearbeiten dürfen, ist schon hier.",
+    "addToGroupLevel": "Sie dürfen",
+    "addToGroupShare": "{count, plural, =0 {Teilen} =1 {1 teilen} other {# teilen}}",
+    "monthlyBudget": "Monatliches Budget (USD)",
+    "monthlyBudgetHint": "Runs, die Mitglieder dieser Abteilung starten, stoppen, sobald es erreicht ist. Die Leitung und die Administratoren werden bei 80 % benachrichtigt.",
+    "noBudget": "Kein Limit",
+    "thisMonth": "Dieser Monat",
+    "runCount": "{count, plural, =1 {1 Run} other {# Runs}}",
+    "exportCsv": "CSV exportieren",
+    "noCapSpent": "diesen Monat ausgegeben - kein monatliches Limit",
+    "ofCap": "vom monatlichen Limit von {cap} - {left} übrig"
   },
   "directory": {
     "navLabel": "Verzeichnis",
@@ -5425,5 +5772,469 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "apiKeys": {
+    "title": "API-Schlüssel",
+    "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
+    "createTitle": "Schlüssel erstellen",
+    "createWhy": "Benennen Sie ihn nach dem, was ihn nutzt, damit Sie wissen, welchen Sie widerrufen.",
+    "createdTitle": "Schlüssel kopieren",
+    "createdWhy": "Er wird nur dieses eine Mal angezeigt. Gespeichert wird nur ein Fingerabdruck.",
+    "shownOnce": "Kopieren Sie ihn jetzt und bewahren Sie ihn sicher auf. Geht er verloren, widerrufen Sie ihn und erstellen einen neuen.",
+    "useItLikeThis": "Senden Sie ihn als Bearer-Token:",
+    "name": "Name",
+    "namePlaceholder": "Nächtlicher Import",
+    "access": "Zugriff",
+    "accessWhy": "Was der Schlüssel darf. Er enthält nur Berechtigungen, die Sie haben, und wird erneut eingeschränkt, wenn sich Ihre Rolle ändert.",
+    "preset": {
+      "read_only": "Nur lesen",
+      "knowledge_ingest": "Wissen einspeisen",
+      "full_access": "Voller Zugriff (Ihrer)",
+      "custom": "Benutzerdefiniert"
+    },
+    "expires": "Läuft ab",
+    "expiry": {
+      "30": "In 30 Tagen",
+      "90": "In 90 Tagen",
+      "365": "In einem Jahr",
+      "never": "Nie"
+    },
+    "create": "Erstellen",
+    "done": "Fertig",
+    "issuer": "Ausgestellt von",
+    "status": "Status",
+    "lastUsed": "Zuletzt verwendet",
+    "never": "Nie",
+    "noExpiry": "Kein Ablauf",
+    "scopeCount": "{count, plural, =1 {1 Berechtigung} other {# Berechtigungen}}",
+    "state": {
+      "active": "Aktiv",
+      "expired": "Abgelaufen",
+      "revoked": "Widerrufen"
+    },
+    "revoke": "Widerrufen",
+    "revokeTitle": "{name} widerrufen?",
+    "revokeWhy": "Alles, was diesen Schlüssel nutzt, funktioniert sofort nicht mehr. Das lässt sich nicht rückgängig machen.",
+    "revoked": "Schlüssel widerrufen",
+    "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
+    "emptyTitle": "Noch keine API-Schlüssel",
+    "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen."
+  },
+  "mcpOauth": {
+    "title": "{client} möchte in Ihrem Namen handeln",
+    "why": "Es nutzt Ihre Berechtigungen in der Organisation unten, begrenzt auf das, was Sie erlauben. Was Sie auch wählen, Sie kehren zu {host} zurück.",
+    "organization": "Organisation",
+    "revokeLater": "Sie können es jederzeit unter Einstellungen → API-Schlüssel trennen.",
+    "allow": "Erlauben",
+    "deny": "Ablehnen",
+    "expiredTitle": "Diese Anfrage ist abgelaufen",
+    "expiredWhy": "Starten Sie die Verbindung erneut aus der Anwendung, die Sie hierher geschickt hat.",
+    "connectedTitle": "Verbundene Anwendungen",
+    "connectedWhy": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen, im Rahmen dessen, was Sie erlaubt haben.",
+    "application": "Anwendung",
+    "access": "Zugriff",
+    "connectedBy": "Verbunden von",
+    "since": "Verbunden",
+    "scopeCount": "{count, plural, =1 {1 Berechtigung} other {# Berechtigungen}}",
+    "disconnect": "Trennen",
+    "disconnectTitle": "{client} trennen?",
+    "disconnectWhy": "Ihr Zugriff endet jetzt, mit jedem Token, das sie hält. Für eine neue Verbindung muss sie erneut fragen.",
+    "disconnected": "Anwendung getrennt",
+    "couldNotLoad": "Verbundene Anwendungen konnten nicht geladen werden",
+    "emptyTitle": "Keine verbundenen Anwendungen",
+    "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier."
+  },
+  "liveUpdates": {
+    "changedElsewhere": "{actor} hat das {surface} geändert, während Sie es bearbeitet haben. Laden Sie neu, um diese Version zu sehen, oder behalten Sie Ihre Änderungen und speichern Sie darüber.",
+    "reload": "Neu laden",
+    "keepMine": "Meine Änderungen behalten",
+    "surface": {
+      "console": "in der Konsole",
+      "api_key": "mit einem API-Schlüssel",
+      "mcp": "über MCP",
+      "assistant": "über den Plattform-Assistenten"
+    }
+  },
+  "assistantWidget": {
+    "open": "{name} öffnen",
+    "close": "Schließen",
+    "history": "Unterhaltungen",
+    "closeHistory": "Zurück zur Unterhaltung",
+    "noHistory": "Noch keine Unterhaltungen.",
+    "untitled": "Unterhaltung ohne Titel",
+    "newConversation": "Neue Unterhaltung",
+    "tipsOn": "Tipps wieder einschalten",
+    "tipsOff": "Tipps ausschalten",
+    "silenceHere": "Auf dieser Seite keine Tipps zeigen",
+    "bubbleWaiting": "wartet auf dich",
+    "bubbleTip": "ein Tipp",
+    "bubbleHere": "auf dieser Seite",
+    "notNow": "Nicht jetzt",
+    "greeting": "Hallo, ich bin {assistant}. Womit fangen wir an?",
+    "greetingNamed": "Hallo {person}, ich bin {assistant}. Womit fangen wir an?",
+    "welcomeLead": "Ich baue mit dir Agents, finde, was du schon hast, und erkläre, was schiefging - mit deinen Berechtigungen. Jede Änderung, die ich machen würde, wartet auf deine Freigabe.",
+    "tiles": {
+      "build": {
+        "label": "Mit mir einen Agent bauen",
+        "ask": "Ich möchte einen neuen Agent bauen. Stellen Sie mir nacheinander Fragen dazu, was er tun soll, und richten Sie ihn für mich ein."
+      },
+      "documents": {
+        "label": "Aus unseren Dokumenten antworten",
+        "ask": "Ein Agent soll auf Grundlage unserer Dokumente antworten. Führen Sie mich durch das Hinzufügen."
+      },
+      "lookAround": {
+        "label": "Was sehe ich hier?",
+        "ask": "Erklären Sie mir in einfachen Worten, was diese Plattform für mich tun kann.",
+        "askOnPage": "Ich bin auf der Seite „{title}“ ({path}). Erklären Sie mir in einfachen Worten, was ich hier sehe und was ich hier tun kann."
+      },
+      "recipes": {
+        "label": "Fertige Rezepte",
+        "ask": "Zeigen Sie mir die fertigen Rezepte – einen FAQ-Bot, ein Website-Widget, einen Slack-Bot, einen Wochenbericht – und helfen Sie mir bei der Auswahl."
+      }
+    },
+    "bubbles": {
+      "approvals": {
+        "say": "Etwas wartet auf Ihre Freigabe. Sollen wir es gemeinsam durchgehen?",
+        "ask": "Was wartet auf meine Freigabe? Erklären Sie jeden Punkt in einfachen Worten.",
+        "action": "Gemeinsam durchgehen"
+      },
+      "firstSteps": {
+        "say": "Ihre Organisation hat noch keine Agents. Bauen wir gemeinsam den ersten?",
+        "ask": "Helfen Sie mir, unseren ersten Agent zu bauen. Fragen Sie mich, was er tun soll.",
+        "action": "Gemeinsam bauen"
+      },
+      "agents": {
+        "say": "Brauchen Sie einen neuen Agent? Beschreiben Sie ihn in einem Satz, und ich baue ihn.",
+        "ask": "Ich möchte einen neuen Agent. Fragen Sie mich, was er tun soll, und bauen Sie ihn.",
+        "action": "Beschreiben"
+      },
+      "agent": {
+        "say": "Unklar, was eine Einstellung hier bewirkt? Fragen Sie mich.",
+        "ask": "Erklären Sie die Einstellungen dieses Agents in einfachen Worten und schlagen Sie Verbesserungen vor.",
+        "action": "Diese Seite erklären"
+      },
+      "knowledge": {
+        "say": "Ich helfe Ihnen, Dokumente hinzuzufügen, damit Agents daraus antworten.",
+        "ask": "Helfen Sie mir, unsere Dokumente hinzuzufügen, damit ein Agent daraus antworten kann.",
+        "action": "Dokumente hinzufügen"
+      },
+      "runs": {
+        "say": "Ein Run ist fehlgeschlagen? Ich erkläre, was schiefging.",
+        "ask": "Sehen Sie sich die letzten Runs an und erklären Sie jeden Fehler in einfachen Worten – und was dagegen zu tun ist.",
+        "action": "Fehler erklären"
+      },
+      "skills": {
+        "say": "Skills bringen Agents bei, wie eine Aufgabe geht. Schreiben wir gemeinsam einen?",
+        "ask": "Helfen Sie mir, einen Skill zu schreiben. Fragen Sie mich, welche Aufgabe er beibringen soll.",
+        "action": "Gemeinsam schreiben"
+      },
+      "settings": {
+        "say": "Suchen Sie eine Einstellung? Sagen Sie mir, was Sie ändern möchten.",
+        "ask": "Ich möchte eine Einstellung ändern. Fragen Sie mich, welche, und zeigen Sie mir, wo sie ist.",
+        "action": "Einstellung finden"
+      },
+      "tipMcp": {
+        "say": "Wussten Sie schon? Agents können über MCP die Werkzeuge Ihres Unternehmens nutzen – CRM, Kalender, Tickets.",
+        "ask": "Wie kann ein Agent über MCP die Werkzeuge unseres Unternehmens nutzen? Erklären Sie es einfach.",
+        "action": "Zeig mir wie"
+      },
+      "tipVariables": {
+        "say": "Wussten Sie schon? '{{' in den Instruktionen eines Agents fügt das heutige Datum, den Namen der Person und mehr ein.",
+        "ask": "Wie funktionieren Variablen in den Instruktionen eines Agents?",
+        "action": "Zeig mir wie"
+      },
+      "tipGroups": {
+        "say": "Wussten Sie schon? Über Gruppen können Sie einen Agent nur mit einer Abteilung teilen.",
+        "ask": "Wie teile ich einen Agent nur mit einer Gruppe oder Abteilung?",
+        "action": "Zeig mir wie"
+      },
+      "tipQuestions": {
+        "say": "Wussten Sie schon? Ein Agent kann Ihnen Fragen mit fertigen Antworten zum Anklicken stellen.",
+        "ask": "Wie stellt mir ein Agent während der Arbeit Fragen?",
+        "action": "Zeig mir wie"
+      },
+      "stuck": {
+        "say": "Hängen Sie bei „{form}“ fest? Ich führe Sie durch.",
+        "ask": "Ich fülle „{form}“ aus und weiß nicht, was hinein soll. Führen Sie mich Feld für Feld durch, in einfachen Worten.",
+        "action": "Führ mich durch"
+      },
+      "failedRun": {
+        "say": "Einer Ihrer Runs ist fehlgeschlagen. Soll ich erklären, was passiert ist?",
+        "ask": "Warum ist mein Run {run} fehlgeschlagen? Erklären Sie es in einfachen Worten und sagen Sie mir, was ich ändern kann.",
+        "action": "Erklären"
+      }
+    },
+    "setup": {
+      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?",
+      "title": "Ein Modell verbinden",
+      "typing": "{name} schreibt…",
+      "openSettings": "Assistent-Einstellungen öffnen",
+      "steps": {
+        "intro": "Hallo, ich bin {name}. Ich helfe beim Bauen von Agents und beim Zurechtfinden auf der Plattform – aber zum Denken brauche ich ein Sprachmodell, und noch ist keins verbunden. So verbinden Sie eins. Es dauert etwa zwei Minuten.",
+        "key": "<b>Schritt 1: einen API-Schlüssel besorgen.</b> Melden Sie sich bei einem Modell-Provider an – Anthropic, OpenAI, Google oder einem anderen – und erstellen Sie in dessen Konsole einen API-Schlüssel. Das ist eine lange Zeichenfolge, oft beginnend mit „sk-“. Betreibt Ihr Unternehmen ein eigenes Modell, etwa auf Ollama oder vLLM, genügt dessen Adresse.",
+        "settings": "<b>Schritt 2: Einstellungen → Assistent öffnen.</b> Wählen Sie unter Modell den Provider und fügen Sie den Schlüssel ein. Er wandert verschlüsselt direkt in den Vault – niemand sieht ihn je wieder vollständig, ich auch nicht.",
+        "model": "<b>Schritt 3: ein Modell wählen und speichern.</b> Ein leistungsfähiges Modell mittlerer Preisklasse ist ein guter Start, und Sie können es jederzeit wechseln.",
+        "done": "<b>Das war's.</b> Kommen Sie hierher zurück, und ich begrüße Sie. Dieses Modell steht auch allen anderen Agents Ihrer Organisation zur Verfügung.",
+        "askAdmin": "<b>Wer das kann:</b> Nur ein Administrator Ihrer Organisation kann ein Modell verbinden. Bitten Sie ihn, diese Schritte zu befolgen – das dauert etwa zwei Minuten, danach bin ich für alle da."
+      }
+    },
+    "screenshot": "Diese Seite zeigen",
+    "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein."
+  },
+  "assistantSettings": {
+    "notForYou": "Ihre Rolle umfasst nicht das Ausführen von Agents, daher steht Ihnen der Assistent nicht zur Verfügung. Ein Administrator kann das ändern.",
+    "yours": "Ihre Tipps",
+    "yoursDescription": "Die Sprechblasen, die der Assistent Ihnen in der Konsole zeigt. Dieser Browser merkt sie sich.",
+    "showTips": "Tipps in Sprechblasen anzeigen",
+    "unsilence": "{count, plural, =1 {Tipps auf der 1 stummgeschalteten Seite wieder zeigen} other {Tipps auf den # stummgeschalteten Seiten wieder zeigen}}",
+    "organization": "Für die Organisation",
+    "organizationDescription": "Was alle in der Organisation sehen: Name und Begrüßung des Assistenten und das Modell, auf dem er läuft. Seine Kosten zählen wie die jedes Agents.",
+    "enabled": "Assistent eingeschaltet",
+    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie unten eins aus oder fügen Sie eins hinzu.",
+    "model": "Modell",
+    "name": "Name",
+    "greeting": "Begrüßung",
+    "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
+    "save": "Speichern"
+  },
+  "capabilityGuide": {
+    "artifacts": {
+      "name": "Apps",
+      "does": "Der Agent veröffentlicht eine fertige App - einen Bericht, ein kleines Dashboard - unter einem Link, der sich im Browser öffnet.",
+      "example1": "Eine Seite mit der wöchentlichen Verkaufsübersicht",
+      "example2": "Ein einseitiges Projektbriefing für einen Kunden",
+      "needs": "Nichts weiter.",
+      "never": "Teilt nie selbst etwas: Die App bleibt privat, bis die Person sie teilt."
+    },
+    "ask_user": {
+      "name": "Rückfragen",
+      "does": "Der Agent stellt ein paar Fragen mit Antworten zur Auswahl, statt zu raten.",
+      "example1": "Förmlicher oder lockerer Ton?",
+      "example2": "Welche dieser drei Dateien soll ich nehmen?",
+      "needs": "Nichts weiter.",
+      "never": "Antwortet nie für die Person. In Slack oder Telegram wartet er auf ihre Antwort."
+    },
+    "browser_choice": {
+      "name": "Webbrowser (Schritt für Schritt)",
+      "does": "Der Agent arbeitet sich durch eine Webseite und wählt jeweils eine der Aktionen, die die Seite wirklich anbietet.",
+      "example1": "Eine Produktseite finden und den Preis lesen",
+      "example2": "Schritt für Schritt durch die Suche einer Website gehen",
+      "needs": "Ein API-Schlüssel im Vault für das Modell, das jeden Schritt wählt.",
+      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "browser_use": {
+      "name": "Webbrowser",
+      "does": "Der Agent bekommt einen echten Webbrowser und klickt sich selbst durch Websites, um eine Aufgabe zu erledigen.",
+      "example1": "Im Portal eines Lieferanten nach neuen Rechnungen sehen",
+      "example2": "Ein langes Webformular ausfüllen",
+      "needs": "Ein Browser-Host, den ein Administrator einrichtet. Eine Aufgabe dauert Minuten und kostet mehr als eine Websuche.",
+      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "channel_tools": {
+      "name": "Infos zum Chat-Kanal",
+      "does": "In Slack, Telegram oder Mattermost sieht der Agent, wer im Kanal ist, wofür er da ist und was vorher geschrieben wurde.",
+      "example1": "Einen Thread nachlesen, bevor er antwortet",
+      "example2": "In der Antwort die richtige Person erwähnen",
+      "needs": "Ein Bot in diesem Kanal. Eingeschaltet wird das pro Bot, dort, wo der Agent verfügbar ist.",
+      "never": "Liest nie einen Kanal, in den sein Bot nicht aufgenommen wurde."
+    },
+    "charts": {
+      "name": "Diagramme",
+      "does": "Zeichnet ein Diagramm ins Gespräch, damit man die Zahlen sieht, statt sie zu lesen.",
+      "example1": "Umsatz dieses Monats nach Region, als Balken",
+      "example2": "Support-Tickets pro Woche, als Linie",
+      "needs": "Nichts weiter.",
+      "never": "Ändert nie die Daten, die es zeichnet."
+    },
+    "clock": {
+      "name": "Datum und Uhrzeit",
+      "does": "Sagt dem Agenten das heutige Datum und die Uhrzeit, damit er nicht raten muss.",
+      "example1": "Was ist diese Woche fällig?",
+      "example2": "Wie viele Tage bis zur Frist?",
+      "needs": "Nichts weiter.",
+      "never": "Fügt keine Tools hinzu; sagt nur die Zeit."
+    },
+    "code_execution": {
+      "name": "Berechnungen",
+      "does": "Der Agent rechnet mit einem kurzen Python-Programm, statt zu schätzen.",
+      "example1": "Eine eingefügte Zahlenspalte summieren",
+      "example2": "Zwei Kreditangebote Monat für Monat vergleichen",
+      "needs": "Nichts weiter.",
+      "never": "Behält nichts zwischen Nachrichten und erreicht das Internet nicht. Für Dateien, die bleiben sollen, gibt es die Sandbox."
+    },
+    "compaction": {
+      "name": "Lange Gespräche",
+      "does": "Kürzt den ältesten Teil eines langen Gesprächs, damit der Agent weiterarbeiten kann, statt an das Limit des Modells zu stoßen.",
+      "example1": "Eine ganztägige Arbeitssitzung in einem Chat",
+      "needs": "Nichts weiter.",
+      "never": "Löscht nie das Gespräch: Man sieht es weiterhin vollständig."
+    },
+    "context": {
+      "name": "Kontext",
+      "does": "Gibt dem Agenten bei jeder Antwort die festen Informationen Ihres Unternehmens - ein Glossar, eine Richtlinie, eine Markenstimme.",
+      "example1": "Immer die Produktnamen aus dem Glossar verwenden",
+      "example2": "Die Erstattungsrichtlinie wörtlich befolgen",
+      "needs": "Kontextdateien, unter Kontext geschrieben und in diesem Bereich ausgewählt.",
+      "never": "Ändert die Dateien nie; der Agent liest sie nur."
+    },
+    "conversation_search": {
+      "name": "Frühere Gespräche",
+      "does": "Der Agent schlägt nach, was in früheren Gesprächen mit derselben Person gesagt wurde.",
+      "example1": "Was haben wir letzte Woche zum Starttermin beschlossen?",
+      "example2": "Eine Aufgabe dort fortsetzen, wo der letzte Chat aufhörte",
+      "needs": "Nichts weiter.",
+      "never": "Liest nie die Gespräche anderer und ist in Gruppenchats aus."
+    },
+    "guardrails": {
+      "name": "Schutzregeln",
+      "does": "Verbirgt Passwörter oder personenbezogene Daten oder stoppt einen Run, wenn eine Nachricht oder Antwort auf eine Regel passt.",
+      "example1": "Kartennummern entfernen, bevor sie das Modell erreichen",
+      "example2": "Den Agenten nicht über Gehälter sprechen lassen",
+      "needs": "Regeln, in diesem Bereich festgelegt.",
+      "never": "Ändert nie etwas, auf das keine Regel passt."
+    },
+    "image_generation": {
+      "name": "Bilderzeugung",
+      "does": "Erstellt ein Bild aus einer Beschreibung.",
+      "example1": "Ein Titelbild für einen Blogbeitrag",
+      "example2": "Ein grober Entwurf für ein Plakat",
+      "needs": "Ein API-Schlüssel des Bildanbieters im Vault. Jedes Bild rechnet dieser Anbieter ab.",
+      "never": "Veröffentlicht nie ein Bild; es erscheint im Gespräch."
+    },
+    "knowledge": {
+      "name": "Wissenssuche",
+      "does": "Der Agent antwortet aus Ihren Dokumenten und sagt, aus welchem jede Antwort stammt.",
+      "example1": "Fragen der Belegschaft aus dem Personalhandbuch beantworten",
+      "example2": "Die Kündigungsklausel in den Verträgen finden",
+      "needs": "Eine Wissensdatenbank mit Dokumenten, in diesem Bereich ausgewählt.",
+      "never": "Durchsucht nie eine Wissensdatenbank, mit der dieser Agent nicht verbunden ist."
+    },
+    "media": {
+      "name": "Bilder auslagern",
+      "does": "Lagert Bilder aus dem Verlauf eines langen Gesprächs aus, damit er klein und günstiger zu senden bleibt.",
+      "example1": "Lange Chats mit vielen Screenshots",
+      "needs": "Nichts weiter.",
+      "never": "Löscht nie ein Bild."
+    },
+    "memory_files": {
+      "name": "Gedächtnis",
+      "does": "Der Agent behält Notizen von einem Gespräch zum nächsten, damit er nicht von vorn anfängt.",
+      "example1": "Sich merken, in welchem Team jemand ist und woran die Person arbeitet",
+      "example2": "Eine Liste offener Fragen führen",
+      "needs": "Nichts weiter.",
+      "never": "Zeigt die Notizen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
+    },
+    "memory_mem0": {
+      "name": "Gedächtnis (mem0)",
+      "does": "Der Agent merkt sich Fakten und findet sie nach ihrer Bedeutung wieder, gespeichert in einem mem0-Dienst.",
+      "example1": "Sich merken, dass ein Kunde E-Mail statt Anrufen bevorzugt",
+      "needs": "Ein mem0-Konto, in der Cloud oder selbst gehostet, und sein API-Schlüssel im Vault.",
+      "never": "Zeigt die Erinnerungen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
+    },
+    "planning": {
+      "name": "Planung",
+      "does": "Der Agent schreibt eine Checkliste für eine größere Aufgabe und hakt jeden Schritt ab, damit man den Fortschritt sieht.",
+      "example1": "Einen Monatsbericht in fünf sichtbaren Schritten erstellen",
+      "needs": "Nichts weiter.",
+      "never": "Gibt dem Agenten nie eine Berechtigung; ein Plan ist nur eine Liste."
+    },
+    "sandbox": {
+      "name": "Sandbox",
+      "does": "Der Agent bekommt einen eigenen kleinen Computer: Er erstellt und bearbeitet Dateien und führt Code aus, und die Dateien sind beim nächsten Mal noch da.",
+      "example1": "Eine Tabelle bereinigen und das Ergebnis zurückgeben",
+      "example2": "Ein Skript schreiben, ausführen und korrigieren, bis es läuft",
+      "example3": "Einen Berichtsentwurf über mehrere Tage fortschreiben",
+      "needs": "Eine Sandbox. Ein Standard-Deployment richtet sie selbst ein; sonst fügt ein Administrator sie unter Sandboxes hinzu.",
+      "never": "Erreicht nie Ihren Computer oder andere Systeme des Unternehmens. Dateien ändern und Befehle ausführen warten auf die Freigabe durch einen Menschen, außer Sie ändern das."
+    },
+    "skills": {
+      "name": "Skills",
+      "does": "Der Agent folgt Ihren schriftlichen Anleitungen und lädt einen Skill, wenn die Aufgabe ihn braucht.",
+      "example1": "Ein Angebot so schreiben, wie es Ihr Vertrieb tut",
+      "example2": "Die Checkliste für einen neuen Kunden abarbeiten",
+      "needs": "Skills, unter Skills geschrieben und in diesem Bereich ausgewählt.",
+      "never": "Ändert nie einen Skill; der Agent liest ihn nur."
+    },
+    "subagents": {
+      "name": "Delegation",
+      "does": "Der Agent gibt einen Teil der Arbeit an einen anderen Agenten ab und nutzt dessen Antwort.",
+      "example1": "Ein Empfangsagent, der Rechtsfragen an den Rechtsagenten weitergibt",
+      "example2": "Mehrere Themen parallel recherchieren",
+      "needs": "Andere Agenten oder in diesem Bereich definierte Spezialisten. Jede Übergabe kostet so viel wie ein Run dieses Agenten.",
+      "never": "Gibt einem anderen Agenten nie mehr Zugriff, als er schon hat."
+    },
+    "system_reminders": {
+      "name": "Erinnerung an Anweisungen",
+      "does": "Wiederholt die wichtigsten Anweisungen während einer langen Aufgabe, damit der Agent nicht von ihnen abweicht.",
+      "example1": "Eine lange Recherche, die das gewünschte Format einhalten muss",
+      "needs": "Nichts weiter.",
+      "never": "Fügt keine Tools hinzu; wiederholt nur die Anweisungen."
+    },
+    "thinking": {
+      "name": "Nachdenken",
+      "does": "Das Modell denkt nach, bevor es antwortet - langsamer und teurer, aber besser bei Problemen mit mehreren Schritten.",
+      "example1": "Drei Vertragsversionen vergleichen",
+      "example2": "Einen Zeitplan mit vielen Bedingungen ausarbeiten",
+      "needs": "Ein Modell, das es unterstützt.",
+      "never": "Fügt keine Tools hinzu; ändert, wie das Modell antwortet."
+    },
+    "tool_output_limits": {
+      "name": "Grenzen für Tool-Ergebnisse",
+      "does": "Kürzt ein sehr großes Tool-Ergebnis, damit es nicht mit jeder Nachricht erneut ans Modell geht.",
+      "example1": "Eine Suche, die eine riesige Tabelle zurückgibt",
+      "needs": "Nichts weiter.",
+      "never": "Ändert nie die Daten selbst, nur wie viel davon das Modell auf einmal liest."
+    },
+    "tool_search": {
+      "name": "Tool-Suche",
+      "does": "Ein Agent mit vielen Tools findet das richtige, wenn er es braucht, statt jedes Mal alle zu lesen.",
+      "example1": "Ein Agent, der mit mehreren MCP-Servern mit Dutzenden Tools verbunden ist",
+      "needs": "Nichts weiter.",
+      "never": "Fügt nie ein Tool hinzu; blendet Tools nur aus, bis der Agent eines sucht."
+    },
+    "web_fetch": {
+      "name": "Webseiten lesen",
+      "does": "Der Agent öffnet einen Link und liest die Seite.",
+      "example1": "Einen eingefügten Artikel zusammenfassen",
+      "example2": "Die Preisseite eines Anbieters lesen",
+      "needs": "Nichts weiter.",
+      "never": "Meldet sich nie an und füllt keine Formulare aus; liest nur."
+    },
+    "web_research": {
+      "name": "Websuche",
+      "does": "Der Agent sucht im Internet nach aktuellen Informationen.",
+      "example1": "Was hat sich dieses Jahr an dieser Vorschrift geändert?",
+      "example2": "Drei Wettbewerber und ihre Preise finden",
+      "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
+      "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    }
+  },
+  "capabilityCategories": {
+    "analysis": "Mit Daten arbeiten",
+    "channels": "Chat-Kanäle",
+    "knowledge": "Wissen und Gedächtnis",
+    "reasoning": "Denken und Planen",
+    "research": "Das Web",
+    "utility": "Alltag",
+    "advanced": "Erweitert"
+  },
+  "audience": {
+    "label": "Wer es nutzen darf",
+    "everyone": "Alle",
+    "everyoneHint": "Alle in der Organisation.",
+    "onlyMe": "Nur ich",
+    "onlyMeHint": "Sie und alle, mit denen Sie es später teilen.",
+    "noGroupsYet": "Noch keine Gruppen - fügen Sie sie unter Gruppen hinzu, oder suchen Sie eine Person.",
+    "chosen": "Ausgewählte Gruppen oder Personen",
+    "chosenHint": "Nur die Abteilungen und Personen, die Sie wählen.",
+    "chooseAudience": "Gruppen und Personen, die es nutzen dürfen",
+    "chosenList": "Bisher ausgewählt",
+    "remove": "{name} entfernen",
+    "search": "Gruppen und Personen suchen",
+    "searchPlaceholder": "Gruppen und Personen suchen…",
+    "noMatches": "Keine Treffer - versuchen Sie einen Namen oder eine E-Mail-Adresse.",
+    "typeForPeople": "Geben Sie einen Namen oder eine E-Mail-Adresse ein, um eine Person zu finden.",
+    "chipPrivate": "Privat",
+    "chipGroupsMore": "{names} +{count}"
   }
 }

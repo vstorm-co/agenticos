@@ -103,6 +103,7 @@ class SandboxConfig(BaseModel):
             "agent: everyone who talks to this agent - files are shared between "
             "people in the organization."
         ),
+        json_schema_extra={"x-advanced": True},
     )
     runtime: str | None = Field(
         default=None,
@@ -124,7 +125,7 @@ class SandboxConfig(BaseModel):
 
 @register(
     id="sandbox",
-    name="Files & shell",
+    name="Sandbox",
     category="analysis",
     description="Read, write and run things in a workspace that persists between turns.",
     # Every tool declared, including `execute` when a configuration might not

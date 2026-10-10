@@ -6,6 +6,8 @@
  * responses only carry `has_auth_token`.
  */
 
+import type { AgentUsage } from "@/types/agents";
+import type { AudiencePayload, Visibility } from "@/types/sharing";
 import { apiClient } from "./api-client";
 
 export interface McpConnectionRecord {
@@ -31,6 +33,12 @@ export interface McpConnectionRecord {
   last_status: string | null;
   last_error: string | null;
   last_checked_at: string | null;
+  /**
+   * Who sees and binds an organization connection: `org`, or `private` - its
+   * creator and the groups and people it was shared with (#2072). Meaningless on
+   * a personal connection, which only its owner reaches.
+   */
+  visibility: Visibility;
   /** Which catalog entry it points at, where it was connected from one. */
   catalog_key: string | null;
   /**
@@ -50,8 +58,24 @@ export interface McpConnectionRecord {
    * has asked yet, which is not the same as "offers none".
    */
   last_tools: McpToolInfo[] | null;
+  /**
+   * The agents binding an organization server that the reader may see (#2072).
+   * Absent on a personal connection, and null where the listing did not ask.
+   */
+  used_by?: AgentUsage[] | null;
   created_at: string;
   updated_at: string | null;
+}
+
+/** One call an agent made to an organization server's tool (#2072) - never what was said. */
+export interface McpToolCall {
+  tool: string;
+  status: string;
+  started_at: string;
+  duration_ms: number | null;
+  agent_id: string | null;
+  agent_name: string | null;
+  run_id: string | null;
 }
 
 export interface McpToolInfo {
@@ -136,7 +160,7 @@ export async function startMcpOAuth(
     catalog_key?: string;
     client_id?: string;
     client_secret?: string;
-  },
+  } & Partial<AudiencePayload>,
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when
@@ -183,4 +207,20 @@ export async function startPolledPortalOAuth(
   return apiClient.post<{ authorization_url: string }>("/mcp-connections/oauth/start/portal", {
     portal_key: portalKey,
   });
+}
+
+/** What a server added by its address answered about OAuth sign-in (#2073). */
+export interface McpSignInProbeResult {
+  sign_in: boolean;
+  registers_clients: boolean;
+}
+
+/**
+ * Whether a server added by its address lets people sign in with OAuth.
+ *
+ * The discovery a sign-in would run, registering nothing - so the form offers
+ * Connect-with-sign-in for a server nobody curated instead of asking for a token.
+ */
+export async function probeMcpSignIn(url: string): Promise<McpSignInProbeResult> {
+  return apiClient.post<McpSignInProbeResult>("/me/mcp-connections/probe", { url });
 }

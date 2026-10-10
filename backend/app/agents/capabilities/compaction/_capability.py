@@ -161,6 +161,7 @@ class CompactionConfig(BaseModel):
         ge=0,
         le=50,
         description="How many recent tool calls keep their results when results are cleared",
+        json_schema_extra={"x-advanced": True},
     )
     summary_prompt: str = Field(
         default=DEFAULT_SUMMARY_PROMPT,
@@ -176,7 +177,7 @@ class CompactionConfig(BaseModel):
         # Rendered as the Markdown editor the agent's own instructions get, not
         # as a one-line box: this is paragraphs, and it is read as much as it is
         # written.
-        json_schema_extra={"x-multiline": True},
+        json_schema_extra={"x-advanced": True, "x-multiline": True},
     )
     context_window: int | None = Field(
         default=None,
@@ -188,11 +189,13 @@ class CompactionConfig(BaseModel):
             "given less than the provider publishes - or to make an agent compact "
             "earlier than its model would require"
         ),
+        json_schema_extra={"x-advanced": True},
     )
     fallback_context_window: int = Field(
         default=DEFAULT_CONTEXT_WINDOW,
         ge=1_000,
         description="Window to assume when the model's own cannot be resolved",
+        json_schema_extra={"x-advanced": True},
     )
 
     @field_validator("summary_prompt")

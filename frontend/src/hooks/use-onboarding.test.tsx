@@ -176,6 +176,7 @@ describe("useOnboardingTour", () => {
       "dashboard-filters",
       "dashboard-customize",
       "notification-bell",
+      "assistant-widget",
     ]);
   });
 

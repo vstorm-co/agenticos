@@ -48,6 +48,8 @@ function queryPanel() {
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/runs",

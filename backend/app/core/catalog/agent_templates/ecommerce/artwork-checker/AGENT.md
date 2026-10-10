@@ -3,6 +3,7 @@ name: Print File Checker
 description: Checks uploaded artwork against press requirements and says the number
   found, the number needed and the fix.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - code_execution

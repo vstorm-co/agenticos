@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "012b6efb6435"
 ---
 
 # Środowiska { #environments }
@@ -79,11 +79,36 @@ serwuje to, co przypina `dev`, podczas gdy widget na twojej stronie zostaje na
 wersje, jeden komplet ksiąg.
 
 Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisku
-publikuje własny [artefakt](artifacts.md#one-name-one-link), więc próba `dev` na
+publikuje własną [aplikację](artifacts.md#one-name-one-link), więc próba `dev` na
 cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
 czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
 akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
 strony — produkcji.
+
+## Testowanie z poziomu Buildera { #trying-it-from-the-builder }
+
+**Testuj** w nagłówku Buildera otwiera czat obok Buildera, a nie nad nim - ten sam
+czat co `/chat`, ze strumieniowaniem, krokami narzędzi, kartami zatwierdzeń i
+pytaniami. Odpowiada jako **szkic**, z nieopublikowanymi zmianami, albo jako wersja
+dowolnego środowiska, i mówi która. Do testu szkicu nic nie trzeba publikować:
+szkic musi przejść te same sprawdzenia co publikacja i uruchomić go może tylko
+osoba, która może edytować agenta. Run zatrzymany na zatwierdzeniu kontynuuje na
+szkicu takim, jaki był na jego początku.
+
+Każda tura jest tam **runem testowym**: liczonym w budżecie i zapisywanym jak każdy
+inny, oznaczonym `test` w Aktywności i możliwym do odfiltrowania (**With test
+runs**, **Without test runs**, **Only test runs**; `?test=true` albo `false` w
+`GET /api/v1/runs`). Panel zaczyna nową rozmowę, wysyła ostatnią wiadomość ponownie
+po zmianie i trzyma kilka przypiętych promptów do uruchomienia jednym kliknięciem.
+Jego szerokość, to, co odpowiada, i przypięte prompty są zapamiętywane per agent w
+przeglądarce. Ramka czatu wysyła w każdej turze `draft: true` albo `test: true` z
+`environment_id`.
+
+**Porównaj** stawia dwa czaty obok siebie - szkic i produkcję albo dwa środowiska -
+a pole nad nimi pyta oba o to samo jednocześnie, więc odpowiedzi różnią się tylko
+tym, co odpowiada. **Co zmienia szkic** pokazuje szkic na tle opublikowanej wersji,
+jako ten sam diff, który rysuje historia wersji. Naciśnięcie <kbd>T</kbd> w
+dowolnym miejscu Buildera, poza polem tekstowym, otwiera albo zamyka panel.
 
 ## Ślady per środowisko { #tracing-per-environment }
 

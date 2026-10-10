@@ -35,6 +35,7 @@ from app.db.models.agent_run import (
     ToolApproval,
 )
 from app.db.models.conversation import Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
@@ -59,11 +60,15 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    is_test: bool = False,
+    test_spec: dict[str, Any] | None = None,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
+        is_test=is_test,
+        test_spec=test_spec,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
@@ -358,6 +363,8 @@ class RunFilters:
             been renamed or deleted, and the dashboard's model card counts these
             same strings - so "the runs behind this bar" is the same set on both
             screens.
+        is_test: Only test runs from the Builder's panel, or only real ones
+            (#2074). Unset lists both.
     """
 
     statuses: Sequence[str] | None = None
@@ -371,6 +378,7 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     rated: RunRating | None = None
+    is_test: bool | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -401,6 +409,8 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
+        if self.is_test is not None:
+            clauses.append(AgentRun.is_test.is_(self.is_test))
         return clauses
 
 
@@ -587,8 +597,13 @@ async def sum_cost_since(
     agent_id: UUID | None = None,
     include_delegations: bool = False,
     exclude_run_id: UUID | None = None,
+    group_id: UUID | None = None,
 ) -> Decimal:
     """Total run spend in a window - what a monthly budget is checked against.
+
+    `group_id` narrows it to the runs that group's members started - a
+    department's month, measured against the department's cap (#2072). Its
+    members today, so somebody who joins brings their month with them.
 
     `agent_id` narrows the sum to one agent's runs, because the agent's cap has
     to be measured against the spend it is a cap *on*: checked against the
@@ -645,8 +660,65 @@ async def sum_cost_since(
         query = query.where(AgentRun.parent_run_id.is_(None))
     if exclude_run_id is not None:
         query = query.where(AgentRun.id != exclude_run_id)
+    if group_id is not None:
+        members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+        query = query.where(AgentRun.user_id.in_(members))
     result = await db.scalar(query)
     return Decimal(result or 0)
+
+
+async def spend_by_group(
+    db: AsyncSession, *, organization_id: UUID, since: datetime
+) -> list[tuple[UUID, Decimal, int]]:
+    """Each group's spend since `since`: what its members' runs cost, and how many (#2072).
+
+    Returns (group_id, total_cost, run_count) rows, only for groups that ran
+    something. A person in two groups counts in both, because each group is
+    measured against its own cap; these rows are not a partition of the bill.
+    Delegations are left out for the reason :func:`cost_breakdown` gives.
+    """
+    result = await db.execute(
+        select(
+            GroupMember.group_id,
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.count(AgentRun.id),
+        )
+        .join(GroupMember, GroupMember.user_id == AgentRun.user_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .where(
+            Group.organization_id == organization_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            AgentRun.parent_run_id.is_(None),
+        )
+        .group_by(GroupMember.group_id)
+    )
+    return [(group_id, Decimal(cost), int(runs)) for group_id, cost, runs in result.all()]
+
+
+async def group_spend_rows(
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID, since: datetime
+) -> list[tuple[str, str, int, Decimal]]:
+    """One group's spend since `since`, per member and agent - its export (#2072).
+
+    Returns (email, agent name, run_count, total_cost) rows, costliest first.
+    """
+    members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    total = func.coalesce(func.sum(AgentRun.cost_usd), 0)
+    result = await db.execute(
+        select(User.email, Agent.name, func.count(AgentRun.id), total)
+        .join(User, User.id == AgentRun.user_id)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.user_id.in_(members),
+        )
+        .group_by(User.email, Agent.name)
+        .order_by(total.desc(), User.email, Agent.name)
+    )
+    return [(email, name, int(runs), Decimal(cost)) for email, name, runs, cost in result.all()]
 
 
 async def cost_breakdown(
@@ -1482,7 +1554,13 @@ async def count_unfinished_in_environment(
         select(func.count(AgentRun.id)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.environment_id == environment_id,
-            AgentRun.status.in_([RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value]),
+            AgentRun.status.in_(
+                [
+                    RunStatus.RUNNING.value,
+                    RunStatus.AWAITING_APPROVAL.value,
+                    RunStatus.AWAITING_ANSWER.value,
+                ]
+            ),
         )
     )
     return int(result or 0)
@@ -1765,6 +1843,27 @@ async def list_approvals_for_run(
             ToolApproval.organization_id == organization_id,
         )
         .order_by(ToolApproval.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_unanswered_runs(
+    db: AsyncSession, *, older_than: datetime, limit: int = 500
+) -> list[AgentRun]:
+    """Every run parked on a question since before `older_than` (#2064).
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the expiry sweep, which settles each run in its own
+    organization. Do not copy this shape into anything a route can reach.
+    """
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at < older_than,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
     )
     return list(result.scalars().all())
 

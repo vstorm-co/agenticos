@@ -8,6 +8,7 @@ import {
   createOrgMcpConnection,
   deleteOrgMcpConnection,
   listOrgMcpConnections,
+  listOrgMcpToolCalls,
   testOrgMcpConnection,
   updateOrgMcpConnection,
   type OrgMcpConnectionInput,
@@ -113,4 +114,16 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   );
 
   return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };
+}
+
+/**
+ * What agents asked one organization server to do, newest first (#2072).
+ * Fetched only while somebody is looking, since the dialog showing it mounts on open.
+ */
+export function useOrgMcpToolCalls(connectionId: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.mcpConnections.calls(connectionId),
+    queryFn: () => listOrgMcpToolCalls(connectionId),
+  });
+  return { calls: data ?? [], isLoading, error };
 }

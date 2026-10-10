@@ -1,4 +1,4 @@
-<!-- source_sha: f38e57a726cf -->
+<!-- source_sha: b0d8863e1cb7 -->
 
 <div align="center">
 
@@ -189,7 +189,7 @@ Jeśli używasz [Claude Code](https://code.claude.com/docs/en/overview) lub [Cod
 
 ### 🎨 Publikuj wyniki jako interaktywne strony
 
-Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **artefakty**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Linki publiczne mogą wygasać, wymagać hasła lub ograniczać, na których stronach można je osadzić. [Udostępnij artefakt](https://vstorm-co.github.io/agenticos/pl/artifacts/)
+Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy jako **aplikacje**. Wybierz, kto może je otwierać; aktualizacje zachowują ten sam link, a wcześniejsze wersje pozostają dostępne. Linki publiczne mogą wygasać, wymagać hasła lub ograniczać, na których stronach można je osadzić. [Udostępnij aplikację](https://vstorm-co.github.io/agenticos/pl/artifacts/)
 
 ### 📊 Śledź runy, koszty i zatwierdzenia
 
@@ -201,7 +201,7 @@ Dostosuj **dashboard** do swojej pracy. **Activity** pozwala sprawdzać runy i w
 
 ### 👥 Organizuj zespoły za pomocą ról i grup
 
-**Role określają, co ludzie mogą robić. Grupy określają, komu udostępniasz zasoby.** Korzystaj z ról takich jak Builder, Operator, Member i Viewer, a następnie utwórz działy lub grupy robocze, np. Operations, Engineering, Finance i Research. Udostępnij grupie agenta, skill, kolekcję, plik kontekstu lub artefakt w jednym kroku.
+**Role określają, co ludzie mogą robić. Grupy określają, komu udostępniasz zasoby.** Korzystaj z ról takich jak Builder, Operator, Member i Viewer, a następnie utwórz działy lub grupy robocze, np. Operations, Engineering, Finance i Research. Udostępnij grupie agenta, skill, kolekcję, plik kontekstu lub aplikację w jednym kroku albo ogranicz je do wybranych działów już przy tworzeniu. [Działy i grupy](https://vstorm-co.github.io/agenticos/pl/departments/)
 
 Wykorzystaj istniejące konta firmowe przez **SSO z OIDC** (Entra ID, Okta, Keycloak i inne), **logowanie katalogowe LDAP** lub **zintegrowane logowanie Windows przez Kerberos**. **Mapowania grup katalogowych** łączą grupy z katalogu z rolą i grupą AgenticOS przy logowaniu. [Role i uprawnienia](https://vstorm-co.github.io/agenticos/pl/permissions/) · [Logowanie katalogowe](https://vstorm-co.github.io/agenticos/pl/directory/)
 
@@ -232,7 +232,7 @@ Budujesz na AgenticOS? Przejdź do sekcji [Dla programistów i administratorów]
 
 <br>
 
-<img src="docs/assets/readme/security-layers.webp" alt="Sześć warstw bezpieczeństwa: vault, sandboxy, artefakty, dziennik audytu, sesje i ruch, higiena danych." width="100%">
+<img src="docs/assets/readme/security-layers.webp" alt="Sześć warstw bezpieczeństwa: vault, sandboxy, aplikacje, dziennik audytu, sesje i ruch, higiena danych." width="100%">
 
 Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szyfrowaniem kopertowym. Kod działa w izolowanych sandboxach. Opublikowane strony też działają w sandboxie. Każda organizacja ma dziennik audytu z łańcuchem skrótów. Sesje są krótkotrwałe i można je unieważnić, a ruch podlega limitom. Logi są redagowane, a dane usuwane zgodnie z harmonogramem retencji.
 
@@ -275,7 +275,7 @@ Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szy
 
 - **Wiedza i pamięć:** wyszukiwanie w wiedzy z cytatami, skills, kontekst, pliki pamięci, pamięć przez mem0, wyszukiwanie w rozmowach.
 - **Sieć:** wyszukiwanie w sieci (domyślnie DuckDuckGo; Tavily, Brave lub Exa z kluczem), pobieranie stron, automatyzacja przeglądarki oraz browser-use (podłączone, jeszcze niemożliwe do zainstalowania).
-- **Pliki, kod i wyniki:** uruchamianie Pythona, pliki i powłoka w sandboxie kontenerowym, wykresy, generowanie obrazów (OpenAI lub Google), artefakty.
+- **Pliki, kod i wyniki:** uruchamianie Pythona, pliki i powłoka w sandboxie kontenerowym, wykresy, generowanie obrazów (OpenAI lub Google), aplikacje.
 - **Sposób działania:** delegowanie do innych agentów, planowanie, myślenie, wyszukiwanie narzędzi, data i godzina, przypomnienia systemowe.
 - **Bezpieczeństwo i limity:** guardraile redagujące sekrety i dane osobowe, zarządzanie kontekstem, odciążanie mediów, limity wyników narzędzi.
 - **Kanały czatu:** wyszukiwanie kanałów dla botów Slack, Telegram i Mattermost.

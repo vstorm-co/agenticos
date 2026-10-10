@@ -1,7 +1,7 @@
 """Per-resource row loaders for the sharing routers.
 
 Loading a row is the only thing that differs between sharing an agent, a
-collection, a skill, a vault secret and an artifact, so each loader is injected into
+collection, a skill, a vault secret, an artifact and an MCP server, so each loader is injected into
 `build_sharing_router`. They live here - beside the factory, not in an endpoint
 module and not in `SharingService`, which stays agnostic about what it is
 sharing.
@@ -16,6 +16,7 @@ from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
 
@@ -62,5 +63,21 @@ async def load_secret(
 async def load_artifact(db: AsyncSession, artifact_id: UUID, organization_id: UUID) -> Artifact:
     artifact = await db.get(Artifact, artifact_id)
     if artifact is None or artifact.organization_id != organization_id:
-        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
+        raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
     return artifact
+
+
+async def load_mcp_connection(
+    db: AsyncSession, connection_id: UUID, organization_id: UUID
+) -> McpConnection:
+    """An organization's MCP server; a member's own is nobody else's to share."""
+    connection = await db.get(McpConnection, connection_id)
+    if (
+        connection is None
+        or connection.scope != "org"
+        or connection.organization_id != organization_id
+    ):
+        raise NotFoundError(
+            message="MCP connection not found", details={"connection_id": str(connection_id)}
+        )
+    return connection

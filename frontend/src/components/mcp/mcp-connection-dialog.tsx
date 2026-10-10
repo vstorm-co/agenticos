@@ -5,6 +5,7 @@ import { Building2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -18,12 +19,19 @@ import {
 import { cn } from "@/lib/utils";
 import { McpOAuthClientFields } from "@/components/mcp/mcp-oauth-client-fields";
 import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
+import {
   SCOPE_LABEL,
   type ConnectionFormValues,
   type DraftAuth,
   type DraftState,
   type Scope,
 } from "@/components/mcp/mcp-server-list-types";
+import { probeMcpSignIn, type McpSignInProbeResult } from "@/lib/mcp-connections-api";
 import { slugForPrefix } from "@/lib/mcp-servers";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
@@ -32,6 +40,17 @@ const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = 
   { value: "token", labelKey: "authApiToken", hintKey: "authTokenHint" },
   { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
 ];
+
+/**
+ * Which kind of account a server is best connected with (#2073).
+ *
+ * A server people sign in to acts on each person's own data - their mail, their
+ * pages, their tickets - so each person connecting their own is the honest
+ * default; one taking a key is usually a service account the organization owns.
+ */
+function recommendedScope(draft: DraftState): Scope {
+  return draft.row.entry?.auth === "oauth" ? "personal" : "organization";
+}
 
 /** How the dialog's fields start, read off the row and any connection being edited. */
 function initialAuth(draft: DraftState): DraftAuth {
@@ -111,10 +130,25 @@ function ConnectionForm({
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
+  const tAudience = useTranslations("audience");
   // A server typed in by hand has no catalog key to seed the prefix from, so
   // the prefix follows the name until the person edits it themselves.
   const custom = draft.row.entry === null && draft.existing === null;
   const [prefixEdited, setPrefixEdited] = useState(false);
+  const [signIn, setSignIn] = useState<"checking" | McpSignInProbeResult | null>(null);
+  const recommended = recommendedScope(draft);
+
+  // A server added by its address is asked whether people can sign in to it,
+  // once its address is typed: the form then offers sign-in instead of a token
+  // it does not use, and says when the provider needs a client made by hand.
+  const probe = async () => {
+    if (!custom || !/^https?:\/\/\S+$/.test(url.trim())) return;
+    setSignIn("checking");
+    const result = await probeMcpSignIn(url.trim()).catch(() => null);
+    setSignIn(result);
+    if (result?.sign_in) setAuth("oauth");
+  };
 
   // The hint under the radio group. It used to be rendered as the *key* -
   // `authTokenHint` on screen, in every locale (#446).
@@ -173,16 +207,33 @@ function ConnectionForm({
           <Input
             id="mcp-url"
             value={url}
-            onChange={(event) => setUrl(event.target.value)}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setSignIn(null);
+            }}
+            onBlur={probe}
             placeholder="https://example.com/mcp"
             maxLength={2048}
             className="mt-1.5 font-mono text-sm"
           />
+          {signIn !== null && (
+            <p className="text-muted-foreground mt-1 text-xs" role="status">
+              {signIn === "checking"
+                ? t("signInChecking")
+                : !signIn.sign_in
+                  ? t("signInNone")
+                  : signIn.registers_clients
+                    ? t("signInSupported")
+                    : t("signInNeedsClient")}
+            </p>
+          )}
         </div>
         <div>
           <Label>{t("connectAction")}</Label>
+          {/* One choice, said as what it means for the people using it (#2073):
+              one shared account an admin sets up, or each person's own. */}
           <div
-            className="mt-1.5 flex flex-wrap gap-1.5"
+            className="mt-1.5 grid gap-2 sm:grid-cols-2"
             role="radiogroup"
             aria-label={t("connect2")}
           >
@@ -199,22 +250,27 @@ function ConnectionForm({
                     disabled={draft.existing !== null}
                     onClick={() => setScope(option)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
+                      "flex flex-col items-start gap-1 rounded-lg border p-3 text-left text-sm transition-colors",
                       scope === option
                         ? "border-foreground/30 bg-accent text-foreground"
                         : "border-input text-muted-foreground hover:text-foreground",
                       draft.existing !== null && "cursor-not-allowed opacity-60",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
-                    {t(SCOPE_LABEL[option])}
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Icon className="h-3.5 w-3.5" />
+                      {t(SCOPE_LABEL[option])}
+                      {option === recommended && draft.row.entry !== null && (
+                        <Badge variant="secondary">{t("recommended")}</Badge>
+                      )}
+                    </span>
+                    <span className="text-xs">
+                      {option === "organization" ? t("everyAgentCanReach") : t("yoursAloneYourOwn")}
+                    </span>
                   </button>
                 );
               })}
           </div>
-          <p className="text-muted-foreground mt-1.5 text-xs">
-            {scope === "organization" ? t("everyAgentCanReach") : t("yoursAloneYourOwn")}
-          </p>
           {draft.existing !== null && (
             // Moving a live connection between owners would mean re-sealing
             // its credential under another envelope and changing who may
@@ -224,6 +280,17 @@ function ConnectionForm({
             </p>
           )}
         </div>
+
+        {scope === "organization" && draft.existing === null && (
+          // A department's server stays the department's (#2072). "Only me" is
+          // left out: that is the other card above, the person's own account.
+          <div>
+            <Label>{tAudience("label")}</Label>
+            <div className="mt-1.5">
+              <AudiencePicker value={audience} onChange={setAudience} withOnlyMe={false} />
+            </div>
+          </div>
+        )}
 
         <div>
           <Label>{t("authentication")}</Label>
@@ -319,7 +386,18 @@ function ConnectionForm({
         </Button>
         <Button
           onClick={() =>
-            onSubmit({ label, name, url, token, auth, clearToken, scope, clientId, clientSecret })
+            onSubmit({
+              label,
+              name,
+              url,
+              token,
+              auth,
+              clearToken,
+              scope,
+              clientId,
+              clientSecret,
+              audience: audiencePayload(audience),
+            })
           }
           disabled={submitting}
           data-tour="mcp-dialog-connect"

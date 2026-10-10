@@ -13,6 +13,7 @@ function file(overrides: Partial<ContextFileSummary> = {}): ContextFileSummary {
     format: "md",
     mode: "inject",
     enabled: true,
+    visibility: "org",
     size_bytes: 100,
     excerpt: "",
     ...overrides,

@@ -32,6 +32,11 @@ export const qk = {
     groups: (orgId: string) => ["organizations", orgId, "groups"] as const,
     groupMembers: (orgId: string, groupId: string) =>
       ["organizations", orgId, "groups", groupId, "members"] as const,
+    groupResources: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "resources"] as const,
+    groupShareable: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "shareable"] as const,
+    groupSpend: (orgId: string) => ["organizations", orgId, "groups", "spend"] as const,
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
@@ -66,8 +71,11 @@ export const qk = {
     // caching it as a page would hand a pager the whole history.
     allVersions: (id: string) => ["agents", id, "versions", "all"] as const,
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
+    knowledgeReach: (id: string) => ["agents", id, "knowledge-reach"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+    // The system variables instructions may use; fixed for the deployment.
+    promptVariables: () => ["agents", "prompt-variables"] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
@@ -167,6 +175,7 @@ export const qk = {
         userId?: string;
         conversationId?: string;
         agentVersionId?: string;
+        isTest?: boolean;
         skip?: number;
       } = {},
     ) =>
@@ -184,6 +193,7 @@ export const qk = {
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
         opts.agentVersionId ?? "any-version",
+        opts.isTest ?? "tests-included",
         opts.skip ?? 0,
       ] as const,
     detail: (id: string) => ["runs", id] as const,
@@ -267,6 +277,19 @@ export const qk = {
     gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+  },
+  mcpOauth: {
+    request: (orgId: string, requestId: string) =>
+      ["mcp-oauth", orgId, "request", requestId] as const,
+    grants: (orgId: string) => ["mcp-oauth", orgId, "grants"] as const,
+  },
+  // The organization's AI Architect: its agent, status and settings (#2063).
+  assistant: (orgId: string) => ["assistant", orgId] as const,
+  apiKeys: {
+    /** Every key query in one organization, for invalidating after a create or revoke. */
+    all: (orgId: string) => ["api-keys", orgId] as const,
+    list: (orgId: string) => ["api-keys", orgId, "list"] as const,
+    scopes: (orgId: string) => ["api-keys", orgId, "scopes"] as const,
   },
   artifacts: {
     all: () => ["artifacts"] as const,
@@ -393,6 +416,7 @@ export const qk = {
     // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
+    calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,

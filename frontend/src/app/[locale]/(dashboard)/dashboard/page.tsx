@@ -12,6 +12,7 @@ import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-men
 import { FilterRow } from "@/components/dashboard/filter-row";
 import { OrgDivider } from "@/components/dashboard/org-divider";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
 import { EmptyState, LoadingState } from "@/components/states";
@@ -213,8 +214,9 @@ export default function DashboardPage() {
   // every other page in the product puts its primary in (`New agent` on
   // Agents, `New collection` on Knowledge bases).
   const headerActions = (
-    <div className="flex items-center gap-2">
-      <div data-tour="dashboard-customize" className="flex items-center gap-2">
+    // Wrapping, because three buttons are wider than a phone (#2075).
+    <div className="flex flex-wrap items-center gap-2">
+      <div data-tour="dashboard-customize" className="flex flex-wrap items-center gap-2">
         <DashboardPresetMenu
           presets={presets}
           isCustom={isCustom}
@@ -274,6 +276,7 @@ export default function DashboardPage() {
         selectedSections={selectedSections}
         onSectionsChange={changeSections}
       />
+      {activeOrgId && <StartChecklist orgId={activeOrgId} />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}

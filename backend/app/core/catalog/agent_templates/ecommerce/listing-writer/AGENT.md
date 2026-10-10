@@ -3,6 +3,7 @@ name: Listing Writer
 description: Writes product copy from the spec sheet without inventing an attribute,
   and never omits the fit note.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

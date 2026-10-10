@@ -52,6 +52,7 @@ const DETAIL: ArtifactDetail = {
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: true,
+  following: false,
   public_link: {
     expires_at: null,
     pinned_version_id: null,
@@ -73,7 +74,7 @@ describe("useArtifacts", () => {
       wrapper,
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts?q=weekly&skip=5&limit=5");
+    expect(apiClient.get).toHaveBeenCalledWith("/apps?q=weekly&skip=5&limit=5");
     expect(result.current.artifacts).toHaveLength(1);
     expect(result.current.total).toBe(7);
   });
@@ -83,14 +84,14 @@ describe("useArtifacts", () => {
     const { result } = renderHook(() => useArtifacts(), { wrapper });
     expect(result.current.artifacts).toEqual([]);
     expect(result.current.total).toBe(0);
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts?skip=0&limit=50");
+    expect(apiClient.get).toHaveBeenCalledWith("/apps?skip=0&limit=50");
   });
 
   it("narrows to one agent's pages when asked", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     renderHook(() => useArtifacts({ agentId: "ag 1" }), { wrapper });
     await waitFor(() =>
-      expect(apiClient.get).toHaveBeenCalledWith("/artifacts?agent_id=ag+1&skip=0&limit=50"),
+      expect(apiClient.get).toHaveBeenCalledWith("/apps?agent_id=ag+1&skip=0&limit=50"),
     );
   });
 });
@@ -102,7 +103,7 @@ describe("useArtifactAgents", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "ag1", name: "Reporter" }] });
     const { result } = renderHook(() => useArtifactAgents(true), { wrapper });
     await waitFor(() => expect(result.current).toEqual([{ id: "ag1", name: "Reporter" }]));
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/agents");
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/agents");
   });
 
   it("asks nothing for a caller who may not see artifacts", () => {
@@ -123,7 +124,7 @@ describe("useArtifact", () => {
   it("reads the artifact and then its versions", async () => {
     const { result } = renderHook(() => useArtifact("a1"), { wrapper });
     await waitFor(() => expect(result.current.artifact?.title).toBe("Weekly report"));
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/versions"));
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/versions"));
     expect(result.current.versions).toEqual([]);
   });
 
@@ -145,11 +146,11 @@ describe("useArtifact", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ ...DETAIL, public_url: "https://x/a/k" });
     await act(() => result.current.enablePublicLink.mutateAsync());
     await waitFor(() => expect(result.current.artifact?.public_url).toBe("https://x/a/k"));
-    expect(apiClient.put).toHaveBeenCalledWith("/artifacts/a1/public-link");
+    expect(apiClient.put).toHaveBeenCalledWith("/apps/a1/public-link");
     expect(toastSuccess).toHaveBeenCalledWith("Public link ready");
 
     await act(() => result.current.disablePublicLink.mutateAsync());
-    expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1/public-link");
+    expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/public-link");
     expect(toastSuccess).toHaveBeenCalledWith("Public link turned off");
   });
 
@@ -159,8 +160,8 @@ describe("useArtifact", () => {
     await waitFor(() => expect(result.current.artifact).not.toBeNull());
 
     await act(() => result.current.remove.mutateAsync());
-    expect(apiClient.delete).toHaveBeenCalledWith("/artifacts/a1");
-    expect(toastSuccess).toHaveBeenCalledWith("Artifact deleted");
+    expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1");
+    expect(toastSuccess).toHaveBeenCalledWith("App deleted");
 
     vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("nope"));
     await act(async () => {
@@ -175,7 +176,7 @@ describe("useArtifact", () => {
     await waitFor(() => expect(result.current.artifact).not.toBeNull());
 
     await act(() => result.current.updatePublicLink.mutateAsync({ password: null }));
-    expect(apiClient.patch).toHaveBeenCalledWith("/artifacts/a1/public-link", { password: null });
+    expect(apiClient.patch).toHaveBeenCalledWith("/apps/a1/public-link", { password: null });
     expect(toastSuccess).toHaveBeenCalledWith("Public link settings saved");
 
     vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("bad"));
@@ -201,7 +202,7 @@ describe("useArtifact", () => {
     await waitFor(() => expect(result.current.artifact).not.toBeNull());
 
     await act(() => result.current.restoreVersion.mutateAsync("v2"));
-    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/versions/v2/restore");
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/versions/v2/restore");
     expect(toastSuccess).toHaveBeenCalledWith("Restored as version 9");
 
     vi.mocked(apiClient.post).mockResolvedValueOnce(DETAIL);
@@ -211,6 +212,35 @@ describe("useArtifact", () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("gone"));
     await act(async () => {
       await result.current.restoreVersion.mutateAsync("v0").catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalled();
+  });
+});
+
+describe("useArtifact follow", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("follows with a PUT, unfollows with a DELETE, and keeps the answer", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ ...DETAIL, following: true });
+    await act(() => result.current.follow.mutateAsync(true));
+    expect(apiClient.put).toHaveBeenCalledWith("/apps/a1/follow");
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "You will be notified when a new version is published",
+    );
+    await waitFor(() => expect(result.current.artifact?.following).toBe(true));
+
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ ...DETAIL, following: false });
+    await act(() => result.current.follow.mutateAsync(false));
+    expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/follow");
+    expect(toastSuccess).toHaveBeenCalledWith("You will no longer be notified about this app");
+
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("gone"));
+    await act(async () => {
+      await result.current.follow.mutateAsync(true).catch(() => undefined);
     });
     expect(toastError).toHaveBeenCalled();
   });
@@ -238,14 +268,14 @@ describe("useArtifactView", () => {
     });
     const { result } = renderHook(() => useArtifactView("a1", null, true), { wrapper });
     await waitFor(() => expect(result.current.data?.url).toBe("https://api/x"));
-    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/view");
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/view");
   });
 
   it("names the version a link pinned", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ url: "u", expires_at: "", version: {} });
     renderHook(() => useArtifactView("a1", "v 2", true), { wrapper });
     await waitFor(() =>
-      expect(apiClient.get).toHaveBeenCalledWith("/artifacts/a1/view?version_id=v%202"),
+      expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/view?version_id=v%202"),
     );
   });
 

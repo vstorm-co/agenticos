@@ -55,10 +55,10 @@ no shell and no container.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Web fetch**. Restrict `allowed_domains` to
+2. In **Toolbox**, enable **Read web pages**. Restrict `allowed_domains` to
    `github.com` and `example.com`, so the agent cannot be asked to fetch
    anything else.
-3. Enable **Files & shell**. Leave the backend on **Files** (the `state`
+3. Enable **Sandbox**. Leave the backend on **Files** (the `state`
    backend - no shell, no sandbox connection) and the scope on **This
    conversation** - the defaults are exactly what this recipe needs.
 4. Set a budget and a step limit for the trial. Each recorded fire cost about

@@ -12,6 +12,7 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
     description: "How refunds are handled.",
     category: null,
     enabled: true,
+    visibility: "org",
     file_count: 0,
     built_in: false,
     excerpt: "",

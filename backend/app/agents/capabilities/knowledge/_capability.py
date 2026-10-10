@@ -23,6 +23,7 @@ class KnowledgeConfig(BaseModel):
         ge=1,
         le=50,
         description="Passages returned when the model does not ask for a number",
+        json_schema_extra={"x-advanced": True},
     )
     self_query_enabled: bool = Field(
         default=False,
@@ -61,6 +62,7 @@ class KnowledgeConfig(BaseModel):
             "How many rephrasings `multi_query` may add, bounding its fan-out and "
             "cost. Ignored by the other modes"
         ),
+        json_schema_extra={"x-advanced": True},
     )
     # A `Literal`, not the `ParentContextMode` enum: the Builder's schema form
     # renders a select only from an inline `enum`, and an enum class reaches the

@@ -153,6 +153,7 @@ class ToolOutputLimitsConfig(BaseModel):
     over_tokens: bool = Field(
         default=False,
         description="Measure the threshold in estimated tokens rather than characters",
+        json_schema_extra={"x-advanced": True},
     )
     max_chars: int = Field(
         default=DEFAULT_MAX_CHARS,
@@ -161,21 +162,24 @@ class ToolOutputLimitsConfig(BaseModel):
             "Characters kept when a return is truncated, or when a spill or summary "
             "falls back to truncation. Left unset, never more than the threshold"
         ),
+        json_schema_extra={"x-advanced": True},
     )
     truncation_strategy: StrategyName = Field(
         default="head_tail",
         description="Which end(s) of an oversized text to keep when truncating",
         json_schema_extra={
+            "x-advanced": True,
             "x-enum-labels": {
                 "head": "Keep the start - good for headers and schemas",
                 "tail": "Keep the end - good for logs, where errors land last",
                 "head_tail": "Keep the start and end, eliding the middle",
-            }
+            },
         },
     )
     strip_ansi: bool = Field(
         default=False,
         description="Strip terminal colour codes from text returns before measuring and reducing",
+        json_schema_extra={"x-advanced": True},
     )
     summary_prompt: str = Field(
         default=DEFAULT_SUMMARY_PROMPT,
@@ -186,7 +190,7 @@ class ToolOutputLimitsConfig(BaseModel):
             "contain {output}, where the tool's full output is inserted; {tool_name} "
             "is available too, for the name of the tool that produced it"
         ),
-        json_schema_extra={"x-multiline": True},
+        json_schema_extra={"x-advanced": True, "x-multiline": True},
     )
 
     @model_validator(mode="after")

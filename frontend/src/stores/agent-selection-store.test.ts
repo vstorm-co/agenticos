@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentSelectionStore } from "./agent-selection-store";
 
@@ -55,5 +55,22 @@ describe("Agent selection store", () => {
     // The whole point of a default is that a fresh browser starts on it.
     useAgentSelectionStore.getState().setDefault("a2");
     expect(localStorage.getItem("agent-selection")).toContain("a2");
+  });
+});
+
+describe("inside the AI Architect's frame", () => {
+  it("keeps its selection out of the console's storage", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/assistant-frame", () => ({ inAssistantFrame: () => true }));
+    localStorage.removeItem("agent-selection");
+    const { useAgentSelectionStore: framed } = await import("./agent-selection-store");
+
+    framed.getState().select("assistant");
+    framed.getState().setDefault(null);
+    await framed.persist.rehydrate();
+    await framed.persist.clearStorage();
+
+    expect(localStorage.getItem("agent-selection")).toBeNull();
+    vi.doUnmock("@/lib/assistant-frame");
   });
 });

@@ -39,6 +39,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: null,
     is_default: false,
     label: null,
@@ -211,6 +212,13 @@ describe("McpServerPicker", () => {
   it("does not count a binding to each person's own account as unresolved", () => {
     // It names a service, not a connection, so there is no id to be missing.
     render(picker({ value: [personal("github")] }));
+
+    expect(screen.queryByText(/does not offer/)).toBeNull();
+  });
+
+  it("never counts the platform's own server as unresolved", () => {
+    // It is this deployment, so there is nothing that can have gone.
+    render(picker({ value: [{ account: "platform" }] }));
 
     expect(screen.queryByText(/does not offer/)).toBeNull();
   });
@@ -568,6 +576,11 @@ describe("which of a server's tools this agent may call", () => {
 describe("bindingKey", () => {
   it("tells the two kinds apart even when their ids coincide", () => {
     expect(bindingKey(bound("notion"))).not.toBe(bindingKey(personal("notion")));
+  });
+
+  it("names the platform's own server once, whatever its settings", () => {
+    expect(bindingKey({ account: "platform" })).toBe("platform");
+    expect(bindingKey({ account: "platform", approval: "all" })).toBe("platform");
   });
 
   it("is the same for the same binding whatever its tools", () => {

@@ -3,6 +3,7 @@ name: Patient Front Desk
 description: Handles appointment preparation and administrative questions from patients,
   and escalates anything clinical.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 3

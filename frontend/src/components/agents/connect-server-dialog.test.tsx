@@ -86,7 +86,7 @@ describe("ConnectServerDialog", () => {
         }),
       ),
     );
-    expect(onConnected).toHaveBeenCalledWith("c9");
+    expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ id: "c9" }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -182,6 +182,9 @@ describe("ConnectServerDialog", () => {
             catalog_key: "hubspot",
             client_id: "app-1",
             client_secret: "shh",
+            visibility: "org",
+            group_ids: [],
+            user_ids: [],
           },
           "organization",
         ),
@@ -201,7 +204,14 @@ describe("ConnectServerDialog", () => {
 
       await waitFor(() =>
         expect(startMcpOAuth).toHaveBeenCalledWith(
-          { name: "notion", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+          {
+            name: "notion",
+            url: "https://mcp.notion.com/mcp",
+            catalog_key: "notion",
+            visibility: "org",
+            group_ids: [],
+            user_ids: [],
+          },
           "organization",
         ),
       );
@@ -317,7 +327,7 @@ describe("ConnectOwnServerDialog", () => {
       expect(createOwn).toHaveBeenCalledWith(expect.objectContaining({ catalog_key: "github" })),
     );
     expect(create).not.toHaveBeenCalled();
-    expect(onConnected).toHaveBeenCalledWith("m9");
+    expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ id: "m9" }));
     expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/for you/i));
   });
 

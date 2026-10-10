@@ -192,6 +192,9 @@ export const viewport: Viewport = {
   // Required for env(safe-area-inset-*) to evaluate non-zero on iOS notches -
   // used by the mobile bottom tab bar.
   viewportFit: "cover",
+  // An on-screen keyboard shrinks the layout rather than sliding over it, so
+  // the chat's composer stays above it where the browser supports it (#2066).
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F5F2E8" },
     { media: "(prefers-color-scheme: dark)", color: SITE.themeColor },

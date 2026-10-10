@@ -20,7 +20,7 @@ procedure to run, with one recorded run as a reference.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Web search** (method DuckDuckGo) and **Web fetch**.
+2. In **Toolbox**, enable **Web search** (method DuckDuckGo) and **Read web pages**.
 3. Set a budget and a step limit for the trial. The recorded run used 20 steps
    and cost about 0.26 USD.
 4. Set the instructions below, then **Publish**.

@@ -277,4 +277,39 @@ describe("ChatInput attachments", () => {
     expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
     expect(state.upload).not.toHaveBeenCalled();
   });
+
+  it("attaches files handed in from outside once per hand-off, as if picked", async () => {
+    // The AI Architect's screenshot of the page arrives this way (#2063).
+    const shot = new File(["png"], "screenshot.png", { type: "image/png" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    await waitFor(() => expect(state.upload).toHaveBeenCalledWith(shot));
+
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot] }} />);
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledTimes(2));
+  });
+
+  it("sends on Enter at a desk, and starts a new line on a touch keyboard", async () => {
+    // A phone's keyboard has no Shift to hold for a line break, and the send
+    // button is a thumb away (#2066).
+    const onSend = vi.fn();
+    const { unmount } = render(<ChatInput onSend={onSend} />);
+    const box = screen.getByRole("textbox");
+    expect(box).toHaveAttribute("enterkeyhint", "send");
+    await userEvent.type(box, "hi{Enter}");
+    expect(onSend).toHaveBeenCalledOnce();
+    unmount();
+
+    const desk = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    onSend.mockClear();
+    render(<ChatInput onSend={onSend} />);
+    const touch = screen.getByRole("textbox");
+    expect(touch).toHaveAttribute("enterkeyhint", "enter");
+    await userEvent.type(touch, "one{Enter}two");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(touch).toHaveValue("one\ntwo");
+    window.matchMedia = desk;
+  });
 });

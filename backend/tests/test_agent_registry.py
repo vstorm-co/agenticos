@@ -49,6 +49,16 @@ REGISTRY_PATH = "app.services.agent_registry"
 
 
 @pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent here is shared with a group; `test_group_leads_and_shares` covers that."""
+
+    async def nobody(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.agent_registry.groups_sharing", nobody)
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 
@@ -1726,7 +1736,7 @@ class TestValidateSpec:
         model would be handed two servers under one prefix, which Pydantic AI
         refuses as duplicate tool names - aborting every turn of the agent."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion"
 
         with (
@@ -1759,7 +1769,7 @@ class TestValidateSpec:
         """The ordinary shape: the organization's handbook for everybody, and
         each person's own Linear."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion-handbook"
 
         with (
@@ -2585,6 +2595,15 @@ class TestListVersions:
 
 
 class TestGetRunnableSpec:
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these agents is the organization's assistant (#2063)."""
+        with patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     @pytest.mark.anyio
     async def test_the_published_spec_runs_and_not_the_draft(self):
         """Running the draft would mean running something nobody approved."""
@@ -3956,7 +3975,7 @@ class TestOneToolPrefixPerBinding:
 
     @staticmethod
     def _connection(name: str) -> MagicMock:
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = name
         return connection
 
@@ -4036,6 +4055,6 @@ class TestOneToolPrefixPerBinding:
 def _named_connection(name: str) -> MagicMock:
     """A connection row with a real name: `MagicMock(name=...)` names the mock,
     not the row, and the prefix check reads the row's."""
-    connection = MagicMock()
+    connection = MagicMock(visibility="org")
     connection.name = name
     return connection

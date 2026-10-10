@@ -9,13 +9,24 @@ import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { AgentSteps } from "./agent-step";
 import { TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { MessageCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, OctagonPause, Paperclip, RefreshCw, User } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  Globe,
+  OctagonPause,
+  Paperclip,
+  Pin,
+  PinOff,
+  RefreshCw,
+  User,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -99,6 +110,8 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  /** In the test panel: a question can be pinned to ask again after each change (#2075). */
+  pins?: PinnedPrompts;
 }
 
 export function MessageItem({
@@ -110,6 +123,7 @@ export function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  pins,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const isUser = message.role === "user";
@@ -336,6 +350,9 @@ export function MessageItem({
                 )}
               />
             )}
+            {isUser && pins && message.content && (
+              <PinButton pins={pins} prompt={message.content} />
+            )}
             {!isUser && onRegenerate && (
               <button
                 type="button"
@@ -510,5 +527,27 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       </span>
       <Paperclip className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
     </a>
+  );
+}
+
+/** Pin a question to ask again after each change, or take it off (#2075). */
+function PinButton({ pins, prompt }: { pins: PinnedPrompts; prompt: string }) {
+  const t = useTranslations("chat");
+  const pinned = pins.pinned.includes(prompt);
+  const label = pinned ? t("unpinQuestion") : t("pinQuestion");
+  return (
+    <button
+      type="button"
+      onClick={() => pins.toggle(prompt)}
+      title={label}
+      aria-label={label}
+      aria-pressed={pinned}
+      className={cn(
+        "bg-secondary hover:bg-secondary/80 inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors",
+        pinned ? "text-foreground" : "text-foreground/70 sm:opacity-0 sm:group-hover:opacity-100",
+      )}
+    >
+      {pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+    </button>
   );
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "012b6efb6435"
 ---
 
 # Entornos { #environments }
@@ -80,11 +80,36 @@ hasta que tú lo muevas. Un agent, dos audiencias, dos versiones, una sola
 contabilidad.
 
 Una página que el agent publica sigue la misma separación. Un run en un entorno
-con nombre publica un [artefacto](artifacts.md#one-name-one-link) propio, así que
+con nombre publica una [aplicación](artifacts.md#one-name-one-link) propia, así que
 probar `dev` con el informe semanal nunca vuelve a publicar la página que abren
 los lectores de producción. Un entorno con un run todavía en marcha, o esperando
 una aprobación, no se puede eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
 defecto, y sus páginas a las de producción.
+
+## Probarlo desde el Builder { #trying-it-from-the-builder }
+
+**Test**, en la cabecera del Builder, abre un chat al lado del Builder y no
+encima: el mismo chat que `/chat`, con streaming, pasos de herramientas, tarjetas
+de aprobación y preguntas. Responde como el **borrador**, con tus cambios sin
+publicar, o como la versión de cualquier entorno, y dice cuál. No se publica nada
+para probar el borrador: tiene que pasar las comprobaciones de una publicación y
+solo puede ejecutarlo quien puede editar el agent. Un run detenido en una
+aprobación continúa sobre el borrador tal como era al empezar el run.
+
+Cada turno ahí es un **run de prueba**: presupuestado y registrado como cualquier
+otro, marcado `test` en Activity y filtrable allí (**With test runs**, **Without
+test runs**, **Only test runs**; `?test=true` o `false` en `GET /api/v1/runs`). El
+panel empieza una conversación nueva, vuelve a enviar el último mensaje tras un
+cambio y guarda unos prompts fijados para relanzarlos con un clic. Su anchura, qué
+responde y los prompts fijados se recuerdan por agent en tu navegador. El marco del
+chat envía `draft: true`, o `test: true` con un `environment_id`, en cada turno.
+
+**Compare** pone dos chats lado a lado - el borrador y producción, o dos entornos -
+y el cuadro de encima pregunta lo mismo a ambos a la vez, así que las respuestas
+solo difieren en qué responde. **What the draft changes** muestra el borrador
+frente a la versión publicada, con el mismo diff que dibuja el historial de
+versiones. Pulsar <kbd>T</kbd> en cualquier parte del Builder, fuera de un campo de
+texto, abre o cierra el panel.
 
 ## Trazas por entorno { #tracing-per-environment }
 

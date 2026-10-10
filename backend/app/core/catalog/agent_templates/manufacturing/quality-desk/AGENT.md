@@ -3,6 +3,7 @@ name: Quality Desk
 description: Records deviations with containment first, and raises supplier nonconformances
   a supplier cannot dispute.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - charts

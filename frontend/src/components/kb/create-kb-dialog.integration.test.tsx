@@ -211,19 +211,13 @@ beforeEach(() => {
 });
 
 describe("who can search it", () => {
-  it("says what each audience means, for the one that is chosen", async () => {
+  it("offers the whole organization by default, and only me as a personal base", async () => {
+    // The organization by default (#2072); "only me" is what a personal base was.
     show();
-    const scope = screen.getByLabelText("Who can search it");
-    expect(scope).toHaveAccessibleDescription("Only you can see it, upload to it and search it.");
 
-    await userEvent.click(scope);
-    await userEvent.click(
-      await screen.findByRole("option", { name: "Organization - all members" }),
-    );
-
-    expect(screen.getByLabelText("Who can search it")).toHaveAccessibleDescription(
-      "Everyone in this organization can find it and search it.",
-    );
+    expect(screen.getByRole("radio", { name: /Everyone/ })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
   });
 });
 

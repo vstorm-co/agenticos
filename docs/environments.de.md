@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "012b6efb6435"
 ---
 
 # Umgebungen { #environments }
@@ -85,11 +85,38 @@ Buchführung.
 
 Eine Seite, die der Agent veröffentlicht, folgt derselben Trennung. Ein Run in
 einer benannten Umgebung veröffentlicht ein eigenes
-[Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
+[App](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
 Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
 Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
 sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
 Seiten denen von Produktion.
+
+## Aus dem Builder heraus ausprobieren { #trying-it-from-the-builder }
+
+**Testen** im Kopf des Builders öffnet einen Chat neben dem Builder statt darüber -
+denselben Chat wie `/chat`, mit Streaming, Tool-Schritten, Freigabekarten und
+Rückfragen. Er antwortet als **Entwurf**, mit Ihren unveröffentlichten Änderungen,
+oder als Version einer beliebigen Umgebung, und sagt, welche. Für einen Test des
+Entwurfs wird nichts veröffentlicht: Er muss die Prüfungen einer Veröffentlichung
+bestehen, und nur wer den Agent bearbeiten darf, kann ihn ausführen. Ein Run, der
+auf eine Freigabe wartet, setzt auf dem Entwurf fort, wie er beim Start des Runs
+war.
+
+Jede Runde dort ist ein **Test-Run**: budgetiert und aufgezeichnet wie jeder
+andere, in der Aktivität als `Test` markiert und dort filterbar (**Mit Test-Runs**,
+**Ohne Test-Runs**, **Nur Test-Runs**; `?test=true` oder `false` an
+`GET /api/v1/runs`). Der Bereich startet ein neues Gespräch, sendet nach einer
+Änderung die letzte Nachricht erneut und behält ein paar angeheftete Prompts, die
+sich mit einem Klick erneut ausführen lassen. Seine Breite, was antwortet, und die
+angehefteten Prompts werden pro Agent im Browser gespeichert. Der Chat-Frame sendet
+in jeder Runde `draft: true` oder `test: true` mit einer `environment_id`.
+
+**Vergleichen** stellt zwei Chats nebeneinander - den Entwurf und die Produktion
+oder zwei Umgebungen -, und das Feld darüber fragt beide gleichzeitig dasselbe,
+sodass sich die Antworten nur darin unterscheiden, was antwortet. **Was der
+Entwurf ändert** zeigt den Entwurf gegenüber der veröffentlichten Version, als
+denselben Diff, den die Versionshistorie zeichnet. Ein Druck auf <kbd>T</kbd>
+irgendwo im Builder, außerhalb eines Textfelds, öffnet oder schließt den Bereich.
 
 ## Tracing pro Umgebung { #tracing-per-environment }
 

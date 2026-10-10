@@ -4,7 +4,14 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useGroupMembers, useGroups } from "./use-groups";
+import {
+  useAddDepartments,
+  useGroupMembers,
+  useGroupResources,
+  useGroupSharing,
+  useGroupSpend,
+  useGroups,
+} from "./use-groups";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -167,5 +174,121 @@ describe("useGroupMembers", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Not a member here");
     expect(toast.error).toHaveBeenCalledWith("Not allowed");
+  });
+});
+
+describe("useGroupResources", () => {
+  it("reads what was shared with the group", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ kind: "skill", id: "s1", name: "ledger", level: "use" }],
+      total: 1,
+    });
+    const { result } = renderHook(() => useGroupResources("o-1", "g-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.resources).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/resources");
+  });
+});
+
+describe("a group's lead and what it is given (#2072)", () => {
+  it("names a lead, and says why when refused", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({ ...ROW, is_lead: true });
+    const { result } = renderHook(() => useGroupMembers("o-1", "g-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.setLead.mutateAsync({ userId: "u-1", isLead: true });
+    });
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/members/u-1", {
+      is_lead: true,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Lead updated");
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new ApiError(403, "Admins only"));
+    await act(async () => {
+      await result.current.setLead
+        .mutateAsync({ userId: "u-1", isLead: false })
+        .catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("Admins only");
+  });
+
+  it("offers what can be shared and shares several at once", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ kind: "skill", id: "s1", name: "ledger", level: "use" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useGroupSharing("o-1", "g-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.shareable).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/shareable");
+    await act(async () => {
+      await result.current.share.mutateAsync({
+        items: [{ kind: "skill", id: "s1" }],
+        level: "use",
+      });
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/shares", {
+      items: [{ kind: "skill", id: "s1" }],
+      level: "use",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Shared 1 item with the group");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "Cannot edit that"));
+    await act(async () => {
+      await result.current.share
+        .mutateAsync({ items: [{ kind: "skill", id: "s1" }], level: "use" })
+        .catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("Cannot edit that");
+  });
+});
+
+describe("useGroupSpend", () => {
+  it("reads the month when it may, and asks nothing when it may not (#2072)", async () => {
+    const month = { since: "2026-10-01T00:00:00Z", items: [] };
+    vi.mocked(apiClient.get).mockResolvedValue(month);
+
+    const allowed = renderHook(() => useGroupSpend("o-1"), { wrapper });
+    await waitFor(() => expect(allowed.result.current.spend).toEqual(month));
+    renderHook(() => useGroupSpend("o-1", false), { wrapper });
+    renderHook(() => useGroupSpend(null), { wrapper });
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/spend");
+  });
+});
+
+describe("useAddDepartments", () => {
+  it("creates each department in turn and says how many", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(GROUP);
+    const { result } = renderHook(() => useAddDepartments("o-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync([
+        { name: "Sales", description: null, icon: "briefcase" },
+        { name: "Finance", description: null, icon: "banknote" },
+      ]);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+    expect(toast.success).toHaveBeenCalledWith("Added 2 departments");
+  });
+
+  it("stops at a refused one and says why", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new ApiError(409, "Taken"));
+    const { result } = renderHook(() => useAddDepartments("o-1"), { wrapper });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync([
+          { name: "Sales", description: null },
+          { name: "HR", description: null },
+        ])
+        .catch(() => undefined);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("Taken");
   });
 });

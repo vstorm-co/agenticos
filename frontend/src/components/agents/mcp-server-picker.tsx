@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Plug, UserRound, Wrench } from "lucide-react";
 
+import { McpServerHealth } from "@/components/agents/mcp-server-health";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import {
   Badge,
@@ -37,6 +38,7 @@ import { useTranslations } from "next-intl";
  * needs to replace a binding's tools without knowing which kind it is.
  */
 export function bindingKey(ref: McpServerRef): string {
+  if (ref.account === "platform") return "platform";
   return ref.account === "personal"
     ? `personal:${ref.catalog_key}`
     : `organization:${ref.connection_id}`;
@@ -75,6 +77,8 @@ interface McpServerPickerProps {
    * it would make a presentational component fetch.
    */
   onConnect: (entry: McpCatalogEntry) => void;
+  /** Probe a bound server again, for somebody who may manage MCP servers. */
+  onCheck?: (connectionId: string) => Promise<unknown>;
   disabled?: boolean;
 }
 
@@ -109,6 +113,7 @@ export function McpServerPicker({
   onChange,
   onTools,
   onConnect,
+  onCheck,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
@@ -120,14 +125,17 @@ export function McpServerPicker({
   // longer holds, and a personal one to a key the catalog no longer describes.
   // A card can match neither, so unlisted they would vanish from the Builder
   // while publish kept refusing them.
+  // The platform's own server is never orphaned: it is this deployment.
   const orphaned = value.flatMap((ref) =>
-    ref.account === "organization"
-      ? known.has(ref.connection_id)
-        ? []
-        : [ref.connection_id]
-      : catalogKeys.has(ref.catalog_key)
-        ? []
-        : [ref.catalog_key],
+    ref.account === "platform"
+      ? []
+      : ref.account === "organization"
+        ? known.has(ref.connection_id)
+          ? []
+          : [ref.connection_id]
+        : catalogKeys.has(ref.catalog_key)
+          ? []
+          : [ref.catalog_key],
   );
 
   /** Replace whatever this row's binding was with `next`, or drop it. */
@@ -216,6 +224,7 @@ export function McpServerPicker({
             onRebind={(next) => rebind(row, next)}
             onTools={onTools}
             onConnect={onConnect}
+            onCheck={onCheck}
             disabled={disabled}
           />
         ))}
@@ -273,6 +282,7 @@ function ServerCard({
   onRebind,
   onTools,
   onConnect,
+  onCheck,
   disabled,
 }: {
   row: CardRow;
@@ -280,6 +290,7 @@ function ServerCard({
   onRebind: (next: McpServerRef | null) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
+  onCheck?: (connectionId: string) => Promise<unknown>;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -408,6 +419,10 @@ function ServerCard({
         {body}
       </button>
 
+      {isOn && !personal && connection && (
+        <McpServerHealth connection={connection} onCheck={onCheck} />
+      )}
+
       {/* Whose account, once bound. The organization's is what a binding
           means by default; each person's own is the other kind, and switching
           rewrites the binding rather than flagging it - the spec stores which
@@ -491,7 +506,7 @@ function ServerCard({
             onClick={() => onTools(binding, connection, name)}
           >
             <Wrench className="mr-1 h-3.5 w-3.5" />
-            {binding.allowed_tools === null
+            {binding.allowed_tools == null
               ? t("everyToolThisServerOffers")
               : t("toolCount", { count: binding.allowed_tools.length })}
           </Button>

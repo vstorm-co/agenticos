@@ -83,10 +83,10 @@ whatever its instructions say.
 | The agent can… | Switch on |
 |---|---|
 | **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
-| **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory files · Memory (mem0) · Conversation search |
-| **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Web fetch · Browser automation |
-| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Run Python · Files & shell · Charts · Image generation |
-| **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Context management |
+| **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory · Memory (mem0) · Past conversations |
+| **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Read web pages · Web browser |
+| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Calculations · Sandbox · Charts · Image generation |
+| **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Long conversations |
 | **Stay inside the lines** — redact or block what must not pass, cap what one tool may return, know what today's date is | Guardrails · Tool output limits · Date and time |
 
 Each one carries its own settings, its own permission scope and — where it acts

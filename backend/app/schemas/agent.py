@@ -8,11 +8,12 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
+from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
-from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
 # column that stores it. Measured on the *folded* value, since `casefold()` can
@@ -160,6 +161,13 @@ class AgentRead(BaseSchema):
             "endpoints answer with the default rather than paying a count nobody reads."
         ),
     )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The groups this agent is shared with, by name - the departments it "
+            "belongs to. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     channels: list[str] = Field(
         default_factory=list,
         description=(
@@ -236,7 +244,7 @@ class AgentList(BaseSchema):
     )
 
 
-class AgentCreate(BaseSchema):
+class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
@@ -246,15 +254,6 @@ class AgentCreate(BaseSchema):
     # can still change them afterwards without a publish.
     categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
     tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
-    visibility: Visibility = Field(
-        default=Visibility.ORG,
-        description=(
-            "Who can find this agent. `org` - the default - is everyone in the "
-            "organization; `private` is the owner and whoever they grant it to. "
-            "A draft cannot run either way, so this decides who sees it, not "
-            "what it does."
-        ),
-    )
 
     @field_validator("categories", "tags", mode="after")
     @classmethod
@@ -611,6 +610,28 @@ class ParkedCall(BaseSchema):
     tool_args: dict[str, Any] = Field(default_factory=dict)
 
 
+class ParkedQuestion(BaseSchema):
+    """An `ask_user_question` call a run is waiting on its person to answer (#2064)."""
+
+    tool_call_id: str = Field(description="The call to answer, which is what a client posts.")
+    questions: list[QuestionItem] = Field(
+        description="The questions, as the console's question card draws them."
+    )
+
+
+class QuestionAnswers(BaseSchema):
+    """The person's answers to the questions a run parked on."""
+
+    responses: dict[str, list[dict[str, Any]]] = Field(
+        min_length=1,
+        description=(
+            "Per parked call, the answers the question card sends: a list parallel "
+            "to its questions, each `{selected, answer, skipped}`. A call left out is "
+            "answered as declined."
+        ),
+    )
+
+
 class RunStep(BaseSchema):
     """One tool call an execution of a run made, and what came back from it."""
 
@@ -687,6 +708,13 @@ class AgentRunResult(BaseSchema):
             "arrive."
         ),
     )
+    questions: list[ParkedQuestion] = Field(
+        default_factory=list,
+        description=(
+            "The questions the run is now waiting on its person to answer, which is "
+            "empty unless it stopped on one again - the same reason `parked` exists."
+        ),
+    )
 
 
 class AgentTemplateRead(BaseSchema):
@@ -736,3 +764,48 @@ class TemplateInstallResult(BaseSchema):
     skills_installed: list[str] = Field(description="Gallery skills copied in for this agent")
     attach: list[str] = Field(description="What to attach before publishing")
     suggested_mcp: list[str] = Field(description="Catalog keys worth connecting")
+
+
+class PromptVariableRead(BaseSchema):
+    """A system variable an agent's instructions may write as `{{name}}` (#2065)."""
+
+    name: str
+    description: str
+    example: str
+
+
+class PromptVariableCatalog(BaseSchema):
+    items: list[PromptVariableRead]
+
+
+KnowledgeSourceKind = Literal["collection", "skill", "context", "mcp"]
+
+
+class KnowledgeSource(BaseSchema):
+    """One knowledge source an agent binds, and who it is shared with (#2072).
+
+    An organization MCP server counts: its tools read a department's systems as
+    surely as a knowledge base reads its documents.
+    """
+
+    kind: KnowledgeSourceKind
+    id: UUID
+    name: str
+    whole_organization: bool
+    groups: list[str] = Field(
+        default_factory=list, description="The groups it is shared with, by name"
+    )
+    reaches_fewer_than_agent: bool = Field(
+        description=(
+            "Whether the agent reaches people this source is not shared with - who "
+            "then get answers drawn from it all the same"
+        )
+    )
+
+
+class AgentKnowledgeReach(BaseSchema):
+    """Who an agent reaches, and where each of its knowledge sources comes from."""
+
+    whole_organization: bool
+    groups: list[str] = Field(default_factory=list)
+    sources: list[KnowledgeSource] = Field(default_factory=list)

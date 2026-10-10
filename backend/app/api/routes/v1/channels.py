@@ -63,6 +63,20 @@ async def get_bot(
     return await service.get(bot_id)
 
 
+@router.get(
+    "/bots/{bot_id}/slack-manifest",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def get_slack_manifest(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
+    """The Slack app's whole configuration for this bot, to paste into Slack (#2067).
+
+    Its events, buttons, `/agent` and the message shortcut point at this
+    deployment, with the assistant pane, App Home and the scopes they use.
+    """
+    return await service.slack_manifest(bot_id)
+
+
 @router.patch(
     "/bots/{bot_id}",
     response_model=ChannelBotRead,

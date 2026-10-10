@@ -1,259 +1,164 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { CornerDownLeft, Pencil, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "./button";
+import { useState } from "react";
+import { ChevronLeft, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-export interface QuestionPromptItem {
-  question: string;
-  options?: string[];
-  /** Allow a free-form answer via the "Something else" field (default true). */
-  allowCustom?: boolean;
-}
+import { cn } from "@/lib/utils";
+import { Button } from "./button";
+import {
+  QuestionSlide,
+  type QuestionPromptAnswer,
+  type QuestionPromptItem,
+} from "./question-slide";
 
-export interface QuestionPromptAnswer {
-  answer: string;
-  skipped: boolean;
-}
+export type { QuestionChoice, QuestionPromptAnswer, QuestionPromptItem } from "./question-slide";
 
 export interface QuestionPromptProps {
-  /** Questions to ask, in order. The card steps through them one at a time. */
+  /** Questions to ask, in order. The card shows one at a time. */
   questions: QuestionPromptItem[];
   /** Disable all controls (e.g. while the socket is offline). */
   disabled?: boolean;
-  /** Called once every question has been answered or skipped. */
+  /** Called once with an answer (or a skip) for every question. */
   onComplete: (answers: QuestionPromptAnswer[]) => void;
 }
 
+const SKIPPED: QuestionPromptAnswer = { answer: "", skipped: true };
+
+function shown(answer: QuestionPromptAnswer | undefined, skipped: string): string {
+  if (!answer || answer.skipped) return skipped;
+  return answer.selected && answer.selected.length > 0 ? answer.selected.join(", ") : answer.answer;
+}
+
 /**
- * Reusable question card. Steps through `questions` one at a time, collecting an
- * answer (a chosen option, free text, or a skip) for each, then returns them all
- * via `onComplete`. Keyboard: digit keys pick an option, ↑/↓ move focus, Enter
- * selects the focused option (or submits the custom answer).
+ * A carousel of questions the agent is waiting on (#2064).
+ *
+ * One question per slide, the way Claude's web app asks: a chip naming it, the
+ * options as large rows with what each means, and a free answer underneath.
+ * Picking moves on; the dots and Back revisit an earlier slide. With more than
+ * one question the last step is a summary, so nothing is sent until the person
+ * has seen all their answers together. × skips everything that is left, which
+ * the agent reads as declining.
  */
 export function QuestionPrompt({ questions, disabled = false, onComplete }: QuestionPromptProps) {
   const t = useTranslations("ui");
   const [step, setStep] = useState(0);
-  const answersRef = useRef<QuestionPromptAnswer[]>([]);
+  const [answers, setAnswers] = useState<(QuestionPromptAnswer | undefined)[]>([]);
+  // The furthest slide reached, so the dots can go forward again after Back.
+  const [reached, setReached] = useState(0);
 
-  if (questions.length === 0) return null;
   const total = questions.length;
-  const current = questions[step]!;
+  if (total === 0) return null;
+  const reviewing = step >= total;
 
-  const commit = (a: QuestionPromptAnswer) => {
-    const next = [...answersRef.current, a];
-    answersRef.current = next;
-    if (next.length >= total) onComplete(next);
-    else setStep((s) => s + 1);
+  const answer = (index: number, given: QuestionPromptAnswer) => {
+    const next = [...answers];
+    next[index] = given;
+    setAnswers(next);
+    if (total === 1) {
+      onComplete([given]);
+      return;
+    }
+    setStep(index + 1);
+    setReached(Math.max(reached, index + 1));
   };
 
-  const dismiss = () => {
-    const remaining = questions
-      .slice(answersRef.current.length)
-      .map(() => ({ answer: "", skipped: true }));
-    onComplete([...answersRef.current, ...remaining]);
-  };
+  // Sending from the summary and × are the same act: whatever was not answered
+  // goes back as skipped.
+  const settle = () => onComplete(questions.map((_, index) => answers[index] ?? SKIPPED));
 
   return (
     <div className="bg-muted/40 border-foreground/10 overflow-hidden rounded-2xl border">
-      <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-0.5">
-        {total > 1 ? (
-          <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {t("questionStep", { step: step + 1, total })}
-          </span>
-        ) : (
-          <span />
-        )}
-        <button
-          type="button"
-          onClick={dismiss}
-          disabled={disabled}
-          aria-label={t("dismissQuestions")}
-          className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
+      <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-2">
+        <div className="flex items-center gap-2">
+          {step > 0 && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setStep(step - 1)}
+              aria-label={t("previousQuestion")}
+              className="text-muted-foreground hover:text-foreground -ml-1 rounded-md p-0.5"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
+          {total > 1 && (
+            <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+              {reviewing ? t("reviewAnswers") : t("questionStep", { step: step + 1, total })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {total > 1 && (
+            <div className="flex items-center gap-1">
+              {questions.map((item, index) => (
+                <button
+                  key={`${item.header ?? item.question}-${index}`}
+                  type="button"
+                  disabled={disabled || index > reached}
+                  onClick={() => setStep(index)}
+                  aria-label={t("goToQuestion", { step: index + 1 })}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    index === step
+                      ? "bg-foreground w-4"
+                      : answers[index]
+                        ? "bg-foreground/50 w-1.5"
+                        : "bg-foreground/15 w-1.5",
+                  )}
+                />
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={settle}
+            disabled={disabled}
+            aria-label={t("dismissQuestions")}
+            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <SingleQuestion
-        key={step}
-        question={current.question}
-        options={current.options ?? []}
-        allowCustom={current.allowCustom ?? true}
-        isLast={step + 1 >= total}
-        disabled={disabled}
-        onAnswer={(text) => commit({ answer: text, skipped: false })}
-        onSkip={() => commit({ answer: "", skipped: true })}
-      />
-    </div>
-  );
-}
-
-interface SingleQuestionProps {
-  question: string;
-  options: string[];
-  allowCustom: boolean;
-  isLast: boolean;
-  disabled: boolean;
-  onAnswer: (answer: string) => void;
-  onSkip: () => void;
-}
-
-function SingleQuestion({
-  question,
-  options,
-  allowCustom,
-  isLast,
-  disabled,
-  onAnswer,
-  onSkip,
-}: SingleQuestionProps) {
-  const t = useTranslations("ui");
-  const hasOptions = options.length > 0;
-  const [focusIdx, setFocusIdx] = useState(0);
-  // Open the free-form field straight away when there are no options to pick.
-  const [customOpen, setCustomOpen] = useState(allowCustom && !hasOptions);
-  const [customText, setCustomText] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (customOpen) inputRef.current?.focus();
-    else containerRef.current?.focus();
-  }, [customOpen]);
-
-  const submitCustom = () => {
-    const text = customText.trim();
-    if (text) onAnswer(text);
-  };
-
-  const onListKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (disabled || customOpen || !hasOptions) return;
-    if (/^[1-9]$/.test(e.key)) {
-      const idx = Number(e.key) - 1;
-      if (idx < options.length) {
-        e.preventDefault();
-        onAnswer(options[idx]!);
-      }
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setFocusIdx((i) => Math.min(i + 1, options.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setFocusIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      onAnswer(options[focusIdx]!);
-    }
-  };
-
-  return (
-    <div
-      ref={containerRef}
-      tabIndex={-1}
-      onKeyDown={onListKeyDown}
-      role="group"
-      aria-label={t("questionFromAssistant")}
-      className="outline-none"
-    >
-      <p className="text-foreground px-4 pb-2.5 text-[15px] leading-snug font-medium">{question}</p>
-
-      {hasOptions && (
-        <ul className="divide-foreground/8 border-foreground/8 divide-y border-t">
-          {options.map((option, i) => {
-            const focused = i === focusIdx && !customOpen;
-            return (
-              <li key={`${option}-${i}`}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onMouseEnter={() => setFocusIdx(i)}
-                  onClick={() => onAnswer(option)}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
-                    focused ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs tabular-nums",
-                      focused
-                        ? "bg-foreground/10 text-foreground"
-                        : "bg-foreground/5 text-muted-foreground",
-                    )}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="text-foreground min-w-0 flex-1 truncate text-sm">{option}</span>
-                  {focused && <CornerDownLeft className="text-muted-foreground h-4 w-4 shrink-0" />}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div className={cn("border-foreground/8", hasOptions && "border-t")}>
-        {customOpen ? (
-          <div className="flex items-center gap-2 px-4 py-2.5">
-            <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={customText}
-              disabled={disabled}
-              placeholder={t("typeYourAnswer")}
-              onChange={(e) => setCustomText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  submitCustom();
-                }
-              }}
-              className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
-            />
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={disabled || !customText.trim()}
-              onClick={submitCustom}
-            >
-              {isLast ? t("done") : t("next")}
+      {reviewing ? (
+        <div className="space-y-3 px-4 pb-3">
+          <dl className="space-y-2">
+            {questions.map((item, index) => (
+              <div key={`${item.header ?? item.question}-${index}`}>
+                <dt className="text-muted-foreground text-xs">{item.header ?? item.question}</dt>
+                <dd className="text-foreground text-sm">{shown(answers[index], t("skipped"))}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex justify-end">
+            <Button type="button" size="sm" disabled={disabled} onClick={settle}>
+              {t("sendAnswers")}
             </Button>
           </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-            {allowCustom ? (
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setCustomOpen(true)}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                {t("somethingElse")}
-              </button>
-            ) : (
-              <span />
-            )}
-            <Button
+        </div>
+      ) : (
+        <>
+          <QuestionSlide
+            key={step}
+            item={questions[step]!}
+            previous={answers[step]}
+            disabled={disabled}
+            onAnswer={(given) => answer(step, given)}
+          />
+          <div className="border-foreground/8 flex justify-end border-t px-4 py-2">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
               disabled={disabled}
-              onClick={onSkip}
+              onClick={() => answer(step, SKIPPED)}
+              className="text-muted-foreground hover:text-foreground text-xs transition-colors"
             >
               {t("skip")}
-            </Button>
+            </button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

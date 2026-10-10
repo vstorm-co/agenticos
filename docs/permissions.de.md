@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "4576627e8758"
 ---
 
 # Berechtigungen { #permissions }
@@ -98,8 +98,13 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
 **Globale** Berechtigungen sind binär und organisationsweit: `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`, `mcp:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+`approvals:decide`, `connections:view`, `connections:manage`,
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` erlaubt einem Mitglied,
+[API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;
+`api_keys:manage` listet und widerruft die aller. Ein Schlüssel hält eine
+Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
 
 !!! example "Warum `ml:invoke` nicht `agents:run` ist"
 
@@ -132,6 +137,12 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents
 anfassen?", sondern *welche* Agents.
 
+`mcp:manage` ist eine davon: Ein MCP-Server der Organisation lässt sich auf
+Gruppen oder Personen einschränken, wie ein Skill
+([Abteilungen](departments.md#a-departments-mcp-servers)). Eine Rolle, die sie auf
+`SHARED` hält, sieht die Server der Organisation, ihre eigenen und die mit ihr
+geteilten; `ALL` sieht jeden.
+
 ### Scope { #scope }
 
 Geordnet als `NONE < OWN < SHARED < TEAM < ALL`.
@@ -161,9 +172,9 @@ benutzerdefinierte Rollen.
 |---|---|---|---|---|
 | `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete` |
 | `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete` |
-| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
+| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
 | `viewer` | liest | `view` `SHARED` | keines | keines |
 
 Der Unterschied zwischen `builder` und `admin` ist der interessante: Ein Builder

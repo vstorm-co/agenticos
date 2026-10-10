@@ -8,6 +8,8 @@ from pydantic import Field, field_validator
 
 from app.agents.capabilities import all_capabilities
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 """The Agent Skills name format: lowercase letters and digits, joined by hyphens.
@@ -130,6 +132,17 @@ class SkillSummary(BaseSchema):
             "show what the skill says without the listing carrying every body"
         ),
     )
+    used_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose draft binds this, among those the caller may see - so a "
+            "card says where it is used, or that it is used nowhere yet"
+        ),
+    )
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - the departments it belongs to.",
+    )
 
 
 class SkillList(BaseSchema):
@@ -151,7 +164,7 @@ class SkillList(BaseSchema):
     )
 
 
-class SkillCreate(BaseSchema):
+class SkillCreate(AudienceChoice):
     name: str = Field(
         min_length=1,
         max_length=64,

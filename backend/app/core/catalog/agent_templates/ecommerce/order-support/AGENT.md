@@ -3,6 +3,7 @@ name: Order Support
 description: Answers where-is-my-order, returns and exchanges from the order record,
   and decides what it can on the spot.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 3

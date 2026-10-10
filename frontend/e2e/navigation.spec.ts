@@ -128,6 +128,8 @@ test.describe("Dashboard navigation", () => {
     ["/settings/providers", "/vault"],
     ["/providers", "/vault"],
     ["/settings/mcp-servers", "/mcp-servers"],
+    // Apps were artifacts until #2071.
+    ["/artifacts", "/apps"],
   ];
 
   for (const [from, to] of MOVED_ROUTES) {

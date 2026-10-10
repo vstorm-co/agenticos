@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "6fe9ef2b0740"
 ---
 
 # Configuración { #configuration }
@@ -472,6 +472,7 @@ permanente para el otro, así que cada definición de servicio lleva la suya.
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Cuánto espera una llamada a herramienta aparcada antes de que el barrido horario la deniegue por tiempo |
+| `QUESTION_EXPIRY_HOURS` | `24` | Cuánto espera un run la respuesta a una pregunta del agent antes de que el mismo barrido lo termine |
 
 Tres días porque tiene que abarcar un fin de semana: la aprobación que llega el
 viernes por la tarde es la que nadie decide, y caducarla el sábado sería caducarla
@@ -693,16 +694,16 @@ igual que una `gdrive` nombra una cuenta de servicio. El endpoint y la región s
 recurriendo a estos ajustes porque ninguno nombra a un principal: dicen dónde está el
 almacén, no quién pregunta.
 
-## Artefactos publicados { #published-artifacts }
+## Aplicaciones publicadas { #published-artifacts }
 
 Páginas que los agents publican con la capability `artifacts`. Sus bytes viven en
 el almacenamiento de ficheros de arriba; estos ajustes los acotan y dicen desde
-dónde se sirven. Consulta [Artefactos](artifacts.md).
+dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por aplicación. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 

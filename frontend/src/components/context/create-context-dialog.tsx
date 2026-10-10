@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -84,6 +90,7 @@ export function CreateContextDialog({
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState<string>(initial?.format ?? DEFAULT_FORMAT);
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [mode, setMode] = useState<ContextMode>("inject");
   const [content, setContent] = useState(initial?.content ?? "");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -110,12 +117,14 @@ export function CreateContextDialog({
         content,
         format: format.trim() || DEFAULT_FORMAT,
         mode,
+        ...audiencePayload(audience),
       });
       setName("");
       setDescription("");
       setFormat(DEFAULT_FORMAT);
       setMode("inject");
       setContent("");
+      setAudience(EVERYONE);
       setErrors({});
       onCreated();
     } catch (error) {
@@ -207,6 +216,11 @@ export function CreateContextDialog({
               aria-invalid={errors.description ? true : undefined}
             />
             <FieldNote error={errors.description}>{t("shownWhenLinked")}</FieldNote>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>{t("whoCanUseIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
 
           {/* The pane the file will be read in once it exists, rather than a

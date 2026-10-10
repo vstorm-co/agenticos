@@ -4,11 +4,14 @@ import { useMemo } from "react";
 
 import { useAgents } from "@/hooks";
 import type { ChatMessage, TurnUsage } from "@/types";
+import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
   messages: ChatMessage[];
   onRegenerate?: (messageId: string) => void;
+  /** The test panel's pinned questions; a question here can be pinned or taken off. */
+  pins?: PinnedPrompts;
 }
 
 /**
@@ -96,7 +99,7 @@ export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | u
   return messages[at]?.usage;
 }
 
-export function MessageList({ messages, onRegenerate }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, pins }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
   // turns. The query is the one the agent picker already made, so this costs a
@@ -141,6 +144,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
           endsTurn={endsTurn(messages, index)}
           turnUsage={turnUsage(messages, index)}
           openLastStep={index === openStepsAt}
+          pins={pins}
           onRegenerate={
             onRegenerate && index === lastAssistantIndex && !message.isStreaming
               ? () => onRegenerate(message.id)

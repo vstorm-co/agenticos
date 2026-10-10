@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
+import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-spec";
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
   AgentDetail,
+  AgentKnowledgeReach,
   AgentList,
   AgentSpec,
   AgentVersion,
@@ -21,6 +24,7 @@ import type {
   CapabilityCatalog,
   DelegationTree,
   SpecialistSpec,
+  SystemPromptVariable,
 } from "@/types/agents";
 
 /** What promoting a specialist sends: the specialist whole, plus the model a null
@@ -88,14 +92,19 @@ export function useAgents({
     mutationFn: ({
       spec,
       visibility,
+      group_ids,
+      user_ids,
       categories,
       tags,
     }: {
       spec: AgentSpec;
       visibility?: Visibility;
+      group_ids?: string[];
+      user_ids?: string[];
       categories?: string[];
       tags?: string[];
-    }) => apiClient.post<Agent>("/agents", { spec, visibility, categories, tags }),
+    }) =>
+      apiClient.post<Agent>("/agents", { spec, visibility, group_ids, user_ids, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));
@@ -211,7 +220,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -339,6 +348,10 @@ export function useAgent(agentId: string | null) {
   return {
     agent: data,
     isLoading,
+    /** When the agent was last read successfully - what a page waiting on a
+     *  refetch it did not start watches for. A failed refetch does not count:
+     *  it has not shown what changed. */
+    fetchedAt: dataUpdatedAt,
     saveDraft,
     validate,
     publish,
@@ -461,6 +474,16 @@ export function useAgentVersion(agentId: string | null, versionId: string | null
   return { version: data, isLoading, error };
 }
 
+/** The system variables any agent's instructions may write as `{{name}}` (#2065). */
+export function usePromptVariables() {
+  const { data } = useQuery({
+    queryKey: qk.agents.promptVariables(),
+    queryFn: () => apiClient.get<{ items: SystemPromptVariable[] }>("/agents/prompt-variables"),
+    staleTime: Infinity,
+  });
+  return { variables: data?.items ?? [] };
+}
+
 /**
  * Everything an agent can be given.
  *
@@ -473,5 +496,62 @@ export function useCapabilityCatalog() {
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
     staleTime: Infinity,
   });
-  return { capabilities: data?.items ?? [], isLoading };
+  const guide = useCapabilityGuide();
+  // Named and described in the reader's language wherever the console has the
+  // words, so the list, the panel and the map beside it all say "Sandbox" (#2070).
+  const capabilities = useMemo(
+    () =>
+      (data?.items ?? []).map((entry) => {
+        const plain = guide(entry.id);
+        return plain ? { ...entry, name: plain.name, description: plain.does } : entry;
+      }),
+    [data, guide],
+  );
+  return { capabilities, isLoading };
+}
+
+/**
+ * Give an agent a skill, a context file or a knowledge base from where it lives.
+ *
+ * Reads the agent's draft and writes it back with the resource bound - the same
+ * draft save the Builder makes, so nothing is published and the change is in
+ * the Builder for whoever opens it next (#2075). Answers whether it was bound
+ * already rather than writing an identical draft.
+ */
+export function useAddToAgent() {
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      agentId,
+      resource,
+    }: {
+      agentId: string;
+      resource: AgentResourceRef;
+    }): Promise<{ already: boolean }> => {
+      const agent = await apiClient.get<AgentDetail>(`/agents/${agentId}`);
+      if (hasResource(agent.draft_spec, resource)) return { already: true };
+      await apiClient.put<Agent>(`/agents/${agentId}/draft`, {
+        spec: withResource(agent.draft_spec, resource),
+      });
+      return { already: false };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+}
+
+/**
+ * Which groups an agent's knowledge, skills and context come from (#2072).
+ *
+ * Under `qk.agents.all()`, so saving the draft - a source bound or unbound -
+ * reads it again.
+ */
+export function useKnowledgeReach(agentId: string | null) {
+  const { data } = useQuery({
+    queryKey: qk.agents.knowledgeReach(agentId ?? ""),
+    queryFn: () => apiClient.get<AgentKnowledgeReach>(`/agents/${agentId}/knowledge-reach`),
+    enabled: !!agentId,
+  });
+  return { reach: data ?? null };
 }

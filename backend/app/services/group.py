@@ -26,11 +26,31 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import Perm, assignable_roles, role_has
+from app.core.permissions import AuthContext, Perm, assignable_roles, role_has
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import MembershipSource, OrganizationMember
-from app.repositories import directory_mapping_repo, group_repo, member_repo
-from app.schemas.group import GroupCreate, GroupUpdate
+from app.repositories import (
+    agent_repo,
+    artifact_repo,
+    context_repo,
+    directory_mapping_repo,
+    group_repo,
+    knowledge_base_repo,
+    mcp_connection_repo,
+    member_repo,
+    resource_grant_repo,
+    skill_repo,
+)
+from app.schemas.group import GroupCreate, GroupResource, GroupUpdate
+from app.services.access import (
+    AGENT,
+    ARTIFACT,
+    COLLECTION,
+    CONTEXT,
+    MCP_CONNECTION,
+    SKILL,
+    accessible_ids,
+)
 
 
 class GroupService:
@@ -59,6 +79,19 @@ class GroupService:
         membership = await self._membership(organization_id, requester_id)
         if not role_has(membership.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
+
+    async def _require_member_manager(
+        self, organization_id: UUID, group_id: UUID, requester_id: UUID
+    ) -> None:
+        """Who may change who is in a group: `members:manage`, or the group's own lead."""
+        membership = await self._membership(organization_id, requester_id)
+        if role_has(membership.role, Perm.MEMBERS_MANAGE):
+            return
+        lead = await group_repo.get_member(self.db, group_id=group_id, user_id=requester_id)
+        if lead is None or not lead.is_lead:
+            raise AuthorizationError(
+                message="Only an administrator or the group's lead can change who is in it"
+            )
 
     async def _group(self, organization_id: UUID, group_id: UUID) -> Group:
         group = await group_repo.get(self.db, organization_id=organization_id, group_id=group_id)
@@ -91,6 +124,8 @@ class GroupService:
                     organization_id=organization_id,
                     name=data.name,
                     description=data.description,
+                    icon=data.icon,
+                    monthly_budget_usd=data.monthly_budget_usd,
                     created_by_user_id=requester_id,
                 )
         except IntegrityError as exc:
@@ -118,12 +153,21 @@ class GroupService:
         # A description sent as null clears it; one not sent at all is left alone.
         sent = data.model_fields_set
         description = data.description if "description" in sent else group.description
+        icon = data.icon if "icon" in sent else group.icon
+        budget = (
+            data.monthly_budget_usd if "monthly_budget_usd" in sent else group.monthly_budget_usd
+        )
         if name != group.name:
             await self._refuse_taken_name(organization_id, name)
         try:
             async with self.db.begin_nested():
                 updated = await group_repo.update(
-                    self.db, group, name=name, description=description
+                    self.db,
+                    group,
+                    name=name,
+                    description=description,
+                    icon=icon,
+                    monthly_budget_usd=budget,
                 )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -184,6 +228,69 @@ class GroupService:
         group = await self._group(organization_id, group_id)
         return await group_repo.list_members(self.db, group.id)
 
+    async def resources(self, ctx: AuthContext, group_id: UUID) -> list[GroupResource]:
+        """What one group has been given, among what the caller may see (#2072).
+
+        Any member may ask, as with the group's members; each resource is narrowed
+        by the caller's own view permission, so a department's page never names
+        an agent or a collection its reader could not open.
+        """
+        await self._membership(ctx.organization_id, ctx.subject_id)
+        group = await self._group(ctx.organization_id, group_id)
+        grants = await resource_grant_repo.list_for_group(
+            self.db, organization_id=ctx.organization_id, group_id=group.id
+        )
+
+        def ids(kind: str) -> list[UUID]:
+            return [grant.resource_id for grant in grants if grant.resource_type == kind]
+
+        org = ctx.organization_id
+        agents = await agent_repo.get_many(self.db, ids(AGENT.key), organization_id=org)
+        collections = await knowledge_base_repo.get_by_ids(self.db, ids(COLLECTION.key))
+        skills = await skill_repo.get_many(self.db, ids(SKILL.key), organization_id=org)
+        files = await context_repo.get_many(self.db, ids(CONTEXT.key), organization_id=org)
+        apps = await artifact_repo.get_many(self.db, ids(ARTIFACT.key), organization_id=org)
+        names: dict[UUID, str] = {}
+        for rows, resource_type in (
+            (agents, AGENT),
+            (collections, COLLECTION),
+            (skills, SKILL),
+            (files, CONTEXT),
+        ):
+            reachable = await accessible_ids(
+                self.db, ctx, rows.values(), resource_type.view, resource_type=resource_type
+            )
+            names.update({key: row.name for key, row in rows.items() if key in reachable})
+        reachable_apps = await accessible_ids(
+            self.db, ctx, apps.values(), ARTIFACT.view, resource_type=ARTIFACT
+        )
+        names.update({key: app.title for key, app in apps.items() if key in reachable_apps})
+        servers = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db, connection_ids=ids(MCP_CONNECTION.key), organization_id=org
+        )
+        reachable_servers = await accessible_ids(
+            self.db, ctx, servers.values(), MCP_CONNECTION.view, resource_type=MCP_CONNECTION
+        )
+        names.update(
+            {
+                key: server.label or server.name
+                for key, server in servers.items()
+                if key in reachable_servers
+            }
+        )
+        return [
+            GroupResource.model_validate(
+                {
+                    "kind": grant.resource_type,
+                    "id": grant.resource_id,
+                    "name": names[grant.resource_id],
+                    "level": grant.level,
+                }
+            )
+            for grant in grants
+            if grant.resource_id in names
+        ]
+
     async def add_member(
         self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID
     ) -> tuple[GroupMember, str, str | None]:
@@ -198,7 +305,7 @@ class GroupService:
                 group reaches what was shared with it, and an outsider in one
                 would reach this organization's resources.
         """
-        await self._require_manage(organization_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, requester_id)
         group = await self._group(organization_id, group_id)
         if await member_repo.get(self.db, organization_id=organization_id, user_id=user_id) is None:
             raise BadRequestError(
@@ -252,7 +359,7 @@ class GroupService:
         self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID
     ) -> None:
         """Take somebody out of a group, whoever put them there."""
-        await self._require_manage(organization_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, requester_id)
         group = await self._group(organization_id, group_id)
         member = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
         if member is None:
@@ -269,6 +376,36 @@ class GroupService:
             target_id=str(group.id),
             details={"user_id": str(user_id)},
         )
+
+    async def set_lead(
+        self,
+        organization_id: UUID,
+        group_id: UUID,
+        user_id: UUID,
+        requester_id: UUID,
+        *,
+        is_lead: bool,
+    ) -> tuple[GroupMember, str, str | None]:
+        """Make a member the group's lead, or not. Administrators only: a lead can
+        add members, so naming one is handing out part of `members:manage`."""
+        await self._require_manage(organization_id, requester_id)
+        group = await self._group(organization_id, group_id)
+        member = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
+        if member is None:
+            raise NotFoundError(
+                message="Not a member of this group", details={"user_id": str(user_id)}
+            )
+        await group_repo.set_member_lead(self.db, member, is_lead=is_lead)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="group.lead_changed",
+            target_type="group",
+            target_id=str(group.id),
+            details={"user_id": str(user_id), "is_lead": is_lead},
+        )
+        return await self._member_row(group.id, user_id)
 
     async def _refuse_taken_name(self, organization_id: UUID, name: str) -> None:
         if await group_repo.get_by_name(self.db, organization_id=organization_id, name=name):

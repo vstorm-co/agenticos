@@ -1,3 +1,5 @@
+import type { AgentUsage } from "./agents";
+
 export type KBScope = "personal" | "org" | "app";
 
 /**
@@ -149,6 +151,15 @@ export interface KnowledgeBase {
   document_count: number;
   indexed_count: number;
   chunk_count: number;
+  /** `org` is everyone; `private` is its owner and whoever it is shared with. */
+  visibility?: string;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
+  /** The groups it is shared with, by name (#2072). Only the listings carry it. */
+  shared_groups?: string[];
 }
 
 export interface KnowledgeBaseList {
@@ -160,6 +171,9 @@ export interface CreateKnowledgeBaseInput {
   name: string;
   description?: string;
   scope: KBScope;
+  /** Limit an organization collection to these groups and people (#2072); it is created private. */
+  group_ids?: string[];
+  user_ids?: string[];
   /**
    * Omit to inherit this deployment's defaults, which is what most collections
    * want. Present, it is taken whole - there is no merging with the defaults.

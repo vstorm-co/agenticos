@@ -6,9 +6,18 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic_ai.exceptions import CallDeferred
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
-from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
+from app.agents.ask_user import (
+    QuestionChoice,
+    QuestionItem,
+    answers_to_response,
+    asking_delegate,
+    render_answer,
+    wire_questions,
+)
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -34,6 +43,8 @@ from app.services.agent_chat import (
     requested_approval_mode,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
+    requested_time_zone,
 )
 from app.services.agent_runner import PersonalServiceGap
 from app.services.attachments import load_turn_attachments
@@ -114,6 +125,10 @@ def _turn_failed(exc: Exception) -> str:
     )
 
 
+class _LeftUnanswered(Exception):
+    """The socket went away while the run's own question card was open."""
+
+
 class AgentSession:
     """One WebSocket session with the AI agent."""
 
@@ -142,15 +157,20 @@ class AgentSession:
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
         self._current_timeline: TurnTimeline | None = None
-        # The question awaiting an answer, so the frame handler can record the
-        # answered pair the moment it arrives - before a `stop` frame behind it
-        # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
-        self._pending_question: str | None = None
+        # The questions awaiting answers, so the frame handler can record each
+        # answered pair the moment they arrive - before a `stop` frame behind them
+        # can cancel the turn and lose them (#502). One round at a time, under
+        # `_ask_lock`: a delegate's single question, or an `ask_user` card.
+        self._pending_questions: list[str] | None = None
         # Which delegate that question came from, read where the question is put
         # rather than where its answer lands: the delegation's state is bound for
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        # Whether the open round is the run's own `ask_user` card, which outlives
+        # the socket: left unanswered, it parks the run rather than being read as
+        # declined (#2064). A delegate's question has no such afterlife.
+        self._round_parks = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -200,12 +220,13 @@ class AgentSession:
             # the next frame, so completing the pair now is what keeps a turn
             # cancelled a microtask later from losing the answered question
             # (#502).
-            if self._pending_question is not None and self._current_timeline is not None:
-                self._current_timeline.add_ask_user(
-                    self._pending_question,
-                    render_answer(answers[0] if answers else None),
-                    asked_by=self._pending_asked_by,
-                )
+            if self._pending_questions is not None and self._current_timeline is not None:
+                for index, question in enumerate(self._pending_questions):
+                    self._current_timeline.add_ask_user(
+                        question,
+                        render_answer(answers[index] if index < len(answers) else None),
+                        asked_by=self._pending_asked_by,
+                    )
             return
 
         if msg_type == "connect_account_response":
@@ -331,7 +352,10 @@ class AgentSession:
         # wait ends.
         fut = self._ask_user_future
         if fut is not None and not fut.done():
-            fut.set_result([])
+            if self._round_parks:
+                fut.set_exception(_LeftUnanswered())
+            else:
+                fut.set_result([])
         # The same for a run waiting on a connection: nobody is there to make it.
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
@@ -459,6 +483,7 @@ class AgentSession:
                     ),
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
+                    ask_questions=self._ask_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -476,6 +501,10 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
+                    person_time_zone=requested_time_zone(data),
+                    # The Builder's test panel: the draft, or a version, marked
+                    # as a test either way (#2074).
+                    testing=requested_testing(data),
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -500,7 +529,9 @@ class AgentSession:
                     # Stored as `awaiting_approval`, so reloading the page keeps
                     # saying the step is waiting on a person (#601). The frame
                     # below carries the same calls to whoever is watching live.
-                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
+                    | set(turn.questions),
+                    mcp_origins=turn.mcp_origins,
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
@@ -632,6 +663,7 @@ class AgentSession:
             agent_id=agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
+            mcp_origins=run.mcp_origins,
         )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
@@ -648,7 +680,9 @@ class AgentSession:
         inside it, and unbound again by the time the answer comes back on the
         receive loop. `None` is the main agent asking the question itself (#1042).
         """
-        item = QuestionItem(question=question, options=options)
+        item = QuestionItem(
+            question=question, options=[QuestionChoice(label=option) for option in options]
+        )
         asked_by = asking_delegate()
         # **Under the lock, with the round it belongs to.** The frame handler
         # records the answered pair onto the turn's timeline the moment the
@@ -659,14 +693,38 @@ class AgentSession:
         # the second's name. The lock already held the wire round; it holds what
         # names it now too.
         async with self._ask_lock:
-            self._pending_question = question
+            self._pending_questions = [question]
             self._pending_asked_by = asked_by
             try:
                 answers = await self._send_and_wait([item.model_dump()])
             finally:
-                self._pending_question = None
+                self._pending_questions = None
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
+
+    async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
+        """Put an `ask_user` card to the client and return the picks (#2064).
+
+        The same frame and the same lock as a delegate's question, so a card and a
+        delegate asking at once queue rather than draw over each other, and the
+        answered pairs land on the turn's timeline the moment they arrive.
+        """
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = asking_delegate()
+            self._round_parks = self._pending_asked_by is None
+            try:
+                answers = await self._send_and_wait(wire_questions(request))
+            except _LeftUnanswered:
+                # The person went away with the card open: the run parks on the
+                # call, and answering it later - here or on another device -
+                # continues it.
+                raise CallDeferred from None
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+                self._round_parks = False
+        return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.

@@ -1042,3 +1042,36 @@ describe("a field that suggests rather than restricts", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 });
+
+describe("advanced settings (#2070)", () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      mode: { type: "string", title: "Mode", default: "fast" },
+      max_results: { type: "integer", title: "Max results", default: 5, "x-advanced": true },
+    },
+  };
+
+  const fold = (value: Record<string, unknown>, errors?: Record<string, string>) => {
+    render(
+      <SchemaForm schema={schema} value={value} onChange={vi.fn()} idPrefix="t" errors={errors} />,
+    );
+    return screen.getByText("Advanced settings").closest("details");
+  };
+
+  it("folds a field marked advanced and keeps the others in view", () => {
+    const details = fold({});
+
+    expect(details).not.toHaveAttribute("open");
+    expect(details).toContainElement(screen.getByLabelText("Max results"));
+    expect(details).not.toContainElement(screen.getByLabelText("Mode"));
+  });
+
+  it("opens where an advanced field was set", () => {
+    expect(fold({ max_results: 8 })).toHaveAttribute("open");
+  });
+
+  it("opens where an advanced field was refused", () => {
+    expect(fold({}, { max_results: "Too many" })).toHaveAttribute("open");
+  });
+});

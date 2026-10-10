@@ -3,6 +3,7 @@ name: Claims Intake
 description: Takes a first notification of loss completely on the first contact, and
   escalates what must not wait.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - clock

@@ -1,4 +1,4 @@
-<!-- source_sha: f38e57a726cf -->
+<!-- source_sha: b0d8863e1cb7 -->
 
 <div align="center">
 
@@ -189,7 +189,7 @@ Si usas [Claude Code](https://code.claude.com/docs/en/overview) o [Codex](https:
 
 ### 🎨 Publica resultados como páginas interactivas
 
-Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **artefactos**. Elige quién puede abrirlos; las actualizaciones conservan el mismo enlace y las versiones anteriores siguen disponibles. Los enlaces públicos pueden caducar, pedir una contraseña o limitar qué sitios pueden incrustarlos. [Compartir un artefacto](https://vstorm-co.github.io/agenticos/es/artifacts/)
+Los agentes pueden publicar informes, comparaciones interactivas y pequeños paneles como **aplicaciones**. Elige quién puede abrirlos; las actualizaciones conservan el mismo enlace y las versiones anteriores siguen disponibles. Los enlaces públicos pueden caducar, pedir una contraseña o limitar qué sitios pueden incrustarlos. [Compartir una aplicación](https://vstorm-co.github.io/agenticos/es/artifacts/)
 
 ### 📊 Supervisa runs, costes y aprobaciones
 
@@ -201,7 +201,7 @@ Personaliza el **dashboard** según tu trabajo. **Activity** permite revisar run
 
 ### 👥 Organiza equipos con roles y grupos
 
-**Los roles definen qué pueden hacer las personas. Los grupos definen con quién compartes.** Usa roles como Builder, Operator, Member y Viewer y crea departamentos o grupos de trabajo como Operations, Engineering, Finance y Research. Comparte un agente, skill, colección, archivo de contexto o artefacto con un grupo en un solo paso.
+**Los roles definen qué pueden hacer las personas. Los grupos definen con quién compartes.** Usa roles como Builder, Operator, Member y Viewer y crea departamentos o grupos de trabajo como Operations, Engineering, Finance y Research. Comparte un agente, skill, colección, archivo de contexto o aplicación con un grupo en un solo paso, o limítalo a los departamentos que elijas al crearlo. [Departamentos y grupos](https://vstorm-co.github.io/agenticos/es/departments/)
 
 Usa las cuentas existentes de la empresa mediante **inicio de sesión único con OIDC** (Entra ID, Okta, Keycloak y otros), **acceso al directorio con LDAP** o **inicio de sesión integrado de Windows con Kerberos**. Las **asignaciones de directorio** vinculan grupos del directorio con un rol y un grupo al iniciar sesión. [Roles y permisos](https://vstorm-co.github.io/agenticos/es/permissions/) · [Inicio de sesión con directorio](https://vstorm-co.github.io/agenticos/es/directory/)
 
@@ -232,7 +232,7 @@ Usa las cuentas existentes de la empresa mediante **inicio de sesión único con
 
 <br>
 
-<img src="docs/assets/readme/security-layers.webp" alt="Seis capas de seguridad: vault, sandboxes, artefactos, registro de auditoría, sesiones y tráfico, higiene de datos." width="100%">
+<img src="docs/assets/readme/security-layers.webp" alt="Seis capas de seguridad: vault, sandboxes, aplicaciones, registro de auditoría, sesiones y tráfico, higiene de datos." width="100%">
 
 La seguridad funciona por capas. Las credenciales están en un vault con cifrado de sobre. El código se ejecuta en sandboxes aisladas. Las páginas publicadas están aisladas en una sandbox. Cada organización tiene un registro de auditoría encadenado por hashes. Las sesiones son de corta duración y revocables, y se aplican límites de frecuencia. Los registros se censuran y los datos se eliminan según un calendario de retención.
 
@@ -275,7 +275,7 @@ La seguridad funciona por capas. Las credenciales están en un vault con cifrado
 
 - **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, archivos de memoria, memoria mediante mem0, búsqueda en conversaciones.
 - **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), descarga de páginas web, automatización del navegador y browser-use (integrado, aún no instalable).
-- **Archivos, código y resultados:** ejecución de Python, archivos y shell en una sandbox de contenedor, gráficos, generación de imágenes (OpenAI o Google), artefactos.
+- **Archivos, código y resultados:** ejecución de Python, archivos y shell en una sandbox de contenedor, gráficos, generación de imágenes (OpenAI o Google), aplicaciones.
 - **Cómo trabaja:** delegación en otros agentes, planificación, razonamiento, búsqueda de herramientas, fecha y hora, recordatorios del sistema.
 - **Seguridad y límites:** guardrails que censuran secretos y datos personales, gestión del contexto, descarga de contenido multimedia, límites de salida de las herramientas.
 - **Canales de chat:** consulta de canales para bots de Slack, Telegram y Mattermost.

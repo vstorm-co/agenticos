@@ -20,6 +20,7 @@ from uuid import UUID
 
 from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import verify_token
+from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.impersonation import ImpersonationService
 from app.services.session import SessionService
 from app.services.user import UserService
@@ -64,6 +65,10 @@ async def authenticate_socket_token(
             or an impersonation that has ended, or resolves to a user who is unknown or
             suspended.
     """
+    caller = await authenticate_socket_key(db, token)
+    if caller is not None:
+        return caller.user
+
     payload = verify_token(token, verify_exp=not allow_expired)
     if payload is None:
         raise AuthenticationError(message="Invalid or expired token")
@@ -87,3 +92,20 @@ async def authenticate_socket_token(
         raise AuthenticationError(message="User account is disabled")
 
     return user
+
+
+async def authenticate_socket_key(db: AsyncSession, token: str) -> KeyCaller | None:
+    """The organization key a socket was opened with, re-checked, or `None` for a JWT.
+
+    A key-authenticated chat socket is held to its key on every frame the way a
+    session socket is held to its session: revoking the key, letting it expire, or
+    removing its issuer closes the socket at the next frame (#1794). The context
+    comes back fresh each time, so a demotion narrows the next turn rather than
+    the next connection.
+
+    Raises:
+        AuthenticationError: The key is no longer valid.
+    """
+    if not is_api_key(token):
+        return None
+    return await ApiKeyService(db).authenticate(token)

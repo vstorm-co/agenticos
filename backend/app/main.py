@@ -12,6 +12,10 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from starlette.routing import Route
+
+from app.services import change_feed, platform_mcp
+from app.services.change_feed import ChangeFeedMiddleware
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
@@ -166,6 +170,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And the maintenance gate, which runs above the dependency graph on every
     # request and so has no `request.state` to read either.
     maintenance.configure(redis_client)
+    # And the change feed (#2061): its middleware publishes above the dependency
+    # graph, and its sockets outlive the request that opened them.
+    change_feed.configure(redis_client)
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
@@ -215,7 +222,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # policy on the dev stack - already replaces. Startup is deliberately not
     # watched; app/core/watchdog.py says why.
     watchdog.start()
-    yield state
+    async with platform_mcp.serve_platform_mcp(app, app.state):
+        yield state
     # Decline new intake before anything else: a bot activated moments ago left a
     # deferred `open_inbound_stream` that `drain()` below awaits, and without this
     # its `start_polling` would reopen a stream after the stop loops - after intake
@@ -260,6 +268,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     channel_connection_state.configure(None)
     trigger_dedupe.configure(None)
     maintenance.configure(None)
+    change_feed.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -372,6 +381,10 @@ OS for your agents.
         exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
     )
 
+    # Directly above GZip: pure ASGI, so it re-streams nothing, and it reads a
+    # created row's id from a compressed answer by decoding it.
+    app.add_middleware(ChangeFeedMiddleware)
+
     # Outermost of the three, because it exists to answer before anything reads the
     # body - a middleware under CORS or the session would run after the request had
     # already been received.
@@ -412,6 +425,12 @@ OS for your agents.
     )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # The platform's own MCP server (#2058), served beside the API rather than
+    # under its prefix: an MCP client is pointed at `<host>/mcp`, and the OAuth
+    # metadata path it discovers is fixed by the spec.
+    for path in platform_mcp.ROUTE_PATHS:
+        app.router.routes.append(Route(path, endpoint=platform_mcp.forward))
 
     return app
 

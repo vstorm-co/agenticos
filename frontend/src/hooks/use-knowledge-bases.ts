@@ -30,12 +30,14 @@ import type {
   KnowledgeBase,
   KnowledgeBaseList,
 } from "@/types";
+import { useCreatedToast } from "./use-created-toast";
 
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
   // Every toast the catalog already held. It walked `*.tsx` alone, so this
   // directory had never been read by the guard at all (#425).
   const t = useTranslations("knowledgeBases");
+  const created = useCreatedToast();
   const listOrgId = useTenantId();
   const stillSameTenant = useTenantGuard();
 
@@ -86,10 +88,10 @@ export function useKnowledgeBases() {
       const startedIn = listOrgId;
       const kb = await apiClient.post<KnowledgeBase>("/kb", input);
       writeCache((prev) => [kb, ...prev], startedIn);
-      toast.success(t("created"));
+      created(t("created"), { kind: "collection", id: kb.id }, kb.name);
       return kb;
     },
-    [writeCache, listOrgId, t],
+    [writeCache, listOrgId, t, created],
   );
 
   /**

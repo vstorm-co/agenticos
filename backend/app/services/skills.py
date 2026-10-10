@@ -41,6 +41,8 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
+from app.services.resource_usage import agents_using, groups_sharing
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -283,8 +285,19 @@ class SkillService:
             limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
+        used = await agents_using(
+            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
+        )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
+        )
         return SkillList(
-            items=[_summary(skill, bundled_names) for skill in items],
+            items=[
+                _summary(skill, bundled_names).model_copy(
+                    update={"used_by": used[skill.id], "shared_groups": groups[skill.id]}
+                )
+                for skill in items
+            ],
             total=total,
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
@@ -344,6 +357,8 @@ class SkillService:
         category: str | None = None,
         visibility: Visibility = Visibility.PRIVATE,
         library_fingerprint: str | None = None,
+        group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> Skill:
         """Create a skill.
 
@@ -387,6 +402,14 @@ class SkillService:
             target_id=str(skill.id),
             details={"name": name},
         )
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                skill,
+                resource_type=SKILL,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
+            )
         return skill
 
     async def update(self, ctx: AuthContext, skill_id: UUID, data: SkillUpdate) -> Skill:

@@ -1,4 +1,5 @@
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
+import type { AudiencePayload } from "@/types/sharing";
 import type { McpServerRow } from "@/lib/mcp-servers";
 
 /**
@@ -67,6 +68,11 @@ export interface ConnectionFormValues {
    */
   clientId: string;
   clientSecret: string;
+  /**
+   * Who a new organization connection reaches (#2072). Read only for a new one
+   * on the organization; a personal connection is its owner's alone.
+   */
+  audience: AudiencePayload;
 }
 
 /** A probed connection and which of its tools are currently checked. */

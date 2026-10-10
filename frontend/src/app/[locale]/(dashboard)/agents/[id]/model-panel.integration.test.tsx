@@ -85,6 +85,7 @@ vi.mock("@/hooks", () => ({
   useAgentVersions: () => ({ versions: [] }),
   useAllAgentVersions: () => ({ versions: [] }),
   useCapabilityCatalog: () => ({ capabilities: [] }),
+  usePromptVariables: () => ({ variables: [] }),
   useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
   useExposures: () => ({ exposures: [] }),
   useEmbeds: () => ({ embeds: [] }),
@@ -120,6 +121,7 @@ vi.mock("@/stores", () => ({
     select({ select: vi.fn() }),
   useConversationStore: (select: (state: { reset: () => void }) => unknown) =>
     select({ reset: vi.fn() }),
+  useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
 }));
 
 // Composition the Model panel does not depend on. Each is covered where it

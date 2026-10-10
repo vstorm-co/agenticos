@@ -3,6 +3,7 @@ name: Records and Minutes
 description: Produces minutes that record decisions, actions and dissent, and tracks
   complaints through their statutory stages.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

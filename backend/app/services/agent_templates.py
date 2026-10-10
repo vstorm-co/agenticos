@@ -57,6 +57,10 @@ class AgentTemplate:
     mcp: tuple[str, ...] = ()
     """Catalog keys worth connecting. Suggestions - a connection needs somebody to authorise it."""
 
+    mcp_servers: tuple[dict[str, Any], ...] = ()
+    """MCP bindings the agent is created with, as the spec takes them - for a
+    server that needs nobody to authorise it, such as this platform's own."""
+
     attach: tuple[str, ...] = ()
     """What a person still has to provide: `collection`, `context`, `sandbox`."""
 
@@ -133,6 +137,7 @@ def _read(folder: Path, *, industry: str) -> AgentTemplate:
         capabilities=tuple(_binding(item) for item in capabilities),
         skills=_strings(metadata.get("skills")),
         mcp=_strings(metadata.get("mcp")),
+        mcp_servers=_bindings(metadata.get("mcp_servers")),
         attach=_strings(metadata.get("attach")),
         budget_usd=float(budget) if isinstance(budget, int | float) else None,
     )
@@ -145,6 +150,15 @@ def _strings(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list):
         raise TypeError(f"Expected a list of names, got {value!r}")
     return tuple(str(item) for item in value)
+
+
+def _bindings(value: Any) -> tuple[dict[str, Any], ...]:
+    """MCP bindings as the manifest wrote them; the spec validates each at install."""
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise TypeError(f"`mcp_servers` must be a list of bindings, got {value!r}")
+    return tuple(dict(item) for item in value)
 
 
 def _binding(item: Any) -> dict[str, Any]:

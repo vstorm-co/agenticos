@@ -3,6 +3,7 @@ name: Repository Guide
 description: Answers a new engineer from the repository's own docs, always with the
   file path.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 4

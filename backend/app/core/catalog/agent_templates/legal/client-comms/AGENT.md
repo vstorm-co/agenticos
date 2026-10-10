@@ -3,6 +3,7 @@ name: Client Communications
 description: Writes matter updates that say where things are, what they cost and what
   happens next.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - context

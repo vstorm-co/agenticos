@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+
 import { useChat } from "./use-chat";
 import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
@@ -1999,7 +2001,39 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.pendingQuestions).toEqual([
-      { question: "Which invoice?", options: [], allowCustom: true },
+      {
+        question: "Which invoice?",
+        header: undefined,
+        options: [],
+        multiSelect: false,
+        allowCustom: true,
+      },
+    ]);
+  });
+
+  it("carries a card's headers, option descriptions and multi-select (#2064)", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("ask_user", {
+      questions: [
+        {
+          question: "Who will use it?",
+          header: "Audience",
+          options: [{ label: "Everyone", description: "The whole organization" }],
+          multi_select: true,
+          allow_custom: true,
+        },
+      ],
+    });
+
+    expect(result.current.pendingQuestions).toEqual([
+      {
+        question: "Who will use it?",
+        header: "Audience",
+        options: [{ label: "Everyone", description: "The whole organization" }],
+        multiSelect: true,
+        allowCustom: true,
+      },
     ]);
   });
 
@@ -2014,7 +2048,7 @@ describe("useChat - approvals and questions", () => {
   it("sends the answers and closes the prompt", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
-      questions: [{ question: "Which?", options: ["a"], allow_custom: false }],
+      questions: [{ question: "Which?", options: [{ label: "a" }], allow_custom: false }],
     });
 
     act(() => result.current.sendAskUserResponses([{ answer: "a", skipped: false }]));
@@ -2107,6 +2141,36 @@ describe("useChat - what goes out with a turn", () => {
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).not.toHaveProperty("approval_mode");
+  });
+});
+
+describe("useChat - the Builder's test panel", () => {
+  it.each([
+    [
+      { draft: true, environmentId: null },
+      { test: true, draft: true },
+    ],
+    [
+      { draft: false, environmentId: "env-dev" },
+      { test: true, environment_id: "env-dev" },
+    ],
+    [{ draft: false, environmentId: null }, { test: true }],
+  ])("marks every turn a test, of the draft or an environment (%o)", (testing, expected) => {
+    const { result } = renderHook(() => useChat({ testing }), { wrapper });
+
+    act(() => result.current.sendMessage("try it"));
+
+    expect(frame(0)).toMatchObject(expected);
+    if (!testing.draft) expect(frame(0)).not.toHaveProperty("draft");
+    if (!testing.environmentId) expect(frame(0)).not.toHaveProperty("environment_id");
+  });
+
+  it("sends nothing of the sort from the ordinary chat", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("hello"));
+
+    expect(frame(0)).not.toHaveProperty("test");
   });
 });
 
@@ -2739,5 +2803,160 @@ describe("useChat - watching a browse", () => {
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
     // The frames still arrive; only the panel is closed. The card is still there.
     expect(result.current.browses[0]?.steps).toHaveLength(1);
+  });
+});
+
+/** A stored turn whose run parked on a question its person left unanswered (#2064). */
+function askedTurn() {
+  return {
+    id: "m-1",
+    role: "assistant" as const,
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-1",
+    runId: "r-1",
+    toolCalls: [
+      { id: "ask-1", name: "ask_user_question", args: {}, status: "awaiting_answer" as const },
+    ],
+  };
+}
+
+const ASKED = [
+  {
+    tool_call_id: "ask-1",
+    questions: [
+      {
+        question: "How formal?",
+        header: "Tone",
+        options: [{ label: "Formal" }, { label: "Casual" }],
+        allow_custom: true,
+      },
+    ],
+  },
+];
+
+describe("useChat - a question its person came back to", () => {
+  it("puts the card back when a reloaded conversation is waiting on an answer", async () => {
+    get.mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(get.mock.calls).toEqual([["/runs/r-1/questions"]]);
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({
+      question: "How formal?",
+      header: "Tone",
+      allowCustom: true,
+    });
+  });
+
+  it("answers over HTTP, closes the step and draws the continuation", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Here it is, casually.",
+      status: "completed",
+      settled: [{ tool_call_id: "ask-1", result: '{"Tone": ["Casual"]}' }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", {
+      responses: { "ask-1": [{ answer: "", selected: ["Casual"], skipped: false }] },
+    });
+    // Nothing went over the socket: its turn ended when the run parked.
+    expect(sent.mock.calls.some(([sentFrame]) => sentFrame.type === "ask_user_response")).toBe(
+      false,
+    );
+    const messages = useChatStore.getState().messages;
+    expect(messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: '{"Tone": ["Casual"]}',
+    });
+    expect(messages.at(-1)?.content).toBe("Here it is, casually.");
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("puts a question asked again on the continuation back up", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "",
+      status: "awaiting_answer",
+      steps: [{ tool_call_id: "ask-2", tool_name: "ask_user_question", args: {} }],
+      questions: [{ ...ASKED[0], tool_call_id: "ask-2" }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Formal"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(useChatStore.getState().messages.at(-1)?.toolCalls?.[0]?.status).toBe("awaiting_answer");
+  });
+
+  it("says why when the answer could not continue the run", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("nope"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", skipped: true }]);
+    });
+
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("asks once per run, and offers nothing when the run is not waiting on this reader", async () => {
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    act(() => {
+      useChatStore
+        .getState()
+        .addMessage({ id: "m-2", role: "user", content: "hi", timestamp: new Date() });
+    });
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("stays quiet when the questions could not be read", async () => {
+    get.mockRejectedValue(new Error("offline"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

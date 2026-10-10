@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "f1a4e83b7fd4"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -8,7 +8,7 @@ Poniżej opisano moduły konsoli. Zrzuty poprzedniej wersji interfejsu usunięto
 
 ## Demo produktu { #product-demo }
 
-Aktualne zmontowane demo pokazuje OSS Launch Planner: zadanie wykorzystujące brief z Notion i informacje z GitHuba, interaktywny artefakt oraz link do udostępnienia. Usunięto czas oczekiwania; raport zawiera dane z chwili wykonania.
+Aktualne zmontowane demo pokazuje OSS Launch Planner: zadanie wykorzystujące brief z Notion i informacje z GitHuba, interaktywną aplikację oraz link do udostępnienia. Usunięto czas oczekiwania; raport zawiera dane z chwili wykonania.
 
 <video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline style="width:100%"></video>
 

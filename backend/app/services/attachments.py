@@ -246,7 +246,7 @@ def _too_large_to_show(chat_file: ChatFile) -> str:
     return (
         f"\n---\nAttached image: {chat_file.filename} ({_size(chat_file)}) - too large "
         "to show, and this agent has no workspace to read it from. Attach a smaller "
-        "version, or give the agent the Files & shell capability."
+        "version, or give the agent the Sandbox capability."
     )
 
 

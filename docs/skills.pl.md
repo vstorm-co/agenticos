@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skille { #skills }
@@ -112,6 +112,11 @@ przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
 
+**Prosto ze skilla.** Każda karta na stronie Skille ma **Dodaj do agenta**:
+wybierasz agenta, a skill trafia do jego szkicu razem z włączoną capability
+Skille, gotowy do opublikowania w Builderze. Karta mówi też, którzy agenci
+używają skilla - albo że jeszcze żaden. Pliki kontekstu i bazy wiedzy mają to samo.
+
 **Nazwa skilla to id, pod którym model go ładuje**, więc ma formę, w jakiej
 modele piszą id: małe litery i cyfry połączone pojedynczymi myślnikami, na przykład
 `refund-policy`. Nazwa ze spacjami lub wielkimi literami jest odrzucana przy
@@ -192,7 +197,7 @@ a nie więcej informacji.
 **Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
 rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
 `artifact-pages`, który uczy agenta budować stronę dla capability
-[Artifacts](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 

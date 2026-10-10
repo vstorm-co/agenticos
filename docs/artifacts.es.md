@@ -1,24 +1,24 @@
 ---
-source_sha: "8c8da72b2c36"
+source_sha: "94ce53b8a699"
 ---
 
-# Artefactos { #artifacts }
+# Aplicaciones { #artifacts }
 
-Un **artefacto** es una página que un agent ha publicado: un informe, un pequeño
+Una **aplicación** es una página que un agent ha publicado: un informe, un pequeño
 dashboard, un resumen de una página que alguien abre en el navegador. Tiene un
 enlace que no cambia cuando el agent vuelve a publicarla, así que «cada lunes,
 publica las cifras de la semana en esta página» es un solo enlace que la gente
 guarda en favoritos, en lugar de uno nuevo cada semana.
 
-Un artefacto no es un archivo. Un gráfico, un PDF generado y un archivo del
-workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Un
-artefacto es lo que se *sirve*: tiene un propietario, una visibilidad y grants
+Una aplicación no es un archivo. Un gráfico, un PDF generado y un archivo del
+workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
+aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
 
-## Publicar uno { #publishing-one }
+## Publicar una { #publishing-one }
 
-Activa la capability **Artifacts** para el agent. Añade dos herramientas:
+Activa la capability **Apps** para el agent. Añade dos herramientas:
 `publish_artifact`, que el modelo llama cuando el resultado es algo que una
 persona debería abrir en lugar de leerlo una vez en el chat, y `read_artifact`,
 que vuelve a leer una página publicada.
@@ -26,7 +26,7 @@ que vuelve a leer una página publicada.
 La página sale de uno de tres sitios:
 
 - **Un archivo del workspace del agent**, terminado en `.html` o `.md`. Es el
-  caso habitual para un agent con la capability [Archivos y shell](reference/capabilities.md#files-shell):
+  caso habitual para un agent con la capability [Sandbox](reference/capabilities.md#files-shell):
   escribe `report.html`, ejecuta lo que haga falta para construirlo y después
   publica el archivo. Los bytes se leen a través del propio backend de workspace
   del run, así que funciona con todos los backends de sandbox.
@@ -56,8 +56,8 @@ corte.
 
 ## Un nombre, un enlace { #one-name-one-link }
 
-La identidad de un artefacto es su **nombre dentro del agent**: `weekly-report`,
-`churn-dashboard`. Publicar con el mismo nombre actualiza el mismo artefacto,
+La identidad de una aplicación es su **nombre dentro del agent**: `weekly-report`,
+`churn-dashboard`. Publicar con el mismo nombre actualiza la misma aplicación,
 desde cualquier superficie: el chat, la API, un [trigger](triggers.md) o un
 workflow. Un nombre nuevo crea una página nueva. El nombre admite letras
 minúsculas, dígitos y guiones, hasta 64 caracteres.
@@ -70,15 +70,15 @@ tienen en favoritos. El entorno se lee del propio run, nunca del modelo, y la
 lista y la página lo nombran.
 
 El nombre lo comparten todos los que ejecutan el agent, pero la página no. Un run
-vuelve a publicar un artefacto existente solo cuando la persona por la que actúa
-es su propietaria o tiene `artifacts:edit` sobre él, por el rol o por un grant
-`edit`: la misma regla que para gestionarlo en la consola. Al run de cualquier
+vuelve a publicar una aplicación existente solo cuando la persona por la que actúa
+es su propietaria o tiene `artifacts:edit` sobre ella, por el rol o por un grant
+`edit`: la misma regla que para gestionarla en la consola. Al run de cualquier
 otra persona se le dice que el nombre está ocupado y publica con otro, así que un
 compañero que pida al mismo agent compartido un `weekly-report` no puede
 sustituir la página que hay detrás de tu enlace.
 
 Cada publicación es una **versión** nueva. No se sobrescribe nada, así que la
-lista de versiones en la página del artefacto es su historial. Dos cosas mantienen
+lista de versiones en la página de la aplicación es su historial. Dos cosas mantienen
 ese historial acotado:
 
 - Publicar exactamente los bytes que ya contiene la versión actual no añade
@@ -149,31 +149,31 @@ incluidos, una existente con `seed-skills`, y la pestaña **Page style** de la
 capability Artifacts en el Builder lo ofrece. Edita el skill para describir tu
 propia marca, y el agent la sigue.
 
-## Quién puede abrirlo { #who-can-open-it }
+## Quién puede abrirla { #who-can-open-it }
 
-Un artefacto nuevo es **privado** para la persona en nombre de la cual actuó el
-run que lo publicó: la persona del chat, o el creador de un trigger.
+Una aplicación nueva es **privada** para la persona en nombre de la cual actuó el
+run que la publicó: la persona del chat, o el creador de un trigger.
 
 Su enlace - al que apuntan la tarjeta del chat y la respuesta del agente - abre
 la propia página, a toda la ventana, bajo una única barra con el título, la
 versión y **Share**. El enlace por sí solo no deja entrar a nadie: solo se abre
 para un miembro con sesión iniciada al que las reglas de abajo ya dejan entrar.
-Nombra la organización en la que está el artefacto (`?org=`), así que un miembro
+Nombra la organización en la que está la aplicación (`?org=`), así que un miembro
 de varias llega a la correcta.
 
-En **Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras:
+En **Share**, cualquiera que pueda gestionarla puede compartirla de tres maneras:
 
 | Alcance | Cómo | Quién |
 |---|---|---|
 | Personas concretas | Un grant, con `read` o `edit` | Esos miembros, en esta organización |
-| La organización | Visibilidad fijada a toda la organización | Todo miembro cuyo rol alcance los artefactos compartidos |
+| La organización | Visibilidad fijada a toda la organización | Todo miembro cuyo rol alcance las aplicaciones compartidas |
 | Cualquiera con el enlace | **Create a public link** | Cualquiera que tenga la dirección, sin cuenta |
 
 Compartir y la visibilidad usan el mismo panel y las mismas reglas que los agents
-y los skills; consulta [Permisos](permissions.md). Gestionar un artefacto
-(compartirlo, su enlace público y sus ajustes, restaurar una versión, borrarlo)
-requiere `artifacts:edit` sobre ese artefacto, desde el rol o desde un grant
-`edit`. Abrirlo requiere `artifacts:view`.
+y los skills; consulta [Permisos](permissions.md). Gestionar una aplicación
+(compartirla, su enlace público y sus ajustes, restaurar una versión, borrarla)
+requiere `artifacts:edit` sobre esa aplicación, desde el rol o desde un grant
+`edit`. Abrirla requiere `artifacts:view`.
 
 El agent no puede ampliar quién lee una página. Publica; una persona decide quién
 la ve. Por eso la capability no pide aprobación por defecto: una primera
@@ -193,7 +193,7 @@ registro de auditoría. Una página que alguien ya tiene abierta se sigue mostra
 hasta que caduca su dirección de contenido firmada, como máximo
 `ARTIFACT_VIEW_TTL_SECONDS` (cinco minutos por defecto).
 
-Un miembro revocado está en la misma situación: pierde el artefacto en su
+Un miembro revocado está en la misma situación: pierde la aplicación en su
 siguiente petición, y una página que ya tenía abierta se mantiene como mucho
 durante esa misma ventana.
 
@@ -230,9 +230,9 @@ su propia página —, y nadie inicia sesión dentro de un frame en el sitio de 
 
 ## Cómo se aísla la página { #how-the-page-is-isolated }
 
-Un artefacto es HTML con script dentro, escrito por un modelo que puede haber
+Una aplicación es HTML con script dentro, escrita por un modelo que puede haber
 leído algo hostil. Se sirve de forma que nada de lo que haga pueda alcanzar la
-consola ni a la persona que lo mira:
+consola ni a la persona que la mira:
 
 - Los bytes salen de una ruta aparte, `/api/v1/artifact-content/<token>`, que
   no lee ninguna cookie ni ninguna sesión. El token está firmado, nombra una sola
@@ -266,7 +266,7 @@ consola ni a la persona que lo mira:
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
   de un enlace público ya está limitado por enlace.
 
-La lista **Artifacts** dibuja la página actual de cada tarjeta como una
+La lista **Apps** dibuja la página actual de cada tarjeta como una
 miniatura en vivo, por el mismo tipo de frame, con script y nada más: sin
 diálogos, sin ventanas emergentes, sin formularios. Con script, para que un
 dashboard cuyos gráficos dibuja una librería no sea un lienzo vacío en su
@@ -283,20 +283,36 @@ un endurecimiento que puede pedir una revisión de seguridad, no un requisito.
 Fija la variable para el backend y para el frontend, que añade ese origen a su
 `frame-src`. Consulta [Configuración](configuration.md#published-artifacts).
 
+## Seguir una página { #following-a-page }
+
+**Seguir**, en la barra de una página, deja un aviso en tu bandeja cada vez que
+la página recibe una versión nueva: un agente la volvió a publicar con otro
+contenido, o alguien restauró una versión anterior. Una republicación que no
+cambia nada no avisa a nadie, así que una programación que no encontró nada
+nuevo no hace ruido. La persona cuyo run o restauración creó la versión no recibe
+aviso de su propio cambio.
+
+Seguir no da acceso. Cualquiera que pueda abrir la página puede seguirla, y quien
+pierde el acceso deja de recibir avisos sin tener que dejar de seguirla. La
+bandeja vuelve a comprobar el acceso al leerse, de modo que un aviso sobre una
+página que ya no puedes abrir desaparece con ese acceso. El aviso también puede
+llegar por correo; cada canal se desactiva en **Settings → Notifications →
+App updated**.
+
 ## Retención y borrado { #retention-and-deletion }
 
-Los artefactos son una [clase de retención](governance.md#the-classes) propia,
+Las aplicaciones son una [clase de retención](governance.md#the-classes) propia,
 medida desde la **última publicación**: un informe que se vuelve a publicar cada
 semana está vivo por antigua que sea su primera versión. Como toda clase, conserva
-los artefactos para siempre hasta que una organización o el despliegue fijen un
+las aplicaciones para siempre hasta que una organización o el despliegue fijen un
 periodo.
 
-Borrar un artefacto, a mano o por retención, elimina todas sus versiones, sus
+Borrar una aplicación, a mano o por retención, elimina todas sus versiones, sus
 bytes almacenados, sus grants y su enlace público. Borrar el agent no borra sus
-artefactos: siguen legibles y simplemente no tienen quien los publique. Borrar un
+aplicaciones: siguen legibles y simplemente no tienen quien las publique. Borrar un
 entorno con nombre hace lo mismo con las páginas publicadas desde él, así que
 nunca caen sobre la página del entorno por defecto con el mismo nombre. Borrar la
-organización los elimina. Los artefactos de una persona borrada se quedan y
+organización las elimina. Las aplicaciones de una persona borrada se quedan y
 pierden su propietario, igual que sus agents y skills.
 
 Los bytes viven en el [almacenamiento de archivos](configuration.md#uploaded-files-at-rest)

@@ -48,6 +48,10 @@ export const staticSecurityHeaders: readonly SecurityHeader[] = [
 
 /** The policy header for a deployment, stamped per request by the middleware with
  * that request's script nonce. */
-export function contentSecurityPolicyHeader(config: PublicConfig, nonce: string): SecurityHeader {
-  return { key: "Content-Security-Policy", value: contentSecurityPolicy(config, nonce) };
+export function contentSecurityPolicyHeader(
+  config: PublicConfig,
+  nonce: string,
+  options: { framedBySelf?: boolean } = {},
+): SecurityHeader {
+  return { key: "Content-Security-Policy", value: contentSecurityPolicy(config, nonce, options) };
 }

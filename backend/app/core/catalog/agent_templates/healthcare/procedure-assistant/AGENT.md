@@ -3,6 +3,7 @@ name: Procedure Assistant
 description: Answers staff questions from your SOPs and clinical guidelines, always
   with the document and version it used.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 3

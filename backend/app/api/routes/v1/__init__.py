@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import health
+from app.api.routes.v1 import api_keys, assistant, change_events, health, mcp_oauth, public_openapi
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
@@ -63,12 +63,16 @@ from app.api.routes.v1 import admin_announcements
 v1_router = APIRouter()
 
 v1_router.include_router(health.router, tags=["health"])
+v1_router.include_router(public_openapi.router)
 
 v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(directory_auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
+v1_router.include_router(api_keys.router, prefix="/api-keys", tags=["api-keys"])
+v1_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
+v1_router.include_router(mcp_oauth.router, prefix="/mcp-oauth", tags=["mcp-oauth"])
 v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(
     admin_announcements.router, prefix="/admin/announcements", tags=["admin:announcements"]
@@ -89,9 +93,14 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
-v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
+# Apps were called artifacts until #2071. The old paths stay as deprecated
+# aliases for the v1 policy's 90 days (docs/api.md), so a script written against
+# them keeps working while it is moved.
+v1_router.include_router(artifacts.router, prefix="/apps", tags=["apps"])
+v1_router.include_router(artifacts.public_router, prefix="/public/apps", tags=["apps:public"])
+v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["apps"], deprecated=True)
 v1_router.include_router(
-    artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]
+    artifacts.public_router, prefix="/public/artifacts", tags=["apps:public"], deprecated=True
 )
 v1_router.include_router(
     artifacts.content_router, prefix="/artifact-content", tags=["artifacts:content"]
@@ -108,8 +117,12 @@ v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
 )
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
+v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])
 v1_router.include_router(
-    sharing.artifact_sharing_router, prefix="/artifacts", tags=["artifacts:sharing"]
+    sharing.mcp_connection_sharing_router, prefix="/mcp-connections", tags=["mcp:sharing"]
+)
+v1_router.include_router(
+    sharing.artifact_sharing_router, prefix="/artifacts", tags=["apps:sharing"], deprecated=True
 )
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])
@@ -140,6 +153,7 @@ v1_router.include_router(
 )
 
 v1_router.include_router(agent.router, tags=["agent"])
+v1_router.include_router(change_events.router, tags=["change-events"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 

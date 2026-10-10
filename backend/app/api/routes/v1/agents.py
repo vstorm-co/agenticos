@@ -24,15 +24,18 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.agents.capabilities import all_capabilities
+from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
     Auth,
     DBSession,
+    KnowledgeReachSvc,
     limit_agent_run,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -43,6 +46,7 @@ from app.schemas.agent import (
     AgentCreate,
     AgentDetail,
     AgentDraftUpdate,
+    AgentKnowledgeReach,
     AgentList,
     AgentMetadataRequest,
     AgentPublish,
@@ -61,6 +65,8 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PromptVariableCatalog,
+    PromptVariableRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
@@ -69,7 +75,22 @@ from app.services import mcp_catalog, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/prompt-variables",
+    response_model=PromptVariableCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_prompt_variables() -> Any:
+    """The system variables any agent's instructions may use, in the order to offer them."""
+    return PromptVariableCatalog(
+        items=[
+            PromptVariableRead(name=item.name, description=item.description, example=item.example)
+            for item in SYSTEM_VARIABLES
+        ]
+    )
 
 
 @router.get(
@@ -258,6 +279,8 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         visibility=data.visibility,
         categories=data.categories,
         tags=data.tags,
+        group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 
@@ -278,6 +301,16 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
     return await service.promote_specialist(
         ctx, data.specialist, fallback_model_profile_id=data.fallback_model_profile_id
     )
+
+
+@router.get("/{agent_id}/knowledge-reach", response_model=AgentKnowledgeReach)
+async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: Auth) -> Any:
+    """Which groups the agent's knowledge bases, skills and context come from (#2072).
+
+    Each source says whether the agent reaches people it is not shared with - who
+    are answered from it all the same. Sources the caller may not see are left out.
+    """
+    return await service.for_agent(ctx, agent_id)
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)

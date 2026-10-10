@@ -3,6 +3,7 @@ name: Release Notes Writer
 description: Turns merged changes into notes a user can act on, grouped by what they
   mean.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - web_fetch

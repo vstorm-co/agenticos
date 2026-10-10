@@ -54,7 +54,12 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 
 ### Personal or organization-wide
 
-Two kinds, and the difference is the point.
+Two kinds, and the difference is the point. The connect dialog asks it as one
+choice in plain words: **One shared account** - set up once, usually by an
+admin with a service account, and used by every agent - or **My own account**,
+used by you and by agents set up to act as each person. A catalog server people
+sign in to (Notion, Linear, Gmail) recommends each person's own account; one that
+takes a key recommends the shared one.
 
 **Personal** (MCP servers → You) is scoped to one member and reached by their own
 assistant, and by an agent bound to each person's own account when they are the
@@ -65,8 +70,17 @@ connection has none, and its owner may belong to several, so binding it to
 whichever was active when they added it would make the token unreadable the moment
 they switched.
 
-**Organization** is scoped to the organization, gated on `connections:manage`, and
-is the only kind a published agent's spec may name *by id*.
+**Organization** is scoped to the organization, gated on `mcp:manage`, and is the
+only kind a published agent's spec may name *by id*.
+
+An organization server can belong to a department. Under **Who can use it** the
+connect dialog offers **Everyone**, the default, or **Chosen groups or people**,
+found by typing; the server is then private and shared with each of them at
+`use`. They and whoever connected it see it and bind it; owners and admins see
+every server. Its **Who can use it** button changes that later. An agent already
+bound to it keeps working for everyone who may run the agent: the choice decides
+who may pick the server, not who is answered through it, so the Builder marks it
+under [where an agent's knowledge comes from](departments.md#where-an-agents-knowledge-comes-from).
 
 A published agent that reached different tools depending on whose session built
 it could not be reviewed or reasoned about, which is the whole reason for the
@@ -76,8 +90,11 @@ service, and whoever is talking to the agent supplies their own connection to it
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Two names, and they answer different questions
@@ -130,6 +147,17 @@ A connection nothing has probed yet has no catalogue to offer, and the picker
 says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
+
+### Which calls wait for a person
+
+Every binding has an `approval` policy for its server's tools. The default,
+`writes`, holds every tool the server does not mark read-only (MCP's
+`readOnlyHint`) until a person approves the call, the same way a side-effecting
+capability tool waits: the card shows the exact arguments, and the approved ones
+are what runs. `all` holds every call; `none` lets every call through, for a
+server you trust with no person in the loop. The read-only hint is the server's
+own claim, so `writes` is only as strict as the server is honest — choose `all`
+for a server you do not control.
 
 ### Whose account a binding speaks through
 
@@ -409,7 +437,10 @@ credentials. A server with none is not a checkbox — there is no connection id
 for the spec to hold — so the card opens the connect dialog **in place**.
 
 A token or credential-free server is connected without leaving the page, and the
-new connection is ticked for the agent as soon as it exists.
+new connection is ticked for the agent as soon as it exists. Connecting checks the
+server, and its tools come up straight away from that check, so picking a server,
+connecting it and choosing what the agent may call is one path. A check that
+fails says why in the toast, and the connection is kept to fix.
 
 !!! info "OAuth opens a tab"
 
@@ -449,6 +480,25 @@ and labels each with its name where an entry has more than one.
 Two connections whose names reduce to the same prefix are deduplicated — first one
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
+
+### Health, users and calls
+
+A server the agent is bound to through the organization's account shows on its
+card in the Builder whether it answered its last check, when that was and what
+it said if it failed; whoever manages MCP servers can check it again there.
+An OAuth account whose sign-in could not be renewed is shown as needing
+authorization rather than as unreachable, with **Authorize** to sign in again.
+
+On the MCP page, each of the organization's accounts names the agents bound to
+it, and **What agents asked it** lists the latest calls agents made to its
+tools: which tool, which agent, how it went and the run it was part of. What was
+asked and answered is not shown - it stays in the conversation. Each call records the connection that served it, so a
+member's own connection with the same name is not listed, and calls from before
+that was recorded are not listed at all. API: `used_by` on `GET /api/v1/mcp-connections`, and
+`GET /api/v1/mcp-connections/{id}/calls`.
+
+**Add to an agent** binds an account into a chosen agent's draft, and connecting
+one with a key, or finishing its sign-in, offers the same.
 
 ## The catalog
 
@@ -707,6 +757,13 @@ so what the agent can do is decided there rather than here.
 connect, and nothing about it needs to be in the catalog first. The catalog saves
 somebody a URL lookup; it is not a gate.
 
+Typing a custom server's address asks it whether people can sign in: the same
+discovery an OAuth flow runs (RFC 9728, then RFC 8414), registering nothing,
+through `POST /api/v1/me/mcp-connections/probe`. When it can, **OAuth** is chosen
+for you and Connect opens its sign-in; when it does not register apps itself, the
+dialog asks for a client ID and secret made at the provider; when it publishes no
+OAuth metadata, a token or no credential is left as the choice.
+
 To add an entry to the list, see
 [Add a server to the MCP catalog](howto/add-mcp-server.md).
 
@@ -729,15 +786,72 @@ the agent may use. Availability, permissions and any service charges depend on
 that provider. A registry listing is not an AgenticOS end-to-end test of the
 service. Review the approval modes below before enabling write tools.
 
+## AgenticOS as an MCP server
+
+Everything above is the platform calling other servers. It is also one: **`/mcp`**
+on the API's host speaks MCP over streamable HTTP, so Claude Code, Claude Desktop
+or any MCP client can operate the organization — list and create agents, run them,
+read runs and their cost, fill and search knowledge bases, invite members.
+
+The server is built on [FastMCP](https://gofastmcp.com): it serves the protocol
+and the OAuth 2.1 endpoints, and AgenticOS supplies the tools and every decision
+behind a sign-in.
+
+The client signs in through the browser: it registers itself, opens the
+console's consent page, where you choose the organization and what it may do,
+and receives a token that lasts an hour and renews itself. No key is pasted
+anywhere.
+
+Registration needs no credential, so it is limited per address like sign-in,
+and a client nobody completed sign-in with is forgotten after a day.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+Or connect with an [organization API key](api.md#organization-api-keys), for a
+client that cannot open a browser:
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+The connection acts as the member who issued the key, within the key's
+permissions. Each tool is a call to the [public API](api.md) made with that key,
+so it is refused, rate limited and audited exactly as the same request over HTTP
+would be; a refusal comes back as a tool error naming the missing permission.
+
+| Tool | Needs |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
+| `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:delete`, on a draft you own that was never published |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | — |
+| `invite_member` | `members:manage` |
+
+Deliberately absent: publishing an agent, touching a credential, and deleting
+anything but an agent draft its caller created and never published - the undo
+for a draft made by mistake. A draft created here is published by a person in
+the console.
+Connected applications are listed under **Settings → API keys**, where
+disconnecting one ends its access and every token it holds. Calls that change
+something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
+
 ## What MCP does not get you
 
 - **A coverage guarantee.** Catalog entries are metadata. The tools are the
   vendor's, and they can change under you between one turn and the next.
-- **Automatic approval coverage.** Capability approval settings do not cover MCP
-  tools. In web chat, **Ask about everything** (`ask_all`) also gates MCP calls
-  handled by the runner; the default **Follow the agent** mode does not add that
-  gate. Restrict exposed tools and review the execution mode before enabling a
-  connection. See [approval modes](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Approval that knows what a tool does.** A binding's `writes` policy trusts
+  the server to mark its read-only tools; a tool marked read-only that changes
+  something runs unasked. Use `all` for a server you do not control, and
+  narrow `allowed_tools`. See [which calls wait](#which-calls-wait-for-a-person).
 - **Cost attribution.** What a server does on its own side is not in this
   platform's [budget](governance.md#budgets). Only the model tokens are.
 

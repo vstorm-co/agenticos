@@ -16,13 +16,20 @@ SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import re
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
+from uuid import UUID
 
+from pydantic_ai.tools import RunContext, ToolDefinition
+from pydantic_ai.toolsets import WrapperToolset
+from pydantic_ai.toolsets.abstract import ToolsetTool
+
+from app.agents.spec import McpApproval
 from app.core.sanitize import validate_webhook_url
 
 logger = logging.getLogger(__name__)
@@ -75,12 +82,19 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    approval: McpApproval = "writes"
+    # This deployment's own server (`/mcp`), reached through the application in
+    # this process rather than over the network - never probed, never dialled out.
+    in_process: bool = False
+    # The organization's connection row this server is, so a call can be
+    # recorded against it. None for a member's own connection and for `/mcp`.
+    connection_id: UUID | None = None
 
 
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None
-) -> AsyncIterator[tuple[Any, Any]]:
+) -> AsyncGenerator[tuple[Any, Any], None]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it
@@ -207,9 +221,11 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     """
     from pydantic_ai.mcp import MCPToolset
 
+    # The in-process client carries the headers itself: the two are exclusive.
     server: Any = MCPToolset(
         spec.url,
-        headers=spec.headers or None,
+        headers=None if spec.in_process else spec.headers or None,
+        http_client=_in_process_client(spec.headers) if spec.in_process else None,
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
@@ -217,7 +233,111 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return server.prefixed(tool_prefix(spec.name))
+    return ApprovalMarked(server.prefixed(tool_prefix(spec.name)), policy=spec.approval)
+
+
+NEEDS_APPROVAL = "agenticos_needs_approval"
+"""The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
+
+Top-level in the metadata, where an MCP server cannot write: what a server
+sends lands under `meta` and `annotations`, so it cannot mark its own tools safe.
+"""
+
+
+def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
+    """Whether a call to this MCP tool waits for a person, under `policy`.
+
+    `writes` trusts the server's `readOnlyHint` and nothing else: a tool that
+    does not say it only reads is treated as one that writes.
+    """
+    if policy == "all":
+        return True
+    if policy == "none":
+        return False
+    annotations = (tool.metadata or {}).get("annotations") or {}
+    return annotations.get("readOnlyHint") is not True
+
+
+@dataclass
+class ApprovalMarked(WrapperToolset[Any]):
+    """An MCP server's tools, each marked with whether it waits for approval."""
+
+    policy: McpApproval = "writes"
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        return {
+            name: replace(
+                tool,
+                tool_def=replace(
+                    tool.tool_def,
+                    metadata={
+                        **(tool.tool_def.metadata or {}),
+                        NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                    },
+                ),
+            )
+            for name, tool in tools.items()
+        }
+
+
+@dataclass
+class ToolOrigins(WrapperToolset[Any]):
+    """An organization server's tools, each noted in `seen` as having come from it.
+
+    `seen` is one mapping shared by every server of a run, filled as the run
+    lists its tools: the exact name the model calls, mapped to the connection
+    that serves it, so the transcript records the call against that connection
+    rather than inferring it from a prefix another connection may share (#2072).
+    """
+
+    connection_id: UUID
+    seen: dict[str, UUID]
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        self.seen.update(dict.fromkeys(tools, self.connection_id))
+        return tools
+
+
+PLATFORM_MCP_NAME = "agenticos"
+"""What this deployment's own server is called in a run, and so its tools' prefix."""
+
+PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
+
+PLATFORM_MCP_URL = "http://agenticos/mcp"
+"""Where the in-process client addresses `/mcp`. The host is never resolved."""
+
+
+def platform_spec(
+    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+) -> McpServerSpec:
+    """This deployment's own MCP server, as the holder of `credential`."""
+    return McpServerSpec(
+        name=PLATFORM_MCP_NAME,
+        url=PLATFORM_MCP_URL,
+        headers={"Authorization": f"Bearer {credential}"},
+        allowed_tools=allowed_tools,
+        approval=approval,
+        in_process=True,
+    )
+
+
+def _in_process_client(headers: dict[str, str]) -> Any:
+    """An HTTP client whose requests go to this process's API application.
+
+    Imported when a run needs it rather than at module load: the application
+    imports the agent layer, so the agent layer reaching for it at import time
+    would be a cycle.
+    """
+    import httpx2
+
+    app = importlib.import_module("app.main").app
+    return httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app),
+        headers=headers,
+        timeout=httpx2.Timeout(300.0, connect=10.0),
+    )
 
 
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
@@ -248,6 +368,9 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
     """
 
     async def _try(spec: McpServerSpec) -> Any | None:
+        if spec.in_process:
+            # This deployment's own server: there is no remote to be down.
+            return _make_toolset(spec)
         try:
             await probe_mcp_server(spec.url, spec.headers)
         except Exception as exc:

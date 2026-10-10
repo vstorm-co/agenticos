@@ -2,12 +2,12 @@
 
 ## Current README captures
 
-Captured from the authenticated AgenticOS test deployment on 2 October 2026, with the artifact
+Captured from the authenticated AgenticOS test deployment on 2 October 2026, with the app
 detail and library refreshed on 3 October 2026, using
 Chromium through Playwright. Every current README screenshot is a native **3200 × 2000
 PNG** from a **1600 × 1000 CSS-pixel viewport at device scale factor 2**. The application
 uses its light theme and expanded navigation. The organization-selection reminder is dismissed.
-The featured artifact is now Meridian, a light-theme sales dashboard with clearly labeled demo data.
+The featured app is now Meridian, a light-theme sales dashboard with clearly labeled demo data.
 
 The PNGs are lossless browser captures: no upscaling, recomposition, image-generation edits or text
 replacement. All fourteen files are below the repository's 1 MiB per-file limit. Open the linked
@@ -44,27 +44,27 @@ role and optional local group at sign-in; it is not a department directory.
 Authentication state and temporary capture tooling stay outside the repository. No password,
 session token or browser storage is part of the media bundle.
 
-## Meridian artifact refresh — 3 October 2026
+## Meridian app refresh — 3 October 2026 { #meridian-artifact-refresh-3-october-2026 }
 
-At the user's request, the Claude Code like agent built and published a new private artifact,
+At the user's request, the Claude Code like agent built and published a new private app,
 `meridian-revenue-overview`, titled **Meridian · Revenue overview**, version 1. It replaces the
-OSS Launch Planner screenshot in the artifact section; the separate integration recording is unchanged.
+OSS Launch Planner screenshot in the app section; the separate integration recording is unchanged.
 
 - Conversation: `6f32affd-1845-4610-ac46-cdedf63438c9`.
-- Artifact: `b2b4c685-8075-4011-b6d6-1266b69cc79f` in the user-selected Vstorm organization.
+- App: `b2b4c685-8075-4011-b6d6-1266b69cc79f` in the user-selected Vstorm organization.
 - Source: a supplied design brief requesting a light executive sales dashboard, deterministic
   illustrative data, three charts, four KPI cards and functioning period/region filters.
 - Data: Meridian is fictional. Figures are generated demonstration data, not customer results or
   a claim about AgenticOS revenue, performance or adoption. The page labels them visibly.
 - Implementation: a self-contained page using the deployment's bundled Chart.js. The agent
   reported calculation and DOM checks; its sandbox had no browser, so browser checks were performed
-  separately against the published artifact.
+  separately against the published app.
 
 Verified all 12 period/region combinations in Chromium: trend and product-mix totals agree with
 corresponding regional totals, and Q1 + Q2 equals H1 for every region. Checked filter-driven KPI
 changes, Reset, a visible chart tooltip and mobile layout without horizontal page overflow.
 The final capture uses H1 / All regions at the same native PNG 2× settings as the other images.
-No image editing was used. Existing artifacts and their sharing settings were not changed.
+No image editing was used. Existing apps and their sharing settings were not changed.
 
 ## Earlier captures
 
@@ -105,7 +105,7 @@ refresh does not alter or re-record the video.
 
 Keep **Sovereign Agentic AI Layer** verbatim in all README heroes. Lead with the actual product:
 builder, a linked task overview, installation and the recorded example. Follow with concrete
-work in chat, knowledge, artifacts, operations and organization access. Keep the glass integration
+work in chat, knowledge, apps, operations and organization access. Keep the glass integration
 collage after that product tour. Main screenshots are linked at full width; supplementary views use expandable
 sections. Do not add decorative browser frames that reduce the readable interface area.
 

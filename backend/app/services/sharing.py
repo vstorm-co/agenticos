@@ -15,10 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.db.models.group import Group
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.repositories import group_repo, member_repo, resource_grant_repo
 from app.services.access import OwnedResource, ResourceType, resolve_access
+from app.services.notifications import NotificationService
 
 
 class SharingState(NamedTuple):
@@ -27,6 +30,23 @@ class SharingState(NamedTuple):
     grants: list[ResourceGrant]
     emails: dict[UUID, str | None]
     group_names: dict[UUID, str]
+
+
+_CONSOLE_PATHS = {
+    "agent": "/agents/{id}",
+    "collection": "/rag/{id}",
+    "skill": "/skills",
+    "context": "/context",
+    "secret": "/vault",
+    "artifact": "/apps/{id}",
+    "mcp_connection": "/mcp-servers",
+}
+"""Where the console opens a shared resource of each kind."""
+
+
+def _shown_name(resource: OwnedResource) -> str:
+    """What a notification calls a resource: an app by its title, the rest by name."""
+    return str(getattr(resource, "title", None) or getattr(resource, "name", None) or resource.id)
 
 
 class SharingService:
@@ -176,6 +196,7 @@ class SharingService:
             level=level,
             created_by_user_id=ctx.user_id,
         )
+        await self._tell_the_group(ctx, resource, resource_type, group)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -186,6 +207,79 @@ class SharingService:
             details={"subject_group_id": str(group.id), "level": level.value},
         )
         return grant
+
+    async def _tell_the_group(
+        self, ctx: AuthContext, resource: OwnedResource, resource_type: ResourceType, group: Group
+    ) -> None:
+        """Let a group's members know something was shared with them (#2072).
+
+        Everyone in it but whoever shared it, each told in their inbox and, where
+        they asked for it, by email.
+        """
+        members = await group_repo.list_members(self.db, group.id)
+        recipients = [
+            member.user_id for member, _email, _name in members if member.user_id != ctx.user_id
+        ]
+        await NotificationService(self.db).resource_shared(
+            recipients=recipients,
+            organization_id=ctx.organization_id,
+            resource_kind=resource_type.key,
+            resource_id=resource.id,
+            name=_shown_name(resource),
+            path=_CONSOLE_PATHS[resource_type.key].format(id=resource.id),
+            group_name=group.name,
+            actor_user_id=ctx.user_id,
+        )
+
+    async def restrict_to(
+        self,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        *,
+        resource_type: ResourceType,
+        group_ids: list[UUID],
+        user_ids: list[UUID],
+    ) -> None:
+        """Share a resource just created with the groups and people its creator chose.
+
+        The other half of `AudienceChoice` (#2072): the resource was created private,
+        and each group and person gets a `use` grant - they find it, run it and
+        attach it. The creator owns it already, so naming themselves adds nothing.
+        Called inside the creating request, so a refusal here takes the new row with
+        it rather than leaving it visible to nobody but its creator.
+
+        Raises:
+            BadRequestError: Naming `group_ids` or `user_ids`, when one is not this
+                organization's.
+        """
+        groups = list(dict.fromkeys(group_ids))
+        people = [user for user in dict.fromkeys(user_ids) if user != ctx.user_id]
+        for group_id in groups:
+            if (
+                await group_repo.get(
+                    self.db, organization_id=ctx.organization_id, group_id=group_id
+                )
+                is None
+            ):
+                raise refused_field("group_ids", "Choose groups from this organization.")
+        for user_id in people:
+            if (
+                await member_repo.get(self.db, organization_id=ctx.organization_id, user_id=user_id)
+                is None
+            ):
+                raise refused_field("user_ids", "Choose people from this organization.")
+        for group_id in groups:
+            await self.share_with_group(
+                ctx, resource, resource_type=resource_type, group_id=group_id, level=GrantLevel.USE
+            )
+        for user_id in people:
+            await self.share(
+                ctx,
+                resource,
+                resource_type=resource_type,
+                subject_user_id=user_id,
+                level=GrantLevel.USE,
+            )
 
     async def revoke_group(
         self,

@@ -73,6 +73,7 @@ class PlanningConfig(BaseModel):
             "behind this breakpoint so the stable prefix stays cacheable; a longer TTL "
             "suits a conversation that stays open, the shorter one a burst of turns."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 

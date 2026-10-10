@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -10,6 +11,8 @@ from pydantic import Field, model_validator
 from app.core.secret_kinds import CredentialStr
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 
 # Slug-style names: lowercase letters, digits, hyphens. The name doubles as
 # the tool prefix in the agent (sanitized to snake_case), so keep it tight.
@@ -107,6 +110,10 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     last_status: str | None
     last_error: str | None
     last_checked_at: datetime | None
+    # Who sees and binds an organization connection: `org`, or `private` - its
+    # creator and the groups and people it was shared with (#2072). A personal
+    # connection is only ever its owner's, whatever this says.
+    visibility: str = "org"
     # Which catalog entry this points at, where it was connected from one. On
     # the personal read as well as the organization's, because it is what says a
     # member's Notion and the organization's are the same service - the join the
@@ -122,6 +129,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
+    # The agents binding an organization connection that the reader may see
+    # (#2072). Null where the listing did not ask, which is not "none".
+    used_by: list[AgentUsage] | None = None
 
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
@@ -139,7 +149,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             is_enabled=connection.is_enabled,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
-            authorized=connection.account_authorized,
+            # An expired grant reads as one to authorize again, on the list and in
+            # the Builder, rather than as a server that stopped answering (#2073).
+            authorized=connection.account_authorized and not connection.authorization_expired,
             granted_scopes=connection.granted_scopes,
             last_status=connection.last_status,
             last_error=connection.last_error,
@@ -162,8 +174,11 @@ class McpConnectionList(BaseSchema):
     total: int
 
 
-class OrgMcpConnectionCreate(BaseSchema):
-    """A server the whole organization connects, not one person.
+class OrgMcpConnectionCreate(AudienceChoice):
+    """A server the organization connects, not one person.
+
+    Everyone who manages MCP servers sees and binds it, unless it is narrowed to
+    groups or people (#2072): then they alone, and whoever created it, do.
 
     No OAuth field, and that is deliberate rather than unfinished: an OAuth
     grant is obtained by one human at a consent screen, and storing it as the
@@ -225,10 +240,51 @@ class OrgMcpConnectionList(BaseSchema):
     total: int
 
 
+class McpToolCallRead(BaseSchema):
+    """One call an agent made to an organization MCP server's tool (#2072).
+
+    The tool by its own name, the agent and run that called it, and how it went.
+    Never the arguments or the result: those belong to the conversation.
+    """
+
+    tool: str
+    status: str
+    started_at: datetime
+    duration_ms: int | None = None
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    run_id: UUID | None = None
+
+
+class McpToolCallList(BaseSchema):
+    items: list[McpToolCallRead]
+    total: int
+
+
 class McpConnectionTestResult(BaseSchema):
     ok: bool
     error: str | None = None
     tools: list[McpToolRead] = []
+
+
+class McpSignInProbe(BaseSchema):
+    """Ask whether a server added by its address lets people sign in (#2073)."""
+
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
+class McpSignInProbeResult(BaseSchema):
+    """What the server's OAuth discovery answered, in the two facts a form needs."""
+
+    sign_in: bool = Field(
+        description="Whether the server publishes OAuth metadata, so Connect can open its sign-in"
+    )
+    registers_clients: bool = Field(
+        description=(
+            "Whether it registers this app itself (RFC 7591). Without it, a client id and "
+            "secret created at the provider are needed."
+        )
+    )
 
 
 class McpOAuthStart(BaseSchema):
@@ -266,6 +322,10 @@ class McpOAuthStart(BaseSchema):
         if self.client_secret is not None and self.client_id is None:
             raise ValueError("client_secret needs the client_id it belongs to")
         return self
+
+
+class OrgMcpOAuthStart(McpOAuthStart, AudienceChoice):
+    """Begin the OAuth flow for a server the organization will own, for whom (#2072)."""
 
 
 class GithubOAuthStart(BaseSchema):
@@ -315,4 +375,8 @@ class McpOAuthCallback(BaseSchema):
 class McpOAuthCallbackResult(BaseSchema):
     ok: bool
     connection_name: str | None = None
+    # Which connection the consent completed and whose it is, so the console can
+    # offer to add an organization's server to an agent on its return (#2075).
+    connection_id: UUID | None = None
+    scope: Literal["user", "org"] | None = None
     error: str | None = None

@@ -1,5 +1,7 @@
 export { useAuth } from "./use-auth";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
+export { useApiKeys } from "./use-api-keys";
+export { useConnectedApps, useConsentRequest } from "./use-mcp-oauth";
 export { useAdminUsers } from "./use-admin-users";
 export {
   useAdminOrganizations,
@@ -28,12 +30,19 @@ export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useMcpConnections } from "./use-mcp-connections";
-export { useOrgMcpConnections } from "./use-org-mcp-connections";
+export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export { useRetention } from "./use-retention";
-export { useGroups, useGroupMembers } from "./use-groups";
+export {
+  useAddDepartments,
+  useGroups,
+  useGroupMembers,
+  useGroupResources,
+  useGroupSharing,
+  useGroupSpend,
+} from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
@@ -45,7 +54,10 @@ export {
   useAllAgentVersions,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
+  useKnowledgeReach,
+  useAddToAgent,
   useDelegationTree,
+  usePromptVariables,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";

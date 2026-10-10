@@ -106,6 +106,11 @@ one of the bound skills ships a file to read.
 A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else.
 
+**From the skill itself.** Each card on the Skills page has **Add to an agent**:
+pick the agent and the skill is added to its draft, with the Skills capability
+switched on, ready to publish in the Builder. The card also says which agents use
+the skill - or that none does yet. Context files and knowledge bases offer the same.
+
 **A skill's name is the id a model loads it by**, so it takes the form models
 write ids in: lowercase letters and digits joined by single hyphens, such as
 `refund-policy`. A name with spaces or capitals is refused when the skill is
@@ -186,7 +191,7 @@ rather than more information.
 **The bundled ones are already there.** The repository ships four: three worked
 examples — `refund-policy`, `code-review` and `incident-report` — and
 `artifact-pages`, which teaches an agent to build a page for the
-[Artifacts](artifacts.md#the-library-set) capability. Every organization starts
+[Apps](artifacts.md#the-library-set) capability. Every organization starts
 with them. Creating an organization copies the whole shipped library in as
 ordinary skills, owned by the organization's owner and visible to the
 organization.

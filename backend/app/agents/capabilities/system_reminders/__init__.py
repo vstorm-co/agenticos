@@ -157,6 +157,7 @@ class SystemRemindersConfig(BaseModel):
     cache_ttl: Literal["5m", "1h"] = Field(
         default="5m",
         description="Cache lifetime of the breakpoint placed before the tail reminder",
+        json_schema_extra={"x-advanced": True},
     )
 
 
@@ -211,7 +212,7 @@ def _compile(config: SystemRemindersConfig) -> list[CompiledReminder]:
 
 @register(
     id="system_reminders",
-    name="System reminders",
+    name="Instruction reminders",
     category="reasoning",
     description=(
         "Re-state guidance mid-run so a long session stops drifting from its instructions."

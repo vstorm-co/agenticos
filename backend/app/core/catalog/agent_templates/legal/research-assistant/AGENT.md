@@ -2,6 +2,7 @@
 name: Research Assistant
 description: Answers a research question with authority, currency and the counter-argument.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 6

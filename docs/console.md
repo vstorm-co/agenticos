@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-six cards exist. You will not see all of them: **a card is gated on the
+Thirty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -25,11 +25,17 @@ They arrive grouped into bands:
 |---|---|
 | *(untitled, at the top)* | The summary the rest of the page is the detail of |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
-| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, MCP health, stale knowledge, your most recent [notifications](#the-bell) |
+| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, [spend by department](departments.md#a-departments-budget), MCP health, stale knowledge, your most recent [notifications](#the-bell) |
 | **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
 | **People** | Members, active users, ratings, who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
 | **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
+
+Somebody who builds agents also sees **Get started** above the bands until each
+of its steps is done: create an agent, publish it, give it a knowledge base, add
+departments, invite a teammate and - for whoever may - put an agent in a chat
+app. Each step is ticked from what exists, wherever it was done; closing the card
+hides it in that browser.
 
 ### Rearranging it
 
@@ -101,6 +107,70 @@ to explain — this page is only the two places you read it: the bell for what
 just happened, the dashboard card for a handful of the most recent, the next
 time you open the page.
 
+## The assistant
+
+Every page has the **AI Architect** in its bottom-right corner: an agent every
+organization gets without installing anything, shared with everyone who may run
+agents (`agents:run`). It is bound to the
+[platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which
+agents can answer refund questions, why last night's run failed, or what is in a
+knowledge base.
+
+Ask it to draft an agent or invite a colleague, and it first shows you what to approve: an
+agent draft as the draft itself - where it is created, its name, what it may do
+and its instructions - and anything else as the exact call. It acts with your permissions, so it finds
+and does what you could, and no more. Its cost counts like any agent's.
+
+A speech bubble above it speaks to what is waiting for you — approvals, an
+organization with no agents yet — or to the page you are on, and now and then
+offers a tip. Click the bubble to ask it; × silences that page, and the bell in
+its window turns the bubbles off. Its window opens on four tiles, so a first
+message is a click, and keeps its own conversation history. On a phone it fills
+the screen.
+
+When it names a page, the link opens in the console behind the window and
+points at the control it means — the button that creates an agent, the tab with
+the approvals. The camera in its header shows it the page you are on: your
+browser asks which tab to share, and one picture is attached to your next
+message.
+
+It plans longer jobs as a checklist you can watch, keeps notes about
+you between conversations, can tell you what your agents cost, and can undo an
+agent draft it made by mistake — never anything else. Besides approvals and an
+empty organization, its bubble speaks up when a run of yours has just failed
+and when a form has been open, unfinished, for a minute.
+
+Until the organization has a model, it cannot answer. Opening it then types out
+a short conversation explaining how to connect one: get an API key from a
+provider, open **Settings → Assistant**, choose the provider and paste the key,
+and pick a model. Only somebody who may change the organization's settings is
+given the button; anybody else is told who can do it.
+
+**Settings → Assistant** holds your own tips and, for whoever may change the
+organization's settings, the assistant's name, greeting and model, and a switch
+to turn it off for everyone.
+
+## Changes made elsewhere
+
+An open page keeps up with changes made somewhere else: a colleague's console,
+a script with an [API key](api.md), Claude Code over the
+[platform's MCP server](mcp.md#agenticos-as-an-mcp-server), or the assistant.
+Each successful write through the public API is announced to the organization's
+open consoles once it has committed, and a list or detail page with nothing
+unsaved on it refetches in place — an agent created by a key appears on the
+Agents page without a reload.
+
+The Builder is the exception, because it saves your draft as you type. When the
+agent you are editing changes elsewhere it stops saving and fetches the new
+version. With nothing unsaved it simply takes it; with unsaved edits it tells you
+who changed it and through what, and waits for you to choose **Reload** (their
+version) or **Keep my changes** (yours, saved over theirs).
+
+You only hear about what you could read: a change to an agent, skill, knowledge
+base, context file or page you cannot see never reaches your console, and a
+deletion reaches only roles that see every row of its kind. When the connection
+drops the console works as before and reconnects on its own.
+
 ## Chat
 
 Where you talk to a published agent. The picker chooses which agent answers, and
@@ -127,6 +197,12 @@ added to a [knowledge collection](file-processing.md). See
 ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
+
+**On a phone** the chat behaves like a messaging app: the composer stays above
+the keyboard and the conversation stays on its last message while it opens, the
+tab bar steps aside while you type, Enter starts a new line, and attaching a file
+or dictating sits behind one **+**. Fields are never small enough for iOS to zoom
+into them.
 
 **Watching a browse.** An agent with
 [browser automation](reference/capabilities.md#browser-automation-choose) opens a
@@ -162,6 +238,22 @@ labels on the agents you can see; tick several to widen it. You maintain an agen
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 
+## Languages
+
+The console speaks English, Polish and German, all of it except the legal
+pages, which stay in English. The walkthrough's first card offers the three, and
+the account menu changes the language at any time; the choice is remembered in
+the browser. Product words - agent, skill, run, budget, MCP and the rest of the
+list in [translating](howto/translate.md) - stay English in every language.
+
+## The next step
+
+A page that is empty because nothing exists yet offers the way to make the first
+one - an agent, a routine, something shared with a department. Creating a skill,
+a context file or a knowledge base ends with a toast offering **Add to an
+agent**, for whoever may edit agents, so what was made reaches an agent without a
+trip to the Builder.
+
 ## When a page looks empty
 
 **An empty state and a failed request look the same.** Every page here fans out
@@ -182,6 +274,8 @@ quiet one.
   independent of whichever page you are on.
 - **Chat, Slack and the API are the same runner**, so what you see in the
   console is what a customer gets.
+- **Changes made elsewhere arrive on their own** — through the API, MCP or the
+  assistant — and the Builder asks before replacing unsaved edits.
 - **Slash commands are yours**, built-in ones included, and you can hide the
   ones you do not use.
 - A page showing "nothing yet" may be **a failed request**, not an empty

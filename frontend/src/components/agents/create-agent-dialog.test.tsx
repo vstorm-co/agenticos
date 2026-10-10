@@ -102,13 +102,31 @@ describe("CreateAgentDialog", () => {
     );
   });
 
+  it("starts every agent able to ask the person a question (#2064)", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support Copilot" });
+    open();
+
+    await userEvent.type(name(), "Support Copilot");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({
+          spec: expect.objectContaining({
+            capabilities: [expect.objectContaining({ id: "ask_user", enabled: true })],
+          }),
+        }),
+      ),
+    );
+  });
+
   it("sends private when private is asked for", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
     open();
 
     await userEvent.type(name(), "Support");
-    await userEvent.click(screen.getByRole("combobox"));
-    await userEvent.click(await screen.findByRole("option", { name: "Private" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
     await userEvent.click(create());
 
     await waitFor(() =>

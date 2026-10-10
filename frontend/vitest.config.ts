@@ -66,7 +66,23 @@ export default defineConfig({
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        // Department budgets (#2072): the dashboard card and the group page's.
+        "src/components/dashboard/widgets/department-spend.tsx",
+        "src/components/groups/department-budget.tsx",
+        // The dashboard's start checklist (#2072).
+        "src/components/dashboard/start-checklist.tsx",
         "src/components/artifacts/**/*.tsx",
+        // Organization API keys (#1794): the list, and the dialog that shows a key once.
+        "src/components/settings/api-keys-manager.tsx",
+        "src/components/settings/create-api-key-dialog.tsx",
+        "src/components/settings/scope-picker.tsx",
+        "src/components/settings/connected-apps.tsx",
+        // The page an MCP client sends a person to, to consent (#2059).
+        "src/components/oauth/**/*.tsx",
+        // Live updates from changes made elsewhere (#2061).
+        "src/components/live-updates/**/*.tsx",
+        // The AI Architect in the corner of every page, and its settings (#2063).
+        "src/components/assistant/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
@@ -78,6 +94,9 @@ export default defineConfig({
         // dressed up as a refactor.
         "src/components/files/**/*.tsx",
         "src/components/ui/doc-peek.tsx",
+        // The question carousel an agent asks through (#2064).
+        "src/components/ui/question-prompt.tsx",
+        "src/components/ui/question-slide.tsx",
         "src/components/ui/text-peek.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
@@ -87,10 +106,13 @@ export default defineConfig({
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",
+        // A phone's `+` sheet for attaching and dictating (#2066).
+        "src/components/chat/composer-sheet.tsx",
         "src/components/chat/connect-account-prompt.tsx",
         "src/components/chat/connect-services-card.tsx",
         "src/components/chat/your-connections.tsx",
         "src/components/chat/chat-empty-state.tsx",
+        "src/components/chat/chat-welcome.tsx",
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",
@@ -110,6 +132,7 @@ export default defineConfig({
         "src/components/chat/sources-panel.tsx",
         "src/components/chat/tool-call-card.tsx",
         "src/components/chat/tool-approval-dialog.tsx",
+        "src/components/chat/agent-draft-proposal.tsx",
         "src/components/chat/workspace-files.tsx",
         // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
         "src/components/sharing/**/*.{ts,tsx}",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -87,6 +87,7 @@ function item(
     continuesTurn?: boolean;
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
+    pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -165,6 +166,25 @@ describe("a turn in the transcript", () => {
     item({ role: "user", content: "How long?" });
     expect(screen.queryByTestId("markdown")).toBeNull();
     expect(screen.getByText("How long?")).toBeInTheDocument();
+  });
+
+  it("lets the test panel pin a question, and unpin it, from the question itself (#2075)", () => {
+    const toggle = vi.fn();
+    const { unmount } = item(
+      { role: "user", content: "Refunds?" },
+      { pins: { pinned: [], toggle } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin to ask again after each change" }));
+    unmount();
+
+    item({ role: "user", content: "Refunds?" }, { pins: { pinned: ["Refunds?"], toggle } });
+    fireEvent.click(screen.getByRole("button", { name: "Unpin this question" }));
+    expect(toggle.mock.calls).toEqual([["Refunds?"], ["Refunds?"]]);
+  });
+
+  it("offers no pin outside the test panel, nor on an answer", () => {
+    item({ role: "user", content: "Refunds?" });
+    expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {

@@ -15,6 +15,7 @@ import {
   Plug,
   Repeat,
   ShieldCheck,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -105,6 +106,9 @@ export const NAV_GROUPS: NavGroup[] = [
     domain: "workspace",
     items: [
       { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
+      // A company's departments, with their people and what they were given
+      // (#2072). Ungated: any member may read the groups, as sharing needs.
+      { labelKey: "groups", href: ROUTES.GROUPS, icon: UsersRound },
       {
         // Gated on what the backend gates listing on: a Member holding secrets
         // at OWN scope can use the Vault, so the nav must not hide it behind

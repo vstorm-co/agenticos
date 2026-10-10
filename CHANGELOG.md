@@ -17,6 +17,355 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
+  languages, names each thing as the console does, says what it is and gives its
+  name in the API and the spec; the AI Architect uses the same names, and a test
+  holds the capability names to the console's (#2075).
+- **The AI Architect's agent draft is approved as a draft.** The approval card
+  shows where it is created, its name, what it may do in the capabilities' plain
+  names and its instructions, instead of the tool call's JSON (#1799).
+- **An MCP account goes to an agent from where it lives.** Each usable
+  organization account on a server offers **Add to an agent**, and connecting one
+  with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **A capability's tuning is folded under Advanced settings.** Limits, cache
+  lifetimes, prompts and similar fields - thirty-two across seventeen
+  capabilities - sit behind a fold that opens by itself where one was set (#2070).
+- **Guardrails screen what an agent passes a tool.** A fourth edge,
+  `redact_secrets_args`, `redact_pii_args` and `blocked_keywords_args`, off by
+  default, checks every string in a tool call's arguments before the tool runs:
+  the tool, the stored call and the stream all get the redacted value, and a
+  blocked keyword ends the run as `guardrail_blocked`. A delegate's streamed text
+  and reasoning now pass its delegating run's output check in the delegation
+  panel (#2000).
+- **Organization API keys.** A member issues a key under **Settings → API keys**
+  and calls the public API with `Authorization: Bearer aos_…` from a script,
+  Postman or an MCP client, with no browser session. A key carries its issuer's
+  authority narrowed to the permissions it was issued with (presets or a custom
+  pick) and to the issuer's *current* role, so demoting or removing the issuer
+  narrows or stops it at once; a resource grant never widens a key. The key is
+  shown once and stored as a hash, can expire, is revoked instantly, has its own
+  rate limit (`RATE_LIMIT_API_KEY_PER_MINUTE`) and is named by prefix in every
+  audit entry it causes. Keys work on the public routes only — agents, runs,
+  knowledge bases and RAG, skills, context, artifacts, ML services; the console's
+  chat socket, account and key management, and the local directory sync stay
+  session-only. Two new
+  permissions, `api_keys:create` and `api_keys:manage`; migration
+  `0107_api_keys` (#1794).
+- **Organization administration through the public API.** Listing members,
+  changing a role, removing a member, inviting (by email or link), groups, and
+  reading or changing an organization's settings and retention now authorize
+  through the caller's permission context, so an API key with `members:manage`
+  or `org:settings` can do them and one without is refused. Leaving an
+  organization and transferring ownership stay session-only. For a key, the
+  `/orgs/{org_id}` in the path must be the key's own organization (#2057).
+- **The public API's own OpenAPI document**, at `/api/v1/public/openapi.json`
+  in every environment: only the routes a key may call, the `ApiKey` bearer
+  scheme, and the error envelope every refusal actually returns (FastAPI's
+  default 422 schema described a body this API never sends). `docs/api.md`
+  writes down the v1 compatibility promise — additive changes only, 90 days'
+  deprecation — and gains worked examples for ingestion and search, runs and
+  cost, invitations, and retrying a 429 (#1796).
+- **AgenticOS is an MCP server**, built on [FastMCP](https://gofastmcp.com).
+  `/mcp` on the API's host speaks MCP over streamable HTTP: `claude mcp add --transport http agenticos <host>/mcp --header
+  "Authorization: Bearer aos_…"` gives Claude Code (or any MCP client) tools to
+  list, create and run agents, read runs and cost, create and search knowledge
+  bases and add documents to them, list skills and members, and invite a member.
+  Each tool is the public API called in-process with the caller's key, so it is
+  refused, rate limited and audited exactly as the HTTP request would be. Nothing
+  deletes, publishes or touches a credential (#2058).
+- **Claude Code connects by signing in, not by pasting a key.** The MCP server is
+  an OAuth 2.1 authorization server: `claude mcp add --transport http agenticos
+  <host>/mcp` registers the client, opens the console's consent page — pick the
+  organization and what it may do — and returns an hour-long token that renews
+  itself. FastMCP's token endpoint answers an invalid grant with `401`, as MCP
+  requires, rather than OAuth's `400`. Public clients with PKCE only; codes are single-use, refresh tokens
+  rotate, and a reused one revokes the grant with every token it issued. The
+  access token is an organization key under the grant, so it is narrowed and
+  audited like one. Connected applications are listed, and disconnected, under
+  **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
+- **The AI Architect.** Every organization has one, without installing
+  anything: the first time anybody opens the console it is installed from the
+  *AI Architect* template as the organization's owner, shared with everyone, and
+  published on the organization's first model (migration
+  `0110_organization_assistants`). It lives in the corner of every page as the
+  agent's avatar, with a speech bubble that speaks to what is waiting - approvals,
+  an organization with no agents yet - or to the page, plus an occasional "Did
+  you know?"; × silences a page and a switch silences them all. Its window, full
+  screen on a phone, opens on a greeting and four tiles and keeps its own
+  conversation history. Before it has a model it types out a short conversation
+  explaining how to connect one, in every language, and only an administrator is
+  given the button to do it. It finds agents, runs, knowledge bases, skills and
+  members, explains a failed run, and - once a person approves the exact call -
+  drafts agents, creates knowledge bases, adds documents and invites people. It
+  reaches the platform through the platform's own MCP server over the real
+  protocol, in-process, with a credential minted for whoever is asking (a new
+  `platform` kind of MCP binding), so it can never do more than they can. Who
+  may talk to it is `agents:run`, as for any agent, and its cost counts like any
+  agent's. A console link it writes opens behind its window and rings the
+  control it names; the camera in its header attaches a screenshot of the
+  page; it plans longer jobs with a visible checklist, keeps memory files, reads
+  spend with a new `get_spend` MCP tool, and undoes an agent draft it made with
+  `discard_agent_draft` - the one delete on the MCP server, refused for anything
+  published or owned by somebody else. Its bubble also speaks up about the
+  reader's own failed run and a form left open for a minute, and works above an
+  open dialog without closing it. `/me/permissions` now names the caller's
+  `user_id`. Its template carries recipes (FAQ bot, website widget, Slack bot,
+  weekly report) and a plain-words glossary. **Settings → Assistant** holds your own tips and, for whoever may
+  change the organization's settings, its name, greeting and model, and a switch
+  to turn it off. The MCP tool `create_agent` is renamed `create_agent_draft`,
+  which no longer collides with delegation's. Migration `0109_internal_api_keys`
+  (#1798, #2063).
+- **The console keeps up with changes made elsewhere.** A successful write
+  through the public API — from a script's key, Claude Code over MCP, the
+  AI Architect or another person's console — is announced over Redis to
+  the organization's open consoles on the new `/api/v1/ws/events` socket, and
+  each page with nothing unsaved refetches in place. The Builder stops autosaving
+  when the agent it holds changes elsewhere: it takes the new draft when nothing
+  was edited, and otherwise says who changed it and through what and waits for
+  **Reload** or **Keep my changes**. A subscriber only hears about rows it may
+  read, and a socket whose session, key or membership is gone is closed (#2061).
+- **MCP tools wait for approval when they change something.** Every MCP binding
+  has an `approval` policy: `writes` (the default) holds each tool the server does
+  not mark read-only until a person approves the exact call, `all` holds every
+  call and `none` none. The card, the queue and the resume are the ones
+  capability tools use. Existing bindings take `writes` (#2060).
+- **Variables in an agent's instructions.** `{{current_date}}`, `{{current_time}}`,
+  `{{user_name}}`, `{{organization_name}}`, `{{channel}}` and the rest are filled in
+  when each run starts, and an agent can define its own. Typing `{{` in the
+  Builder's instructions opens the list; every variable is listed under the editor
+  with what it becomes, and the time is told in the deployment's zone, each
+  person's own or one chosen. Publishing refuses an unknown name. A visitor's
+  name is never the publisher's (#2065).
+- **The AI Architect researches and knows how to build agents.** It searches
+  the web and reads pages (DuckDuckGo, no key), and is installed with seven
+  gallery skills - writing instructions, designing an agent, setting up a
+  knowledge base, choosing a model, budgets, testing, and importing an agent
+  written with Pydantic AI, which it turns into a draft and a list of what did
+  not translate. The platform MCP server gains `list_capabilities`, and
+  `create_agent_draft` takes the capabilities to switch on (#2069).
+- **A deployment's own sandbox needs no registering.** Where `sandboxd` runs
+  beside the API with the token `make sandbox-token` generated, an organization
+  with no default sandbox connection gets *This deployment's sandbox* set up on
+  its own - as its owner, with the token in the vault and an audit entry - the
+  first time it lists its sandboxes or runs an agent that needs one. The AI
+  Architect is installed with files and code on such a deployment (#2070).
+- **Capabilities explained in plain words, under plainer names.** The Builder
+  lists each capability with what it lets the agent do, and its panel adds two
+  or three example uses, what it needs and what it never does - in English,
+  Polish and German. Categories read "Work with data" or "The web", and five
+  capabilities that tune how a run is carried fold under **Advanced**. Renamed
+  across the API, the console and the docs: Files & shell is **Sandbox**, Run
+  Python **Calculations**, Memory files **Memory**, Conversation search **Past
+  conversations**, Web fetch **Read web pages**, Browser automation **Web
+  browser** (and **Web browser (step by step)**), Context management **Long
+  conversations**, System reminders **Instruction reminders**. Ids, the spec
+  and the docs' anchors are unchanged (#2070, #2075).
+- **Add a skill, a context file or a knowledge base to an agent from where it
+  lives.** Skill and context cards, and a knowledge base's page, have **Add to
+  an agent**: pick the agent and the resource joins its draft with the
+  capability that reads it switched on. Each card and knowledge base also says
+  which agents use it, or that none does yet - only agents the reader may see
+  are named. The listings carry `used_by`. Page descriptions for agents,
+  context, knowledge bases and sandboxes are rewritten in plain words, and
+  Workspaces is **Agent files** in the navigation (#2075).
+- **The phone chat is no longer covered by the AI Architect's button**, which
+  sat on the composer's send controls; on a phone it steps out of the chat page,
+  where the agent picker reaches the assistant. The chat's opening suggestions
+  are everyday tasks rather than developer ones, and the phone tab bar says
+  **Knowledge** instead of "KB" (#2075).
+- **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
+  channel run that stops for a decision, or for an `ask_user` question - which
+  now parks a channel run instead of being read as declined - is offered in the
+  chat as a message per approval or question with a button per choice. A press
+  acts as the presser's linked member (`approvals:decide` to decide; only the
+  person asked may answer), continues the run and posts its answer there. Slack
+  presses arrive at a new interactions URL, Telegram's as callback queries,
+  Mattermost's at a new actions URL with this deployment's own signature on each
+  button. Migration `0111_channel_prompts` (#2064, #2068).
+- **Telegram feels native.** A command menu with a new `/agents` (also on
+  Slack and Mattermost: which agent answers here, and what it does), *typing…*
+  while it works, answers sent as Telegram HTML converted from the agent's
+  Markdown so code and links survive, and a forum group's topic answered in that
+  topic. Every channel's working status names more of what the agent is doing
+  (#2068).
+- **The Slack bot is a Slack app.** **Copy Slack app manifest** on a Slack bot
+  creates the whole app in one paste: the assistant pane with suggested prompts
+  and an *is thinking…* status, an App Home tab with the agent and what waits on
+  the person, `/agent <question>`, the message shortcut *Ask the agent about
+  this*, and unfurls for console links to agents (#2067).
+- **The chat on a phone works like a messaging app.** The console's shell
+  follows the visual viewport, so the composer stays above an iOS or Android
+  keyboard and the conversation stays on its last message while it opens; the tab
+  bar and the AI Architect's button step aside while somebody types; every form
+  field is 16px on a phone, so iOS no longer zooms into it; Enter starts a new line
+  on a touch keyboard; attaching and dictating sit behind one **+** sheet; and the
+  composer, the sheet and the widget respect the notch and home indicator. A
+  `mobile` Playwright project covers what an emulated phone can (#2066).
+- **Agents ask instead of guessing.** A new `ask_user` capability, built on
+  `AskUser` from pydantic-ai-harness, gives an agent `ask_user_question`: up to ten
+  multiple-choice questions with headers, option descriptions and multi-select.
+  The console asks them as a carousel card - one question per slide, a typed
+  answer, Back, Skip and a summary before sending - on the same channel a
+  delegate's questions already used. On by default in every new agent, every
+  template and every draft created over MCP. A question left unanswered parks the
+  run in a new `awaiting_answer` status instead of being read as declined: the
+  card comes back when the person reopens the conversation, answering it through
+  `POST /runs/{run_id}/answers` continues the run, and after
+  `QUESTION_EXPIRY_HOURS` (24) the approval sweep ends it as cancelled with the
+  step closed as unanswered (#2064).
+- **`X-Organization-Id` documented as it behaves.** A session without the header
+  acts in the caller's personal organization; a key acts in its own and answers
+  `400` to a header naming another (#1903).
+- **Follow an artifact.** A **Follow** button on a page's bar puts a notice in
+  the inbox (and, if enabled, an email) whenever the page gets a new version,
+  republished or restored. A republish that changes nothing is silent, the
+  person who made the version is not told, and following grants no access: a
+  follower who loses access stops receiving notices, and the inbox re-checks
+  access when it is read. Migration `0106_artifact_followers` adds the table
+  and the `artifact_version_published` event type (#1977).
+
+- **Groups as departments.** **Groups** joins the main navigation: each group,
+  a department, has an icon, a page listing its members and everything shared
+  with it (narrowed to what the reader may open), and **Add departments**
+  creates Sales, Finance, HR and the rest from templates. Creating an agent,
+  skill, knowledge base or context file asks one question - everyone, only me,
+  or chosen groups - and defaults to the whole organization; choosing groups
+  creates it private and shares it with each at `use`, in the same request.
+  The Builder's Toolbox shows which groups an agent's knowledge comes from and
+  warns when the agent reaches people a source is not shared with. A new
+  `{{groups}}` variable names the person's groups. API: `visibility` and
+  `group_ids` on those four creates (skills, context files and knowledge bases
+  now default to `org`), `GET /orgs/{id}/groups/{id}/resources`,
+  `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
+  `0112_group_icon` (#2072).
+
+- **A department runs itself.** An administrator can make a member a group's
+  lead, who then adds and removes the group's members without administering the
+  organization. A group's page has **Add to this group**: everything the reader
+  may edit that the group lacks, shared several at once at a chosen level. A
+  group's members are told when something is shared with it, in the inbox and by
+  email unless they turn *Shared with your group* off, and cards for agents,
+  skills, context and knowledge name who they are for - everyone, their
+  departments, or private. API: `PATCH /orgs/{id}/groups/{id}/members/{user}`
+  (`is_lead`), `GET .../shareable`, `POST .../shares`, `shared_groups` on those
+  listings and the `resource_shared` notification; migration
+  `0116_group_leads_and_shares` (#2072).
+
+- **A department's monthly budget.** A department can carry a monthly cap,
+  metered on what its members ran on any agent this month and checked between
+  the agent's cap and the organization's; a run it stops names the department.
+  Its lead and the administrators hear once when it passes 80%, and again when
+  it stops a run. The group page shows the month against the cap and exports it
+  as CSV, and the dashboard's **Spend by department** card lists every
+  department. API: `monthly_budget_usd` on groups, `GET /orgs/{id}/groups/spend`,
+  `GET /orgs/{id}/groups/{id}/spend.csv` and the `budget_warning` notification;
+  migration `0117_group_budgets` (#2072).
+
+- **An MCP server's health, users and calls.** A server bound through the
+  organization's account shows on its Builder card whether its last check
+  answered, when, and why not, with **Check now** for whoever manages MCP
+  servers. On the MCP page each organization account names the agents bound to
+  it, and **What agents asked it** lists the latest tool calls agents made to it -
+  tool, agent, outcome and run, never the arguments or results. Each call records
+  the connection that served it (migration `0118_tool_call_mcp_connection`), so a
+  member's own connection with the same name is not listed. API: `used_by` on
+  `GET /mcp-connections` and `GET /mcp-connections/{id}/calls` (#2072).
+
+- **The next step, wherever a page ends.** Builders see a **Get started**
+  checklist on the dashboard until its steps are done - an agent, published,
+  with knowledge, departments, a teammate and a chat app - each ticked from what
+  exists. Creating a skill, a context file or a knowledge base offers **Add to an
+  agent** from its toast; empty agent, routine and group pages offer the way to
+  their first item; and the AI Architect links to an agent's test panel with
+  `?test=open` (#2072, #2074).
+
+- **The console in Polish and German, whole.** Every screen but the legal pages
+  is translated into both - about two thousand Polish messages and the last
+  German ones - and the walkthrough's first card offers the language before it
+  says anything else (#2072).
+
+- **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
+  answer streams natively under the question, with each tool call a step that goes
+  from in progress to done or failed - as a timeline or as one plan - and a step
+  that read web pages linking them; a Markdown table is drawn as a Slack table. A
+  bot can react to a question as it arrives, and a finished answer carries thumbs
+  in Slack, Mattermost and Telegram that record the presser's rating; a
+  thumbs-down asks what was wrong in a Slack modal or a Mattermost dialog. Each is
+  switched in the bot's settings. The Slack bot form asks which way the connection
+  runs - Slack calling this deployment, or the deployment connecting out over
+  Socket Mode with no public address - and the manifest follows it and is
+  org-ready for Enterprise Grid. App Home lists the person's recent conversations.
+  Mattermost gets `/agent`, verified with the slash command's token. The
+  dashboard's answer quality card splits ratings by surface, and "my" ratings now
+  include those given in a chat. Migration `0115_channel_bot_touches` (#2084).
+
+- **A department's MCP servers, and people beside groups.** A shared MCP server
+  can be limited to groups or people like any other resource: they and whoever
+  connected it see and bind it, owners and admins see every one, and a builder
+  outside them neither lists it, opens it by id nor publishes an agent bound to
+  it. An agent already bound keeps working, and the Builder lists the server
+  where the agent's knowledge comes from. The audience control finds groups and
+  people by typing and keeps each as a chip. `mcp:manage` becomes a resource
+  permission, held by builders at `SHARED`. API: `visibility`, `group_ids` and
+  `user_ids` on the organization's MCP creates and OAuth start,
+  `/mcp-connections/{id}/sharing`, and `user_ids` on every audience; migration
+  `0114_mcp_connection_audience` (#2072).
+
+- **MCP connections in plain words, and a shorter path.** The connect dialog asks
+  one question as two explained cards - one shared account for everyone, or my
+  own account - and recommends one per catalog server. A custom server's
+  address is checked for OAuth sign-in as it is typed (`POST
+  /api/v1/me/mcp-connections/probe`, the RFC 9728/8414 discovery a sign-in runs,
+  registering nothing): sign-in is chosen when it is supported, and the dialog
+  says when a client made at the provider is needed. Connecting a server from the
+  Builder binds it and opens its tools from the check that just ran (#2073).
+
+- **A test panel beside the Builder.** **Test** opens the real chat beside the
+  Builder, resizable and remembered per agent, answering as the unpublished
+  draft or as any environment's version. A draft test needs no publish - it
+  passes the publish checks, runs for whoever may edit the agent, and a parked
+  call continues on the draft it started with. Every turn is a test run,
+  budgeted like any other and marked and filterable in Activity
+  (`?test=` on the runs list and export). The panel starts over, replays the
+  last message and reruns pinned prompts. It compares two side by side - the
+  draft against production, or two environments - asked the same thing at once,
+  shows what the draft changes against the published version, and opens and
+  closes with <kbd>T</kbd>. Chat frames take `draft` and `test`; migration
+  `0113_test_runs` (#2074).
+
+### Fixed
+
+- **An MCP account whose OAuth sign-in could not be renewed asks to be authorized
+  again** on the server list and in the Builder, instead of reading as a server
+  that stopped answering (#2073).
+- **Self-query skips its inference at a budget cap** and searches unfiltered, as
+  query expansion, compaction and system reminders already did, instead of ending
+  the run (#1808, #1811).
+- **Workspace listings no longer decode every stored image on the event loop.**
+  Both backends draw at most one screen of thumbnails per request, the decode
+  runs on the file pool, and a workspace listed by id returns no tiles at all
+  (#1930).
+- **A hidden ingestion setting can no longer block submit.** Turning OCR,
+  LiteParse or image descriptions off resets a refused value behind the
+  now-hidden field to its default (#1930).
+- **Reduced motion skips the staggered card reveal**, and the agents label
+  filter stops offering picks past the 10-category / 20-tag cap the API applies
+  (#1930).
+
+### Changed
+
+- **Artifacts are Apps.** The console page, navigation, dashboard widget,
+  notifications, the capability's name and the docs in four languages call
+  them apps; `/artifacts` console links redirect to `/apps`, and public links
+  (`/a/<key>`) are unchanged. The API serves `/api/v1/apps` and
+  `/api/v1/public/apps`; the old `/artifacts` paths stay as `deprecated` aliases
+  for the v1 policy's 90 days. Permission names, tool names, the capability id
+  and the content addresses keep their old names (#2071).
+- **Backend dependencies upgraded to their newest releases**, with the
+  context-manager annotations the newer typeshed requires (#2005).
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

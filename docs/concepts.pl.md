@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "6763956ff2b1"
 ---
 
 # Koncepcje { #concepts }
@@ -166,14 +166,14 @@ swojej **tożsamości**. Nikt nie słucha runa bez nadzoru, więc nie odpowiada 
 żadnej zidentyfikowanej osobie, tak samo jak gość na osadzonym widgecie. Te
 magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
-- [Pliki pamięci](reference/capabilities.md#memory-files) i
+- [Pamięć](reference/capabilities.md#memory-files) i
   [mem0](reference/capabilities.md#memory-mem0): każde narzędzie odpowiada, że
   rozmowa nie ma pamięci.
-- [Wyszukiwanie w rozmowach](reference/capabilities.md#conversation-search): oba
+- [Poprzednie rozmowy](reference/capabilities.md#conversation-search): oba
   narzędzia odmawiają.
 - [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
   własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
-- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+- [Aplikacje](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
   prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
   całą stronę od nowa zamiast ją edytować.
 

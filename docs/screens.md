@@ -4,7 +4,7 @@ The console modules are described below. Screenshots from the previous interface
 
 ## Product demo
 
-The current edited demo shows the OSS Launch Planner: a task using a Notion brief and GitHub research, an interactive artifact and a sharing link. Waiting time has been removed; the report contains snapshot data.
+The current edited demo shows the OSS Launch Planner: a task using a Notion brief and GitHub research, an interactive app and a sharing link. Waiting time has been removed; the report contains snapshot data.
 
 <video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline style="width:100%"></video>
 

@@ -38,12 +38,13 @@ class ConversationSearchConfig(BaseModel):
             "How many conversations one search returns at most. Each brings back a "
             "short passage, so a high number costs context on every search."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 
 @register(
     id=CONVERSATION_SEARCH_CAPABILITY_ID,
-    name="Conversation search",
+    name="Past conversations",
     category="knowledge",
     description=(
         "Let the agent search what was said in past conversations and open one in "

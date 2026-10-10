@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -18,27 +24,21 @@ import {
   FormField,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Textarea,
 } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
-import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
+import { ASK_USER_ID, unboundBinding } from "@/lib/agent-spec";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 1000;
-/** The caps the server enforces, so a chip too many is refused before it is sent. */
-const MAX_CATEGORIES = 10;
-const MAX_TAGS = 20;
+/** The longest label the server stores, so a longer chip is refused before it is sent. */
 const MAX_LABEL = 32;
 
 /**
@@ -85,7 +85,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   // Organization by default. An agent is a thing a company builds, and one
   // nobody else can find is the exception - it used to be the rule, so every
   // agent was made invisible and then shared by hand.
-  const [visibility, setVisibility] = useState<Visibility>("org");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [categories, setCategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -108,20 +108,22 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           instructions: "",
           model_profile_id: null,
           model_settings: {},
-          capabilities: [],
+          // Every new agent can ask the person a question rather than guess
+          // (#2064); its author can switch it off in the Builder.
+          capabilities: [{ ...unboundBinding(ASK_USER_ID), enabled: true }],
           collection_ids: [],
           skill_ids: [],
           context_ids: [],
           mcp_servers: [],
           budget: null,
         },
-        visibility,
+        ...audiencePayload(audience),
         categories,
         tags,
       });
       setName("");
       setDescription("");
-      setVisibility("org");
+      setAudience(EVERYONE);
       setCategories([]);
       setTags([]);
       setErrors({});
@@ -193,22 +195,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             />
           </FormField>
           <div className="space-y-1.5">
-            <Label htmlFor="agent-visibility">{t("whoCanFindIt")}</Label>
-            <Select
-              value={visibility}
-              onValueChange={(value) => setVisibility(value as Visibility)}
-            >
-              <SelectTrigger id="agent-visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="org">{t("visibilityOrg")}</SelectItem>
-                <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">
-              {t(visibility === "org" ? "visibilityOrgHint" : "visibilityPrivateHint")}
-            </p>
+            <Label>{t("whoCanFindIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
 
           {/* Side by side, because they are two halves of one question - and the
@@ -224,7 +212,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                 inputLabel={tAgents("addCategory")}
                 removeLabel={(value) => tAgents("removeCategory", { value })}
                 placeholder={tAgents("addCategoryPlaceholder")}
-                maxItems={MAX_CATEGORIES}
+                maxItems={MAX_AGENT_CATEGORIES}
                 maxLength={MAX_LABEL}
               />
             </div>
@@ -236,7 +224,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                 inputLabel={tAgents("addTag")}
                 removeLabel={(value) => tAgents("removeTag", { value })}
                 placeholder={tAgents("addTagPlaceholder")}
-                maxItems={MAX_TAGS}
+                maxItems={MAX_AGENT_TAGS}
                 maxLength={MAX_LABEL}
               />
             </div>
@@ -273,7 +261,13 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline">
-                  {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
+                  {t(
+                    audience.mode === "org"
+                      ? "visibilityOrg"
+                      : audience.mode === "private"
+                        ? "visibilityPrivate"
+                        : "visibilityGroups",
+                  )}
                 </Badge>
                 {categories.map((value) => (
                   <Badge key={value} variant="secondary">

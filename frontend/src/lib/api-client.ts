@@ -6,6 +6,7 @@
 
 import { ApiError, parseErrorMessage } from "@/lib/api-error";
 import { markRefreshed, refreshedRecently, withAuthLock } from "@/lib/auth-lock";
+import { CONSOLE_TAB, CONSOLE_TAB_HEADER } from "@/lib/console-tab";
 import { useAuthStore, useOrgStore } from "@/stores";
 
 // Re-exported because this module was where `ApiError` lived and where the rest
@@ -134,6 +135,7 @@ class ApiClient {
           // verifies membership; an id the user does not belong to is refused,
           // and no header at all falls back to their personal org.
           ...(activeOrgId ? { "X-Organization-Id": activeOrgId } : {}),
+          [CONSOLE_TAB_HEADER]: CONSOLE_TAB,
           ...fetchOptions.headers,
         },
         body: isMultipart ? (body as FormData) : body ? JSON.stringify(body) : undefined,

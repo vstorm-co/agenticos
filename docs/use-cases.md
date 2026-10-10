@@ -45,7 +45,7 @@ The last column says when the maintainers last ran a tutorial on the product. A 
 
 | Tutorial | What it does | Last run by the maintainers |
 | --- | --- | --- |
-| [Schedule a weekly report](howto/scheduled-report.md) | A self-contained report republished as an artifact every week | v0.0.504, 25 September 2026 |
+| [Schedule a weekly report](howto/scheduled-report.md) | A self-contained report republished as an app every week | v0.0.504, 25 September 2026 |
 | [Triage new GitHub issues automatically](howto/github-issue-triage.md) | New issues triaged the moment GitHub delivers them | v0.0.504, 25 September 2026 |
 | [Turn meeting action items into tasks with approval](howto/meeting-to-tasks.md) | Action items proposed as tracker tasks, each approved first | Not yet recorded |
 | [Route requests to a team of specialist agents](howto/specialist-team.md) | A front desk that delegates to specialist agents | v0.0.504, 25 September 2026 |

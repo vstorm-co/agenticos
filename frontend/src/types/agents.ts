@@ -239,7 +239,12 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
+  /** Which tools wait for a person: those not marked read-only (default), all, or none. */
+  approval?: McpApproval;
 }
+
+/** How much of an MCP server's tools wait for a person's approval (#2060). */
+export type McpApproval = "writes" | "all" | "none";
 
 /**
  * A service each person reaches through their own account.
@@ -254,10 +259,35 @@ export interface PersonalMcpServerRef {
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
+  approval?: McpApproval;
 }
 
-/** One MCP binding: the organization's connection, or each person's own account. */
-export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
+/**
+ * This deployment's own MCP server, as whoever the agent runs for (#2063).
+ * What the AI Architect operates the platform through.
+ */
+export interface PlatformMcpServerRef {
+  account: "platform";
+  allowed_tools?: string[] | null;
+  approval?: McpApproval;
+}
+
+/** One MCP binding: the organization's connection, each person's own, or the platform's. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef;
+
+/** A custom variable, written `{{name}}` in an agent's instructions (#2065). */
+export interface PromptVariableSpec {
+  name: string;
+  value: string;
+  description?: string | null;
+}
+
+/** A system variable, filled in by the platform when a run starts. */
+export interface SystemPromptVariable {
+  name: string;
+  description: string;
+  example: string;
+}
 
 export interface AgentSpec {
   /**
@@ -272,7 +302,12 @@ export interface AgentSpec {
   spec_version?: number;
   name: string;
   description?: string | null;
+  /** The system prompt; `{{name}}` is filled in when each run starts (#2065). */
   instructions: string;
+  /** Custom variables the instructions may use. Optional here, always on the wire. */
+  variables?: PromptVariableSpec[];
+  /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
+  time_zone?: string;
   model_profile_id?: string | null;
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
@@ -319,6 +354,8 @@ export interface Agent {
   description: string | null;
   status: AgentStatus;
   visibility: Visibility;
+  /** The groups it is shared with, by name (#2072). Only the listing carries it. */
+  shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
@@ -642,6 +679,14 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * Whether this field is folded under "Advanced settings" (#2070).
+   *
+   * A capability marks limits, cache lifetimes, prompts and tuning this way
+   * through `json_schema_extra`, so the form shows the decisions that change
+   * what an agent does first and the rest a click away.
+   */
+  "x-advanced"?: boolean;
+  /**
    * Values a field suggests without restricting itself to them.
    *
    * The open counterpart of `enum`: the backend validates a plain string, so the
@@ -664,4 +709,28 @@ export interface JsonSchemaProperty {
     items?: { type?: string };
     "x-enum-labels"?: Record<string, string>;
   }[];
+}
+
+/** An agent using a skill, a context file or a knowledge base, as a listing names it. */
+export interface AgentUsage {
+  id: string;
+  name: string;
+}
+
+/** One knowledge source an agent binds, and who it is shared with (#2072). */
+export interface KnowledgeSource {
+  kind: "collection" | "skill" | "context" | "mcp";
+  id: string;
+  name: string;
+  whole_organization: boolean;
+  groups: string[];
+  /** The agent reaches people this source is not shared with. */
+  reaches_fewer_than_agent: boolean;
+}
+
+/** Who an agent reaches, and where each of its knowledge sources comes from. */
+export interface AgentKnowledgeReach {
+  whole_organization: boolean;
+  groups: string[];
+  sources: KnowledgeSource[];
 }

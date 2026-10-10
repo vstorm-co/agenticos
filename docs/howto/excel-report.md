@@ -52,7 +52,7 @@ grand total 194,000.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Files & shell**. Choose **Container**, select
+2. In **Toolbox**, enable **Sandbox**. Choose **Container**, select
    your sandbox connection and the `workbench` runtime, and keep the
    conversation scope.
 3. Set a budget for the trial, then set the instructions below and
@@ -153,4 +153,4 @@ them.
 
 For a report that has to run every week rather than once, continue with
 [schedule a weekly report](scheduled-report.md), which publishes its output
-as a stable, shareable artifact instead of a workspace file.
+as a stable, shareable app instead of a workspace file.

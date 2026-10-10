@@ -25,10 +25,12 @@ from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.user import NotificationPreference
+from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
 from app.services import rate_limit
+from app.services.access import ARTIFACT, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 
@@ -373,6 +375,7 @@ class _GateCache:
     kb_by_id: dict[uuid.UUID, KnowledgeBase]
     kb_access_by_id: dict[uuid.UUID, bool]
     announcement_visible_by_id: dict[uuid.UUID, bool]
+    artifact_visible_by_id: dict[uuid.UUID, bool]
 
 
 class NotificationCenterService:
@@ -1086,8 +1089,14 @@ class NotificationCenterService:
         one announcement) share the same one."""
         collection_ids: set[uuid.UUID] = set()
         announcement_ids: set[uuid.UUID] = set()
+        artifact_ids: set[uuid.UUID] = set()
         for notification in notifications:
             gate = content_gate_for(NotificationEventType(notification.event_type))
+            if gate is ContentGate.ARTIFACTS_VIEW:
+                raw_artifact_id = (notification.render_context or {}).get("artifact_id")
+                with contextlib.suppress(ValueError):
+                    artifact_ids.add(uuid.UUID(str(raw_artifact_id)))
+                continue
             if gate is ContentGate.COLLECTIONS_VIEW:
                 raw_collection_id = (notification.render_context or {}).get("collection_id")
                 if raw_collection_id:
@@ -1116,6 +1125,25 @@ class NotificationCenterService:
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
             announcement_visible_by_id=announcement_visible_by_id,
+            artifact_visible_by_id={
+                artifact_id: await self._artifact_visible(ctx, artifact_id)
+                for artifact_id in artifact_ids
+            },
+        )
+
+    async def _artifact_visible(self, ctx: AuthContext, artifact_id: uuid.UUID) -> bool:
+        """Whether the reader may still open the page a version notice is about.
+
+        A follower who lost access, or whose page was deleted, stops seeing the
+        notices about it - the title and the link are the page's, not theirs.
+        """
+        artifact = await artifact_repo.get(
+            self.db, artifact_id, organization_id=ctx.organization_id
+        )
+        if artifact is None:
+            return False
+        return await resolve_access(
+            self.db, ctx, artifact, Perm.ARTIFACTS_VIEW, resource_type=ARTIFACT
         )
 
     async def gate_for(
@@ -1165,6 +1193,13 @@ class NotificationCenterService:
             return _Gate(visible=self._collections_visible(ctx, notification, cache))
         if gate is ContentGate.ANNOUNCEMENT_AUDIENCE:
             return _Gate(visible=self._announcement_visible(notification, cache))
+        if gate is ContentGate.ARTIFACTS_VIEW:
+            raw_artifact_id = (notification.render_context or {}).get("artifact_id")
+            try:
+                artifact_id = uuid.UUID(str(raw_artifact_id))
+            except ValueError:
+                return _Gate(visible=False)
+            return _Gate(visible=cache.artifact_visible_by_id.get(artifact_id, False))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover
 
     def _collections_visible(

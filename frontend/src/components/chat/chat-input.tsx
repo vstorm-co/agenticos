@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ComposerSheet } from "./composer-sheet";
 
 /**
  * Render `row` where the page wants it, or in place when it named nowhere.
@@ -37,6 +38,7 @@ import {
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
 import { FileDropOverlay } from "@/components/files";
+import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
@@ -111,6 +113,22 @@ interface ChatInputProps {
    * the width of the row and were read past on every message.
    */
   actionsSlot?: ReactNode;
+  /**
+   * Files handed in from outside the composer - the AI Architect's screenshot of
+   * the page (#2063) - attached as if picked, once per `id`.
+   */
+  incoming?: IncomingFiles | null;
+}
+
+/** Files to attach from outside the composer, once per `id`. */
+export interface IncomingFiles {
+  id: number;
+  files: File[];
+}
+
+/** Whether typing happens on a touch keyboard - a phone or a tablet. */
+function touchKeyboard(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
 }
 
 export function ChatInput({
@@ -124,6 +142,7 @@ export function ChatInput({
   mic,
   controlsSlot,
   actionsSlot,
+  incoming = null,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -237,7 +256,9 @@ export function ChatInput({
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    // On a touch keyboard Enter is a new line, as in every messaging app: there
+    // is no Shift to hold for one, and the send button is a thumb away (#2066).
+    if (e.key === "Enter" && !e.shiftKey && !touchKeyboard()) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -336,6 +357,13 @@ export function ChatInput({
     },
     [chatMaxUploadSizeMb, t, tErrors],
   );
+
+  const attachedIncoming = useRef<number | null>(null);
+  useEffect(() => {
+    if (incoming === null || attachedIncoming.current === incoming.id) return;
+    attachedIncoming.current = incoming.id;
+    void uploadFiles(incoming.files);
+  }, [incoming, uploadFiles]);
 
   /**
    * A paste long enough to be a document becomes one.
@@ -439,7 +467,13 @@ export function ChatInput({
         placeholder={t("placeholder")}
         disabled={disabled}
         rows={1}
-        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+        // What a phone's keyboard offers: a return key that reads as a line
+        // break where Enter makes one, and sentences that start capitalised.
+        enterKeyHint={touchKeyboard() ? "enter" : "send"}
+        autoCapitalize="sentences"
+        // 16px, never less: iOS zooms the page into any field smaller than that
+        // the moment it is focused, which is the whole screen lurching (#2066).
+        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
@@ -451,7 +485,8 @@ export function ChatInput({
           size="icon"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || isUploading}
-          className="h-9 w-9 shrink-0"
+          // Behind the phone's `+` instead - see `ComposerSheet`.
+          className="hidden h-9 w-9 shrink-0 md:inline-flex"
           title={t("attachFile")}
           aria-label={t("attachFile")}
         >
@@ -469,6 +504,11 @@ export function ChatInput({
           multiple
           className="hidden"
         />
+        <ComposerSheet
+          onAttach={() => fileInputRef.current?.click()}
+          onVoice={toggleMic}
+          disabled={disabled || isUploading}
+        />
         {controlsSlot ? (
           <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
@@ -481,7 +521,8 @@ export function ChatInput({
             size="icon"
             onClick={toggleMic}
             disabled={disabled}
-            className="h-9 w-9 shrink-0"
+            // On a phone it starts from the `+` sheet, and shows here only to stop.
+            className={cn("h-9 w-9 shrink-0", !isListening && "hidden md:inline-flex")}
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -507,7 +548,7 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
-              className="shrink-0"
+              className="shrink-0 transition-transform active:scale-90"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}

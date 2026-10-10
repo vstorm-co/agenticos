@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.agents.ask_user import parked_status
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -254,6 +255,7 @@ class TranscriptService:
         parked: Collection[str] = (),
         model_label: str | None = None,
         context_used_tokens: int | None = None,
+        mcp_origins: Mapping[str, UUID] | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -293,6 +295,10 @@ class TranscriptService:
         the call it belongs to (:func:`settled_calls_in`). So the one call somebody
         deliberately reviewed used to be the one call the transcript showed
         finishing with nothing under it.
+
+        `mcp_origins` maps a tool the run was given by an organization MCP
+        connection to that connection, and each call to one is stored against it
+        - what the server's call log reads (#2072).
 
         `parked` names the calls this run just stopped on, and their rows are
         written `awaiting_approval` rather than `running`. The parked state
@@ -344,6 +350,7 @@ class TranscriptService:
                         parked=parked,
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
+                        mcp_origins=mcp_origins or {},
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -419,6 +426,7 @@ class TranscriptService:
         parked: Collection[str],
         model_label: str | None,
         context_used_tokens: int | None,
+        mcp_origins: Mapping[str, UUID],
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -465,7 +473,8 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status="awaiting_approval" if call.tool_call_id in parked else "running",
+                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
+                mcp_connection_id=mcp_origins.get(call.tool_name),
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

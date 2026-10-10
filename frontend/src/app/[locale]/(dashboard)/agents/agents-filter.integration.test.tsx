@@ -195,6 +195,17 @@ describe("the agents gallery filter", () => {
     expect(await screen.findByText("Nothing matches")).toBeInTheDocument();
   });
 
+  it("offers to create the first agent when there are none (#2072)", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, categories: [], tags: [] });
+    render(<AgentsPage />, { wrapper });
+
+    expect(await screen.findByText("No agents yet")).toBeInTheDocument();
+    const create = screen.getAllByRole("button", { name: "New agent" });
+    await userEvent.click(create[create.length - 1]!);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
   it("shows the filter-empty copy, not 'no agents yet', for a zero-match facet", async () => {
     render(<AgentsPage />, { wrapper });
     await screen.findByText("Live");

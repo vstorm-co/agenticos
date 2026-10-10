@@ -40,6 +40,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import (
     AgentSpec,
+    CapabilityBindingSpec,
     ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
@@ -65,6 +66,21 @@ from app.services.agent_runner import (
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.capped_groups_for_member",
+        AsyncMock(return_value=[]),
+    )
+
 
 RUNNER = "app.services.agent_runner"
 
@@ -826,6 +842,34 @@ class TestHowDeepDelegationGoes:
         # And one stash, because a delegation two levels down parks the run
         # somebody started and is continued from that run's stored state.
         assert nested.stash is prepared.runtime.stash
+
+    @pytest.mark.security
+    async def test_every_level_streams_under_the_delegating_runs_output_check(self):
+        """A delegate's text reaches the reader of the run, however deep it is,
+        so the run's own output check screens it (agenticos#2000)."""
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0, CapabilityBindingSpec(id="guardrails", config={"redact_secrets_out": True})
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.output_screen is not None
+        assert nested.output_screen is prepared.runtime.output_screen
+
+    async def test_without_an_output_check_nothing_screens_the_delegates(self):
+        parent, versions = self._two_levels(max_depth=2)
+        parent.capabilities.insert(
+            0,
+            CapabilityBindingSpec(
+                id="guardrails", enabled=False, config={"redact_secrets_out": True}
+            ),
+        )
+
+        prepared = await _prepare(parent, versions=versions)
+
+        assert prepared.runtime.output_screen is None
 
     async def test_the_default_stops_a_delegate_from_delegating_at_all(self):
         """One level, which is what `max_depth=1` says and what an author reads.
@@ -1692,6 +1736,15 @@ class TestResumingIntoADelegation:
     run's stored state the continuation comes out of.
     """
 
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these runs is the organization's assistant's (#2063)."""
+        with patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_the_reassembled_tree_holds_the_place_the_parked_delegate_left(self):
         parked_at = "the-parents-task-call"
         frame = {
@@ -1710,6 +1763,7 @@ class TestResumingIntoADelegation:
             surface="api",
             status=RunStatus.AWAITING_APPROVAL.value,
             paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
+            test_spec=None,
             model_label="gpt-4.1",
             input_tokens=0,
             output_tokens=0,

@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "f1a4e83b7fd4"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -8,7 +8,7 @@ Die Module der Konsole sind unten beschrieben. Screenshots der früheren Oberfl�
 
 ## Produktdemo { #product-demo }
 
-Die aktuelle bearbeitete Demo zeigt den OSS Launch Planner: eine Aufgabe mit einem Notion-Briefing und GitHub-Recherche, ein interaktives Artefakt und einen Freigabelink. Wartezeiten wurden entfernt; der Bericht enthält eine Momentaufnahme der Daten.
+Die aktuelle bearbeitete Demo zeigt den OSS Launch Planner: eine Aufgabe mit einem Notion-Briefing und GitHub-Recherche, eine interaktive App und einen Freigabelink. Wartezeiten wurden entfernt; der Bericht enthält eine Momentaufnahme der Daten.
 
 <video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline style="width:100%"></video>
 

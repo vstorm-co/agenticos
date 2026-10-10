@@ -309,7 +309,8 @@ export default function OrgMembersPage({ params }: PageProps) {
           { label: org?.name ?? t("members2") },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          // Wrapping, because four links are wider than a phone (#2075).
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
               <Link href={ROUTES.ORG_ROLES(id)}>
                 <ShieldCheck className="h-4 w-4" />

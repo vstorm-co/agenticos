@@ -870,6 +870,22 @@
   animation: pop-in var(--duration-base) var(--ease-spring) both;
 }
 
+/* The Architect's speech bubble arriving above its face (#2075): rising a few
+   pixels as it fades in, so it reads as spoken rather than as a toast. */
+.bubble-rise {
+  animation: bubble-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes bubble-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Dashes travelling along the agent map's edges - flow, from source to sink.
    The offset is one dash period (4 + 4), so the loop is seamless. Stripped by
    the reduced-motion block below like every other long-running animation. */
@@ -1300,6 +1316,30 @@
   transition:
     height 0.28s ease,
     width 0.28s ease;
+}
+
+/* The welcome card's language row (#2072): plain buttons driver.js does not own,
+   drawn as the app's quiet pills, the current language marked. */
+.driver-popover.tour-popover .tour-language {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.driver-popover.tour-popover .tour-language button {
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  background: transparent;
+}
+
+.driver-popover.tour-popover .tour-language button:hover,
+.driver-popover.tour-popover .tour-language button[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
 }
 
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
@@ -1926,6 +1966,14 @@
 .rise-in > :nth-child(n + 9) {
   animation-delay: 320ms;
 }
+/* The global reduced-motion rule shortens durations but keeps these delays, and
+   with `both` fill a later card would sit invisible for up to 320ms and then
+   appear at once (#1930). Without motion the grid is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  .rise-in > * {
+    animation: none;
+  }
+}
 
 /* A streaming answer: each block the markdown grows - a paragraph, a list, a
    heading, a table - fades up as it mounts. Blocks already on screen keep their
@@ -2049,4 +2097,31 @@
 }
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
+}
+
+/* A control the AI Architect pointed at (#2063): a ring that pulses three times
+   and is gone, so the reader's eye lands on it without a coach mark to dismiss. */
+.assistant-highlight {
+  outline: 2px solid var(--foreground);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+  animation: assistant-highlight 1s ease-in-out 3;
+}
+@keyframes assistant-highlight {
+  50% {
+    outline-offset: 8px;
+    outline-color: transparent;
+  }
+}
+
+/* A form field on a phone is never under 16px: iOS zooms the page into any
+   smaller field the moment it is focused, and the whole console lurches
+   sideways under the person's thumb (#2066). Desktop keeps each field's own
+   size. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }

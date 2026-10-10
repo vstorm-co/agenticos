@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AnswerStyleFields,
+  DEFAULT_ANSWER_STYLE,
+  REACTION_PATTERN,
+} from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
+import { SlackTransport } from "@/components/channels/slack-transport";
 import {
   Button,
   Dialog,
@@ -21,7 +27,7 @@ import {
 } from "@/components/channels/transcription-fields";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import type { ChannelBotCreate, ChannelPlatform } from "@/types/channels";
+import type { AnswerStyle, ChannelBotCreate, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -83,6 +89,8 @@ export function AddChannelDialog({
   const [webhookSecret, setWebhookSecret] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
+  const [slackWebhook, setSlackWebhook] = useState(true);
+  const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>({
     provider: null,
     model: null,
@@ -93,7 +101,10 @@ export function AddChannelDialog({
   // cannot open its event stream and cannot fetch an attachment, so the backend
   // refuses to save one. Said here rather than after the round trip.
   const missingServerUrl = platform === "mattermost" && serverUrl.trim() === "";
-  const complete = name.trim().length > 0 && token.trim().length >= MIN_TOKEN && !missingServerUrl;
+  const badReaction =
+    answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
+  const complete =
+    name.trim().length > 0 && token.trim().length >= MIN_TOKEN && !missingServerUrl && !badReaction;
 
   function reset() {
     setPlatform("mattermost");
@@ -103,6 +114,8 @@ export function AddChannelDialog({
     setWebhookSecret("");
     setSigningSecret("");
     setAppToken("");
+    setSlackWebhook(true);
+    setAnswerStyle(DEFAULT_ANSWER_STYLE);
     setTranscription({ provider: null, model: null });
     setErrors({});
   }
@@ -131,10 +144,16 @@ export function AddChannelDialog({
         ...(platform === "mattermost" && webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
           : {}),
-        ...(platform === "slack" && signingSecret.trim()
+        // Only the credential the chosen direction uses: Slack calling us is
+        // verified with the signing secret, us connecting out uses the app token.
+        ...(platform === "slack" ? { webhook_mode: slackWebhook } : {}),
+        ...(platform === "slack" && slackWebhook && signingSecret.trim()
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
-        ...(platform === "slack" && appToken.trim() ? { slack_app_token: appToken.trim() } : {}),
+        ...(platform === "slack" && !slackWebhook && appToken.trim()
+          ? { slack_app_token: appToken.trim() }
+          : {}),
+        ...answerStyle,
         // Both halves or neither - the schema refuses one alone as a setting
         // that cannot run - and absent entirely for a bot that does not listen.
         ...(transcription.provider && transcription.model
@@ -273,36 +292,46 @@ export function AddChannelDialog({
           )}
 
           {platform === "slack" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                label={t("signingSecret")}
-                htmlFor="channel-signing-secret"
-                description={t("signingSecretHint")}
-              >
-                <Input
-                  id="channel-signing-secret"
-                  type="password"
-                  value={signingSecret}
-                  onChange={(event) => setSigningSecret(event.target.value)}
-                  autoComplete="off"
-                />
-              </FormField>
-
-              <FormField
-                label={t("appLevelToken")}
-                htmlFor="channel-app-token"
-                description={t("appLevelTokenHint")}
-              >
-                <Input
-                  id="channel-app-token"
-                  type="password"
-                  value={appToken}
-                  onChange={(event) => setAppToken(event.target.value)}
-                  autoComplete="off"
-                />
-              </FormField>
-            </div>
+            <>
+              <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
+              {slackWebhook ? (
+                <FormField
+                  label={t("signingSecret")}
+                  htmlFor="channel-signing-secret"
+                  description={t("signingSecretHint")}
+                >
+                  <Input
+                    id="channel-signing-secret"
+                    type="password"
+                    value={signingSecret}
+                    onChange={(event) => setSigningSecret(event.target.value)}
+                    autoComplete="off"
+                  />
+                </FormField>
+              ) : (
+                <FormField
+                  label={t("appLevelToken")}
+                  htmlFor="channel-app-token"
+                  description={t("appLevelTokenHint")}
+                >
+                  <Input
+                    id="channel-app-token"
+                    type="password"
+                    value={appToken}
+                    onChange={(event) => setAppToken(event.target.value)}
+                    autoComplete="off"
+                  />
+                </FormField>
+              )}
+            </>
           )}
+
+          <AnswerStyleFields
+            idPrefix="channel"
+            platform={platform}
+            value={answerStyle}
+            onChange={setAnswerStyle}
+          />
 
           <TranscriptionFields
             idPrefix="channel"

@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ które w ogóle nie dociera do runnera.
 
 ## Budżety { #budgets }
 
-!!! abstract "Dwa poziomy, i nie są to warianty jednej liczby"
+!!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
 
     Limit agenta mierzony względem sumy całej organizacji wyczerpują runy jego
     sąsiadów; limit organizacji mierzony względem jednego agenta nie jest żadnym
@@ -58,6 +58,7 @@ które w ogóle nie dociera do runnera.
 | Poziom | Ustawiany w | Mierzy | Podnosi |
 |---|---|---|---|
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
+| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
@@ -92,6 +93,20 @@ na liście agentów — liczba z *opublikowanej* wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+### Limit działu { #a-departments-cap }
+
+[Dział](departments.md#a-departments-budget) może mieć własny miesięczny limit.
+Stoi między pozostałymi dwoma: run jest sprawdzany względem limitu agenta,
+potem każdego działu z limitem, w którym jest osoba, która go uruchomiła, a na
+końcu względem limitu organizacji. Każdy dział liczy miesiąc własnych członków,
+więc osobę z Finansów i Sprzedaży zatrzyma ten z dwóch, który wyczerpie się
+pierwszy, a odmowa go nazwie - *Sales department monthly budget exhausted*.
+
+Lider działu i administratorzy dostają jedno powiadomienie, gdy dział przekroczy
+80% miesiąca, i kolejne, gdy limit zatrzyma run. Run, którego nikt nie
+uruchomił - harmonogram, gość na kanale - nie należy do żadnego działu i nie
+jest liczony.
 
 ### Egzekwowanie odbywa się przed żądaniem { #enforcement-is-before-the-request }
 
@@ -151,8 +166,8 @@ zobaczy. Dlatego licznik należy do przygotowanego runa, a nie do powierzchni.
 Otwarcie go nie jest krokiem, o którym nowa powierzchnia musi wiedzieć, bo nie
 ma sposobu, żeby wykonać przygotowanego agenta bez niego.
 
-[Zarządzanie kontekstem](reference/capabilities.md#context-management) to ta
-druga taka rzecz. Jego strategia podsumowująca zapisuje podsumowanie przez
+Capability [Długie rozmowy](reference/capabilities.md#context-management) to ta
+druga taka rzecz. Jej strategia podsumowująca zapisuje podsumowanie przez
 agenta, którego buduje sama, więc to żądanie nie przechodzi przez żadną bramkę
 budżetu; capability księguje to, co kosztowało, na tym samym liczniku. Bycie
 *poza* bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
@@ -196,8 +211,8 @@ komunikatem, z którym da się coś zrobić. Workspace odmawia zapisu. **Okno
 kontekstu** zostaje odrzucone przez providera, w środku odpowiedzi, a run po
 prostu się wywraca.
 
-Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpięte
-[zarządzanie kontekstem](reference/capabilities.md#context-management), bo
+Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpiętą
+capability [Długie rozmowy](reference/capabilities.md#context-management), bo
 ostrzeżenie liczy się najbardziej dla agenta, który *nie* będzie kompaktował.
 Raportuje on, ile tokenów niosło ostatnie żądanie tury, *po* ewentualnym
 kompaktowaniu: odczyt spada, gdy kompaktowanie działa, bo mierzy to, co wyszło, a
@@ -1580,7 +1595,7 @@ gdzie ustawia się okresy per tenant.
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
 | Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
-| Artefakty | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
+| Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
 | Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |

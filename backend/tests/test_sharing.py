@@ -216,6 +216,8 @@ class TestShareWithGroup:
                 new=AsyncMock(return_value=MagicMock()),
             ) as upsert,
             patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+            # Who is told is `test_group_leads_and_shares`'s, over a real database.
+            patch.object(SharingService, "_tell_the_group", new=AsyncMock()),
         ):
             await SharingService(_db()).share_with_group(
                 ctx,

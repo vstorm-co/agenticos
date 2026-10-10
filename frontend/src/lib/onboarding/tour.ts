@@ -54,6 +54,12 @@ export const ORG_DIRECTORY = "org-directory-detail";
 export const SETTINGS_DETAIL = "settings-detail";
 
 /**
+ * One department's page, `/groups/<id>` (#2072): its people, and adding to what it
+ * has. Opened on the first group, like a collection on the first collection.
+ */
+export const GROUP_DETAIL = "group-detail";
+
+/**
  * A workspace's file browser, `/workspaces/<id>`, collapsed the same way. Unlike a
  * seeded agent or collection there is no example to open from the list — a
  * workspace is one person's own agent output — so its stop is "?"-only help shown
@@ -130,6 +136,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // (see its own docstring), so it is anchored here the way `dashboard-customize`
   // is: "?"-only, ungated, because every membership has its own inbox.
   { id: "notification-bell", page: ROUTES.DASHBOARD, target: "notification-bell" },
+  // The AI Architect's corner button, on every page alike and anchored here for
+  // the same reason. Optional and gated: it is drawn only for somebody who may
+  // run agents, and only once the organization's assistant exists (#2063).
+  {
+    id: "assistant-widget",
+    page: ROUTES.DASHBOARD,
+    target: "assistant-widget",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
@@ -257,6 +273,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // Trying it beside the Builder before publishing (#2074).
+  {
+    id: "agent-test",
+    page: AGENT_BUILDER,
+    target: "agent-test",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,
@@ -299,6 +323,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "context-list",
     permission: Perm.contextView,
   },
+
+  // Groups as departments (#2072): the button that creates one for a caller who
+  // may, and the list everybody reads.
+  {
+    id: "groups-new",
+    page: ROUTES.GROUPS,
+    target: "groups-new",
+    permission: Perm.membersManage,
+    inTour: true,
+  },
+  { id: "groups-list", page: ROUTES.GROUPS, target: "groups-list" },
+  { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
+  { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -570,6 +607,24 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional for the same reason: the card is on one settings page of five, and
+  // the stop is offered from whichever one help was opened on.
+  { id: "settings-api-keys", page: SETTINGS_DETAIL, target: "api-keys", optional: true },
+  {
+    id: "settings-connected-apps",
+    page: SETTINGS_DETAIL,
+    target: "connected-apps",
+    optional: true,
+  },
+  // The organization half of Settings → Assistant, drawn only for somebody who
+  // may change the organization's settings.
+  {
+    id: "settings-assistant",
+    page: SETTINGS_DETAIL,
+    target: "assistant-settings",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
 
   { id: "finish", inTour: true },
 ];
@@ -599,6 +654,7 @@ export function pageKey(path: string): string {
     if (path.endsWith("/directory")) return ORG_DIRECTORY;
     return ORG_MEMBERS;
   }
+  if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   return path;

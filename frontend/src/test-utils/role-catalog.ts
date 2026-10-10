@@ -66,6 +66,7 @@ export const ROLE_CATALOG: RoleCatalog = {
 export function permissionsOf(role: string): MyPermissions {
   return {
     organization_id: "org-1",
+    user_id: "user-1",
     role: role as MyPermissions["role"],
     is_app_admin: false,
     permissions: ROLE_CATALOG.roles.find((entry) => entry.name === role)?.permissions ?? [],

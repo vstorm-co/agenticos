@@ -10,4 +10,5 @@ export { useAgentSelectionStore } from "./agent-selection-store";
 export { useOnboardingStore } from "./onboarding-store";
 export { useSourcesPanelStore } from "./sources-panel-store";
 export { useBrowserPanelStore } from "./browser-panel-store";
+export { useAddToAgentStore } from "./add-to-agent-store";
 export { resetSessionState, resetTenantState } from "./session-reset";

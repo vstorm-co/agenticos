@@ -10,8 +10,11 @@ import {
   useAgentVersions,
   useAllAgentVersions,
   useAgents,
+  useAddToAgent,
+  useKnowledgeReach,
   useCapabilityCatalog,
   useDelegationTree,
+  usePromptVariables,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -367,6 +370,24 @@ describe("useCapabilityCatalog", () => {
     const { result } = renderHook(() => useCapabilityCatalog(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.capabilities[0]?.id).toBe("knowledge");
+  });
+
+  it("names and describes each capability in the console's words", async () => {
+    // "Sandbox", not the registry's sentence, everywhere the Builder lists it;
+    // one the console has no words for keeps the registry's (#2070).
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { id: "sandbox", name: "Sandbox", category: "analysis", description: "Registry words." },
+        { id: "from_a_plugin", name: "Plugin", category: "x", description: "Its own words." },
+      ],
+      total: 2,
+    });
+    const { result } = renderHook(() => useCapabilityCatalog(), { wrapper });
+    await waitFor(() => expect(result.current.capabilities).toHaveLength(2));
+
+    const [sandbox, plugin] = result.current.capabilities;
+    expect(sandbox?.description).toMatch(/^Gives the agent its own small computer/);
+    expect(plugin?.description).toBe("Its own words.");
   });
 });
 
@@ -843,5 +864,89 @@ describe("the delegation tree", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.tree).toBeNull();
+  });
+});
+
+describe("usePromptVariables", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the system variables an agent's instructions may use", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ name: "today", description: "Today's date", example: "2026-10-10" }],
+    });
+
+    const { result } = renderHook(() => usePromptVariables(), { wrapper });
+
+    await waitFor(() => expect(result.current.variables).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/prompt-variables");
+    expect(result.current.variables[0]?.name).toBe("today");
+  });
+
+  it("offers none while the catalog is still being read", () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => usePromptVariables(), { wrapper });
+
+    expect(result.current.variables).toEqual([]);
+  });
+});
+
+describe("useAddToAgent", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("writes the draft with the resource bound", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    const answer = await result.current.mutateAsync({
+      agentId: "a1",
+      resource: { kind: "skill", id: "s1" },
+    });
+
+    expect(answer).toEqual({ already: false });
+    const [path, body] = vi.mocked(apiClient.put).mock.calls[0]!;
+    expect(path).toBe("/agents/a1/draft");
+    expect((body as { spec: AgentSpec }).spec.skill_ids).toEqual(["s1"]);
+  });
+
+  it("writes nothing when the agent already has it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: { ...SPEC, skill_ids: ["s1"] },
+    });
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    const answer = await result.current.mutateAsync({
+      agentId: "a1",
+      resource: { kind: "skill", id: "s1" },
+    });
+
+    expect(answer).toEqual({ already: true });
+    expect(apiClient.put).not.toHaveBeenCalled();
+  });
+
+  it("says what was refused", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("nope"));
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({ agentId: "a1", resource: { kind: "skill", id: "s1" } }),
+    ).rejects.toThrow();
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("useKnowledgeReach", () => {
+  it("reads where the agent's knowledge comes from", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      whole_organization: true,
+      groups: [],
+      sources: [],
+    });
+    const { result } = renderHook(() => useKnowledgeReach("a1"), { wrapper });
+
+    await waitFor(() => expect(result.current.reach?.whole_organization).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/knowledge-reach");
   });
 });

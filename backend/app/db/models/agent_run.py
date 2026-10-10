@@ -53,6 +53,9 @@ class RunStatus(enum.StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
+    AWAITING_ANSWER = "awaiting_answer"
+    """Parked on an `ask_user` question the person left without answering (#2064).
+    It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
 
@@ -232,6 +235,18 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("agent_environments.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # Started from the Builder's test panel (#2074): budgeted and recorded like
+    # any run, and marked so Activity can tell somebody trying an agent from
+    # somebody using it.
+    is_test: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false"), index=True
+    )
+    # The unpublished draft a test ran, frozen as it was when the run started.
+    # Null for every run of a published version, which `agent_version_id` names;
+    # a test of the draft has no version, and a run parked on an approval has to
+    # continue on exactly what it was running.
+    test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a

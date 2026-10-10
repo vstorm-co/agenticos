@@ -4,6 +4,8 @@ import {
   addGroupMember,
   createGroup,
   deleteGroup,
+  downloadGroupSpend,
+  getGroupSpend,
   listGroupMembers,
   listGroups,
   removeGroupMember,
@@ -12,7 +14,7 @@ import {
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
 
 const GROUP = {
@@ -29,6 +31,20 @@ beforeEach(() => {
 });
 
 describe("the groups API", () => {
+  it("reads every department's month, and one department's as a file (#2072)", async () => {
+    const month = { since: "2026-10-01T00:00:00Z", items: [] };
+    vi.mocked(apiClient.get).mockResolvedValue(month);
+    vi.mocked(apiClient.raw).mockResolvedValue(new Response("member,agent,runs,cost_usd"));
+
+    await expect(getGroupSpend("o-1")).resolves.toBe(month);
+    await expect((await downloadGroupSpend("o-1", "g-1")).text()).resolves.toBe(
+      "member,agent,runs,cost_usd",
+    );
+
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/spend");
+    expect(apiClient.raw).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/spend.csv");
+  });
+
   it("lists one organization's groups by its id, not the active one", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [GROUP], total: 1 });
 

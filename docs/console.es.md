@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "cb8a35a07876"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -30,11 +30,17 @@ Llegan agrupadas en bandas:
 |---|---|
 | *(sin título, arriba del todo)* | El resumen del que el resto de la página es el detalle |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
-| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
+| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, [gasto por departamento](departments.md#a-departments-budget), salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
 | **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
 | **People** | Miembros, usuarios activos, valoraciones, quién hace qué |
 | **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
 | **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
+
+Quien construye agents ve además **Get started** encima de las bandas hasta
+completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
+añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
+en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
+donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
 
 ### Reordenarlo { #rearranging-it }
 
@@ -107,6 +113,72 @@ Qué llega aquí y qué se puede desactivar le toca explicarlo a
 lo lees: la campana para lo que acaba de pasar, la tarjeta del dashboard para
 un puñado de las más recientes, la próxima vez que abras la página.
 
+## El asistente { #the-assistant }
+
+Cada página tiene al **AI Architect** en su esquina inferior derecha: un agent que
+toda organización recibe sin instalar nada, compartido con todos los que pueden
+ejecutar agents (`agents:run`). Está vinculado al
+[servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).
+Pregúntale qué agents responden dudas de reembolsos, por qué falló el run de anoche
+o qué hay en una base de conocimiento.
+
+Pídele que esboce un agent o invite a un
+compañero, y primero te mostrará lo que apruebas: el borrador
+de un agent como el propio borrador - dónde se crea, su nombre, qué puede hacer y
+sus instrucciones - y todo lo demás como la llamada exacta. Actúa con
+tus permisos, así que encuentra y hace lo que tú podrías, y nada más. Su coste
+cuenta como el de cualquier agent.
+
+Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
+sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
+consejo. Haz clic en el bocadillo para preguntarle; × silencia esa página, y la
+campana de su ventana apaga los bocadillos. Su ventana se abre con cuatro
+mosaicos, para que el primer mensaje sea un clic, y guarda su propio historial de
+conversaciones. En un teléfono ocupa toda la pantalla.
+
+Cuando nombra una página, el enlace la abre en la consola detrás de la ventana y
+señala el control al que se refiere — el botón que crea un agent, la pestaña de
+aprobaciones. La cámara de su cabecera le muestra la página en la que estás: el
+navegador pregunta qué pestaña compartir y una imagen se adjunta a tu próximo
+mensaje.
+
+Planifica los trabajos largos como una lista que puedes seguir, guarda
+notas sobre ti entre conversaciones, te dice cuánto cuestan tus agents y puede
+deshacer un borrador de agent que creó por error — nada más. Además de las
+aprobaciones y de una organización vacía, su bocadillo avisa cuando un run tuyo
+acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
+
+Mientras la organización no tenga un modelo, no puede responder. Al abrirlo
+escribe entonces una breve conversación sobre cómo conectar uno: consigue una clave
+de API de un provider, abre **Settings → Assistant**, elige el provider y pega la clave,
+y escoge un modelo. Solo quien puede cambiar los ajustes de la organización recibe
+el botón; a los demás se les dice quién puede hacerlo.
+
+**Settings → Assistant** guarda tus propios consejos y, para quien puede cambiar los
+ajustes de la organización, el nombre del asistente, su saludo y su modelo, y un
+interruptor para apagarlo para todos.
+
+## Cambios hechos en otro lugar { #changes-made-elsewhere }
+
+Una página abierta se mantiene al día con los cambios hechos en otro lugar: la
+consola de un compañero, un script con una [clave de API](api.md), Claude Code a
+través del [servidor MCP de la plataforma](mcp.md#agenticos-as-an-mcp-server) o el
+asistente. Cada escritura correcta a través de la API pública se anuncia a las
+consolas abiertas de la organización en cuanto se confirma, y una lista o una
+página de detalle sin nada sin guardar vuelve a pedir los datos en su sitio: un
+agent creado con una clave aparece en la página Agents sin recargar.
+
+La excepción es el Builder, porque guarda tu borrador mientras escribes. Cuando el
+agent que editas cambia en otro lugar, deja de guardar y obtiene la nueva versión.
+Si no hay nada sin guardar, simplemente la adopta; si hay cambios sin guardar, te
+dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su versión)
+o **Conservar mis cambios** (la tuya, guardada encima de la suya).
+
+Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
+de conocimiento, un archivo de contexto o una página que no ves nunca llega a tu
+consola, y una eliminación solo llega a los roles que ven todas las filas de ese
+tipo. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
+
 ## Chat { #chat }
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
@@ -134,6 +206,12 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**En el teléfono** el chat se comporta como una app de mensajería: el campo de
+escritura queda sobre el teclado y la conversación en su último mensaje mientras
+se abre, la barra de pestañas se aparta mientras escribes, Enter empieza una
+línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
+campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 
 **Ver un recorrido.** Un agent con
 [automatización del navegador](reference/capabilities.md#browser-automation-choose)
@@ -170,6 +248,23 @@ marca varias para ampliarlo. Las categories y los tags de un agent los mantienes
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
 
+## Idiomas { #languages }
+
+La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
+legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
+el menú de la cuenta cambia el idioma en cualquier momento; la elección se recuerda
+en el navegador. Las palabras del producto - agent, skill, run, budget, MCP y el
+resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
+los idiomas.
+
+## El siguiente paso { #the-next-step }
+
+Una página vacía porque aún no existe nada ofrece el camino para crear lo
+primero: un agent, una rutina, algo compartido con un departamento. Crear un
+skill, un archivo de contexto o una base de conocimiento termina con un aviso que
+ofrece **Add to an agent** a quien pueda editar agents, para que lo creado llegue
+a un agent sin pasar por el Builder.
+
 ## Cuando una página parece vacía { #when-a-page-looks-empty }
 
 **Un estado vacío y una petición fallida se ven igual.** Todas las páginas de aquí
@@ -190,6 +285,8 @@ que un problema real se lea como algo tranquilo.
   un clic, sin importar en qué página estés.
 - **Chat, Slack y la API son el mismo runner**, así que lo que ves en la consola
   es lo que recibe un cliente.
+- **Los cambios hechos en otro lugar llegan solos** — por la API, MCP o el
+  asistente — y el Builder pregunta antes de reemplazar cambios sin guardar.
 - **Los comandos de barra son tuyos**, incluidos los de serie, y puedes ocultar
   los que no uses.
 - Una página que muestra "todavía nada" puede ser **una petición fallida**, no un

@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -47,14 +47,22 @@ from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
+    ToolOrigins,
+    platform_spec,
     prefix_collisions,
     probe_error_message,
     probe_mcp_server,
     probe_toolsets,
+    tool_prefix,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
-from app.agents.spec import McpServerRef, PersonalMcpServerRef
+from app.agents.spec import (
+    McpServerRef,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    PlatformMcpServerRef,
+)
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -64,29 +72,45 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
-from app.db.models.mcp_connection import McpConnection
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
+from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, mcp_registry_server_repo
+from app.repositories import (
+    conversation_repo,
+    mcp_connection_repo,
+    mcp_registry_server_repo,
+    resource_grant_repo,
+)
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
+    McpSignInProbeResult,
+    McpToolCallRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
+from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_app, github_oauth, google_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.services.resource_usage import agents_using_mcp
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
+
+RECENT_CALLS = 50
+"""How many of a server's latest tool calls its audit list shows."""
 
 
 def _oauth_redirect_uri() -> str:
@@ -478,7 +502,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
             db_connection=connection,
             update_data={
                 "last_status": "ok" if healthy else "error",
-                "last_error": None if healthy else "Authorization expired - reconnect this server",
+                "last_error": None if healthy else AUTHORIZATION_EXPIRED,
                 "last_checked_at": datetime.now(UTC),
             },
         )
@@ -728,6 +752,23 @@ class McpConnectionService:
         )
         return db_connection, tools, error
 
+    async def probe_sign_in(self, url: str) -> McpSignInProbeResult:
+        """Whether a server added by its address lets people sign in with OAuth (#2073).
+
+        The discovery `oauth_start` runs before it registers anything - RFC 9728
+        protected-resource metadata, then RFC 8414 - so the form can offer sign-in
+        for a server nobody curated, rather than asking for a token it does not
+        use. The address is checked as any connection's is.
+        """
+        checked = await _checked_url(url)
+        try:
+            server = await mcp_oauth.discover(checked)
+        except OAuthError:
+            return McpSignInProbeResult(sign_in=False, registers_clients=False)
+        return McpSignInProbeResult(
+            sign_in=True, registers_clients=server.registration_endpoint is not None
+        )
+
     async def oauth_start_for_org(
         self,
         ctx: AuthContext,
@@ -737,8 +778,13 @@ class McpConnectionService:
         catalog_key: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
+        audience: AudienceChoice | None = None,
     ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
+
+        `audience` narrows a new connection to groups or people (#2072), from the
+        moment its row is staged; re-authorizing an existing one leaves who sees
+        it alone.
 
         The grant is still one person's - somebody clicks consent, and the
         tokens that come back are theirs at the provider. What differs is who
@@ -758,6 +804,29 @@ class McpConnectionService:
                 refusal #1438 made for personal connections (#1490).
         """
         refuse_binding_while_impersonating("Connecting an integration")
+        chosen = audience or AudienceChoice()
+
+        async def create(**kwargs: Any) -> McpConnection:
+            connection = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=catalog_key,
+                sealed_token=None,
+                visibility=chosen.visibility.value,
+                **kwargs,
+            )
+            if chosen.group_ids or chosen.user_ids:
+                await SharingService(self.db).restrict_to(
+                    ctx,
+                    connection,
+                    resource_type=MCP_CONNECTION,
+                    group_ids=chosen.group_ids,
+                    user_ids=chosen.user_ids,
+                )
+            return connection
+
         return await self._oauth_start(
             name=name,
             url=url,
@@ -767,15 +836,7 @@ class McpConnectionService:
                 self.db, organization_id=ctx.organization_id, name=name
             ),
             vault_scope=VaultScope.organization(ctx.organization_id),
-            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
-                self.db,
-                organization_id=ctx.organization_id,
-                created_by_user_id=ctx.subject_id,
-                allowed_tools=None,
-                catalog_key=catalog_key,
-                sealed_token=None,
-                **kwargs,
-            ),
+            create=create,
         )
 
     async def oauth_start(
@@ -1438,9 +1499,52 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        return await mcp_connection_repo.list_org_scoped(
+        """The organization's servers the caller reaches: every one not narrowed to
+        groups, and those narrowed to theirs (#2072)."""
+        rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        reached = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        )
+        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        return kept, len(kept)
+
+    async def used_by(
+        self, ctx: AuthContext, connections: list[McpConnection]
+    ) -> dict[UUID, list[AgentUsage]]:
+        """The agents binding each of these connections that the caller may see (#2072)."""
+        return await agents_using_mcp(self.db, ctx, [row.id for row in connections])
+
+    async def recent_calls(
+        self, ctx: AuthContext, *, connection_id: UUID, limit: int = RECENT_CALLS
+    ) -> list[McpToolCallRead]:
+        """What agents asked one organization server to do, newest first (#2072).
+
+        Found by the connection each call recorded, so a member's own connection
+        that shares the server's name is not listed here, and calls from before it
+        was recorded are not listed at all. The tool is named without the prefix
+        the server's current name gives it. The caller must reach the server;
+        arguments and results are never read.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        prefix = tool_prefix(connection.name)
+        calls = await conversation_repo.recent_tool_calls(
+            self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
+        )
+        return [
+            McpToolCallRead(
+                tool=call.tool_name.removeprefix(f"{prefix}_"),
+                status=call.status,
+                started_at=call.started_at,
+                duration_ms=call.duration_ms,
+                agent_id=call.agent_id,
+                agent_name=call.agent_name,
+                run_id=call.run_id,
+            )
+            for call in calls
+        ]
 
     async def _known_catalog_key(self, catalog_key: str) -> bool:
         """Whether a key names a server this deployment can identify.
@@ -1500,6 +1604,7 @@ class McpConnectionService:
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
                 label=_stored_label(data.label),
+                visibility=data.visibility.value,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1517,6 +1622,14 @@ class McpConnectionService:
             # the name and where it points, both of which are already public.
             details={"name": data.name, "url": url, "catalog_key": data.catalog_key},
         )
+        if data.group_ids or data.user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                connection,
+                resource_type=MCP_CONNECTION,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
         return connection
 
     async def update_for_org(
@@ -1622,6 +1735,12 @@ class McpConnectionService:
 
         await AgentTriggerService(self.db).release_connection(ctx, connection_id)
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
+        await resource_grant_repo.delete_for_resource(
+            self.db,
+            organization_id=ctx.organization_id,
+            resource_type=MCP_CONNECTION.key,
+            resource_id=connection_id,
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1728,7 +1847,16 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        if db_connection is None:
+        # A server narrowed to groups is not there for anybody outside them - the
+        # same refusal as a missing one (#2072). One left to the organization is
+        # everybody's who got past the route's gate, including a trigger's author
+        # reaching a portal grant without managing servers at all.
+        if db_connection is None or (
+            db_connection.visibility != Visibility.ORG.value
+            and not await resolve_access(
+                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            )
+        ):
             raise NotFoundError(
                 message="MCP connection not found",
                 details={"connection_id": str(connection_id)},
@@ -1812,6 +1940,10 @@ class ResolvedMcpToolsets:
 
     toolsets: list[Any]
     unavailable: list[UnavailableBinding]
+    origins: dict[str, UUID] = field(default_factory=dict)
+    """Each tool an organization connection serves, by the name the model calls,
+    mapped to that connection. Filled as the run lists its tools, so read it once
+    the run has run - it is what the transcript records each call against."""
 
 
 async def build_toolsets_for_agent(
@@ -1820,6 +1952,7 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    platform_credential: str | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -1838,6 +1971,10 @@ async def build_toolsets_for_agent(
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
+    A **platform** binding is this deployment's own `/mcp`, reached in-process
+    with `platform_credential` - minted by the runner for the person the run is
+    for, and `None` where there is nobody, which leaves the server out.
+
     A person holding two accounts to one service is left alone rather than
     guessed at: they nominate one in their own connections, and until they do
     the binding is unavailable to them (#1342).
@@ -1850,12 +1987,20 @@ async def build_toolsets_for_agent(
     unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[
-            ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
-        ],
+        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
         organization_id=organization_id,
     )
     for ref in refs:
+        if isinstance(ref, PlatformMcpServerRef):
+            # This platform's own server, as whoever the run is for. Nobody to
+            # act as - a visitor, a schedule - is no credential and no server.
+            if platform_credential is not None:
+                spec = platform_spec(
+                    platform_credential, allowed_tools=ref.allowed_tools, approval=ref.approval
+                )
+                specs.append(spec)
+                bindings[id(spec)] = "this platform's own server"
+            continue
         if isinstance(ref, PersonalMcpServerRef):
             spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
             if spec is not None:
@@ -1892,6 +2037,8 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            approval=ref.approval,
+            connection_id=connection.id,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -1922,9 +2069,17 @@ async def build_toolsets_for_agent(
                     kept_binding=bindings[id(kept)],
                 )
             )
+    origins: dict[str, UUID] = {}
     return ResolvedMcpToolsets(
-        toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
+        toolsets=[
+            toolset
+            if spec.connection_id is None
+            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
+            for spec, toolset in reachable
+            if id(spec) not in dropped
+        ],
         unavailable=unavailable,
+        origins=origins,
     )
 
 
@@ -1968,6 +2123,7 @@ async def _own_spec(
         url=connection.url,
         headers=headers,
         allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
+        approval=ref.approval,
     )
 
 

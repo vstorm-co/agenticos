@@ -35,6 +35,7 @@ from app.services.channels import (
     get_adapter,
     inbound_webhook_url,
 )
+from app.services.channels.slack_manifest import slack_manifest
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.speech_to_text import is_offered as stt_is_offered
 
@@ -90,6 +91,17 @@ def unseal_slack_signing_secret(bot: ChannelBot) -> str | None:
         return None
     return unseal(
         bot.slack_signing_secret_encrypted,
+        scope=VaultScope.organization(bot.organization_id),
+        key_version=bot.secret_key_version,
+    )
+
+
+def unseal_command_token(bot: ChannelBot) -> str | None:
+    """The token a Mattermost `/agent` request is verified with, or None if unset."""
+    if bot.command_token_encrypted is None:
+        return None
+    return unseal(
+        bot.command_token_encrypted,
         scope=VaultScope.organization(bot.organization_id),
         key_version=bot.secret_key_version,
     )
@@ -182,6 +194,7 @@ class ChannelBotService:
                 will ever read.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
+        self._check_command_token(data.platform, data.command_token)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
         bot = await channel_bot_repo.create(
@@ -202,8 +215,15 @@ class ChannelBotService:
             slack_app_token_encrypted=self._seal_at(
                 data.slack_app_token, key_version=sealed.key_version
             ),
+            command_token_encrypted=self._seal_at(
+                data.command_token, key_version=sealed.key_version
+            ),
             speech_to_text_provider=data.speech_to_text_provider,
             speech_to_text_model=data.speech_to_text_model,
+            ack_reaction=data.ack_reaction,
+            stream_answers=data.stream_answers,
+            step_display=data.step_display,
+            rate_answers=data.rate_answers,
         )
         self._reopen_stream(bot)
         return bot
@@ -311,6 +331,13 @@ class ChannelBotService:
             )
 
     @staticmethod
+    def _check_command_token(platform: str, command_token: str | None) -> None:
+        if platform != "mattermost" and command_token is not None:
+            raise refused_field(
+                "command_token", "Only a Mattermost bot has a slash command token to verify"
+            )
+
+    @staticmethod
     def _check_slack_fields(
         platform: str, signing_secret: str | None, app_token: str | None
     ) -> None:
@@ -336,6 +363,21 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def slack_manifest(self, bot_id: UUID) -> dict[str, Any]:
+        """The Slack app manifest for one of this organization's Slack bots (#2067).
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a Slack bot.
+        """
+        bot = await self.get(bot_id)
+        if bot.platform != "slack":
+            raise BadRequestError(
+                message="Only a Slack bot has a Slack app manifest",
+                details={"bot_id": str(bot_id), "platform": bot.platform},
+            )
+        return slack_manifest(bot)
 
     async def find_active(self, bot_id: UUID) -> ChannelBot | None:
         """Return an active bot by ID, or None (inbound webhook / poller path)."""
@@ -414,6 +456,11 @@ class ChannelBotService:
         if "slack_signing_secret" in update_data:
             update_data["slack_signing_secret_encrypted"] = self._seal_at(
                 update_data.pop("slack_signing_secret"), key_version=bot.secret_key_version
+            )
+        if "command_token" in update_data:
+            self._check_command_token(bot.platform, update_data["command_token"])
+            update_data["command_token_encrypted"] = self._seal_at(
+                update_data.pop("command_token"), key_version=bot.secret_key_version
             )
         if "slack_app_token" in update_data:
             update_data["slack_app_token_encrypted"] = self._seal_at(

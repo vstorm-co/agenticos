@@ -279,6 +279,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "approvals", span: "s6", rows: "r3" },
       { widget: "budget-headroom", span: "s6", rows: "r2" },
+      { widget: "department-spend", span: "s6", rows: "r2" },
       { widget: "mcp-health", span: "s6", rows: "r2" },
       { widget: "recent-failures", span: "s6", rows: "r3" },
       { widget: "knowledge-freshness", span: "s6", rows: "r3" },

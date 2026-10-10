@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "6763956ff2b1"
 ---
 
 # Conceptos { #concepts }
@@ -169,14 +169,14 @@ presta su **identidad**. Nadie escucha un run desatendido, así que no responde 
 ninguna persona identificada, igual que un visitante de un widget embebido. Estos
 almacenes que se guardan por persona le están cerrados:
 
-- [Archivos de memoria](reference/capabilities.md#memory-files) y
+- [Memoria](reference/capabilities.md#memory-files) y
   [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
   conversación no tiene memoria.
-- [Búsqueda de conversaciones](reference/capabilities.md#conversation-search):
+- [Conversaciones anteriores](reference/capabilities.md#conversation-search):
   ambas herramientas se niegan.
 - Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
   el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
-- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+- [Aplicaciones](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
   privada para el creador, pero `read_artifact` se niega, así que un disparo
   vuelve a publicar una página entera en lugar de editarla.
 

@@ -209,6 +209,24 @@ describe("connecting", () => {
     expect(first.close).toHaveBeenCalled();
   });
 
+  it("swaps the socket when the person it speaks for changes", () => {
+    // An impersonation or another account signing in, on the same address: the
+    // old socket is still authenticated as somebody else.
+    const { result, rerender } = renderHook(
+      ({ who }: { who: string }) => useWebSocket({ url: "wss://api/events", identity: who }),
+      { initialProps: { who: "ada" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const first = latest();
+
+    rerender({ who: "grace" });
+    act(() => result.current.connect());
+
+    expect(sockets()).toHaveLength(2);
+    expect(first.close).toHaveBeenCalled();
+  });
+
   it("replaces a socket that is neither open nor connecting", () => {
     const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
     act(() => result.current.connect());

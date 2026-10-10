@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "a12974d5df2f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -23,36 +23,49 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
     strony. Builder rysuje swój wybór i formularze konfiguracji z tej odpowiedzi.
     Jeśli oba źródła się różnią, rację ma API.
 
+Builder nazywa każdą capability w języku konsoli i objaśnia ją prostymi słowami:
+co pozwala zrobić agentowi, dwa lub trzy przykłady użycia, czego wymaga i czego
+nigdy nie robi. Poniższe nazwy są polskimi odpowiednikami nazw z konsoli. Pięć
+capability, które dostrajają sposób prowadzenia runu - długie rozmowy, odciążenie
+z obrazów, przypomnienia instrukcji, limity wyników narzędzi i wyszukiwanie
+narzędzi - jest zwiniętych w grupie **Zaawansowane**, dopóki ktoś jej nie otworzy,
+nie zacznie szukać albo nie włączy jednej z nich.
+
+W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie są
+zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
+któreś z nich zostało ustawione.
+
 ## Co jest dostarczane { #what-ships }
 
 | id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
 |---|---|---|---|---|---|
-| `knowledge` | Wyszukiwanie w bazie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
 | `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
-| `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
-| `conversation_search` | Wyszukiwanie w rozmowach | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Wyszukiwanie w sieci | badania | `web_search` | `web:read` | dla usług płatnych |
-| `web_fetch` | Pobieranie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatyzacja przeglądarki (wybór) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
-| `browser_use` | Automatyzacja przeglądarki | badania | `browse_web` | `web:browse` | przez dodatek `browser-use` |
-| `code_execution` | Uruchamianie Pythona | analiza | `run_python` | `code:execute` | — |
-| `sandbox` | Pliki i powłoka | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Przeglądarka (krok po kroku) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
+| `browser_use` | Przeglądarka | badania | `browse_web` | `web:browse` | przez dodatek `browser-use` |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
 | `subagents` | Delegowanie | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
-| `system_reminders` | Przypomnienia systemowe | rozumowanie | brak, celowo | — | — |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — |
 | `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — |
 | `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
-| `guardrails` | Guardrails | użytkowe | brak, celowo | — | — |
-| `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
-| `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
-| `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -79,7 +92,7 @@ osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*,
 publikacja odrzuca spec, który próbuje ją nieść — zobacz
 [Podgląd kanału czatu](#chat-channel-lookup).
 
-## Wyszukiwanie w bazie wiedzy { #knowledge-search }
+## Wyszukiwanie wiedzy { #knowledge-search }
 
 `search_documents` — *Search the organization's documents for passages relevant to
 a question.*
@@ -243,7 +256,7 @@ dołączana, tak samo jak `knowledge` powiązane z zerem kolekcji. Plikami zarz�
 się pod `/api/v1/context`, a wiąże się je z agentem po id
 (`AgentSpec.context_ids`).
 
-## Pliki pamięci { #memory-files }
+## Pamięć { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -386,7 +399,7 @@ w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, wi
 twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
 mieć możliwości skierowania go na własny serwer.
 
-## Wyszukiwanie w rozmowach { #conversation-search }
+## Poprzednie rozmowy { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -442,7 +455,7 @@ Operator, który w ogóle nie chce, by agenci czytali rozmowy, wstrzymuje zakres
 `conversations:read`, co wyłącza to w całym deploymencie. Nie ma ustawienia,
 które poszerzałoby korpus.
 
-## Wyszukiwanie w sieci { #web-search }
+## Wyszukiwanie w internecie { #web-search }
 
 `web_search` — *Search the public web for current information.*
 
@@ -482,7 +495,7 @@ Wyszukiwanie znajduje stronę; nie czyta jej. Czytanie to
 [Pobieranie stron](#web-fetch) poniżej i jest osobną capability z osobnym
 zakresem.
 
-## Pobieranie stron { #web-fetch }
+## Czytanie stron { #web-fetch }
 
 `web_fetch` — *Read the full page at a URL, as Markdown.*
 
@@ -587,7 +600,7 @@ Strona przychodzi jako Markdown, przycięta na `max_content_chars`; PDF albo obr
 przychodzą jako treść binarna, którą model czyta natywnie. Nic tego nie streszcza
 — to, co zrobić ze stroną, należy do instrukcji agenta.
 
-## Automatyzacja przeglądarki (wybór) { #browser-automation-choose }
+## Przeglądarka (krok po kroku) { #browser-automation-choose }
 
 `browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
 
@@ -684,7 +697,7 @@ tym jednym narzędziu, podając polecenie instalacji.
 każdy krok z prawdopodobieństwem, z jakim silnik go znalazł — zobacz
 [konsolę](../console.md). `preview` wyłączone zostawia narrację i usuwa obrazy.
 
-## Automatyzacja przeglądarki { #browser-automation }
+## Przeglądarka { #browser-automation }
 
 `browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
 
@@ -735,7 +748,7 @@ capability, instaluje `agenticos[browser-use]` i dostarcza Chromium; powiązany
 agent, którego deployment tego nie ma, głośno zawodzi na tym jednym narzędziu,
 podając polecenie instalacji.
 
-## Uruchamianie Pythona { #run-python }
+## Obliczenia { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
 
@@ -753,7 +766,7 @@ jedynymi limitami wartymi ustawienia.
     powinien potrzebować operatora ani ponownego wdrożenia — a górne granice są
     ograniczone, a nie otwarte.
 
-## Pliki i powłoka { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *odczyt.*
 `write_file`, `edit_file`, `execute` — *zapis i uruchamianie.*
@@ -775,6 +788,15 @@ Nie ma backendu `docker` ani `daytona` do wyboru. *Gdzie* działa sandbox, jest
 własnością połączenia, które zarejestrował operator — Sandboxes w aplikacji — więc
 wskazanie połączenia jest wskazaniem rodzaju. Wybieranie ich osobno pozwalało
 wybrać dwie rzeczy, które się ze sobą nie zgadzają.
+
+Wdrożenie, które ma własną usługę sandboksa - `sandboxd` uruchomiony z pliku
+compose tego projektu, z tokenem wygenerowanym przez `make sandbox-token` - nie
+wymaga żadnej rejestracji. Gdy organizacja bez domyślnego połączenia pierwszy raz
+otwiera listę sandboksów albo uruchamia agenta, który go potrzebuje, platforma sama
+rejestruje *This deployment's sandbox* jako domyślne połączenie, w imieniu
+właściciela organizacji, z tokenem w jego sejfie i wpisem w dzienniku audytu jak
+każde inne połączenie. Tak samo AI Architect dostaje pliki i kod, gdy jest
+instalowany na takim wdrożeniu.
 
 **`backend` to infrastruktura; `session_scope` to polityka współdzielenia danych.**
 Pomyłka w pierwszym kosztuje funkcję. Pomyłka w drugim pokazuje jednej osobie pliki
@@ -999,7 +1021,7 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
 
-## Artefakty { #artifacts }
+## Aplikacje { #artifacts }
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem.*
@@ -1007,13 +1029,13 @@ podsumowanie — pod stałym linkiem.*
 agenta, taką, jaką ją napisano.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
-[artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
+[aplikację](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
 grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
 konfiguracji.
 
 **Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
-artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
-czatu, z harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast
+aplikację, więc następny run tego samego agenta, który publikuje `weekly-report` — z
+czatu, z harmonogramu albo z API — dodaje wersję do tej samej aplikacji, zamiast
 tworzyć drugi link. Środowisko pochodzi z runa, więc run w `staging` publikuje
 własną stronę. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
 
@@ -1428,7 +1450,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.
 
-## Przypomnienia systemowe { #system-reminders }
+## Przypomnienia instrukcji { #system-reminders }
 
 Bez narzędzi. Powtarza wskazówki sterujące w trakcie runa, żeby długa sesja
 przestała dryfować od swoich instrukcji — porażką, którą to naprawia, jest zanik
@@ -1491,7 +1513,7 @@ kwartale" na podstawie daty odcięcia swojego treningu.
 |---|---|---|
 | `timezone` | `UTC` | dowolna nazwa IANA, np. `Europe/Warsaw` |
 
-## Zarządzanie kontekstem { #context-management }
+## Długie rozmowy { #context-management }
 
 Bez narzędzi. Przycina historię wiadomości długiego runa przed każdym żądaniem, więc
 run, który uderzyłby w limit modelu, pracuje dalej. Strategie pochodzą z
@@ -1581,7 +1603,7 @@ raportuje każdy agent, niezależnie od tego, czy kompaktuje — zobacz
 Ostrzeżenie ma największe znaczenie dla agenta, który *nie* będzie kompaktował,
 bo to on dochodzi do sufitu i dostaje odmowę.
 
-## Odciążanie mediów { #media-offload }
+## Odciążenie z obrazów { #media-offload }
 
 Brak narzędzi. Zapisuje duże części skompaktowanej rozmowy do magazynu i zostawia
 w zapisanej historii referencję `media+sha256://…`. Magazyny adresowane treścią
@@ -1624,7 +1646,7 @@ wysłaniem żądania, i właśnie to utrzymuje poprawność runa. Przepisanie ic
 który model pobiera sam, to inna funkcja i wymagałaby publicznego URL-a, którego
 ten magazyn świadomie nie wystawia.
 
-## Limity wyjścia narzędzi { #tool-output-limits }
+## Limity wyników narzędzi { #tool-output-limits }
 
 Jedno narzędzie, `read_tool_result`. Tam gdzie `compaction` przycina historię
 *wewnątrz* okna między żądaniami, to powstrzymuje przerośnięty zwrot narzędzia przed
@@ -1738,9 +1760,9 @@ zwykłe żądania do modelu, opakowane przez tego samego strażnika. Jedyny kszt
 który by mu umknął — własna funkcja wyszukująca, która sama woła model albo
 embeddingi — celowo nie jest wystawiony.
 
-## Guardrails { #guardrails }
+## Zabezpieczenia { #guardrails }
 
-Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
+Bez narzędzi. Bada tekst płynący przez run na czterech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
 `pydantic-ai-harness` oraz detektor numerów telefonu, którego harness nie dostarcza;
 agent jest danymi, więc konfiguracja wybiera je i parametryzuje, zamiast nieść
@@ -1751,6 +1773,7 @@ pythonowego strażnika.
 | wejście | prompt użytkownika | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | wyjście | odpowiedź agenta | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | wynik narzędzia | to, co zwróciło narzędzie, zanim przeczyta to model | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumenty narzędzia | to, co agent przekazuje narzędziu, zanim narzędzie zadziała | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Konfiguracja | Domyślnie | |
 |---|---|---|
@@ -1808,13 +1831,26 @@ pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane sło
 kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
 `[reasoning withheld by the output guardrail]`.
 
-**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
-sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
-streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
-dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
-długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
-podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
-streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+**Argumenty narzędzi to osobna krawędź.** Każdy tekst, który agent przekazuje
+narzędziu, jest sprawdzany, gdy przychodzi odpowiedź modelu, zanim narzędzie
+zadziała. Zredagowaną wartość dostaje narzędzie, zapisuje transkrypt i pokazuje
+stream, a zablokowane słowo kończy run, zanim jakiekolwiek narzędzie zostanie
+wywołane. To osobna krawędź, a nie część kontroli wyjścia, bo redakcja argumentu
+zmienia to, co robi narzędzie: e-mail wychodzi z zamiennikiem w miejscu klucza.
+Gdy jest włączona, argumenty wywołania są wstrzymywane, aż wywołanie będzie
+kompletne, tak jak odpowiedź.
+
+**Delegat streamuje pod kontrolą wyjścia runu, który go wywołał.** Tekst i
+rozumowanie, które delegat pisze w panelu delegacji, przechodzą tę samą kontrolę co
+odpowiedź runu, na każdym poziomie delegacji. Zablokowane słowo kończy tę delegację,
+zanim cokolwiek z niej zostanie pokazane, a agent, który delegował, dowiaduje się,
+że się nie powiodła.
+
+Ekran streamu dziedziczy limity rozmiaru detektora numerów telefonów, więc część
+odpowiedzi za długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa.
+Ponieważ ekran podpina się pod strumień zdarzeń runu, żądania do modelu agenta z
+guardrailem są streamowane nawet przez HTTP API, więc jego model musi obsługiwać
+streaming.
 
 **Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
 dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
@@ -1832,7 +1868,7 @@ narzędzi harnessu nie jest przeniesiony: [zatwierdzenia](../governance.md) już
 parkują run per narzędzie na decyzję człowieka, a druga, sterowana regułami droga do
 tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
 
-## Podgląd kanału czatu { #chat-channel-lookup }
+## Informacje o kanale czatu { #chat-channel-lookup }
 
 `get_channel_info` — *Describe the channel this conversation is happening in.*
 `list_channel_members` — *List the people in this channel.*
@@ -1871,6 +1907,30 @@ Trzy własności obowiązują na każdej platformie:
 - **Poza kanałem nie wnosi nic.** Run z dashboardu, z API albo z harmonogramu nie ma
   żadnego katalogu, więc capability nie jest w ogóle dołączana — z tego samego
   powodu, dla którego nie jest dołączane `knowledge` bez kolekcji.
+
+## Pytania do użytkownika { #ask-the-user }
+
+Gdy agent potrzebuje decyzji, którą może podjąć tylko człowiek, pyta zamiast
+zgadywać: `ask_user_question` przyjmuje od jednego do dziesięciu pytań
+wielokrotnego wyboru, każde z krótkim nagłówkiem, od dwóch do sześciu opcji z
+opisem, co każda oznacza, i informacją, czy można wybrać kilka. Konsola pokazuje je
+jako kartę, jedno pytanie naraz, z miejscem na własną odpowiedź i podsumowaniem
+przed wysłaniem; agent dostaje wybory według nagłówka albo informację, że osoba
+odmówiła, i działa dalej.
+
+Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
+domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
+wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
+dowiaduje się, że osoba odmówiła.
+
+Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
+otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
+odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
+urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
+może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
+`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+(`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
+osoba nie odpowiedziała na czas.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

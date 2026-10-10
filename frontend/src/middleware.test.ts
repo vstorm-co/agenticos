@@ -120,6 +120,18 @@ describe("the content security policy", () => {
     expect(policy).toContain("frame-ancestors 'none'");
   });
 
+  it("lets the console frame the Architect's page and the test panel's, and only those", () => {
+    // The corner widget frames its conversation (#2063) and the Builder its test
+    // panel (#2074); everything else stays unframeable, by this origin too.
+    const frame = middleware(request("/pl/assistant-frame")).headers.get("content-security-policy");
+    const test = middleware(request("/agent-test-frame")).headers.get("content-security-policy");
+    const page = middleware(request("/pl/agents")).headers.get("content-security-policy");
+
+    expect(frame).toContain("frame-ancestors 'self'");
+    expect(test).toContain("frame-ancestors 'self'");
+    expect(page).toContain("frame-ancestors 'none'");
+  });
+
   it("rides the locale redirect too, so no document leaves without it", () => {
     const redirected = middleware(request("/orgs", { locale: "pl" }));
 

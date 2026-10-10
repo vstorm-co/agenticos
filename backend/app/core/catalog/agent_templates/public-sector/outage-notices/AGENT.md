@@ -3,6 +3,7 @@ name: Service Notice Writer
 description: Writes outage and disruption notices that lead with what residents must
   do.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - clock

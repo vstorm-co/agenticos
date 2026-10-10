@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
@@ -63,12 +63,18 @@ class BudgetScope(StrEnum):
     """
 
     AGENT = "agent"
+    GROUP = "group"
+    """A department's month, across every agent its members run (#2072)."""
     ORGANIZATION = "organization"
 
     @property
     def label(self) -> str:
         """How the refusal names it to the person reading it."""
-        return "Agent monthly" if self is BudgetScope.AGENT else "Organization monthly"
+        return {
+            BudgetScope.AGENT: "Agent monthly",
+            BudgetScope.GROUP: "Department monthly",
+            BudgetScope.ORGANIZATION: "Organization monthly",
+        }[self]
 
 
 class BudgetExceeded(Exception):
@@ -79,12 +85,22 @@ class BudgetExceeded(Exception):
     on a WebSocket, a failed row in run history, a message in Slack.
     """
 
-    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal, scope: BudgetScope) -> None:
+    def __init__(
+        self,
+        *,
+        limit_usd: Decimal,
+        spent_usd: Decimal,
+        scope: BudgetScope,
+        subject: str | None = None,
+    ) -> None:
         self.limit_usd = limit_usd
         self.spent_usd = spent_usd
         self.scope = scope
+        # A person can sit in several capped departments, so "Department monthly"
+        # alone would not say whose cap to go and ask about.
+        label = f"{subject} department monthly" if subject else scope.label
         super().__init__(
-            f"{scope.label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
+            f"{label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
         )
 
 
@@ -382,7 +398,7 @@ panel (agenticos#228). `None` is the run's own agent, whose row is the whole led
 
 
 @contextmanager
-def booked_to(delegation: str, *, has_own_row: bool) -> Iterator[None]:
+def booked_to(delegation: str, *, has_own_row: bool) -> Generator[None, None, None]:
     """Attribute what is metered inside this block to one delegation.
 
     Opened around the tool call that starts a delegation, which is what makes it
@@ -418,7 +434,7 @@ _active_ledger: ContextVar[SpendLedger | None] = ContextVar("active_spend_ledger
 
 
 @contextmanager
-def metered_by(ledger: SpendLedger) -> Iterator[None]:
+def metered_by(ledger: SpendLedger) -> Generator[None, None, None]:
     """Attribute ambient model usage inside this block to `ledger`.
 
     Exists for spend the request wrapper cannot see. Embedding calls go through
@@ -450,7 +466,7 @@ library it borrows.
 
 
 @contextmanager
-def guarded_by(guard: BudgetGuard) -> Iterator[None]:
+def guarded_by(guard: BudgetGuard) -> Generator[None, None, None]:
     """Let code outside the request wrapper ask whether the budget is spent.
 
     The sibling of :func:`metered_by`, and it exists for the same gap read from
@@ -530,7 +546,7 @@ def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
 
 
 @contextmanager
-def metered_nested_run(usage: RunUsage, model_name: str) -> Iterator[RunUsage]:
+def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, None, None]:
     """A private usage for a nested ambient run, booked concurrency-safely.
 
     Yields a *copy* of `usage` for the nested `Agent.run` to spend into, and folds
@@ -623,6 +639,14 @@ class SpendLimit:
     scope: BudgetScope
     limit_usd: Decimal
     period_spend: PeriodSpendLookup | None = None
+    subject_id: UUID | None = None
+    """Which department a `GROUP` limit is; a person can be under several."""
+    subject_name: str | None = None
+
+    @property
+    def key(self) -> str:
+        """What its baseline is cached under: two departments are two quantities."""
+        return f"{self.scope}:{self.subject_id}" if self.subject_id else str(self.scope)
 
 
 @dataclass
@@ -713,9 +737,9 @@ class BudgetGuard(AbstractCapability[Any]):
         """
         if limit.period_spend is None:
             return Decimal(0)
-        if limit.scope not in self.run_state.baselines:
-            self.run_state.baselines[limit.scope] = await limit.period_spend()
-        return self.run_state.baselines[limit.scope]
+        if limit.key not in self.run_state.baselines:
+            self.run_state.baselines[limit.key] = await limit.period_spend()
+        return self.run_state.baselines[limit.key]
 
     async def _first_exceeded(self) -> SpendLimit | None:
         """The first ceiling the run has already reached, or `None` if it is clear.
@@ -750,7 +774,12 @@ class BudgetGuard(AbstractCapability[Any]):
         limit = await self._first_exceeded()
         if limit is not None:
             spent = await self._baseline_for(limit) + self.ledger.total_usd
-            raise BudgetExceeded(limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope)
+            raise BudgetExceeded(
+                limit_usd=limit.limit_usd,
+                spent_usd=spent,
+                scope=limit.scope,
+                subject=limit.subject_name,
+            )
 
     async def can_afford_next_request(self) -> bool:
         """Whether the run may issue another model request under every cap.

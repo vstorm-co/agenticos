@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "4652a40eba33"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -837,6 +837,65 @@ solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
     rangos de IP y la Enterprise-Managed Authorization de esa página tampoco se
     usan — déjalos en paz.
 
+### La app de Slack desde un manifiesto { #the-slack-app-from-one-manifest }
+
+Los pasos de arriba construyen la app a mano. Los ajustes del bot aquí también
+ofrecen **Copy Slack app manifest**: en Slack elige *Create New App → From a
+manifest*, pega, instala y vuelve a pegar aquí el token del bot y el signing
+secret. El manifiesto dirige cada petición a este despliegue y activa lo que hace
+del bot una app:
+
+- **El panel del asistente.** Un hilo nuevo en la vista de IA de Slack recibe tres
+  prompts sugeridos, y el hilo muestra *is thinking…* mientras el agent trabaja.
+- **App Home.** La pestaña propia del bot nombra su agent, dice cuántos runs de la
+  persona esperan una aprobación y enlaza a la consola y al AI Architect.
+- **`/agent <pregunta>`** pregunta al agent donde se escribió, y el atajo de
+  mensaje **Ask the agent about this** pregunta por un mensaje en su propio hilo.
+  Ambos se ejecutan exactamente como una mención: la misma comprobación de enlace,
+  los mismos límites y la misma auditoría.
+- **Botones** en aprobaciones y preguntas — ver
+  [Aprobaciones y preguntas como botones](#approvals-and-questions-as-buttons).
+- **Unfurls.** Un enlace de la consola a un agent de la organización muestra su
+  nombre.
+
+Un bot sirve a exactamente un agent, así que en un mensaje directo no hay selector
+de agent; un segundo agent es un segundo bot.
+
+El manifest es **org-ready**, así que un administrador de Enterprise Grid puede
+instalar la app una vez para todos los workspaces de la organización; un workspace
+corriente la instala como antes. Cada respuesta nombra el workspace de quien
+pregunta, que es lo que Slack necesita para transmitirla bajo Grid.
+
+### En qué sentido va la conexión { #which-way-the-connection-runs }
+
+Los ajustes del bot preguntan **cómo llega Slack a AgenticOS**:
+
+- **Slack llama a este deployment.** Slack envía cada mensaje a la dirección
+  pública de este deployment, verificada con el signing secret. El manifest nombra
+  las URLs.
+- **AgenticOS se conecta a Slack.** El deployment abre la conexión por sí mismo
+  (Socket Mode) con el token `xapp-` de nivel de app, así que no necesita dirección
+  pública - la opción para un deployment detrás de un firewall u on-premise. El
+  manifest activa Socket Mode y no nombra ninguna URL, porque nada respondería en
+  ella.
+
+El formulario pide solo la credencial que usa el sentido elegido.
+
+### Respuestas que Slack dibuja solo { #answers-slack-draws-itself }
+
+Las apps de IA de Slack dibujan una respuesta mientras se escribe en vez de
+editarla en su sitio. La respuesta se transmite bajo la pregunta, y cada cosa que
+hace el agent por el camino - una búsqueda web, una consulta al conocimiento, un
+cálculo - es una fila que pasa de en curso a hecha o fallida. Un paso que leyó
+páginas web las enlaza. Los ajustes del bot muestran los pasos como una **línea de
+tiempo** o como un **plan** encabezado por la pregunta, o desactivan la
+transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
+ocurre solo si Slack se niega a empezarla.
+
+Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
+llega como imagen, como siempre. Si la respuesta terminada no es lo transmitido -
+un guardrail de salida redactó algo -, el mensaje se reescribe entero.
+
 ### Scopes y events { #scopes-and-events }
 
 Trece bot token scopes, y cada uno se gana su sitio con una llamada que hace el
@@ -963,6 +1022,13 @@ que a un bot que se pasa de polling a modo webhook hay que registrarle el webhoo
 antes de que responda a nada: el secreto se acuña cuando cambia el modo, y Telegram
 solo se entera de él cuando se registra el webhook.
 
+El bot define su menú de comandos — `/agents` dice qué agent responde y qué hace,
+junto a `/new`, `/link` y `/help` —, muestra *escribiendo…* mientras trabaja y
+nombra el paso en el que está, envía las respuestas como HTML de Telegram
+convertido desde el Markdown del agent para que los bloques de código y los
+enlaces sobrevivan, y responde en el tema de un grupo con temas dentro de ese
+tema.
+
 ## Mattermost { #mattermost }
 
 Mattermost es autoalojado, así que un bot lleva **la URL de tu servidor** además de
@@ -1072,6 +1138,20 @@ justo el despliegue para el que existe esto. Las direcciones de metadatos de
 instancia son la excepción y se rechazan. La frontera que realmente sostiene esto
 es el permiso para gestionar bots de canal, no esta comprobación.
 
+Las aprobaciones y las preguntas llegan como botones. Mattermost llama a cada botón
+en `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, así que el
+servidor de Mattermost tiene que alcanzar la API; en una red privada, añade el
+host de la API en *System Console → Developer → Allow untrusted internal
+connections to*.
+
+### `/agent` en Mattermost { #agent-in-mattermost }
+
+Un slash command pregunta al agent donde se escribió, como `/agent` en Slack. En
+Mattermost: *Integrations → Slash Commands → Add Slash Command*: palabra
+`agent`, método `POST` y la URL de solicitud que muestran los ajustes del bot.
+Mattermost muestra entonces un token; pégalo en el campo **Slash command token**
+del bot. Cada solicitud lo lleva, y un bot sin él las rechaza todas.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 El polling de Telegram, el Socket Mode de Slack y el stream de events de Mattermost
@@ -1100,6 +1180,48 @@ nombra el retardo que va a esperar, y el mismo bucle sirve a las tres plataforma
 así que la política no puede desviarse entre ellas.
 
 ---
+
+## Aprobaciones y preguntas como botones { #approvals-and-questions-as-buttons }
+
+Un run iniciado en Slack, Telegram o Mattermost puede detenerse por una persona:
+una llamada a herramienta con aprobación espera una decisión, o el agent hace una
+pregunta `ask_user`. El chat recibe las opciones donde está — un mensaje por
+aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opciones
+y **Skip**. Pulsar uno decide o responde, el run continúa y su respuesta se
+publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
+elegido.
+
+Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
+decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede
+responder. A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
+respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
+`APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
+pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
+de este despliegue sobre su valor y una pulsación sin ella se rechaza.
+
+## Reacciones y valoraciones { #reactions-and-ratings }
+
+Dos detalles que comparte cada plataforma de chat aquí, ambos en los ajustes del
+bot:
+
+- **Una reacción a la pregunta.** El bot reacciona en cuanto llega una pregunta
+  que va a responder, con el emoji nombrado en sus ajustes - `eyes`, por ejemplo -
+  para que quien pregunta vea que se le ha oído. Slack y Mattermost aceptan el
+  nombre de cualquier emoji; Telegram permite un conjunto fijo, y los nombres que
+  acepta son `eyes`, `+1`, `ok_hand`, `fire`, `thinking_face`, `writing_hand`,
+  `zap` y `hourglass`.
+- **Pulgares bajo una respuesta.** Una respuesta terminada lleva un pulgar arriba y
+  otro abajo. Pulsar uno es la valoración de la respuesta de ese run por quien
+  pulsa, la misma que registra la consola, y pulsar de nuevo la cambia. Un pulgar
+  abajo pregunta luego **¿qué estuvo mal?** en un modal de Slack o un diálogo de
+  Mattermost; la respuesta queda como comentario de la valoración. Telegram acepta
+  los pulgares sin la pregunta.
+
+Una valoración necesita un miembro vinculado, como pulsar en una aprobación; los
+pulgares de una persona sin vincular no cuentan. La tarjeta *Answer quality* del
+dashboard reparte el porcentaje de buenas respuestas por superficie en cuanto hay
+valoraciones en más de una, así que un agent que va bien en la consola y mal en
+Slack lo muestra.
 
 ## Qué comparte cada canal { #what-every-channel-shares }
 

@@ -259,6 +259,27 @@ async def delete_for_resource(
     )
 
 
+async def group_grants_for_resources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    resource_type: str,
+    resource_ids: list[UUID],
+) -> list[tuple[UUID, UUID]]:
+    """(resource id, group id) for every group each resource is shared with, in one query."""
+    if not resource_ids:
+        return []
+    result = await db.execute(
+        select(ResourceGrant.resource_id, ResourceGrant.subject_group_id).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.resource_id.in_(resource_ids),
+            ResourceGrant.subject_group_id.is_not(None),
+        )
+    )
+    return [(resource_id, group_id) for resource_id, group_id in result.all() if group_id]
+
+
 async def count_for_resources(
     db: AsyncSession,
     *,
@@ -287,3 +308,18 @@ async def count_for_resources(
     # named `count` shadows the Row sequence method as far as a type checker
     # can tell, even though SQLAlchemy resolves it to the value at run time.
     return dict(result.all())
+
+
+async def list_for_group(
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID
+) -> list[ResourceGrant]:
+    """Every grant made to one group - what a department has been given (#2072)."""
+    result = await db.execute(
+        select(ResourceGrant)
+        .where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.subject_group_id == group_id,
+        )
+        .order_by(ResourceGrant.resource_type, ResourceGrant.created_at)
+    )
+    return list(result.scalars().all())

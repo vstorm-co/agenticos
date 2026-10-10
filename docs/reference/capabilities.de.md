@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "a12974d5df2f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -23,6 +23,18 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
     Konfigurationsformulare aus dieser Antwort. Widersprechen sich die beiden, hat
     die API recht.
 
+Der Builder benennt jede Capability in der Sprache der Konsole und erklärt sie in
+einfachen Worten: was sie den Agenten tun lässt, zwei oder drei Beispiele, was sie
+braucht und was sie nie tut. Die Namen unten sind die deutschen der Konsole. Fünf
+Capabilities, die nur einstellen, wie ein Run getragen wird - lange Gespräche,
+Bilder auslagern, Erinnerung an Anweisungen, Grenzen für Tool-Ergebnisse und
+Tool-Suche -, sind unter **Erweitert** eingeklappt, bis jemand den Bereich öffnet,
+sucht oder eine davon einschaltet.
+
+In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
+Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
+die sich von selbst öffnen, wo eines davon gesetzt wurde.
+
 ## Was ausgeliefert wird { #what-ships }
 
 | id | Name | Kategorie | Tools | Scope | Schlüssel |
@@ -30,29 +42,30 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
-| `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
-| `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` |
-| `browser_use` | Browser-Automatisierung | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
-| `code_execution` | Python ausführen | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Dateien & Shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
+| `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Webbrowser (Schritt für Schritt) | research | `browse_page` | `web:browse` | über das Extra `browser` |
+| `browser_use` | Webbrowser | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
+| `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |
-| `system_reminders` | Systemerinnerungen | reasoning | keine, mit Absicht | — | — |
+| `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — |
 | `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — |
 | `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — |
-| `guardrails` | Guardrails | utility | keine, mit Absicht | — | — |
-| `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
-| `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
-| `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `guardrails` | Schutzregeln | utility | keine, mit Absicht | — | — |
+| `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — |
+| `media` | Bilder auslagern | utility | keine, mit Absicht | — | — |
+| `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
+| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -251,7 +264,7 @@ angehängt, genauso wie `knowledge` ohne Collections nicht angehängt wird. Date
 werden unter `/api/v1/context` verwaltet und per id an einen Agent gebunden
 (`AgentSpec.context_ids`).
 
-## Gedächtnisdateien { #memory-files }
+## Gedächtnis { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -407,7 +420,7 @@ ist Absicht: Der Schlüssel reist in einem `Authorization`-Header, deshalb darf
 jemand, der einen geteilten Schlüssel binden, aber nicht lesen darf, ihn nicht auf
 einen eigenen Server richten können.
 
-## Unterhaltungssuche { #conversation-search }
+## Frühere Gespräche { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -510,7 +523,7 @@ Die Suche findet eine Seite; sie liest keine. Das Lesen ist der
 [Webabruf](#web-fetch) weiter unten, und er ist eine eigene Capability mit einem
 eigenen Scope.
 
-## Webabruf { #web-fetch }
+## Webseiten lesen { #web-fetch }
 
 `web_fetch` — *Liest die vollständige Seite unter einer URL, als Markdown.*
 
@@ -622,7 +635,7 @@ oder ein Bild kommt als Binärinhalt an, den das Modell nativ liest. Nichts fass
 es zusammen — was mit einer Seite zu tun ist, gehört in die Instruktionen des
 Agents.
 
-## Browser-Automatisierung (Auswahl) { #browser-automation-choose }
+## Webbrowser (Schritt für Schritt) { #browser-automation-choose }
 
 `browse_page` — *Arbeitet eine Webseite Schritt für Schritt auf ein Ziel hin durch, eine gewählte Aktion nach der anderen.*
 
@@ -727,7 +740,7 @@ auf der sie ist, und jeden Schritt mit der Wahrscheinlichkeit, mit der die Engin
 gefunden hat — siehe [die Konsole](../console.md). `preview` aus behält die Erzählung
 und lässt die Bilder weg.
 
-## Browser-Automatisierung { #browser-automation }
+## Webbrowser { #browser-automation }
 
 `browse_web` — *Übergibt eine offene Webaufgabe an einen autonomen Browser-Agent.*
 
@@ -781,7 +794,7 @@ Betreiber, der die Capability will, installiert `agenticos[browser-use]` und ste
 ein Chromium bereit; ein gebundener Agent, dessen Deployment es nicht hat, lässt
 dieses eine Tool laut scheitern, mit der Installationszeile.
 
-## Python ausführen { #run-python }
+## Berechnungen { #run-python }
 
 `run_python` — *Führt ein kleines Python-Programm aus, um etwas zu berechnen.*
 
@@ -799,7 +812,7 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
     einen Betreiber noch ein erneutes Deployment brauchen — und die Obergrenzen
     sind gedeckelt statt offen.
 
-## Dateien & Shell { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *Lesen.*
 `write_file`, `edit_file`, `execute` — *Schreiben und Ausführen.*
@@ -823,6 +836,16 @@ ist eine Eigenschaft der Verbindung, die ein Betreiber registriert hat — Sandb
 in der App —, also heißt die Verbindung zu benennen, die Art zu benennen. Beides
 getrennt zu wählen, machte es möglich, zwei Dinge zu wählen, die einander
 widersprechen.
+
+Ein Deployment, das seinen eigenen Sandbox-Dienst betreibt - `sandboxd`, gestartet
+aus der Compose-Datei dieses Projekts, mit dem Token, das `make sandbox-token`
+erzeugt hat -, muss nichts registrieren. Wenn eine Organisation ohne
+Standardverbindung zum ersten Mal ihre Sandboxes auflistet oder einen Agenten
+ausführt, der eine braucht, registriert die Plattform *This deployment's sandbox*
+als Standard, im Namen des Eigentümers der Organisation, mit dem Token in dessen
+Tresor und einem Audit-Eintrag wie bei jeder anderen Verbindung. Auf dieselbe
+Weise bekommt der AI Architect Dateien und Code, wenn er auf einem solchen
+Deployment installiert wird.
 
 **`backend` ist Infrastruktur; `session_scope` ist eine Richtlinie zur
 Datenteilung.** Das Erste falsch zu setzen, kostet eine Funktion. Das Zweite falsch
@@ -1059,7 +1082,7 @@ abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, e
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
-## Artefakte { #artifacts }
+## Apps { #artifacts }
 
 `publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
@@ -1067,13 +1090,13 @@ kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
 veröffentlicht hat, so wie sie geschrieben wurde.*
 
 Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
-[Artefakt](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
+[App](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
 Sichtbarkeit und Grants, die im Browser unter einem Link geöffnet wird, der
 bleibt. Keine Konfiguration.
 
 **Der Name ist die Identität.** `(organization, agent, environment, name)` wählt
-das Artefakt aus, sodass der nächste Run desselben Agents, der `weekly-report`
-veröffentlicht — aus einem Chat, einem Zeitplan oder der API —, demselben Artefakt
+die App aus, sodass der nächste Run desselben Agents, der `weekly-report`
+veröffentlicht — aus einem Chat, einem Zeitplan oder der API —, derselben App
 eine Version hinzufügt, statt einen zweiten Link anzulegen. Die Umgebung kommt vom
 Run, also veröffentlicht ein Run in `staging` eine eigene Seite. Identische Bytes
 fügen keine Version hinzu und antworten mit `unchanged`.
@@ -1533,7 +1556,7 @@ Ungesetzt bedeutet den eigenen Standardaufwand des Providers. Eine Stufe, die ei
 Provider nicht hat, wird auf die nächstliegende abgebildet, sodass ein Spec über
 einen Modellwechsel hinweg portabel bleibt.
 
-## Systemerinnerungen { #system-reminders }
+## Erinnerung an Anweisungen { #system-reminders }
 
 Keine Tools. Wiederholt steuernde Hinweise mitten im Run, damit eine lange Sitzung
 nicht von ihren Instruktionen abdriftet — das Versagen, das dies behebt, ist das
@@ -1601,7 +1624,7 @@ nachdenkt.
 |---|---|---|
 | `timezone` | `UTC` | ein beliebiger IANA-Name, z. B. `Europe/Warsaw` |
 
-## Kontextverwaltung { #context-management }
+## Lange Gespräche { #context-management }
 
 Keine Tools. Stutzt die Nachrichtenhistorie eines langen Runs vor jeder Anfrage,
 sodass ein Run, der sonst an die Grenze des Modells gestoßen wäre, weiterarbeitet.
@@ -1702,7 +1725,7 @@ meldet jeder Agent, ob er komprimiert oder nicht — siehe
 Die Warnung zählt am meisten für den Agent, der *nicht* komprimieren wird, denn das
 ist der, der an die Decke stößt und abgelehnt wird.
 
-## Medien-Auslagerung { #media-offload }
+## Bilder auslagern { #media-offload }
 
 Keine Tools. Schreibt die großen Teile einer verdichteten Konversation in den
 Speicher und hinterlässt in der gespeicherten Historie eine
@@ -1751,7 +1774,7 @@ wieder eingesetzt, und genau das hält den Run korrekt. Sie in eine URL
 umzuschreiben, die das Modell selbst abruft, ist eine andere Funktion und bräuchte
 die öffentliche URL, die dieser Speicher bewusst nicht ausgibt.
 
-## Grenzen für Tool-Ausgaben { #tool-output-limits }
+## Grenzen für Tool-Ergebnisse { #tool-output-limits }
 
 Ein Tool, `read_tool_result`. Wo `compaction` die Historie *innerhalb* des Fensters
 zwischen zwei Anfragen stutzt, verhindert dies, dass eine übergroße Tool-Rückgabe
@@ -1872,9 +1895,9 @@ die Runden zur Entdeckung sind gewöhnliche Modellanfragen, die derselbe Guard
 umschließt. Die eine Form, die ihm entgehen würde — eine eigene Suchfunktion, die
 selbst ein Modell oder ein Embedding aufruft —, ist bewusst nicht freigegeben.
 
-## Guardrails { #guardrails }
+## Schutzregeln { #guardrails }
 
-Keine Tools. Prüft den Text, der durch einen Run fließt, an drei Kanten und
+Keine Tools. Prüft den Text, der durch einen Run fließt, an vier Kanten und
 **schwärzt** entweder einen Treffer oder **blockiert** den Run. Die Prüfungen sind
 fertige Detektoren aus `pydantic-ai-harness` und ein Detektor für Telefonnummern,
 den der Harness nicht mitbringt; ein Agent ist Daten, deshalb wählt und
@@ -1885,6 +1908,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Konfiguration | Standard | |
 |---|---|---|
@@ -1944,10 +1968,22 @@ gespeichert wird. Reasoning ist nicht die Antwort, daher beendet ein blockiertes
 Schlagwort dort den Run nicht: Dieser Reasoning-Schritt zeigt stattdessen
 `[reasoning withheld by the output guardrail]`.
 
-**Was der Stream-Filter noch nicht abdeckt.** Zwei gestreamte Pfade werden nicht
-geprüft: die Argumente eines Tool-Aufrufs, während sie gestreamt werden, und die
-eigene gestreamte Antwort eines Delegaten im Delegationspanel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Der
-Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
+**Tool-Argumente sind eine eigene Kante.** Jeder Text, den der Agent einem Tool
+übergibt, wird geprüft, sobald die Antwort des Modells eintrifft, bevor das Tool
+läuft. Den geschwärzten Wert erhält das Tool, speichert das Transkript und zeigt der
+Stream, und ein gesperrtes Stichwort beendet den Run, bevor ein Tool aufgerufen
+wird. Getrennt von der Ausgabeprüfung, weil das Schwärzen eines Arguments ändert,
+was das Tool tut: Eine E-Mail geht mit einem Platzhalter statt des Schlüssels
+hinaus. Solange sie aktiv ist, werden die Argumente eines Aufrufs zurückgehalten,
+bis der Aufruf vollständig ist, wie die Antwort.
+
+**Ein Delegat streamt unter der Ausgabeprüfung des delegierenden Runs.** Text und
+Reasoning, die ein Delegat im Delegationspanel schreibt, durchlaufen dieselbe
+Prüfung wie die Antwort des Runs, auf jeder Delegationsebene. Ein gesperrtes
+Stichwort beendet diese Delegation, bevor etwas davon gezeigt wird, und der
+delegierende Agent erfährt, dass sie fehlgeschlagen ist.
+
+Der Stream-Filter erbt die Größengrenzen des Telefonnummern-Detektors, sodass ein
 Antwortteil, der dafür zu lang ist, den Run so beendet, wie es die endgültige Antwort
 täte. Weil sich der Filter in den Event-Stream des Runs einhängt, streamen die
 Modellanfragen eines Agents mit Guardrail auch über die HTTP-API, sein Modell muss
@@ -1971,7 +2007,7 @@ strukturierte Abbildung ohne Textdetektor, deshalb sind sie keine Kante. Und das
 menschliche Entscheidung, und ein zweiter, regelgetriebener Pfad zu demselben
 Mechanismus ist das, was eine einzige Tür vermeidet.
 
-## Chat-Kanal-Abfrage { #chat-channel-lookup }
+## Infos zum Chat-Kanal { #chat-channel-lookup }
 
 `get_channel_info` — *Beschreibt den Kanal, in dem diese Unterhaltung stattfindet.*
 `list_channel_members` — *Listet die Personen in diesem Kanal auf.*
@@ -2014,6 +2050,31 @@ Drei Eigenschaften gelten auf jeder Plattform:
   API oder aus einem Zeitplan hat kein Verzeichnis, deshalb wird die Capability gar
   nicht erst angehängt — aus demselben Grund, aus dem `knowledge` ohne Collections
   nicht angehängt wird.
+
+## Rückfragen { #ask-the-user }
+
+Braucht ein Agent eine Entscheidung, die nur der Mensch treffen kann, fragt er,
+statt zu raten: `ask_user_question` nimmt eine bis zehn Multiple-Choice-Fragen,
+jede mit einer kurzen Überschrift, zwei bis sechs Optionen samt Bedeutung und der
+Angabe, ob mehrere gewählt werden dürfen. Die Konsole zeigt sie als Karte, eine
+Frage nach der anderen, mit Platz für eine eigene Antwort und einer Übersicht vor
+dem Senden; der Agent erhält die Auswahl nach Überschrift oder erfährt, dass die
+Person abgelehnt hat, und macht weiter.
+
+Das Tool und sein Schema stammen aus `AskUser` in pydantic-ai-harness. Es ist in
+jedem neuen Agent und jeder Vorlage standardmäßig aktiv und lässt sich abschalten.
+Wo noch niemand antworten kann — ein Zeitplan, ein Webhook, die API —, erfährt der
+Agent, dass die Person abgelehnt hat.
+
+Eine unbeantwortete Frage beendet die Arbeit des Agents nicht endgültig. Verlässt
+die Person die offene Karte, parkt der Run darauf — im Run-Verlauf als **Wartet
+auf eine Antwort** — und die Karte kehrt zurück, sobald sie die Unterhaltung
+wieder öffnet, auf jedem Gerät. Die Antwort setzt den Run dort fort, wo er
+stehen blieb. Antworten kann nur die gefragte Person, über
+`POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` liest die Karte
+zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
+abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
+geantwortet hat.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

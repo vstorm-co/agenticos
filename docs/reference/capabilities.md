@@ -18,6 +18,17 @@ tools listed.
     renders its picker and its configuration forms from that response. If the two
     disagree, the API is right.
 
+The Builder names each capability in the console's language and explains it in
+plain words: what it lets the agent do, two or three example uses, what it needs
+and what it never does. The names below are the English ones. Five capabilities
+that tune how a run is carried - long conversations, image offload, instruction
+reminders, tool output limits and tool search - are folded under **Advanced**
+until somebody opens it, searches, or switches one on.
+
+In a capability's settings, limits, cache lifetimes, prompts and other tuning sit
+folded under **Advanced settings**, which opens by itself wherever one of them was
+set.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key |
@@ -25,29 +36,30 @@ tools listed.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
-| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
-| `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
-| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
-| `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
+| `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Web browser (step by step) | research | `browse_page` | `web:browse` | via the `browser` extra |
+| `browser_use` | Web browser | research | `browse_web` | `web:browse` | via the `browser-use` extra |
+| `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
-| `system_reminders` | System reminders | reasoning | none, by design | — | — |
+| `system_reminders` | Instruction reminders | reasoning | none, by design | — | — |
 | `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
-| `compaction` | Context management | utility | none, by design | — | — |
+| `compaction` | Long conversations | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Ask the user | utility | `ask_user_question` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -224,7 +236,7 @@ turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
 
-## Memory files
+## Memory { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -361,7 +373,7 @@ allowlist refuses self-hosted mem0 outright, which is deliberate: the key travel
 in an `Authorization` header, so a builder who may bind but not read a shared key
 must not be able to point it at a server of their own.
 
-## Conversation search
+## Past conversations { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -454,7 +466,7 @@ Search finds a page; it does not read one. Reading is
 [Web fetch](#web-fetch) below, and it is a separate capability with a separate
 scope.
 
-## Web fetch
+## Read web pages { #web-fetch }
 
 `web_fetch` — *Read the full page at a URL, as Markdown.*
 
@@ -551,7 +563,7 @@ A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
 to do with a page belongs to the agent's instructions.
 
-## Browser automation (choose)
+## Web browser (step by step) { #browser-automation-choose }
 
 `browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
 
@@ -655,7 +667,7 @@ each step with the probability the engine found it at — see
 [the console](../console.md). `preview` off keeps the narration and drops the
 pictures.
 
-## Browser automation
+## Web browser { #browser-automation }
 
 `browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
 
@@ -703,7 +715,7 @@ is not installed by default. An operator who wants the capability installs
 `agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
 lacks it fails the one tool loudly, with the install line.
 
-## Run Python
+## Calculations { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
 
@@ -720,7 +732,7 @@ memory are the only limits worth setting.
     An author raising a limit for one data-heavy agent should not need an
     operator or a redeploy — and the ceilings are capped rather than open-ended.
 
-## Files & shell
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *reading.*
 `write_file`, `edit_file`, `execute` — *writing and running.*
@@ -742,6 +754,15 @@ There is no `docker` or `daytona` backend to choose. *Where* a sandbox runs is a
 property of the connection an operator registered — Sandboxes in the app — so
 naming the connection is naming the kind. Choosing them separately made it
 possible to choose two things that disagree.
+
+A deployment that runs its own sandbox service - `sandboxd` started by this
+project's compose file, with the token `make sandbox-token` generated - needs no
+registering at all. The first time an organization with no default connection
+lists its sandboxes or runs an agent that needs one, the platform registers *This
+deployment's sandbox* as the default, as the organization's owner, with the token
+in the owner's vault and an audit entry like any other connection. The AI
+Architect is given files and code the same way when it is installed on such a
+deployment.
 
 **`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
 the first wrong costs a feature. Getting the second wrong shows one person
@@ -952,7 +973,7 @@ under `/output`, so a later `execute` step can build with it — assemble a PDF,
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
 
-## Artifacts
+## Apps { #artifacts }
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
 summary - under a stable link.*
@@ -960,11 +981,11 @@ summary - under a stable link.*
 was written.*
 
 Publishes one self-contained HTML or Markdown document as an
-[artifact](../artifacts.md): a shared resource with an owner, a visibility and
+[app](../artifacts.md): a shared resource with an owner, a visibility and
 grants, opened in a browser under a link that stays put. No configuration.
 
 **The name is the identity.** `(organization, agent, environment, name)` picks the
-artifact, so the next run of the same agent that publishes `weekly-report` - from
+app, so the next run of the same agent that publishes `weekly-report` - from
 a chat, a schedule or the API - adds a version to the same one instead of making a
 second link. The environment comes from the run, so a run in `staging` publishes a
 page of its own. Identical bytes add no version and answer `unchanged`.
@@ -1358,7 +1379,7 @@ work that needs several steps held in mind at once.
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.
 
-## System reminders
+## Instruction reminders { #system-reminders }
 
 No tools. Re-states steering guidance mid-run so a long session stops drifting
 from its instructions — the failure this fixes is instruction fade, where after
@@ -1420,7 +1441,7 @@ about "this quarter" from its training cutoff.
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
 
-## Context management
+## Long conversations { #context-management }
 
 No tools. Trims a long run's message history before each request, so a run that
 would have hit the model's limit keeps working instead. The strategies come from
@@ -1664,7 +1685,7 @@ deliberately not exposed.
 
 ## Guardrails
 
-No tools. Inspects the text flowing through a run at three edges and either
+No tools. Inspects the text flowing through a run at four edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
 `pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
 agent is data, so the config selects and parameterises them rather than carrying a
@@ -1675,6 +1696,7 @@ Python guard.
 | input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| tool arguments | what the agent passes a tool, before the tool runs | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Config | Default | |
 |---|---|---|
@@ -1725,12 +1747,23 @@ answer ends the run before any of the blocked text is shown or stored. Reasoning
 not the answer, so a blocked keyword there does not end the run: that reasoning step
 shows `[reasoning withheld by the output guardrail]` instead.
 
-**What the stream screen does not cover yet.** Two streamed paths are not screened:
-a tool call's arguments as they stream, and a delegate's own streamed answer in the
-delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
-size limits, so an answer part too long for it ends the run as the final answer
-would. Because the screen hooks the run's event stream, a guarded agent's model
-requests stream even through the HTTP API, so its model must support streaming.
+**Tool arguments are an edge of their own.** Each string the agent passes a tool
+is checked as the model's response arrives, before the tool runs. A redacted value
+is what the tool receives, what the transcript stores and what the stream shows,
+and a blocked keyword ends the run before any tool is called. It is separate from
+the output check because redacting an argument changes what the tool does: an
+e-mail goes out with a placeholder where the key was. While it is on, a call's
+arguments are held back until the call is complete, as the answer is.
+
+**A delegate streams under its delegating run's output check.** The text and
+reasoning a delegate writes in the delegation panel pass the same check as the
+run's own answer, at every level of delegation. A blocked keyword ends that
+delegation before any of it is shown, and the delegating agent is told it failed.
+
+The stream screen inherits the phone detector's size limits, so an answer part too
+long for it ends the run as the final answer would. Because the screen hooks the
+run's event stream, a guarded agent's model requests stream even through the HTTP
+API, so its model must support streaming.
 
 **The input edge changes what the model reads, not the transcript.** A redacted
 prompt reaches the model scrubbed, but the conversation stores the message as the
@@ -1785,6 +1818,29 @@ Three properties hold on every platform:
 - **Outside a channel it contributes nothing.** A run from the dashboard, the API
   or a schedule has no directory, so the capability is not attached at all — the
   same reason `knowledge` with no collections is not.
+
+## Ask the user
+
+When an agent needs a decision only the person can make, it asks instead of
+guessing: `ask_user_question` takes one to ten multiple-choice questions, each
+with a short header, two to six options with what each means, and whether
+several may be picked. The console shows them as a card, one question at a time,
+with room for a typed answer and a summary before sending; the agent receives the
+picks keyed by header, or is told the person declined and carries on.
+
+The tool and its schema come from `AskUser` in pydantic-ai-harness. It is on by
+default in every new agent and every template, and an author can switch it off.
+Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
+the person declined.
+
+A question nobody answers does not stop the agent's work for good. If the person
+leaves with the card open, the run parks on it - **Waiting for an answer** in run
+history - and the card comes back when they reopen the conversation, on any
+device. Answering it continues the run from where it stopped. Only the person
+asked can answer, through `POST /runs/{run_id}/answers`; `GET
+/runs/{run_id}/questions` reads the card back. After a day
+(`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
+the person did not answer in time.
 
 ## What a binding may change
 

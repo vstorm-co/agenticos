@@ -3,6 +3,7 @@ name: Grant Application Checker
 description: Checks an application against published criteria and reports the gaps,
   without awarding anything.
 capabilities:
+- ask_user
 - knowledge
 - skills
 - code_execution

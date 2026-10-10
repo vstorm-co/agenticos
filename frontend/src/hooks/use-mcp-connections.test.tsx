@@ -46,6 +46,7 @@ function connection(overrides: Partial<McpConnectionRecord> = {}): McpConnection
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: null,
     is_default: false,
     label: null,

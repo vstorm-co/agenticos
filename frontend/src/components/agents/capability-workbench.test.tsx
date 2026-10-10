@@ -222,13 +222,37 @@ describe("the capability workbench", () => {
     expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
   });
 
-  it("says how many tools a capability contributes before you grant it", async () => {
-    // The complaint this layout exists for: the old grid showed one sentence per
-    // capability and never what it actually gives the model.
+  it("says in the list what each capability lets the agent do", async () => {
+    // What somebody scanning the list decides on; a tool count told a person who
+    // is not a developer nothing (#2070). The count is on the Tools tab.
     renderWorkbench();
 
-    expect(await screen.findByText("1 tool")).toBeInTheDocument();
-    expect(screen.getByText("2 tools")).toBeInTheDocument();
+    const row = screen.getByRole("button", { name: /^Charts/ });
+    expect(within(row).getByText(CHARTS.description)).toBeInTheDocument();
+  });
+
+  it("explains a capability it has words for: uses, needs and what it never does", async () => {
+    renderWorkbench();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.getByText("For example")).toBeInTheDocument();
+    expect(screen.getByText("Sales this month by region, as bars")).toBeInTheDocument();
+    expect(screen.getByText("Never changes the data it draws.")).toBeInTheDocument();
+  });
+
+  it("explains nothing more for a capability the console has no words for", async () => {
+    renderWorkbench({ catalog: [{ ...CHARTS, id: "from_a_plugin", name: "Plugin" }] });
+
+    expect((await screen.findAllByText(CHARTS.description)).length).toBeGreaterThan(0);
+    expect(screen.queryByText("For example")).not.toBeInTheDocument();
+  });
+
+  it("names a category in plain words, and keeps an unknown one as it came", async () => {
+    renderWorkbench({ catalog: [CHARTS, { ...CONTEXT, category: "from_a_plugin" }] });
+
+    expect(await screen.findByText("Work with data")).toBeInTheDocument();
+    expect(screen.getByText("from_a_plugin")).toBeInTheDocument();
   });
 
   it("shows what a capability offers without switching it on", async () => {
@@ -429,11 +453,45 @@ describe("jsonSchemaType", () => {
     expect(screen.getByText(/No capability or tool matches/)).toBeInTheDocument();
   });
 
-  it("says a capability with no tools changes how the agent runs", async () => {
-    // A blank line under the name would read as a capability that does nothing.
-    renderWorkbench({ catalog: [{ ...CHARTS, tools: [], contracts: [] }] });
+  describe("advanced capabilities", () => {
+    const COMPACTION: CapabilityCatalogEntry = {
+      ...CHARTS,
+      id: "compaction",
+      name: "Long conversations",
+      category: "utility",
+      tools: [],
+      contracts: [],
+    };
 
-    expect(await screen.findByText("no tools - changes how it runs")).toBeInTheDocument();
+    it("folds them below the rest until asked for", async () => {
+      // Each answers a problem met only once an agent works; a list opening on
+      // them reads as homework before starting (#2070).
+      renderWorkbench({ catalog: [CHARTS, COMPACTION] });
+
+      expect(screen.queryByRole("button", { name: /^Long conversations/ })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Show 1 advanced capability" }));
+      expect(screen.getByText("Advanced")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
+
+      await userEvent.click(screen.getByRole("button", { name: "Hide advanced capabilities" }));
+      expect(screen.queryByRole("button", { name: /^Long conversations/ })).toBeNull();
+    });
+
+    it("never folds one that is switched on", async () => {
+      renderWorkbench({ catalog: [CHARTS, COMPACTION], selected: [binding("compaction")] });
+
+      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
+      expect(screen.queryByRole("button", { name: /advanced capabilit/ })).toBeNull();
+    });
+
+    it("never folds a match while searching", async () => {
+      const many = Array.from({ length: 8 }, (_, n) => ({ ...CHARTS, id: `c${n}`, name: `C${n}` }));
+      renderWorkbench({ catalog: [...many, COMPACTION] });
+
+      await userEvent.type(screen.getByPlaceholderText(/Search/), "Long");
+
+      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
+    });
   });
 
   it("marks a capability that acts on the world", async () => {
@@ -486,7 +544,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
   const SANDBOX: CapabilityCatalogEntry = {
     ...CHARTS,
     id: "sandbox",
-    name: "Files & shell",
+    name: "Sandbox",
     description: "Read, write and run things in a workspace that persists between turns.",
     side_effecting: true,
     scopes: ["sandbox:execute"],
@@ -514,10 +572,11 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     expect(await screen.findByText("files and a shell")).toBeInTheDocument();
   });
 
-  it("says so when the agent has no workspace at all", async () => {
+  it("says what it is for while the agent has no workspace at all", async () => {
     renderSandbox();
 
-    expect(await screen.findByText("no workspace")).toBeInTheDocument();
+    const row = screen.getByRole("button", { name: /^Sandbox/ });
+    expect(within(row).getByText(SANDBOX.description)).toBeInTheDocument();
   });
 
   it.each([
@@ -538,7 +597,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
 
     expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeVisible();
-    expect(screen.getByRole("switch", { name: "Files & shell enabled" })).toBeVisible();
+    expect(screen.getByRole("switch", { name: "Sandbox enabled" })).toBeVisible();
   });
 
   it("grants the workspace from its own panel too", async () => {
@@ -547,7 +606,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     const onToggle = vi.fn();
     renderWorkbench({ catalog: [SANDBOX, CHARTS], onToggle });
 
-    await userEvent.click(screen.getByRole("switch", { name: "Files & shell enabled" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Sandbox enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("sandbox");
   });

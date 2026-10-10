@@ -5,7 +5,13 @@ import { useFollowContent } from "./use-follow-content";
 
 /** Captures the observer so a test can say when the content grew. */
 function installObserver() {
-  const seen: { grew?: () => void; observed?: Element; disconnected: boolean } = {
+  const seen: {
+    grew?: () => void;
+    observed?: Element;
+    watched: Element[];
+    disconnected: boolean;
+  } = {
+    watched: [],
     disconnected: false,
   };
   class FakeResize {
@@ -13,7 +19,8 @@ function installObserver() {
       seen.grew = callback;
     }
     observe(element: Element) {
-      seen.observed = element;
+      seen.observed ??= element;
+      seen.watched.push(element);
     }
     disconnect() {
       seen.disconnected = true;
@@ -41,6 +48,8 @@ describe("useFollowContent", () => {
       useFollowContent({ current: scrolling }, { current: content }),
     );
     expect(seen.observed).toBe(content);
+    // The scroller too, which shrinks when a phone's keyboard opens (#2066).
+    expect(seen.watched).toEqual([content, scrolling]);
 
     seen.grew?.();
     expect(scrolling.scrollTop).toBe(900);
@@ -57,7 +66,7 @@ describe("useFollowContent", () => {
       useFollowContent(
         { current: scrolling },
         { current: document.createElement("div") },
-        { current: true },
+        () => true,
       ),
     );
     seen.grew?.();

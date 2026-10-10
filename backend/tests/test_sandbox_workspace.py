@@ -3867,12 +3867,12 @@ class TestDrawingAHostsImages:
         """Twenty-five workspaces of images would otherwise be two hundred reads to
         draw them 64 pixels wide."""
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
 
         read: list[str] = []
         many = [
             {"path": f"shot-{n}.png", "name": f"shot-{n}.png", "is_dir": False, "size": 120}
-            for n in range(HOST_THUMBNAIL_BUDGET + 5)
+            for n in range(THUMBNAIL_BUDGET + 5)
         ]
         self._host(monkeypatch, many, {}, read)
         _serve(monkeypatch, _resolved())
@@ -3883,10 +3883,8 @@ class TestDrawingAHostsImages:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert len(read) == HOST_THUMBNAIL_BUDGET
-        assert sum(1 for file in listing.files if file.thumbnail is not None) == (
-            HOST_THUMBNAIL_BUDGET
-        )
+        assert len(read) == THUMBNAIL_BUDGET
+        assert sum(1 for file in listing.files if file.thumbnail is not None) == (THUMBNAIL_BUDGET)
 
     async def test_the_budget_goes_to_the_first_workspaces_listed(
         self, monkeypatch, mock_db_session
@@ -3898,10 +3896,10 @@ class TestDrawingAHostsImages:
         from pydantic_ai_backends import remote as remote_module
 
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
 
         png = self._png()
-        first = HOST_THUMBNAIL_BUDGET - 4
+        first = THUMBNAIL_BUDGET - 4
         quick_listed = threading.Event()
 
         class _Archive(_ClosesItsClient):
@@ -3954,7 +3952,7 @@ class TestDrawingAHostsImages:
         from pydantic_ai_backends import remote as remote_module
 
         from app.repositories import agent as agent_repo
-        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, HOST_THUMBNAIL_BUDGET
+        from app.services.sandbox_workspace import _HOST_CALLS_AT_ONCE, THUMBNAIL_BUDGET
 
         png = self._png()
         counter = threading.Lock()
@@ -3986,7 +3984,7 @@ class TestDrawingAHostsImages:
                 _leave()
                 return [
                     {"path": f"{session_id}-{n}.png", "is_dir": False, "size": 120}
-                    for n in range(HOST_THUMBNAIL_BUDGET // 2)
+                    for n in range(THUMBNAIL_BUDGET // 2)
                 ]
 
             def read_bytes(self, session_id, file_path):
@@ -4011,9 +4009,7 @@ class TestDrawingAHostsImages:
         )
 
         for listing in listings:
-            assert sum(file.thumbnail is not None for file in listing.files) == (
-                HOST_THUMBNAIL_BUDGET
-            )
+            assert sum(file.thumbnail is not None for file in listing.files) == (THUMBNAIL_BUDGET)
         assert 1 < most <= _HOST_CALLS_AT_ONCE
         assert threads and all(name.startswith("workspace-host") for name in threads)
 
@@ -4246,21 +4242,105 @@ class TestAListingCarriesWhatEachTileDraws:
         assert set(contents.thumbnails) == {"/out/chart.png"}
         assert contents.thumbnails["/out/chart.png"].startswith("data:image/webp;base64,")
 
-    async def test_a_workspace_listing_carries_the_same(self, monkeypatch, mock_db_session):
+    async def test_a_workspace_listed_by_id_draws_no_tiles(self, monkeypatch, mock_db_session):
+        """The explorer reading it draws a tree of names, so a tile here would be an
+        image decoded for nobody (#1930)."""
         row = _row(files=self._stored())
         monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
 
         _found, contents = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
 
-        assert set(contents.previews) == {"/uploads/sales.csv"}
-        assert set(contents.thumbnails) == {"/out/chart.png"}
+        assert {entry["path"] for entry in contents.entries} >= {
+            "/uploads/sales.csv",
+            "/out/chart.png",
+        }
+        assert contents.previews == {}
+        assert contents.thumbnails == {}
+
+    async def test_a_stored_workspace_draws_one_screen_of_images(
+        self, monkeypatch, mock_db_session
+    ):
+        """A stored image costs no fetch, but its decode is the expensive half: forty
+        large PNGs fit under the stored cap and used to be decoded on every listing."""
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET
+
+        stored = StateBackend()
+        for n in range(THUMBNAIL_BUDGET + 6):
+            stored.write_bytes(f"/out/shot-{n:02}.png", _png((8, 8)))
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        assert len(found[1].thumbnails) == THUMBNAIL_BUDGET
+
+    async def test_a_stored_image_is_decoded_off_the_event_loop(self, monkeypatch, mock_db_session):
+        """A grid of photographs decoded on the loop holds every other request."""
+        import threading
+
+        from app.services import sandbox_workspace as module
+
+        decoded_on: list[str] = []
+        real = module.stored_thumbnail
+
+        def _recording(path: str, data: object) -> str | None:
+            decoded_on.append(threading.current_thread().name)
+            return real(path, data)
+
+        monkeypatch.setattr(module, "stored_thumbnail", _recording)
+        row = _row(files=self._stored())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        assert set(found[1].thumbnails) == {"/out/chart.png"}
+        assert decoded_on and all(name.startswith("file-io") for name in decoded_on)
+
+    async def test_stored_and_host_images_share_one_screen_of_tiles(
+        self, monkeypatch, mock_db_session
+    ):
+        """The flat view's allowance is request-wide: a stored workspace listed first
+        spends it before a host is asked for anything."""
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import THUMBNAIL_BUDGET, stored_entries
+
+        stored = StateBackend()
+        for n in range(THUMBNAIL_BUDGET):
+            stored.write_bytes(f"/out/shot-{n:02}.png", _png((8, 8)))
+        state_row = _row(files=dict(stored.files))
+        host_row = _row(backend="service", session_id="h-1", connection_id=uuid4())
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[state_row, host_row])
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        host_entries = [{"path": "/remote.png", "size": 10, "is_dir": False}]
+
+        async def _entries(ctx, row):
+            if row is host_row:
+                return WorkspaceContents(entries=host_entries)
+            return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
+
+        monkeypatch.setattr(service, "_entries", _entries)
+        fetched = AsyncMock(return_value={})
+        monkeypatch.setattr(service, "_host_thumbnails", fetched)
+
+        listing = await service.flat_files(_ctx())
+
+        assert sum(file.thumbnail is not None for file in listing.files) == THUMBNAIL_BUDGET
+        assert fetched.await_args.args[2] == []
 
     async def test_a_host_backed_listing_draws_one_screen_of_images_and_previews_nothing(
         self, monkeypatch, mock_db_session
     ):
-        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
-
         row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
         service = SandboxWorkspaceService(mock_db_session)
@@ -4273,7 +4353,7 @@ class TestAListingCarriesWhatEachTileDraws:
             "_entries",
             AsyncMock(return_value=WorkspaceContents(entries=entries)),
         )
-        drawn = AsyncMock(return_value=({"/out/chart.png": "data:image/webp;base64,AA"}, 0))
+        drawn = AsyncMock(return_value={"/out/chart.png": "data:image/webp;base64,AA"})
         monkeypatch.setattr(service, "_host_thumbnails", drawn)
 
         found = await service.listing(_ctx(), conversation_id=uuid4())
@@ -4281,7 +4361,5 @@ class TestAListingCarriesWhatEachTileDraws:
         assert found is not None
         assert found[1].previews == {}
         assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
-        # A directory is never fetched as an image, and one listing spends at most
-        # one screen of host reads.
-        assert [entry["path"] for entry in drawn.await_args.args[2]] == ["/out/chart.png"]
-        assert drawn.await_args.args[3] == HOST_THUMBNAIL_BUDGET
+        # A directory is never fetched as an image.
+        assert drawn.await_args.args[2] == ["/out/chart.png"]

@@ -39,11 +39,13 @@ import logging
 import re
 from collections.abc import AsyncIterable, Callable
 from dataclasses import dataclass, field, replace
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
 from pydantic_ai.messages import (
     AgentStreamEvent,
+    ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -51,7 +53,10 @@ from pydantic_ai.messages import (
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
+    ToolCallPart,
+    ToolCallPartDelta,
 )
+from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import RunContext
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
@@ -105,6 +110,7 @@ _BLOCK_MESSAGE = {
     "input": "This request was blocked by an input guardrail.",
     "output": "This response was blocked by an output guardrail.",
     "tool_result": "A tool result was blocked by a guardrail.",
+    "tool_args": "A tool call was blocked by a guardrail.",
 }
 """What the run row records on a block. Names the edge and the refusal, never the
 content that tripped it - the row is read by every member who can see the run, and
@@ -134,10 +140,13 @@ class GuardrailsConfig(BaseModel):
     `phone_regions` is the one field with a value by default, and it only changes
     what a PII redaction reads.
 
-    The three edges are the three the harness's text detectors have adapters for -
-    the prompt (a `str`), the output (via `for_text`) and a tool result (via
-    `for_tool_result_text`). Tool *arguments* are a structured mapping with no text
-    adapter, so they are not an edge here.
+    Three edges are the ones the harness's text detectors have adapters for - the
+    prompt (a `str`), the output (via `for_text`) and a tool result (via
+    `for_tool_result_text`). The fourth, tool *arguments*, is a structured mapping
+    with no harness adapter, so :class:`ScreenedToolArgs` screens each string in it
+    (agenticos#2000). An edge of its own rather than part of the output check: what
+    an agent passes a tool is not its answer, and redacting it changes what the
+    tool does - an e-mail sent with a placeholder where the key was.
     """
 
     redact_secrets_in: bool = Field(
@@ -174,6 +183,18 @@ class GuardrailsConfig(BaseModel):
         default="",
         description="Block the run if a tool result contains any of these terms (comma or newline separated)",
     )
+    redact_secrets_args: bool = Field(
+        default=False,
+        description="Redact API keys and tokens from the arguments the agent passes a tool",
+    )
+    redact_pii_args: bool = Field(
+        default=False,
+        description="Redact emails, phone numbers, IBANs, cards and SSNs from tool arguments",
+    )
+    blocked_keywords_args: str = Field(
+        default="",
+        description="Block the run if a tool's arguments contain any of these terms (comma or newline separated)",
+    )
     phone_regions: str = Field(
         default=DEFAULT_PHONE_REGIONS,
         description=(
@@ -182,6 +203,7 @@ class GuardrailsConfig(BaseModel):
             f"and {MAX_PHONE_REGIONS_CHARS} characters. "
             "A number written with + is redacted whatever is listed"
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
     @field_validator("phone_regions")
@@ -401,6 +423,112 @@ class ScreenedStream(AbstractCapability[object]):
         return str(verdict.replacement) if verdict.action == "replace" else text
 
 
+def _screened_value(value: object, screen: TextDetector) -> object:
+    """A JSON value with every string in it as the screen leaves it; a block raises.
+
+    Each string on its own: a value split across two fields is not one a model
+    writes, and joining them would hand the tool a field it never had. Keys are
+    the tool's schema, not the agent's words, and are left alone.
+    """
+    if isinstance(value, str):
+        verdict = screen(value)
+        return str(verdict.replacement) if verdict.action == "replace" else value
+    if isinstance(value, list):
+        return [_screened_value(item, screen) for item in value]
+    if isinstance(value, dict):
+        return {key: _screened_value(item, screen) for key, item in value.items()}
+    return value
+
+
+def _screened_call(part: ToolCallPart, screen: TextDetector) -> ToolCallPart:
+    """The call with its arguments screened, or the same call when nothing changed."""
+    args = part.args_as_dict(raise_if_invalid=False)
+    screened: dict[str, Any] = {key: _screened_value(value, screen) for key, value in args.items()}
+    return part if screened == args else replace(part, args=screened)
+
+
+@dataclass
+class ScreenedToolArgs(AbstractCapability[object]):
+    """Screen what the agent passes each tool, before anything acts on it (agenticos#2000).
+
+    The response is screened as it arrives from the model, so the run's history,
+    the tool, the stored transcript and every later request hold the screened
+    arguments - one rewrite rather than one per reader. A blocked keyword raises
+    :class:`GuardrailBlocked` before any tool runs.
+
+    A streaming surface shows a call's arguments as they are written, so the
+    call's start and deltas are held back until the part is complete and then
+    released, screened, as one start event and its end - the treatment
+    :class:`ScreenedStream` gives the answer's text.
+    """
+
+    screen: TextDetector
+
+    async def after_model_request(
+        self,
+        ctx: RunContext[object],
+        *,
+        request_context: ModelRequestContext,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        """The response with every tool call's arguments screened."""
+        parts = [
+            _screened_call(part, self.screen) if isinstance(part, ToolCallPart) else part
+            for part in response.parts
+        ]
+        return response if parts == response.parts else replace(response, parts=parts)
+
+    async def wrap_run_event_stream(
+        self,
+        ctx: RunContext[object],
+        *,
+        stream: AsyncIterable[AgentStreamEvent],
+    ) -> AsyncIterable[AgentStreamEvent]:
+        """Hold each tool call until it is whole, and release it screened."""
+        held: dict[int, PartStartEvent] = {}
+        async for event in stream:
+            match event:
+                case PartStartEvent(part=ToolCallPart()):
+                    held[event.index] = event
+                case PartDeltaEvent(delta=ToolCallPartDelta()):
+                    pass
+                case PartEndEvent(part=ToolCallPart() as part):
+                    screened = _screened_call(part, self.screen)
+                    yield replace(held.pop(event.index), part=screened)
+                    yield replace(event, part=screened)
+                case _:
+                    yield event
+
+
+def output_screen(config: GuardrailsConfig) -> ScreenedStream | None:
+    """The stream screen this configuration's output check runs, or `None` without one.
+
+    One builder for the agent's own stream and for its delegates' (agenticos#2000):
+    a delegate's text streams to the same reader as the agent's, so the agent's
+    output check holds it to the same rule.
+    """
+    phone_regions = parse_phone_regions(config.phone_regions)
+    keywords = _keywords(config.blocked_keywords_out)
+    detector = _edge_detector(
+        redact_secrets_on=config.redact_secrets_out,
+        redact_pii_on=config.redact_pii_out,
+        phone_regions=phone_regions,
+        keywords=keywords,
+        edge="output",
+    )
+    if detector is None:
+        return None
+    return ScreenedStream(
+        screen=detector,
+        fits=(
+            (lambda text: phone_text_error(text, phone_regions) is None)
+            if config.redact_pii_out
+            else None
+        ),
+        tail_chars=max([_BOUNDARY_CHARS, *(len(term) for term in keywords)]),
+    )
+
+
 def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
     """The harness capabilities this configuration asks for, combined into one.
 
@@ -425,27 +553,10 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     if input_detector is not None:
         edges.append(InputGuardrail(guard=input_detector))
 
-    output_keywords = _keywords(config.blocked_keywords_out)
-    output_detector = _edge_detector(
-        redact_secrets_on=config.redact_secrets_out,
-        redact_pii_on=config.redact_pii_out,
-        phone_regions=phone_regions,
-        keywords=output_keywords,
-        edge="output",
-    )
-    if output_detector is not None:
-        edges.append(OutputGuardrail(guard=for_text(output_detector, on_other="allow")))
-        edges.append(
-            ScreenedStream(
-                screen=output_detector,
-                fits=(
-                    (lambda text: phone_text_error(text, phone_regions) is None)
-                    if config.redact_pii_out
-                    else None
-                ),
-                tail_chars=max([_BOUNDARY_CHARS, *(len(term) for term in output_keywords)]),
-            )
-        )
+    stream = output_screen(config)
+    if stream is not None:
+        edges.append(OutputGuardrail(guard=for_text(stream.screen, on_other="allow")))
+        edges.append(stream)
 
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,
@@ -458,6 +569,16 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
         edges.append(
             ToolGuardrail(result_guard=for_tool_result_text(tool_detector, on_other="allow"))
         )
+
+    args_detector = _edge_detector(
+        redact_secrets_on=config.redact_secrets_args,
+        redact_pii_on=config.redact_pii_args,
+        phone_regions=phone_regions,
+        keywords=_keywords(config.blocked_keywords_args),
+        edge="tool_args",
+    )
+    if args_detector is not None:
+        edges.append(ScreenedToolArgs(screen=args_detector))
 
     if not edges:
         return None

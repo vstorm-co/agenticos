@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, MessageSquare } from "lucide-react";
+import { Download, FolderOpen, MessageSquare } from "lucide-react";
 
 import {
   Button,
   DataTable,
   ListCard,
+  ListCardEmpty,
   Pager,
   SearchInput,
   Switch,
@@ -20,6 +21,7 @@ import {
   type Column,
 } from "@/components/ui";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FileCard, FileViewer } from "@/components/files";
@@ -364,6 +366,7 @@ export function WorkspaceBrowser() {
  */
 function FlatFiles() {
   const t = useTranslations("sandboxes");
+  const router = useRouter();
   const tc = useTranslations("common");
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
@@ -397,9 +400,12 @@ function FlatFiles() {
 
   if (listing.items.length === 0)
     return (
-      <p className="text-muted-foreground px-5 py-8 text-center text-sm">
-        {t("noAgentHoldingFile")}
-      </p>
+      <ListCardEmpty
+        icon={FolderOpen}
+        title={t("noAgentHoldingFile")}
+        description={t("noAgentHoldingFileWhy")}
+        cta={{ label: t("openAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+      />
     );
 
   return (

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "cb8a35a07876"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -30,11 +30,17 @@ Karty przychodzą pogrupowane w pasy:
 |---|---|
 | *(bez tytułu, na górze)* | Podsumowanie, którego szczegółem jest reszta strony |
 | **Deployment** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
-| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
+| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, [wydatki działów](departments.md#a-departments-budget), kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
 | **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
 | **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
+
+Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
+wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
+wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
+komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
+go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
 
 ### Zmiana układu { #rearranging-it }
 
@@ -109,6 +115,72 @@ To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#a
 się właśnie wydarzyło, karta na dashboardzie dla kilku najnowszych, przy
 następnym otwarciu strony.
 
+## Asystent { #the-assistant }
+
+Na każdej stronie, w prawym dolnym rogu, jest **AI Architekt**: agent, którego
+każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkich,
+którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
+[serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,
+którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
+albo co jest w bazie wiedzy.
+
+Poproś o szkic agenta albo zaproszenie
+współpracownika, a najpierw pokaże ci, co
+zatwierdzasz: szkic agenta jako sam szkic - gdzie powstanie, jego nazwę, co może
+robić i jego instrukcje - a wszystko inne jako dokładne wywołanie. Działa
+z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
+koszty liczą się jak każdego agenta.
+
+Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
+żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
+Kliknięcie dymka zadaje mu pytanie; × wycisza tę stronę, a dzwonek w jego oknie
+wyłącza dymki w ogóle. Okno otwiera się na czterech kafelkach, więc pierwsza
+wiadomość to jedno kliknięcie, i ma własną historię rozmów. Na telefonie zajmuje
+cały ekran.
+
+Gdy wskazuje stronę, link otwiera się w konsoli za oknem i podświetla kontrolkę,
+o którą chodzi — przycisk tworzący agenta, zakładkę z akceptacjami. Aparat w
+nagłówku okna pokazuje mu stronę, na której jesteś: przeglądarka pyta, którą
+kartę udostępnić, a jedno zdjęcie trafia jako załącznik do twojej następnej
+wiadomości.
+
+Dłuższe zadania planuje jako listę kroków, którą widać na bieżąco,
+zapamiętuje notatki o tobie między rozmowami, powie, ile kosztują twoi agenci, i
+może cofnąć draft agenta, który utworzył przez pomyłkę — nic poza tym. Oprócz
+akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
+udał, i gdy formularz jest otwarty, niedokończony, od minuty.
+
+Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
+krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz
+**Ustawienia → Asystent**, wybierz dostawcę i wklej klucz, a potem wybierz model.
+Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia organizacji; pozostali
+dowiadują się, kto może to zrobić.
+
+**Ustawienia → Asystent** to twoje własne wskazówki, a dla tego, kto może zmieniać
+ustawienia organizacji, także nazwa asystenta, jego powitanie i model oraz
+przełącznik, który wyłącza go dla wszystkich.
+
+## Zmiany wprowadzone gdzie indziej { #changes-made-elsewhere }
+
+Otwarta strona nadąża za zmianami wprowadzonymi gdzie indziej: w konsoli
+współpracownika, przez skrypt z [kluczem API](api.md), przez Claude Code
+połączone z [serwerem MCP platformy](mcp.md#agenticos-as-an-mcp-server) albo przez
+asystenta. Każdy udany zapis przez publiczne API jest ogłaszany otwartym konsolom
+organizacji, gdy tylko zostanie zatwierdzony, a lista lub strona szczegółów bez
+niezapisanych zmian pobiera dane ponownie na miejscu — agent utworzony kluczem
+pojawia się na stronie Agents bez przeładowania.
+
+Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
+zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
+niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
+którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
+**Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
+
+Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
+pliku kontekstu albo strony, której nie widzisz, nigdy nie trafia do twojej
+konsoli, a usunięcie trafia tylko do ról, które widzą każdy wiersz danego rodzaju.
+Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
+
 ## Chat { #chat }
 
 Miejsce, w którym rozmawiasz z opublikowanym agentem. Selektor wybiera, który
@@ -135,6 +207,12 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
+klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera, pasek
+zakładek chowa się na czas pisania, Enter zaczyna nową linię, a załącznik i
+dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
+przybliżał.
 
 **Obserwowanie przeglądania.** Agent z
 [automatyzacją przeglądarki](reference/capabilities.md#browser-automation-choose)
@@ -171,6 +249,22 @@ poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
+## Języki { #languages }
+
+Konsola mówi po angielsku, polsku i niemiecku, w całości poza stronami
+prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te trzy
+języki, a menu konta zmienia język w każdej chwili; wybór jest zapamiętywany w
+przeglądarce. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+[tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+## Następny krok { #the-next-step }
+
+Strona pusta dlatego, że nic jeszcze nie istnieje, proponuje, jak zrobić pierwszą
+rzecz - agenta, rutynę, coś udostępnionego działowi. Utworzenie skilla, pliku
+kontekstu albo bazy wiedzy kończy się toastem z **Add to an agent** dla każdego,
+kto może edytować agentów, więc to, co powstało, trafia do agenta bez wycieczki do
+Buildera.
+
 ## Kiedy strona wygląda na pustą { #when-a-page-looks-empty }
 
 **Pusty stan i nieudane żądanie wyglądają tak samo.** Każda strona tutaj rozsyła
@@ -191,6 +285,8 @@ problem zostaje odczytany jako cisza.
   kliknięcie, niezależnie od tego, na której stronie akurat jesteś.
 - **Chat, Slack i API to ten sam runner**, więc to, co widzisz w konsoli, jest
   tym, co dostaje klient.
+- **Zmiany wprowadzone gdzie indziej docierają same** — przez API, MCP albo
+  asystenta — a Builder pyta, zanim zastąpi niezapisane zmiany.
 - **Slash commands są twoje**, łącznie z wbudowanymi, a te, z których nie
   korzystasz, możesz ukryć.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie

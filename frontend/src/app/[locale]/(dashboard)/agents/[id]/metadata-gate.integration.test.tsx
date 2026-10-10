@@ -77,6 +77,7 @@ vi.mock("@/hooks", () => ({
   }),
   useAgentVersions: () => ({ versions: [], total: 0, isLoading: false }),
   useCapabilityCatalog: () => ({ capabilities: [] }),
+  usePromptVariables: () => ({ variables: [] }),
   useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
   useEmbeds: () => ({ embeds: [] }),
   useExposures: () => ({ exposures: [] }),

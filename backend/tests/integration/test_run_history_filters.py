@@ -326,6 +326,24 @@ class TestNarrowingByWhatRan:
         assert (rows, total) == ([str(parent.id)], 1)
 
 
+class TestTestRuns:
+    """#2074: a run from the Builder's test panel is told apart from real use."""
+
+    async def test_the_test_filter_takes_either_half_and_unset_takes_both(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        tried = await _run(db, org, agent, is_test=True)
+        used = await _run(db, org, agent)
+
+        tests, _ = await _listed(db, org, user, filters=RunFilters(is_test=True))
+        real, _ = await _listed(db, org, user, filters=RunFilters(is_test=False))
+        both, total = await _listed(db, org, user, filters=RunFilters())
+
+        assert tests == [str(tried.id)]
+        assert real == [str(used.id)]
+        assert total == 2 and set(both) == {str(tried.id), str(used.id)}
+
+
 class TestSortingByHowLongItTook:
     """#210. The dashboard says p95 is 14.8s and nothing reaches *those runs*.
 

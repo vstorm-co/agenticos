@@ -452,6 +452,7 @@ permanent false alarm on the other, so each service definition carries its own.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |
+| `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |
 
 Three days because it has to span a weekend: the approval that arrives on Friday
 afternoon is the one nobody decides, and expiring it on Saturday would be expiring
@@ -667,16 +668,16 @@ an `aws_credentials` secret in its organization's vault, the same way a `gdrive`
 names a service account. The endpoint and region still fall back to these settings
 because neither names a principal — they say where the store is, not who is asking.
 
-## Published artifacts
+## Published apps { #published-artifacts }
 
 Pages agents publish with the `artifacts` capability. Their bytes live in the
 file storage above; these bound them and say where they are served from. See
-[Artifacts](artifacts.md).
+[Apps](artifacts.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per app. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
 | `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
 

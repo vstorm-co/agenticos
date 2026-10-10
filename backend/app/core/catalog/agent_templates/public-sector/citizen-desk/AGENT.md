@@ -3,6 +3,7 @@ name: Citizen Enquiry Desk
 description: Answers procedural questions from published information and routes everything
   else with its deadline stated.
 capabilities:
+- ask_user
 - id: knowledge
   config:
     default_top_k: 4

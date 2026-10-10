@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_session import ChannelSession
+from app.db.models.conversation import Conversation
 
 
 async def get_by_id(db: AsyncSession, session_id: UUID) -> ChannelSession | None:
@@ -140,6 +141,20 @@ async def list_by_bot(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def recent_for_identity(
+    db: AsyncSession, *, bot_id: UUID, identity_id: UUID, limit: int = 5
+) -> list[tuple[ChannelSession, str | None]]:
+    """One person's latest conversations with one bot, newest first, with their titles."""
+    result = await db.execute(
+        select(ChannelSession, Conversation.title)
+        .outerjoin(Conversation, Conversation.id == ChannelSession.conversation_id)
+        .where(ChannelSession.bot_id == bot_id, ChannelSession.identity_id == identity_id)
+        .order_by(ChannelSession.last_message_at.desc().nulls_last())
+        .limit(limit)
+    )
+    return [(session, title) for session, title in result.all()]
 
 
 async def count_by_bot(db: AsyncSession, bot_id: UUID) -> int:

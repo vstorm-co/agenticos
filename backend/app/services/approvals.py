@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -250,6 +251,43 @@ class ApprovalService:
             )
 
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
+        return len(stale)
+
+    async def expire_unanswered(self) -> int:
+        """End every run whose `ask_user` question nobody answered in time (#2064).
+
+        The same bargain as :meth:`expire_stale`: the run is ended where it stopped
+        rather than continued, because continuing is a model request nobody asked
+        for. The question's step is closed with the harness's "did not answer in
+        time", so the next turn in the conversation reads that the person never
+        answered rather than a question still open.
+
+        Returns:
+            How many runs were ended.
+        """
+        now = datetime.now(UTC)
+        stale = await agent_run_repo.list_unanswered_runs(
+            self.db, older_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
+        )
+        for run in stale:
+            questions: list[str] = (run.paused_state or {}).get("questions", [])
+            await TranscriptService(self.db).record(
+                run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
+            )
+            await agent_run_repo.finish_run(
+                self.db,
+                run=run,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+                ended_at=now,
+                error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
+                paused_state=None,
+            )
+        if stale:
+            logger.info("Question sweep: ended %d unanswered run(s)", len(stale))
         return len(stale)
 
     async def _settle_expired_run(

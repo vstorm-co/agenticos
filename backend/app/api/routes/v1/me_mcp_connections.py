@@ -23,6 +23,8 @@ from app.schemas.mcp_connection import (
     McpOAuthCallbackResult,
     McpOAuthStart,
     McpOAuthStartResult,
+    McpSignInProbe,
+    McpSignInProbeResult,
     McpToolRead,
 )
 
@@ -73,6 +75,18 @@ async def delete_mcp_connection(
     return None
 
 
+@router.post("/probe", response_model=McpSignInProbeResult)
+async def probe_mcp_sign_in(
+    data: McpSignInProbe, service: McpConnectionSvc, user: CurrentUser
+) -> Any:
+    """Whether a server added by its address supports OAuth sign-in (#2073).
+
+    Runs the discovery a sign-in would, registering nothing. A server that answers
+    with no OAuth metadata is `sign_in: false` - a token or no credential, then.
+    """
+    return await service.probe_sign_in(data.url)
+
+
 @router.post("/oauth/start", response_model=McpOAuthStartResult)
 async def start_mcp_oauth(
     data: McpOAuthStart,
@@ -105,7 +119,12 @@ async def complete_mcp_oauth(
         connection = await service.oauth_callback(state=data.state, code=data.code)
     except (OAuthError, NotFoundError) as exc:
         return McpOAuthCallbackResult(ok=False, error=str(exc))
-    return McpOAuthCallbackResult(ok=True, connection_name=connection.name)
+    return McpOAuthCallbackResult(
+        ok=True,
+        connection_name=connection.name,
+        connection_id=connection.id,
+        scope="org" if connection.scope == "org" else "user",
+    )
 
 
 @router.post("/{connection_id}/test", response_model=McpConnectionTestResult)

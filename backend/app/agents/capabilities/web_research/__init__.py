@@ -63,6 +63,7 @@ class WebResearchConfig(BaseModel):
         ge=1,
         le=10,
         description="How many results one search returns; ignored for native search.",
+        json_schema_extra={"x-advanced": True},
     )
 
 

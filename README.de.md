@@ -1,4 +1,4 @@
-<!-- source_sha: f38e57a726cf -->
+<!-- source_sha: b0d8863e1cb7 -->
 
 <div align="center">
 
@@ -189,7 +189,7 @@ Wenn du [Claude Code](https://code.claude.com/docs/en/overview) oder [Codex](htt
 
 ### 🎨 Ergebnisse als interaktive Seiten veröffentlichen
 
-Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Artefakte** veröffentlichen. Wähle, wer sie öffnen darf; Aktualisierungen behalten denselben Link und frühere Versionen bleiben lesbar. Öffentliche Links können ablaufen, ein Passwort verlangen oder einschränken, welche Websites sie einbetten dürfen. [Artefakt teilen](https://vstorm-co.github.io/agenticos/de/artifacts/)
+Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **Apps** veröffentlichen. Wähle, wer sie öffnen darf; Aktualisierungen behalten denselben Link und frühere Versionen bleiben lesbar. Öffentliche Links können ablaufen, ein Passwort verlangen oder einschränken, welche Websites sie einbetten dürfen. [App teilen](https://vstorm-co.github.io/agenticos/de/artifacts/)
 
 ### 📊 Runs, Kosten und Freigaben verfolgen
 
@@ -201,7 +201,7 @@ Passe das **Dashboard** an deine Arbeit an. In **Activity** prüfst du Runs und 
 
 ### 👥 Teams mit Rollen und Gruppen organisieren
 
-**Rollen bestimmen, was Personen tun dürfen. Gruppen bestimmen, mit wem du teilst.** Nutze Rollen wie Builder, Operator, Member und Viewer und erstelle Abteilungen oder Arbeitsgruppen wie Operations, Engineering, Finance und Research. Teile einen Agenten, einen Skill, eine Sammlung, eine Kontextdatei oder ein Artefakt in einem Schritt mit einer Gruppe.
+**Rollen bestimmen, was Personen tun dürfen. Gruppen bestimmen, mit wem du teilst.** Nutze Rollen wie Builder, Operator, Member und Viewer und erstelle Abteilungen oder Arbeitsgruppen wie Operations, Engineering, Finance und Research. Teile einen Agenten, einen Skill, eine Sammlung, eine Kontextdatei oder eine App in einem Schritt mit einer Gruppe, oder beschränke es schon beim Anlegen auf ausgewählte Abteilungen. [Abteilungen und Gruppen](https://vstorm-co.github.io/agenticos/de/departments/)
 
 Nutze bestehende Unternehmenskonten über **OIDC Single Sign-on** (Entra ID, Okta, Keycloak und andere), **LDAP-Verzeichnisanmeldung** oder **integrierte Windows-Anmeldung mit Kerberos**. **Directory-Zuordnungen** verbinden Verzeichnisgruppen bei der Anmeldung mit einer Rolle und einer Gruppe. [Rollen und Berechtigungen](https://vstorm-co.github.io/agenticos/de/permissions/) · [Verzeichnisanmeldung](https://vstorm-co.github.io/agenticos/de/directory/)
 
@@ -232,7 +232,7 @@ Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#-für-entwickler
 
 <br>
 
-<img src="docs/assets/readme/security-layers.webp" alt="Sechs Sicherheitsschichten: Vault, Sandboxes, Artefakte, Audit-Log, Sitzungen und Datenverkehr, Datenhygiene." width="100%">
+<img src="docs/assets/readme/security-layers.webp" alt="Sechs Sicherheitsschichten: Vault, Sandboxes, Apps, Audit-Log, Sitzungen und Datenverkehr, Datenhygiene." width="100%">
 
 Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Verschlüsselung. Code läuft in isolierten Sandboxes. Veröffentlichte Seiten laufen in einer Sandbox. Jede Organisation hat ein hashverkettetes Audit-Log. Sitzungen sind kurzlebig und widerrufbar, und es gelten Rate Limits. Logs werden geschwärzt, und Daten werden nach einem Aufbewahrungsplan gelöscht.
 
@@ -275,7 +275,7 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 
 - **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory-Dateien, Memory über mem0, Suche in Unterhaltungen.
 - **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Web-Abruf, Browserautomatisierung und browser-use (angebunden, aber noch nicht installierbar).
-- **Dateien, Code und Ausgabe:** Python ausführen, Dateien und Shell in einer Container-Sandbox, Diagramme, Bilderzeugung (OpenAI oder Google), Artefakte.
+- **Dateien, Code und Ausgabe:** Python ausführen, Dateien und Shell in einer Container-Sandbox, Diagramme, Bilderzeugung (OpenAI oder Google), Apps.
 - **Arbeitsweise:** Delegation an andere Agenten, Planung, Denken, Werkzeugsuche, Datum und Uhrzeit, Systemerinnerungen.
 - **Sicherheit und Limits:** Guardrails, die Secrets und personenbezogene Daten schwärzen, Kontextverwaltung, Auslagerung von Medien, Limits für Werkzeugausgaben.
 - **Chatkanäle:** Kanalsuche für Bots in Slack, Telegram und Mattermost.

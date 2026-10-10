@@ -578,6 +578,10 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
+McpApproval = Literal["writes", "all", "none"]
+"""How much of an MCP server's tools wait for a person (#2060)."""
+
+
 class OrgMcpServerRef(BaseModel):
     """One of the organization's MCP connections, used by every run of this agent.
 
@@ -606,6 +610,13 @@ class OrgMcpServerRef(BaseModel):
             "the connection allows, which is what a binding meant before this "
             "field existed. Narrowing only: the connection's own allowlist is an "
             "administrator's ceiling and this cannot reach past it."
+        ),
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
     )
 
@@ -662,10 +673,49 @@ class PersonalMcpServerRef(BaseModel):
             "answers. Null is every tool the person's own connection allows."
         ),
     )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the server's tools wait for a person to approve the call: "
+            "`writes` (those the server does not mark read-only), `all`, or `none`"
+        ),
+    )
 
 
-McpServerRef = Annotated[OrgMcpServerRef | PersonalMcpServerRef, Field(discriminator="account")]
-"""One MCP binding: the organization's connection, or each person's own account.
+class PlatformMcpServerRef(BaseModel):
+    """This deployment's own MCP server (`/mcp`), as whoever the agent runs for (#2063).
+
+    What the AI Architect operates the platform through: the same server Claude
+    Code connects to, reached in-process, with a credential minted for the person
+    asking - so the agent can do exactly what they could, and nothing more. Where
+    nobody is asking (a visitor, a schedule) the binding is simply absent.
+
+    Its tools carry MCP's read-only hints, so the default `writes` policy holds
+    every call that changes something for a person's approval.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["platform"]
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description="Which of the platform's tools this agent may call. Null is all of them.",
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the platform's tools wait for a person to approve the call: "
+            "`writes` (every tool that changes something), `all`, or `none`"
+        ),
+    )
+
+
+McpServerRef = Annotated[
+    OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef,
+    Field(discriminator="account"),
+]
+"""One MCP binding: the organization's connection, each person's own account, or
+this platform's own server.
 
 Discriminated on `account`, so a stored document says which it is and a reader
 never has to infer it from which other fields are present.
@@ -934,6 +984,24 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     return {**data, "capabilities": capabilities}
 
 
+class PromptVariableSpec(BaseModel):
+    """A custom variable: a name the instructions may write as `{{name}}`, and its text.
+
+    Written once and used in as many places as it needs, so the value that changes
+    - a support address, a policy version, a product name - changes in one place.
+    The name cannot be a system variable's (`app/agents/prompt_variables.py`),
+    which publish checks.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        pattern=r"^[a-z][a-z0-9_]{0,39}$", description="Lower case, as written in `{{name}}`"
+    )
+    value: str = Field(default="", max_length=4000, description="The text `{{name}}` becomes")
+    description: str | None = Field(default=None, max_length=200)
+
+
 class AgentSpec(BaseModel):
     """Everything that defines an agent's behaviour.
 
@@ -958,7 +1026,24 @@ class AgentSpec(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     instructions: str = Field(
         default="",
-        description="The system prompt. The agent's behaviour lives here, not in code.",
+        description=(
+            "The system prompt. The agent's behaviour lives here, not in code. "
+            "`{{name}}` is filled in when each run starts, from a system variable "
+            "or one of `variables`."
+        ),
+    )
+    variables: list[PromptVariableSpec] = Field(
+        default_factory=list,
+        description="Custom variables the instructions may use as `{{name}}`",
+    )
+    time_zone: str = Field(
+        default="system",
+        max_length=64,
+        description=(
+            "The zone `{{current_time}}` and `{{current_date}}` are told in: "
+            "`system` for the deployment's, `user` for the person's own when the "
+            "surface knows it, or an IANA name such as `Europe/Warsaw`"
+        ),
     )
 
     model_profile_id: UUID | None = Field(

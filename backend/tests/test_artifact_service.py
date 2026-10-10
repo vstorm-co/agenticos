@@ -29,6 +29,16 @@ pytestmark = pytest.mark.anyio
 PATH = "app.services.artifact"
 
 
+@pytest.fixture(autouse=True)
+def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository is mocked call by call here, and following is its own
+    concern - `TestFollowing` in `test_artifact_followers.py` covers it."""
+    from app.repositories import artifact as artifact_repo
+
+    monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+
+
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id: uuid.UUID | None = None) -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=org_id or uuid.uuid4(), role=role)
 
@@ -532,7 +542,7 @@ class TestContent:
             ),
             patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.logger") as log,
-            pytest.raises(NotFoundError, match="Artifact not found"),
+            pytest.raises(NotFoundError, match="App not found"),
         ):
             await _service().content(token)
         # Said out loud, because it is storage and the database disagreeing.
@@ -643,5 +653,5 @@ def test_the_console_address_is_the_artifact_s_page_in_its_organization() -> Non
     artifact_id, organization_id = uuid.uuid4(), uuid.uuid4()
     assert (
         artifacts.console_url_for(artifact_id, organization_id)
-        == f"/artifacts/{artifact_id}?org={organization_id}"
+        == f"/apps/{artifact_id}?org={organization_id}"
     )
