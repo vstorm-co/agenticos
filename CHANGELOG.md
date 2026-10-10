@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
+  languages, names each thing as the console does, says what it is and gives its
+  name in the API and the spec; the AI Architect uses the same names, and a test
+  holds the capability names to the console's (#2075).
 - **The AI Architect's agent draft is approved as a draft.** The approval card
   shows where it is created, its name, what it may do in the capabilities' plain
   names and its instructions, instead of the tool call's JSON (#1799).

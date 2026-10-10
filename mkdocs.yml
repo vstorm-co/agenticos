@@ -354,6 +354,7 @@ nav:
       - reference/capabilities.md
       - reference/permissions.md
       - reference/components.md
+      - reference/glossary.md
   - Resources:
       - resources/index.md
       - Development - contributing:

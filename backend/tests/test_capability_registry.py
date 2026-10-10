@@ -976,6 +976,25 @@ class TestConsoleCapabilityGuide:
             cap_id: entry["name"] for cap_id, entry in guide.items()
         }
 
+    def test_the_glossary_names_each_capability_as_the_console_does(self):
+        """`docs/reference/glossary*.md` is the one list of names (#2075); a
+        capability renamed or added in the console and not there is a glossary
+        that has started to disagree with the screen it explains."""
+        docs = MESSAGES_PATH.parents[1] / "docs" / "reference"
+        for locale, page in (
+            ("en", "glossary.md"),
+            ("pl", "glossary.pl.md"),
+            ("de", "glossary.de.md"),
+        ):
+            text = (docs / page).read_text(encoding="utf-8")
+            rows = {
+                cap_id: name.strip()
+                for name, cap_id in re.findall(r"^\| ([^|`]+) \| `([a-z_0-9]+)` \|$", text, re.M)
+            }
+            assert rows == {
+                cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()
+            }, locale
+
     def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
         for locale in ("en", "pl", "de"):
             for cap_id, entry in self._guide(locale).items():

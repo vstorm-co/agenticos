@@ -204,6 +204,7 @@ retranslated is how a stale translation stops being visible.
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
+| What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
