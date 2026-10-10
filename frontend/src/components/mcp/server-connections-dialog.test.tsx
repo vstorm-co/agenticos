@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ServerConnectionsDialog } from "./server-connections-dialog";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { McpServerRow } from "@/lib/mcp-servers";
 
+vi.mock("./mcp-call-log", () => ({
+  McpCallLog: ({ connection, onClose }: { connection: { id: string }; onClose: () => void }) => (
+    <button type="button" onClick={onClose}>{`calls of ${connection.id}`}</button>
+  ),
+}));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: ({ resourceType, resourceId }: { resourceType: string; resourceId: string }) => (
     <p>{`sharing ${resourceType} ${resourceId}`}</p>
@@ -90,5 +95,23 @@ describe("who an organization server is for (#2072)", () => {
     open([connection({ id: "c1", visibility: "private" })], false);
 
     expect(screen.queryByRole("button", { name: "Who can use it" })).not.toBeInTheDocument();
+  });
+});
+
+describe("what an organization server is used for (#2072)", () => {
+  it("names the agents binding it, and nothing on a person's own", () => {
+    open([connection({ id: "c1", used_by: [{ id: "a1", name: "Writer" }] })]);
+
+    expect(screen.getByText(/Writer/)).toBeInTheDocument();
+  });
+
+  it("opens and closes the server's call log", async () => {
+    open([connection({ id: "c1" })]);
+
+    await userEvent.click(screen.getByRole("button", { name: "What agents asked it" }));
+    // Outside the open dialog, so hidden from the accessibility tree and from pointer events.
+    fireEvent.click(screen.getByText("calls of c1"));
+
+    expect(screen.queryByText("calls of c1")).not.toBeInTheDocument();
   });
 });

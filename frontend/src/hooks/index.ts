@@ -30,7 +30,7 @@ export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useMcpConnections } from "./use-mcp-connections";
-export { useOrgMcpConnections } from "./use-org-mcp-connections";
+export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";

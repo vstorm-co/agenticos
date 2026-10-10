@@ -11,6 +11,7 @@ from app.core.secret_kinds import CredentialStr
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 
 # Slug-style names: lowercase letters, digits, hyphens. The name doubles as
 # the tool prefix in the agent (sanitized to snake_case), so keep it tight.
@@ -127,6 +128,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
+    # The agents binding an organization connection that the reader may see
+    # (#2072). Null where the listing did not ask, which is not "none".
+    used_by: list[AgentUsage] | None = None
 
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
@@ -230,6 +234,27 @@ class OrgMcpConnectionList(BaseSchema):
     """
 
     items: list[McpConnectionRead]
+    total: int
+
+
+class McpToolCallRead(BaseSchema):
+    """One call an agent made to an organization MCP server's tool (#2072).
+
+    The tool by its own name, the agent and run that called it, and how it went.
+    Never the arguments or the result: those belong to the conversation.
+    """
+
+    tool: str
+    status: str
+    started_at: datetime
+    duration_ms: int | None = None
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    run_id: UUID | None = None
+
+
+class McpToolCallList(BaseSchema):
+    items: list[McpToolCallRead]
     total: int
 
 

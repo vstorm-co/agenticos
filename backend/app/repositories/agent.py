@@ -615,6 +615,68 @@ async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: U
 BoundResourceField = Literal["skill_ids", "context_ids", "collection_ids"]
 
 
+async def _attach_agents(
+    db: AsyncSession, usage: dict[UUID, list[Agent]], rows: Sequence[tuple[UUID, str]]
+) -> dict[UUID, list[Agent]]:
+    """Load the agents named by `(agent id, bound id)` rows into `usage`, each list by name."""
+    if not rows:
+        return usage
+    agents = {
+        agent.id: agent
+        for agent in (
+            await db.execute(select(Agent).where(Agent.id.in_({agent_id for agent_id, _ in rows})))
+        ).scalars()
+    }
+    for agent_id, ref in sorted(rows, key=lambda row: agents[row[0]].name.casefold()):
+        usage[UUID(ref)].append(agents[agent_id])
+    return usage
+
+
+async def binding_mcp_connections(
+    db: AsyncSession, *, organization_id: UUID, connection_ids: Collection[UUID]
+) -> dict[UUID, list[Agent]]:
+    """For each organization MCP connection, the live agents whose draft binds it (#2072).
+
+    The MCP counterpart of :func:`binding_resources`: `mcp_servers` holds objects,
+    so the id is read out of each one's `connection_id` - a personal binding has
+    none and binds no connection. Same draft-not-published reason, same archived
+    agents left out, same keys and order.
+    """
+    usage: dict[UUID, list[Agent]] = {connection_id: [] for connection_id in connection_ids}
+    if not usage:
+        return usage
+    pairs = text(
+        """
+        SELECT a.id, ref ->> 'connection_id'
+        FROM agents a
+        CROSS JOIN LATERAL jsonb_array_elements(
+            CASE
+                WHEN jsonb_typeof(a.draft_spec -> 'mcp_servers') = 'array'
+                THEN a.draft_spec -> 'mcp_servers'
+                ELSE '[]'::jsonb
+            END
+        ) AS ref
+        WHERE a.organization_id = :organization_id
+          AND a.status != :archived
+          AND ref ->> 'connection_id' IN :connection_ids
+        """
+    ).bindparams(
+        bindparam("organization_id", type_=PG_UUID(as_uuid=True)),
+        bindparam("connection_ids", expanding=True),
+    )
+    rows = (
+        await db.execute(
+            pairs,
+            {
+                "organization_id": organization_id,
+                "archived": AgentStatus.ARCHIVED.value,
+                "connection_ids": [str(connection_id) for connection_id in usage],
+            },
+        )
+    ).all()
+    return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
+
+
 async def binding_resources(
     db: AsyncSession,
     *,
@@ -664,14 +726,4 @@ async def binding_resources(
             },
         )
     ).all()
-    if not rows:
-        return usage
-    agents = {
-        agent.id: agent
-        for agent in (
-            await db.execute(select(Agent).where(Agent.id.in_({agent_id for agent_id, _ in rows})))
-        ).scalars()
-    }
-    for agent_id, ref in sorted(rows, key=lambda row: agents[row[0]].name.casefold()):
-        usage[UUID(ref)].append(agents[agent_id])
-    return usage
+    return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])

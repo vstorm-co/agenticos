@@ -52,6 +52,7 @@ from app.agents.mcp import (
     probe_error_message,
     probe_mcp_server,
     probe_toolsets,
+    tool_prefix,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
@@ -79,15 +80,22 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, mcp_registry_server_repo, resource_grant_repo
+from app.repositories import (
+    conversation_repo,
+    mcp_connection_repo,
+    mcp_registry_server_repo,
+    resource_grant_repo,
+)
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
     McpSignInProbeResult,
+    McpToolCallRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
 from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
 from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
@@ -95,9 +103,13 @@ from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_app, github_oauth, google_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.services.resource_usage import agents_using_mcp
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
+
+RECENT_CALLS = 50
+"""How many of a server's latest tool calls its audit list shows."""
 
 
 def _oauth_redirect_uri() -> str:
@@ -1497,6 +1509,39 @@ class McpConnectionService:
         )
         kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
         return kept, len(kept)
+
+    async def used_by(
+        self, ctx: AuthContext, connections: list[McpConnection]
+    ) -> dict[UUID, list[AgentUsage]]:
+        """The agents binding each of these connections that the caller may see (#2072)."""
+        return await agents_using_mcp(self.db, ctx, [row.id for row in connections])
+
+    async def recent_calls(
+        self, ctx: AuthContext, *, connection_id: UUID, limit: int = RECENT_CALLS
+    ) -> list[McpToolCallRead]:
+        """What agents asked one organization server to do, newest first (#2072).
+
+        Found by the tool prefix the server's calls carry, so a server renamed
+        since is found under its current name only. The caller must reach the
+        server; arguments and results are never read.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        prefix = tool_prefix(connection.name)
+        calls = await conversation_repo.recent_tool_calls(
+            self.db, organization_id=ctx.organization_id, tool_prefix=prefix, limit=limit
+        )
+        return [
+            McpToolCallRead(
+                tool=call.tool_name.removeprefix(f"{prefix}_"),
+                status=call.status,
+                started_at=call.started_at,
+                duration_ms=call.duration_ms,
+                agent_id=call.agent_id,
+                agent_name=call.agent_name,
+                run_id=call.run_id,
+            )
+            for call in calls
+        ]
 
     async def _known_catalog_key(self, catalog_key: str) -> bool:
         """Whether a key names a server this deployment can identify.

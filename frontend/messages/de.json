@@ -718,7 +718,12 @@
     "testPanelPrompt": "Prompt",
     "testPanelAsk": "Fragen",
     "testPanelAskBoth": "Beide fragen",
-    "testPanelAskBothPlaceholder": "Beide dasselbe fragen..."
+    "testPanelAskBothPlaceholder": "Beide dasselbe fragen...",
+    "mcpHealthDownSince": "Antwortet nicht - geprüft {ago}",
+    "mcpHealthDown": "Antwortet nicht",
+    "mcpHealthChecked": "Antwortet - geprüft {ago}",
+    "mcpHealthUnchecked": "Noch nicht geprüft",
+    "mcpHealthCheck": "Jetzt prüfen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2666,7 +2671,21 @@
     "narrowed": "Eingeschränkt",
     "whoCanUse": "Wer ihn nutzen darf",
     "whoCanUseNamed": "Wer {name} nutzen darf",
-    "whoCanUseHint": "Alle, die MCP-Server verwalten, sehen ihn und können ihn an einen Agent binden, außer Sie beschränken ihn auf Gruppen oder Personen. Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen dürfen."
+    "whoCanUseHint": "Alle, die MCP-Server verwalten, sehen ihn und können ihn an einen Agent binden, außer Sie beschränken ihn auf Gruppen oder Personen. Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen dürfen.",
+    "callLog": "Was Agents gefragt haben",
+    "callLogTitle": "Was Agents {name} gefragt haben",
+    "callLogWhy": "Die letzten Tool-Aufrufe von Agents an diesen Server: welches Tool, welcher Agent und wie es lief. Was gefragt und geantwortet wurde, bleibt im Gespräch.",
+    "callLogEmpty": "Noch kein Agent hat diesen Server aufgerufen.",
+    "callLogNoAgent": "Der Assistent",
+    "callLogDuration": "{ms} ms",
+    "callLogRun": "Run",
+    "callStatus": {
+      "pending": "ausstehend",
+      "running": "läuft",
+      "completed": "fertig",
+      "failed": "fehlgeschlagen",
+      "awaiting_approval": "wartet auf Freigabe"
+    }
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",

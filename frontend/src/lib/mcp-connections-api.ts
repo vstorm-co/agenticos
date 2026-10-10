@@ -6,6 +6,7 @@
  * responses only carry `has_auth_token`.
  */
 
+import type { AgentUsage } from "@/types/agents";
 import type { AudiencePayload, Visibility } from "@/types/sharing";
 import { apiClient } from "./api-client";
 
@@ -57,8 +58,24 @@ export interface McpConnectionRecord {
    * has asked yet, which is not the same as "offers none".
    */
   last_tools: McpToolInfo[] | null;
+  /**
+   * The agents binding an organization server that the reader may see (#2072).
+   * Absent on a personal connection, and null where the listing did not ask.
+   */
+  used_by?: AgentUsage[] | null;
   created_at: string;
   updated_at: string | null;
+}
+
+/** One call an agent made to an organization server's tool (#2072) - never what was said. */
+export interface McpToolCall {
+  tool: string;
+  status: string;
+  started_at: string;
+  duration_ms: number | null;
+  agent_id: string | null;
+  agent_name: string | null;
+  run_id: string | null;
 }
 
 export interface McpToolInfo {

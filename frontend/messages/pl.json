@@ -2081,7 +2081,21 @@
     "narrowed": "Ograniczony",
     "whoCanUse": "Kto może z niego korzystać",
     "whoCanUseNamed": "Kto może korzystać z {name}",
-    "whoCanUseHint": "Każdy, kto zarządza serwerami MCP, widzi go i może podpiąć do agenta, chyba że ograniczysz go do grup lub osób. Agent, który już go używa, działa dalej dla każdego, kto może go uruchomić."
+    "whoCanUseHint": "Każdy, kto zarządza serwerami MCP, widzi go i może podpiąć do agenta, chyba że ograniczysz go do grup lub osób. Agent, który już go używa, działa dalej dla każdego, kto może go uruchomić.",
+    "callLog": "O co pytały agenty",
+    "callLogTitle": "O co agenty pytały {name}",
+    "callLogWhy": "Ostatnie wywołania narzędzi tego serwera przez agenty: które narzędzie, który agent i jak poszło. Treść pytań i odpowiedzi zostaje w rozmowie.",
+    "callLogEmpty": "Żaden agent jeszcze nie wywołał tego serwera.",
+    "callLogNoAgent": "Asystent",
+    "callLogDuration": "{ms} ms",
+    "callLogRun": "Run",
+    "callStatus": {
+      "pending": "oczekuje",
+      "running": "w toku",
+      "completed": "gotowe",
+      "failed": "błąd",
+      "awaiting_approval": "czeka na zatwierdzenie"
+    }
   },
   "skills": {
     "addFile": "Dodaj plik",
@@ -3129,7 +3143,12 @@
     "testPanelPrompt": "Prompt",
     "testPanelAsk": "Zapytaj",
     "testPanelAskBoth": "Zapytaj oba",
-    "testPanelAskBothPlaceholder": "Zapytaj oba o to samo..."
+    "testPanelAskBothPlaceholder": "Zapytaj oba o to samo...",
+    "mcpHealthDownSince": "Nie odpowiada - sprawdzono {ago}",
+    "mcpHealthDown": "Nie odpowiada",
+    "mcpHealthChecked": "Odpowiada - sprawdzono {ago}",
+    "mcpHealthUnchecked": "Jeszcze nie sprawdzony",
+    "mcpHealthCheck": "Sprawdź teraz"
   },
   "steps": {
     "skills-gallery": {

@@ -30,6 +30,7 @@ from app.schemas.mcp_connection import (
     McpConnectionRead,
     McpConnectionTestResult,
     McpOAuthStartResult,
+    McpToolCallList,
     McpToolRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionList,
@@ -48,8 +49,12 @@ router = APIRouter()
 async def list_org_mcp_connections(service: McpConnectionSvc, ctx: Auth) -> Any:
     """The MCP servers this organization has connected."""
     items, total = await service.list_for_org(ctx)
+    used = await service.used_by(ctx, items)
     return OrgMcpConnectionList(
-        items=[McpConnectionRead.from_model(c) for c in items],
+        items=[
+            McpConnectionRead.from_model(c).model_copy(update={"used_by": used[c.id]})
+            for c in items
+        ],
         total=total,
     )
 
@@ -203,6 +208,21 @@ async def delete_org_mcp_connection(
 ) -> None:
     """Remove a connection. Agents still naming it lose that server, not the run."""
     await service.delete_for_org(ctx, connection_id=connection_id)
+
+
+@router.get(
+    "/{connection_id}/calls",
+    response_model=McpToolCallList,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def list_org_mcp_tool_calls(connection_id: UUID, service: McpConnectionSvc, ctx: Auth) -> Any:
+    """The latest tool calls agents made to this server: which tool, which agent, how it went.
+
+    Never the arguments or results, which belong to the conversations they were
+    made in.
+    """
+    items = await service.recent_calls(ctx, connection_id=connection_id)
+    return McpToolCallList(items=items, total=len(items))
 
 
 @router.post(

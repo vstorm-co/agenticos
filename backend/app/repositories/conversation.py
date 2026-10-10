@@ -657,6 +657,51 @@ async def delete_conversation(db: AsyncSession, *, db_conversation: Conversation
     await db.flush()
 
 
+class ToolCallSeen(NamedTuple):
+    """One recorded tool call, with the agent that made it, for an audit list."""
+
+    tool_name: str
+    status: str
+    started_at: datetime
+    duration_ms: int | None
+    agent_id: UUID | None
+    agent_name: str | None
+    run_id: UUID | None
+
+
+async def recent_tool_calls(
+    db: AsyncSession, *, organization_id: UUID, tool_prefix: str, limit: int
+) -> list[ToolCallSeen]:
+    """The organization's latest tool calls whose name opens with `tool_prefix` (#2072).
+
+    What one MCP server was asked to do, newest first: its tools reach a model
+    as `{prefix}_{tool}`, so the prefix is what identifies the server in a
+    recorded call. The arguments and results are not read - they are the
+    conversation's, and an audit of the server is not a window into it.
+    """
+    result = await db.execute(
+        select(
+            ToolCall.tool_name,
+            ToolCall.status,
+            ToolCall.started_at,
+            ToolCall.duration_ms,
+            Message.agent_id,
+            Agent.name,
+            Message.run_id,
+        )
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .outerjoin(Agent, Agent.id == Message.agent_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            ToolCall.tool_name.startswith(f"{tool_prefix}_", autoescape=True),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(limit)
+    )
+    return [ToolCallSeen(*row) for row in result.all()]
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)

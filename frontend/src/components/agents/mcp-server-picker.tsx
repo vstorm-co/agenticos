@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Plug, UserRound, Wrench } from "lucide-react";
 
+import { McpServerHealth } from "@/components/agents/mcp-server-health";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import {
   Badge,
@@ -76,6 +77,8 @@ interface McpServerPickerProps {
    * it would make a presentational component fetch.
    */
   onConnect: (entry: McpCatalogEntry) => void;
+  /** Probe a bound server again, for somebody who may manage MCP servers. */
+  onCheck?: (connectionId: string) => Promise<unknown>;
   disabled?: boolean;
 }
 
@@ -110,6 +113,7 @@ export function McpServerPicker({
   onChange,
   onTools,
   onConnect,
+  onCheck,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
@@ -220,6 +224,7 @@ export function McpServerPicker({
             onRebind={(next) => rebind(row, next)}
             onTools={onTools}
             onConnect={onConnect}
+            onCheck={onCheck}
             disabled={disabled}
           />
         ))}
@@ -277,6 +282,7 @@ function ServerCard({
   onRebind,
   onTools,
   onConnect,
+  onCheck,
   disabled,
 }: {
   row: CardRow;
@@ -284,6 +290,7 @@ function ServerCard({
   onRebind: (next: McpServerRef | null) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
+  onCheck?: (connectionId: string) => Promise<unknown>;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -411,6 +418,10 @@ function ServerCard({
       >
         {body}
       </button>
+
+      {isOn && !personal && connection && (
+        <McpServerHealth connection={connection} onCheck={onCheck} />
+      )}
 
       {/* Whose account, once bound. The organization's is what a binding
           means by default; each person's own is the other kind, and switching

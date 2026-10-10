@@ -15,7 +15,11 @@
 
 import type { AudiencePayload } from "@/types/sharing";
 import { apiClient } from "./api-client";
-import type { McpConnectionRecord, McpConnectionTestResult } from "./mcp-connections-api";
+import type {
+  McpConnectionRecord,
+  McpConnectionTestResult,
+  McpToolCall,
+} from "./mcp-connections-api";
 
 /**
  * One organization server.
@@ -88,6 +92,11 @@ export async function updateOrgMcpConnection(
 
 export async function deleteOrgMcpConnection(id: string): Promise<void> {
   await apiClient.delete(`${ROOT}/${id}`);
+}
+
+/** What agents asked one organization server to do, newest first (#2072). */
+export async function listOrgMcpToolCalls(id: string): Promise<McpToolCall[]> {
+  return (await apiClient.get<{ items: McpToolCall[] }>(`${ROOT}/${id}/calls`)).items;
 }
 
 export async function testOrgMcpConnection(id: string): Promise<McpConnectionTestResult> {

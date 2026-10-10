@@ -423,6 +423,7 @@ CALLS: tuple[Call, ...] = (
         body={"is_enabled": False},
     ),
     Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
+    Call("GET", "/mcp-connections/{connection_id}/calls", Perm.MCP_MANAGE),
     Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),
     # Knowledge bases: the collection routes carry the role gate; every
     # per-resource route hands the decision to the service, which resolves the

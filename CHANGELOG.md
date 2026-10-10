@@ -243,6 +243,14 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /orgs/{id}/groups/{id}/spend.csv` and the `budget_warning` notification;
   migration `0117_group_budgets` (#2072).
 
+- **An MCP server's health, users and calls.** A server bound through the
+  organization's account shows on its Builder card whether its last check
+  answered, when, and why not, with **Check now** for whoever manages MCP
+  servers. On the MCP page each organization account names the agents bound to
+  it, and **What agents asked it** lists the latest tool calls agents made to it -
+  tool, agent, outcome and run, never the arguments or results. API: `used_by` on
+  `GET /mcp-connections` and `GET /mcp-connections/{id}/calls` (#2072).
+
 - **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
   answer streams natively under the question, with each tool call a step that goes
   from in progress to done or failed - as a timeline or as one plan - and a step

@@ -481,6 +481,20 @@ Two connections whose names reduce to the same prefix are deduplicated — first
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
 
+### Health, users and calls
+
+A server the agent is bound to through the organization's account shows on its
+card in the Builder whether it answered its last check, when that was and what
+it said if it failed; whoever manages MCP servers can check it again there.
+
+On the MCP page, each of the organization's accounts names the agents bound to
+it, and **What agents asked it** lists the latest calls agents made to its
+tools: which tool, which agent, how it went and the run it was part of. What was
+asked and answered is not shown - it stays in the conversation. Calls are found
+by the tool prefix, so a renamed connection lists only calls made under its
+current name. API: `used_by` on `GET /api/v1/mcp-connections`, and
+`GET /api/v1/mcp-connections/{id}/calls`.
+
 ## The catalog
 
 A picker that starts empty and asks for a URL is a picker nobody uses, so the common

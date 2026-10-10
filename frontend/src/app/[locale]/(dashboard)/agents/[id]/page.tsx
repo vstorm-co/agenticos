@@ -1375,6 +1375,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   catalog={mcpCatalog}
                   value={spec.mcp_servers}
                   onChange={(mcp_servers) => update({ mcp_servers })}
+                  onCheck={can(Perm.mcpManage) ? probeMcpConnection : undefined}
                   onTools={async (ref, connection, name) => {
                     setToolBinding(bindingKey(ref));
                     // A connection nobody has checked has no tool list; check it

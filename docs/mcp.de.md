@@ -1,5 +1,5 @@
 ---
-source_sha: "32405ccbcab5"
+source_sha: "46def0afafcb"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -529,6 +529,21 @@ Zwei Connections, deren Namen auf dasselbe Präfix hinauslaufen, werden
 dedupliziert — die erste gewinnt, mit einer Warnung, die die unterlegene benennt.
 Vom Deployment verwaltete Server kommen zuerst, gewinnen also gegen eine
 Nutzer-Connection, die zufällig denselben Namen wählt.
+
+### Zustand, Nutzer und Aufrufe { #health-users-and-calls }
+
+Ein Server, an den der Agent über das Konto der Organisation gebunden ist, zeigt
+auf seiner Karte im Builder, ob er bei der letzten Prüfung geantwortet hat, wann
+das war und was er bei einem Fehler meldete; wer MCP-Server verwaltet, kann ihn
+dort erneut prüfen.
+
+Auf der MCP-Seite nennt jedes Konto der Organisation die Agents, die daran
+gebunden sind, und **Was Agents gefragt haben** listet die letzten Aufrufe ihrer
+Tools: welches Tool, welcher Agent, wie es lief und in welchem Run. Was gefragt
+und geantwortet wurde, wird nicht gezeigt - es bleibt im Gespräch. Aufrufe
+werden über das Tool-Präfix gefunden, daher zeigt eine umbenannte Verbindung nur
+Aufrufe unter ihrem aktuellen Namen. API: `used_by` an
+`GET /api/v1/mcp-connections` und `GET /api/v1/mcp-connections/{id}/calls`.
 
 ## Der Katalog { #the-catalog }
 

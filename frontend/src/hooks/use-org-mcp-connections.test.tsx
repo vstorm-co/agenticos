@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useOrgMcpConnections } from "./use-org-mcp-connections";
+import { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 import { apiClient } from "@/lib/api-client";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
@@ -165,5 +165,25 @@ describe("useOrgMcpConnections", () => {
     const { result } = await loaded();
 
     expect(result.current.error).toBeNull();
+  });
+});
+
+describe("useOrgMcpToolCalls (#2072)", () => {
+  it("reads what agents asked one server to do", async () => {
+    const call = {
+      tool: "search",
+      status: "completed",
+      started_at: "2026-10-10T10:00:00Z",
+      duration_ms: 90,
+      agent_id: "a1",
+      agent_name: "Writer",
+      run_id: "r1",
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [call], total: 1 });
+
+    const { result } = renderHook(() => useOrgMcpToolCalls("c1"), { wrapper });
+
+    await waitFor(() => expect(result.current.calls).toEqual([call]));
+    expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections/c1/calls");
   });
 });

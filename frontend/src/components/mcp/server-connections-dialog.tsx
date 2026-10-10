@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Lock, Plug, User, Users } from "lucide-react";
+import { Building2, History, Lock, Plug, User, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { UsedBy } from "@/components/agents/used-by";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
+import { McpCallLog } from "./mcp-call-log";
 
 import {
   Button,
@@ -63,6 +65,7 @@ export function ServerConnectionsDialog({
 }) {
   const t = useTranslations("mcp");
   const [audienceOf, setAudienceOf] = useState<McpConnectionRecord | null>(null);
+  const [callsOf, setCallsOf] = useState<McpConnectionRecord | null>(null);
 
   return (
     <>
@@ -93,6 +96,7 @@ export function ServerConnectionsDialog({
                     canManageOrganization ? () => onConnect("organization", row) : undefined
                   }
                   onAudience={setAudienceOf}
+                  onCalls={setCallsOf}
                 />
                 <Owners
                   heading={t("yours")}
@@ -116,6 +120,7 @@ export function ServerConnectionsDialog({
           )}
         </DialogContent>
       </Dialog>
+      {callsOf !== null && <McpCallLog connection={callsOf} onClose={() => setCallsOf(null)} />}
       {/* Who sees and binds one of the organization's servers (#2072): the same
         panel as an agent's or a skill's, so a department narrows it the same way. */}
       <Dialog open={audienceOf !== null} onOpenChange={(open) => !open && setAudienceOf(null)}>
@@ -155,6 +160,7 @@ function Owners({
   onConnect,
   onNominate,
   onAudience,
+  onCalls,
 }: {
   heading: string;
   caption: string;
@@ -170,6 +176,8 @@ function Owners({
   onConnect?: () => void;
   /** Who sees and binds it - the organization's servers only (#2072). */
   onAudience?: (connection: McpConnectionRecord) => void;
+  /** What agents asked it to do - the organization's servers only (#2072). */
+  onCalls?: (connection: McpConnectionRecord) => void;
 }) {
   const t = useTranslations("mcp");
 
@@ -198,6 +206,7 @@ function Owners({
               onDisconnect={() => onDisconnect(connection)}
               onOAuth={() => onOAuth(connection)}
               onAudience={onAudience ? () => onAudience(connection) : undefined}
+              onCalls={onCalls ? () => onCalls(connection) : undefined}
               onNominate={
                 onNominate && connection.catalog_key !== null
                   ? (use) => onNominate(connection, use)
@@ -228,6 +237,7 @@ function Account({
   onOAuth,
   onNominate,
   onAudience,
+  onCalls,
 }: {
   connection: McpConnectionRecord;
   readOnly: boolean;
@@ -243,6 +253,7 @@ function Account({
    */
   onNominate?: (use: boolean) => void;
   onAudience?: () => void;
+  onCalls?: () => void;
 }) {
   const t = useTranslations("mcp");
   const state = connectionState(connection);
@@ -287,6 +298,7 @@ function Account({
             </>
           )}
         </span>
+        <UsedBy agents={connection.used_by ?? undefined} className="mt-0.5" />
         {onNominate && (
           <label className="mt-1 flex items-center gap-1.5">
             <Checkbox
@@ -309,6 +321,19 @@ function Account({
           <Button size="sm" variant="ghost" disabled={busy} onClick={onTools}>
             {t("tools")}
           </Button>
+          {onCalls && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              disabled={busy}
+              onClick={onCalls}
+              aria-label={t("callLog")}
+              title={t("callLog")}
+            >
+              <History className="h-4 w-4" />
+            </Button>
+          )}
           {onAudience && (
             <Button
               size="icon"

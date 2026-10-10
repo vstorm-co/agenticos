@@ -720,7 +720,12 @@
     "testPanelPrompt": "Prompt",
     "testPanelAsk": "Ask",
     "testPanelAskBoth": "Ask both",
-    "testPanelAskBothPlaceholder": "Ask both the same thing..."
+    "testPanelAskBothPlaceholder": "Ask both the same thing...",
+    "mcpHealthDownSince": "Not answering - checked {ago}",
+    "mcpHealthDown": "Not answering",
+    "mcpHealthChecked": "Answering - checked {ago}",
+    "mcpHealthUnchecked": "Not checked yet",
+    "mcpHealthCheck": "Check now"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2799,7 +2804,21 @@
     "narrowed": "Limited",
     "whoCanUse": "Who can use it",
     "whoCanUseNamed": "Who can use {name}",
-    "whoCanUseHint": "Everyone who manages MCP servers sees and binds it, unless you limit it to groups or people. An agent bound to it keeps working for everyone who may run that agent."
+    "whoCanUseHint": "Everyone who manages MCP servers sees and binds it, unless you limit it to groups or people. An agent bound to it keeps working for everyone who may run that agent.",
+    "callLog": "What agents asked it",
+    "callLogTitle": "What agents asked {name}",
+    "callLogWhy": "The latest tool calls agents made to this server: which tool, which agent and how it went. What was asked and answered stays in the conversation.",
+    "callLogEmpty": "No agent has called this server yet.",
+    "callLogNoAgent": "The assistant",
+    "callLogDuration": "{ms} ms",
+    "callLogRun": "Run",
+    "callStatus": {
+      "pending": "pending",
+      "running": "running",
+      "completed": "done",
+      "failed": "failed",
+      "awaiting_approval": "awaiting approval"
+    }
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

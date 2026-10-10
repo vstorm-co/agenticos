@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent
 from app.repositories import agent_repo, group_repo, resource_grant_repo
 from app.repositories.agent import BoundResourceField
 from app.schemas.resource_usage import AgentUsage
@@ -34,6 +35,22 @@ async def agents_using(
     found = await agent_repo.binding_resources(
         db, organization_id=ctx.organization_id, field=field, resource_ids=resource_ids
     )
+    return await _visible_usage(db, ctx, found)
+
+
+async def agents_using_mcp(
+    db: AsyncSession, ctx: AuthContext, connection_ids: Collection[UUID]
+) -> dict[UUID, list[AgentUsage]]:
+    """For each organization MCP connection, the agents binding it that the caller may see."""
+    found = await agent_repo.binding_mcp_connections(
+        db, organization_id=ctx.organization_id, connection_ids=connection_ids
+    )
+    return await _visible_usage(db, ctx, found)
+
+
+async def _visible_usage(
+    db: AsyncSession, ctx: AuthContext, found: dict[UUID, list[Agent]]
+) -> dict[UUID, list[AgentUsage]]:
     agents = {agent.id: agent for bound in found.values() for agent in bound}
     visible = await accessible_ids(db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT)
     return {

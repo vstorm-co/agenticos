@@ -416,6 +416,7 @@ export const qk = {
     // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
+    calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,
