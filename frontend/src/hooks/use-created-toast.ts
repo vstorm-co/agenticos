@@ -11,8 +11,9 @@ import { useAddToAgentStore, useOrgStore } from "@/stores";
 import { Perm, type MyPermissions } from "@/types/permissions";
 
 /**
- * The toast that says a skill, a context file or a knowledge base was created,
- * offering to add it to an agent straight away (#2072).
+ * The toast that says a skill, a context file, a knowledge base or one of the
+ * organization's MCP servers was created, offering to add it to an agent
+ * straight away (#2072, #2075).
  *
  * Something made and given to no agent does nothing, and the moment it is made
  * is when its author knows which agent it was for. Offered only to somebody

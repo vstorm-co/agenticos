@@ -351,4 +351,20 @@ describe("withResource", () => {
     expect(withResource(once, { kind: "collection", id: "kb" }).collection_ids).toEqual(["kb"]);
     expect(hasResource(once, { kind: "skill", id: "kb" })).toBe(false);
   });
+
+  it("binds one of the organization's MCP servers once, with every tool it allows", () => {
+    const personal = { account: "personal" as const, catalog_key: "c1", allowed_tools: null };
+    const bound = withResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" });
+
+    expect(bound.mcp_servers).toEqual([
+      personal,
+      { account: "organization", connection_id: "c1", allowed_tools: null },
+    ]);
+    expect(hasResource(bound, { kind: "mcp", id: "c1" })).toBe(true);
+    expect(withResource(bound, { kind: "mcp", id: "c1" })).toBe(bound);
+    // A personal binding to a service is not the organization's connection.
+    expect(hasResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" })).toBe(
+      false,
+    );
+  });
 });

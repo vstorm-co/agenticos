@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Building2, History, Lock, Plug, User, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { McpCallLog } from "./mcp-call-log";
@@ -97,6 +98,7 @@ export function ServerConnectionsDialog({
                   }
                   onAudience={setAudienceOf}
                   onCalls={setCallsOf}
+                  offerToAgents
                 />
                 <Owners
                   heading={t("yours")}
@@ -161,6 +163,7 @@ function Owners({
   onNominate,
   onAudience,
   onCalls,
+  offerToAgents = false,
 }: {
   heading: string;
   caption: string;
@@ -178,6 +181,8 @@ function Owners({
   onAudience?: (connection: McpConnectionRecord) => void;
   /** What agents asked it to do - the organization's servers only (#2072). */
   onCalls?: (connection: McpConnectionRecord) => void;
+  /** Offer "Add to an agent" on each usable account: the organization's, which agents bind. */
+  offerToAgents?: boolean;
 }) {
   const t = useTranslations("mcp");
 
@@ -207,6 +212,7 @@ function Owners({
               onOAuth={() => onOAuth(connection)}
               onAudience={onAudience ? () => onAudience(connection) : undefined}
               onCalls={onCalls ? () => onCalls(connection) : undefined}
+              offerToAgents={offerToAgents}
               onNominate={
                 onNominate && connection.catalog_key !== null
                   ? (use) => onNominate(connection, use)
@@ -238,6 +244,7 @@ function Account({
   onNominate,
   onAudience,
   onCalls,
+  offerToAgents = false,
 }: {
   connection: McpConnectionRecord;
   readOnly: boolean;
@@ -254,6 +261,7 @@ function Account({
   onNominate?: (use: boolean) => void;
   onAudience?: () => void;
   onCalls?: () => void;
+  offerToAgents?: boolean;
 }) {
   const t = useTranslations("mcp");
   const state = connectionState(connection);
@@ -299,6 +307,13 @@ function Account({
           )}
         </span>
         <UsedBy agents={connection.used_by ?? undefined} className="mt-0.5" />
+        {offerToAgents && (state === "connected" || state === "error") && (
+          <AddToAgent
+            resource={{ kind: "mcp", id: connection.id }}
+            name={connection.label ?? connection.name}
+            className="mt-1 h-7"
+          />
+        )}
         {onNominate && (
           <label className="mt-1 flex items-center gap-1.5">
             <Checkbox

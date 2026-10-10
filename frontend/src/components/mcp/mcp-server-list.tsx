@@ -30,6 +30,7 @@ import {
   type ToolPickerState,
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
+import { useCreatedToast } from "@/hooks/use-created-toast";
 import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
@@ -136,6 +137,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const { organization, personal, recordTools } = useMcpServers();
+  const createdToast = useCreatedToast();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
@@ -421,11 +423,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(row.entry ? { catalog_key: row.entry.key } : {}),
           ...(scope === "organization" ? values.audience : {}),
         });
-        toast.success(
-          scope === "organization"
-            ? t("connectedForOrg", { name })
-            : t("connectedForYou", { name }),
-        );
+        // The organization's account is what an agent binds, so its toast offers
+        // to add it to one (#2075); a member's own is reached through bindings
+        // to each person's account, never added by id.
+        if (scope === "organization") {
+          createdToast(t("connectedForOrg", { name }), { kind: "mcp", id: created.id }, name);
+        } else {
+          toast.success(t("connectedForYou", { name }));
+        }
         closeDraft();
         void handleTools(scope, created);
       } else {

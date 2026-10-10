@@ -11,6 +11,11 @@ vi.mock("./mcp-call-log", () => ({
     <button type="button" onClick={onClose}>{`calls of ${connection.id}`}</button>
   ),
 }));
+vi.mock("@/components/agents/add-to-agent", () => ({
+  AddToAgent: ({ resource }: { resource: { kind: string; id: string } }) => (
+    <p>{`add ${resource.kind} ${resource.id}`}</p>
+  ),
+}));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: ({ resourceType, resourceId }: { resourceType: string; resourceId: string }) => (
     <p>{`sharing ${resourceType} ${resourceId}`}</p>
@@ -113,5 +118,21 @@ describe("what an organization server is used for (#2072)", () => {
     fireEvent.click(screen.getByText("calls of c1"));
 
     expect(screen.queryByText("calls of c1")).not.toBeInTheDocument();
+  });
+
+  it("offers a usable organization account to an agent, and nothing else (#2075)", () => {
+    open([
+      connection({ id: "c1" }),
+      connection({ id: "c2", name: "down", last_status: "error" }),
+      connection({ id: "c3", name: "unsigned", authorized: false }),
+      connection({ id: "c4", name: "off", is_enabled: false }),
+    ]);
+
+    expect(screen.getByText("add mcp c1")).toBeInTheDocument();
+    expect(screen.getByText("add mcp c2")).toBeInTheDocument();
+    expect(screen.queryByText("add mcp c3")).not.toBeInTheDocument();
+    expect(screen.queryByText("add mcp c4")).not.toBeInTheDocument();
+    // A person's own account is reached through bindings to each person's, never by id.
+    expect(screen.queryByText("add mcp p1")).not.toBeInTheDocument();
   });
 });

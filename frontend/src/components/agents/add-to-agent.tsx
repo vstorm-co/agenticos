@@ -35,7 +35,8 @@ interface AddToAgentProps {
 }
 
 /**
- * "Add to an agent", on a skill, a context file or a knowledge base (#2075).
+ * "Add to an agent", on a skill, a context file, a knowledge base or one of the
+ * organization's MCP servers (#2075).
  *
  * Somebody who has just written a skill should not have to know that it is
  * bound in the Builder, under the Toolbox tab, inside the Skills capability's

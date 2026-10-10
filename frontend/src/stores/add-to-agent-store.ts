@@ -18,8 +18,8 @@ interface AddToAgentState {
 }
 
 /**
- * "Add it to an agent?" from the toast that says a skill, a context file or a
- * knowledge base was created (#2072). The toast outlives the dialog that made
+ * "Add it to an agent?" from the toast that says a skill, a context file, a
+ * knowledge base or an organization MCP server was created (#2072). The toast outlives the dialog that made
  * the resource, so what to add is held here and one dialog in the layout reads it.
  */
 export const useAddToAgentStore = create<AddToAgentState>((set) => ({
