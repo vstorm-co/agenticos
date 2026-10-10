@@ -110,7 +110,7 @@ describe("the assistant's frame", () => {
     render(<AssistantFrame agentId="a1" />);
 
     send({ type: CONTEXT, path: "/runs", title: "Runs" });
-    fireEvent.click(screen.getByRole("button", { name: "What am I looking at?" }));
+    fireEvent.click(screen.getByRole("button", { name: /^What am I looking at\?/ }));
 
     expect(state.selectConversation).toHaveBeenCalledWith(
       expect.stringMatching(/^picked:I'm on the page "Runs" \(\/runs\)/),
@@ -181,8 +181,8 @@ describe("the assistant's welcome", () => {
   it("turns a tile into the first message", () => {
     render(<AssistantFrame agentId="a1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "What am I looking at?" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ready-made recipes" }));
+    fireEvent.click(screen.getByRole("button", { name: /^What am I looking at\?/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ready-made recipes/ }));
 
     expect(state.selectConversation).toHaveBeenCalledWith(
       "picked:Explain what this platform can do for me, in plain language.",
@@ -197,7 +197,7 @@ describe("the assistant's welcome", () => {
     render(<AssistantFrame agentId="a1" />);
 
     expect(screen.queryByText(/What shall we do/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Ready-made recipes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Ready-made recipes/ })).toBeNull();
   });
 });
 

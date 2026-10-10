@@ -166,3 +166,25 @@ describe("the chat container - delegation panels across a conversation switch", 
     expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
   });
 });
+
+describe("the chat container - where an empty conversation is scrolled", () => {
+  it("holds a welcome at its top and follows the foot once a turn starts", async () => {
+    // In the Architect's narrow window the welcome is taller than the pane, and
+    // following the foot of an empty conversation scrolled its greeting and the
+    // face above it out of view.
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    mount();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+
+    act(() =>
+      useChatStore
+        .getState()
+        .addMessage({ id: "m-1", role: "user", content: "Hi.", timestamp: new Date() }),
+    );
+
+    expect(await screen.findByText("Hi.")).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
+    scrollTo.mockRestore();
+  });
+});

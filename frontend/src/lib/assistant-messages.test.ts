@@ -6,6 +6,7 @@ import {
   CONTEXT,
   HISTORY,
   NAVIGATE,
+  PIN,
   NEW,
   readFromFrame,
   readToFrame,
@@ -55,6 +56,14 @@ describe("readFromFrame", () => {
       type: NAVIGATE,
       href: "/agents",
     });
+  });
+
+  it("reads a question the test frame wants pinned or unpinned (#2075)", () => {
+    expect(readFromFrame(fromFrame({ type: PIN, text: "Refunds?" }), ORIGIN, frame)).toEqual({
+      type: PIN,
+      text: "Refunds?",
+    });
+    expect(readFromFrame(fromFrame({ type: PIN, text: 3 }), ORIGIN, frame)).toBeNull();
   });
 
   it("ignores anything not from its own frame, of this origin, in a known shape", () => {

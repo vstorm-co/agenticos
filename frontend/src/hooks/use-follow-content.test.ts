@@ -66,7 +66,7 @@ describe("useFollowContent", () => {
       useFollowContent(
         { current: scrolling },
         { current: document.createElement("div") },
-        { current: true },
+        () => true,
       ),
     );
     seen.grew?.();

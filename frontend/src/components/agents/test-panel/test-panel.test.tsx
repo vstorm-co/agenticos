@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TestPanel } from "./test-panel";
 import { useTestShortcut } from "./use-test-shortcut";
-import { ASK, NEW, REPLAY } from "@/lib/assistant-messages";
+import { ASK, NEW, PIN, REPLAY } from "@/lib/assistant-messages";
 import { readTestPanel, TEST_PANEL_OPEN, writeTestPanel } from "@/lib/test-panel-state";
 import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 
@@ -45,11 +45,12 @@ function open(props: Partial<Parameters<typeof TestPanel>[0]> = {}) {
 beforeEach(() => window.localStorage.clear());
 
 describe("the Builder's test panel", () => {
-  it("tries the draft by default, saying nothing is published", () => {
+  it("tries the draft by default, and leaves saying so to the conversation", () => {
     const { frame } = open();
 
     expect(frame.getAttribute("src")).toBe("/agent-test-frame?agent=a1&mode=draft");
-    expect(screen.getByRole("status")).toHaveTextContent("Nothing is published");
+    // What answers is the frame's own opening line now (#2075).
+    expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
   it("says when the latest change is still being saved", () => {
@@ -67,7 +68,6 @@ describe("the Builder's test panel", () => {
     expect((screen.getByTitle("Test") as HTMLIFrameElement).getAttribute("src")).toContain(
       "mode=env-prod",
     );
-    expect(screen.getByRole("status")).toHaveTextContent("production, version 3");
     expect(readTestPanel("a1").mode).toBe("env-prod");
   });
 
@@ -86,25 +86,51 @@ describe("the Builder's test panel", () => {
     expect(screen.queryByRole("button", { name: "Compare two side by side" })).toBeNull();
   });
 
-  it("starts over, replays and runs a pinned prompt in the frame", async () => {
+  it("starts over and replays the last question in the frame", async () => {
     const { post } = open();
 
     await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
     await userEvent.click(screen.getByRole("button", { name: "Send the last message again" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Refunds?");
-    await userEvent.click(screen.getByRole("button", { name: "Pin a test prompt" }));
-    await userEvent.click(screen.getByRole("button", { name: "Refunds?" }));
 
-    expect(post.mock.calls.map((call) => call[0])).toEqual([
-      { type: NEW },
-      { type: REPLAY },
-      { type: ASK, text: "Refunds?" },
-    ]);
-    expect(readTestPanel("a1").pinned).toEqual(["Refunds?"]);
+    expect(post.mock.calls.map((call) => call[0])).toEqual([{ type: NEW }, { type: REPLAY }]);
+    // A single conversation is asked from its own box, as in /chat.
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
   });
 
-  it("pins a prompt once, and unpins it", async () => {
-    open();
+  it("keeps a question the frame pins, and drops it when it is unpinned (#2075)", () => {
+    const { frame } = open();
+    const fromFrame = (text: string) => {
+      const event = new MessageEvent("message", {
+        data: { type: PIN, text },
+        origin: window.location.origin,
+      });
+      Object.defineProperty(event, "source", { value: frame.contentWindow });
+      act(() => {
+        window.dispatchEvent(event);
+      });
+    };
+
+    fromFrame("Refunds?");
+    expect(readTestPanel("a1").pinned).toEqual(["Refunds?"]);
+
+    fromFrame("Refunds?");
+    expect(readTestPanel("a1").pinned).toEqual([]);
+
+    // Somebody else's message is not a pin.
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: PIN, text: "x" },
+          origin: window.location.origin,
+        }),
+      );
+    });
+    expect(readTestPanel("a1").pinned).toEqual([]);
+  });
+
+  it("pins from the box two compared conversations share, once, and unpins", async () => {
+    open({ environments: [PRODUCTION, STAGING] });
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
     const input = screen.getByRole("textbox", { name: "Prompt" });
     const pin = screen.getByRole("button", { name: "Pin a test prompt" });
 
@@ -113,6 +139,7 @@ describe("the Builder's test panel", () => {
     await userEvent.type(input, "Refunds?");
     await userEvent.click(pin);
     expect(screen.getAllByRole("button", { name: "Refunds?" })).toHaveLength(1);
+    expect(readTestPanel("a1").pinned).toEqual(["Refunds?"]);
 
     await userEvent.click(screen.getByRole("button", { name: "Unpin Refunds?" }));
     expect(screen.queryByRole("button", { name: "Refunds?" })).toBeNull();
@@ -132,15 +159,6 @@ describe("the Builder's test panel", () => {
     fireEvent.pointerMove(window, { clientX: 5000 });
     fireEvent.pointerUp(window);
     expect(readTestPanel("a1").width).toBe(320);
-  });
-
-  it("asks what is typed without pinning it", async () => {
-    const { post } = open();
-
-    await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Hours?{Enter}");
-
-    expect(post).toHaveBeenCalledWith({ type: ASK, text: "Hours?" }, window.location.origin);
-    expect(readTestPanel("a1").pinned).toEqual([]);
   });
 
   it("compares two side by side, asks both at once, and stops comparing", async () => {

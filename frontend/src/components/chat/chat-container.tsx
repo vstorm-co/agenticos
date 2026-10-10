@@ -103,6 +103,14 @@ interface ChatContainerProps {
   incomingFiles?: IncomingFiles | null;
   /** The Builder's test panel: what answers, and that every turn is a test (#2074). */
   testing?: ChatTesting;
+  /** Questions kept to ask again after each change, pinned from the conversation (#2075). */
+  pins?: PinnedPrompts;
+}
+
+/** The test panel's pinned questions, and how one is pinned or taken off. */
+export interface PinnedPrompts {
+  pinned: readonly string[];
+  toggle: (prompt: string) => void;
 }
 
 export function ChatContainer({
@@ -111,6 +119,7 @@ export function ChatContainer({
   agentFixed = false,
   incomingFiles = null,
   testing,
+  pins,
 }: ChatContainerProps = {}) {
   const {
     currentConversationId,
@@ -307,14 +316,24 @@ export function ChatContainer({
   // transcript scrolls itself rather than calling `scrollIntoView`, which also
   // scrolls every page framing the chat - the Builder under its test panel
   // jumped to its foot on each answer (#2074).
+  // An empty conversation is not followed at all: its welcome reads from the
+  // top, and in a narrow window - the Architect's, the test panel - following
+  // the foot scrolled the greeting and the face above it out of view.
+  const emptyRef = useRef(messages.length === 0);
   useEffect(() => {
-    if (userScrolledUpRef.current) return;
+    emptyRef.current = messages.length === 0;
     const container = scrollContainerRef.current;
+    if (emptyRef.current) {
+      container?.scrollTo({ top: 0 });
+      return;
+    }
+    if (userScrolledUpRef.current) return;
     container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
-  useFollowContent(scrollContainerRef, transcriptRef, userScrolledUpRef);
+  const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
+  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   const { commands: slashCommands } = useSlashCommands();
 
   const handleRegenerate = useCallback(
@@ -403,6 +422,7 @@ export function ChatContainer({
       // context gauge the model switch has to move.
       onApprovalModeChange={setApprovalMode}
       onRegenerate={handleRegenerate}
+      pins={pins}
       slashContext={slashContext}
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
@@ -482,6 +502,7 @@ interface ChatUIProps {
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
+  pins?: PinnedPrompts;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
@@ -524,6 +545,7 @@ function ChatUI({
   onModelProfileChange,
   onApprovalModeChange,
   onRegenerate,
+  pins,
   slashContext,
   slashCommands,
   queuedMessages,
@@ -639,7 +661,7 @@ function ChatUI({
                 )}
               </div>
             ) : (
-              <MessageList messages={messages} onRegenerate={onRegenerate} />
+              <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
             )}
             {/* After the transcript, not inside it: a delegation is a second agent's
                 conversation happening inside one turn of this one, and it can still be

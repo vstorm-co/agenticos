@@ -17,6 +17,7 @@ import {
   ATTACH,
   CONTEXT,
   HISTORY,
+  NAVIGATE,
   NEW,
   readFromFrame,
   type ToFrame,
@@ -123,7 +124,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const message = readFromFrame(event, window.location.origin, frame.current?.contentWindow);
-      const link = message && consoleLink(message.href, window.location.origin);
+      const link = message?.type === NAVIGATE && consoleLink(message.href, window.location.origin);
       if (!link) return;
       if (window.matchMedia(PHONE).matches) setOpen(false);
       router.push(link.path);

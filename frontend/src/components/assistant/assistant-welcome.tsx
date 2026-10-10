@@ -1,8 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { BookOpen, Bot, Eye, FileUp, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ChatWelcome } from "@/components/chat/chat-welcome";
 import { useAuthStore } from "@/stores";
 
 export interface PageContext {
@@ -25,16 +27,17 @@ const TILES: readonly Tile[] = [
 interface AssistantWelcomeProps {
   greeting: string | null;
   name: string;
+  /** The Architect's face, above the greeting. */
+  mark: ReactNode;
   page: PageContext | null;
   onPick: (prompt: string) => void;
 }
 
 /**
- * What an empty conversation with the AI Architect shows (#2063): a greeting by
- * name and four large tiles, so the first message is a click rather than a blank
- * box somebody has to know what to type into.
+ * The AI Architect's empty conversation, drawn as `/chat` draws one (#2075):
+ * its face, the greeting, what it does, and four ways to start.
  */
-export function AssistantWelcome({ greeting, name, page, onPick }: AssistantWelcomeProps) {
+export function AssistantWelcome({ greeting, name, mark, page, onPick }: AssistantWelcomeProps) {
   const t = useTranslations("assistantWidget");
   const person = useAuthStore((state) => state.user?.full_name?.split(" ")[0] ?? null);
 
@@ -44,26 +47,23 @@ export function AssistantWelcome({ greeting, name, page, onPick }: AssistantWelc
       : t(`tiles.${tile}.ask`);
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-2 py-6">
-      <p className="text-foreground text-lg font-semibold">
-        {greeting ??
-          (person
-            ? t("greetingNamed", { person, assistant: name })
-            : t("greeting", { assistant: name }))}
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        {TILES.map(({ key, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onPick(prompt(key))}
-            className="border-border hover:bg-foreground/[0.04] flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-colors"
-          >
-            <Icon className="text-muted-foreground h-5 w-5" aria-hidden />
-            <span className="text-sm leading-snug font-medium">{t(`tiles.${key}.label`)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
+    <ChatWelcome
+      compact
+      mark={mark}
+      title={
+        greeting ??
+        (person
+          ? t("greetingNamed", { person, assistant: name })
+          : t("greeting", { assistant: name }))
+      }
+      lead={t("welcomeLead")}
+      suggestions={TILES.map(({ key, icon }) => ({
+        key,
+        icon,
+        title: t(`tiles.${key}.label`),
+        prompt: prompt(key),
+      }))}
+      onPick={onPick}
+    />
   );
 }

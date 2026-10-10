@@ -11,6 +11,7 @@ import { ASK, ATTACH, CONTEXT, NAVIGATE, NEW, readToFrame } from "@/lib/assistan
 import { useAgentSelectionStore } from "@/stores";
 
 import { AssistantHistory } from "./assistant-history";
+import { AssistantFace } from "./assistant-launcher";
 import { AssistantWelcome, type PageContext } from "./assistant-welcome";
 
 /**
@@ -86,6 +87,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
               <AssistantWelcome
                 greeting={assistant.greeting}
                 name={assistant.name}
+                mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
                 page={page}
                 onPick={onPick}
               />

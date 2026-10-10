@@ -63,7 +63,11 @@ export function readToFrame(event: MessageEvent, origin: string): ToFrame | null
 /** Open a console page the Architect linked to, in the console (#2063). */
 export const NAVIGATE = `${PREFIX}navigate` as const;
 
-export type FromFrame = { type: typeof NAVIGATE; href: string };
+/** Pin a question in the Builder's test panel, or take it off (#2075). */
+export const PIN = `${PREFIX}pin` as const;
+
+export type FromFrame =
+  { type: typeof NAVIGATE; href: string } | { type: typeof PIN; text: string };
 
 /** A message from the frame, of a kind the console knows, or `null`. */
 export function readFromFrame(
@@ -74,9 +78,12 @@ export function readFromFrame(
   if (event.origin !== origin || frame == null || event.source !== frame) return null;
   const data: unknown = event.data;
   if (typeof data !== "object" || data === null || !("type" in data)) return null;
-  const message = data as { type: unknown; href?: unknown };
+  const message = data as { type: unknown; href?: unknown; text?: unknown };
   if (message.type === NAVIGATE && typeof message.href === "string") {
     return { type: NAVIGATE, href: message.href };
+  }
+  if (message.type === PIN && typeof message.text === "string") {
+    return { type: PIN, text: message.text };
   }
   return null;
 }

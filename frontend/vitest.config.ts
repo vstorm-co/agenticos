@@ -112,6 +112,7 @@ export default defineConfig({
         "src/components/chat/connect-services-card.tsx",
         "src/components/chat/your-connections.tsx",
         "src/components/chat/chat-empty-state.tsx",
+        "src/components/chat/chat-welcome.tsx",
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",

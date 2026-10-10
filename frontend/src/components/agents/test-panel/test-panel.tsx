@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { defaultLocale } from "@/i18n";
 import { AGENT_TEST_FRAME_PATH } from "@/lib/assistant-frame";
-import { ASK, NEW, REPLAY, type ToFrame } from "@/lib/assistant-messages";
+import { ASK, NEW, PIN, readFromFrame, REPLAY, type ToFrame } from "@/lib/assistant-messages";
 import {
   readTestPanel,
   TEST_PANEL_OPEN,
@@ -86,6 +86,28 @@ export function TestPanel({
     root.setAttribute(TEST_PANEL_OPEN, "");
     return () => root.removeAttribute(TEST_PANEL_OPEN);
   }, []);
+
+  // A question pinned or taken off from either frame's conversation (#2075). The
+  // panel keeps the list, so the frames ask and it writes - idempotently, as a
+  // strict-mode updater may run twice.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const message =
+        readFromFrame(event, window.location.origin, first.current?.contentWindow) ??
+        readFromFrame(event, window.location.origin, second.current?.contentWindow);
+      if (message?.type !== PIN) return;
+      setState((current) => {
+        const pinned = current.pinned.includes(message.text)
+          ? current.pinned.filter((entry) => entry !== message.text)
+          : [...current.pinned, message.text];
+        const next = { ...current, pinned };
+        writeTestPanel(agentId, next);
+        return next;
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [agentId]);
 
   const update = (next: Partial<TestPanelState>) => {
     const merged = { ...state, ...next };
@@ -159,9 +181,9 @@ export function TestPanel({
         onPointerDown={startResize}
         className="hover:bg-border absolute inset-y-0 -left-1.5 hidden w-3 cursor-col-resize rounded lg:block"
       />
-      <header className="space-y-2 border-b p-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold">{t("testPanel")}</h2>
+      <header className="flex flex-col gap-2 border-b px-3 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <h2 className="mr-1 text-sm font-semibold">{t("testPanel")}</h2>
           {picker(mode, (value) => update({ mode: value }), t("testPanelWhatAnswers"))}
           {compare !== null &&
             picker(compare, (value) => update({ compare: value }), t("testPanelComparedWith"))}
@@ -169,6 +191,7 @@ export function TestPanel({
             <Button
               variant={compare === null ? "ghost" : "secondary"}
               size="icon"
+              className="h-8 w-8"
               aria-label={t("testPanelCompare")}
               aria-pressed={compare !== null}
               title={t("testPanelCompare")}
@@ -181,6 +204,7 @@ export function TestPanel({
             <Button
               variant="ghost"
               size="icon"
+              className="h-8 w-8"
               aria-label={t("testPanelChanges")}
               title={t("testPanelChanges")}
               onClick={() => setShowingChanges(true)}
@@ -191,6 +215,7 @@ export function TestPanel({
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             aria-label={t("testPanelNew")}
             title={t("testPanelNew")}
             onClick={() => post({ type: NEW })}
@@ -200,34 +225,41 @@ export function TestPanel({
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             aria-label={t("testPanelReplay")}
             title={t("testPanelReplay")}
             onClick={() => post({ type: REPLAY })}
           >
             <Repeat className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" aria-label={t("testPanelClose")} onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t("testPanelClose")}
+            onClick={onClose}
+          >
             <PanelRightClose className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-muted-foreground text-xs" role="status">
+        {/* What answers is said in the conversation's own opening, as `/chat`
+            says it (#2075); this line is left for what changes while you look. */}
+        <p className="text-muted-foreground min-h-0 text-xs empty:hidden" role="status">
           {compare !== null
             ? t("testPanelCompareHint")
-            : mode !== "draft"
-              ? t("testPanelEnvironmentHint", {
-                  name: environments.find((env) => env.id === mode)?.name ?? "",
-                  version: environments.find((env) => env.id === mode)?.version ?? 0,
-                })
-              : saving
-                ? t("testPanelDraftSaving")
-                : t("testPanelDraftHint")}
+            : mode === "draft" && saving
+              ? t("testPanelDraftSaving")
+              : null}
         </p>
-        <TestPanelPrompts
-          pinned={state.pinned}
-          comparing={compare !== null}
-          onAsk={(text) => post({ type: ASK, text })}
-          onPinnedChange={(pinned) => update({ pinned })}
-        />
+        {/* Two conversations asked the same thing need one box to ask it from. */}
+        {compare !== null && (
+          <TestPanelPrompts
+            pinned={state.pinned}
+            comparing
+            onAsk={(text) => post({ type: ASK, text })}
+            onPinnedChange={(pinned) => update({ pinned })}
+          />
+        )}
       </header>
       <div className={cn("flex min-h-0 flex-1 flex-col lg:flex-row", compare && "lg:divide-x")}>
         {modes.map((value, index) => (

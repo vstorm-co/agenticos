@@ -11,20 +11,21 @@ import { useEffect } from "react";
  * watches the content's size instead, so any growth - a reveal, an image
  * loading, a step expanding - is followed.
  *
- * `paused` is read on each resize, not captured: it is the caller's record of
- * whether the reader scrolled up to read something and should be left there.
+ * `paused` is asked on each resize, not captured: the reader scrolled up to
+ * read something and should be left there, or there is nothing to follow yet -
+ * an empty conversation's welcome reads from its top.
  */
 export function useFollowContent(
   scroller: React.RefObject<HTMLElement | null>,
   content: React.RefObject<HTMLElement | null>,
-  paused?: React.RefObject<boolean>,
+  paused?: () => boolean,
 ): void {
   useEffect(() => {
     const scrolling = scroller.current;
     const growing = content.current;
     if (scrolling === null || growing === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (paused?.current) return;
+      if (paused?.()) return;
       scrolling.scrollTop = scrolling.scrollHeight;
     });
     observer.observe(growing);
