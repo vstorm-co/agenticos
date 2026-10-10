@@ -592,9 +592,9 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.28.0 | MIT | https://github.com/react/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
-| source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
+| source-map-js | 1.2.2 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
 | stringify-entities | 4.0.4 | MIT | https://github.com/wooorm/stringify-entities | package.json license |
 | style-to-js | 1.1.21 | MIT | https://github.com/remarkablemark/style-to-js | package.json license |
