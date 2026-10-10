@@ -121,6 +121,7 @@ export default function GroupPage({ params }: PageProps) {
             icon={Users}
             title={t("nothingSharedYet", { name: group.name })}
             description={t("nothingSharedYetWhy")}
+            cta={{ label: t("addToGroup"), onClick: () => setAdding(true) }}
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2">

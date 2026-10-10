@@ -1307,7 +1307,20 @@
       "onePerson": "Jedna osoba",
       "reset": "Wróć do filtra strony"
     },
-    "pageStatus": "Status"
+    "pageStatus": "Status",
+    "startChecklist": {
+      "title": "Pierwsze kroki",
+      "progress": "{done} z {total} gotowe",
+      "dismiss": "Ukryj listę",
+      "steps": {
+        "agent": "Utwórz agenta",
+        "publish": "Opublikuj go",
+        "knowledge": "Daj mu bazę wiedzy",
+        "departments": "Dodaj swoje działy",
+        "teammate": "Zaproś kogoś z zespołu",
+        "channel": "Wstaw agenta tam, gdzie pisze zespół"
+      }
+    }
   },
   "ui": {
     "nextMonths": "Następne miesiące",
@@ -2468,7 +2481,8 @@
     "secretRotated": "Sekret podpisujący zrotowany",
     "templatesLabel": "Zacznij od szablonu",
     "templateScratch": "Zacznij od zera",
-    "templateScratchHelp": "Napisz własną wiadomość i kadencję."
+    "templateScratchHelp": "Napisz własną wiadomość i kadencję.",
+    "activityEmptyAction": "Wybierz agenta do zaplanowania"
   },
   "portals": {
     "title": "Portale",
@@ -3148,7 +3162,8 @@
     "mcpHealthDown": "Nie odpowiada",
     "mcpHealthChecked": "Odpowiada - sprawdzono {ago}",
     "mcpHealthUnchecked": "Jeszcze nie sprawdzony",
-    "mcpHealthCheck": "Sprawdź teraz"
+    "mcpHealthCheck": "Sprawdź teraz",
+    "addNamedToAgent": "Dodaj {name} do agenta"
   },
   "steps": {
     "skills-gallery": {

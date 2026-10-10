@@ -22,6 +22,15 @@ Made-up facts (check every answer against the source it cites), answers that are
 too long, a tool used when it should not be, an action that should have waited
 for approval.
 
+## Where to ask them
+
+In AgenticOS, **Test** in the Builder opens a chat beside it that answers as the
+unpublished draft - nothing has to be published to try it. Pin the ten questions
+there and rerun them after every change. Once a version is live, **Compare** puts
+the draft beside it and asks both the same question, so the difference you see
+is the change you made. Every test turn is a run, budgeted and marked `test` in
+Activity.
+
 ## Fix one thing at a time
 
 A wrong fact - the knowledge base. A wrong tone or scope - the instructions. A

@@ -6,12 +6,24 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui";
 import { useAddToAgent, useAgents, usePermissions } from "@/hooks";
 import type { AgentResourceRef } from "@/lib/agent-spec";
 import { ROUTES } from "@/lib/constants";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAddToAgentStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
 interface AddToAgentProps {
@@ -33,28 +45,10 @@ interface AddToAgentProps {
  */
 export function AddToAgent({ resource, name, size = "sm", className }: AddToAgentProps) {
   const t = useTranslations("agents");
-  const router = useRouter();
   const { can } = usePermissions();
   const [open, setOpen] = useState(false);
-  const allowed = can(Perm.agentsEdit);
-  const { agents, isLoading } = useAgents({ enabled: allowed && open });
-  const add = useAddToAgent();
 
-  if (!allowed) return null;
-
-  const pick = async (agentId: string, agentName: string) => {
-    // A refusal is toasted by the mutation; the list stays open to pick another.
-    const result = await add.mutateAsync({ agentId, resource }).catch(() => null);
-    if (result === null) return;
-    const { already } = result;
-    setOpen(false);
-    const toBuilder = {
-      label: t("openInBuilder"),
-      onClick: () => router.push(ROUTES.AGENT_DETAIL(agentId)),
-    };
-    if (already) toast.info(t("alreadyOnAgent", { name, agent: agentName }), { action: toBuilder });
-    else toast.success(t("addedToAgent", { name, agent: agentName }), { action: toBuilder });
-  };
+  if (!can(Perm.agentsEdit)) return null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -66,39 +60,105 @@ export function AddToAgent({ resource, name, size = "sm", className }: AddToAgen
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1">
         <p className="text-muted-foreground px-2 py-1.5 text-xs">{t("addToAgentHint")}</p>
-        <div className="max-h-72 overflow-y-auto">
-          {isLoading ? (
-            <p className="text-muted-foreground px-2 py-3 text-sm">{t("loadingAgents")}</p>
-          ) : agents.length === 0 ? (
-            <div className="space-y-2 px-2 py-3 text-sm">
-              <p className="text-muted-foreground">{t("noAgentToAddTo")}</p>
-              <Button size="sm" variant="outline" onClick={() => router.push(ROUTES.AGENTS)}>
-                <Bot className="h-3.5 w-3.5" />
-                {t("createAnAgent")}
-              </Button>
-            </div>
-          ) : (
-            agents.map((agent) => (
-              <button
-                key={agent.id}
-                type="button"
-                disabled={add.isPending}
-                onClick={() => pick(agent.id, agent.name)}
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm disabled:opacity-50"
-              >
-                <AgentAvatar
-                  agentId={agent.id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="sm"
-                />
-                <span className="truncate">{agent.name}</span>
-              </button>
-            ))
-          )}
-        </div>
+        {open && <AgentChoices resource={resource} name={name} onDone={() => setOpen(false)} />}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * The agents a resource can be added to, and the adding (#2075).
+ *
+ * Shared by the button on a card and by the dialog the creation toast opens
+ * (#2072), so both add the same way and confirm in the same words. Mounted only
+ * while shown, so the agent list is fetched only when somebody looks.
+ */
+export function AgentChoices({
+  resource,
+  name,
+  onDone,
+}: {
+  resource: AgentResourceRef;
+  name: string;
+  onDone: () => void;
+}) {
+  const t = useTranslations("agents");
+  const router = useRouter();
+  const { agents, isLoading } = useAgents();
+  const add = useAddToAgent();
+
+  const pick = async (agentId: string, agentName: string) => {
+    // A refusal is toasted by the mutation; the list stays open to pick another.
+    const result = await add.mutateAsync({ agentId, resource }).catch(() => null);
+    if (result === null) return;
+    const { already } = result;
+    onDone();
+    const toBuilder = {
+      label: t("openInBuilder"),
+      onClick: () => router.push(ROUTES.AGENT_DETAIL(agentId)),
+    };
+    if (already) toast.info(t("alreadyOnAgent", { name, agent: agentName }), { action: toBuilder });
+    else toast.success(t("addedToAgent", { name, agent: agentName }), { action: toBuilder });
+  };
+
+  return (
+    <div className="max-h-72 overflow-y-auto">
+      {isLoading ? (
+        <p className="text-muted-foreground px-2 py-3 text-sm">{t("loadingAgents")}</p>
+      ) : agents.length === 0 ? (
+        <div className="space-y-2 px-2 py-3 text-sm">
+          <p className="text-muted-foreground">{t("noAgentToAddTo")}</p>
+          <Button size="sm" variant="outline" onClick={() => router.push(ROUTES.AGENTS)}>
+            <Bot className="h-3.5 w-3.5" />
+            {t("createAnAgent")}
+          </Button>
+        </div>
+      ) : (
+        agents.map((agent) => (
+          <button
+            key={agent.id}
+            type="button"
+            disabled={add.isPending}
+            onClick={() => pick(agent.id, agent.name)}
+            className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm disabled:opacity-50"
+          >
+            <AgentAvatar
+              agentId={agent.id}
+              slug={agent.slug}
+              hasAvatar={agent.has_avatar}
+              colorSlot={agent.avatar_color}
+              size="sm"
+            />
+            <span className="truncate">{agent.name}</span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+/**
+ * The dialog the creation toast's "Add to an agent" opens (#2072), mounted once
+ * in the layout and driven by `useAddToAgentStore`.
+ */
+export function AddToAgentPrompt() {
+  const t = useTranslations("agents");
+  const offer = useAddToAgentStore((state) => state.offer);
+  const close = useAddToAgentStore((state) => state.close);
+
+  return (
+    <Dialog open={offer !== null} onOpenChange={(open) => !open && close()}>
+      <DialogContent className={DIALOG_CONFIRM}>
+        {offer !== null && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("addNamedToAgent", { name: offer.name })}</DialogTitle>
+              <DialogDescription>{t("addToAgentHint")}</DialogDescription>
+            </DialogHeader>
+            <AgentChoices resource={offer.resource} name={offer.name} onDone={close} />
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

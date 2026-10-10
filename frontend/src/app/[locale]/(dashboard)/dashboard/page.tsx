@@ -12,6 +12,7 @@ import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-men
 import { FilterRow } from "@/components/dashboard/filter-row";
 import { OrgDivider } from "@/components/dashboard/org-divider";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
 import { EmptyState, LoadingState } from "@/components/states";
@@ -274,6 +275,7 @@ export default function DashboardPage() {
         selectedSections={selectedSections}
         onSectionsChange={changeSections}
       />
+      {activeOrgId && <StartChecklist orgId={activeOrgId} />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}

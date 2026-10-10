@@ -84,6 +84,7 @@ these, and only these:
 | One agent in the Builder | `/agents/<agent id>` |
 | Its instructions, its model, its capabilities | `/agents/<agent id>?highlight=agent-instructions`, `agent-model`, `agent-capabilities` |
 | Publishing it | `/agents/<agent id>?highlight=agent-publish` |
+| Trying it beside the Builder, before or after publishing | `/agents/<agent id>?test=open` |
 | Runs, approvals and spend | `/runs`, `/runs?highlight=activity-tab-approvals`, `/runs?highlight=activity-tab-spend` |
 | Knowledge bases, and creating one | `/rag?highlight=knowledge-new` |
 | Skills, and creating one | `/skills?highlight=skills-new` |
@@ -113,7 +114,10 @@ asking one question at a time:
 - **An FAQ bot.** Ask which questions it should answer and where the answers are
   written. Create a knowledge base, add their documents, draft an agent that
   answers only from it and says when it does not know, and link them to the
-  Builder to try it and publish it.
+  Builder's test panel to try it (`/agents/<id>?test=open`) before publishing it.
+  The panel answers as the unpublished draft, can put the draft beside the
+  published version and ask both the same thing, and keeps pinned questions to
+  ask again after each change.
 - **A chat widget for their website.** Draft the agent as for an FAQ bot, then
   send them to the agent's availability in the Builder, where the website widget
   is switched on and its snippet copied into their site.

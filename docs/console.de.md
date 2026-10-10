@@ -1,5 +1,5 @@
 ---
-source_sha: "bb3e47ca3bb7"
+source_sha: "17bdd2f07d3f"
 ---
 
 # Die Konsole { #the-console }
@@ -17,7 +17,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt sechsunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -30,11 +30,18 @@ Sie kommen in Gruppen an:
 |---|---|
 | *(ohne Titel, ganz oben)* | Die Zusammenfassung, deren Details der Rest der Seite ist |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
-| **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, MCP-Health, veraltetes Wissen, Ihre jüngsten [Benachrichtigungen](#the-bell) |
+| **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, [Ausgaben nach Abteilung](departments.md#a-departments-budget), MCP-Health, veraltetes Wissen, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, Modellmix, Versionsvergleich |
 | **People** | Mitglieder, aktive Nutzer, Bewertungen, wer was tut |
 | **Sandboxes** | [Kapazität, laufende Sessions, Policy](sandbox.md) |
 | **Workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde |
+
+Wer Agents baut, sieht über den Bändern außerdem **Erste Schritte**, bis jeder
+Schritt erledigt ist: einen Agent anlegen, ihn veröffentlichen, ihm eine
+Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen und -
+wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
+abgehakt, was existiert, wo auch immer er erledigt wurde; wer die Karte schließt,
+blendet sie in diesem Browser aus.
 
 ### Sie neu anordnen { #rearranging-it }
 
@@ -255,6 +262,14 @@ erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
 kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
+
+## Der nächste Schritt { #the-next-step }
+
+Eine Seite, die leer ist, weil noch nichts existiert, bietet den Weg zum ersten
+Eintrag an - einem Agent, einer Routine, etwas für eine Abteilung. Wer einen
+Skill, eine Kontextdatei oder eine Wissensbasis anlegt, bekommt einen Toast mit
+**Einem Agent hinzufügen**, sofern er Agents bearbeiten darf, sodass das Neue
+ohne Umweg über den Builder bei einem Agent ankommt.
 
 ## Wenn eine Seite leer aussieht { #when-a-page-looks-empty }
 

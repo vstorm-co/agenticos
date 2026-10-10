@@ -1,5 +1,5 @@
 ---
-source_sha: "bb3e47ca3bb7"
+source_sha: "17bdd2f07d3f"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -30,11 +30,17 @@ Llegan agrupadas en bandas:
 |---|---|
 | *(sin título, arriba del todo)* | El resumen del que el resto de la página es el detalle |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
-| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
+| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, [gasto por departamento](departments.md#a-departments-budget), salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
 | **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
 | **People** | Miembros, usuarios activos, valoraciones, quién hace qué |
 | **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
 | **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
+
+Quien construye agents ve además **Get started** encima de las bandas hasta
+completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
+añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
+en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
+donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
 
 ### Reordenarlo { #rearranging-it }
 
@@ -237,6 +243,14 @@ cada agent. Cada filtro es un menú de las etiquetas de los agents que puedes ve
 marca varias para ampliarlo. Las categories y los tags de un agent los mantienes desde su página
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
+
+## El siguiente paso { #the-next-step }
+
+Una página vacía porque aún no existe nada ofrece el camino para crear lo
+primero: un agent, una rutina, algo compartido con un departamento. Crear un
+skill, un archivo de contexto o una base de conocimiento termina con un aviso que
+ofrece **Add to an agent** a quien pueda editar agents, para que lo creado llegue
+a un agent sin pasar por el Builder.
 
 ## Cuando una página parece vacía { #when-a-page-looks-empty }
 

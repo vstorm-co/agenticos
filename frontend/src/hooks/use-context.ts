@@ -10,6 +10,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { ContextFile, ContextFileList, ContextMode } from "@/types/providers";
+import { useCreatedToast } from "./use-created-toast";
 
 export interface NewContextFile {
   name: string;
@@ -51,6 +52,7 @@ export function useContextFiles({
 }: ContextQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("context");
+  const created = useCreatedToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -78,7 +80,7 @@ export function useContextFiles({
     mutationFn: (file: NewContextFile) => apiClient.post<ContextFile>("/context", file),
     onSuccess: async (file) => {
       await invalidate();
-      toast.success(t("created", { name: file.name }));
+      created(t("created", { name: file.name }), { kind: "context", id: file.id }, file.name);
     },
   });
 

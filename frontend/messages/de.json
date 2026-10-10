@@ -723,7 +723,8 @@
     "mcpHealthDown": "Antwortet nicht",
     "mcpHealthChecked": "Antwortet - geprüft {ago}",
     "mcpHealthUnchecked": "Noch nicht geprüft",
-    "mcpHealthCheck": "Jetzt prüfen"
+    "mcpHealthCheck": "Jetzt prüfen",
+    "addNamedToAgent": "{name} einem Agent hinzufügen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2070,7 +2071,20 @@
       "onePerson": "Eine Person",
       "reset": "Wieder der Seite folgen"
     },
-    "pageStatus": "Status"
+    "pageStatus": "Status",
+    "startChecklist": {
+      "title": "Erste Schritte",
+      "progress": "{done} von {total} erledigt",
+      "dismiss": "Checkliste ausblenden",
+      "steps": {
+        "agent": "Einen Agent anlegen",
+        "publish": "Ihn veröffentlichen",
+        "knowledge": "Ihm eine Wissensbasis geben",
+        "departments": "Ihre Abteilungen hinzufügen",
+        "teammate": "Jemanden aus dem Team einladen",
+        "channel": "Einen Agent dorthin bringen, wo Ihr Team chattet"
+      }
+    }
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",
@@ -5374,7 +5388,8 @@
     "presetWeekdays9": "Werktags 09:00",
     "stepConfigure": "Konfigurieren",
     "stepMessage": "Nachricht",
-    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht."
+    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht.",
+    "activityEmptyAction": "Einen Agent zum Planen auswählen"
   },
   "portals": {
     "title": "Portale",

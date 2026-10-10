@@ -16,6 +16,12 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  usePathname: () => "/runs",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -83,6 +89,8 @@ describe("ScheduledTab", () => {
     render(<ScheduledTab />, { wrapper });
 
     expect(await screen.findByText("Nothing runs on its own yet")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Pick an agent to schedule" }));
+    expect(push).toHaveBeenCalledWith("/agents");
   });
 
   it("says a failed request out loud instead of as an empty list", async () => {

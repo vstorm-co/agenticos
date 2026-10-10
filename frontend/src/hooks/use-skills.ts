@@ -10,6 +10,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Skill, SkillList, SkillResource } from "@/types/providers";
+import { useCreatedToast } from "./use-created-toast";
 
 export interface NewSkill {
   name: string;
@@ -57,6 +58,7 @@ export function useSkills({
 }: SkillQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
+  const created = useCreatedToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
@@ -93,7 +95,7 @@ export function useSkills({
     mutationFn: (skill: NewSkill) => apiClient.post<Skill>("/skills", skill),
     onSuccess: async (skill) => {
       await invalidate();
-      toast.success(t("created", { name: skill.name }));
+      created(t("created", { name: skill.name }), { kind: "skill", id: skill.id }, skill.name);
     },
   });
 

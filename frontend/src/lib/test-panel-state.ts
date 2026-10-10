@@ -48,6 +48,18 @@ export function readTestPanel(agentId: string): TestPanelState {
   }
 }
 
+/**
+ * Whether the address asks for the test panel - `?test=open`, the link the AI
+ * Architect gives to try an agent it drafted (#2074). Read once, on arrival.
+ */
+export function askedToTest(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get("test") === "open";
+  } catch {
+    return false;
+  }
+}
+
 export function writeTestPanel(agentId: string, state: TestPanelState): void {
   try {
     window.localStorage.setItem(key(agentId), JSON.stringify(state));

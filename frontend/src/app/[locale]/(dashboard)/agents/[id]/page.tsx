@@ -32,7 +32,7 @@ import {
 } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
-import { readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
+import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
@@ -261,7 +261,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   } = useDelegationTree(id, { enabled: mapOpen });
   const [connectingMcp, setConnectingMcp] = useState(false);
   // Open or shut per agent, remembered with the panel's width and pinned prompts.
-  const [testing, setTesting] = useState(() => readTestPanel(id).open);
+  const [testing, setTesting] = useState(() => readTestPanel(id).open || askedToTest());
   const toggleTesting = (open: boolean) => {
     writeTestPanel(id, { ...readTestPanel(id), open });
     setTesting(open);
@@ -1539,7 +1539,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
-      {testing && (
+      {testing && canEdit && (
         <TestPanel
           agentId={id}
           currentVersionId={agent.current_version_id}

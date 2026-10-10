@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
-import { AddToAgent } from "./add-to-agent";
+import { AddToAgent, AddToAgentPrompt } from "./add-to-agent";
+import { useAddToAgentStore } from "@/stores";
 
 const { can, agents, mutateAsync, push } = vi.hoisted(() => ({
   can: vi.fn(),
@@ -101,5 +102,43 @@ describe("AddToAgent", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add to an agent" }));
 
     expect(screen.getByText("Loading agents…")).toBeInTheDocument();
+  });
+});
+
+describe("AddToAgentPrompt (#2072)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    can.mockReturnValue(true);
+    agents.mockReturnValue({ agents: [SUPPORT], isLoading: false });
+  });
+
+  it("opens from the store, adds, and closes", async () => {
+    mutateAsync.mockResolvedValue({ already: false });
+    render(<AddToAgentPrompt />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() =>
+      useAddToAgentStore.getState().open({ resource: { kind: "context", id: "c1" }, name: "tone" }),
+    );
+    expect(screen.getByRole("heading", { name: "Add tone to an agent" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Support/ }));
+
+    expect(mutateAsync).toHaveBeenCalledWith({
+      agentId: "a1",
+      resource: { kind: "context", id: "c1" },
+    });
+    expect(useAddToAgentStore.getState().offer).toBeNull();
+  });
+
+  it("closes without adding", async () => {
+    render(<AddToAgentPrompt />);
+    act(() =>
+      useAddToAgentStore.getState().open({ resource: { kind: "skill", id: "s1" }, name: "x" }),
+    );
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(useAddToAgentStore.getState().offer).toBeNull();
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

@@ -725,7 +725,8 @@
     "mcpHealthDown": "Not answering",
     "mcpHealthChecked": "Answering - checked {ago}",
     "mcpHealthUnchecked": "Not checked yet",
-    "mcpHealthCheck": "Check now"
+    "mcpHealthCheck": "Check now",
+    "addNamedToAgent": "Add {name} to an agent"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2082,7 +2083,20 @@
       "onePerson": "One person",
       "reset": "Follow the page again"
     },
-    "pageStatus": "Status"
+    "pageStatus": "Status",
+    "startChecklist": {
+      "title": "Get started",
+      "progress": "{done} of {total} done",
+      "dismiss": "Hide the checklist",
+      "steps": {
+        "agent": "Create an agent",
+        "publish": "Publish it",
+        "knowledge": "Give it a knowledge base",
+        "departments": "Add your departments",
+        "teammate": "Invite a teammate",
+        "channel": "Put an agent where your team chats"
+      }
+    }
   },
   "errors": {
     "authorizationFailed": "Authorization failed",
@@ -5512,7 +5526,8 @@
     "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
     "stepMessage": "Message",
-    "templateScratchHelpEvent": "Write your own message."
+    "templateScratchHelpEvent": "Write your own message.",
+    "activityEmptyAction": "Pick an agent to schedule"
   },
   "portals": {
     "title": "Portals",

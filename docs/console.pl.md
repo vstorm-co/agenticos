@@ -1,5 +1,5 @@
 ---
-source_sha: "bb3e47ca3bb7"
+source_sha: "17bdd2f07d3f"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -30,11 +30,17 @@ Karty przychodzą pogrupowane w pasy:
 |---|---|
 | *(bez tytułu, na górze)* | Podsumowanie, którego szczegółem jest reszta strony |
 | **Deployment** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
-| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
+| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, [wydatki działów](departments.md#a-departments-budget), kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
 | **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
 | **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
+
+Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
+wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
+wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
+komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
+go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
 
 ### Zmiana układu { #rearranging-it }
 
@@ -238,6 +244,14 @@ Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
 poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
+
+## Następny krok { #the-next-step }
+
+Strona pusta dlatego, że nic jeszcze nie istnieje, proponuje, jak zrobić pierwszą
+rzecz - agenta, rutynę, coś udostępnionego działowi. Utworzenie skilla, pliku
+kontekstu albo bazy wiedzy kończy się toastem z **Add to an agent** dla każdego,
+kto może edytować agentów, więc to, co powstało, trafia do agenta bez wycieczki do
+Buildera.
 
 ## Kiedy strona wygląda na pustą { #when-a-page-looks-empty }
 

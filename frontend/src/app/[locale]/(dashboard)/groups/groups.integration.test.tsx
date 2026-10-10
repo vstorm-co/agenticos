@@ -207,6 +207,11 @@ describe("one group's page", () => {
     await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
 
     expect(await screen.findByText("Nothing is shared with Finance yet")).toBeInTheDocument();
+    // The empty state's own way forward, beside the header's.
+    const adds = screen.getAllByRole("button", { name: "Add to this group" });
+    await userEvent.click(adds[adds.length - 1]!);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByRole("button", { name: "Edit group" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));

@@ -69,6 +69,8 @@ export default defineConfig({
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",
         "src/components/groups/department-budget.tsx",
+        // The dashboard's start checklist (#2072).
+        "src/components/dashboard/start-checklist.tsx",
         "src/components/artifacts/**/*.tsx",
         // Organization API keys (#1794): the list, and the dialog that shows a key once.
         "src/components/settings/api-keys-manager.tsx",

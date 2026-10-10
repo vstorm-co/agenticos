@@ -244,7 +244,17 @@ export default function AgentsPage() {
                       label: t("clearFilters"),
                       onClick: clearFilters,
                     }
-                  : undefined
+                  : canEdit
+                    ? {
+                        label: (
+                          <>
+                            <Plus className="h-3.5 w-3.5" />
+                            {t("newAgent")}
+                          </>
+                        ),
+                        onClick: () => setCreateOpen(true),
+                      }
+                    : undefined
               }
             />
           ) : (

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readTestPanel, writeTestPanel } from "./test-panel-state";
+import { askedToTest, readTestPanel, writeTestPanel } from "./test-panel-state";
 
 beforeEach(() => window.localStorage.clear());
 
@@ -63,5 +63,23 @@ describe("the test panel's remembered state", () => {
       writeTestPanel("a1", { open: true, width: 440, mode: "draft", compare: null, pinned: [] }),
     ).not.toThrow();
     setItem.mockRestore();
+  });
+});
+
+describe("a link that asks for the test panel (#2074)", () => {
+  it("is ?test=open, and nothing else", () => {
+    window.history.replaceState(null, "", "/agents/a1?test=open");
+    expect(askedToTest()).toBe(true);
+
+    window.history.replaceState(null, "", "/agents/a1?test=1");
+    expect(askedToTest()).toBe(false);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("is not asked for where the address cannot be read", () => {
+    const original = window.location;
+    Object.defineProperty(window, "location", { value: undefined, configurable: true });
+    expect(askedToTest()).toBe(false);
+    Object.defineProperty(window, "location", { value: original, configurable: true });
   });
 });

@@ -251,6 +251,14 @@ Two things are versioned separately from this file and worth knowing about:
   tool, agent, outcome and run, never the arguments or results. API: `used_by` on
   `GET /mcp-connections` and `GET /mcp-connections/{id}/calls` (#2072).
 
+- **The next step, wherever a page ends.** Builders see a **Get started**
+  checklist on the dashboard until its steps are done - an agent, published,
+  with knowledge, departments, a teammate and a chat app - each ticked from what
+  exists. Creating a skill, a context file or a knowledge base offers **Add to an
+  agent** from its toast; empty agent, routine and group pages offer the way to
+  their first item; and the AI Architect links to an agent's test panel with
+  `?test=open` (#2072, #2074).
+
 - **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
   answer streams natively under the question, with each tool call a step that goes
   from in progress to done or failed - as a timeline or as one plan - and a step

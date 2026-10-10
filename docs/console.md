@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-six cards exist. You will not see all of them: **a card is gated on the
+Thirty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -25,11 +25,17 @@ They arrive grouped into bands:
 |---|---|
 | *(untitled, at the top)* | The summary the rest of the page is the detail of |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
-| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, MCP health, stale knowledge, your most recent [notifications](#the-bell) |
+| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, [spend by department](departments.md#a-departments-budget), MCP health, stale knowledge, your most recent [notifications](#the-bell) |
 | **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
 | **People** | Members, active users, ratings, who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
 | **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
+
+Somebody who builds agents also sees **Get started** above the bands until each
+of its steps is done: create an agent, publish it, give it a knowledge base, add
+departments, invite a teammate and - for whoever may - put an agent in a chat
+app. Each step is ticked from what exists, wherever it was done; closing the card
+hides it in that browser.
 
 ### Rearranging it
 
@@ -228,6 +234,14 @@ organization-local labels shown on each agent's card. Each filter is a menu of t
 labels on the agents you can see; tick several to widen it. You maintain an agent's
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
+
+## The next step
+
+A page that is empty because nothing exists yet offers the way to make the first
+one - an agent, a routine, something shared with a department. Creating a skill,
+a context file or a knowledge base ends with a toast offering **Add to an
+agent**, for whoever may edit agents, so what was made reaches an agent without a
+trip to the Builder.
 
 ## When a page looks empty
 

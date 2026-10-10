@@ -1,3 +1,4 @@
+import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
@@ -81,6 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Sidebar />
           <MobileTabBar />
           <CommandPalette />
+          <AddToAgentPrompt />
           <OnboardingTour />
           <OnboardingFlows />
           {/* The AI Architect, in the corner of every page (#2063). */}
