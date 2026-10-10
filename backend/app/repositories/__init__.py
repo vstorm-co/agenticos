@@ -56,6 +56,7 @@ from app.repositories import memory as memory_repo
 from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
+from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
 
@@ -88,6 +89,7 @@ __all__ = [
     "channel_link_request_repo",
     "channel_session_repo",
     "organization_repo",
+    "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
     "user_slash_command_repo",

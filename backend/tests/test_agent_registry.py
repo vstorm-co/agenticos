@@ -2585,6 +2585,15 @@ class TestListVersions:
 
 
 class TestGetRunnableSpec:
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these agents is the organization's assistant (#2063)."""
+        with patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     @pytest.mark.anyio
     async def test_the_published_spec_runs_and_not_the_draft(self):
         """Running the draft would mean running something nobody approved."""

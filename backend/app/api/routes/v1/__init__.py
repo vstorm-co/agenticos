@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import api_keys, change_events, health, mcp_oauth, public_openapi
+from app.api.routes.v1 import api_keys, assistant, change_events, health, mcp_oauth, public_openapi
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
@@ -71,6 +71,7 @@ v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
 v1_router.include_router(api_keys.router, prefix="/api-keys", tags=["api-keys"])
+v1_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
 v1_router.include_router(mcp_oauth.router, prefix="/mcp-oauth", tags=["mcp-oauth"])
 v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(

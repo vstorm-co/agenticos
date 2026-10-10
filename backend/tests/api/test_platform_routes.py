@@ -246,6 +246,7 @@ CALLS: tuple[Call, ...] = (
         Perm.API_KEYS_CREATE,
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
+    Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
@@ -731,6 +732,9 @@ _PLATFORM_PREFIXES = (
     # revoking act on the caller's own keys unless they hold `api_keys:manage`,
     # which the service decides per row.
     "/api-keys",
+    # The organization's AI Architect (#2063): reading it is every member's,
+    # changing it is `org:settings`.
+    "/assistant",
     # Consenting to and disconnecting MCP clients (#2059): every route acts on the
     # caller's own consent or grants, which the service decides per row.
     "/mcp-oauth",

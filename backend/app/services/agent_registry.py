@@ -80,6 +80,7 @@ from app.repositories import (
     knowledge_base_repo,
     mcp_connection_repo,
     member_repo,
+    organization_assistant_repo,
     organization_secret_repo,
     resource_grant_repo,
     sandbox_connection_repo,
@@ -2546,6 +2547,22 @@ class AgentRegistryService:
                 details={"limit": limit, "held": held},
             )
 
+    async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
+        """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).
+
+        The organization's AI Architect is otherwise an ordinary agent: who may
+        run it is `agents:run`, as for any other.
+
+        Raises:
+            BadRequestError: The assistant has been switched off.
+        """
+        assistant = await organization_assistant_repo.for_agent(self.db, agent_id)
+        if assistant is not None and not assistant.enabled:
+            raise BadRequestError(
+                message="The assistant is switched off in this organization",
+                details={"agent_id": str(agent_id)},
+            )
+
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None
     ) -> tuple[Agent, AgentSpec, UUID]:
@@ -2565,6 +2582,7 @@ class AgentRegistryService:
             NotFoundError: If the named environment is not this agent's.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await self.refuse_a_switched_off_assistant(agent.id)
         if agent.status == AgentStatus.ARCHIVED.value:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}

@@ -2405,6 +2405,15 @@ class TestParking:
 
 
 class TestResume:
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        """None of these runs is the organization's assistant's (#2063)."""
+        with patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     def _built(self, output: str = "sent"):
         built = MagicMock()
         built.ledger = SpendLedger()

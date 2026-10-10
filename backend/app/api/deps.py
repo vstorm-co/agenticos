@@ -371,6 +371,7 @@ from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 from app.api.public_api import is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
+from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
@@ -381,6 +382,13 @@ def get_api_key_service(db: DBSession) -> ApiKeyService:
 
 
 ApiKeySvc = Annotated[ApiKeyService, Depends(get_api_key_service)]
+
+
+def get_assistant_service(db: DBSession) -> AssistantService:
+    return AssistantService(db)
+
+
+AssistantSvc = Annotated[AssistantService, Depends(get_assistant_service)]
 
 
 def get_oauth_server_service(db: DBSession) -> OAuthServerService:

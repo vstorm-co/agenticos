@@ -4137,6 +4137,7 @@ class AgentRunnerService:
                 on a guess about what it was running.
         """
         agent = await self.registry.get(ctx, run.agent_id, perm=Perm.AGENTS_RUN)
+        await self.registry.refuse_a_switched_off_assistant(agent.id)
         version = (
             None
             if run.agent_version_id is None
