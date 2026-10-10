@@ -44,6 +44,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.budget import BudgetExceeded
 from app.services.rag.filters import (
     DOCUMENT_TYPE_VOCABULARY,
     SOURCE_VOCABULARY,
@@ -79,7 +80,8 @@ _INFERENCE_FAILURES = (ModelAPIError, UnexpectedModelBehavior, UsageLimitExceede
 A provider error or timeout (`ModelAPIError`, `ModelHTTPError` among it), an output
 that still failed `RetrievalFilters` validation after its retries
 (`UnexpectedModelBehavior`), or the nested run reaching `_INFERENCE_LIMITS`.
-Anything else - a bug, `BudgetExceeded`, a cancellation - propagates.
+Anything else - a bug, a cancellation - propagates. A budget refusal is handled
+apart: it is the platform working, not a failure worth a warning.
 """
 
 
@@ -197,10 +199,12 @@ async def infer_filters_from_query(
         widening, since the tenant/collection scope is enforced by the caller
         regardless.
 
-    Raises:
-        BudgetExceeded: The run has reached a spend ceiling. `MeteredModel` checks
-            before each request, the corrected attempt included, because the host
-            agent's budget guard never sees them.
+    A run that has reached a spend ceiling gets `None` as well, with no request
+    sent: `MeteredModel` checks before each request, the corrected attempt
+    included, because the host agent's budget guard never sees them. Skipping the
+    inference rather than ending the run is what query expansion, compaction and
+    system reminders do at a cap (agenticos#1808); the host's own next request
+    is refused by its guard.
     """
     if not isinstance(model, Model):
         # A realtime model is not request-response, so it cannot run the inference.
@@ -224,6 +228,9 @@ async def infer_filters_from_query(
         result = await agent.run(
             query, usage_limits=_INFERENCE_LIMITS, model_settings=model_settings
         )
+    except BudgetExceeded:
+        logger.info("self_query_skipped_at_budget_cap")
+        return None
     except _INFERENCE_FAILURES:
         # An inferred value that fails the shared validation lands here too, after
         # the model's own retries - rejected exactly as a caller's would be, never
