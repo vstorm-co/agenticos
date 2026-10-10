@@ -53,18 +53,24 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", f"/agents/{agent_id}")
 
     async def create_agent_draft(
-        name: str, instructions: str, description: str | None = None
+        name: str,
+        instructions: str,
+        description: str | None = None,
+        capabilities: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create an agent draft from a name and instructions. Needs `agents:edit`.
 
-        The draft is not published: a person reviews and publishes it in the
-        console, where capabilities, knowledge and limits are added.
+        `capabilities` are ids from `list_capabilities` - web search, files and
+        code, charts - each switched on with its defaults. The draft is not
+        published: a person reviews and publishes it in the console, where
+        knowledge, model and limits are added.
         """
         # Able to ask the person questions, like every agent the console creates.
+        wanted = ["ask_user", *(capabilities or [])]
         spec: dict[str, Any] = {
             "name": name,
             "instructions": instructions,
-            "capabilities": [{"id": "ask_user"}],
+            "capabilities": [{"id": capability} for capability in dict.fromkeys(wanted)],
         }
         if description:
             spec["description"] = description
@@ -169,6 +175,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"collection_name": collection_name, "query": query, "limit": limit},
         )
 
+    async def list_capabilities() -> dict[str, Any]:
+        """Everything an agent can be given - each capability's id, what it does and its tools.
+
+        Read before drafting an agent, to switch on the right ones. Needs `agents:view`.
+        """
+        return await api.request("GET", "/agents/capabilities")
+
     async def list_skills() -> dict[str, Any]:
         """The skills this caller can see. Needs `skills:view`."""
         return await api.request("GET", "/skills")
@@ -208,6 +221,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (create_knowledge_base, True),
         (add_document, True),
         (search_knowledge, False),
+        (list_capabilities, False),
         (list_skills, False),
         (list_members, False),
         (invite_member, True),

@@ -122,12 +122,16 @@ class AssistantService:
             # Somebody already has an agent by that name; the assistant takes the
             # next free one rather than failing to exist.
             name = f"{template.name} (AgenticOS)"
+        # Its skills - this platform's good practice for building agents (#2069) -
+        # installed from the gallery the way a template install installs them.
+        skills = await self.registry.template_skills(installer, template)
         spec = AgentSpec(
             name=name,
             description=template.description,
             instructions=template.instructions,
             capabilities=list(template.capabilities),
             mcp_servers=list(template.mcp_servers),
+            skill_ids=[skill.id for skill in skills],
             budget=(
                 BudgetSpec(monthly_usd=template.budget_usd)
                 if template.budget_usd is not None

@@ -71,6 +71,7 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
+from app.db.models.skill import Skill
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -1012,30 +1013,14 @@ class AgentRegistryService:
             ]
         )
 
-    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
-        """Create a draft agent from a shipped template, with its skills.
+    async def template_skills(
+        self, ctx: AuthContext, template: agent_templates.AgentTemplate
+    ) -> list[Skill]:
+        """The skills a template expects, installed where missing and readable by `ctx`.
 
-        A **draft**, deliberately. The template cannot name a model - this
-        platform has no organization-wide default, because a model an agent did
-        not choose is one somebody else's change can swap underneath it - and it
-        cannot name a knowledge collection it has never seen. Publishing an agent
-        missing either would produce answers from nowhere, confidently.
-
-        The skills it expects are installed first, from the gallery, and skipped
-        where the organization already has them. A bundled skill is bound where
-        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
-        rather than bound: a connection needs somebody to authorise it.
-
-        Raises:
-            NotFoundError: If no such template ships with this deployment.
-            AlreadyExistsError: If the slug is taken - which is what installing
-                the same template twice would do, and the second agent would be
-                indistinguishable from the first in a channel.
+        Shared by a template install and the AI Architect's own install (#2069), so
+        both bind exactly the skills a person installing the template would get.
         """
-        template = agent_templates.get(key)
-        if template is None:
-            raise NotFoundError(message="No such agent template", details={"key": key})
-
         # A bundled skill is seeded into every organization when it is created,
         # so there is nothing to install - only a row to find by its name.
         # Everything else is a gallery key and is installed first.
@@ -1062,7 +1047,7 @@ class AgentRegistryService:
         # it was seeded would otherwise be bound, reported as installed, and then
         # refused at publish as a skill that does not exist - the check publish
         # makes, made here first.
-        rows = [
+        return [
             row
             for name in wanted
             if (
@@ -1073,6 +1058,32 @@ class AgentRegistryService:
             is not None
             and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
+
+    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
+        """Create a draft agent from a shipped template, with its skills.
+
+        A **draft**, deliberately. The template cannot name a model - this
+        platform has no organization-wide default, because a model an agent did
+        not choose is one somebody else's change can swap underneath it - and it
+        cannot name a knowledge collection it has never seen. Publishing an agent
+        missing either would produce answers from nowhere, confidently.
+
+        The skills it expects are installed first, from the gallery, and skipped
+        where the organization already has them. A bundled skill is bound where
+        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
+        rather than bound: a connection needs somebody to authorise it.
+
+        Raises:
+            NotFoundError: If no such template ships with this deployment.
+            AlreadyExistsError: If the slug is taken - which is what installing
+                the same template twice would do, and the second agent would be
+                indistinguishable from the first in a channel.
+        """
+        template = agent_templates.get(key)
+        if template is None:
+            raise NotFoundError(message="No such agent template", details={"key": key})
+
+        rows = await self.template_skills(ctx, template)
 
         spec = AgentSpec(
             name=template.name,

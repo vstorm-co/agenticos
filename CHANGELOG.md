@@ -118,6 +118,13 @@ Two things are versioned separately from this file and worth knowing about:
   with what it becomes, and the time is told in the deployment's zone, each
   person's own or one chosen. Publishing refuses an unknown name. A visitor's
   name is never the publisher's (#2065).
+- **The AI Architect researches and knows how to build agents.** It searches
+  the web and reads pages (DuckDuckGo, no key), and is installed with seven
+  gallery skills - writing instructions, designing an agent, setting up a
+  knowledge base, choosing a model, budgets, testing, and importing an agent
+  written with Pydantic AI, which it turns into a draft and a list of what did
+  not translate. The platform MCP server gains `list_capabilities`, and
+  `create_agent_draft` takes the capabilities to switch on (#2069).
 - **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
   channel run that stops for a decision, or for an `ask_user` question - which
   now parks a channel run instead of being read as declined - is offered in the

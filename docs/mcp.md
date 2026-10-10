@@ -779,7 +779,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | Tool | Needs |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
 | `discard_agent_draft` | `agents:delete`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |

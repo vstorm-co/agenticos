@@ -128,6 +128,24 @@ def server(api: MagicMock) -> FastMCP:
             ),
         ),
         ("list_skills", {}, ("GET", "/skills", {})),
+        ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
+        (
+            "create_agent_draft",
+            {"name": "Bot", "instructions": "Hi", "capabilities": ["web_research", "ask_user"]},
+            (
+                "POST",
+                "/agents",
+                {
+                    "json": {
+                        "spec": {
+                            "name": "Bot",
+                            "instructions": "Hi",
+                            "capabilities": [{"id": "ask_user"}, {"id": "web_research"}],
+                        }
+                    }
+                },
+            ),
+        ),
         ("list_members", {}, ("GET", f"/orgs/{ORG}/members", {})),
         (
             "invite_member",
