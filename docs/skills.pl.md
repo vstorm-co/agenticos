@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd0094a9e9b"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skille { #skills }
@@ -197,7 +197,7 @@ a nie więcej informacji.
 **Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
 rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
 `artifact-pages`, który uczy agenta budować stronę dla capability
-[Artifacts](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 

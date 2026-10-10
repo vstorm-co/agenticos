@@ -1,5 +1,5 @@
 ---
-source_sha: "f2db8cef8a07"
+source_sha: "6fe9ef2b0740"
 ---
 
 # Konfiguracja { #configuration }
@@ -677,16 +677,16 @@ tak samo jak źródło `gdrive` nazywa konto serwisowe. Endpoint i region nadal 
 się do tych ustawień, bo żadne z nich nie nazywa principala — mówią, gdzie jest
 magazyn, a nie kto pyta.
 
-## Opublikowane artefakty { #published-artifacts }
+## Opublikowane aplikacje { #published-artifacts }
 
 Strony, które agenci publikują za pomocą capability `artifacts`. Ich bajty leżą w
 opisanym wyżej magazynie plików; te zmienne je ograniczają i mówią, skąd są
-serwowane. Zobacz [Artefakty](artifacts.md).
+serwowane. Zobacz [Aplikacje](artifacts.md).
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 

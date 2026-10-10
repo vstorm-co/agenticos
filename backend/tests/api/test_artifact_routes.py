@@ -99,7 +99,7 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
 
 
 def _url(suffix: str = "") -> str:
-    return f"{settings.API_V1_STR}/artifacts{suffix}"
+    return f"{settings.API_V1_STR}/apps{suffix}"
 
 
 class TestFollowing:
@@ -247,7 +247,7 @@ class TestStrangers:
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         ):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/{'k' * 32}")
         assert response.status_code == 200
         assert set(response.json()) == {"password_required", "title", "published_at", "view"}
 
@@ -255,7 +255,7 @@ class TestStrangers:
     async def test_a_revoked_link_is_not_found(self, client: OpenClient) -> None:
         with patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=None)):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/gone")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/gone")
         assert response.status_code == 404
 
     @pytest.mark.security
@@ -265,7 +265,7 @@ class TestStrangers:
             rate_limit, "public_artifact_allowed", new=AsyncMock(return_value=refused)
         ):
             async with client() as http:
-                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/k")
+                response = await http.get(f"{settings.API_V1_STR}/public/apps/k")
         assert response.status_code == 429
 
 
@@ -430,9 +430,9 @@ class TestStrangersWithAPassword:
             ),
         ):
             async with client() as http:
-                asked = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+                asked = await http.get(f"{settings.API_V1_STR}/public/apps/{'k' * 32}")
                 wrong = await http.post(
-                    f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}/unlock",
+                    f"{settings.API_V1_STR}/public/apps/{'k' * 32}/unlock",
                     json={"password": "wrong-one"},
                 )
         assert asked.json() == {
@@ -452,7 +452,7 @@ class TestStrangersWithAPassword:
         ):
             async with client() as http:
                 response = await http.post(
-                    f"{settings.API_V1_STR}/public/artifacts/k/unlock", json={"password": "x"}
+                    f"{settings.API_V1_STR}/public/apps/k/unlock", json={"password": "x"}
                 )
         assert response.status_code == 429
 
@@ -512,3 +512,30 @@ class TestTheEmbedRoute:
         assert response.status_code == 404
         assert "not available" in response.text
         assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+class TestTheOldPaths:
+    """Apps were artifacts until #2071; the old paths answer for the v1 policy's 90 days."""
+
+    async def test_a_public_link_still_answers_at_the_old_path(self, client: OpenClient) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        row = _artifact(public_key="k" * 32)
+        with (
+            patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
+            patch(
+                f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=_version(row))
+            ),
+            patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/public/artifacts/{'k' * 32}")
+        assert response.status_code == 200
+
+    def test_the_old_paths_are_marked_deprecated_and_the_new_ones_are_not(self) -> None:
+        paths = app.openapi()["paths"]
+        old = [p for p in paths if p.startswith(f"{settings.API_V1_STR}/artifacts")]
+        new = [p for p in paths if p.startswith(f"{settings.API_V1_STR}/apps")]
+
+        assert old and len(old) == len(new)
+        assert all(op.get("deprecated") for p in old for op in paths[p].values())
+        assert not any(op.get("deprecated") for p in new for op in paths[p].values())

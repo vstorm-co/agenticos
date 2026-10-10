@@ -1,5 +1,5 @@
 ---
-source_sha: "62429d6d30db"
+source_sha: "227fb10cbddf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -59,7 +59,7 @@ hasta que alguien abre el grupo, busca o activa una de ellas.
 | `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — |
 | `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — |
 
@@ -1034,7 +1034,7 @@ un paso `execute` posterior pueda construir con ella: montar un PDF, una diaposi
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
 
-## Artefactos { #artifacts }
+## Aplicaciones { #artifacts }
 
 `publish_artifact` — *Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable.*
@@ -1042,13 +1042,13 @@ dashboard, un resumen — bajo un enlace estable.*
 como se escribió.*
 
 Publica un único documento HTML o Markdown autocontenido como
-[artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
+[aplicación](../artifacts.md): un recurso compartido con propietario, visibilidad y
 grants, que se abre en el navegador bajo un enlace que no se mueve. Sin
 configuración.
 
-**El nombre es la identidad.** `(organization, agent, environment, name)` elige el
-artefacto, así que el siguiente run del mismo agent que publique `weekly-report` —
-desde un chat, una programación o la API — añade una versión al mismo en lugar de
+**El nombre es la identidad.** `(organization, agent, environment, name)` elige la
+aplicación, así que el siguiente run del mismo agent que publique `weekly-report` —
+desde un chat, una programación o la API — añade una versión a la misma en lugar de
 crear un segundo enlace. El entorno sale del run, así que un run en `staging`
 publica una página propia. Unos bytes idénticos no añaden versión y responden
 `unchanged`.

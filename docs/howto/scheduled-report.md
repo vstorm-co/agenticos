@@ -1,11 +1,11 @@
 ---
 title: "Schedule a weekly report"
-description: "Give an agent a self-contained reporting task, run it on demand, publish the result as an artifact and put it on a weekly schedule."
+description: "Give an agent a self-contained reporting task, run it on demand, publish the result as an app and put it on a weekly schedule."
 ---
 
 # Schedule a weekly report
 
-Build an agent that writes a short report from the data in its task and publishes it as an [artifact](../artifacts.md) under a stable link. Then put it on a weekly schedule. The fixture includes a row that cannot be used, so you can check that the agent reports it instead of hiding it. This is a procedure to run, with one recorded run as a reference.
+Build an agent that writes a short report from the data in its task and publishes it as an [app](../artifacts.md) under a stable link. Then put it on a weekly schedule. The fixture includes a row that cannot be used, so you can check that the agent reports it instead of hiding it. This is a procedure to run, with one recorded run as a reference.
 
 The page separates two questions. Does the report come out right? Test that with **Run now**. Does the schedule deliver it? Only a scheduled fire answers that.
 
@@ -14,7 +14,7 @@ The page separates two questions. Does the report come out right? Test that with
 Use a [running installation](../install.md) with a model profile. No sandbox and no embedding model are needed.
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Charts** and **Artifacts**.
+2. In **Toolbox**, enable **Charts** and **Apps**.
 3. Set a budget and a step limit for the trial. The recorded runs used 15 steps and cost about 0.05 USD each.
 4. Set the instructions below, then **Publish**.
 
@@ -25,7 +25,7 @@ Label the report as synthetic when the task says the data is synthetic.
 Publish the finished report with publish_artifact under the name weekly-report.
 ```
 
-The artifact's name is its identity. Every run of this agent that publishes `weekly-report` updates the same artifact, so the link you share stays the same. A run adds a version only when the page changed. Identical content answers `unchanged` and keeps the latest version.
+The app's name is its identity. Every run of this agent that publishes `weekly-report` updates the same app, so the link you share stays the same. A run adds a version only when the page changed. Identical content answers `unchanged` and keeps the latest version.
 
 ## Create the schedule
 
@@ -56,40 +56,40 @@ Press **Run now** on the schedule. It fires one extra time and leaves the weekly
 | Totals | Supplies 50, Travel 15 |
 | The row `Travel,abc` | Named as unusable, and not counted |
 | Label | The report says the data is synthetic |
-| Artifact | **Artifacts** lists `weekly-report`, private to you |
+| App | **Apps** lists `weekly-report`, private to you |
 | The run in Activity | Surface `schedule`, status completed |
-| Run now a second time | The same artifact and link: a new version if the page changed, or `unchanged` if the content is identical |
+| Run now a second time | The same app and link: a new version if the page changed, or `unchanged` if the content is identical |
 
-Open the artifact page and read the report there, not only the chat reply. The page is what people will open. It stays private until you share it or create a public link.
+Open the app page and read the report there, not only the chat reply. The page is what people will open. It stays private until you share it or create a public link.
 
 !!! example "Recorded on v0.0.504, 25 September 2026"
 
     Model: Claude Sonnet 4.6 through OpenRouter. The schedule reported its next fire as Monday 28 September, 09:00 UTC. Run now was accepted with `202`, and the run completed on the `schedule` surface about 30 seconds later, for 0.044 USD.
 
-    The agent called `publish_artifact` with the name `weekly-report` and got version 1, private. It then called `create_chart`. The artifact showed Supplies 50 and Travel 15, a synthetic-data label and "Rows excluded (could not be used): Travel, abc". A second Run now added version 2 to the same artifact and link.
+    The agent called `publish_artifact` with the name `weekly-report` and got version 1, private. It then called `create_chart`. The app showed Supplies 50 and Travel 15, a synthetic-data label and "Rows excluded (could not be used): Travel, abc". A second Run now added version 2 to the same app and link.
 
-    The chart appeared in the run's conversation, not in the artifact. The artifact page has no network access, and the agent wrote the report without an embedded chart.
+    The chart appeared in the run's conversation, not in the app. The app page has no network access, and the agent wrote the report without an embedded chart.
 
 ## What the schedule does not decide for you
 
 - **Where the data comes from.** This fixture is fixed in the message. A real report needs a source the agent can reach on every run, such as a [knowledge collection](set-up-knowledge-base.md), an [MCP connection](../mcp.md) or a sandbox workspace. A schedule cannot guess which newly uploaded file replaces last week's.
 - **The reporting period.** Name it in the message or have the agent read the date. A file called "weekly" does not tell the model which dates to include.
-- **Who reads it.** A new artifact is private to the person the run was for. Share it, or create a public link, on the artifact page. [Artifacts](../artifacts.md) covers visibility and grants.
+- **Who reads it.** A new app is private to the person the run was for. Share it, or create a public link, on the app page. [Apps](../artifacts.md) covers visibility and grants.
 - **Approvals.** Neither tool used here needs one. If you add a tool that does, a scheduled run parks until somebody decides, so name who watches the [approvals queue](../governance.md#approvals).
 
 ## Watch a real fire
 
-Run now proves the task, not the schedule. After the first Monday at 09:00 UTC, check that a new run appeared in Activity on its own, that the artifact gained a version and that the people who should read it can open it. The **Routines** dashboard card shows each routine's last outcome, so a schedule that starts failing is visible.
+Run now proves the task, not the schedule. After the first Monday at 09:00 UTC, check that a new run appeared in Activity on its own, that the app gained a version and that the people who should read it can open it. The **Routines** dashboard card shows each routine's last outcome, so a schedule that starts failing is visible.
 
 A schedule whose creator can no longer run the agent disables itself and records why. See [concepts](../concepts.md#it-runs-as-a-person).
 
 ## When it goes wrong
 
 - **Nothing happens on Run now.** The schedule is paused, or the background worker is not running. The worker executes every scheduled and Run now fire.
-- **The report has no artifact.** Check that **Artifacts** is enabled and that the instructions name `weekly-report`. The run's tool calls in Activity show whether `publish_artifact` was called and what it returned.
-- **Each run makes a new artifact.** The name changed between runs. Keep it fixed in the instructions.
+- **The report has no app.** Check that **Apps** is enabled and that the instructions name `weekly-report`. The run's tool calls in Activity show whether `publish_artifact` was called and what it returned.
+- **Each run makes a new app.** The name changed between runs. Keep it fixed in the instructions.
 - **A total is wrong or the bad row disappeared.** Tighten the instructions before you schedule anything. A schedule repeats a mistake every week.
 
 ## Record the trial
 
-Keep the message, the agent version, the model profile, the cron expression, each run in Activity and each artifact version. Record which fires were Run now and which were scheduled. A person checks the totals, decides who may read the artifact and watches the first real fire.
+Keep the message, the agent version, the model profile, the cron expression, each run in Activity and each app version. Record which fires were Run now and which were scheduled. A person checks the totals, decides who may read the app and watches the first real fire.

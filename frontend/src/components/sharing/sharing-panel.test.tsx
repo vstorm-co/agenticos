@@ -330,7 +330,7 @@ describe("SharingPanel", () => {
       <SharingPanel resourceType="artifact" resourceId="r1" canManage />,
     );
 
-    expect(screen.getByText(/Who reaches this artifact without being named/)).toBeInTheDocument();
+    expect(screen.getByText(/Who reaches this app without being named/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/secret/i);
   });
 

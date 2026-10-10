@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "e88a69bb6ee9"
 ---
 
 # Środowiska { #environments }
@@ -79,7 +79,7 @@ serwuje to, co przypina `dev`, podczas gdy widget na twojej stronie zostaje na
 wersje, jeden komplet ksiąg.
 
 Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisku
-publikuje własny [artefakt](artifacts.md#one-name-one-link), więc próba `dev` na
+publikuje własną [aplikację](artifacts.md#one-name-one-link), więc próba `dev` na
 cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
 czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
 akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego

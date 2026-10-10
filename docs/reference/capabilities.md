@@ -53,7 +53,7 @@ until somebody opens it, searches, or switches one on.
 | `compaction` | Long conversations | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — |
 
@@ -969,7 +969,7 @@ under `/output`, so a later `execute` step can build with it — assemble a PDF,
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
 
-## Artifacts
+## Apps { #artifacts }
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
 summary - under a stable link.*
@@ -977,11 +977,11 @@ summary - under a stable link.*
 was written.*
 
 Publishes one self-contained HTML or Markdown document as an
-[artifact](../artifacts.md): a shared resource with an owner, a visibility and
+[app](../artifacts.md): a shared resource with an owner, a visibility and
 grants, opened in a browser under a link that stays put. No configuration.
 
 **The name is the identity.** `(organization, agent, environment, name)` picks the
-artifact, so the next run of the same agent that publishes `weekly-report` - from
+app, so the next run of the same agent that publishes `weekly-report` - from
 a chat, a schedule or the API - adds a version to the same one instead of making a
 second link. The environment comes from the run, so a run in `staging` publishes a
 page of its own. Identical bytes add no version and answer `unchanged`.

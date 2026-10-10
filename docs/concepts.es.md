@@ -176,7 +176,7 @@ almacenes que se guardan por persona le están cerrados:
   ambas herramientas se niegan.
 - Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
   el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
-- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+- [Aplicaciones](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
   privada para el creador, pero `read_artifact` se niega, así que un disparo
   vuelve a publicar una página entera en lugar de editarla.
 

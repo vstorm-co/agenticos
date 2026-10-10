@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd0094a9e9b"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skills { #skills }
@@ -202,7 +202,7 @@ dado más trabajo, no más información.
 **Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
 trabajados — `refund-policy`, `code-review` e `incident-report` — y
 `artifact-pages`, que enseña a un agent a construir una página para la
-capability [Artifacts](artifacts.md#the-library-set). Toda organización empieza
+capability [Apps](artifacts.md#the-library-set). Toda organización empieza
 con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.

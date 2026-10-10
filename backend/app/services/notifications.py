@@ -487,7 +487,7 @@ class NotificationService:
         """
         if not recipients:
             return
-        page_path = self._link(f"/artifacts/{artifact_id}", organization_id)
+        page_path = self._link(f"/apps/{artifact_id}", organization_id)
         await self._center.write(
             recipients=recipients,
             event_type=NotificationEventType.ARTIFACT_VERSION_PUBLISHED,

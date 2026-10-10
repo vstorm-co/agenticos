@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd0094a9e9b"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skills { #skills }
@@ -208,7 +208,7 @@ mehr Arbeit bekommen statt mehr Information.
 **Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
 und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Artifacts](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
+[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
 ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.

@@ -22,7 +22,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Approvals | `allow`, `ask` or `deny` per tool, answered at the keyboard | A person with `approvals:decide`, from a shared queue |
 | Spend control | Monthly limits on its Zen gateway | A budget per agent and per organization, checked before each model request |
 | Audit | Not documented | Tamper-evident audit log |
-| Sharing | Public share links on `opncd.ai` until unshared | Grants, hosted pages and artifacts with owner and visibility |
+| Sharing | Public share links on `opncd.ai` until unshared | Grants, hosted pages and apps with owner and visibility |
 | Pricing | Free; optional Zen pay-as-you-go and Go at $10 a month; Enterprise per seat | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further

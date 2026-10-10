@@ -1,5 +1,5 @@
 ---
-source_sha: "f2db8cef8a07"
+source_sha: "6fe9ef2b0740"
 ---
 
 # Konfiguration { #configuration }
@@ -714,16 +714,16 @@ genauso wie eine `gdrive`-Quelle einen Service-Account nennt. Endpunkt und Regio
 fallen weiterhin auf diese Einstellungen zurück, weil keines von beiden einen
 Principal nennt — sie sagen, wo der Store liegt, nicht, wer fragt.
 
-## Veröffentlichte Artefakte { #published-artifacts }
+## Veröffentlichte Apps { #published-artifacts }
 
 Seiten, die Agents mit der Capability `artifacts` veröffentlichen. Ihre Bytes
 liegen im Dateispeicher oben; diese Einstellungen begrenzen sie und sagen, von wo
-sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
+sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 

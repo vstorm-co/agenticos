@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "f1a4e83b7fd4"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -8,7 +8,7 @@ A continuación se describen los módulos de la consola. Se han retirado las cap
 
 ## Demo del producto { #product-demo }
 
-La demo editada actual muestra el OSS Launch Planner: una tarea con un briefing de Notion e investigación en GitHub, un artefacto interactivo y un enlace para compartir. Se han eliminado los tiempos de espera; el informe contiene una instantánea de los datos.
+La demo editada actual muestra el OSS Launch Planner: una tarea con un briefing de Notion e investigación en GitHub, una aplicación interactiva y un enlace para compartir. Se han eliminado los tiempos de espera; el informe contiene una instantánea de los datos.
 
 <video src="https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953" controls muted playsinline style="width:100%"></video>
 

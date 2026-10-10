@@ -1,7 +1,7 @@
 ---
-source_sha: "926f21066868"
+source_sha: "c7ac418a906b"
 title: "Investiga una pregunta con subagents y publica un informe"
-description: "Divide una pregunta en subpreguntas independientes, delega cada una en un especialista de un solo uso y publica una comparación con fuentes como artefacto."
+description: "Divide una pregunta en subpreguntas independientes, delega cada una en un especialista de un solo uso y publica una comparación con fuentes como aplicación."
 ---
 
 # Investiga una pregunta con subagents y publica un informe { #research-a-question-with-subagents-and-publish-a-report }
@@ -41,7 +41,7 @@ La obligación de publicar el código de la GPLv3 la activa la distribución, no
 2. En **Toolbox**, activa **Delegation**. Activa `allow_dynamic`, el ajuste que permite al modelo inventar un especialista de un solo uso para una subpregunta para la que nadie escribió uno de antemano. Pon el modo en **Async**, para que las tres subpreguntas se ejecuten a la vez y no una tras otra, y deja el límite de ramificación en 3.
 3. Todavía en Delegation, activa **Share Web search with delegates** y **Share Web fetch with delegates**. Un especialista inventado por el modelo no recibe capabilities propias [por diseño](../reference/capabilities.md#delegation): solo le llega lo que el padre comparte explícitamente, así que sin este paso cada especialista inventado podría delegar pero no buscar.
 4. Activa **Web search** (método DuckDuckGo) y **Read web pages** en el propio padre: compartir solo hace llegar a un delegado aquello a lo que el padre está vinculado.
-5. Activa **Planning** y **Artifacts**.
+5. Activa **Planning** y **Apps**.
 6. Fija un budget y un límite de pasos para la prueba. El run registrado usó 40 pasos y costó unos 0,43 USD.
 7. Escribe las instrucciones de abajo y luego pulsa **Publish**.
 
@@ -77,12 +77,12 @@ El modelo llama a `delegate` tres veces, una por licencia: cada llamada es su pr
 | Obligación de GPLv3 | Texto de la licencia, cambios por archivo y el código fuente completo al distribuir |
 | Cada afirmación | Lleva la URL de su fuente al lado, no reunidas en una lista al final |
 | Discrepancia o laguna | El informe lo dice explícitamente o afirma que no hubo ninguna |
-| Artefacto | **Artifacts** muestra `licence-comparison`, privado para ti |
+| Aplicación | **Apps** muestra `licence-comparison`, privada para ti |
 | Una pregunta de dos partes con una sola fuente real (p. ej. sobre una licencia que no existe) | El informe dice que no pudo confirmar esa parte en lugar de inventarse una respuesta |
 
 !!! example "Registrado en v0.0.504, 25 de septiembre de 2026"
 
-    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent escribió un plan de cuatro pasos y luego llamó tres veces a `delegate` en un mismo turno: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, todas asíncronas. Las tres quedaron aparcadas para aprobación en un solo paso; tras aprobarlas, el run llamó a `wait_tasks` y obtuvo `3/3 finished`. El informe coincidió exactamente con la tabla de referencia, citó las páginas de OSI, Apache.org, GNU.org y las FAQ de la FSF, y terminó con "No source disagreements found" nombrando las fuentes coincidentes. Publicó `licence-comparison` como artefacto HTML. Coste total: 0,43 USD, incluidas las tres delegaciones. Un especialista dinámico no tiene su propia fila en `agent_runs`, porque no es un agent publicado.
+    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent escribió un plan de cuatro pasos y luego llamó tres veces a `delegate` en un mismo turno: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, todas asíncronas. Las tres quedaron aparcadas para aprobación en un solo paso; tras aprobarlas, el run llamó a `wait_tasks` y obtuvo `3/3 finished`. El informe coincidió exactamente con la tabla de referencia, citó las páginas de OSI, Apache.org, GNU.org y las FAQ de la FSF, y terminó con "No source disagreements found" nombrando las fuentes coincidentes. Publicó `licence-comparison` como aplicación HTML. Coste total: 0,43 USD, incluidas las tres delegaciones. Un especialista dinámico no tiene su propia fila en `agent_runs`, porque no es un agent publicado.
 
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
@@ -94,7 +94,7 @@ El modelo llama a `delegate` tres veces, una por licencia: cada llamada es su pr
 
 ## Registra la prueba { #record-the-trial }
 
-Guarda la pregunta, el plan que escribió el agent, el nombre y el resultado de cada delegación, las fuentes citadas, el artefacto y su versión, y el coste de Activity. Una persona sigue leyendo el artefacto frente a los datos de referencia antes de fiarse de él, decide quién puede leerlo y juzga si la sección "could not confirm" es honesta o esconde una búsqueda que debió repetirse.
+Guarda la pregunta, el plan que escribió el agent, el nombre y el resultado de cada delegación, las fuentes citadas, la aplicación y su versión, y el coste de Activity. Una persona sigue leyendo la aplicación frente a los datos de referencia antes de fiarse de ella, decide quién puede leerlo y juzga si la sección "could not confirm" es honesta o esconde una búsqueda que debió repetirse.
 
 ## Siguientes pasos { #next-steps }
 

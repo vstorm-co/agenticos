@@ -517,7 +517,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true },
   },
   // The pages agents published that the caller may open, newest first. What
-  // `GET /artifacts` itself asks, and nothing more.
+  // `GET /apps` itself asks, and nothing more.
   artifacts: {
     id: "artifacts",
     gate: holds(Perm.artifactsView),

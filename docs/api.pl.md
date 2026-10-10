@@ -1,5 +1,5 @@
 ---
-source_sha: "97048db675bf"
+source_sha: "d0d20e768913"
 ---
 
 # API HTTP { #the-http-api }
@@ -54,7 +54,7 @@ Warto znać dwie odmowy:
 
 - **`403` "API keys are not accepted on this endpoint"** — klucze są przyjmowane
   wyłącznie w publicznym API: agenci, runy i zatwierdzenia, bazy wiedzy i RAG,
-  skille, pliki kontekstu, artefakty, usługi ML, `/me/permissions` oraz
+  skille, pliki kontekstu, aplikacje, usługi ML, `/me/permissions` oraz
   członkowie, zaproszenia, grupy i ustawienia organizacji. Własne trasy konsoli,
   twoje konto, opuszczenie lub przekazanie organizacji i samo zarządzanie kluczami
   pozostają tylko dla sesji, więc wyciekły klucz nie wybije swojego następcy.
@@ -297,6 +297,13 @@ nie zna. Usunięcie albo zmiana nazwy następuje dopiero po co najmniej 90 dniac
 oznaczenia jako `deprecated` w tym dokumencie i wpisie w
 [notatkach do wydań](release-notes.md); zmiana, której nie da się tak przeprowadzić,
 trafia do `/api/v2`, obok v1.
+
+Pierwszą zmianą nazwy według tej zasady są aplikacje (#2071): to, co było
+artefaktami, jest serwowane pod `/api/v1/apps` i `/api/v1/public/apps`, a stare
+ścieżki `/api/v1/artifacts` i `/api/v1/public/artifacts` odpowiadają tak samo,
+oznaczone jako `deprecated`, aż minie 90 dni. Nazwy uprawnień (`artifacts:view`,
+`artifacts:edit`), nazwy narzędzi i adresy, z których serwowana jest opublikowana
+strona, zachowują swoje nazwy.
 
 Własne trasy konsoli nie mają takiej obietnicy i zmieniają się razem z konsolą;
 klucz nie może ich wywołać. Biblioteki klienckiej jeszcze nie ma.

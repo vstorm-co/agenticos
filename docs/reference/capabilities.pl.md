@@ -1,5 +1,5 @@
 ---
-source_sha: "62429d6d30db"
+source_sha: "227fb10cbddf"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -59,7 +59,7 @@ nie zacznie szukać albo nie włączy jednej z nich.
 | `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
 | `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
 
@@ -1017,7 +1017,7 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
 
-## Artefakty { #artifacts }
+## Aplikacje { #artifacts }
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem.*
@@ -1025,13 +1025,13 @@ podsumowanie — pod stałym linkiem.*
 agenta, taką, jaką ją napisano.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
-[artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
+[aplikację](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
 grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
 konfiguracji.
 
 **Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
-artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
-czatu, z harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast
+aplikację, więc następny run tego samego agenta, który publikuje `weekly-report` — z
+czatu, z harmonogramu albo z API — dodaje wersję do tej samej aplikacji, zamiast
 tworzyć drugi link. Środowisko pochodzi z runa, więc run w `staging` publikuje
 własną stronę. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
 

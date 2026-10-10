@@ -93,9 +93,14 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
-v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
+# Apps were called artifacts until #2071. The old paths stay as deprecated
+# aliases for the v1 policy's 90 days (docs/api.md), so a script written against
+# them keeps working while it is moved.
+v1_router.include_router(artifacts.router, prefix="/apps", tags=["apps"])
+v1_router.include_router(artifacts.public_router, prefix="/public/apps", tags=["apps:public"])
+v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["apps"], deprecated=True)
 v1_router.include_router(
-    artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]
+    artifacts.public_router, prefix="/public/artifacts", tags=["apps:public"], deprecated=True
 )
 v1_router.include_router(
     artifacts.content_router, prefix="/artifact-content", tags=["artifacts:content"]
@@ -112,8 +117,9 @@ v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
 )
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
+v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])
 v1_router.include_router(
-    sharing.artifact_sharing_router, prefix="/artifacts", tags=["artifacts:sharing"]
+    sharing.artifact_sharing_router, prefix="/artifacts", tags=["apps:sharing"], deprecated=True
 )
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])

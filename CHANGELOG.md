@@ -221,6 +221,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Artifacts are Apps.** The console page, navigation, dashboard widget,
+  notifications, the capability's name and the docs in four languages call
+  them apps; `/artifacts` console links redirect to `/apps`, and public links
+  (`/a/<key>`) are unchanged. The API serves `/api/v1/apps` and
+  `/api/v1/public/apps`; the old `/artifacts` paths stay as `deprecated` aliases
+  for the v1 policy's 90 days. Permission names, tool names, the capability id
+  and the content addresses keep their old names (#2071).
 - **Backend dependencies upgraded to their newest releases**, with the
   context-manager annotations the newer typeshed requires (#2005).
 

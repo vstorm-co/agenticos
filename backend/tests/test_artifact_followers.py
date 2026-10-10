@@ -107,7 +107,7 @@ class TestWhoIsTold:
         kwargs = write.await_args.kwargs
         assert kwargs["event_type"] is NotificationEventType.ARTIFACT_VERSION_PUBLISHED
         assert kwargs["occurrence_id"] == f"{artifact.id}:7"
-        assert kwargs["context_url"].startswith(f"/artifacts/{artifact.id}")
+        assert kwargs["context_url"].startswith(f"/apps/{artifact.id}")
         assert kwargs["render_context"]["artifact_id"] == str(artifact.id)
         assert "v7" in kwargs["summary"]
 

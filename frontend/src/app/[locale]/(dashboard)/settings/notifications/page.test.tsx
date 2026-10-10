@@ -112,7 +112,7 @@ describe("the notifications settings page", () => {
     expect(
       screen.queryByRole("switch", { name: "Per-agent usage report - Email" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Artifact updated - Email" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "App updated - Email" })).toBeInTheDocument();
     expect(screen.getAllByRole("switch")).toHaveLength(19);
   });
 

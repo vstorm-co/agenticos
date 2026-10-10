@@ -153,4 +153,4 @@ them.
 
 For a report that has to run every week rather than once, continue with
 [schedule a weekly report](scheduled-report.md), which publishes its output
-as a stable, shareable artifact instead of a workspace file.
+as a stable, shareable app instead of a workspace file.

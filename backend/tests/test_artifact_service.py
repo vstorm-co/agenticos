@@ -542,7 +542,7 @@ class TestContent:
             ),
             patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.logger") as log,
-            pytest.raises(NotFoundError, match="Artifact not found"),
+            pytest.raises(NotFoundError, match="App not found"),
         ):
             await _service().content(token)
         # Said out loud, because it is storage and the database disagreeing.
@@ -653,5 +653,5 @@ def test_the_console_address_is_the_artifact_s_page_in_its_organization() -> Non
     artifact_id, organization_id = uuid.uuid4(), uuid.uuid4()
     assert (
         artifacts.console_url_for(artifact_id, organization_id)
-        == f"/artifacts/{artifact_id}?org={organization_id}"
+        == f"/apps/{artifact_id}?org={organization_id}"
     )

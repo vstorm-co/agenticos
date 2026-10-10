@@ -110,10 +110,7 @@ describe("ArtifactViewer", () => {
     // The framed-card look is for a page inside the console; here it is the window.
     expect(frame.className).toContain("border-0");
     expect(screen.getByRole("heading", { name: "Weekly report" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to artifacts" })).toHaveAttribute(
-      "href",
-      "/artifacts",
-    );
+    expect(screen.getByRole("link", { name: "Back to apps" })).toHaveAttribute("href", "/apps");
     // Nothing about who reaches it sits beside the page until Share is pressed.
     expect(sharingPanel).not.toHaveBeenCalled();
   });
@@ -153,8 +150,8 @@ describe("ArtifactViewer", () => {
 
     expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
     const dialog = await openShare();
-    expect(within(dialog).getByLabelText("Link to this page")).toHaveValue(
-      `${window.location.origin}/artifacts/a1`,
+    expect(within(dialog).getByLabelText("Link to this app")).toHaveValue(
+      `${window.location.origin}/apps/a1`,
     );
     expect(within(dialog).queryByRole("button", { name: "Create a public link" })).toBeNull();
     expect(sharingPanel).toHaveBeenCalledWith(
@@ -168,8 +165,8 @@ describe("ArtifactViewer", () => {
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
     const dialog = await openShare();
-    expect(within(dialog).getByLabelText("Link to this page")).toHaveValue(
-      `${window.location.origin}/artifacts/a1?org=o1`,
+    expect(within(dialog).getByLabelText("Link to this app")).toHaveValue(
+      `${window.location.origin}/apps/a1?org=o1`,
     );
   });
 
@@ -214,7 +211,7 @@ describe("ArtifactViewer", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/artifacts"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/apps"));
     expect(hooks.remove.mutateAsync).toHaveBeenCalled();
   });
 
@@ -223,10 +220,10 @@ describe("ArtifactViewer", () => {
       state(null, { error: new ApiError(404, "Artifact not found") }),
     );
     render(<ArtifactViewer artifactId="gone" initialVersionId={null} />);
-    expect(screen.getByText("This artifact is not available")).toBeInTheDocument();
+    expect(screen.getByText("This app is not available")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     // The way back stays, and nothing that acts on an artifact it could not load.
-    expect(screen.getByRole("link", { name: "Back to artifacts" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to apps" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
     // Nowhere else to look for somebody in one organization.
     expect(screen.queryByRole("button", { name: "Switch organization" })).toBeNull();
@@ -251,8 +248,8 @@ describe("ArtifactViewer", () => {
     useArtifactMock.mockReturnValue(hooks);
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
-    expect(screen.queryByText("This artifact is not available")).toBeNull();
-    expect(screen.getByText("This artifact could not be loaded")).toBeInTheDocument();
+    expect(screen.queryByText("This app is not available")).toBeNull();
+    expect(screen.getByText("This app could not be loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(hooks.refetch).toHaveBeenCalled();
   });
@@ -345,7 +342,7 @@ describe("ArtifactViewer", () => {
   it("waits for the artifact before drawing anything", () => {
     useArtifactMock.mockReturnValue(state(null, { isLoading: true }));
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
-    expect(screen.queryByText("This artifact is not available")).toBeNull();
+    expect(screen.queryByText("This app is not available")).toBeNull();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
   });
 });

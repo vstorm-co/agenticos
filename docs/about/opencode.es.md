@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7c5763a7d2"
+source_sha: "5f956391f056"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: herramientas de agents open source"
 description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: plataforma Apache-2.0 para los agents de IA de una empresa, con roles, budgets y auditoría."
@@ -23,7 +23,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Aprobaciones | `allow`, `ask` o `deny` por herramienta, respondidos desde el teclado | Una persona con `approvals:decide`, desde una cola compartida |
 | Control del gasto | Límites mensuales en su gateway Zen | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Auditoría | No documentada | Registro de auditoría con evidencia de manipulación |
-| Compartir | Enlaces públicos en `opncd.ai` hasta que se dejan de compartir | Concesiones, páginas alojadas y artefactos con propietario y visibilidad |
+| Compartir | Enlaces públicos en `opncd.ai` hasta que se dejan de compartir | Concesiones, páginas alojadas y aplicaciones con propietario y visibilidad |
 | Precio | Gratis; opcionalmente Zen de pago por uso y Go a $10 al mes; Enterprise por puesto | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }

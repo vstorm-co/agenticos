@@ -186,7 +186,7 @@ für ihn verschlossen:
 - Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
   Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
   warum.
-- [Artefakte](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
+- [Apps](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
   Seite ist für den Ersteller privat, aber `read_artifact` lehnt ab, sodass eine
   Auslösung eine ganze Seite neu veröffentlicht, statt eine zu bearbeiten.
 

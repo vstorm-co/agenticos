@@ -1,5 +1,5 @@
 ---
-source_sha: "46ef69419b31"
+source_sha: "4f6ac46ddef7"
 title: "Zbuduj raport w Excelu i prezentację z danych"
 description: "Załącz mały syntetyczny CSV i niech agent w sandboksie przygotuje skoroszyt z formułami i wykresem oraz prezentację z trzech slajdów, a potem otwórz oba pliki i sprawdź liczby."
 ---
@@ -106,4 +106,4 @@ Człowiek sprawdza, czy formuły są prawdziwymi formułami, czy oś wykresu zna
 
 ## Kolejne kroki { #next-steps }
 
-Jeśli raport ma powstawać co tydzień, a nie raz, przejdź do strony [Zaplanuj cotygodniowy raport](scheduled-report.md). Publikuje ona wynik jako stabilny, udostępniany artefakt zamiast pliku w workspace'ie.
+Jeśli raport ma powstawać co tydzień, a nie raz, przejdź do strony [Zaplanuj cotygodniowy raport](scheduled-report.md). Publikuje ona wynik jako stabilną, udostępnianą aplikację zamiast pliku w workspace'ie.

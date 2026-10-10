@@ -1,5 +1,5 @@
 ---
-source_sha: "62429d6d30db"
+source_sha: "227fb10cbddf"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -59,7 +59,7 @@ sucht oder eine davon einschaltet.
 | `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — |
 | `media` | Bilder auslagern | utility | keine, mit Absicht | — | — |
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — |
 
@@ -1078,7 +1078,7 @@ abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, e
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
-## Artefakte { #artifacts }
+## Apps { #artifacts }
 
 `publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
@@ -1086,13 +1086,13 @@ kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
 veröffentlicht hat, so wie sie geschrieben wurde.*
 
 Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
-[Artefakt](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
+[App](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
 Sichtbarkeit und Grants, die im Browser unter einem Link geöffnet wird, der
 bleibt. Keine Konfiguration.
 
 **Der Name ist die Identität.** `(organization, agent, environment, name)` wählt
-das Artefakt aus, sodass der nächste Run desselben Agents, der `weekly-report`
-veröffentlicht — aus einem Chat, einem Zeitplan oder der API —, demselben Artefakt
+die App aus, sodass der nächste Run desselben Agents, der `weekly-report`
+veröffentlicht — aus einem Chat, einem Zeitplan oder der API —, derselben App
 eine Version hinzufügt, statt einen zweiten Link anzulegen. Die Umgebung kommt vom
 Run, also veröffentlicht ein Run in `staging` eine eigene Seite. Identische Bytes
 fügen keine Version hinzu und antworten mit `unchanged`.

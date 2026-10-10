@@ -1,4 +1,7 @@
-"""Artifacts capability - publish a report or a small dashboard under a stable link."""
+"""Apps capability - publish a report or a small dashboard under a stable link.
+
+Called artifacts until #2071; the id, the tool names and the tables keep that name.
+"""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -14,13 +17,13 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
 
 @register(
     id=ARTIFACTS_CAPABILITY_ID,
-    name="Artifacts",
+    name="Apps",
     category="utility",
     description=(
-        "Let the agent publish a finished page - a report, a small dashboard, a one-page "
+        "Let the agent publish a finished app - a report, a small dashboard, a one-page "
         "summary - under a link people open in a browser. Publishing again under the same "
-        "name updates the page behind the same link and keeps the earlier versions, and the "
-        "agent can read a page back to change part of it. A new page is private to the "
+        "name updates the app behind the same link and keeps the earlier versions, and the "
+        "agent can read an app back to change part of it. A new app is private to the "
         "person the run was for until they share it."
     ),
     tools=(

@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "e88a69bb6ee9"
 ---
 
 # Umgebungen { #environments }
@@ -85,7 +85,7 @@ Buchführung.
 
 Eine Seite, die der Agent veröffentlicht, folgt derselben Trennung. Ein Run in
 einer benannten Umgebung veröffentlicht ein eigenes
-[Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
+[App](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
 Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
 Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
 sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine

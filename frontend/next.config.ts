@@ -50,6 +50,10 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
   // path parameter Next matches and then drops — every organization's old URL
   // lands on the same list, which is the one the active organization owns.
   { from: "/orgs/:id/integrations", to: "/kb" },
+  // Apps were called artifacts until #2071, and a link to one sits in emails,
+  // notifications and old conversations.
+  { from: "/artifacts", to: "/apps" },
+  { from: "/artifacts/:id", to: "/apps/:id" },
 ];
 
 const nextConfig: NextConfig = {

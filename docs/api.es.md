@@ -1,5 +1,5 @@
 ---
-source_sha: "97048db675bf"
+source_sha: "d0d20e768913"
 ---
 
 # La API HTTP { #the-http-api }
@@ -55,7 +55,7 @@ Conviene conocer dos rechazos:
 
 - **`403` "API keys are not accepted on this endpoint"**: las claves solo se
   aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
-  RAG, skills, archivos de contexto, artefactos, los servicios de ML,
+  RAG, skills, archivos de contexto, aplicaciones, los servicios de ML,
   `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
   organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
   una organización y la gestión de claves en sí siguen siendo solo de sesión, para
@@ -302,6 +302,13 @@ cliente debe ignorar los campos de respuesta que no conozca. Quitar o renombrar 
 solo ocurre después de marcarlo como `deprecated` en ese documento durante al menos
 90 días y listarlo en las [notas de versión](release-notes.md); un cambio que no se
 pueda hacer así va a `/api/v2`, junto a v1.
+
+El primer cambio de nombre bajo esa regla son las aplicaciones (#2071): lo que eran
+artefactos se sirve en `/api/v1/apps` y `/api/v1/public/apps`, y las rutas antiguas
+`/api/v1/artifacts` y `/api/v1/public/artifacts` responden igual, marcadas como
+`deprecated`, hasta que pasen los 90 días. Los nombres de los permisos
+(`artifacts:view`, `artifacts:edit`), los de las herramientas y las direcciones
+desde las que se sirve una página publicada conservan su nombre.
 
 Las rutas propias de la consola no tienen esa promesa y cambian con la consola; una
 clave no puede llamarlas. Todavía no hay biblioteca cliente.

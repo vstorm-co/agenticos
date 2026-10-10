@@ -118,6 +118,9 @@ _FEEDS = (
     _Feed("/agents/{agent_id}/validate", None),
     _Feed("/agents/{agent_id}/clone", "agent"),
     _Feed("/agents", "agent", "agent_id"),
+    _Feed("/apps/{artifact_id}/follow", None),
+    _Feed("/apps", "artifact", "artifact_id"),
+    # The deprecated paths from before apps were called that (#2071).
     _Feed("/artifacts/{artifact_id}/follow", None),
     _Feed("/artifacts", "artifact", "artifact_id"),
     _Feed("/context", "context", "context_id"),

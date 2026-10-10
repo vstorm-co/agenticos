@@ -1,5 +1,5 @@
 ---
-source_sha: "53b719b25dba"
+source_sha: "ab1e8540de48"
 title: "Wybierz pierwsze zadanie"
 description: "29 tutoriali: dokumenty, wsparcie, research, automatyzacja, produktywność i treści, każdy ze sprawdzeniem, które możesz wykonać."
 ---
@@ -46,7 +46,7 @@ Ostatnia kolumna mówi, kiedy maintainerzy ostatnio uruchomili tutorial na produ
 
 | Tutorial | Co robi | Ostatni przebieg maintainerów |
 | --- | --- | --- |
-| [Zaplanuj cotygodniowy raport](howto/scheduled-report.md) | Samowystarczalny raport publikowany co tydzień jako artefakt | v0.0.504, 25 września 2026 |
+| [Zaplanuj cotygodniowy raport](howto/scheduled-report.md) | Samowystarczalny raport publikowany co tydzień jako aplikacja | v0.0.504, 25 września 2026 |
 | [Automatycznie segreguj nowe issues na GitHubie](howto/github-issue-triage.md) | Nowe issues segregowane w chwili, gdy GitHub je dostarczy | v0.0.504, 25 września 2026 |
 | [Zamień zadania ze spotkania na taski z zatwierdzeniem](howto/meeting-to-tasks.md) | Zadania ze spotkania proponowane jako taski w trackerze, każdy najpierw zatwierdzony | Jeszcze nie zapisano |
 | [Kieruj prośby do zespołu wyspecjalizowanych agentów](howto/specialist-team.md) | Recepcja, która deleguje do agentów specjalistów | v0.0.504, 25 września 2026 |

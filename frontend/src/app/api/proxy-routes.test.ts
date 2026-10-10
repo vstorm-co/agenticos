@@ -20,7 +20,7 @@ import * as agents from "./agents/[[...path]]/route";
 import * as apiKeys from "./api-keys/[[...path]]/route";
 import * as assistant from "./assistant/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
-import * as artifacts from "./artifacts/[[...path]]/route";
+import * as apps from "./apps/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
@@ -98,7 +98,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["api-keys", apiKeys],
   ["assistant", assistant],
   ["approvals", approvals],
-  ["artifacts", artifacts],
+  ["apps", apps],
   ["audit", audit],
   ["catalog", catalog],
   ["channels", channels],

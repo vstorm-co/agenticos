@@ -1,6 +1,6 @@
 ---
 title: "Research a question with subagents and publish a report"
-description: "Split a question into independent sub-questions, delegate each to a one-off specialist, and publish a sourced comparison as an artifact."
+description: "Split a question into independent sub-questions, delegate each to a one-off specialist, and publish a sourced comparison as an app."
 ---
 
 # Research a question with subagents and publish a report
@@ -54,7 +54,7 @@ organization that only runs a modified copy internally owes nobody a release.
    every invented specialist could delegate but could not search.
 4. Enable **Web search** (method DuckDuckGo) and **Read web pages** on the parent
    itself - sharing only reaches a delegate what the parent is bound to.
-5. Enable **Planning** and **Artifacts**.
+5. Enable **Planning** and **Apps**.
 6. Set a budget and a step limit for the trial. The recorded run used 40 steps
    and cost about 0.43 USD.
 7. Set the instructions below, then **Publish**.
@@ -96,7 +96,7 @@ to collect them before it writes the report.
 | GPLv3 obligation | Licence text, per-file changes, and the complete source on distribution |
 | Every claim | Carries a source URL next to it, not collected in one list at the end |
 | Disagreement or gap | The report says so explicitly, or states there was none |
-| Artifact | **Artifacts** lists `licence-comparison`, private to you |
+| App | **Apps** lists `licence-comparison`, private to you |
 | A two-part question with only one real source (e.g. asking about a licence that does not exist) | The report says it could not confirm that part, rather than inventing an answer |
 
 !!! example "Recorded on v0.0.504, 25 September 2026"
@@ -108,7 +108,7 @@ to collect them before it writes the report.
     and got `3/3 finished`. The report matched the reference table exactly, cited
     the OSI, Apache.org, GNU.org and FSF FAQ pages, and closed with "No source
     disagreements found" naming the sources that agreed. It published
-    `licence-comparison` as an HTML artifact. Total cost: 0.43 USD, all three
+    `licence-comparison` as an HTML app. Total cost: 0.43 USD, all three
     delegations included - no separate `agent_runs` row exists for a dynamic
     specialist, since it is not a published agent.
 
@@ -133,8 +133,8 @@ to collect them before it writes the report.
 ## Record the trial
 
 Keep the question, the plan the agent wrote, each delegation's name and result,
-the sources cited, the artifact and its version, and the cost from Activity. A
-person still reads the artifact against the reference facts before trusting it,
+the sources cited, the app and its version, and the cost from Activity. A
+person still reads the app against the reference facts before trusting it,
 decides who may read it, and judges whether the "could not confirm" section is
 honest or is hiding a search that should have been tried again.
 

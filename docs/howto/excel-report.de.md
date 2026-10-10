@@ -1,5 +1,5 @@
 ---
-source_sha: "46ef69419b31"
+source_sha: "4f6ac46ddef7"
 title: "Einen Excel-Bericht und ein Deck aus Daten bauen"
 description: "Hängen Sie eine kleine synthetische CSV an und lassen Sie einen Agent in einer Sandbox eine Arbeitsmappe mit Formeln und einem Diagramm sowie ein dreiteiliges Deck erzeugen, dann öffnen Sie beides und prüfen Sie die Zahlen."
 ---
@@ -106,4 +106,4 @@ Eine Person prüft, dass die Formeln echte Formeln sind, dass die Achse des Diag
 
 ## Nächste Schritte { #next-steps }
 
-Für einen Bericht, der jede Woche statt einmal laufen muss, fahren Sie fort mit [einen Wochenbericht planen](scheduled-report.md), das seine Ausgabe als stabiles, teilbares Artefakt statt als Workspace-Datei veröffentlicht.
+Für einen Bericht, der jede Woche statt einmal laufen muss, fahren Sie fort mit [einen Wochenbericht planen](scheduled-report.md), das seine Ausgabe als stabile, teilbare App statt als Workspace-Datei veröffentlicht.

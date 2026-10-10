@@ -50,7 +50,7 @@ Two refusals are worth knowing:
 
 - **`403` "API keys are not accepted on this endpoint"** — keys are accepted on
   the public API only: agents, runs and approvals, knowledge bases and RAG, skills,
-  context files, artifacts, the ML services, `/me/permissions`, and an
+  context files, apps, the ML services, `/me/permissions`, and an
   organization's members, invitations, groups and settings. The console's own
   routes, your account, leaving or handing over an organization, and key
   management itself stay session-only, so a leaked key cannot mint its successor.
@@ -292,6 +292,12 @@ Removing or renaming something there happens only after it has been marked
 `deprecated` in that document for at least 90 days and listed in the
 [release notes](release-notes.md); a change that cannot be made that way goes into
 `/api/v2`, beside v1.
+
+The first rename under that rule is apps (#2071): what were artifacts are served at
+`/api/v1/apps` and `/api/v1/public/apps`, and the old `/api/v1/artifacts` and
+`/api/v1/public/artifacts` paths answer the same way, marked `deprecated`, until
+the 90 days are up. Permission names (`artifacts:view`, `artifacts:edit`), the tool
+names and the addresses a published page is served from keep their names.
 
 The console's own routes carry no such promise and change with the console; a key
 cannot call them. There is no client library yet.

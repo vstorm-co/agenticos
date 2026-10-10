@@ -49,7 +49,7 @@ LOADERS = (
     ("skill", load_skill, "Skill not found", "skill_id"),
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
-    ("artifact", load_artifact, "Artifact not found", "artifact_id"),
+    ("artifact", load_artifact, "App not found", "artifact_id"),
 )
 
 

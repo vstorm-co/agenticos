@@ -191,7 +191,7 @@ rather than more information.
 **The bundled ones are already there.** The repository ships four: three worked
 examples — `refund-policy`, `code-review` and `incident-report` — and
 `artifact-pages`, which teaches an agent to build a page for the
-[Artifacts](artifacts.md#the-library-set) capability. Every organization starts
+[Apps](artifacts.md#the-library-set) capability. Every organization starts
 with them. Creating an organization copies the whole shipped library in as
 ordinary skills, owned by the organization's owner and visible to the
 organization.

@@ -1,25 +1,25 @@
 ---
-source_sha: "f3a9cc7f1767"
+source_sha: "94ce53b8a699"
 ---
 
-# Artefakte { #artifacts }
+# Apps { #artifacts }
 
-Ein **Artefakt** ist eine Seite, die ein Agent veröffentlicht hat: ein Bericht,
+Eine **App** ist eine Seite, die ein Agent veröffentlicht hat: ein Bericht,
 ein kleines Dashboard, eine einseitige Zusammenfassung, die jemand im Browser
-öffnet. Es hat einen Link, der gleich bleibt, wenn der Agent es erneut
+öffnet. Sie hat einen Link, der gleich bleibt, wenn der Agent sie erneut
 veröffentlicht, sodass „veröffentliche jeden Montag die Zahlen der Woche auf
 dieser Seite“ ein Link ist, den man sich als Lesezeichen speichert, statt jede
 Woche einen neuen.
 
-Ein Artefakt ist keine Datei. Ein Diagramm, ein erzeugtes PDF und eine Datei im
-Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Ein
-Artefakt ist das, was *ausgeliefert* wird: Es hat einen Besitzer, eine
-Sichtbarkeit und Grants wie ein Agent oder ein Skill, und es kann einen
+Eine App ist keine Datei. Ein Diagramm, ein erzeugtes PDF und eine Datei im
+Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Eine
+App ist das, was *ausgeliefert* wird: Sie hat einen Besitzer, eine
+Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 öffentlichen Link für jemanden ohne Konto bekommen.
 
-## Eines veröffentlichen { #publishing-one }
+## Eine veröffentlichen { #publishing-one }
 
-Schalten Sie für den Agent die Capability **Artifacts** ein. Sie fügt zwei Tools
+Schalten Sie für den Agent die Capability **Apps** ein. Sie fügt zwei Tools
 hinzu: `publish_artifact`, das das Modell aufruft, wenn das Ergebnis etwas ist,
 das eine Person öffnen sollte, statt es einmal im Chat zu lesen, und
 `read_artifact`, das eine veröffentlichte Seite zurückliest.
@@ -62,9 +62,9 @@ trotzdem Text hinter dem Schnitt nennen.
 
 ## Ein Name, ein Link { #one-name-one-link }
 
-Die Identität eines Artefakts ist sein **Name innerhalb des Agents** —
+Die Identität einer App ist ihr **Name innerhalb des Agents** —
 `weekly-report`, `churn-dashboard`. Wer unter demselben Namen veröffentlicht,
-aktualisiert dasselbe Artefakt, von jeder Oberfläche aus: dem Chat, der API,
+aktualisiert dieselbe App, von jeder Oberfläche aus: dem Chat, der API,
 einem [Trigger](triggers.md) oder einem Workflow. Ein neuer Name ergibt eine neue
 Seite. Der Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, bis zu
 64 Zeichen.
@@ -77,15 +77,15 @@ die Leser in Produktion als Lesezeichen haben. Die Umgebung wird vom Run selbst
 gelesen, nie vom Modell, und die Liste und die Seite nennen sie.
 
 Den Namen teilen sich alle, die den Agent ausführen, die Seite aber nicht. Ein
-Run veröffentlicht ein bestehendes Artefakt nur dann erneut, wenn die Person, für
-die er handelt, es besitzt oder `artifacts:edit` darauf hat — aus der Rolle oder
+Run veröffentlicht eine bestehende App nur dann erneut, wenn die Person, für
+die er handelt, sie besitzt oder `artifacts:edit` darauf hat — aus der Rolle oder
 aus einem `edit`-Grant, dieselbe Regel wie bei der Verwaltung in der Konsole. Der
 Run jeder anderen Person erfährt, dass der Name vergeben ist, und veröffentlicht
 unter einem anderen. Eine Kollegin, die denselben geteilten Agent um einen
 `weekly-report` bittet, kann die Seite hinter Ihrem Link also nicht ersetzen.
 
 Jede Veröffentlichung ist eine neue **Version**. Nichts wird überschrieben, daher
-ist die Versionsliste auf der Seite des Artefakts die Geschichte der Seite. Zwei
+ist die Versionsliste auf der Seite der App die Geschichte der Seite. Zwei
 Dinge halten diese Geschichte begrenzt:
 
 - Wer genau die Bytes veröffentlicht, die die aktuelle Version enthält, fügt
@@ -155,32 +155,32 @@ anderen mitgelieferten Skills, eine bestehende über `seed-skills`, und der Tab
 **Page style** der Capability Artifacts im Builder bietet ihn an. Bearbeiten Sie
 den Skill, um Ihre eigene Marke zu beschreiben, und der Agent folgt ihr.
 
-## Wer es öffnen kann { #who-can-open-it }
+## Wer sie öffnen kann { #who-can-open-it }
 
-Ein neues Artefakt ist **privat** für die Person, für die der veröffentlichende
+Eine neue App ist **privat** für die Person, für die der veröffentlichende
 Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers.
 
-Sein Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
+Ihr Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
 öffnet die Seite selbst, fensterfüllend unter einer Leiste mit Titel, Version
 und **Share**. Der Link allein lässt niemanden hinein: Er öffnet sich nur für
 ein angemeldetes Mitglied, das die Regeln unten bereits hereinlassen. Er nennt
-die Organisation, in der das Artefakt liegt (`?org=`), sodass ein Mitglied
+die Organisation, in der die App liegt (`?org=`), sodass ein Mitglied
 mehrerer Organisationen in der richtigen landet.
 
 Unter **Share**
-kann jeder, der es verwalten darf, es auf drei Wegen teilen:
+kann jeder, der sie verwalten darf, sie auf drei Wegen teilen:
 
 | Reichweite | Wie | Wer |
 |---|---|---|
 | Bestimmte Personen | Ein Grant, mit `read` oder `edit` | Diese Mitglieder, in dieser Organisation |
-| Die Organisation | Sichtbarkeit auf die ganze Organisation gesetzt | Jedes Mitglied, dessen Rolle geteilte Artefakte erreicht |
+| Die Organisation | Sichtbarkeit auf die ganze Organisation gesetzt | Jedes Mitglied, dessen Rolle geteilte Apps erreicht |
 | Jeder mit dem Link | **Create a public link** | Jeder, der die Adresse hat, ohne Konto |
 
 Teilen und Sichtbarkeit verwenden dasselbe Panel und dieselben Regeln wie bei
-Agents und Skills; siehe [Berechtigungen](permissions.md). Ein Artefakt zu
-verwalten — es zu teilen, seinen öffentlichen Link und dessen Einstellungen, eine
-Version wiederherzustellen, es zu löschen — erfordert `artifacts:edit` auf diesem
-Artefakt, aus der Rolle oder aus einem `edit`-Grant. Es zu öffnen, erfordert
+Agents und Skills; siehe [Berechtigungen](permissions.md). Eine App zu
+verwalten — sie zu teilen, ihren öffentlichen Link und dessen Einstellungen, eine
+Version wiederherzustellen, sie zu löschen — erfordert `artifacts:edit` auf dieser
+App, aus der Rolle oder aus einem `edit`-Grant. Sie zu öffnen, erfordert
 `artifacts:view`.
 
 Der Agent kann nicht erweitern, wer eine Seite liest. Er veröffentlicht; eine
@@ -202,7 +202,7 @@ Eine Seite, die jemand bereits geöffnet hat, wird weiter angezeigt, bis ihre
 signierte Inhaltsadresse abläuft, höchstens `ARTIFACT_VIEW_TTL_SECONDS`
 (standardmäßig fünf Minuten).
 
-Einem entzogenen Mitglied geht es genauso: Es verliert das Artefakt bei seiner
+Einem entzogenen Mitglied geht es genauso: Es verliert die App bei seiner
 nächsten Anfrage, und eine Seite, die es bereits geöffnet hatte, bleibt
 höchstens für dasselbe Zeitfenster.
 
@@ -240,9 +240,9 @@ Frame auf einer fremden Website an.
 
 ## Wie die Seite isoliert wird { #how-the-page-is-isolated }
 
-Ein Artefakt ist HTML mit Skript darin, geschrieben von einem Modell, das
-möglicherweise etwas Feindseliges gelesen hat. Es wird so ausgeliefert, dass
-nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
+Eine App ist HTML mit Skript darin, geschrieben von einem Modell, das
+möglicherweise etwas Feindseliges gelesen hat. Sie wird so ausgeliefert, dass
+nichts, was sie tut, die Konsole oder die Person erreichen kann, die sie ansieht:
 
 - Die Bytes kommen von einer separaten Route,
   `/api/v1/artifact-content/<token>`, die kein Cookie und keine Session liest.
@@ -278,7 +278,7 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   Frame zeichnen, und das Ausstellen über einen öffentlichen Link ist selbst pro
   Link begrenzt.
 
-Die Liste **Artifacts** zeichnet die aktuelle Seite jeder Karte als
+Die Liste **Apps** zeichnet die aktuelle Seite jeder Karte als
 Live-Vorschau, durch dieselbe Art von Frame, mit Skript und sonst nichts: keine
 Dialoge, keine Popups, keine Formulare. Mit Skript, damit ein Dashboard, dessen
 Diagramme eine Bibliothek zeichnet, auf seiner Karte keine leere Fläche ist. Die
@@ -311,24 +311,24 @@ folgen, und wer den Zugriff verliert, erhält keine Benachrichtigungen mehr, ohn
 entfolgen zu müssen. Der Posteingang prüft den Zugriff beim Lesen erneut, sodass
 eine Benachrichtigung über eine Seite, die Sie nicht mehr öffnen dürfen, mit
 diesem Zugriff verschwindet. Die Benachrichtigung kann auch per E-Mail kommen;
-jeden Kanal schalten Sie unter **Einstellungen → Benachrichtigungen → Artefakt
+jeden Kanal schalten Sie unter **Einstellungen → Benachrichtigungen → App
 aktualisiert** ab.
 
 ## Aufbewahrung und Löschung { #retention-and-deletion }
 
-Artefakte sind eine eigene [Aufbewahrungsklasse](governance.md#the-classes),
+Apps sind eine eigene [Aufbewahrungsklasse](governance.md#the-classes),
 gemessen ab der **letzten Veröffentlichung** — ein Bericht, der jede Woche neu
 veröffentlicht wird, lebt, wie alt seine erste Version auch ist. Wie jede Klasse
-behält sie Artefakte für immer, bis eine Organisation oder das Deployment eine
+behält sie Apps für immer, bis eine Organisation oder das Deployment eine
 Frist setzt.
 
-Ein Artefakt zu löschen — von Hand oder durch die Aufbewahrung — entfernt jede
+Eine App zu löschen — von Hand oder durch die Aufbewahrung — entfernt jede
 Version, ihre gespeicherten Bytes, ihre Grants und ihren öffentlichen Link. Den
-Agent zu löschen, löscht seine Artefakte nicht: Sie bleiben lesbar und haben
+Agent zu löschen, löscht seine Apps nicht: Sie bleiben lesbar und haben
 einfach keinen Herausgeber mehr. Eine benannte Umgebung zu löschen, tut dasselbe
 mit den Seiten, die aus ihr veröffentlicht wurden, sodass sie nie auf der
 gleichnamigen Seite der Standardumgebung landen. Die Organisation zu löschen,
-entfernt sie. Die Artefakte einer gelöschten Person bleiben und verlieren ihren
+entfernt sie. Die Apps einer gelöschten Person bleiben und verlieren ihren
 Besitzer, so wie ihre Agents und Skills.
 
 Die Bytes liegen im [Dateispeicher](configuration.md#uploaded-files-at-rest) des

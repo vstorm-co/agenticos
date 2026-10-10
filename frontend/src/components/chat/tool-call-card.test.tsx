@@ -431,7 +431,7 @@ describe("a tool call in the transcript", () => {
 
     expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
       "href",
-      "/artifacts/a1?version=v3",
+      "/apps/a1?version=v3",
     );
   });
 

@@ -1372,9 +1372,12 @@ class TestStatsScopeIsDecidedInTheService:
 # somebody wrote down that it is open, and where its refusals are tested.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        ("GET", f"{settings.API_V1_STR}/public/apps/{{public_key}}"),
+        # The same, at the path it had before apps were called that (#2071).
         ("GET", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}"),
         # The same link behind a password (#1972): the password in the body, the
         # link's own bucket bounding a guessing loop.
+        ("POST", f"{settings.API_V1_STR}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
         # The public API's own OpenAPI document (#1796): the contract an
         # integrator writes a client against, before they hold a key.
@@ -1526,6 +1529,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # and rotated by asking again. It answers the title and a signed content
         # address, never who published it, and a bucket per key bounds a
         # hammered link. Refusals: `tests/api/test_artifact_routes.py`.
+        ("GET", f"{V1}/public/apps/{{public_key}}"),
+        # Its deprecated alias from before apps were called that (#2071).
         ("GET", f"{V1}/public/artifacts/{{public_key}}"),
         # The bytes of one artifact version. Deliberately cookieless - the page is
         # agent-authored script and may be served from another origin entirely -
@@ -1536,6 +1541,7 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/artifact-content/{{token}}"),
         # The same link with its password (#1972). Refusals: a wrong password is a
         # 403 that names nothing, and the link's bucket counts every attempt.
+        ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
         # The library set a published page may load (#1971): three static files
         # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an

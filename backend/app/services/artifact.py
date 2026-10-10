@@ -309,14 +309,14 @@ def publish_problem(*, name: str, media_type: ArtifactMediaType, data: bytes) ->
     """
     if not re.fullmatch(NAME_PATTERN, name):
         return (
-            f"`name` {name!r} is not a valid artifact name. Use 1-64 lower-case letters, "
+            f"`name` {name!r} is not a valid app name. Use 1-64 lower-case letters, "
             "digits and hyphens, starting with a letter or digit - for example "
-            "`weekly-report`. Reuse the same name to update an artifact you published before."
+            "`weekly-report`. Reuse the same name to update an app you published before."
         )
     if len(data) > settings.ARTIFACT_MAX_BYTES:
         return (
             f"The page is {len(data):,} bytes, over the {settings.ARTIFACT_MAX_BYTES:,}-byte "
-            "limit for one artifact. Trim it - smaller images, less repeated data, a "
+            "limit for one app. Trim it - smaller images, less repeated data, a "
             "library from the served set instead of an inlined copy - rather than "
             "splitting it."
         )
@@ -539,7 +539,7 @@ async def publish_with(
     if not created and not await _may(db, artifact, owner_user_id, Perm.ARTIFACTS_EDIT):
         raise AuthorizationError(
             message=(
-                f"An artifact named {name!r} already exists for this agent, and it is not "
+                f"An app named {name!r} already exists for this agent, and it is not "
                 "one this run may change. Publish under a different name."
             ),
             details={"name": name},
@@ -548,7 +548,7 @@ async def publish_with(
     if expected_version is not None and (latest is None or latest.number != expected_version):
         raise ConcurrentChangeError(
             message=(
-                f"The artifact {name!r} changed after it was read. Read it again with "
+                f"The app {name!r} changed after it was read. Read it again with "
                 "`read_artifact` and make the edits against what it holds now."
             ),
             details={"name": name, "version": latest.number if latest is not None else None},
@@ -683,11 +683,11 @@ async def read_source(
         )
         if artifact is None or version is None:
             raise NotFoundError(
-                message=f"There is no artifact named {name!r} that this run may open.",
+                message=f"There is no app named {name!r} that this run may open.",
                 details={"name": name},
             )
         data = await _load_version(
-            version, missing=f"The artifact {name!r} has lost its content; publish it again."
+            version, missing=f"The app {name!r} has lost its content; publish it again."
         )
     return ArtifactSource(
         name=artifact.name,
@@ -836,7 +836,7 @@ def console_url_for(artifact_id: UUID, organization_id: UUID) -> str:
     page is not available. `?org=` is the parameter the console adopts for that,
     the same one alert links carry.
     """
-    return f"/artifacts/{artifact_id}?org={organization_id}"
+    return f"/apps/{artifact_id}?org={organization_id}"
 
 
 def _view(version: ArtifactVersion) -> ArtifactView:
@@ -971,9 +971,7 @@ class ArtifactService:
         if artifact is None or not await resolve_access(
             self.db, ctx, artifact, perm, resource_type=ARTIFACT
         ):
-            raise NotFoundError(
-                message="Artifact not found", details={"artifact_id": str(artifact_id)}
-            )
+            raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
         return artifact
 
     async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
@@ -1158,7 +1156,7 @@ class ArtifactService:
         source = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if locked is None or source is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": artifact_id, "version_id": version_id},
             )
         latest = await artifact_repo.latest_version(self.db, locked.id)
@@ -1274,9 +1272,7 @@ class ArtifactService:
             return None
         version = await artifact_repo.get_version(self.db, version_id, artifact_id=artifact.id)
         if version is None:
-            raise refused_field(
-                "pinned_version_id", "That version of the artifact is no longer kept."
-            )
+            raise refused_field("pinned_version_id", "That version of the app is no longer kept.")
         # A kept row whose bytes are gone would pin the link to a page that 404s.
         if not await get_file_storage().exists(version.storage_path):
             raise refused_field("pinned_version_id", "That version's content is gone from storage.")
@@ -1343,7 +1339,7 @@ class ArtifactService:
         )
         if version is None:
             raise NotFoundError(
-                message="This version of the artifact is no longer kept",
+                message="This version of the app is no longer kept",
                 details={"artifact_id": str(artifact_id), "version_id": version_id},
             )
         return _view(version)
@@ -1371,7 +1367,7 @@ class ArtifactService:
                 else await artifact_repo.latest_version(self.db, artifact.id)
             )
         if artifact is None or version is None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         return artifact, version
 
     async def public_view(
@@ -1454,9 +1450,9 @@ class ArtifactService:
             else None
         )
         if found is None:
-            raise NotFoundError(message="Artifact not found")
+            raise NotFoundError(message="App not found")
         version, artifact = found
-        data = await _load_version(version, missing="Artifact not found")
+        data = await _load_version(version, missing="App not found")
         embeddable = artifact.public_key is not None and artifact.public_password_hash is None
         return ServedArtifact(
             document=render(version, data, title=artifact.title),

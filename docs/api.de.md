@@ -1,5 +1,5 @@
 ---
-source_sha: "97048db675bf"
+source_sha: "d0d20e768913"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -59,7 +59,7 @@ Zwei Ablehnungen sollten Sie kennen:
 
 - **`403` "API keys are not accepted on this endpoint"** — Schlüssel werden nur in
   der öffentlichen API angenommen: Agents, Runs und Freigaben, Wissensbasen und
-  RAG, Skills, Kontextdateien, Artefakte, die ML-Dienste, `/me/permissions`
+  RAG, Skills, Kontextdateien, Apps, die ML-Dienste, `/me/permissions`
   sowie Mitglieder, Einladungen, Gruppen und Einstellungen einer Organisation.
   Die eigenen Routen der Konsole, Ihr Konto, das Verlassen oder Übergeben einer
   Organisation und die Schlüsselverwaltung selbst bleiben Sitzungen vorbehalten,
@@ -314,6 +314,13 @@ oder Enum-Wert —, und ein Client muss Antwortfelder ignorieren, die er nicht
 kennt. Entfernen oder Umbenennen geschieht erst, nachdem es dort mindestens 90 Tage
 als `deprecated` markiert und in den [Release Notes](release-notes.md) aufgeführt
 war; eine Änderung, die so nicht geht, kommt in `/api/v2`, neben v1.
+
+Die erste Umbenennung nach dieser Regel sind Apps (#2071): Was Artefakte waren,
+wird unter `/api/v1/apps` und `/api/v1/public/apps` ausgeliefert, und die alten
+Pfade `/api/v1/artifacts` und `/api/v1/public/artifacts` antworten genauso,
+markiert als `deprecated`, bis die 90 Tage um sind. Die Namen der Berechtigungen
+(`artifacts:view`, `artifacts:edit`), die Namen der Tools und die Adressen, von
+denen eine veröffentlichte Seite ausgeliefert wird, behalten ihre Namen.
 
 Die eigenen Routen der Konsole haben kein solches Versprechen und ändern sich mit
 der Konsole; ein Schlüssel kann sie nicht aufrufen. Eine Client-Bibliothek gibt es

@@ -52,12 +52,23 @@ class TestWhatIsAChange:
         assert _change("POST", f"/agents/{agent_id}/run", {"agent_id": agent_id}) is None
         assert _change("POST", f"/agents/{agent_id}/validate", {"agent_id": agent_id}) is None
 
-    def test_following_a_page_is_the_follower_s_business(self) -> None:
+    @pytest.mark.parametrize("prefix", ["/apps", "/artifacts"])
+    def test_following_a_page_is_the_follower_s_business(self, prefix: str) -> None:
         artifact_id = str(uuid.uuid4())
 
-        followed = _change("PUT", f"/artifacts/{artifact_id}/follow", {"artifact_id": artifact_id})
+        followed = _change("PUT", f"{prefix}/{artifact_id}/follow", {"artifact_id": artifact_id})
 
         assert followed is None
+
+    @pytest.mark.parametrize("prefix", ["/apps", "/artifacts"])
+    def test_an_app_changed_at_either_path_is_announced(self, prefix: str) -> None:
+        """`/artifacts` is the deprecated alias of `/apps` (#2071); both are changes."""
+        artifact_id = uuid.uuid4()
+
+        changed = _change("PATCH", f"{prefix}/{artifact_id}", {"artifact_id": str(artifact_id)})
+
+        assert changed is not None
+        assert (changed.resource, changed.id) == ("artifact", artifact_id)
 
     def test_a_route_outside_the_feed_changes_nothing(self) -> None:
         assert _change("POST", "/ml/privacy/pii", {}) is None

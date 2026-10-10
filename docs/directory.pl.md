@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe8092adb19"
+source_sha: "0e00e8d61666"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -29,7 +29,7 @@ katalogiem, natywne logowanie LDAP może w ogóle nie być potrzebne. Zobacz
 
 Grupa to nazwany zbiór członków w obrębie jednej organizacji: *Finance*,
 *Support team*, *Platform admins*. Agenta, skill, kolekcję, plik kontekstu,
-sekret w vault albo artefakt udostępniasz grupie tak samo jak osobie, z panelu
+sekret w vault albo aplikację udostępniasz grupie tak samo jak osobie, z panelu
 **Sharing** danego zasobu. Jeden grant sięga wtedy do każdego w grupie.
 
 Grant dla grupy sięga do tego, kto jest w grupie **w chwili sprawdzania

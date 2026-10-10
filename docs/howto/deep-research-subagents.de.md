@@ -1,7 +1,7 @@
 ---
-source_sha: "926f21066868"
+source_sha: "c7ac418a906b"
 title: "Eine Frage mit Subagents recherchieren und einen Bericht veröffentlichen"
-description: "Zerlegen Sie eine Frage in unabhängige Teilfragen, delegieren Sie jede an einen einmaligen Spezialisten und veröffentlichen Sie einen belegten Vergleich als Artefakt."
+description: "Zerlegen Sie eine Frage in unabhängige Teilfragen, delegieren Sie jede an einen einmaligen Spezialisten und veröffentlichen Sie einen belegten Vergleich als App."
 ---
 
 # Eine Frage mit Subagents recherchieren und einen Bericht veröffentlichen { #research-a-question-with-subagents-and-publish-a-report }
@@ -41,7 +41,7 @@ Die Quellcodepflicht der GPLv3 wird durch Weitergabe ausgelöst, nicht durch Än
 2. Aktivieren Sie in der **Toolbox** **Delegation**. Schalten Sie `allow_dynamic` ein, die Einstellung, mit der das Modell einen einmaligen Spezialisten für eine Teilfrage erfinden darf, für die niemand vorab einen geschrieben hat. Setzen Sie den Modus auf **Async**, damit die drei Teilfragen gleichzeitig statt nacheinander laufen, und lassen Sie die Fan-out-Obergrenze bei 3.
 3. Schalten Sie, weiterhin unter Delegation, **Share Web search with delegates** und **Share Web fetch with delegates** ein. Ein vom Modell erfundener Spezialist bekommt [absichtlich](../reference/capabilities.md#delegation) keine eigenen Capabilities. Nur was der Parent ausdrücklich teilt, erreicht ihn, sodass ohne diesen Schritt jeder erfundene Spezialist zwar delegieren, aber nicht suchen könnte.
 4. Aktivieren Sie **Web search** (Methode DuckDuckGo) und **Read web pages** beim Parent selbst. Teilen erreicht einen Delegate nur mit dem, woran der Parent gebunden ist.
-5. Aktivieren Sie **Planning** und **Artifacts**.
+5. Aktivieren Sie **Planning** und **Apps**.
 6. Legen Sie Budget und Schrittlimit für den Versuch fest. Der festgehaltene Run nutzte 40 Schritte und kostete etwa 0,43 USD.
 7. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.
 
@@ -77,12 +77,12 @@ Das Modell ruft `delegate` dreimal auf, einmal pro Lizenz. Jeder Aufruf ist eine
 | Pflicht aus GPLv3 | Lizenztext, Änderungen pro Datei und der vollständige Quellcode bei Weitergabe |
 | Jede Behauptung | Hat eine Quell-URL direkt daneben, nicht in einer Liste am Ende gesammelt |
 | Widerspruch oder Lücke | Der Bericht sagt das ausdrücklich oder stellt fest, dass es keine gab |
-| Artefakt | **Artifacts** listet `licence-comparison`, privat für Sie |
+| App | **Apps** listet `licence-comparison`, privat für Sie |
 | Eine zweiteilige Frage mit nur einer echten Quelle (z. B. nach einer Lizenz, die es nicht gibt) | Der Bericht sagt, dass er diesen Teil nicht bestätigen konnte, statt eine Antwort zu erfinden |
 
 !!! example "Festgehalten auf v0.0.504, 25. September 2026"
 
-    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent schrieb einen Plan mit vier Schritten und rief dann in einer Runde dreimal `delegate` auf: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, alle asynchron. Alle drei parkten in einem Schritt zur Genehmigung. Nach der Genehmigung rief der Run `wait_tasks` auf und bekam `3/3 finished`. Der Bericht stimmte genau mit der Referenztabelle überein, zitierte die Seiten von OSI, Apache.org, GNU.org und die FSF-FAQ und endete mit "No source disagreements found" samt den übereinstimmenden Quellen. Er veröffentlichte `licence-comparison` als HTML-Artefakt. Gesamtkosten: 0,43 USD einschließlich aller drei Delegationen. Für einen dynamischen Spezialisten gibt es keine eigene `agent_runs`-Zeile, da er kein veröffentlichter Agent ist.
+    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent schrieb einen Plan mit vier Schritten und rief dann in einer Runde dreimal `delegate` auf: `mit-licence-research`, `apache2-licence-research`, `gplv3-licence-research`, alle asynchron. Alle drei parkten in einem Schritt zur Genehmigung. Nach der Genehmigung rief der Run `wait_tasks` auf und bekam `3/3 finished`. Der Bericht stimmte genau mit der Referenztabelle überein, zitierte die Seiten von OSI, Apache.org, GNU.org und die FSF-FAQ und endete mit "No source disagreements found" samt den übereinstimmenden Quellen. Er veröffentlichte `licence-comparison` als HTML-App. Gesamtkosten: 0,43 USD einschließlich aller drei Delegationen. Für einen dynamischen Spezialisten gibt es keine eigene `agent_runs`-Zeile, da er kein veröffentlichter Agent ist.
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
@@ -94,7 +94,7 @@ Das Modell ruft `delegate` dreimal auf, einmal pro Lizenz. Jeder Aufruf ist eine
 
 ## Den Versuch festhalten { #record-the-trial }
 
-Bewahren Sie die Frage, den Plan des Agents, Name und Ergebnis jeder Delegation, die zitierten Quellen, das Artefakt mit seiner Version und die Kosten aus Activity auf. Ein Mensch liest das Artefakt weiterhin gegen die Referenzfakten, bevor er ihm vertraut, entscheidet, wer es lesen darf, und beurteilt, ob der Abschnitt "could not confirm" ehrlich ist oder eine Suche verbirgt, die erneut hätte versucht werden sollen.
+Bewahren Sie die Frage, den Plan des Agents, Name und Ergebnis jeder Delegation, die zitierten Quellen, die App mit ihrer Version und die Kosten aus Activity auf. Ein Mensch liest die App weiterhin gegen die Referenzfakten, bevor er ihr vertraut, entscheidet, wer es lesen darf, und beurteilt, ob der Abschnitt "could not confirm" ehrlich ist oder eine Suche verbirgt, die erneut hätte versucht werden sollen.
 
 ## Nächste Schritte { #next-steps }
 

@@ -62,5 +62,5 @@ async def load_secret(
 async def load_artifact(db: AsyncSession, artifact_id: UUID, organization_id: UUID) -> Artifact:
     artifact = await db.get(Artifact, artifact_id)
     if artifact is None or artifact.organization_id != organization_id:
-        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
+        raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
     return artifact

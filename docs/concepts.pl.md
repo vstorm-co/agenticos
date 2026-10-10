@@ -173,7 +173,7 @@ magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
   narzędzia odmawiają.
 - [Osobiste powiązanie MCP](mcp.md#whose-account-a-binding-speaks-through):
   własnego Notion albo skrzynki twórcy nie ma, a agent dostaje informację dlaczego.
-- [Artefakty](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
+- [Aplikacje](reference/capabilities.md#artifacts): `publish_artifact` nadal publikuje, a strona jest
   prywatna dla twórcy, ale `read_artifact` odmawia, więc odpalenie publikuje
   całą stronę od nowa zamiast ją edytować.
 

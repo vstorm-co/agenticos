@@ -31,7 +31,7 @@ const SHARING_ROOT = {
   // only mounted on agents so far.
   collection: "/kb",
   secret: "/secrets",
-  artifact: "/artifacts",
+  artifact: "/apps",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**
