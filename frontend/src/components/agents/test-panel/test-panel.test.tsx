@@ -75,6 +75,7 @@ describe("the Builder's test panel", () => {
     writeTestPanel("a1", {
       open: true,
       width: 440,
+      compareWidth: 880,
       mode: "env-prod",
       compare: "draft",
       pinned: [],
@@ -151,7 +152,8 @@ describe("the Builder's test panel", () => {
     Object.defineProperty(beside, "contentWindow", { value: { postMessage: besidePost } });
 
     expect(beside.getAttribute("src")).toContain("mode=env-prod");
-    expect(readTestPanel("a1")).toMatchObject({ compare: "env-prod", width: 880 });
+    expect(readTestPanel("a1")).toMatchObject({ compare: "env-prod", width: 440 });
+    expect(screen.getByRole("complementary")).toHaveStyle("--test-panel-width: 880px");
     expect(screen.getByRole("status")).toHaveTextContent("Ask both");
 
     await userEvent.click(screen.getByRole("combobox", { name: "Compared with" }));
@@ -173,15 +175,24 @@ describe("the Builder's test panel", () => {
     fireEvent.pointerDown(edge, { clientX: 1000 });
     fireEvent.pointerMove(window, { clientX: 0 });
     fireEvent.pointerUp(window);
-    expect(readTestPanel("a1").width).toBe(1400);
+    expect(readTestPanel("a1")).toMatchObject({ width: 440, compareWidth: 1400 });
 
+    // Stopping gives the Builder back the room it had, not the comparison's.
     await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
     expect(screen.queryByTitle("Compared with")).toBeNull();
-    expect(readTestPanel("a1")).toMatchObject({ compare: null, width: 820 });
+    expect(readTestPanel("a1")).toMatchObject({ compare: null, width: 440, compareWidth: 1400 });
+    expect(screen.getByRole("complementary")).toHaveStyle("--test-panel-width: 440px");
   });
 
   it("compares the draft with an environment when an environment answers", async () => {
-    writeTestPanel("a1", { open: true, width: 440, mode: "env-prod", compare: null, pinned: [] });
+    writeTestPanel("a1", {
+      open: true,
+      width: 440,
+      compareWidth: 880,
+      mode: "env-prod",
+      compare: null,
+      pinned: [],
+    });
     open();
 
     await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));

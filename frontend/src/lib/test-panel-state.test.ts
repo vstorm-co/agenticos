@@ -9,6 +9,7 @@ describe("the test panel's remembered state", () => {
     expect(readTestPanel("a1")).toEqual({
       open: false,
       width: 440,
+      compareWidth: 880,
       mode: "draft",
       compare: null,
       pinned: [],
@@ -19,6 +20,7 @@ describe("the test panel's remembered state", () => {
     writeTestPanel("a1", {
       open: true,
       width: 600,
+      compareWidth: 1000,
       mode: "env-1",
       compare: "draft",
       pinned: ["refunds?"],
@@ -27,6 +29,7 @@ describe("the test panel's remembered state", () => {
     expect(readTestPanel("a1")).toEqual({
       open: true,
       width: 600,
+      compareWidth: 1000,
       mode: "env-1",
       compare: "draft",
       pinned: ["refunds?"],
@@ -37,12 +40,20 @@ describe("the test panel's remembered state", () => {
   it("reads past whatever else is stored there", () => {
     window.localStorage.setItem(
       "agenticos:test-panel:a1",
-      JSON.stringify({ open: "yes", width: "wide", mode: 3, compare: 1, pinned: ["ok", 4] }),
+      JSON.stringify({
+        open: "yes",
+        width: "wide",
+        compareWidth: "wider",
+        mode: 3,
+        compare: 1,
+        pinned: ["ok", 4],
+      }),
     );
 
     expect(readTestPanel("a1")).toEqual({
       open: false,
       width: 440,
+      compareWidth: 880,
       mode: "draft",
       compare: null,
       pinned: ["ok"],
@@ -60,7 +71,14 @@ describe("the test panel's remembered state", () => {
       throw new Error("blocked");
     });
     expect(() =>
-      writeTestPanel("a1", { open: true, width: 440, mode: "draft", compare: null, pinned: [] }),
+      writeTestPanel("a1", {
+        open: true,
+        width: 440,
+        compareWidth: 880,
+        mode: "draft",
+        compare: null,
+        pinned: [],
+      }),
     ).not.toThrow();
     setItem.mockRestore();
   });

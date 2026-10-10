@@ -28,8 +28,6 @@ import { TestPanelPrompts } from "./test-panel-prompts";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 820;
-/** Two chats side by side need room; comparing widens the panel to at least this. */
-const COMPARE_WIDTH = 880;
 const COMPARE_MAX_WIDTH = 1400;
 
 interface TestPanelProps {
@@ -79,6 +77,9 @@ export function TestPanel({
       ? state.compare
       : null;
   const modes = compare === null ? [mode] : [mode, compare];
+  const width = compare === null ? state.width : state.compareWidth;
+  const sized = (from: TestPanelState, next: number): TestPanelState =>
+    compare === null ? { ...from, width: next } : { ...from, compareWidth: next };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -110,27 +111,24 @@ export function TestPanel({
     const startX = event.clientX;
     const start = state;
     const max = compare === null ? MAX_WIDTH : COMPARE_MAX_WIDTH;
-    let width = start.width;
+    let dragged = width;
     const move = (moved: PointerEvent) => {
-      width = Math.min(max, Math.max(MIN_WIDTH, start.width + startX - moved.clientX));
-      setState((current) => ({ ...current, width }));
+      dragged = Math.min(max, Math.max(MIN_WIDTH, width + startX - moved.clientX));
+      setState((current) => sized(current, dragged));
     };
     const stop = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
-      writeTestPanel(agentId, { ...start, width });
+      writeTestPanel(agentId, sized(start, dragged));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
   };
 
   const toggleCompare = () =>
-    compare === null
-      ? update({
-          compare: choices.find((value) => value !== mode) ?? null,
-          width: Math.max(state.width, COMPARE_WIDTH),
-        })
-      : update({ compare: null, width: Math.min(state.width, MAX_WIDTH) });
+    update({
+      compare: compare === null ? (choices.find((value) => value !== mode) ?? null) : null,
+    });
 
   const picker = (value: string, onChange: (next: string) => void, name: string) => (
     <Select value={value} onValueChange={onChange}>
@@ -151,7 +149,7 @@ export function TestPanel({
     <aside
       aria-label={t("testPanel")}
       data-tour="agent-test-panel"
-      style={{ "--test-panel-width": `${state.width}px` } as React.CSSProperties}
+      style={{ "--test-panel-width": `${width}px` } as React.CSSProperties}
       className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100vh-6rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
     >
       <div

@@ -12,6 +12,8 @@ export const TEST_PANEL_OPEN = "data-test-panel";
 export interface TestPanelState {
   open: boolean;
   width: number;
+  /** Its width while comparing, kept apart so that stopping gives the Builder its room back. */
+  compareWidth: number;
   /** `draft`, or the id of the environment whose version answers. */
   mode: string;
   /** What answers beside it, in the same terms, or `null` when not comparing. */
@@ -22,6 +24,7 @@ export interface TestPanelState {
 const DEFAULTS: TestPanelState = {
   open: false,
   width: 440,
+  compareWidth: 880,
   mode: "draft",
   compare: null,
   pinned: [],
@@ -37,6 +40,8 @@ export function readTestPanel(agentId: string): TestPanelState {
     return {
       open: stored.open === true,
       width: typeof stored.width === "number" ? stored.width : DEFAULTS.width,
+      compareWidth:
+        typeof stored.compareWidth === "number" ? stored.compareWidth : DEFAULTS.compareWidth,
       mode: typeof stored.mode === "string" ? stored.mode : DEFAULTS.mode,
       compare: typeof stored.compare === "string" ? stored.compare : null,
       pinned: Array.isArray(stored.pinned)
