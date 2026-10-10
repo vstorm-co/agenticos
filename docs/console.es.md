@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3326b41450"
+source_sha: "5396f44a55e6"
 ---
 
 # La consola { #the-console }
@@ -110,8 +110,8 @@ un puñado de las más recientes, la próxima vez que abras la página.
 ## El asistente { #the-assistant }
 
 El destello junto a la búsqueda abre el **asistente de la plataforma**: un agent
-instalado desde la plantilla *Platform assistant* y vinculado a
-[Operar la plataforma](reference/capabilities.md#operate-the-platform). Pregúntale
+instalado desde la plantilla *Platform assistant* y vinculado al
+[servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server). Pregúntale
 qué agents responden dudas de reembolsos, por qué falló el run de anoche o qué hay
 en una base de conocimiento; pídele que esboce un agent o invite a un compañero, y
 primero te mostrará la llamada exacta para que la apruebes. Actúa con tus

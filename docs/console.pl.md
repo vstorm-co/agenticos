@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3326b41450"
+source_sha: "5396f44a55e6"
 ---
 
 # Konsola { #the-console }
@@ -113,7 +113,7 @@ następnym otwarciu strony.
 
 Iskierka obok wyszukiwania otwiera **asystenta platformy**: agenta zainstalowanego
 z szablonu *Platform assistant* i powiązanego z
-[obsługą platformy](reference/capabilities.md#operate-the-platform). Zapytaj go,
+[serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
 albo co jest w bazie wiedzy; poproś o szkic agenta albo zaproszenie współpracownika,
 a najpierw pokaże ci dokładne wywołanie do zatwierdzenia. Działa z twoimi

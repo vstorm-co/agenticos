@@ -463,6 +463,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
         icon: MAP_ICONS.mcp,
         side: "right",
         items: spec.mcp_servers.map((ref) => {
+          if (ref.account === "platform") {
+            // This deployment's own server - what the AI Architect works through.
+            return {
+              key: bindingKey(ref),
+              label: t("thisPlatformMcp"),
+              mcp: { icon: null, name: t("thisPlatformMcp") },
+            };
+          }
           if (ref.account === "personal") {
             // Named after the service, because there is no connection to name:
             // whose answers is decided when somebody talks to the agent.

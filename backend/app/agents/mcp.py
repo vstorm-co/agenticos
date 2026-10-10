@@ -16,6 +16,7 @@ SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import re
 from collections.abc import AsyncGenerator, Iterable
@@ -81,6 +82,9 @@ class McpServerSpec:
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
     approval: McpApproval = "writes"
+    # This deployment's own server (`/mcp`), reached through the application in
+    # this process rather than over the network - never probed, never dialled out.
+    in_process: bool = False
 
 
 @asynccontextmanager
@@ -213,9 +217,11 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     """
     from pydantic_ai.mcp import MCPToolset
 
+    # The in-process client carries the headers itself: the two are exclusive.
     server: Any = MCPToolset(
         spec.url,
-        headers=spec.headers or None,
+        headers=None if spec.in_process else spec.headers or None,
+        http_client=_in_process_client(spec.headers) if spec.in_process else None,
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
@@ -271,6 +277,46 @@ class ApprovalMarked(WrapperToolset[Any]):
         }
 
 
+PLATFORM_MCP_NAME = "agenticos"
+"""What this deployment's own server is called in a run, and so its tools' prefix."""
+
+PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
+
+PLATFORM_MCP_URL = "http://agenticos/mcp"
+"""Where the in-process client addresses `/mcp`. The host is never resolved."""
+
+
+def platform_spec(
+    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+) -> McpServerSpec:
+    """This deployment's own MCP server, as the holder of `credential`."""
+    return McpServerSpec(
+        name=PLATFORM_MCP_NAME,
+        url=PLATFORM_MCP_URL,
+        headers={"Authorization": f"Bearer {credential}"},
+        allowed_tools=allowed_tools,
+        approval=approval,
+        in_process=True,
+    )
+
+
+def _in_process_client(headers: dict[str, str]) -> Any:
+    """An HTTP client whose requests go to this process's API application.
+
+    Imported when a run needs it rather than at module load: the application
+    imports the agent layer, so the agent layer reaching for it at import time
+    would be a cycle.
+    """
+    import httpx2
+
+    app = importlib.import_module("app.main").app
+    return httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app),
+        headers=headers,
+        timeout=httpx2.Timeout(300.0, connect=10.0),
+    )
+
+
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
     """Drop specs whose tool prefix an earlier spec already claimed.
 
@@ -299,6 +345,9 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
     """
 
     async def _try(spec: McpServerSpec) -> Any | None:
+        if spec.in_process:
+            # This deployment's own server: there is no remote to be down.
+            return _make_toolset(spec)
         try:
             await probe_mcp_server(spec.url, spec.headers)
         except Exception as exc:

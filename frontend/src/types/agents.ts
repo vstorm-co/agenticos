@@ -239,7 +239,12 @@ export interface OrgMcpServerRef {
    * administrator's ceiling and the two intersect at run time.
    */
   allowed_tools: string[] | null;
+  /** Which tools wait for a person: those not marked read-only (default), all, or none. */
+  approval?: McpApproval;
 }
+
+/** How much of an MCP server's tools wait for a person's approval (#2060). */
+export type McpApproval = "writes" | "all" | "none";
 
 /**
  * A service each person reaches through their own account.
@@ -254,10 +259,21 @@ export interface PersonalMcpServerRef {
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
+  approval?: McpApproval;
 }
 
-/** One MCP binding: the organization's connection, or each person's own account. */
-export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
+/**
+ * This deployment's own MCP server, as whoever the agent runs for (#2063).
+ * What the AI Architect operates the platform through.
+ */
+export interface PlatformMcpServerRef {
+  account: "platform";
+  allowed_tools?: string[] | null;
+  approval?: McpApproval;
+}
+
+/** One MCP binding: the organization's connection, each person's own, or the platform's. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef;
 
 /** A custom variable, written `{{name}}` in an agent's instructions (#2065). */
 export interface PromptVariableSpec {

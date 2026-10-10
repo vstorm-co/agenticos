@@ -144,3 +144,60 @@ async def test_the_server_answers_503_when_it_is_not_running() -> None:
         response = await http.post("/mcp", json={})
 
     assert response.status_code == 503
+
+
+async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker(
+    db: AsyncSession, served: None
+) -> None:
+    """The AI Architect's binding: the real MCP protocol to this deployment's own
+    `/mcp`, with no network, and its writes marked for approval (#2063, #2060)."""
+    from pydantic_ai import Agent as PydanticAgent
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from app.agents.mcp import NEEDS_APPROVAL
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    key, organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+
+    def asks_whoami(messages: list[Any], _info: Any) -> ModelResponse:
+        returned = [
+            part
+            for message in messages
+            for part in getattr(message, "parts", [])
+            if isinstance(part, ToolReturnPart)
+        ]
+        if not returned:
+            return ModelResponse(parts=[ToolCallPart("agenticos_whoami", {}, tool_call_id="w")])
+        return ModelResponse(parts=[TextPart(json.dumps(returned[0].content))])
+
+    agent = PydanticAgent(FunctionModel(asks_whoami), toolsets=[toolset])
+    async with agent:
+        result = await agent.run("who am I?")
+        tools = await toolset.get_tools(MagicMock())
+
+    assert str(organization.id) in result.output
+    assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
+    assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
+
+
+async def test_nobody_to_act_as_leaves_the_platform_out(db: AsyncSession) -> None:
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=uuid.uuid4(),
+        refs=[PlatformMcpServerRef(account="platform")],
+        platform_credential=None,
+    )
+
+    assert resolved.toolsets == []

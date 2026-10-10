@@ -1,5 +1,5 @@
 ---
-source_sha: "95c9cbd86475"
+source_sha: "15a509a9c6b6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -54,7 +54,6 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Pytanie do użytkownika | narzędzia | `ask_user_question` | — | — |
-| `platform` | Obsługa platformy | narzędzia | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -1888,23 +1887,6 @@ Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
 domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
 wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
 dowiaduje się, że osoba odmówiła.
-
-## Obsługa platformy { #operate-the-platform }
-
-Ręce [asystenta platformy](../console.md#the-assistant): te same narzędzia, które
-[serwer MCP](../mcp.md#agenticos-as-an-mcp-server) platformy daje Claude Code,
-przekazane agentowi. Każde to wywołanie publicznego API w procesie, z
-poświadczeniem, które runner wybija dla osoby, w której imieniu działa run, więc
-agent może zrobić dokładnie to, co ta osoba — jej rola, jej granty, budżet i audyt
-organizacji — i nic więcej. Run, za którym nikt nie stoi, np. anonimowy gość
-widgetu, nie dostaje poświadczenia, a capability niczego nie dołącza.
-
-Pięć narzędzi, które coś zmieniają — `create_agent_draft`, `run_agent`,
-`create_knowledge_base`, `add_document`, `invite_member` — jest oznaczonych jako
-side-effecting, więc approval gate wstrzymuje każde wywołanie, dopóki osoba go nie
-zatwierdzi. Odmowa jest wynikiem narzędzia, a nie błędem, więc model może
-powiedzieć, czego odmówiono i dlaczego. Nic tu nie usuwa, nie publikuje ani nie
-dotyka poświadczeń, a workflowy i tabele nie są jeszcze osiągalne.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

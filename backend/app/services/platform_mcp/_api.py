@@ -5,11 +5,10 @@ into the services, so it is held to everything a key is held to over HTTP - the
 public-route check, the key's scopes and its issuer's current role, resource
 grants, budgets, rate limits and the audit trail - and cannot drift from it.
 
-Two callers use it: the MCP server, where the token is the one the MCP request
-arrived with, and the `platform` capability, where it is a credential minted for
-the person the run acts for. They differ in how a refusal is answered, which is
-why that is a parameter: an MCP client is sent a tool error, and a model is
-handed the refusal as its result.
+The MCP server is its caller, and the token is the one the MCP request arrived
+with - a key, an OAuth access token, or the credential the runner minted for the
+person an AI Architect run acts for. How a refusal is answered is a parameter:
+the server sends an MCP client a tool error carrying the API's own reason.
 """
 
 from __future__ import annotations

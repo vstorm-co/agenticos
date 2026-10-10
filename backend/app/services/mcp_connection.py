@@ -47,6 +47,7 @@ from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
+    platform_spec,
     prefix_collisions,
     probe_error_message,
     probe_mcp_server,
@@ -54,7 +55,12 @@ from app.agents.mcp import (
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
-from app.agents.spec import McpServerRef, PersonalMcpServerRef
+from app.agents.spec import (
+    McpServerRef,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    PlatformMcpServerRef,
+)
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -1820,6 +1826,7 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    platform_credential: str | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -1838,6 +1845,10 @@ async def build_toolsets_for_agent(
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
+    A **platform** binding is this deployment's own `/mcp`, reached in-process
+    with `platform_credential` - minted by the runner for the person the run is
+    for, and `None` where there is nobody, which leaves the server out.
+
     A person holding two accounts to one service is left alone rather than
     guessed at: they nominate one in their own connections, and until they do
     the binding is unavailable to them (#1342).
@@ -1850,12 +1861,20 @@ async def build_toolsets_for_agent(
     unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[
-            ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
-        ],
+        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
         organization_id=organization_id,
     )
     for ref in refs:
+        if isinstance(ref, PlatformMcpServerRef):
+            # This platform's own server, as whoever the run is for. Nobody to
+            # act as - a visitor, a schedule - is no credential and no server.
+            if platform_credential is not None:
+                spec = platform_spec(
+                    platform_credential, allowed_tools=ref.allowed_tools, approval=ref.approval
+                )
+                specs.append(spec)
+                bindings[id(spec)] = "this platform's own server"
+            continue
         if isinstance(ref, PersonalMcpServerRef):
             spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
             if spec is not None:

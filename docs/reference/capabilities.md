@@ -49,7 +49,6 @@ tools listed.
 | `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — |
-| `platform` | Operate the platform | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -1801,23 +1800,6 @@ The tool and its schema come from `AskUser` in pydantic-ai-harness. It is on by
 default in every new agent and every template, and an author can switch it off.
 Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
 the person declined.
-
-## Operate the platform
-
-The hands of the [Platform assistant](../console.md#the-assistant): the same tools
-the platform's [MCP server](../mcp.md#agenticos-as-an-mcp-server) offers Claude
-Code, handed to an agent. Each is a call to the public API made in-process with a
-credential the runner mints for the person the run acts for, so the agent can do
-exactly what that person could do — their role, their grants, the organization's
-budget and audit trail — and nothing more. A run nobody is behind, such as an
-anonymous widget visitor, gets no credential and the capability attaches nothing.
-
-The five tools that change something — `create_agent_draft`, `run_agent`,
-`create_knowledge_base`, `add_document`, `invite_member` — are declared
-side-effecting, so the approval gate holds each call until a person approves it.
-A refusal is the tool's result rather than an error, so the model can say what
-was refused and why. Nothing here deletes, publishes or touches a credential, and
-workflows and tables are not reachable yet.
 
 ## What a binding may change
 

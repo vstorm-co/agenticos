@@ -130,3 +130,31 @@ class TestWhatAManifestMayCarry:
         _write(tmp_path, "legal", "i", f"---\n{frontmatter}\n---\n\nYou answer.\n")
 
         assert agent_templates.catalog() == ()
+
+
+class TestMcpBindings:
+    """A template may bind a server nobody has to authorise - the platform's own."""
+
+    def test_bindings_are_carried_as_the_spec_takes_them(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        _write(
+            tmp_path,
+            "general",
+            "architect",
+            "---\nname: A\ndescription: d\nmcp_servers:\n- account: platform\n---\n\nYou help.\n",
+        )
+
+        [template] = agent_templates.catalog()[0].templates
+
+        assert template.mcp_servers == ({"account": "platform"},)
+
+    def test_a_binding_list_of_names_is_a_manifest_to_fix(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        _write(
+            tmp_path,
+            "general",
+            "architect",
+            "---\nname: A\ndescription: d\nmcp_servers:\n- platform\n---\n\nYou help.\n",
+        )
+
+        assert agent_templates.catalog() == ()

@@ -65,16 +65,16 @@ Two things are versioned separately from this file and worth knowing about:
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
   **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
-- **The Platform assistant.** A sparkle beside search opens an agent, installed
-  from the new *Platform assistant* template, that finds agents, runs, knowledge
-  bases, skills and members, explains a failed run, and — once a person approves
-  the exact call — drafts agents, creates knowledge bases, adds documents and
-  invites people. It is bound to the new `platform` capability, whose tools are
-  the MCP server's, called in-process with a credential minted for whoever is
-  asking, so it can never do more than they can. The five tools that change
-  something wait on the approval gate. The MCP tool `create_agent` is renamed
-  `create_agent_draft`, which no longer collides with delegation's. Migration
-  `0109_internal_api_keys` (#1798).
+- **The AI Architect.** A sparkle beside search opens an agent, installed
+  from the new *AI Architect* template, that finds agents, runs, knowledge
+  bases, skills and members, explains a failed run, and - once a person approves
+  the exact call - drafts agents, creates knowledge bases, adds documents and
+  invites people. It reaches the platform through the platform's own MCP server
+  over the real protocol, in-process, with a credential minted for whoever is
+  asking (a new `platform` kind of MCP binding), so it can never do more than
+  they can; its write tools are held by the MCP approval gate. The MCP tool
+  `create_agent` is renamed `create_agent_draft`, which no longer collides with
+  delegation's. Migration `0109_internal_api_keys` (#1798).
 - **The console keeps up with changes made elsewhere.** A successful write
   through the public API — from a script's key, Claude Code over MCP, the
   Platform assistant or another person's console — is announced over Redis to

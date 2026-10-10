@@ -1,8 +1,8 @@
-"""The platform's operations: the public API, one call each - offered twice.
+"""The platform's operations: the public API, one call each.
 
-The MCP server registers them for Claude Code and any MCP client (#2058), and the
-`platform` capability hands the same functions to the in-app assistant (#1798),
-so the two cannot drift: one name, one description, one call.
+The MCP server registers them for Claude Code, any MCP client (#2058) and the
+in-app AI Architect, which reaches the same server in-process (#2063) - so there
+is one name, one description and one call for every caller.
 
 Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
@@ -26,8 +26,9 @@ class PlatformTool:
     name: str
     function: Callable[..., Awaitable[dict[str, Any]]]
     writes: bool
-    """Whether it changes something - an MCP client is told so, and the in-app
-    assistant asks a person before it runs."""
+    """Whether it changes something. An MCP client is told so through the tool's
+    read-only hint, which is also what holds the call for a person's approval
+    under a binding's default `writes` policy."""
 
     @property
     def summary(self) -> str:

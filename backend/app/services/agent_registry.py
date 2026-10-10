@@ -45,14 +45,16 @@ from app.agents.capabilities.browser_choice import (
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.mcp import prefix_collisions
+from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
     McpServerRef,
+    OrgMcpServerRef,
     PersonalMcpServerRef,
+    PlatformMcpServerRef,
     SpecialistSpec,
     SubagentRef,
 )
@@ -1076,6 +1078,7 @@ class AgentRegistryService:
             description=template.description,
             instructions=template.instructions,
             capabilities=list(template.capabilities),
+            mcp_servers=list(template.mcp_servers),
             skill_ids=[row.id for row in rows],
             budget=(
                 BudgetSpec(monthly_usd=template.budget_usd)
@@ -1524,12 +1527,13 @@ class AgentRegistryService:
         prefixed: list[tuple[str, str]] = []
         found = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db,
-            connection_ids=[
-                ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
-            ],
+            connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
             organization_id=ctx.organization_id,
         )
         for ref in refs:
+            if isinstance(ref, PlatformMcpServerRef):
+                prefixed.append((PLATFORM_MCP_PREFIX, "this platform's own server"))
+                continue
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
                     problems.append(

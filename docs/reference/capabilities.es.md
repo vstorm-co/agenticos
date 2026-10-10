@@ -1,5 +1,5 @@
 ---
-source_sha: "95c9cbd86475"
+source_sha: "15a509a9c6b6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -53,7 +53,6 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — |
-| `platform` | Operar la plataforma | utility | `whoami`, `list_agents`, `get_agent`, `create_agent_draft`, `run_agent`, `list_runs`, `get_run`, `list_knowledge_bases`, `create_knowledge_base`, `add_document`, `search_knowledge`, `list_skills`, `list_members`, `invite_member` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -1928,24 +1927,6 @@ La herramienta y su esquema vienen de `AskUser` de pydantic-ai-harness. Está ac
 por defecto en cada agent nuevo y en cada plantilla, y el autor puede desactivarla.
 Donde todavía nadie puede responder — una programación, un webhook, la API — el
 agent recibe que la persona no quiso responder.
-
-## Operar la plataforma { #operate-the-platform }
-
-Las manos del [asistente de la plataforma](../console.md#the-assistant): las mismas
-herramientas que el [servidor MCP](../mcp.md#agenticos-as-an-mcp-server) de la
-plataforma ofrece a Claude Code, entregadas a un agent. Cada una es una llamada a
-la API pública en el mismo proceso, con una credencial que el runner emite para la
-persona por la que actúa el run, así que el agent puede hacer exactamente lo que
-esa persona — su rol, sus permisos concedidos, el budget y la auditoría de la
-organización — y nada más. Un run sin nadie detrás, como un visitante anónimo del
-widget, no recibe credencial y la capability no añade nada.
-
-Las cinco herramientas que cambian algo — `create_agent_draft`, `run_agent`,
-`create_knowledge_base`, `add_document`, `invite_member` — se declaran
-side-effecting, así que el approval gate retiene cada llamada hasta que una persona
-la aprueba. Un rechazo es el resultado de la herramienta y no un error, para que el
-modelo pueda decir qué se rechazó y por qué. Nada aquí borra, publica ni toca
-credenciales, y los workflows y las tablas aún no son accesibles.
 
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 

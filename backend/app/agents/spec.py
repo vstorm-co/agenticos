@@ -682,8 +682,40 @@ class PersonalMcpServerRef(BaseModel):
     )
 
 
-McpServerRef = Annotated[OrgMcpServerRef | PersonalMcpServerRef, Field(discriminator="account")]
-"""One MCP binding: the organization's connection, or each person's own account.
+class PlatformMcpServerRef(BaseModel):
+    """This deployment's own MCP server (`/mcp`), as whoever the agent runs for (#2063).
+
+    What the AI Architect operates the platform through: the same server Claude
+    Code connects to, reached in-process, with a credential minted for the person
+    asking - so the agent can do exactly what they could, and nothing more. Where
+    nobody is asking (a visitor, a schedule) the binding is simply absent.
+
+    Its tools carry MCP's read-only hints, so the default `writes` policy holds
+    every call that changes something for a person's approval.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["platform"]
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description="Which of the platform's tools this agent may call. Null is all of them.",
+    )
+    approval: McpApproval = Field(
+        default="writes",
+        description=(
+            "Which of the platform's tools wait for a person to approve the call: "
+            "`writes` (every tool that changes something), `all`, or `none`"
+        ),
+    )
+
+
+McpServerRef = Annotated[
+    OrgMcpServerRef | PersonalMcpServerRef | PlatformMcpServerRef,
+    Field(discriminator="account"),
+]
+"""One MCP binding: the organization's connection, each person's own account, or
+this platform's own server.
 
 Discriminated on `account`, so a stored document says which it is and a reader
 never has to infer it from which other fields are present.

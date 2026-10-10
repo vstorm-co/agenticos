@@ -142,9 +142,6 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "media",
         "memory_files",
         "planning",
-        # Calls the deployment's own public API in-process, as the person the run
-        # acts for; nothing leaves the deployment.
-        "platform",
         "skills",
         "subagents",
         "system_reminders",

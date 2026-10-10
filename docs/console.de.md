@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3326b41450"
+source_sha: "5396f44a55e6"
 ---
 
 # Die Konsole { #the-console }
@@ -122,7 +122,7 @@ Seite.
 
 Das Funkeln neben der Suche öffnet den **Plattform-Assistenten**: einen Agent, der
 aus der Vorlage *Platform assistant* installiert und an
-[Plattform bedienen](reference/capabilities.md#operate-the-platform) gebunden ist.
+[den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden ist.
 Fragen Sie ihn, welche Agents Erstattungsfragen beantworten, warum der Run von
 letzter Nacht fehlschlug oder was in einer Wissensbasis steht; lassen Sie ihn einen
 Agent entwerfen oder jemanden einladen, und er zeigt Ihnen zuerst den genauen

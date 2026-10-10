@@ -37,6 +37,7 @@ import { useTranslations } from "next-intl";
  * needs to replace a binding's tools without knowing which kind it is.
  */
 export function bindingKey(ref: McpServerRef): string {
+  if (ref.account === "platform") return "platform";
   return ref.account === "personal"
     ? `personal:${ref.catalog_key}`
     : `organization:${ref.connection_id}`;
@@ -120,14 +121,17 @@ export function McpServerPicker({
   // longer holds, and a personal one to a key the catalog no longer describes.
   // A card can match neither, so unlisted they would vanish from the Builder
   // while publish kept refusing them.
+  // The platform's own server is never orphaned: it is this deployment.
   const orphaned = value.flatMap((ref) =>
-    ref.account === "organization"
-      ? known.has(ref.connection_id)
-        ? []
-        : [ref.connection_id]
-      : catalogKeys.has(ref.catalog_key)
-        ? []
-        : [ref.catalog_key],
+    ref.account === "platform"
+      ? []
+      : ref.account === "organization"
+        ? known.has(ref.connection_id)
+          ? []
+          : [ref.connection_id]
+        : catalogKeys.has(ref.catalog_key)
+          ? []
+          : [ref.catalog_key],
   );
 
   /** Replace whatever this row's binding was with `next`, or drop it. */
@@ -491,7 +495,7 @@ function ServerCard({
             onClick={() => onTools(binding, connection, name)}
           >
             <Wrench className="mr-1 h-3.5 w-3.5" />
-            {binding.allowed_tools === null
+            {binding.allowed_tools == null
               ? t("everyToolThisServerOffers")
               : t("toolCount", { count: binding.allowed_tools.length })}
           </Button>
