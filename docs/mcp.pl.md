@@ -1,5 +1,5 @@
 ---
-source_sha: "83208674b6d1"
+source_sha: "e875d068afe3"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -60,7 +60,12 @@ niczego do konfigurowania.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
-Dwa rodzaje, i o tę różnicę właśnie chodzi.
+Dwa rodzaje, i o tę różnicę właśnie chodzi. Okno połączenia pyta o to jednym
+wyborem, prostymi słowami: **Jedno wspólne konto** - konfigurowane raz, zwykle
+przez administratora na koncie serwisowym, i używane przez każdego agenta - albo
+**Moje własne konto**, używane przez Ciebie i przez agentów ustawionych tak, by
+działali w imieniu każdej osoby. Serwer z katalogu, do którego ludzie się logują
+(Notion, Linear, Gmail), zaleca konto każdej osoby; serwer na klucz zaleca wspólne.
 
 **Osobiste** (MCP servers → You) obejmuje jednego członka i jest osiągalne przez
 jego własnego asystenta oraz przez agenta powiązanego z własnym kontem każdej
@@ -442,7 +447,10 @@ poświadczenia. Serwer bez nich nie jest checkboksem — nie ma id połączenia,
 spec mógłby przechować — więc karta otwiera dialog podłączenia **na miejscu**.
 
 Serwer na token albo w ogóle bez poświadczeń podłącza się bez opuszczania strony,
-a nowe połączenie jest zaznaczane dla agenta, gdy tylko powstanie.
+a nowe połączenie jest zaznaczane dla agenta, gdy tylko powstanie. Podłączenie
+sprawdza serwer, a jego narzędzia pojawiają się od razu z tego sprawdzenia, więc
+wybór serwera, podłączenie go i wybór tego, co agent może wywołać, to jedna ścieżka.
+Nieudane sprawdzenie mówi w komunikacie, dlaczego, a połączenie zostaje do poprawy.
 
 !!! info "OAuth otwiera kartę"
 
@@ -747,6 +755,14 @@ więc to, co agent może zrobić, rozstrzyga się tam, a nie tutaj.
 **Custom server** — dowolny serwer MCP osiągalny po URL-u. Jego narzędzia są
 odczytywane przy podłączeniu i nic o nim nie musi być wcześniej w katalogu.
 Katalog oszczędza komuś szukania URL-a; nie jest bramką.
+
+Wpisanie adresu własnego serwera pyta go, czy ludzie mogą się do niego logować:
+to samo wykrywanie, które wykonuje przepływ OAuth (RFC 9728, potem RFC 8414), bez
+rejestrowania czegokolwiek, przez `POST /api/v1/me/mcp-connections/probe`. Jeśli
+mogą, **OAuth** zostaje wybrany za Ciebie, a połączenie otwiera logowanie; jeśli
+serwer sam nie rejestruje aplikacji, okno prosi o identyfikator i sekret klienta
+utworzone u dostawcy; jeśli nie publikuje metadanych OAuth, zostaje token albo
+brak poświadczeń.
 
 Aby dodać wpis do listy, zobacz
 [Dodawanie serwera do katalogu MCP](howto/add-mcp-server.md).

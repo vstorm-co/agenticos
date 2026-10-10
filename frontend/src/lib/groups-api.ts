@@ -12,6 +12,7 @@ import type {
   GroupList,
   GroupMember,
   GroupMemberList,
+  GroupResourceList,
   GroupUpdate,
 } from "@/types/groups";
 
@@ -59,4 +60,12 @@ export async function removeGroupMember(
   userId: string,
 ): Promise<void> {
   await apiClient.delete<void>(`${members(orgId, groupId)}/${userId}`);
+}
+
+/** What has been shared with a group, narrowed to what the caller may see. */
+export async function listGroupResources(
+  orgId: string,
+  groupId: string,
+): Promise<GroupResourceList> {
+  return apiClient.get<GroupResourceList>(`${group(orgId, groupId)}/resources`);
 }

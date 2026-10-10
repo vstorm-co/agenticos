@@ -39,6 +39,7 @@ from app.services.ingestion_config import (
 )
 from app.services.rag import embedding_providers
 from app.services.resource_usage import agents_using
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -457,7 +458,7 @@ class KnowledgeBaseService:
                 await self._check_embedding_secret(
                     embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
                 )
-        return await knowledge_base_repo.create(
+        kb = await knowledge_base_repo.create(
             self.db,
             name=data.name,
             collection_name=collection_name,
@@ -465,6 +466,9 @@ class KnowledgeBaseService:
             description=data.description,
             owner_user_id=owner_user_id,
             organization_id=org_id,
+            # Who in the organization reaches it is a question only an org-scoped
+            # collection asks; a personal one is its owner's and an app one everyone's.
+            visibility=data.visibility.value if data.scope == KBScope.ORG.value else None,
             ingestion_config=config.model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
@@ -472,6 +476,11 @@ class KnowledgeBaseService:
             embedding_secret_id=embedding_secret_id,
             embedding_endpoint_id=embedding_endpoint_id,
         )
+        if data.group_ids and data.scope == KBScope.ORG.value:
+            await SharingService(self.db).restrict_to_groups(
+                ctx, kb, resource_type=COLLECTION, group_ids=data.group_ids
+            )
+        return kb
 
     async def _shared_embedding(
         self, collection_name: str, data: KnowledgeBaseCreate

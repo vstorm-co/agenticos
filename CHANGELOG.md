@@ -206,6 +206,30 @@ Two things are versioned separately from this file and worth knowing about:
   access when it is read. Migration `0106_artifact_followers` adds the table
   and the `artifact_version_published` event type (#1977).
 
+- **Groups as departments.** **Groups** joins the main navigation: each group,
+  a department, has an icon, a page listing its members and everything shared
+  with it (narrowed to what the reader may open), and **Add departments**
+  creates Sales, Finance, HR and the rest from templates. Creating an agent,
+  skill, knowledge base or context file asks one question - everyone, only me,
+  or chosen groups - and defaults to the whole organization; choosing groups
+  creates it private and shares it with each at `use`, in the same request.
+  The Builder's Toolbox shows which groups an agent's knowledge comes from and
+  warns when the agent reaches people a source is not shared with. A new
+  `{{groups}}` variable names the person's groups. API: `visibility` and
+  `group_ids` on those four creates (skills, context files and knowledge bases
+  now default to `org`), `GET /orgs/{id}/groups/{id}/resources`,
+  `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
+  `0112_group_icon` (#2072).
+
+- **MCP connections in plain words, and a shorter path.** The connect dialog asks
+  one question as two explained cards - one shared account for everyone, or my
+  own account - and recommends one per catalog server. A custom server's
+  address is checked for OAuth sign-in as it is typed (`POST
+  /api/v1/me/mcp-connections/probe`, the RFC 9728/8414 discovery a sign-in runs,
+  registering nothing): sign-in is chosen when it is supported, and the dialog
+  says when a client made at the provider is needed. Connecting a server from the
+  Builder binds it and opens its tools from the check that just ran (#2073).
+
 ### Fixed
 
 - **Workspace listings no longer decode every stored image on the event loop.**

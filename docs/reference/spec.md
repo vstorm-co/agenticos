@@ -11,8 +11,8 @@ Generated from the source, because the reasoning lives in the docstrings.
 ## Variables
 
 `{{name}}` in `instructions` is filled in when each run starts: a system variable
-the platform knows (the date and time, who is signed in, the organization, the
-agent, the channel) or one of the agent's own `variables`. `time_zone` decides
+the platform knows (the date and time, who is signed in and their
+[groups](../departments.md), the organization, the agent, the channel) or one of the agent's own `variables`. `time_zone` decides
 which clock `{{current_time}}` reads. Publishing refuses a name that is neither.
 
 ::: app.agents.spec.PromptVariableSpec

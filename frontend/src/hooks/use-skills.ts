@@ -1,5 +1,6 @@
 "use client";
 
+import type { Visibility } from "@/types/sharing";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -16,6 +17,9 @@ export interface NewSkill {
   content: string;
   /** A grouping label for the listing; omitted means uncategorized. */
   category?: string | null;
+  /** Who it reaches (#2072): the organization unless narrowed. */
+  visibility?: Visibility;
+  group_ids?: string[];
 }
 
 /** How the server may order a listing. */

@@ -126,8 +126,7 @@ describe("CreateAgentDialog", () => {
     open();
 
     await userEvent.type(name(), "Support");
-    await userEvent.click(screen.getByRole("combobox"));
-    await userEvent.click(await screen.findByRole("option", { name: "Private" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
     await userEvent.click(create());
 
     await waitFor(() =>

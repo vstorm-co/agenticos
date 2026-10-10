@@ -39,6 +39,9 @@ class Group(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # One of `GROUP_ICONS`, drawn beside the name so a department reads as one at a
+    # glance (#2072). Null draws the generic group mark.
+    icon: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

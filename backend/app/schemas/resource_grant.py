@@ -1,12 +1,12 @@
 """Schemas for per-resource sharing."""
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from app.db.models.resource_grant import GrantLevelLiteral
+from app.db.models.resource_grant import GrantLevelLiteral, Visibility
 from app.schemas.base import BaseSchema
 
 VisibilityLiteral = Literal["private", "team", "org"]
@@ -133,3 +133,35 @@ class VisibilityUpdate(BaseSchema):
     """Change how widely a resource is exposed within its organization."""
 
     visibility: VisibilityLiteral
+
+
+class AudienceChoice(BaseSchema):
+    """Who a new resource reaches, chosen in the control that creates it (#2072).
+
+    The whole organization by default, because a company's agents and knowledge are
+    for the company. Naming groups narrows it to them: the resource is created
+    private and shared with each group, so a department's skills, knowledge and
+    agents stay the department's.
+    """
+
+    visibility: Visibility = Field(
+        default=Visibility.ORG,
+        description=(
+            "`org` - the default - is everyone in the organization; `private` is the "
+            "creator and whoever they share it with. Naming `group_ids` makes it private."
+        ),
+    )
+    group_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        description=(
+            "Limit it to these groups: it is created private and shared with each at "
+            "`use`, so their members find it, run it and attach it to their agents."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _groups_narrow_it(self) -> Self:
+        if self.group_ids:
+            self.visibility = Visibility.PRIVATE
+        return self

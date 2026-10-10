@@ -162,8 +162,15 @@ class TestTheRunnersFacts:
 
         person = MagicMock(full_name=None, email="ada@example.com")
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
-        with patch(
-            "app.services.agent_runner.user_repo.get_by_id", new=AsyncMock(return_value=person)
+        with (
+            patch(
+                "app.services.agent_runner.user_repo.get_by_id",
+                new=AsyncMock(return_value=person),
+            ),
+            patch(
+                "app.services.agent_runner.group_repo.names_for_member",
+                new=AsyncMock(return_value=["Finance", "Sales"]),
+            ),
         ):
             render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
@@ -173,8 +180,12 @@ class TestTheRunnersFacts:
                 person_time_zone="Europe/Warsaw",
             )
 
-        spec = render_for_run(_spec("{{user_name}} {{user_email}} {{channel}}", time_zone="user"))
-        assert spec.instructions == "ada@example.com ada@example.com the AgenticOS console"
+        spec = render_for_run(
+            _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
+        )
+        assert spec.instructions == (
+            "ada@example.com ada@example.com the AgenticOS console Finance, Sales"
+        )
 
     @pytest.mark.security
     async def test_a_publisher_standing_in_for_a_visitor_is_not_named(self) -> None:
@@ -199,8 +210,8 @@ class TestTheRunnersFacts:
                 person_time_zone=None,
             )
 
-        spec = render_for_run(_spec("{{user_name}}|{{user_email}}"))
-        assert spec.instructions == "a visitor|"
+        spec = render_for_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
+        assert spec.instructions == "a visitor||"
         lookup.assert_not_awaited()
 
 

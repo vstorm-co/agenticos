@@ -16,28 +16,30 @@ import { mcpOAuthClient, rememberMcpOAuthReturn, secretWithoutClientId } from "@
 import { rowForEntry } from "@/lib/mcp-servers";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 /** What the server itself accepts as a name; it becomes the tool prefix. */
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
-/** What either scope's `create` answers with, as far as this dialog reads it. */
-type Created = { id: string; name: string };
-
 /** Either scope's `create`, narrowed to the fields this dialog sends. */
-type CreateConnection = (input: {
+type CreateConnection<T extends McpConnectionRecord> = (input: {
   name: string;
   url: string;
   auth_token?: string;
   catalog_key: string;
-}) => Promise<Created>;
+}) => Promise<T>;
 
-interface ConnectDialogProps {
+interface ConnectDialogProps<T extends McpConnectionRecord = McpConnectionRecord> {
   /** The catalog entry being connected, or null when the dialog is closed. */
   entry: McpCatalogEntry | null;
   onClose: () => void;
-  /** The new connection's id, so the caller can bind it straight away. */
-  onConnected?: (connectionId: string) => void;
+  /**
+   * The new connection, checked, so the caller can bind it straight away - and
+   * offer its tools from the check that just ran (#2073).
+   */
+  onConnected?: (connection: T) => void;
   /**
    * Where an OAuth consent should bring the browser back to, as a path on this
    * app. Given, the consent runs in *this* tab and returns here - right for a
@@ -70,7 +72,11 @@ interface ConnectDialogProps {
  * before the request that produces the URL: opened afterwards, in the callback
  * of an await, a popup blocker treats it as unprompted and eats it.
  */
-export function ConnectServerDialog({ entry, onClose, onConnected }: ConnectDialogProps) {
+export function ConnectServerDialog({
+  entry,
+  onClose,
+  onConnected,
+}: ConnectDialogProps<OrgMcpConnectionRecord>) {
   // Split so the form below never has a nullable entry. Reading one inside the
   // submit handler meant a `catalog_key` fallback for a state the handler
   // cannot be in - a branch no test could reach, which is a branch to delete
@@ -80,7 +86,9 @@ export function ConnectServerDialog({ entry, onClose, onConnected }: ConnectDial
   return <OrgConnectForm entry={entry} onClose={onClose} onConnected={onConnected} />;
 }
 
-function OrgConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) {
+function OrgConnectForm(
+  props: ConnectDialogProps<OrgMcpConnectionRecord> & { entry: McpCatalogEntry },
+) {
   const { create } = useOrgMcpConnections();
   return <ConnectForm {...props} scope="organization" create={create} />;
 }
@@ -117,7 +125,7 @@ function OwnConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) 
   return <ConnectForm {...props} scope="personal" create={create} />;
 }
 
-function ConnectForm({
+function ConnectForm<T extends McpConnectionRecord>({
   entry,
   scope,
   create,
@@ -128,9 +136,9 @@ function ConnectForm({
 }: {
   entry: McpCatalogEntry;
   scope: Scope;
-  create: CreateConnection;
+  create: CreateConnection<T>;
   onClose: () => void;
-  onConnected?: (connectionId: string) => void;
+  onConnected?: (connection: T) => void;
   returnTo?: string;
   keepThisTab?: boolean;
 }) {
@@ -224,7 +232,7 @@ function ConnectForm({
           ? t("connectedForOrg", { name: created.name })
           : t("connectedForYou", { name: created.name }),
       );
-      onConnected?.(created.id);
+      onConnected?.(created);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors));
     } finally {

@@ -334,6 +334,7 @@ nav:
       - Keep it under control:
           - permissions.md
           - directory.md
+          - departments.md
           - governance.md
           - secrets.md
           - data-protection.md

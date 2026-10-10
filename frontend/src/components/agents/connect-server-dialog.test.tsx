@@ -86,7 +86,7 @@ describe("ConnectServerDialog", () => {
         }),
       ),
     );
-    expect(onConnected).toHaveBeenCalledWith("c9");
+    expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ id: "c9" }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -317,7 +317,7 @@ describe("ConnectOwnServerDialog", () => {
       expect(createOwn).toHaveBeenCalledWith(expect.objectContaining({ catalog_key: "github" })),
     );
     expect(create).not.toHaveBeenCalled();
-    expect(onConnected).toHaveBeenCalledWith("m9");
+    expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ id: "m9" }));
     expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/for you/i));
   });
 

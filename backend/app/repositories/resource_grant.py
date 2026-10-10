@@ -287,3 +287,18 @@ async def count_for_resources(
     # named `count` shadows the Row sequence method as far as a type checker
     # can tell, even though SQLAlchemy resolves it to the value at run time.
     return dict(result.all())
+
+
+async def list_for_group(
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID
+) -> list[ResourceGrant]:
+    """Every grant made to one group - what a department has been given (#2072)."""
+    result = await db.execute(
+        select(ResourceGrant)
+        .where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.subject_group_id == group_id,
+        )
+        .order_by(ResourceGrant.resource_type, ResourceGrant.created_at)
+    )
+    return list(result.scalars().all())

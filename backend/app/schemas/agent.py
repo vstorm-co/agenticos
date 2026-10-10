@@ -12,8 +12,8 @@ from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
-from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
 # column that stores it. Measured on the *folded* value, since `casefold()` can
@@ -237,7 +237,7 @@ class AgentList(BaseSchema):
     )
 
 
-class AgentCreate(BaseSchema):
+class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
@@ -247,15 +247,6 @@ class AgentCreate(BaseSchema):
     # can still change them afterwards without a publish.
     categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
     tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
-    visibility: Visibility = Field(
-        default=Visibility.ORG,
-        description=(
-            "Who can find this agent. `org` - the default - is everyone in the "
-            "organization; `private` is the owner and whoever they grant it to. "
-            "A draft cannot run either way, so this decides who sees it, not "
-            "what it does."
-        ),
-    )
 
     @field_validator("categories", "tags", mode="after")
     @classmethod
@@ -778,3 +769,32 @@ class PromptVariableRead(BaseSchema):
 
 class PromptVariableCatalog(BaseSchema):
     items: list[PromptVariableRead]
+
+
+KnowledgeSourceKind = Literal["collection", "skill", "context"]
+
+
+class KnowledgeSource(BaseSchema):
+    """One knowledge source an agent binds, and who it is shared with (#2072)."""
+
+    kind: KnowledgeSourceKind
+    id: UUID
+    name: str
+    whole_organization: bool
+    groups: list[str] = Field(
+        default_factory=list, description="The groups it is shared with, by name"
+    )
+    reaches_fewer_than_agent: bool = Field(
+        description=(
+            "Whether the agent reaches people this source is not shared with - who "
+            "then get answers drawn from it all the same"
+        )
+    )
+
+
+class AgentKnowledgeReach(BaseSchema):
+    """Who an agent reaches, and where each of its knowledge sources comes from."""
+
+    whole_organization: bool
+    groups: list[str] = Field(default_factory=list)
+    sources: list[KnowledgeSource] = Field(default_factory=list)

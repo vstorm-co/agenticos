@@ -66,6 +66,17 @@ from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonal
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+
+
 RUNNER = "app.services.agent_runner"
 
 

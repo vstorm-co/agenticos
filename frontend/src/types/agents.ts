@@ -706,3 +706,21 @@ export interface AgentUsage {
   id: string;
   name: string;
 }
+
+/** One knowledge source an agent binds, and who it is shared with (#2072). */
+export interface KnowledgeSource {
+  kind: "collection" | "skill" | "context";
+  id: string;
+  name: string;
+  whole_organization: boolean;
+  groups: string[];
+  /** The agent reaches people this source is not shared with. */
+  reaches_fewer_than_agent: boolean;
+}
+
+/** Who an agent reaches, and where each of its knowledge sources comes from. */
+export interface AgentKnowledgeReach {
+  whole_organization: boolean;
+  groups: string[];
+  sources: KnowledgeSource[];
+}

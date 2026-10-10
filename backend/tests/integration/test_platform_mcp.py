@@ -201,3 +201,96 @@ async def test_nobody_to_act_as_leaves_the_platform_out(db: AsyncSession) -> Non
     )
 
     assert resolved.toolsets == []
+
+
+@pytest.mark.parametrize(
+    ("decision", "drafts_after"),
+    [("pending", 0), ("rejected", 0), ("granted", 1)],
+)
+async def test_a_draft_the_assistant_proposes_waits_for_a_person(
+    db: AsyncSession, served: None, decision: str, drafts_after: int
+) -> None:
+    """#2060 end to end: the platform server's write, reached in process, goes
+    through the same gate as a capability's tool. Waiting parks the run, a
+    rejection creates nothing, and approval creates exactly one draft - with the
+    write's own audit entry."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from pydantic_ai import Agent as PydanticAgent
+    from pydantic_ai import DeferredToolRequests
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from app.agents.approval import ApprovalGranted, ApprovalPending, ApprovalRejected
+    from app.agents.capabilities.approval import ApprovalGate
+    from app.agents.spec import PlatformMcpServerRef
+    from app.db.models.audit_log import AppAdminAuditLog as AuditLog
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    key, organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+    proposed = {"name": "Refund helper", "instructions": "Answer refund questions."}
+
+    def proposes_a_draft(messages: list[Any], _info: Any) -> ModelResponse:
+        if any(
+            isinstance(part, ToolReturnPart)
+            for message in messages
+            for part in getattr(message, "parts", [])
+        ):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(
+            parts=[ToolCallPart("agenticos_create_agent_draft", proposed, tool_call_id="d")]
+        )
+
+    answer = {
+        "pending": ApprovalPending(),
+        "rejected": ApprovalRejected(note="not now"),
+        "granted": ApprovalGranted(tool_args=proposed),
+    }[decision]
+    ask = AsyncMock(return_value=answer)
+    deps = SimpleNamespace(request_approval=ask, run_id=uuid.uuid4())
+    agent = PydanticAgent(
+        FunctionModel(proposes_a_draft),
+        toolsets=[toolset],
+        capabilities=[ApprovalGate()],
+        output_type=[str, DeferredToolRequests],
+    )
+
+    async with agent:
+        result = await agent.run("make me a refund helper", deps=deps)
+
+    # Waiting ends the run with the call parked for the approval card, nothing run.
+    parked = result.output.approvals if isinstance(result.output, DeferredToolRequests) else []
+    assert [call.tool_name for call in parked] == (
+        ["agenticos_create_agent_draft"] if decision == "pending" else []
+    )
+
+    [request] = [call.args[0] for call in ask.await_args_list]
+    assert request.tool_name == "agenticos_create_agent_draft"
+    assert request.tool_args == proposed
+    drafts = (
+        (await db.execute(select(Agent).where(Agent.organization_id == organization.id)))
+        .scalars()
+        .all()
+    )
+    assert len(drafts) == drafts_after
+    audited = (
+        (
+            await db.execute(
+                select(AuditLog).where(
+                    AuditLog.organization_id == organization.id,
+                    AuditLog.action == "agent.created",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audited) == drafts_after

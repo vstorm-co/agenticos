@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -35,7 +41,7 @@ import {
   sameIngestion,
 } from "@/lib/ingestion-config";
 import { cn } from "@/lib/utils";
-import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
+import type { CreateKnowledgeBaseInput, IngestionConfig } from "@/types";
 import { useTranslations } from "next-intl";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
@@ -54,7 +60,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const t = useTranslations("kb");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [scope, setScope] = useState<KBScope>("personal");
+  // The organization by default (#2072). "Only me" is a personal collection; the
+  // other two are an organization one, open or shared with chosen groups.
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
@@ -92,7 +100,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const reset = () => {
     setName("");
     setDescription("");
-    setScope("personal");
+    setAudience(EVERYONE);
     setIngestion(DEFAULT_INGESTION_CONFIG);
     setEmbeddingModel(null);
     setEmbeddingProvider(null);
@@ -109,7 +117,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const input: CreateKnowledgeBaseInput = {
         name: name.trim(),
         description: description.trim() || undefined,
-        scope,
+        scope: audience.mode === "private" ? "personal" : "org",
+        group_ids: audiencePayload(audience).group_ids,
       };
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
@@ -194,21 +203,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               />
             </FormField>
             <div className="space-y-1.5" data-tour="kb-dialog-scope">
-              <Label htmlFor="kb-scope">{t("whoCanSearchIt")}</Label>
-              <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
-                <SelectTrigger id="kb-scope" aria-describedby="kb-scope-hint">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="personal">{t("personalOnlyYou")}</SelectItem>
-                  <SelectItem value="org">{t("organizationAllMembers")}</SelectItem>
-                </SelectContent>
-              </Select>
-              {/* What the choice means, said for the one that is chosen - the
-                  two option labels name an audience, not the consequence. */}
-              <p id="kb-scope-hint" className="text-muted-foreground text-xs">
-                {scope === "org" ? t("scopeHintOrg") : t("scopeHintPersonal")}
-              </p>
+              <Label>{t("whoCanSearchIt")}</Label>
+              <AudiencePicker value={audience} onChange={setAudience} />
             </div>
 
             {/*

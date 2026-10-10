@@ -17,11 +17,13 @@ async def create(
     name: str,
     description: str | None,
     created_by_user_id: UUID | None,
+    icon: str | None = None,
 ) -> Group:
     group = Group(
         organization_id=organization_id,
         name=name,
         description=description,
+        icon=icon,
         created_by_user_id=created_by_user_id,
     )
     db.add(group)
@@ -83,9 +85,12 @@ async def get_names(
     return dict(result.all())
 
 
-async def update(db: AsyncSession, group: Group, *, name: str, description: str | None) -> Group:
+async def update(
+    db: AsyncSession, group: Group, *, name: str, description: str | None, icon: str | None
+) -> Group:
     group.name = name
     group.description = description
+    group.icon = icon
     await db.flush()
     await db.refresh(group)
     return group
@@ -178,6 +183,17 @@ async def list_memberships_in_org(
         select(GroupMember)
         .join(Group, Group.id == GroupMember.group_id)
         .where(Group.organization_id == organization_id, GroupMember.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
+async def names_for_member(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> list[str]:
+    """The names of the groups this person is in inside one organization, in name order."""
+    result = await db.execute(
+        select(Group.name)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(Group.organization_id == organization_id, GroupMember.user_id == user_id)
+        .order_by(Group.name)
     )
     return list(result.scalars().all())
 

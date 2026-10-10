@@ -1,5 +1,5 @@
 ---
-source_sha: "063feb1082a0"
+source_sha: "b5383e1a56be"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -17,7 +17,8 @@ deshalb bleibt die generierte Felddokumentation unten englisch.
 
 `{{name}}` in `instructions` wird zu Beginn jedes Runs ausgefüllt: mit einer
 Systemvariable, die die Plattform kennt (Datum und Uhrzeit, die angemeldete
-Person, die Organisation, der Agent, der Kanal), oder mit einer der eigenen
+Person und ihre [Gruppen](../departments.md), die Organisation, der Agent, der
+Kanal), oder mit einer der eigenen
 `variables` des Agents. `time_zone` bestimmt, welche Uhr `{{current_time}}` liest.
 Die Veröffentlichung lehnt einen Namen ab, der keines von beiden ist.
 

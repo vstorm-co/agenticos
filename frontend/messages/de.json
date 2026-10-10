@@ -687,7 +687,14 @@
     "addedToAgent": "{name} zum Entwurf von {agent} hinzugefügt.",
     "alreadyOnAgent": "{agent} hat {name} bereits.",
     "usedByNobody": "Noch von keinem Agenten verwendet",
-    "usedBy": "{more, plural, =0 {Verwendet von {names}} other {Verwendet von {names} und # weiteren}}"
+    "usedBy": "{more, plural, =0 {Verwendet von {names}} other {Verwendet von {names} und # weiteren}}",
+    "visibilityGroups": "Ausgewählte Gruppen",
+    "knowledgeReachTitle": "Woher sein Wissen kommt",
+    "knowledgeReachAgent": "Dieser Agent erreicht",
+    "knowledgeReachWarning": "{count, plural, =1 {1 Quelle ist mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.} other {# Quellen sind mit weniger Personen geteilt als dieser Agent. Alle, die der Agent erreicht, bekommen Antworten daraus.}}",
+    "knowledgeReachNarrower": "enger geteilt",
+    "knowledgeReachEveryone": "Alle",
+    "knowledgeReachPeople": "Ausgewählte Personen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2209,7 +2216,6 @@
     "ocrLanguageHint": "Tesseract-Codes, und die haben drei Buchstaben: “eng”, “pol”, “deu”. Mehrere werden mit “+” verbunden.",
     "ocrResolutionDpi": "OCR-Auflösung (DPI)",
     "onlyOcrPagesNeed": "Nur die Seiten per OCR lesen, die es brauchen",
-    "organizationAllMembers": "Organisation – alle Mitglieder",
     "output": "Ausgabe",
     "organizationalUnit": "Organisationseinheit",
     "organizationalUnitDetail": "Wird bei jeder als Nächstes hinzugefügten Datei erfasst, damit eine Suche darauf eingegrenzt werden kann. Leer lassen, um sie unter nichts abzulegen.",
@@ -2232,7 +2238,6 @@
     "parserPymupdfHint": "Lokal und schnell. Liest den Text, den ein PDF bereits enthält.",
     "parsing": "Parsen",
     "pdfParser": "PDF-Parser",
-    "personalOnlyYou": "Persönlich – nur Sie",
     "problemOcrLanguage": "Tesseract-Codes haben drei Buchstaben – \"eng\", nicht \"en\". Mehrere werden mit \"+\" verbunden, etwa \"eng+pol\".",
     "problemOverlapTooLarge": "Muss kleiner als die Chunk-Größe von {size} sein.",
     "problemPromptLength": "Zwischen 1 und {max} Zeichen.",
@@ -2550,7 +2555,7 @@
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",
     "editNamed": "„{name}“ bearbeiten",
-    "everyAgentCanReach": "Jeder Agent erreicht ihn. Ein Agent-Spec kann nur die Server der Organisation binden.",
+    "everyAgentCanReach": "Einmal für alle eingerichtet. Jeder Agent in der Organisation kann es nutzen, mit dem Zugriff dieses einen Kontos - verbinden Sie ein Dienstkonto, nicht Ihr persönliches.",
     "existingConnectionCannotChange": "Eine bestehende Verbindung kann den Besitzer nicht wechseln.",
     "failedLoadConnections": "Verbindungen konnten nicht geladen werden",
     "failedLoadOrgServers": "Die MCP-Server der Organisation konnten nicht geladen werden",
@@ -2588,8 +2593,8 @@
     "saveSelection": "Auswahl speichern",
     "saving": "Wird gespeichert …",
     "saving2": "Wird gespeichert …",
-    "scopeOrganization": "Organisation",
-    "scopeYou": "Sie",
+    "scopeOrganization": "Ein gemeinsames Konto",
+    "scopeYou": "Mein eigenes Konto",
     "noSuchServerToConnect": "Kein Server im Katalog heißt {key}.",
     "searchServers": "Server suchen …",
     "searchTools": "Tools suchen …",
@@ -2618,7 +2623,12 @@
     "whoeverSignsGrantsIf": "Wer sich anmeldet, gewährt ihn. Wird dessen Zugriff beim Provider entzogen, hört dieser Server für jeden Agent auf zu funktionieren, bis sich jemand erneut anmeldet – verwenden Sie also ein Konto, das die Organisation kontrolliert.",
     "yourChatAndDirectMessages": "Nur Ihres — Ihr Chat und Ihre Direktnachrichten in einem Kanal.",
     "yours": "Ihre",
-    "yoursAloneYourOwn": "Nur Ihres, in Ihrem eigenen Chat. Kein Agent kann es binden."
+    "yoursAloneYourOwn": "Nur Sie. Genutzt in Ihren Chats und von Agents, die im Namen jeder Person handeln, mit Ihrem eigenen Zugriff.",
+    "recommended": "Empfohlen",
+    "signInChecking": "Prüfe, ob dieser Server eine Anmeldung unterstützt…",
+    "signInNone": "Keine Anmeldung gefunden. Verwenden Sie ein Zugriffstoken oder keine Zugangsdaten.",
+    "signInSupported": "Dieser Server unterstützt die Anmeldung. Verbinden öffnet sie.",
+    "signInNeedsClient": "Dieser Server unterstützt die Anmeldung, registriert Apps aber nicht selbst. Tragen Sie unten Client-ID und Secret vom Anbieter ein."
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",
@@ -2698,7 +2708,8 @@
     "expandSidebar": "Seitenleiste ausklappen",
     "artifacts": "Apps",
     "apiKeys": "API-Schlüssel",
-    "assistant": "Assistent"
+    "assistant": "Assistent",
+    "groups": "Gruppen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3238,6 +3249,14 @@
       "settings-assistant": {
         "title": "Der Assistent der Organisation",
         "body": "Geben Sie ihm einen Namen und eine Begrüßung und wählen Sie das Modell, auf dem er läuft. Alle, die Agents ausführen dürfen, sehen ihn in der Ecke jeder Seite."
+      },
+      "groups-new": {
+        "title": "Gruppe hinzufügen",
+        "body": "Eine Gruppe ist eine Abteilung oder ein Team. Fügen Sie eine von Hand hinzu oder mehrere Abteilungen auf einmal aus den Vorlagen."
+      },
+      "groups-list": {
+        "title": "Ihre Gruppen",
+        "body": "Die Seite jeder Gruppe zeigt ihre Personen und alles, was mit ihr geteilt ist. Wählen Sie beim Erstellen eines Agents, Skills oder einer Wissensdatenbank eine Gruppe, damit es dieser Abteilung bleibt."
       }
     }
   },
@@ -4819,7 +4838,8 @@
         "manufacturing": "Produktion und Logistik"
       }
     },
-    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}"
+    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
+    "whoCanUseIt": "Wer es nutzen darf"
   },
   "states": {
     "loading": "Wird geladen"
@@ -5060,7 +5080,8 @@
     "droppedUnknownFormat": "{count, plural, =1 {Eine Datei hat ein Format, das eine Kontextdatei nicht deklarieren kann, und wurde übersprungen} other {# Dateien haben ein Format, das eine Kontextdatei nicht deklarieren kann, und wurden übersprungen}}",
     "droppedNotText": "{count, plural, =1 {Eine Datei war kein Text und wurde übersprungen} other {# Dateien waren kein Text und wurden übersprungen}}",
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
-    "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}"
+    "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
+    "whoCanUseIt": "Wer es nutzen darf"
   },
   "memory": {
     "clearAction": "Gedächtnis leeren",
@@ -5461,7 +5482,79 @@
     "addMember": "Mitglied hinzufügen",
     "chooseMember": "Mitglied auswählen",
     "everyoneIsIn": "Alle sind bereits in dieser Gruppe",
-    "add": "Hinzufügen"
+    "add": "Hinzufügen",
+    "departmentsTitle": "Gruppen",
+    "departmentsDescription": "Ihre Abteilungen und Teams. Teilen Sie Agents, Wissensdatenbanken, Skills und Kontext mit einer Gruppe - alle darin können sie nutzen, alle anderen nicht.",
+    "addDepartments": "Abteilungen hinzufügen",
+    "addDepartmentsWhy": "Wählen Sie die Abteilungen Ihres Unternehmens. Jede wird eine Gruppe, der Sie Personen hinzufügen und mit der Sie Dinge teilen.",
+    "allDepartmentsAdded": "Jede dieser Abteilungen ist bereits eine Gruppe.",
+    "addPickedDepartments": "{count, plural, =0 {Abteilungen hinzufügen} =1 {1 Abteilung hinzufügen} other {# Abteilungen hinzufügen}}",
+    "departmentsAdded": "{count, plural, =1 {1 Abteilung hinzugefügt} other {# Abteilungen hinzugefügt}}",
+    "icon": "Symbol",
+    "groupNotFound": "Gruppe nicht gefunden",
+    "groupNotFoundWhy": "Sie wurde vielleicht gelöscht oder gehört zu einer anderen Organisation.",
+    "whatItHas": "Mit dieser Gruppe geteilt",
+    "resourceCount": "{count, plural, =1 {1 Element} other {# Elemente}}",
+    "nothingSharedYet": "Mit {name} ist noch nichts geteilt",
+    "nothingSharedYetWhy": "Wählen Sie diese Gruppe, wenn Sie einen Agent, einen Skill, eine Wissensdatenbank oder eine Kontextdatei erstellen, oder fügen Sie sie im Teilen-Bereich eines bestehenden hinzu.",
+    "resourceAgents": "Agents",
+    "resourceCollections": "Wissensdatenbanken",
+    "resourceSkills": "Skills",
+    "resourceContext": "Kontext",
+    "resourceApps": "Apps",
+    "level": {
+      "read": "darf ansehen",
+      "use": "darf verwenden",
+      "edit": "darf bearbeiten"
+    },
+    "icons": {
+      "users": "Personen",
+      "briefcase": "Aktentasche",
+      "banknote": "Geld",
+      "megaphone": "Megafon",
+      "headphones": "Headset",
+      "code": "Code",
+      "scale": "Waage",
+      "heart-handshake": "Handschlag",
+      "truck": "Lastwagen",
+      "flask-conical": "Kolben",
+      "graduation-cap": "Doktorhut",
+      "building": "Gebäude"
+    },
+    "departments": {
+      "sales": {
+        "name": "Vertrieb",
+        "description": "Kunden, Abschlüsse und die Pipeline."
+      },
+      "finance": {
+        "name": "Finanzen",
+        "description": "Rechnungen, Budgets und die Buchhaltung."
+      },
+      "hr": {
+        "name": "Personal",
+        "description": "Mitarbeitende, Einstellungen und Richtlinien."
+      },
+      "support": {
+        "name": "Support",
+        "description": "Kundenfragen und Tickets."
+      },
+      "engineering": {
+        "name": "Entwicklung",
+        "description": "Produkte, Code und Infrastruktur."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Kampagnen, Inhalte und die Marke."
+      },
+      "legal": {
+        "name": "Recht",
+        "description": "Verträge, Compliance und Risiken."
+      },
+      "operations": {
+        "name": "Betrieb",
+        "description": "Lieferanten, Logistik und der laufende Betrieb."
+      }
+    }
   },
   "directory": {
     "navLabel": "Verzeichnis",
@@ -5922,5 +6015,16 @@
     "research": "Das Web",
     "utility": "Alltag",
     "advanced": "Erweitert"
+  },
+  "audience": {
+    "label": "Wer es nutzen darf",
+    "everyone": "Alle",
+    "everyoneHint": "Alle in der Organisation.",
+    "onlyMe": "Nur ich",
+    "onlyMeHint": "Sie und alle, mit denen Sie es später teilen.",
+    "groups": "Ausgewählte Gruppen",
+    "groupsHint": "Nur die Abteilungen, die Sie wählen.",
+    "noGroupsYet": "Noch keine Gruppen - fügen Sie sie unter Gruppen hinzu.",
+    "chooseGroups": "Gruppen, die es nutzen dürfen"
   }
 }

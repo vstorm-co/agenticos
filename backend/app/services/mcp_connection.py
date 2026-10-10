@@ -82,6 +82,7 @@ from app.repositories import mcp_connection_repo, mcp_registry_server_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
+    McpSignInProbeResult,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
@@ -733,6 +734,23 @@ class McpConnectionService:
             },
         )
         return db_connection, tools, error
+
+    async def probe_sign_in(self, url: str) -> McpSignInProbeResult:
+        """Whether a server added by its address lets people sign in with OAuth (#2073).
+
+        The discovery `oauth_start` runs before it registers anything - RFC 9728
+        protected-resource metadata, then RFC 8414 - so the form can offer sign-in
+        for a server nobody curated, rather than asking for a token it does not
+        use. The address is checked as any connection's is.
+        """
+        checked = await _checked_url(url)
+        try:
+            server = await mcp_oauth.discover(checked)
+        except OAuthError:
+            return McpSignInProbeResult(sign_in=False, registers_clients=False)
+        return McpSignInProbeResult(
+            sign_in=True, registers_clients=server.registration_endpoint is not None
+        )
 
     async def oauth_start_for_org(
         self,

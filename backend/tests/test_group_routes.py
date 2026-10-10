@@ -33,7 +33,12 @@ V1 = settings.API_V1_STR
 
 def _group(name: str = "Finance") -> SimpleNamespace:
     return SimpleNamespace(
-        id=uuid4(), organization_id=ORG, name=name, description=None, created_at=NOW
+        id=uuid4(),
+        organization_id=ORG,
+        name=name,
+        description=None,
+        icon=None,
+        created_at=NOW,
     )
 
 
@@ -84,6 +89,32 @@ class TestGroupRoutes:
         assert body["items"][0]["name"] == "Finance"
         assert body["items"][0]["member_count"] == 3
         assert groups.list_groups.await_args.args == (ORG, CALLER.id)
+
+    async def test_a_group_s_resources_are_listed_with_their_kind_and_level(
+        self, client: AsyncClient, groups: MagicMock
+    ) -> None:
+        from app.schemas.group import GroupResource
+
+        shared = GroupResource(kind="skill", id=uuid4(), name="month-end-close", level="use")
+        groups.resources = AsyncMock(return_value=[shared])
+
+        resp = await client.get(f"{V1}/orgs/{ORG}/groups/{uuid4()}/resources")
+
+        assert resp.status_code == 200
+        assert resp.json()["items"][0] | {"id": None} == {
+            "kind": "skill",
+            "id": None,
+            "name": "month-end-close",
+            "level": "use",
+        }
+
+    def test_a_stored_icon_reads_back_as_one_of_the_marks_and_nothing_else(self) -> None:
+        from app.schemas.group import as_group_icon
+
+        assert as_group_icon("banknote") == "banknote"
+        assert as_group_icon(None) is None
+        with pytest.raises(ValueError, match="Not a group icon"):
+            as_group_icon("rocket")
 
     async def test_creating_answers_201_with_an_empty_group(
         self, client: AsyncClient, groups: MagicMock

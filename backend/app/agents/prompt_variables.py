@@ -52,6 +52,9 @@ SYSTEM_VARIABLES: tuple[SystemVariable, ...] = (
     SystemVariable("user_name", "The signed-in person's name, or 'a visitor'", "Ada Lovelace"),
     SystemVariable("user_email", "The signed-in person's email, or empty", "ada@example.com"),
     SystemVariable("organization_name", "The organization the agent runs in", "Acme"),
+    SystemVariable(
+        "groups", "The groups - departments - the signed-in person is in, or empty", "Finance"
+    ),
     SystemVariable("agent_name", "This agent's name", "HR leave"),
     SystemVariable("channel", "Where the conversation happens", "Slack"),
 )
@@ -79,6 +82,9 @@ class RunFacts:
     user_email: str | None
     organization_name: str | None
     surface: str
+    groups: tuple[str, ...] = ()
+    """The person's groups in the run's organization (#2072), so one agent can answer
+    each department in its own terms."""
 
 
 def referenced(text: str) -> list[str]:
@@ -128,6 +134,7 @@ def _system_values(facts: RunFacts, zone: ZoneInfo, agent_name: str) -> dict[str
         "user_name": _flattened(facts.user_name) if facts.user_name else "a visitor",
         "user_email": _flattened(facts.user_email) if facts.user_email else "",
         "organization_name": _flattened(facts.organization_name or ""),
+        "groups": ", ".join(_flattened(name) for name in facts.groups),
         "agent_name": _flattened(agent_name),
         "channel": _CHANNELS.get(facts.surface, facts.surface),
     }

@@ -199,7 +199,7 @@ Customize the **dashboard** around your work. **Activity** lets you inspect runs
 
 ### 👥 Organize teams with roles and groups
 
-**Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as Operations, Engineering, Finance and Research. Share an agent, skill, collection, context file or app with a group in one step.
+**Roles define what people may do. Groups define who you share with.** Use roles such as Builder, Operator, Member and Viewer, then create departments or working groups such as Operations, Engineering, Finance and Research. Share an agent, skill, collection, context file or app with a group in one step, or limit it to chosen departments when you create it. [Departments and groups](https://vstorm-co.github.io/agenticos/departments/)
 
 Bring existing company accounts through **OIDC single sign-on** (Entra ID, Okta, Keycloak and others), **LDAP directory login** or **Kerberos integrated Windows sign-in**. **Directory mappings** connect directory groups to a role and a group at sign-in. [Roles and permissions](https://vstorm-co.github.io/agenticos/permissions/) · [Directory sign-in](https://vstorm-co.github.io/agenticos/directory/)
 

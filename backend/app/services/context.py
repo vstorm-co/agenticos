@@ -31,6 +31,7 @@ from app.schemas.context import (
 )
 from app.services.access import CONTEXT, resolve_access, visible_resource_ids
 from app.services.resource_usage import agents_using
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +190,7 @@ class ContextService:
         content_format: str = "md",
         mode: str = "inject",
         visibility: Visibility = Visibility.PRIVATE,
+        group_ids: list[UUID] | None = None,
     ) -> ContextFile:
         """Create a context file.
 
@@ -225,6 +227,10 @@ class ContextService:
             target_id=str(file.id),
             details={"name": name, "mode": mode},
         )
+        if group_ids:
+            await SharingService(self.db).restrict_to_groups(
+                ctx, file, resource_type=CONTEXT, group_ids=group_ids
+            )
         return file
 
     async def update(

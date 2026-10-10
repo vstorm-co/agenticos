@@ -188,6 +188,7 @@ from app.repositories import (
     agent_run_repo,
     chat_file_repo,
     conversation_repo,
+    group_repo,
     knowledge_base_repo,
     message_rating_repo,
     organization_repo,
@@ -1983,12 +1984,20 @@ class AgentRunnerService:
             if ctx.user_id is not None and not ctx.subject_is_publisher_fallback
             else None
         )
+        groups = (
+            await group_repo.names_for_member(
+                self.db, organization_id=ctx.organization_id, user_id=person.id
+            )
+            if person is not None
+            else []
+        )
         facts = prompt_variables.RunFacts(
             now=datetime.now(UTC),
             user_name=user_name or (person.full_name or person.email if person else None),
             user_email=person.email if person else None,
             organization_name=organization_name,
             surface=surface.value,
+            groups=tuple(groups),
         )
 
         def render(spec: AgentSpec) -> AgentSpec:

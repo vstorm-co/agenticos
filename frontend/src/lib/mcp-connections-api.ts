@@ -184,3 +184,19 @@ export async function startPolledPortalOAuth(
     portal_key: portalKey,
   });
 }
+
+/** What a server added by its address answered about OAuth sign-in (#2073). */
+export interface McpSignInProbeResult {
+  sign_in: boolean;
+  registers_clients: boolean;
+}
+
+/**
+ * Whether a server added by its address lets people sign in with OAuth.
+ *
+ * The discovery a sign-in would run, registering nothing - so the form offers
+ * Connect-with-sign-in for a server nobody curated instead of asking for a token.
+ */
+export async function probeMcpSignIn(url: string): Promise<McpSignInProbeResult> {
+  return apiClient.post<McpSignInProbeResult>("/me/mcp-connections/probe", { url });
+}

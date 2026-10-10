@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 from app.services.ingestion_config import IngestionConfig
 
@@ -13,7 +14,7 @@ KBScopeLiteral = Literal["personal", "org", "app"]
 VisibilityLiteral = Literal["private", "team", "org"]
 
 
-class KnowledgeBaseCreate(BaseSchema):
+class KnowledgeBaseCreate(AudienceChoice):
     """Schema for creating a Knowledge Base."""
 
     name: str = Field(..., min_length=1, max_length=128, description="KB display name")

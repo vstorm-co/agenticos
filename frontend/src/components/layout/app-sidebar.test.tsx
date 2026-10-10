@@ -204,10 +204,11 @@ describe("the navigation definition", () => {
     // Dashboard, Chat and Organizations are open to any member by design, and so
     // is Workspaces: it lists the files an agent kept *for the person looking*,
     // and the backend narrows it to what they are part of - a permission here
-    // would hide somebody's own files behind an operator's authority.
+    // would hide somebody's own files behind an operator's authority. Groups too:
+    // any member reads them, because a group is what somebody shares with (#2072).
     // Everything else must state what it needs, or a Viewer is shown pages that
     // will refuse them.
-    const open = new Set(["dashboard", "chat", "organizations", "workspaces"]);
+    const open = new Set(["dashboard", "chat", "organizations", "groups", "workspaces"]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));

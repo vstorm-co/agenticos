@@ -26,11 +26,22 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import Perm, assignable_roles, role_has
+from app.core.permissions import AuthContext, Perm, assignable_roles, role_has
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import MembershipSource, OrganizationMember
-from app.repositories import directory_mapping_repo, group_repo, member_repo
-from app.schemas.group import GroupCreate, GroupUpdate
+from app.repositories import (
+    agent_repo,
+    artifact_repo,
+    context_repo,
+    directory_mapping_repo,
+    group_repo,
+    knowledge_base_repo,
+    member_repo,
+    resource_grant_repo,
+    skill_repo,
+)
+from app.schemas.group import GroupCreate, GroupResource, GroupUpdate
+from app.services.access import AGENT, ARTIFACT, COLLECTION, CONTEXT, SKILL, accessible_ids
 
 
 class GroupService:
@@ -91,6 +102,7 @@ class GroupService:
                     organization_id=organization_id,
                     name=data.name,
                     description=data.description,
+                    icon=data.icon,
                     created_by_user_id=requester_id,
                 )
         except IntegrityError as exc:
@@ -118,12 +130,13 @@ class GroupService:
         # A description sent as null clears it; one not sent at all is left alone.
         sent = data.model_fields_set
         description = data.description if "description" in sent else group.description
+        icon = data.icon if "icon" in sent else group.icon
         if name != group.name:
             await self._refuse_taken_name(organization_id, name)
         try:
             async with self.db.begin_nested():
                 updated = await group_repo.update(
-                    self.db, group, name=name, description=description
+                    self.db, group, name=name, description=description, icon=icon
                 )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -183,6 +196,56 @@ class GroupService:
         await self._membership(organization_id, requester_id)
         group = await self._group(organization_id, group_id)
         return await group_repo.list_members(self.db, group.id)
+
+    async def resources(self, ctx: AuthContext, group_id: UUID) -> list[GroupResource]:
+        """What one group has been given, among what the caller may see (#2072).
+
+        Any member may ask, as with the group's members; each resource is narrowed
+        by the caller's own view permission, so a department's page never names
+        an agent or a collection its reader could not open.
+        """
+        await self._membership(ctx.organization_id, ctx.subject_id)
+        group = await self._group(ctx.organization_id, group_id)
+        grants = await resource_grant_repo.list_for_group(
+            self.db, organization_id=ctx.organization_id, group_id=group.id
+        )
+
+        def ids(kind: str) -> list[UUID]:
+            return [grant.resource_id for grant in grants if grant.resource_type == kind]
+
+        org = ctx.organization_id
+        agents = await agent_repo.get_many(self.db, ids(AGENT.key), organization_id=org)
+        collections = await knowledge_base_repo.get_by_ids(self.db, ids(COLLECTION.key))
+        skills = await skill_repo.get_many(self.db, ids(SKILL.key), organization_id=org)
+        files = await context_repo.get_many(self.db, ids(CONTEXT.key), organization_id=org)
+        apps = await artifact_repo.get_many(self.db, ids(ARTIFACT.key), organization_id=org)
+        names: dict[UUID, str] = {}
+        for rows, resource_type in (
+            (agents, AGENT),
+            (collections, COLLECTION),
+            (skills, SKILL),
+            (files, CONTEXT),
+        ):
+            reachable = await accessible_ids(
+                self.db, ctx, rows.values(), resource_type.view, resource_type=resource_type
+            )
+            names.update({key: row.name for key, row in rows.items() if key in reachable})
+        reachable_apps = await accessible_ids(
+            self.db, ctx, apps.values(), ARTIFACT.view, resource_type=ARTIFACT
+        )
+        names.update({key: app.title for key, app in apps.items() if key in reachable_apps})
+        return [
+            GroupResource.model_validate(
+                {
+                    "kind": grant.resource_type,
+                    "id": grant.resource_id,
+                    "name": names[grant.resource_id],
+                    "level": grant.level,
+                }
+            )
+            for grant in grants
+            if grant.resource_id in names
+        ]
 
     async def add_member(
         self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID

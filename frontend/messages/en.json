@@ -656,8 +656,6 @@
     "eachPersonsOwnAccountHint": "Whoever talks to this agent connects their own account and the agent speaks to the service as them - in the dashboard, in direct messages and in channels alike. Not available to API keys, the widget, schedules and triggers, where nobody is signed in.",
     "everyToolThisServerOffers": "Every tool it offers",
     "whoCanFindIt": "Who can find it",
-    "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
-    "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
     "preview": "Preview",
     "variablesSuggestions": "Variables",
     "variablesTitle": "Variables",
@@ -691,7 +689,14 @@
     "addedToAgent": "{name} added to {agent}'s draft.",
     "alreadyOnAgent": "{agent} already has {name}.",
     "usedByNobody": "Not used by any agent yet",
-    "usedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}"
+    "usedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
+    "visibilityGroups": "Chosen groups",
+    "knowledgeReachTitle": "Where its knowledge comes from",
+    "knowledgeReachAgent": "This agent reaches",
+    "knowledgeReachWarning": "{count, plural, =1 {1 source is shared with fewer people than this agent. Everyone the agent reaches gets answers drawn from it.} other {# sources are shared with fewer people than this agent. Everyone the agent reaches gets answers drawn from them.}}",
+    "knowledgeReachNarrower": "shared more narrowly",
+    "knowledgeReachEveryone": "Everyone",
+    "knowledgeReachPeople": "Chosen people"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2223,7 +2228,6 @@
     "ocrLanguageHint": "Tesseract codes, which are three letters: “eng”, “pol”, “deu”. Join several with “+”.",
     "ocrResolutionDpi": "OCR resolution (DPI)",
     "onlyOcrPagesNeed": "Only OCR the pages that need it",
-    "organizationAllMembers": "Organization - all members",
     "output": "Output",
     "organizationalUnit": "Organizational unit",
     "organizationalUnitDetail": "Recorded on each file you add next, so a search can be narrowed to it. Leave it empty to file them under nothing.",
@@ -2246,7 +2250,6 @@
     "parserPymupdfHint": "Local and fast. Reads the text a PDF already carries.",
     "parsing": "Parsing",
     "pdfParser": "PDF parser",
-    "personalOnlyYou": "Personal - only you",
     "problemOcrLanguage": "Tesseract codes are three letters - \"eng\", not \"en\". Join several with \"+\", as in \"eng+pol\".",
     "problemOverlapTooLarge": "Must be smaller than the chunk size of {size}.",
     "problemPromptLength": "Between 1 and {max} characters.",
@@ -2313,9 +2316,7 @@
     "ocrServerHint": "Where LiteParse sends pages to be read. The built-in Tesseract runs inside the worker.",
     "builtInTesseract": "Built-in Tesseract",
     "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
-    "whoCanSearchIt": "Who can search it",
-    "scopeHintPersonal": "Only you can see it, upload to it and search it.",
-    "scopeHintOrg": "Everyone in this organization can find it and search it."
+    "whoCanSearchIt": "Who can search it"
   },
   "knowledgeBases": {
     "active": "Active",
@@ -2686,7 +2687,7 @@
     "documentation": "Documentation",
     "edit": "Edit",
     "editNamed": "Edit \"{name}\"",
-    "everyAgentCanReach": "Every agent can reach it. An agent spec can only bind the organization's servers.",
+    "everyAgentCanReach": "Set up once, for everyone. Every agent in the organization can use it, with this one account's access - connect a service account, not your personal one.",
     "existingConnectionCannotChange": "An existing connection cannot change owner.",
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
@@ -2725,8 +2726,8 @@
     "saveSelection": "Save selection",
     "saving": "Saving…",
     "saving2": "Saving…",
-    "scopeOrganization": "Organization",
-    "scopeYou": "You",
+    "scopeOrganization": "One shared account",
+    "scopeYou": "My own account",
     "noSuchServerToConnect": "No server in the catalog is called {key}.",
     "searchServers": "Search servers…",
     "searchTools": "Search tools…",
@@ -2755,7 +2756,12 @@
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
     "yourChatAndDirectMessages": "Yours alone — your chat, and your direct messages in a channel.",
     "yours": "Yours",
-    "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it."
+    "yoursAloneYourOwn": "Only you. Used in your chats, and by agents set up to act as each person, with your own access.",
+    "recommended": "Recommended",
+    "signInChecking": "Checking whether this server supports sign-in…",
+    "signInNone": "No sign-in found. Use an access token, or no credentials.",
+    "signInSupported": "This server supports sign-in. Connect opens it.",
+    "signInNeedsClient": "This server supports sign-in but does not register apps itself. Add a client ID and secret from the provider below."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -2835,7 +2841,8 @@
     "expandSidebar": "Expand the sidebar",
     "artifacts": "Apps",
     "apiKeys": "API keys",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "groups": "Groups"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3375,6 +3382,14 @@
       "settings-assistant": {
         "title": "The organization's assistant",
         "body": "Name it, give it a greeting and choose the model it runs on. Everyone who may run agents sees it in the corner of every page."
+      },
+      "groups-new": {
+        "title": "Add a group",
+        "body": "A group is a department or a team. Add one by hand, or add several departments at once from the templates."
+      },
+      "groups-list": {
+        "title": "Your groups",
+        "body": "Each group's page lists its people and everything shared with it. Choose a group when you create an agent, skill or knowledge base to keep it for that department."
       }
     }
   },
@@ -4961,7 +4976,8 @@
       }
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
-    "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it."
+    "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
+    "whoCanUseIt": "Who can use it"
   },
   "states": {
     "loading": "Loading"
@@ -5202,7 +5218,8 @@
     "droppedNotText": "{count, plural, =1 {One file was not text and was skipped} other {# files were not text and were skipped}}",
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
-    "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n"
+    "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n",
+    "whoCanUseIt": "Who can use it"
   },
   "memory": {
     "clearAction": "Clear memory",
@@ -5603,7 +5620,79 @@
     "addMember": "Add a member",
     "chooseMember": "Choose a member",
     "everyoneIsIn": "Everyone is already in this group",
-    "add": "Add"
+    "add": "Add",
+    "departmentsTitle": "Groups",
+    "departmentsDescription": "Your departments and teams. Share agents, knowledge bases, skills and context with a group, and everyone in it can use them - people outside it cannot.",
+    "addDepartments": "Add departments",
+    "addDepartmentsWhy": "Pick the departments your company has. Each becomes a group you can add people to and share things with.",
+    "allDepartmentsAdded": "Every department here is already a group.",
+    "addPickedDepartments": "{count, plural, =0 {Add departments} =1 {Add 1 department} other {Add # departments}}",
+    "departmentsAdded": "{count, plural, =1 {Added 1 department} other {Added # departments}}",
+    "icon": "Icon",
+    "groupNotFound": "Group not found",
+    "groupNotFoundWhy": "It may have been deleted, or it belongs to another organization.",
+    "whatItHas": "Shared with this group",
+    "resourceCount": "{count, plural, =1 {1 item} other {# items}}",
+    "nothingSharedYet": "Nothing is shared with {name} yet",
+    "nothingSharedYetWhy": "Choose this group when you create an agent, skill, knowledge base or context file, or add it from the Share panel of one you have.",
+    "resourceAgents": "Agents",
+    "resourceCollections": "Knowledge bases",
+    "resourceSkills": "Skills",
+    "resourceContext": "Context",
+    "resourceApps": "Apps",
+    "level": {
+      "read": "can view",
+      "use": "can use",
+      "edit": "can edit"
+    },
+    "icons": {
+      "users": "People",
+      "briefcase": "Briefcase",
+      "banknote": "Money",
+      "megaphone": "Megaphone",
+      "headphones": "Headset",
+      "code": "Code",
+      "scale": "Scales",
+      "heart-handshake": "Handshake",
+      "truck": "Truck",
+      "flask-conical": "Lab flask",
+      "graduation-cap": "Graduation cap",
+      "building": "Building"
+    },
+    "departments": {
+      "sales": {
+        "name": "Sales",
+        "description": "Customers, deals and the pipeline."
+      },
+      "finance": {
+        "name": "Finance",
+        "description": "Invoices, budgets and the books."
+      },
+      "hr": {
+        "name": "HR",
+        "description": "People, hiring and policies."
+      },
+      "support": {
+        "name": "Support",
+        "description": "Customer questions and tickets."
+      },
+      "engineering": {
+        "name": "Engineering",
+        "description": "Products, code and infrastructure."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Campaigns, content and the brand."
+      },
+      "legal": {
+        "name": "Legal",
+        "description": "Contracts, compliance and risk."
+      },
+      "operations": {
+        "name": "Operations",
+        "description": "Suppliers, logistics and day-to-day running."
+      }
+    }
   },
   "directory": {
     "navLabel": "Directory",
@@ -6064,5 +6153,16 @@
     "research": "The web",
     "utility": "Everyday",
     "advanced": "Advanced"
+  },
+  "audience": {
+    "label": "Who can use it",
+    "everyone": "Everyone",
+    "everyoneHint": "Everyone in the organization.",
+    "onlyMe": "Only me",
+    "onlyMeHint": "You, and whoever you share it with later.",
+    "groups": "Chosen groups",
+    "groupsHint": "Only the departments you pick.",
+    "noGroupsYet": "No groups yet - add them under Groups.",
+    "chooseGroups": "Groups that can use it"
   }
 }

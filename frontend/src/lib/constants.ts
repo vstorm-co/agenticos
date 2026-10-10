@@ -36,6 +36,8 @@ export const ROUTES = {
   ORG_ROLES: (id: string) => `/orgs/${id}/roles`,
   ORG_RETENTION: (id: string) => `/orgs/${id}/retention`,
   ORG_GROUPS: (id: string) => `/orgs/${id}/groups`,
+  GROUPS: "/groups",
+  GROUP_DETAIL: (id: string) => `/groups/${id}`,
   ORG_DIRECTORY: (id: string) => `/orgs/${id}/directory`,
   AGENTS: "/agents",
   AGENT_DETAIL: (id: string) => `/agents/${id}`,

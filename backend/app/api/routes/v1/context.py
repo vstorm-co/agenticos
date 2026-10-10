@@ -65,6 +65,8 @@ async def create_context_file(data: ContextFileCreate, service: ContextSvc, ctx:
         content=data.content,
         content_format=data.format,
         mode=data.mode,
+        visibility=data.visibility,
+        group_ids=data.group_ids,
     )
 
 

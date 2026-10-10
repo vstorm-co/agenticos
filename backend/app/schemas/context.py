@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 
 ContextModeLiteral = Literal["inject", "link"]
@@ -60,7 +61,7 @@ class ContextFileList(BaseSchema):
     total: int
 
 
-class ContextFileCreate(BaseSchema):
+class ContextFileCreate(AudienceChoice):
     name: str = Field(
         min_length=1,
         max_length=64,

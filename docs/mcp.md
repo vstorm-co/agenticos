@@ -54,7 +54,12 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 
 ### Personal or organization-wide
 
-Two kinds, and the difference is the point.
+Two kinds, and the difference is the point. The connect dialog asks it as one
+choice in plain words: **One shared account** - set up once, usually by an
+admin with a service account, and used by every agent - or **My own account**,
+used by you and by agents set up to act as each person. A catalog server people
+sign in to (Notion, Linear, Gmail) recommends each person's own account; one that
+takes a key recommends the shared one.
 
 **Personal** (MCP servers → You) is scoped to one member and reached by their own
 assistant, and by an agent bound to each person's own account when they are the
@@ -420,7 +425,10 @@ credentials. A server with none is not a checkbox — there is no connection id
 for the spec to hold — so the card opens the connect dialog **in place**.
 
 A token or credential-free server is connected without leaving the page, and the
-new connection is ticked for the agent as soon as it exists.
+new connection is ticked for the agent as soon as it exists. Connecting checks the
+server, and its tools come up straight away from that check, so picking a server,
+connecting it and choosing what the agent may call is one path. A check that
+fails says why in the toast, and the connection is kept to fix.
 
 !!! info "OAuth opens a tab"
 
@@ -717,6 +725,13 @@ so what the agent can do is decided there rather than here.
 **Custom server** — any MCP server reachable by URL. Its tools are introspected on
 connect, and nothing about it needs to be in the catalog first. The catalog saves
 somebody a URL lookup; it is not a gate.
+
+Typing a custom server's address asks it whether people can sign in: the same
+discovery an OAuth flow runs (RFC 9728, then RFC 8414), registering nothing,
+through `POST /api/v1/me/mcp-connections/probe`. When it can, **OAuth** is chosen
+for you and Connect opens its sign-in; when it does not register apps itself, the
+dialog asks for a client ID and secret made at the provider; when it publishes no
+OAuth metadata, a token or no credential is left as the choice.
 
 To add an entry to the list, see
 [Add a server to the MCP catalog](howto/add-mcp-server.md).

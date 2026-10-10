@@ -1,5 +1,5 @@
 ---
-source_sha: "063feb1082a0"
+source_sha: "b5383e1a56be"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -17,8 +17,8 @@ inglés.
 ## Variables { #variables }
 
 `{{nombre}}` en `instructions` se rellena al empezar cada run: con una variable del
-sistema que la plataforma conoce (la fecha y la hora, quién ha iniciado sesión, la
-organización, el agent, el canal) o con una de las `variables` propias del agent.
+sistema que la plataforma conoce (la fecha y la hora, quién ha iniciado sesión y sus
+[grupos](../departments.md), la organización, el agent, el canal) o con una de las `variables` propias del agent.
 `time_zone` decide qué reloj lee `{{current_time}}`. Publicar rechaza un nombre que
 no sea ninguna de las dos cosas.
 

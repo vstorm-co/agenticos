@@ -20,7 +20,9 @@ from app.schemas.group import (
     GroupMemberList,
     GroupMemberRead,
     GroupRead,
+    GroupResourceList,
     GroupUpdate,
+    as_group_icon,
 )
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -38,6 +40,7 @@ async def list_groups(org_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> Any:
             organization_id=group.organization_id,
             name=group.name,
             description=group.description,
+            icon=as_group_icon(group.icon),
             member_count=count,
             created_at=group.created_at,
         )
@@ -60,6 +63,7 @@ async def create_group(org_id: UUID, data: GroupCreate, service: GroupSvc, ctx: 
         organization_id=group.organization_id,
         name=group.name,
         description=group.description,
+        icon=as_group_icon(group.icon),
         member_count=0,
         created_at=group.created_at,
     )
@@ -76,6 +80,7 @@ async def update_group(
         organization_id=group.organization_id,
         name=group.name,
         description=group.description,
+        icon=as_group_icon(group.icon),
         member_count=count,
         created_at=group.created_at,
     )
@@ -90,6 +95,18 @@ async def update_group(
 async def delete_group(org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> None:
     """Delete a group, the grants made to it and the mappings naming it. Requires `members:manage`."""
     await service.delete(org_id, group_id, ctx.subject_id)
+
+
+@router.get("/{org_id}/groups/{group_id}/resources", response_model=GroupResourceList)
+async def list_group_resources(
+    org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth
+) -> Any:
+    """What a group has been given - agents, knowledge bases, skills, context and apps.
+
+    Narrowed to what the caller may see. Any member may call this.
+    """
+    items = await service.resources(ctx, group_id)
+    return GroupResourceList(items=items, total=len(items))
 
 
 @router.get("/{org_id}/groups/{group_id}/members", response_model=GroupMemberList)

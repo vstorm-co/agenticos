@@ -2123,6 +2123,44 @@ class TestMcpConnectionService:
         assert (update_data["last_status"], update_data["last_error"]) == ("error", error)
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("registration", "expected"),
+        [("https://srv/register", (True, True)), (None, (True, False))],
+    )
+    async def test_a_server_added_by_address_says_whether_people_can_sign_in(
+        self, service, monkeypatch, registration, expected
+    ):
+        """The discovery a sign-in runs, registering nothing (#2073)."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=registration,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=MagicMock(),
+        )
+        register = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        probed = await service.probe_sign_in("https://srv/mcp")
+
+        assert (probed.sign_in, probed.registers_clients) == expected
+        register.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_server_with_no_oauth_metadata_offers_no_sign_in(self, service, monkeypatch):
+        _allow_any_url(monkeypatch)
+        monkeypatch.setattr(
+            mcp_oauth, "discover", AsyncMock(side_effect=mcp_oauth.OAuthError("none"))
+        )
+
+        probed = await service.probe_sign_in("https://srv/mcp")
+
+        assert (probed.sign_in, probed.registers_clients) == (False, False)
+
+    @pytest.mark.anyio
     async def test_oauth_start_will_not_take_over_a_token_based_connection(
         self, service, repo, monkeypatch
     ):

@@ -94,6 +94,17 @@ from app.services.mcp_connection import (
 from app.services.transcript import RecordedToolCall
 from tests.workspaces import document_workspace
 
+
+@pytest.fixture(autouse=True)
+def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+
+
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
 

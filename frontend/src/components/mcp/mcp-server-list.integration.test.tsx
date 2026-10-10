@@ -226,7 +226,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
 
     expect(screen.getByRole("radio", { name: "OAuth" })).toBeInTheDocument();
   });
@@ -240,7 +240,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Organization" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
 
     expect(screen.getByRole("radio", { name: "OAuth" })).toBeInTheDocument();
   });
@@ -262,7 +262,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
@@ -291,7 +291,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     await userEvent.type(screen.getByLabelText("Client ID"), "app-1");
     await userEvent.type(screen.getByLabelText("Client secret"), "shh");
@@ -333,7 +333,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
     await waitFor(() =>
@@ -354,7 +354,7 @@ describe("McpServerList", () => {
 
     const linear = within(screen.getByRole("group", { name: "Linear" }));
     await userEvent.click(linear.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Organization" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
 
     expect(screen.getByText(/use an account the organization controls/)).toBeInTheDocument();
@@ -881,7 +881,7 @@ describe("arriving with ?connect=<catalog key>", () => {
     await mount();
 
     const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getByRole("radio", { name: "You" })).toBeChecked();
+    expect(dialog.getByRole("radio", { name: /^My own account/ })).toBeChecked();
     expect(window.location.search).toBe("");
   });
 

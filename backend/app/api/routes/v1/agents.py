@@ -31,6 +31,7 @@ from app.api.deps import (
     AgentRunnerSvc,
     Auth,
     DBSession,
+    KnowledgeReachSvc,
     limit_agent_run,
     require,
 )
@@ -45,6 +46,7 @@ from app.schemas.agent import (
     AgentCreate,
     AgentDetail,
     AgentDraftUpdate,
+    AgentKnowledgeReach,
     AgentList,
     AgentMetadataRequest,
     AgentPublish,
@@ -277,6 +279,7 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         visibility=data.visibility,
         categories=data.categories,
         tags=data.tags,
+        group_ids=data.group_ids,
     )
 
 
@@ -297,6 +300,16 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
     return await service.promote_specialist(
         ctx, data.specialist, fallback_model_profile_id=data.fallback_model_profile_id
     )
+
+
+@router.get("/{agent_id}/knowledge-reach", response_model=AgentKnowledgeReach)
+async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: Auth) -> Any:
+    """Which groups the agent's knowledge bases, skills and context come from (#2072).
+
+    Each source says whether the agent reaches people it is not shared with - who
+    are answered from it all the same. Sources the caller may not see are left out.
+    """
+    return await service.for_agent(ctx, agent_id)
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)

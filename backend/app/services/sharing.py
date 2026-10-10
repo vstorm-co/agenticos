@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.repositories import group_repo, member_repo, resource_grant_repo
@@ -186,6 +187,38 @@ class SharingService:
             details={"subject_group_id": str(group.id), "level": level.value},
         )
         return grant
+
+    async def restrict_to_groups(
+        self,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        *,
+        resource_type: ResourceType,
+        group_ids: list[UUID],
+    ) -> None:
+        """Share a resource just created with the groups its creator limited it to.
+
+        The other half of `AudienceChoice` (#2072): the resource was created private,
+        and each group gets a `use` grant - its members find it, run it and attach
+        it. Called inside the creating request, so a refusal here takes the new row
+        with it rather than leaving it visible to nobody but its creator.
+
+        Raises:
+            BadRequestError: Naming `group_ids`, when one is not this organization's.
+        """
+        unique = list(dict.fromkeys(group_ids))
+        for group_id in unique:
+            if (
+                await group_repo.get(
+                    self.db, organization_id=ctx.organization_id, group_id=group_id
+                )
+                is None
+            ):
+                raise refused_field("group_ids", "Choose groups from this organization.")
+        for group_id in unique:
+            await self.share_with_group(
+                ctx, resource, resource_type=resource_type, group_id=group_id, level=GrantLevel.USE
+            )
 
     async def revoke_group(
         self,

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useGroupMembers, useGroups } from "./use-groups";
+import { useAddDepartments, useGroupMembers, useGroupResources, useGroups } from "./use-groups";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -167,5 +167,52 @@ describe("useGroupMembers", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Not a member here");
     expect(toast.error).toHaveBeenCalledWith("Not allowed");
+  });
+});
+
+describe("useGroupResources", () => {
+  it("reads what was shared with the group", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ kind: "skill", id: "s1", name: "ledger", level: "use" }],
+      total: 1,
+    });
+    const { result } = renderHook(() => useGroupResources("o-1", "g-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.resources).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/resources");
+  });
+});
+
+describe("useAddDepartments", () => {
+  it("creates each department in turn and says how many", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(GROUP);
+    const { result } = renderHook(() => useAddDepartments("o-1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync([
+        { name: "Sales", description: null, icon: "briefcase" },
+        { name: "Finance", description: null, icon: "banknote" },
+      ]);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+    expect(toast.success).toHaveBeenCalledWith("Added 2 departments");
+  });
+
+  it("stops at a refused one and says why", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new ApiError(409, "Taken"));
+    const { result } = renderHook(() => useAddDepartments("o-1"), { wrapper });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync([
+          { name: "Sales", description: null },
+          { name: "HR", description: null },
+        ])
+        .catch(() => undefined);
+    });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("Taken");
   });
 });

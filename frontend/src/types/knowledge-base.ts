@@ -167,6 +167,8 @@ export interface CreateKnowledgeBaseInput {
   name: string;
   description?: string;
   scope: KBScope;
+  /** Limit an organization collection to these groups (#2072); it is created private. */
+  group_ids?: string[];
   /**
    * Omit to inherit this deployment's defaults, which is what most collections
    * want. Present, it is taken whole - there is no merging with the defaults.

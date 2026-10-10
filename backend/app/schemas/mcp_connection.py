@@ -231,6 +231,26 @@ class McpConnectionTestResult(BaseSchema):
     tools: list[McpToolRead] = []
 
 
+class McpSignInProbe(BaseSchema):
+    """Ask whether a server added by its address lets people sign in (#2073)."""
+
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
+class McpSignInProbeResult(BaseSchema):
+    """What the server's OAuth discovery answered, in the two facts a form needs."""
+
+    sign_in: bool = Field(
+        description="Whether the server publishes OAuth metadata, so Connect can open its sign-in"
+    )
+    registers_clients: bool = Field(
+        description=(
+            "Whether it registers this app itself (RFC 7591). Without it, a client id and "
+            "secret created at the provider are needed."
+        )
+    )
+
+
 class McpOAuthStart(BaseSchema):
     """Begin the OAuth flow for a server (catalog or custom)."""
 

@@ -101,7 +101,8 @@
     "apiKeys": "Klucze API",
     "assistant": "Asystent",
     "context": "Kontekst",
-    "routines": "Rutyny"
+    "routines": "Rutyny",
+    "groups": "Grupy"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -1922,6 +1923,14 @@
       "settings-assistant": {
         "title": "Asystent organizacji",
         "body": "Nadaj mu nazwę i powitanie oraz wybierz model, na którym działa. Widzi go w rogu każdej strony każdy, kto może uruchamiać agentów."
+      },
+      "groups-new": {
+        "title": "Dodaj grupę",
+        "body": "Grupa to dział albo zespół. Dodaj ją ręcznie albo dodaj kilka działów naraz z szablonów."
+      },
+      "groups-list": {
+        "title": "Twoje grupy",
+        "body": "Strona każdej grupy pokazuje jej ludzi i wszystko, co jej udostępniono. Wybierz grupę przy tworzeniu agenta, skilla albo bazy wiedzy, żeby zostały dla tego działu."
       }
     }
   },
@@ -1983,7 +1992,7 @@
     "disconnectWarning": "Odłączyć „{name}”?",
     "documentation": "Dokumentacja",
     "editNamed": "Edytuj „{name}”",
-    "everyAgentCanReach": "Każdy agent może z niego korzystać. Spec agenta może wiązać wyłącznie serwery organizacji.",
+    "everyAgentCanReach": "Konfigurowane raz, dla wszystkich. Każdy agent w organizacji może z niego korzystać, z dostępem tego jednego konta - podłącz konto serwisowe, nie swoje prywatne.",
     "existingConnectionCannotChange": "Istniejące połączenie nie może zmienić właściciela.",
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
@@ -2007,8 +2016,8 @@
     "saveSelection": "Zapisz wybór",
     "saving": "Zapisywanie…",
     "saving2": "Zapisywanie…",
-    "scopeOrganization": "Organizacja",
-    "scopeYou": "Ty",
+    "scopeOrganization": "Jedno wspólne konto",
+    "scopeYou": "Moje własne konto",
     "searchServers": "Szukaj serwerów…",
     "selfHostedYouSupply": "Self-hosted — URL podajesz przy podłączaniu",
     "serverCouldNotBe": "Nie udało się połączyć z serwerem",
@@ -2027,7 +2036,7 @@
     "useServiceCredentialNot": "Użyj poświadczenia serwisowego, nie własnego — z nim działa każdy agent związany z tym serwerem. Zapieczętowane dla tej organizacji i nigdy więcej niepokazywane.",
     "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem — wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}",
     "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie — dlatego użyj konta, które kontroluje organizacja.",
-    "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać.",
+    "yoursAloneYourOwn": "Tylko Ty. Używane w Twoich czatach i przez agentów ustawionych tak, by działali w imieniu każdej osoby, z Twoim dostępem.",
     "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj — serwer pojawi się na liście po autoryzacji.",
     "connectAnother": "Podłącz kolejne",
     "accountsOnThisServer": "Każde konto podłączone do tego serwera i gdzie może być użyte.",
@@ -2040,7 +2049,12 @@
     "tools": "Narzędzia",
     "edit": "Edytuj",
     "connectionCount": "{count, plural, one {1 połączenie} few {# połączenia} many {# połączeń} other {# połączeń}}",
-    "manageConnectionsOn": "Zarządzaj połączeniami do {name}"
+    "manageConnectionsOn": "Zarządzaj połączeniami do {name}",
+    "recommended": "Zalecane",
+    "signInChecking": "Sprawdzanie, czy ten serwer obsługuje logowanie…",
+    "signInNone": "Nie znaleziono logowania. Użyj tokenu dostępu albo bez poświadczeń.",
+    "signInSupported": "Ten serwer obsługuje logowanie. Połączenie je otworzy.",
+    "signInNeedsClient": "Ten serwer obsługuje logowanie, ale sam nie rejestruje aplikacji. Dodaj niżej identyfikator i sekret klienta od dostawcy."
   },
   "skills": {
     "addFile": "Dodaj plik",
@@ -2136,7 +2150,8 @@
         "manufacturing": "Produkcja i logistyka"
       }
     },
-    "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}"
+    "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
+    "whoCanUseIt": "Kto może z tego korzystać"
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -3056,7 +3071,14 @@
     "addedToAgent": "Dodano {name} do szkicu agenta {agent}.",
     "alreadyOnAgent": "Agent {agent} ma już {name}.",
     "usedByNobody": "Nie używa tego jeszcze żaden agent",
-    "usedBy": "{more, plural, =0 {Używa: {names}} other {Używa: {names} i jeszcze #}}"
+    "usedBy": "{more, plural, =0 {Używa: {names}} other {Używa: {names} i jeszcze #}}",
+    "visibilityGroups": "Wybrane grupy",
+    "knowledgeReachTitle": "Skąd pochodzi jego wiedza",
+    "knowledgeReachAgent": "Ten agent dociera do:",
+    "knowledgeReachWarning": "{count, plural, one {1 źródło jest udostępnione węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nim.} few {# źródła są udostępnione węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.} many {# źródeł jest udostępnionych węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.} other {# źródła jest udostępnionego węższemu gronu niż ten agent. Każdy, do kogo agent dociera, dostaje odpowiedzi oparte na nich.}}",
+    "knowledgeReachNarrower": "udostępnione węższemu gronu",
+    "knowledgeReachEveryone": "Wszyscy",
+    "knowledgeReachPeople": "Wybrane osoby"
   },
   "steps": {
     "skills-gallery": {
@@ -3227,7 +3249,79 @@
     "addMember": "Dodaj członka",
     "chooseMember": "Wybierz członka",
     "everyoneIsIn": "Wszyscy są już w tej grupie",
-    "add": "Dodaj"
+    "add": "Dodaj",
+    "departmentsTitle": "Grupy",
+    "departmentsDescription": "Twoje działy i zespoły. Udostępnij grupie agentów, bazy wiedzy, skille i kontekst - każdy w niej może z nich korzystać, a osoby spoza niej nie.",
+    "addDepartments": "Dodaj działy",
+    "addDepartmentsWhy": "Wybierz działy, które ma Twoja firma. Każdy zostanie grupą, do której dodasz ludzi i której udostępnisz zasoby.",
+    "allDepartmentsAdded": "Każdy z tych działów jest już grupą.",
+    "addPickedDepartments": "{count, plural, =0 {Dodaj działy} one {Dodaj 1 dział} few {Dodaj # działy} many {Dodaj # działów} other {Dodaj # działu}}",
+    "departmentsAdded": "{count, plural, one {Dodano 1 dział} few {Dodano # działy} many {Dodano # działów} other {Dodano # działu}}",
+    "icon": "Ikona",
+    "groupNotFound": "Nie znaleziono grupy",
+    "groupNotFoundWhy": "Mogła zostać usunięta albo należy do innej organizacji.",
+    "whatItHas": "Udostępnione tej grupie",
+    "resourceCount": "{count, plural, one {1 element} few {# elementy} many {# elementów} other {# elementu}}",
+    "nothingSharedYet": "Grupie {name} nic jeszcze nie udostępniono",
+    "nothingSharedYetWhy": "Wybierz tę grupę przy tworzeniu agenta, skilla, bazy wiedzy albo pliku kontekstu albo dodaj ją w panelu udostępniania istniejącego.",
+    "resourceAgents": "Agenci",
+    "resourceCollections": "Bazy wiedzy",
+    "resourceSkills": "Skille",
+    "resourceContext": "Kontekst",
+    "resourceApps": "Aplikacje",
+    "level": {
+      "read": "może przeglądać",
+      "use": "może używać",
+      "edit": "może edytować"
+    },
+    "icons": {
+      "users": "Ludzie",
+      "briefcase": "Teczka",
+      "banknote": "Pieniądze",
+      "megaphone": "Megafon",
+      "headphones": "Słuchawki",
+      "code": "Kod",
+      "scale": "Waga",
+      "heart-handshake": "Uścisk dłoni",
+      "truck": "Ciężarówka",
+      "flask-conical": "Kolba",
+      "graduation-cap": "Biret",
+      "building": "Budynek"
+    },
+    "departments": {
+      "sales": {
+        "name": "Sprzedaż",
+        "description": "Klienci, umowy i lejek sprzedaży."
+      },
+      "finance": {
+        "name": "Finanse",
+        "description": "Faktury, budżety i księgowość."
+      },
+      "hr": {
+        "name": "HR",
+        "description": "Ludzie, rekrutacja i zasady."
+      },
+      "support": {
+        "name": "Wsparcie",
+        "description": "Pytania klientów i zgłoszenia."
+      },
+      "engineering": {
+        "name": "Inżynieria",
+        "description": "Produkty, kod i infrastruktura."
+      },
+      "marketing": {
+        "name": "Marketing",
+        "description": "Kampanie, treści i marka."
+      },
+      "legal": {
+        "name": "Dział prawny",
+        "description": "Umowy, zgodność i ryzyko."
+      },
+      "operations": {
+        "name": "Operacje",
+        "description": "Dostawcy, logistyka i bieżące działanie."
+      }
+    }
   },
   "directory": {
     "navLabel": "Katalog",
@@ -3688,5 +3782,19 @@
     "research": "Internet",
     "utility": "Na co dzień",
     "advanced": "Zaawansowane"
+  },
+  "audience": {
+    "label": "Kto może z tego korzystać",
+    "everyone": "Wszyscy",
+    "everyoneHint": "Każdy w organizacji.",
+    "onlyMe": "Tylko ja",
+    "onlyMeHint": "Ty i osoby, którym udostępnisz to później.",
+    "groups": "Wybrane grupy",
+    "groupsHint": "Tylko wybrane działy.",
+    "noGroupsYet": "Brak grup - dodaj je w sekcji Grupy.",
+    "chooseGroups": "Grupy, które mogą z tego korzystać"
+  },
+  "context": {
+    "whoCanUseIt": "Kto może z tego korzystać"
   }
 }

@@ -78,6 +78,8 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         description=data.description,
         content=data.content,
         category=data.category,
+        visibility=data.visibility,
+        group_ids=data.group_ids,
     )
 
 

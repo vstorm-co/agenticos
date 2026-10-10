@@ -1,5 +1,5 @@
 ---
-source_sha: "063feb1082a0"
+source_sha: "b5383e1a56be"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -16,8 +16,8 @@ wygenerowana niżej dokumentacja pól pozostaje po angielsku.
 ## Zmienne { #variables }
 
 `{{nazwa}}` w `instructions` jest uzupełniane na początku każdego runa: zmienną
-systemową, którą zna platforma (data i godzina, zalogowana osoba, organizacja,
-agent, kanał), albo jedną z własnych `variables` agenta. `time_zone` decyduje,
+systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
+[grupy](../departments.md), organizacja, agent, kanał), albo jedną z własnych `variables` agenta. `time_zone` decyduje,
 który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
 żadną z nich.
 

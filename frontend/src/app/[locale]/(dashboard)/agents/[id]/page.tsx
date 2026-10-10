@@ -1,5 +1,6 @@
 "use client";
 
+import { KnowledgeReach } from "@/components/agents/knowledge-reach";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1016,15 +1017,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
         entry={connectingServer}
         onClose={() => setConnectingServer(null)}
         // Bound as soon as it exists: somebody who connected a server from
-        // inside the Builder was going to tick it next.
-        onConnected={(connectionId) =>
-          update({
-            mcp_servers: [
-              ...spec.mcp_servers,
-              { account: "organization", connection_id: connectionId, allowed_tools: null },
-            ],
-          })
-        }
+        // inside the Builder was going to tick it next. Its tools come up at
+        // once, from the check that connecting just ran - one path from "I want
+        // Notion" to the tools this agent may call (#2073).
+        onConnected={(connection) => {
+          const ref: McpServerRef = {
+            account: "organization",
+            connection_id: connection.id,
+            allowed_tools: null,
+          };
+          update({ mcp_servers: [...spec.mcp_servers, ref] });
+          setToolBinding(bindingKey(ref));
+          setToolPicker(toolChoice(ref, connection, connection.label ?? connection.name));
+        }}
       />
 
       <PublishDialog
@@ -1238,6 +1243,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="toolbox" className="mt-6 space-y-6">
+          <KnowledgeReach agentId={id} />
           <Card data-tour="agent-capabilities">
             <CardHeader>
               <CardTitle>{t("capabilities")}</CardTitle>

@@ -121,6 +121,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.sandbox_workspace import sandbox_config
+from app.services.sharing import SharingService
 from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
@@ -1123,6 +1124,7 @@ class AgentRegistryService:
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
+        group_ids: list[UUID] | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1189,6 +1191,10 @@ class AgentRegistryService:
             target_id=str(agent.id),
             details={"slug": slug, "name": spec.name},
         )
+        if group_ids:
+            await SharingService(self.db).restrict_to_groups(
+                ctx, agent, resource_type=AGENT, group_ids=group_ids
+            )
         return agent
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:

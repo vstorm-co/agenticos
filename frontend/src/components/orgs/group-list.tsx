@@ -3,7 +3,10 @@
 import { Pencil, Trash2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { GroupIcon } from "@/components/groups/group-icon";
 import { ErrorState } from "@/components/states";
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { Button, DataTable, ListCard, ListCardEmpty, type Column } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Group } from "@/types/groups";
@@ -46,11 +49,19 @@ export function GroupList({
       className: "pl-5",
       header: t("name"),
       cell: (group) => (
-        <div className="min-w-0">
-          <p className="text-foreground truncate text-sm font-medium">{group.name}</p>
-          {group.description && (
-            <p className="text-muted-foreground truncate text-xs">{group.description}</p>
-          )}
+        <div className="flex min-w-0 items-center gap-3">
+          <GroupIcon icon={group.icon} />
+          <div className="min-w-0">
+            <Link
+              href={ROUTES.GROUP_DETAIL(group.id)}
+              className="text-foreground truncate text-sm font-medium hover:underline"
+            >
+              {group.name}
+            </Link>
+            {group.description && (
+              <p className="text-muted-foreground truncate text-xs">{group.description}</p>
+            )}
+          </div>
         </div>
       ),
     },

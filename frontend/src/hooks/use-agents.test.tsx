@@ -11,6 +11,7 @@ import {
   useAllAgentVersions,
   useAgents,
   useAddToAgent,
+  useKnowledgeReach,
   useCapabilityCatalog,
   useDelegationTree,
   usePromptVariables,
@@ -933,5 +934,19 @@ describe("useAddToAgent", () => {
       result.current.mutateAsync({ agentId: "a1", resource: { kind: "skill", id: "s1" } }),
     ).rejects.toThrow();
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("useKnowledgeReach", () => {
+  it("reads where the agent's knowledge comes from", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      whole_organization: true,
+      groups: [],
+      sources: [],
+    });
+    const { result } = renderHook(() => useKnowledgeReach("a1"), { wrapper });
+
+    await waitFor(() => expect(result.current.reach?.whole_organization).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/knowledge-reach");
   });
 });

@@ -606,6 +606,16 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
+
+from app.services.knowledge_reach import KnowledgeReachService
+
+
+def get_knowledge_reach_service(db: DBSession) -> KnowledgeReachService:
+    return KnowledgeReachService(db)
+
+
+KnowledgeReachSvc = Annotated[KnowledgeReachService, Depends(get_knowledge_reach_service)]
+
 from app.services.agent_exposure import AgentExposureService
 
 

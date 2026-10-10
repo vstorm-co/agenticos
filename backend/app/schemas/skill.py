@@ -8,6 +8,7 @@ from pydantic import Field, field_validator
 
 from app.agents.capabilities import all_capabilities
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -159,7 +160,7 @@ class SkillList(BaseSchema):
     )
 
 
-class SkillCreate(BaseSchema):
+class SkillCreate(AudienceChoice):
     name: str = Field(
         min_length=1,
         max_length=64,

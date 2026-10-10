@@ -1,5 +1,5 @@
 ---
-source_sha: "83208674b6d1"
+source_sha: "e875d068afe3"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -60,7 +60,13 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
-Dos tipos, y la diferencia es lo importante.
+Dos tipos, y la diferencia es lo importante. El diálogo de conexión lo pregunta
+como una sola elección en palabras sencillas: **One shared account** (una cuenta
+compartida) - configurada una vez, normalmente por un admin con una cuenta de
+servicio, y usada por todos los agents - o **My own account** (tu propia cuenta),
+usada por ti y por los agents configurados para actuar como cada persona. Un
+servidor del catálogo con inicio de sesión (Notion, Linear, Gmail) recomienda la
+cuenta de cada persona; uno que pide una clave recomienda la compartida.
 
 **Personal** (MCP servers → You) está limitada a un miembro y la alcanza su propio
 asistente, y también un agent vinculado a la cuenta propia de cada persona cuando
@@ -452,7 +458,11 @@ de conexión que el spec pueda guardar — así que la tarjeta abre el diálogo 
 conexión **ahí mismo**.
 
 Un servidor de token o sin credenciales se conecta sin salir de la página, y la
-nueva conexión queda marcada para el agent en cuanto existe.
+nueva conexión queda marcada para el agent en cuanto existe. Conectar comprueba el
+servidor, y sus herramientas aparecen enseguida a partir de esa comprobación, así
+que elegir un servidor, conectarlo y decidir qué puede llamar el agent es un solo
+camino. Una comprobación fallida dice por qué en el aviso, y la conexión se queda
+para corregirla.
 
 !!! info "OAuth abre una pestaña"
 
@@ -760,6 +770,14 @@ aquí.
 **Custom server** — cualquier servidor MCP alcanzable por URL. Sus herramientas se
 introspeccionan al conectar, y nada de él necesita estar antes en el catálogo. El
 catálogo le ahorra a alguien buscar una URL; no es una puerta.
+
+Escribir la dirección de un servidor propio le pregunta si se puede iniciar sesión:
+el mismo descubrimiento que hace un flujo OAuth (RFC 9728, luego RFC 8414), sin
+registrar nada, mediante `POST /api/v1/me/mcp-connections/probe`. Si se puede,
+**OAuth** queda elegido y Conectar abre el inicio de sesión; si el servidor no
+registra aplicaciones por sí mismo, el diálogo pide un client ID y un secreto
+creados en el proveedor; si no publica metadatos OAuth, queda un token o ninguna
+credencial.
 
 Para añadir una entrada a la lista, ver
 [Añadir un servidor al catálogo de MCP](howto/add-mcp-server.md).

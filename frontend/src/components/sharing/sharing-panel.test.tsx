@@ -45,6 +45,7 @@ function group(id: string, name: string): Group {
     organization_id: "org-1",
     name,
     description: null,
+    icon: null,
     member_count: 3,
     created_at: "2026-01-01T00:00:00Z",
   };

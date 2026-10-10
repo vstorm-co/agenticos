@@ -1,4 +1,4 @@
-<!-- source_sha: 9b605f83e8a1 -->
+<!-- source_sha: b0d8863e1cb7 -->
 
 <div align="center">
 
@@ -201,7 +201,7 @@ Personaliza el **dashboard** según tu trabajo. **Activity** permite revisar run
 
 ### 👥 Organiza equipos con roles y grupos
 
-**Los roles definen qué pueden hacer las personas. Los grupos definen con quién compartes.** Usa roles como Builder, Operator, Member y Viewer y crea departamentos o grupos de trabajo como Operations, Engineering, Finance y Research. Comparte un agente, skill, colección, archivo de contexto o aplicación con un grupo en un solo paso.
+**Los roles definen qué pueden hacer las personas. Los grupos definen con quién compartes.** Usa roles como Builder, Operator, Member y Viewer y crea departamentos o grupos de trabajo como Operations, Engineering, Finance y Research. Comparte un agente, skill, colección, archivo de contexto o aplicación con un grupo en un solo paso, o limítalo a los departamentos que elijas al crearlo. [Departamentos y grupos](https://vstorm-co.github.io/agenticos/es/departments/)
 
 Usa las cuentas existentes de la empresa mediante **inicio de sesión único con OIDC** (Entra ID, Okta, Keycloak y otros), **acceso al directorio con LDAP** o **inicio de sesión integrado de Windows con Kerberos**. Las **asignaciones de directorio** vinculan grupos del directorio con un rol y un grupo al iniciar sesión. [Roles y permisos](https://vstorm-co.github.io/agenticos/es/permissions/) · [Inicio de sesión con directorio](https://vstorm-co.github.io/agenticos/es/directory/)
 

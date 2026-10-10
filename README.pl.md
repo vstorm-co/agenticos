@@ -1,4 +1,4 @@
-<!-- source_sha: 9b605f83e8a1 -->
+<!-- source_sha: b0d8863e1cb7 -->
 
 <div align="center">
 
@@ -201,7 +201,7 @@ Dostosuj **dashboard** do swojej pracy. **Activity** pozwala sprawdzać runy i w
 
 ### 👥 Organizuj zespoły za pomocą ról i grup
 
-**Role określają, co ludzie mogą robić. Grupy określają, komu udostępniasz zasoby.** Korzystaj z ról takich jak Builder, Operator, Member i Viewer, a następnie utwórz działy lub grupy robocze, np. Operations, Engineering, Finance i Research. Udostępnij grupie agenta, skill, kolekcję, plik kontekstu lub aplikację w jednym kroku.
+**Role określają, co ludzie mogą robić. Grupy określają, komu udostępniasz zasoby.** Korzystaj z ról takich jak Builder, Operator, Member i Viewer, a następnie utwórz działy lub grupy robocze, np. Operations, Engineering, Finance i Research. Udostępnij grupie agenta, skill, kolekcję, plik kontekstu lub aplikację w jednym kroku albo ogranicz je do wybranych działów już przy tworzeniu. [Działy i grupy](https://vstorm-co.github.io/agenticos/pl/departments/)
 
 Wykorzystaj istniejące konta firmowe przez **SSO z OIDC** (Entra ID, Okta, Keycloak i inne), **logowanie katalogowe LDAP** lub **zintegrowane logowanie Windows przez Kerberos**. **Mapowania grup katalogowych** łączą grupy z katalogu z rolą i grupą AgenticOS przy logowaniu. [Role i uprawnienia](https://vstorm-co.github.io/agenticos/pl/permissions/) · [Logowanie katalogowe](https://vstorm-co.github.io/agenticos/pl/directory/)
 

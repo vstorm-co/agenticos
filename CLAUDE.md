@@ -200,6 +200,7 @@ retranslated is how a stale translation stops being visible.
 | Spec, version, exposure, run | `docs/concepts.md` |
 | The three permission layers, scopes, grants | `docs/permissions.md` |
 | Groups, directory group mappings, LDAP and Kerberos sign-in | `docs/directory.md` |
+| Departments: groups as audiences, the group page, where an agent's knowledge comes from | `docs/departments.md` |
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |

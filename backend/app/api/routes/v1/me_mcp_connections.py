@@ -23,6 +23,8 @@ from app.schemas.mcp_connection import (
     McpOAuthCallbackResult,
     McpOAuthStart,
     McpOAuthStartResult,
+    McpSignInProbe,
+    McpSignInProbeResult,
     McpToolRead,
 )
 
@@ -71,6 +73,18 @@ async def delete_mcp_connection(
     """Remove a connection."""
     await service.delete(user_id=user.id, connection_id=connection_id)
     return None
+
+
+@router.post("/probe", response_model=McpSignInProbeResult)
+async def probe_mcp_sign_in(
+    data: McpSignInProbe, service: McpConnectionSvc, user: CurrentUser
+) -> Any:
+    """Whether a server added by its address supports OAuth sign-in (#2073).
+
+    Runs the discovery a sign-in would, registering nothing. A server that answers
+    with no OAuth metadata is `sign_in: false` - a token or no credential, then.
+    """
+    return await service.probe_sign_in(data.url)
 
 
 @router.post("/oauth/start", response_model=McpOAuthStartResult)

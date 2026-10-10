@@ -11,6 +11,7 @@ import {
   createGroup,
   deleteGroup,
   listGroupMembers,
+  listGroupResources,
   listGroups,
   removeGroupMember,
   updateGroup,
@@ -119,4 +120,40 @@ export function useGroupMembers(orgId: string, groupId: string) {
   });
 
   return { members: data?.items ?? [], isLoading, error, add, remove };
+}
+
+/** What one group has been given - agents, knowledge, skills, context and apps (#2072). */
+export function useGroupResources(orgId: string, groupId: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupResources(orgId, groupId),
+    queryFn: () => listGroupResources(orgId, groupId),
+    enabled: !!orgId && !!groupId,
+  });
+  return { resources: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * Create several departments at once from the templates (#2072), with one toast.
+ *
+ * One at a time, so a name already taken stops the batch where it is rather than
+ * leaving the reader to work out which of five requests failed.
+ */
+export function useAddDepartments(orgId: string) {
+  const t = useTranslations("groups");
+  const tErrors = useTranslations("errors");
+  const invalidate = useInvalidateGroups(orgId);
+  return useMutation({
+    mutationFn: async (departments: GroupCreate[]) => {
+      for (const department of departments) await createGroup(orgId, department);
+      return departments.length;
+    },
+    onSuccess: async (count) => {
+      await invalidate();
+      toast.success(t("departmentsAdded", { count }));
+    },
+    onError: async (failure) => {
+      await invalidate();
+      toast.error(getErrorMessage(failure, tErrors));
+    },
+  });
 }

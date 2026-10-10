@@ -1,5 +1,5 @@
 ---
-source_sha: "83208674b6d1"
+source_sha: "e875d068afe3"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,7 +62,12 @@ konfigurieren wäre.
 
 ### Persönlich oder organisationsweit { #personal-or-organization-wide }
 
-Zwei Arten, und der Unterschied ist der Punkt.
+Zwei Arten, und der Unterschied ist der Punkt. Der Verbindungsdialog fragt das als
+eine Wahl in einfachen Worten: **Ein gemeinsames Konto** - einmal eingerichtet,
+meist von einem Admin mit einem Dienstkonto, und von jedem Agent genutzt - oder
+**Mein eigenes Konto**, genutzt von Ihnen und von Agents, die im Namen jeder
+Person handeln. Ein Katalogserver mit Anmeldung (Notion, Linear, Gmail) empfiehlt
+das Konto jeder Person; einer mit Schlüssel empfiehlt das gemeinsame.
 
 **Persönlich** (MCP servers → You) gilt für ein einzelnes Mitglied und wird von
 dessen eigenem Assistenten erreicht, und von einem Agent, der an das jeweils
@@ -464,7 +469,10 @@ Verbindungsdialog **an Ort und Stelle**.
 
 Ein Server mit Token oder ganz ohne Zugangsdaten wird verbunden, ohne die Seite zu
 verlassen, und die neue Connection ist für den Agent angehakt, sobald sie
-existiert.
+existiert. Das Verbinden prüft den Server, und seine Tools erscheinen sofort aus
+dieser Prüfung - Server wählen, verbinden und festlegen, was der Agent aufrufen
+darf, ist ein Weg. Eine fehlgeschlagene Prüfung sagt im Hinweis, warum, und die
+Verbindung bleibt zum Korrigieren erhalten.
 
 !!! info "OAuth öffnet einen Tab"
 
@@ -776,6 +784,13 @@ was der Agent also tun kann, wird dort entschieden und nicht hier.
 **Custom server** — jeder per URL erreichbare MCP-Server. Seine Tools werden beim
 Verbinden introspiziert, und nichts an ihm muss vorher im Katalog stehen. Der
 Katalog erspart jemandem das Nachschlagen einer URL; er ist kein Tor.
+
+Die Adresse eines eigenen Servers einzutippen, fragt ihn, ob man sich anmelden
+kann: dieselbe Erkennung, die ein OAuth-Ablauf ausführt (RFC 9728, dann RFC 8414),
+ohne etwas zu registrieren, über `POST /api/v1/me/mcp-connections/probe`. Wenn ja,
+wird **OAuth** für Sie gewählt und Verbinden öffnet die Anmeldung; registriert der
+Server Apps nicht selbst, fragt der Dialog nach Client-ID und Secret vom Anbieter;
+veröffentlicht er keine OAuth-Metadaten, bleibt ein Token oder keine Zugangsdaten.
 
 Um einen Eintrag zur Liste hinzuzufügen, siehe
 [Einen Server zum MCP-Katalog hinzufügen](howto/add-mcp-server.md).

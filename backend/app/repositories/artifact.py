@@ -5,6 +5,7 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -19,6 +20,20 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
+
+
+async def get_many(
+    db: AsyncSession, artifact_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, Artifact]:
+    """Several apps at once, by id, inside one organization."""
+    if not artifact_ids:
+        return {}
+    result = await db.execute(
+        select(Artifact).where(
+            Artifact.id.in_(list(artifact_ids)), Artifact.organization_id == organization_id
+        )
+    )
+    return {artifact.id: artifact for artifact in result.scalars().all()}
 
 
 async def get(db: AsyncSession, artifact_id: UUID, *, organization_id: UUID) -> Artifact | None:

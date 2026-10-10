@@ -310,6 +310,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.contextView,
   },
 
+  // Groups as departments (#2072): the button that creates one for a caller who
+  // may, and the list everybody reads.
+  {
+    id: "groups-new",
+    page: ROUTES.GROUPS,
+    target: "groups-new",
+    permission: Perm.membersManage,
+    inTour: true,
+  },
+  { id: "groups-list", page: ROUTES.GROUPS, target: "groups-list" },
+
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
   {
