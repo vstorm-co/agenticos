@@ -102,7 +102,9 @@ from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
     BudgetScope,
+    PeriodSpendLookup,
     SpendEntry,
+    SpendLimit,
     guarded_by,
     metered_by,
 )
@@ -2533,6 +2535,8 @@ class AgentRunnerService:
                     db, ctx.organization_id, exclude_run_id=run.id
                 )
 
+        group_limits = await self._group_limits(ctx, exclude_run_id=run.id)
+
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
         # `resources`. Nothing starts here for a container-backed one: the
@@ -2661,6 +2665,7 @@ class AgentRunnerService:
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
+            group_limits=group_limits,
             request_approval=channel,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
@@ -3740,6 +3745,44 @@ class AgentRunnerService:
             }
         )
 
+    async def _group_limits(self, ctx: AuthContext, *, exclude_run_id: UUID) -> list[SpendLimit]:
+        """The monthly caps of every department the person running this is in (#2072).
+
+        None for a run nobody in the organization started - a trigger, a
+        channel stranger: a department's month is what its members ran, and
+        that run is nobody's. Each lookup on a session of its own, for the same
+        reason as the two above it.
+        """
+        if ctx.user_id is None:
+            return []
+        groups = await group_repo.capped_groups_for_member(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
+
+        def period_spend(group_id: UUID) -> PeriodSpendLookup:
+            async def lookup() -> Decimal:
+                async with get_worker_db_context() as db:
+                    return await agent_run_repo.sum_cost_since(
+                        db,
+                        organization_id=ctx.organization_id,
+                        since=month_start(),
+                        group_id=group_id,
+                        exclude_run_id=exclude_run_id,
+                    )
+
+            return lookup
+
+        return [
+            SpendLimit(
+                scope=BudgetScope.GROUP,
+                limit_usd=group.monthly_budget_usd,
+                period_spend=period_spend(group.id),
+                subject_id=group.id,
+                subject_name=group.name,
+            )
+            for group in groups
+        ]
+
     async def _notify(
         self,
         run: AgentRun,
@@ -3790,6 +3833,8 @@ class AgentRunnerService:
                 await notifications.run_completed(run, agent=agent)
             elif status is RunStatus.FAILED:
                 await notifications.run_failed(run, agent=agent, error=error)
+        # Whatever the outcome: a failed run spent money too.
+        await notifications.department_budget_warnings(run)
 
     async def execute(
         self,

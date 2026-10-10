@@ -112,6 +112,12 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email"],
   },
   {
+    eventType: "budget_warning",
+    words: "prefBudgetWarning",
+    icon: CircleDollarSign,
+    channels: ["in_app", "email"],
+  },
+  {
     eventType: "ingestion_completed",
     words: "prefIngestionCompleted",
     icon: FileCheck2,

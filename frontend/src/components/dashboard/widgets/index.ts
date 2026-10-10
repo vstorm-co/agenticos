@@ -14,6 +14,7 @@ import { TopPeopleWidget } from "./top-people";
 import { AgentsAdoptionWidget } from "./agents-adoption";
 import { ApprovalsWidget } from "./approvals";
 import { BudgetHeadroomWidget } from "./budget-headroom";
+import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
@@ -71,6 +72,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   approvals: ApprovalsWidget,
   "recent-failures": RecentFailuresWidget,
   "budget-headroom": BudgetHeadroomWidget,
+  "department-spend": DepartmentSpendWidget,
   "mcp-health": McpHealthWidget,
   "knowledge-freshness": KnowledgeFreshnessWidget,
   members: MembersWidget,

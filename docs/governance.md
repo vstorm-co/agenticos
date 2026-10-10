@@ -43,7 +43,7 @@ at all.
 
 ## Budgets
 
-!!! abstract "Two levels, and they are not variations on one number"
+!!! abstract "Three levels, and they are not variations on one number"
 
     An agent's cap measured against the organization's total is exhausted by its
     neighbours' runs; the organization's measured against one agent is no ceiling
@@ -52,6 +52,7 @@ at all.
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
+| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
 A **new organization starts with the organization ceiling already set** — the
@@ -85,6 +86,19 @@ listing - the *published* version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+### A department's cap
+
+A [department](departments.md#a-departments-budget) can carry its own monthly
+cap. It sits between the other two: a run is checked against the agent's cap,
+then each capped department of the person who started it, then the
+organization's. Each department meters its own members' month, so a person in
+Finance and Sales is stopped by whichever of the two runs out first, and the
+refusal names it - *Sales department monthly budget exhausted*.
+
+The department's lead and the administrators hear when it passes 80% of its
+month, once, and again when its cap stops a run. A run nobody started - a
+schedule, a channel visitor - belongs to no department and is not counted.
 
 ### Enforcement is before the request
 

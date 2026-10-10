@@ -41,6 +41,7 @@ export {
   useGroupMembers,
   useGroupResources,
   useGroupSharing,
+  useGroupSpend,
 } from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";

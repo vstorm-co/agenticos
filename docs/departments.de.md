@@ -1,5 +1,5 @@
 ---
-source_sha: "b7c15e4f4e04"
+source_sha: "28cffc94fecf"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -95,6 +95,26 @@ Posteingang und, wenn gewünscht, per E-Mail; *Shared with your group* in den
 Benachrichtigungseinstellungen schaltet das ab. Karten in der ganzen Konsole
 sagen, für wen etwas ist: *Alle*, seine Abteilungen mit Namen oder *Privat*.
 
+## Das Budget einer Abteilung { #a-departments-budget }
+
+Ein Administrator kann einer Abteilung beim Anlegen oder Bearbeiten ein
+**monatliches Budget** geben. Es misst, was die Mitglieder der Abteilung
+ausführen - jeder Agent, im laufenden Kalendermonat - und stoppt den Run eines
+Mitglieds, sobald die Abteilung es erreicht hat, mit einer Ablehnung, die die
+Abteilung nennt. Wer in zwei Abteilungen ist, unterliegt beiden Caps. Siehe
+[die Budgetebenen](governance.md#budgets).
+
+Überschreitet eine Abteilung 80 % ihres Monats, werden ihre Leitung und die
+Administratoren einmal benachrichtigt - im Posteingang und per E-Mail, sofern
+sie *Abteilungsbudget bei 80 %* nicht abschalten. Stoppt das Cap einen Run,
+erfahren es dieselben Personen.
+
+Die Seite der Gruppe zeigt den Monat gegenüber dem Cap und exportiert ihn als
+CSV, eine Zeile pro Mitglied und Agent. Die Karte **Ausgaben nach Abteilung** im
+Dashboard listet den Monat jeder Abteilung. Beides erfordert `runs:view`; die
+Leitung einer Abteilung kann deren CSV auch über
+`GET /orgs/{org_id}/groups/{group_id}/spend.csv` herunterladen.
+
 ## Woher das Wissen eines Agents kommt { #where-an-agents-knowledge-comes-from }
 
 Ein Agent kann an eine Wissensdatenbank, einen Skill, eine Kontextdatei oder einen
@@ -117,4 +137,6 @@ ihre Gruppennamen, durch Kommas getrennt, oder nichts für einen Besucher. Siehe
 
 ## Was noch nicht abgedeckt ist { #what-is-not-covered-yet }
 
-Budgets und Auswertungen pro Gruppe gehören noch nicht dazu.
+Ein Run, den niemand aus der Organisation gestartet hat - ein Zeitplan, ein
+Besucher in einem Kanal - zählt zu keinem Abteilungsbudget, denn der Monat einer
+Abteilung ist das, was ihre Mitglieder ausgeführt haben.

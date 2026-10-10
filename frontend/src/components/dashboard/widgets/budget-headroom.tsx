@@ -102,7 +102,15 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
  * the track stays the neutral quiet surface. A track in the fill's own hue is
  * the rule where the fill has one hue - it would fight a red fill here.
  */
-function HeadroomBar({ used, cap, className }: { used: number; cap: number; className?: string }) {
+export function HeadroomBar({
+  used,
+  cap,
+  className,
+}: {
+  used: number;
+  cap: number;
+  className?: string;
+}) {
   const share = cap > 0 ? Math.min(used / cap, 1) : 0;
   return (
     <div className={cn("h-2 overflow-hidden rounded-r-sm", QUIET_SURFACE, className)}>

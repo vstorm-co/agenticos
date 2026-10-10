@@ -39,6 +39,7 @@ export type WidgetId =
   | "approvals"
   | "recent-failures"
   | "budget-headroom"
+  | "department-spend"
   | "mcp-health"
   | "knowledge-freshness"
   | "members"
@@ -437,6 +438,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   // access to, so the widget computes its own.
   "budget-headroom": {
     id: "budget-headroom",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+  },
+  "department-spend": {
+    id: "department-spend",
     gate: holds(Perm.runsView),
     defaultSpan: "s4",
     defaultRows: "r2",

@@ -70,6 +70,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.repositories.group import CappedGroup
 from app.services.agent_runner import (
     AgentRunnerService,
     ApprovalChannel,
@@ -102,6 +103,10 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(
         "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.capped_groups_for_member",
+        AsyncMock(return_value=[]),
     )
 
 
@@ -802,6 +807,41 @@ class TestPrepare:
         # The organization's cap double-counted identically, through
         # `organization_monthly_spend`.
         assert organization_scoped["exclude_run_id"] == built["run_id"]
+
+    @pytest.mark.anyio
+    async def test_each_department_the_person_is_in_meters_its_own_month(self, monkeypatch):
+        """A department's cap reads its members' month, not the organization's (#2072)."""
+        finance = CappedGroup(uuid.uuid4(), "Finance", Decimal("25"))
+        monkeypatch.setattr(
+            "app.services.agent_runner.group_repo.capped_groups_for_member",
+            AsyncMock(return_value=[finance]),
+        )
+        built = await self._period_lookups(_ctx())
+        (limit,) = built["group_limits"]
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("3")),
+        ) as total:
+            assert await limit.period_spend() == Decimal("3")
+
+        assert (limit.scope, limit.limit_usd, limit.subject_name) == (
+            BudgetScope.GROUP,
+            Decimal("25"),
+            "Finance",
+        )
+        assert total.call_args.kwargs["group_id"] == finance.id
+        assert total.call_args.kwargs["exclude_run_id"] == built["run_id"]
+
+    @pytest.mark.anyio
+    async def test_a_run_nobody_started_answers_to_no_department(self):
+        """A trigger or a channel stranger is in no department, so none of their caps apply."""
+        keyless = AuthContext(user_id=None, organization_id=uuid.uuid4(), role="member")
+
+        assert (
+            await AgentRunnerService(_db())._group_limits(keyless, exclude_run_id=uuid.uuid4())
+            == []
+        )
 
 
 class TestSpendReporting:

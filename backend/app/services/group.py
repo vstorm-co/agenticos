@@ -125,6 +125,7 @@ class GroupService:
                     name=data.name,
                     description=data.description,
                     icon=data.icon,
+                    monthly_budget_usd=data.monthly_budget_usd,
                     created_by_user_id=requester_id,
                 )
         except IntegrityError as exc:
@@ -153,12 +154,20 @@ class GroupService:
         sent = data.model_fields_set
         description = data.description if "description" in sent else group.description
         icon = data.icon if "icon" in sent else group.icon
+        budget = (
+            data.monthly_budget_usd if "monthly_budget_usd" in sent else group.monthly_budget_usd
+        )
         if name != group.name:
             await self._refuse_taken_name(organization_id, name)
         try:
             async with self.db.begin_nested():
                 updated = await group_repo.update(
-                    self.db, group, name=name, description=description, icon=icon
+                    self.db,
+                    group,
+                    name=name,
+                    description=description,
+                    icon=icon,
+                    monthly_budget_usd=budget,
                 )
         except IntegrityError as exc:
             raise AlreadyExistsError(

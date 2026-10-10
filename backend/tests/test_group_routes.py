@@ -10,6 +10,7 @@ the directory `source` a client branches on.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -22,6 +23,8 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.group import GroupSpendList, GroupSpendRead
+from app.services.exporting import ExportResult
 
 pytestmark = pytest.mark.anyio
 
@@ -38,6 +41,7 @@ def _group(name: str = "Finance") -> SimpleNamespace:
         name=name,
         description=None,
         icon=None,
+        monthly_budget_usd=None,
         created_at=NOW,
     )
 
@@ -226,6 +230,41 @@ class TestGroupRoutes:
         assert shared.status_code == 204
         assert service.share.await_args.kwargs == {"level": "read"}
         assert service.share.await_args.args[2][0].id == item_id
+
+    async def test_each_department_s_month_and_one_department_s_export(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_spend_service] = lambda: service
+        group_id = uuid4()
+        service.month = AsyncMock(
+            return_value=GroupSpendList(
+                since=NOW,
+                items=[
+                    GroupSpendRead(
+                        group_id=group_id,
+                        name="Finance",
+                        member_count=3,
+                        monthly_budget_usd=Decimal("50"),
+                        spent_usd=Decimal("41.5"),
+                        run_count=12,
+                    )
+                ],
+            )
+        )
+        service.export = AsyncMock(
+            return_value=ExportResult(
+                content="member,agent,runs,cost_usd\n", filename="Finance-spend.csv", row_count=0
+            )
+        )
+
+        month = await client.get(f"{V1}/orgs/{ORG}/groups/spend")
+        export = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/spend.csv")
+
+        assert month.json()["items"][0]["spent_usd"] == "41.5"
+        assert export.headers["content-type"].startswith("text/csv")
+        assert "Finance-spend.csv" in export.headers["content-disposition"]
+        assert service.export.await_args.args[1] == group_id
 
     @pytest.mark.security
     async def test_a_refusal_from_the_service_is_a_403(

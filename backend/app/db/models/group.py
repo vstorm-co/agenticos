@@ -15,12 +15,14 @@ can see which memberships the next sign-in will rewrite.
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Numeric,
     String,
     UniqueConstraint,
     false,
@@ -50,13 +52,24 @@ class Group(Base, TimestampMixin):
     # One of `GROUP_ICONS`, drawn beside the name so a department reads as one at a
     # glance (#2072). Null draws the generic group mark.
     icon: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # What the department's people may spend in a calendar month, across every
+    # agent they run (#2072). Null is no cap of its own - the organization's
+    # still applies.
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
-    __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_group_org_name"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_group_org_name"),
+        # Zero is a department that can never be answered, not a tighter cap.
+        CheckConstraint(
+            "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
+            name="ck_group_budget_positive",
+        ),
+    )
 
     def __repr__(self) -> str:
         return f"<Group(id={self.id}, org={self.organization_id}, name={self.name})>"

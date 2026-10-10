@@ -66,6 +66,9 @@ export default defineConfig({
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        // Department budgets (#2072): the dashboard card and the group page's.
+        "src/components/dashboard/widgets/department-spend.tsx",
+        "src/components/groups/department-budget.tsx",
         "src/components/artifacts/**/*.tsx",
         // Organization API keys (#1794): the list, and the dialog that shows a key once.
         "src/components/settings/api-keys-manager.tsx",

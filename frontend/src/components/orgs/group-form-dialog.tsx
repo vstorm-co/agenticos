@@ -26,6 +26,11 @@ import { GROUP_ICONS, type Group, type GroupIcon as GroupIconName } from "@/type
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 500;
 
+/** The stored cap as the input shows it - `50`, not the API's `50.000000`. Empty is none. */
+function asBudgetInput(cap: string | null | undefined): string {
+  return cap == null ? "" : String(Number(cap));
+}
+
 interface GroupFormDialogProps {
   orgId: string;
   /** The group being edited, or null to create one. */
@@ -46,13 +51,20 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
   const [icon, setIcon] = useState<GroupIconName | null>(group?.icon ?? null);
+  const [budget, setBudget] = useState(asBudgetInput(group?.monthly_budget_usd));
   const [problems, setProblems] = useState<Readonly<Record<string, string>>>({});
   const pending = create.isPending || update.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // An emptied description is cleared, not saved as an empty string.
-    const input = { name: name.trim(), description: description.trim() || null, icon };
+    // An emptied description is cleared, not saved as an empty string; an
+    // emptied budget lifts the cap.
+    const input = {
+      name: name.trim(),
+      description: description.trim() || null,
+      icon,
+      monthly_budget_usd: budget.trim() === "" ? null : Number(budget),
+    };
     try {
       if (group) await update.mutateAsync({ groupId: group.id, input });
       else await create.mutateAsync(input);
@@ -61,7 +73,7 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
       // A taken name is a fact about the name, so it goes under that field.
       const failure = submitFailure(
         error,
-        { fields: ["name", "description"], identifiedBy: "name" },
+        { fields: ["name", "description", "monthly_budget_usd"], identifiedBy: "name" },
         tErrors,
       );
       setProblems(failure.fields);
@@ -101,6 +113,22 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
               placeholder={t("descriptionPlaceholder")}
               maxLength={MAX_DESCRIPTION}
               rows={3}
+            />
+          </FormField>
+          <FormField
+            label={t("monthlyBudget")}
+            htmlFor="group-budget"
+            error={problems.monthly_budget_usd}
+            description={t("monthlyBudgetHint")}
+          >
+            <Input
+              id="group-budget"
+              type="number"
+              min="0"
+              step="1"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              placeholder={t("noBudget")}
             />
           </FormField>
           <div className="space-y-1.5">

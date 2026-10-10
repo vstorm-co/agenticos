@@ -1,5 +1,5 @@
 ---
-source_sha: "b58e4a1a0409"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ verifica contra el secreto propio del trigger es un 403 que nunca llega al runne
 
 ## Budgets { #budgets }
 
-!!! abstract "Dos niveles, y no son variaciones de un mismo número"
+!!! abstract "Tres niveles, y no son variaciones de un mismo número"
 
     El tope de un agent medido contra el total de la organización lo agotan los
     runs de sus vecinos; el de la organización medido contra un solo agent no es
@@ -58,6 +58,7 @@ verifica contra el secreto propio del trigger es un 403 que nunca llega al runne
 | Nivel | Se fija en | Mide | Lo sube |
 |---|---|---|---|
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
+| **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run *y* cada ingesta de la organización | quien tenga `budgets:manage` |
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
@@ -91,6 +92,21 @@ de agents — el número de la versión *publicada*, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+### El tope de un departamento { #a-departments-cap }
+
+Un [departamento](departments.md#a-departments-budget) puede llevar su propio
+tope mensual. Se sitúa entre los otros dos: un run se comprueba contra el tope
+del agent, luego contra cada departamento con tope de la persona que lo inició y
+por último contra el de la organización. Cada departamento mide el mes de sus
+propios miembros, así que a una persona de Finanzas y Ventas la detiene el que
+se agote primero, y el rechazo lo nombra - *Sales department monthly budget
+exhausted*.
+
+El responsable del departamento y los administradores reciben un aviso cuando
+supera el 80% de su mes, y otro cuando su tope detiene un run. Un run que no
+inició nadie - una programación, un visitante en un canal - no pertenece a
+ningún departamento y no se cuenta.
 
 ### Se aplica antes de la petición { #enforcement-is-before-the-request }
 

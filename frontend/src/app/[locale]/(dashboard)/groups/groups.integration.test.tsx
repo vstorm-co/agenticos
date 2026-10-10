@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import GroupsPage from "./page";
 import GroupPage from "./[id]/page";
+import { toast } from "sonner";
+
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
@@ -20,9 +22,12 @@ vi.mock("@/lib/api-client", async () => {
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
+      raw: vi.fn(),
     },
   };
 });
+const saveBlob = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/file-access", () => ({ saveBlob }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -39,17 +44,27 @@ const FINANCE = {
   name: "Finance",
   description: "Invoices and budgets",
   icon: "banknote",
+  monthly_budget_usd: "50.000000" as string | null,
   member_count: 2,
   created_at: "2026-10-01T00:00:00Z",
 };
 
 let shared: unknown[];
 
-function serve(role: string) {
+/** The test catalog's roles, plus `runs:view` where a test reads spend. */
+function serve(role: string, { seesSpend = false } = {}) {
+  const granted = permissionsOf(role);
+  if (seesSpend)
+    granted.permissions = [...granted.permissions, { permission: "runs:view", scope: "all" }];
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
-    if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf(role));
+    if (url.startsWith("/me/permissions")) return Promise.resolve(granted);
     if (url === "/orgs/org-1/groups") return Promise.resolve({ items: [FINANCE], total: 1 });
+    if (url === "/orgs/org-1/groups/spend")
+      return Promise.resolve({
+        since: "2026-10-01T00:00:00Z",
+        items: [{ group_id: "g-fin", spent_usd: "41.500000", run_count: 12 }],
+      });
     if (url === "/orgs/org-1/groups/g-fin/resources")
       return Promise.resolve({ items: shared, total: shared.length });
     return Promise.resolve({ items: [], total: 0 });
@@ -131,7 +146,37 @@ describe("the groups page", () => {
         name: "Legal",
         description: null,
         icon: "scale",
+        monthly_budget_usd: null,
       }),
+    );
+  });
+
+  it("caps a department's month, and lifts the cap when the box is emptied (#2072)", async () => {
+    serve("owner");
+    vi.mocked(apiClient.patch).mockResolvedValue(FINANCE);
+    await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit group" }));
+    const budget = screen.getByLabelText("Monthly budget (USD)");
+    expect(budget).toHaveValue(50);
+    await userEvent.clear(budget);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/orgs/org-1/groups/g-fin",
+        expect.objectContaining({ monthly_budget_usd: null }),
+      ),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit group" }));
+    await userEvent.clear(screen.getByLabelText("Monthly budget (USD)"));
+    await userEvent.type(screen.getByLabelText("Monthly budget (USD)"), "80");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenLastCalledWith(
+        "/orgs/org-1/groups/g-fin",
+        expect.objectContaining({ monthly_budget_usd: 80 }),
+      ),
     );
   });
 });
@@ -167,6 +212,33 @@ describe("one group's page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await userEvent.click(screen.getByRole("button", { name: "2 members" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("shows the month against the cap and exports it, for someone who sees spend (#2072)", async () => {
+    serve("owner", { seesSpend: true });
+    vi.mocked(apiClient.raw).mockResolvedValue(new Response("member,agent,runs,cost_usd"));
+    await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
+
+    expect(await screen.findByText("$41.50")).toBeInTheDocument();
+    expect(screen.getByText("of the $50.00 monthly cap - $8.50 left")).toBeInTheDocument();
+    expect(screen.getByText("12 runs")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    await waitFor(() =>
+      expect(saveBlob).toHaveBeenCalledWith(expect.anything(), "Finance-spend.csv"),
+    );
+  });
+
+  it("says a department without a cap has none, and a failed export says why", async () => {
+    FINANCE.monthly_budget_usd = null;
+    serve("owner", { seesSpend: true });
+    vi.mocked(apiClient.raw).mockRejectedValue(new Error("boom"));
+    await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
+
+    expect(await screen.findByText("spent this month - no monthly cap")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(saveBlob).not.toHaveBeenCalled();
+    FINANCE.monthly_budget_usd = "50.000000";
   });
 
   it("says when the group is not one of this organization's", async () => {

@@ -10,8 +10,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import GroupSharingSvc, GroupSvc, PathOrgAuth, require_in_path_org
+from app.api.deps import (
+    GroupSharingSvc,
+    GroupSpendSvc,
+    GroupSvc,
+    PathOrgAuth,
+    require_in_path_org,
+)
 from app.api.public_api import PUBLIC
+from app.api.responses import csv_response
 from app.core.permissions import Perm
 from app.db.models.resource_grant import GrantLevel
 from app.schemas.group import (
@@ -24,6 +31,7 @@ from app.schemas.group import (
     GroupRead,
     GroupResourceList,
     GroupShareRequest,
+    GroupSpendList,
     GroupUpdate,
     as_group_icon,
 )
@@ -44,12 +52,38 @@ async def list_groups(org_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> Any:
             name=group.name,
             description=group.description,
             icon=as_group_icon(group.icon),
+            monthly_budget_usd=group.monthly_budget_usd,
             member_count=count,
             created_at=group.created_at,
         )
         for group, count in rows
     ]
     return GroupList(items=items, total=len(items))
+
+
+@router.get(
+    "/{org_id}/groups/spend",
+    response_model=GroupSpendList,
+    dependencies=[Depends(require_in_path_org(Perm.RUNS_VIEW))],
+)
+async def group_spend(org_id: UUID, service: GroupSpendSvc, ctx: PathOrgAuth) -> Any:
+    """Each department's month to date against its cap. Requires `runs:view`.
+
+    A person in two departments counts in both, so the rows do not sum to the bill.
+    """
+    return await service.month(ctx)
+
+
+@router.get("/{org_id}/groups/{group_id}/spend.csv", response_model=None)
+async def export_group_spend(
+    org_id: UUID, group_id: UUID, service: GroupSpendSvc, ctx: PathOrgAuth
+) -> Any:
+    """One department's month as CSV, a row per member and agent.
+
+    `runs:view`, or the department's own lead - decided in the service, since a
+    role gate cannot see who leads what.
+    """
+    return csv_response(await service.export(ctx, group_id))
 
 
 @router.post(
@@ -67,6 +101,7 @@ async def create_group(org_id: UUID, data: GroupCreate, service: GroupSvc, ctx: 
         name=group.name,
         description=group.description,
         icon=as_group_icon(group.icon),
+        monthly_budget_usd=group.monthly_budget_usd,
         member_count=0,
         created_at=group.created_at,
     )
@@ -84,6 +119,7 @@ async def update_group(
         name=group.name,
         description=group.description,
         icon=as_group_icon(group.icon),
+        monthly_budget_usd=group.monthly_budget_usd,
         member_count=count,
         created_at=group.created_at,
     )

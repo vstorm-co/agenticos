@@ -1,6 +1,7 @@
 """Schemas for groups - named sets of an organization's members."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal, get_args
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from pydantic import Field
 from app.db.models.organization import MembershipSourceLiteral
 from app.db.models.resource_grant import GrantLevelLiteral
 from app.schemas.base import BaseSchema
+from app.schemas.organization import MonthlyBudgetUsd
 
 GroupIcon = Literal[
     "users",
@@ -41,6 +43,13 @@ class GroupCreate(BaseSchema):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
     icon: GroupIcon | None = None
+    monthly_budget_usd: MonthlyBudgetUsd | None = Field(
+        default=None,
+        description=(
+            "Dollars the group's people may spend in a calendar month, across every "
+            "agent they run. Null is no cap of its own; the organization's still applies."
+        ),
+    )
 
 
 class GroupUpdate(BaseSchema):
@@ -49,6 +58,9 @@ class GroupUpdate(BaseSchema):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
     icon: GroupIcon | None = None
+    monthly_budget_usd: MonthlyBudgetUsd | None = Field(
+        default=None, description="Sent as null to remove the cap; left out to keep it."
+    )
 
 
 class GroupRead(BaseSchema):
@@ -57,6 +69,7 @@ class GroupRead(BaseSchema):
     name: str
     description: str | None = None
     icon: GroupIcon | None = None
+    monthly_budget_usd: Decimal | None = None
     member_count: int = 0
     created_at: datetime
 
@@ -110,6 +123,29 @@ class GroupResourceList(BaseSchema):
 
     items: list[GroupResource]
     total: int
+
+
+class GroupSpendRead(BaseSchema):
+    """One department's month: what its members' runs cost against its cap (#2072)."""
+
+    group_id: UUID
+    name: str
+    icon: GroupIcon | None = None
+    member_count: int
+    monthly_budget_usd: Decimal | None = None
+    spent_usd: Decimal
+    run_count: int
+
+
+class GroupSpendList(BaseSchema):
+    """Every department's month, costliest first.
+
+    A person in two departments counts in both, so the rows do not add up to
+    the organization's bill - each answers to its own cap.
+    """
+
+    since: datetime
+    items: list[GroupSpendRead]
 
 
 class GroupShareItem(BaseSchema):

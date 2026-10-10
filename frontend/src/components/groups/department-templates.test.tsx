@@ -13,6 +13,7 @@ const group = (name: string) => ({
   name,
   description: null,
   icon: null,
+  monthly_budget_usd: null,
   member_count: 0,
   created_at: "2026-10-10T00:00:00Z",
 });

@@ -318,6 +318,7 @@ InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
 from app.services.group import GroupService
 from app.services.group_sharing import GroupSharingService
+from app.services.group_spend import GroupSpendService
 from app.services.directory import (
     DirectoryMappingService,
     DirectorySignInService,
@@ -335,6 +336,11 @@ def get_group_service(db: DBSession) -> GroupService:
 def get_group_sharing_service(db: DBSession) -> GroupSharingService:
     """Sharing several resources with a group from its page (#2072)."""
     return GroupSharingService(db)
+
+
+def get_group_spend_service(db: DBSession) -> GroupSpendService:
+    """What each department spent this month (#2072)."""
+    return GroupSpendService(db)
 
 
 def get_directory_mapping_service(db: DBSession) -> DirectoryMappingService:
@@ -362,6 +368,7 @@ def get_directory_sync_service(db: DBSession) -> DirectorySyncService:
 
 GroupSvc = Annotated[GroupService, Depends(get_group_service)]
 GroupSharingSvc = Annotated[GroupSharingService, Depends(get_group_sharing_service)]
+GroupSpendSvc = Annotated[GroupSpendService, Depends(get_group_spend_service)]
 DirectorySyncSvc = Annotated[DirectorySyncService, Depends(get_directory_sync_service)]
 DirectoryMappingSvc = Annotated[DirectoryMappingService, Depends(get_directory_mapping_service)]
 DirectorySignInSvc = Annotated[DirectorySignInService, Depends(get_directory_sign_in_service)]

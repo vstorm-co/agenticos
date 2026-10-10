@@ -17,6 +17,7 @@ import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
+import { DepartmentBudget } from "@/components/groups/department-budget";
 import { GroupIcon } from "@/components/groups/group-icon";
 import { GroupFormDialog } from "@/components/orgs/group-form-dialog";
 import { GroupMembersDialog } from "@/components/orgs/group-members-dialog";
@@ -104,6 +105,8 @@ export default function GroupPage({ params }: PageProps) {
           </>
         }
       />
+
+      {can(Perm.runsView) && <DepartmentBudget orgId={orgId} group={group} />}
 
       <ListCard
         title={t("whatItHas")}

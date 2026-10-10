@@ -1,5 +1,5 @@
 ---
-source_sha: "b7c15e4f4e04"
+source_sha: "28cffc94fecf"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -88,6 +88,23 @@ jeśli chcą, e-mailem; *Shared with your group* w ustawieniach powiadomień to
 wyłącza. Karty w całej konsoli mówią, dla kogo jest każda rzecz: *Wszyscy*, jej
 działy z nazwy albo *Prywatne*.
 
+## Budżet działu { #a-departments-budget }
+
+Administrator może nadać działowi **miesięczny budżet** przy jego tworzeniu lub
+edycji. Liczy to, co uruchamiają członkowie działu - każdy agent, bieżący
+miesiąc kalendarzowy - i zatrzymuje run członka, gdy dział go wyczerpie, z
+odmową, która nazywa dział. Osoba w dwóch działach podlega obu limitom. Zobacz
+[poziomy budżetu](governance.md#budgets).
+
+Gdy dział przekroczy 80% swojego miesiąca, jego lider i administratorzy dostają
+jedno powiadomienie - w skrzynce i e-mailem, chyba że wyłączą *Department budget
+at 80%*. Gdy limit zatrzyma run, dowiadują się ci sami ludzie.
+
+Strona grupy pokazuje miesiąc na tle limitu i eksportuje go do CSV, wiersz na
+członka i agenta. Karta **Wydatki działów** na dashboardzie pokazuje miesiąc
+każdego działu. Obie wymagają `runs:view`; lider działu może też pobrać jego CSV
+z `GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
+
 ## Skąd pochodzi wiedza agenta { #where-an-agents-knowledge-comes-from }
 
 Agenta można podpiąć do bazy wiedzy, skilla, pliku kontekstu albo serwera MCP
@@ -110,4 +127,6 @@ grup rozdzielonymi przecinkami albo pustym tekstem dla odwiedzającego. Zobacz
 
 ## Czego jeszcze nie obejmuje { #what-is-not-covered-yet }
 
-Budżety i analityka w podziale na grupy nie są jeszcze częścią tej funkcji.
+Run, którego nie uruchomił nikt z organizacji - harmonogram, gość na kanale -
+nie liczy się do budżetu żadnego działu, bo miesiąc działu to to, co uruchomili
+jego członkowie.

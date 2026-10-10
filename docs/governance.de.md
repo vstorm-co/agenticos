@@ -1,5 +1,5 @@
 ---
-source_sha: "b58e4a1a0409"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -51,7 +51,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
 ## Budgets { #budgets }
 
-!!! abstract "Zwei Ebenen, und sie sind keine Varianten einer Zahl"
+!!! abstract "Drei Ebenen, und sie sind keine Varianten einer Zahl"
 
     Das Cap eines Agents, gemessen an der Gesamtsumme der Organisation, wird von
     den Runs seiner Nachbarn aufgebraucht; das der Organisation, gemessen an
@@ -61,6 +61,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 | Ebene | Gesetzt in | Misst | Angehoben von |
 |---|---|---|---|
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
+| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run *und* jeder Ingestion in der Organisation | wer `budgets:manage` hält |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
@@ -97,6 +98,21 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+### Das Cap einer Abteilung { #a-departments-cap }
+
+Eine [Abteilung](departments.md#a-departments-budget) kann ein eigenes
+monatliches Cap tragen. Es liegt zwischen den anderen beiden: Ein Run wird gegen
+das Cap des Agents geprüft, dann gegen jede Abteilung mit Cap, in der die Person
+ist, die ihn gestartet hat, dann gegen das der Organisation. Jede Abteilung misst
+den Monat ihrer eigenen Mitglieder, sodass eine Person in Finanzen und Vertrieb
+von derjenigen gestoppt wird, die zuerst ausgeschöpft ist, und die Ablehnung
+nennt sie - *Sales department monthly budget exhausted*.
+
+Die Leitung der Abteilung und die Administratoren werden einmal benachrichtigt,
+wenn sie 80 % ihres Monats überschreitet, und erneut, wenn ihr Cap einen Run
+stoppt. Ein Run, den niemand gestartet hat - ein Zeitplan, ein Besucher in einem
+Kanal - gehört zu keiner Abteilung und wird nicht gezählt.
 
 ### Durchgesetzt wird vor der Anfrage { #enforcement-is-before-the-request }
 

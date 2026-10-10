@@ -1,5 +1,5 @@
 ---
-source_sha: "b58e4a1a0409"
+source_sha: "71a57f10d782"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ które w ogóle nie dociera do runnera.
 
 ## Budżety { #budgets }
 
-!!! abstract "Dwa poziomy, i nie są to warianty jednej liczby"
+!!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
 
     Limit agenta mierzony względem sumy całej organizacji wyczerpują runy jego
     sąsiadów; limit organizacji mierzony względem jednego agenta nie jest żadnym
@@ -58,6 +58,7 @@ które w ogóle nie dociera do runnera.
 | Poziom | Ustawiany w | Mierzy | Podnosi |
 |---|---|---|---|
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
+| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
@@ -92,6 +93,20 @@ na liście agentów — liczba z *opublikowanej* wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+### Limit działu { #a-departments-cap }
+
+[Dział](departments.md#a-departments-budget) może mieć własny miesięczny limit.
+Stoi między pozostałymi dwoma: run jest sprawdzany względem limitu agenta,
+potem każdego działu z limitem, w którym jest osoba, która go uruchomiła, a na
+końcu względem limitu organizacji. Każdy dział liczy miesiąc własnych członków,
+więc osobę z Finansów i Sprzedaży zatrzyma ten z dwóch, który wyczerpie się
+pierwszy, a odmowa go nazwie - *Sales department monthly budget exhausted*.
+
+Lider działu i administratorzy dostają jedno powiadomienie, gdy dział przekroczy
+80% miesiąca, i kolejne, gdy limit zatrzyma run. Run, którego nikt nie
+uruchomił - harmonogram, gość na kanale - nie należy do żadnego działu i nie
+jest liczony.
 
 ### Egzekwowanie odbywa się przed żądaniem { #enforcement-is-before-the-request }
 

@@ -9,6 +9,7 @@ import {
   useGroupMembers,
   useGroupResources,
   useGroupSharing,
+  useGroupSpend,
   useGroups,
 } from "./use-groups";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -240,6 +241,21 @@ describe("a group's lead and what it is given (#2072)", () => {
         .catch(() => undefined);
     });
     expect(toast.error).toHaveBeenCalledWith("Cannot edit that");
+  });
+});
+
+describe("useGroupSpend", () => {
+  it("reads the month when it may, and asks nothing when it may not (#2072)", async () => {
+    const month = { since: "2026-10-01T00:00:00Z", items: [] };
+    vi.mocked(apiClient.get).mockResolvedValue(month);
+
+    const allowed = renderHook(() => useGroupSpend("o-1"), { wrapper });
+    await waitFor(() => expect(allowed.result.current.spend).toEqual(month));
+    renderHook(() => useGroupSpend("o-1", false), { wrapper });
+    renderHook(() => useGroupSpend(null), { wrapper });
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/spend");
   });
 });
 

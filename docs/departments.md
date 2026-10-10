@@ -84,6 +84,23 @@ turns it off. Cards across the console say who each thing is for: *Everyone*,
 its departments by name, or *Private*. A reader sees only the items they could open anyway, so a
 member of Sales reading Finance's page does not learn what Finance keeps.
 
+## A department's budget
+
+An administrator can give a department a **monthly budget** when creating or
+editing it. It meters what the department's members run - every agent, this
+calendar month - and stops a member's run once the department has reached it,
+with a refusal that names the department. A person in two departments is under
+both caps. See [the budget levels](governance.md#budgets).
+
+When a department passes 80% of its month, its lead and the administrators are
+told once - in the inbox, and by email unless they turn *Department budget at
+80%* off. When the cap stops a run, the same people hear.
+
+The group's page shows the month against the cap and exports it as CSV, a row
+per member and agent. The dashboard's **Spend by department** card lists every
+department's month. Both need `runs:view`; a department's lead can also download
+its CSV from `GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
+
 ## Where an agent's knowledge comes from
 
 An agent can be bound to a knowledge base, skill, context file or MCP server that
@@ -106,4 +123,6 @@ becomes their group names, separated by commas, or nothing for a visitor. See
 
 ## What is not covered yet
 
-Group-scoped budgets and per-group analytics are not part of this yet.
+A run nobody in the organization started - a schedule, a visitor in a channel -
+counts towards no department's budget, since a department's month is what its
+members ran.

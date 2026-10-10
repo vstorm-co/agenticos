@@ -233,6 +233,16 @@ Two things are versioned separately from this file and worth knowing about:
   listings and the `resource_shared` notification; migration
   `0116_group_leads_and_shares` (#2072).
 
+- **A department's monthly budget.** A department can carry a monthly cap,
+  metered on what its members ran on any agent this month and checked between
+  the agent's cap and the organization's; a run it stops names the department.
+  Its lead and the administrators hear once when it passes 80%, and again when
+  it stops a run. The group page shows the month against the cap and exports it
+  as CSV, and the dashboard's **Spend by department** card lists every
+  department. API: `monthly_budget_usd` on groups, `GET /orgs/{id}/groups/spend`,
+  `GET /orgs/{id}/groups/{id}/spend.csv` and the `budget_warning` notification;
+  migration `0117_group_budgets` (#2072).
+
 - **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
   answer streams natively under the question, with each tool call a step that goes
   from in progress to done or failed - as a timeline or as one plan - and a step

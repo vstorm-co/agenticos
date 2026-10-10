@@ -1168,6 +1168,15 @@
           "title": "Nic jeszcze nie opublikowano",
           "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
         }
+      },
+      "department-spend": {
+        "title": "Wydatki działów",
+        "description": "Ile w tym miesiącu uruchomili ludzie z każdego działu, na tle jego limitu. Osoba w dwóch działach liczy się w obu.",
+        "ofCap": "{spent} / {cap}",
+        "empty": {
+          "title": "Brak działów",
+          "description": "Utwórz działy na stronie Działy, aby zobaczyć wydatki zespołów."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -3366,7 +3375,15 @@
     "addToGroupNoMatch": "Nic, co możesz udostępnić, nie pasuje.",
     "addToGroupNothing": "Nie ma nic, co możesz udostępnić tej grupie - wszystko, co możesz edytować, już tu jest.",
     "addToGroupLevel": "Mogą",
-    "addToGroupShare": "{count, plural, =0 {Udostępnij} one {Udostępnij 1} few {Udostępnij #} many {Udostępnij #} other {Udostępnij #}}"
+    "addToGroupShare": "{count, plural, =0 {Udostępnij} one {Udostępnij 1} few {Udostępnij #} many {Udostępnij #} other {Udostępnij #}}",
+    "monthlyBudget": "Miesięczny budget (USD)",
+    "monthlyBudgetHint": "Runy uruchamiane przez członków działu zatrzymują się po jego osiągnięciu. Lider działu i administratorzy dostają ostrzeżenie przy 80%.",
+    "noBudget": "Bez limitu",
+    "thisMonth": "Ten miesiąc",
+    "runCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
+    "exportCsv": "Eksportuj CSV",
+    "noCapSpent": "wydane w tym miesiącu - bez miesięcznego limitu",
+    "ofCap": "z miesięcznego limitu {cap} - zostało {left}"
   },
   "directory": {
     "navLabel": "Katalog",

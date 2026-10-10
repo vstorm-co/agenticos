@@ -15,6 +15,7 @@ import {
   listGroups,
   removeGroupMember,
   updateGroup,
+  getGroupSpend,
   listShareableWithGroup,
   setGroupLead,
   shareWithGroup,
@@ -174,6 +175,19 @@ export function useGroupResources(orgId: string, groupId: string) {
     enabled: !!orgId && !!groupId,
   });
   return { resources: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * Every department's month against its cap (#2072). Off for a caller without
+ * `runs:view`, whom the server would refuse.
+ */
+export function useGroupSpend(orgId: string | null | undefined, enabled = true) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.organizations.groupSpend(orgId ?? ""),
+    queryFn: () => getGroupSpend(orgId ?? ""),
+    enabled: !!orgId && enabled,
+  });
+  return { spend: data, isLoading, error, refetch };
 }
 
 /**

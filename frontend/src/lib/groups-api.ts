@@ -14,6 +14,7 @@ import type {
   GroupMemberList,
   GroupResourceList,
   GroupShareRequest,
+  GroupSpendList,
   GroupUpdate,
 } from "@/types/groups";
 
@@ -88,6 +89,16 @@ export async function shareWithGroup(
   request: GroupShareRequest,
 ): Promise<void> {
   await apiClient.post<void>(`${group(orgId, groupId)}/shares`, request);
+}
+
+/** Every department's month to date against its cap. Needs `runs:view`. */
+export async function getGroupSpend(orgId: string): Promise<GroupSpendList> {
+  return apiClient.get<GroupSpendList>(`${groups(orgId)}/spend`);
+}
+
+/** One department's month as CSV - `runs:view`, or the department's lead. */
+export async function downloadGroupSpend(orgId: string, groupId: string): Promise<Blob> {
+  return (await apiClient.raw(`${group(orgId, groupId)}/spend.csv`)).blob();
 }
 
 /** What has been shared with a group, narrowed to what the caller may see. */

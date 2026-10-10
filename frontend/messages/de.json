@@ -1936,6 +1936,15 @@
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
+      },
+      "department-spend": {
+        "title": "Ausgaben nach Abteilung",
+        "description": "Was die Mitglieder jeder Abteilung diesen Monat ausgeführt haben, gemessen an ihrem Limit. Wer in zwei Abteilungen ist, zählt in beiden.",
+        "ofCap": "{spent} / {cap}",
+        "empty": {
+          "title": "Noch keine Abteilungen",
+          "description": "Legen Sie auf der Seite Abteilungen Abteilungen an, um Ausgaben nach Team zu sehen."
+        }
       }
     },
     "edit": {
@@ -4328,7 +4337,9 @@
       "prefArtifactVersionPublished": "App aktualisiert",
       "prefArtifactVersionPublishedTrigger": "Eine App, der Sie folgen, erhält eine neue Version - vom Agent neu veröffentlicht oder von einer Person wiederhergestellt.",
       "prefResourceShared": "Mit Ihrer Gruppe geteilt",
-      "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind."
+      "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind.",
+      "prefBudgetWarning": "Abteilungsbudget bei 80 %",
+      "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5629,7 +5640,15 @@
     "addToGroupNoMatch": "Nichts, was Sie teilen können, passt.",
     "addToGroupNothing": "Es gibt nichts, was Sie mit dieser Gruppe teilen können - alles, was Sie bearbeiten dürfen, ist schon hier.",
     "addToGroupLevel": "Sie dürfen",
-    "addToGroupShare": "{count, plural, =0 {Teilen} =1 {1 teilen} other {# teilen}}"
+    "addToGroupShare": "{count, plural, =0 {Teilen} =1 {1 teilen} other {# teilen}}",
+    "monthlyBudget": "Monatliches Budget (USD)",
+    "monthlyBudgetHint": "Runs, die Mitglieder dieser Abteilung starten, stoppen, sobald es erreicht ist. Die Leitung und die Administratoren werden bei 80 % benachrichtigt.",
+    "noBudget": "Kein Limit",
+    "thisMonth": "Dieser Monat",
+    "runCount": "{count, plural, =1 {1 Run} other {# Runs}}",
+    "exportCsv": "CSV exportieren",
+    "noCapSpent": "diesen Monat ausgegeben - kein monatliches Limit",
+    "ofCap": "vom monatlichen Limit von {cap} - {left} übrig"
   },
   "directory": {
     "navLabel": "Verzeichnis",

@@ -1,5 +1,5 @@
 ---
-source_sha: "b7c15e4f4e04"
+source_sha: "28cffc94fecf"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -92,6 +92,26 @@ y, si lo quieren, por correo; *Shared with your group* en los ajustes de
 notificaciones lo desactiva. Las tarjetas de toda la consola dicen para quién es
 cada cosa: *Everyone*, sus departamentos por nombre o *Private*.
 
+## El presupuesto de un departamento { #a-departments-budget }
+
+Un administrador puede dar a un departamento un **presupuesto mensual** al
+crearlo o editarlo. Mide lo que ejecutan los miembros del departamento -
+cualquier agent, en el mes natural en curso - y detiene el run de un miembro en
+cuanto el departamento lo alcanza, con un rechazo que nombra al departamento.
+Una persona en dos departamentos está bajo ambos topes. Consulta
+[los niveles de budget](governance.md#budgets).
+
+Cuando un departamento supera el 80% de su mes, su responsable y los
+administradores reciben un único aviso - en la bandeja y por correo, salvo que
+desactiven *Department budget at 80%*. Cuando el tope detiene un run, se enteran
+las mismas personas.
+
+La página del grupo muestra el mes frente al tope y lo exporta como CSV, una fila
+por miembro y agent. La tarjeta **Spend by department** del dashboard muestra el
+mes de cada departamento. Ambas requieren `runs:view`; el responsable de un
+departamento también puede descargar su CSV desde
+`GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
+
 ## De dónde viene el conocimiento de un agent { #where-an-agents-knowledge-comes-from }
 
 Un agent puede vincularse a una base de conocimiento, un skill, un archivo de
@@ -114,4 +134,6 @@ visitante. Consulta [Variables](reference/spec.md#variables).
 
 ## Lo que aún no cubre { #what-is-not-covered-yet }
 
-Los presupuestos y la analítica por grupo aún no forman parte de esto.
+Un run que no inició nadie de la organización - una programación, un visitante
+en un canal - no cuenta para el presupuesto de ningún departamento, porque el mes
+de un departamento es lo que ejecutaron sus miembros.

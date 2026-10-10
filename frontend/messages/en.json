@@ -1948,6 +1948,15 @@
           "title": "Nothing published yet",
           "description": "Reports and dashboards an agent publishes appear here."
         }
+      },
+      "department-spend": {
+        "title": "Spend by department",
+        "description": "What each department's people ran this month, against its cap. A person in two departments counts in both.",
+        "ofCap": "{spent} / {cap}",
+        "empty": {
+          "title": "No departments yet",
+          "description": "Create departments on the Departments page to see spend by team."
+        }
       }
     },
     "edit": {
@@ -4465,7 +4474,9 @@
       "prefArtifactVersionPublished": "App updated",
       "prefArtifactVersionPublishedTrigger": "An app you follow gets a new version - republished by its agent or restored by a person.",
       "prefResourceShared": "Shared with your group",
-      "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in."
+      "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in.",
+      "prefBudgetWarning": "Department budget at 80%",
+      "prefBudgetWarningTrigger": "A department you lead has used 80% of its monthly budget. Administrators hear about every department."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -5767,7 +5778,15 @@
     "addToGroupNoMatch": "Nothing you can share matches.",
     "addToGroupNothing": "There is nothing you can share with this group - everything you may edit is already here.",
     "addToGroupLevel": "They can",
-    "addToGroupShare": "{count, plural, =0 {Share} =1 {Share 1} other {Share #}}"
+    "addToGroupShare": "{count, plural, =0 {Share} =1 {Share 1} other {Share #}}",
+    "monthlyBudget": "Monthly budget (USD)",
+    "monthlyBudgetHint": "Runs started by this department's members stop when it is reached. Its lead and the administrators hear at 80%.",
+    "noBudget": "No limit",
+    "thisMonth": "This month",
+    "runCount": "{count, plural, =1 {1 run} other {# runs}}",
+    "exportCsv": "Export CSV",
+    "noCapSpent": "spent this month - no monthly cap",
+    "ofCap": "of the {cap} monthly cap - {left} left"
   },
   "directory": {
     "navLabel": "Directory",
