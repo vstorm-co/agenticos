@@ -9,6 +9,10 @@ import { rowForEntry } from "@/lib/mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 vi.mock("@/lib/mcp-connections-api", () => ({ probeMcpSignIn: vi.fn() }));
+vi.mock("@/hooks", () => ({
+  useGroups: () => ({ groups: [{ id: "g-fin", name: "Finance", icon: null }] }),
+  useMembers: () => ({ members: [] }),
+}));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -63,6 +67,40 @@ describe("the account choice", () => {
     expect(screen.getByRole("radio", { name: /^One shared account/ })).not.toHaveTextContent(
       "Recommended",
     );
+  });
+});
+
+describe("who an organization server is for (#2072)", () => {
+  const github = () =>
+    rowForEntry({
+      key: "github",
+      name: "GitHub",
+      auth: "token",
+      url: "https://api.githubcopilot.com/mcp/",
+    } as unknown as McpCatalogEntry);
+
+  it("limits a new shared account to chosen groups, with no only-me beside it", async () => {
+    const onSubmit = open({ scope: "organization", row: github(), existing: null });
+
+    expect(screen.queryByRole("radio", { name: /Only me/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Finance" }));
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "organization",
+        audience: { visibility: "private", group_ids: ["g-fin"], user_ids: [] },
+      }),
+    );
+  });
+
+  it("asks nothing of a person's own account", async () => {
+    open({ scope: "personal", row: github(), existing: null });
+
+    expect(screen.queryByRole("radiogroup", { name: "Who can use it" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
+    expect(screen.getByRole("radiogroup", { name: "Who can use it" })).toBeInTheDocument();
   });
 });
 

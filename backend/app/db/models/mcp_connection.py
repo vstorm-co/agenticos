@@ -47,10 +47,11 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.vault import is_key_version_available
 from app.db.base import Base, TimestampMixin
+from app.db.models.resource_grant import Visibility
 
 if TYPE_CHECKING:
     from app.db.models.user import User
@@ -95,6 +96,9 @@ class McpConnection(Base, TimestampMixin):
             postgresql_where=text("scope = 'user' AND is_default AND catalog_key IS NOT NULL"),
         ),
         CheckConstraint("scope IN ('user', 'org')", name="ck_mcp_connection_scope"),
+        CheckConstraint(
+            "visibility IN ('private', 'team', 'org')", name="ck_mcp_connection_visibility"
+        ),
         CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
         # A portal grant names its portal and nothing else does: the column is what
         # the poller and the trigger card look a connection up by.
@@ -130,13 +134,27 @@ class McpConnection(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    # Who added an organization connection. Recorded for the audit trail, never
-    # for authorization - an organization connection must outlive the person who
-    # set it up, so this nulls where `user_id` cascades.
+    # Who added an organization connection. An organization connection must
+    # outlive the person who set it up, so this nulls where `user_id` cascades.
+    # It authorizes one thing: a connection narrowed to groups stays visible to
+    # whoever narrowed it, as any other shared resource does to its owner.
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # The name sharing reads an owner by, so an organization connection is shared
+    # with groups the way skills and knowledge are (#2072).
+    owner_user_id: Mapped[uuid.UUID | None] = synonym("created_by_user_id")
+    # Who in the organization sees and binds an organization connection: `org`,
+    # everyone who manages MCP servers, or `private` - its creator and the groups
+    # and people it is shared with. Meaningless on a personal row, which only its
+    # owner ever reaches.
+    visibility: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=Visibility.ORG.value,
+        server_default=Visibility.ORG.value,
     )
     # A connection belongs either to one member (scope="user") or to the whole
     # organization (scope="org"). Personal connections keep a developer's own

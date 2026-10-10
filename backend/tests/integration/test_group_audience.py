@@ -227,8 +227,8 @@ class TestKnowledgeReach:
 
         agent.visibility = Visibility.PRIVATE.value
         await db.flush()
-        await SharingService(db).restrict_to_groups(
-            owner, agent, resource_type=AGENT, group_ids=[finance.id]
+        await SharingService(db).restrict_to(
+            owner, agent, resource_type=AGENT, group_ids=[finance.id], user_ids=[]
         )
         assert await AgentRegistryService(db).get(owner, agent.id)
 

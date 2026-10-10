@@ -1,5 +1,5 @@
 ---
-source_sha: "186f40ff9e1d"
+source_sha: "4f82ed9ae1fd"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -7,8 +7,9 @@ source_sha: "186f40ff9e1d"
 Unternehmen sind in Abteilungen organisiert: Vertrieb, Finanzen, Personal,
 Support. In AgenticOS ist eine Abteilung eine [Gruppe](directory.md#groups), und
 eine Gruppe entscheidet, wer was nutzen darf. Die Finanzabteilung kann eigene
-Agents, Skills, Kontextdateien und Wissensdatenbanken haben, die der Vertrieb nie
-sieht, während das, was alle brauchen, für die ganze Organisation offen bleibt.
+Agents, Skills, Kontextdateien, Wissensdatenbanken und MCP-Server haben, die der
+Vertrieb nie sieht, während das, was alle brauchen, für die ganze Organisation
+offen bleibt.
 
 ## Abteilungen hinzufügen { #adding-your-departments }
 
@@ -25,14 +26,18 @@ Ihr Unternehmen seine Teams bereits in einem Verzeichnis führt.
 
 ## Wer etwas Neues nutzen darf { #who-can-use-a-new-thing }
 
-Wer einen Agent, einen Skill, eine Wissensdatenbank oder eine Kontextdatei
-anlegt, beantwortet eine Frage: **wer es nutzen darf**.
+Wer einen Agent, einen Skill, eine Wissensdatenbank, eine Kontextdatei oder einen
+gemeinsamen MCP-Server anlegt, beantwortet eine Frage: **wer es nutzen darf**.
 
 | Auswahl | Wen es erreicht | Gespeichert als |
 |---|---|---|
 | **Alle** - der Standard | Jedes Mitglied der Organisation | Sichtbarkeit `org` |
 | **Nur ich** | Sie und alle, mit denen Sie es später teilen | Sichtbarkeit `private` (eine Wissensdatenbank wird persönlich) |
-| **Ausgewählte Gruppen** | Die Mitglieder der gewählten Gruppen | Sichtbarkeit `private`, mit jeder Gruppe auf `use` geteilt |
+| **Ausgewählte Gruppen oder Personen** | Die Mitglieder der gewählten Gruppen und die Personen, die Sie nennen | Sichtbarkeit `private`, mit jeder davon auf `use` geteilt |
+
+Gruppen werden angeboten, sobald Sie die dritte Option wählen; Personen findet
+man, indem man einen Namen oder eine E-Mail-Adresse eintippt. Jede Auswahl bleibt
+als Chip stehen, bis Sie sie entfernen.
 
 Die Mitglieder einer Gruppe finden, was mit ihr geteilt ist, nutzen es und binden
 es an ihre eigenen Agents. Personen außerhalb der Gruppe sehen es weder in
@@ -46,18 +51,34 @@ der Run lief; mit einer Gruppe teilt man eine im Bereich **Share**. Der Bereich
 **Sharing** jeder Ressource fügt Gruppen auch nach dem Anlegen hinzu oder
 entfernt sie.
 
+## Die MCP-Server einer Abteilung { #a-departments-mcp-servers }
+
+Ein MCP-Server der Organisation - ein gemeinsames Konto, einmal verbunden - lässt
+sich genauso einschränken, damit der Buchhaltungsserver der Finanzabteilung ihr
+gehört. Mitglieder, die MCP-Server verwalten, sehen die Server der ganzen
+Organisation, die, die sie selbst verbunden haben, und die, die mit ihren Gruppen
+oder mit ihnen geteilt sind; Owner und Admins sehen alle. Ein Builder außerhalb
+der Finanzabteilung findet ihren Server nicht in der Liste, öffnet ihn nicht über
+seine ID und veröffentlicht keinen Agent, der ihn nutzt. Siehe
+[MCP](mcp.md#personal-or-organization-wide).
+
+Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen
+dürfen. Die Auswahl entscheidet, wer den Server wählen darf, nicht, wer über ihn
+Antworten bekommt; deshalb zeigt der Builder ihn dort, wo das Wissen des Agents
+herkommt.
+
 ## Die Seite einer Gruppe { #a-groups-page }
 
 Eine Gruppe zu öffnen, zeigt ihre Personen und alles, was mit ihr geteilt ist,
-nach Art gruppiert - Agents, Wissensdatenbanken, Skills, Kontext und Apps - mit
-der Stufe, auf der jedes geteilt wurde. Wer liest, sieht nur, was er ohnehin
+nach Art gruppiert - Agents, Wissensdatenbanken, Skills, Kontext, Apps und
+MCP-Server - mit der Stufe, auf der jedes geteilt wurde. Wer liest, sieht nur, was er ohnehin
 öffnen könnte; ein Mitglied des Vertriebs erfährt auf der Seite der
 Finanzabteilung also nicht, was diese aufbewahrt.
 
 ## Woher das Wissen eines Agents kommt { #where-an-agents-knowledge-comes-from }
 
-Ein Agent kann an eine Wissensdatenbank, einen Skill oder eine Kontextdatei
-gebunden werden, die enger geteilt ist als der Agent selbst, und nichts verhindert
+Ein Agent kann an eine Wissensdatenbank, einen Skill, eine Kontextdatei oder einen
+MCP-Server gebunden werden, die enger geteilt sind als der Agent selbst, und nichts verhindert
 das. Alle, die der Agent erreicht, bekommen dann Antworten aus dieser Quelle,
 auch Personen, die sie selbst nicht öffnen könnten.
 
@@ -76,6 +97,4 @@ ihre Gruppennamen, durch Kommas getrennt, oder nichts für einen Besucher. Siehe
 
 ## Was noch nicht abgedeckt ist { #what-is-not-covered-yet }
 
-MCP-Verbindungen werden auf Ebene der Organisation geteilt oder bleiben
-persönlich, nicht pro Gruppe. Budgets und Auswertungen pro Gruppe gehören noch
-nicht dazu.
+Budgets und Auswertungen pro Gruppe gehören noch nicht dazu.

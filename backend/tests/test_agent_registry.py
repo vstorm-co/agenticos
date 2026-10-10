@@ -1726,7 +1726,7 @@ class TestValidateSpec:
         model would be handed two servers under one prefix, which Pydantic AI
         refuses as duplicate tool names - aborting every turn of the agent."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion"
 
         with (
@@ -1759,7 +1759,7 @@ class TestValidateSpec:
         """The ordinary shape: the organization's handbook for everybody, and
         each person's own Linear."""
         ctx = _ctx()
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "notion-handbook"
 
         with (
@@ -3965,7 +3965,7 @@ class TestOneToolPrefixPerBinding:
 
     @staticmethod
     def _connection(name: str) -> MagicMock:
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = name
         return connection
 
@@ -4045,6 +4045,6 @@ class TestOneToolPrefixPerBinding:
 def _named_connection(name: str) -> MagicMock:
     """A connection row with a real name: `MagicMock(name=...)` names the mock,
     not the row, and the prefix check reads the row's."""
-    connection = MagicMock()
+    connection = MagicMock(visibility="org")
     connection.name = name
     return connection

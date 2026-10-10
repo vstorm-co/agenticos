@@ -119,6 +119,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
         description: description.trim() || undefined,
         scope: audience.mode === "private" ? "personal" : "org",
         group_ids: audiencePayload(audience).group_ids,
+        user_ids: audiencePayload(audience).user_ids,
       };
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.

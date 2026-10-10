@@ -1,14 +1,14 @@
 ---
-source_sha: "186f40ff9e1d"
+source_sha: "4f82ed9ae1fd"
 ---
 
 # Działy i grupy { #departments-and-groups }
 
 Firmy dzielą się na działy: sprzedaż, finanse, HR, wsparcie. W AgenticOS dział
 to [grupa](directory.md#groups), a grupa decyduje, kto może z czego korzystać.
-Finanse mogą mieć własnych agentów, skille, pliki kontekstu i bazy wiedzy, których
-sprzedaż nigdy nie zobaczy, a to, czego potrzebują wszyscy, zostaje otwarte dla
-całej organizacji.
+Finanse mogą mieć własnych agentów, skille, pliki kontekstu, bazy wiedzy i
+serwery MCP, których sprzedaż nigdy nie zobaczy, a to, czego potrzebują wszyscy,
+zostaje otwarte dla całej organizacji.
 
 ## Dodawanie działów { #adding-your-departments }
 
@@ -24,14 +24,18 @@ prowadzi już swoje zespoły w katalogu.
 
 ## Kto może korzystać z nowej rzeczy { #who-can-use-a-new-thing }
 
-Tworzenie agenta, skilla, bazy wiedzy albo pliku kontekstu zadaje jedno pytanie:
-**kto może z tego korzystać**.
+Tworzenie agenta, skilla, bazy wiedzy, pliku kontekstu albo wspólnego serwera MCP
+zadaje jedno pytanie: **kto może z tego korzystać**.
 
 | Wybór | Kto do tego sięga | Zapisane jako |
 |---|---|---|
 | **Wszyscy** - domyślnie | Każdy członek organizacji | Widoczność `org` |
 | **Tylko ja** | Ty i osoby, którym udostępnisz to później | Widoczność `private` (baza wiedzy staje się osobista) |
-| **Wybrane grupy** | Członkowie wybranych grup | Widoczność `private`, udostępnione każdej grupie na poziomie `use` |
+| **Wybrane grupy lub osoby** | Członkowie wybranych grup i osoby, które wskażesz | Widoczność `private`, udostępnione każdej z nich na poziomie `use` |
+
+Grupy pojawiają się od razu po wybraniu trzeciej opcji; osoby znajduje się,
+wpisując imię albo adres e-mail. Każda wybrana zostaje jako chip, dopóki jej nie
+usuniesz.
 
 Członkowie grupy znajdują to, co jej udostępniono, korzystają z tego i podpinają
 do własnych agentów. Osoby spoza grupy nie widzą tego na listach, w wyszukiwaniu,
@@ -44,19 +48,34 @@ Aplikacje publikują agenci i na początku są prywatne dla osoby, dla której b
 run; grupie udostępnia się je w panelu **Share**. Panel **Sharing** każdego
 zasobu dodaje i usuwa grupy także po utworzeniu.
 
+## Serwery MCP działu { #a-departments-mcp-servers }
+
+Serwer MCP organizacji - jedno wspólne konto, podłączone raz - można zawęzić w ten
+sam sposób, żeby serwer księgowy Finansów był Finansów. Członkowie zarządzający
+serwerami MCP widzą serwery całej organizacji, te, które sami podłączyli, i te
+udostępnione ich grupom albo im; właściciele i administratorzy widzą wszystkie.
+Builder spoza Finansów nie znajdzie ich serwera na liście, nie otworzy go po
+identyfikatorze i nie opublikuje agenta, który go używa. Zobacz
+[MCP](mcp.md#personal-or-organization-wide).
+
+Agent, który już go używa, działa dalej dla każdego, kto może go uruchomić. Ten
+wybór decyduje o tym, kto może serwer wybrać, a nie o tym, kto dostaje przez
+niego odpowiedzi, dlatego Builder pokazuje go tam, skąd pochodzi wiedza agenta.
+
 ## Strona grupy { #a-groups-page }
 
 Otwarcie grupy pokazuje jej ludzi i wszystko, co jej udostępniono, pogrupowane
-według rodzaju - agenci, bazy wiedzy, skille, kontekst i aplikacje - z poziomem
-udostępnienia każdego. Czytający widzi tylko to, co i tak mógłby otworzyć, więc
-członek Sprzedaży czytający stronę Finansów nie dowie się, co Finanse trzymają.
+według rodzaju - agenci, bazy wiedzy, skille, kontekst, aplikacje i serwery MCP -
+z poziomem udostępnienia każdego. Czytający widzi tylko to, co i tak mógłby
+otworzyć, więc członek Sprzedaży czytający stronę Finansów nie dowie się, co
+Finanse trzymają.
 
 ## Skąd pochodzi wiedza agenta { #where-an-agents-knowledge-comes-from }
 
-Agenta można podpiąć do bazy wiedzy, skilla albo pliku kontekstu udostępnionego
-węższemu gronu niż on sam i nic tego nie zablokuje. Każdy, do kogo agent dociera,
-dostaje wtedy odpowiedzi z tego źródła, także osoby, które same nie mogłyby go
-otworzyć.
+Agenta można podpiąć do bazy wiedzy, skilla, pliku kontekstu albo serwera MCP
+udostępnionego węższemu gronu niż on sam i nic tego nie zablokuje. Każdy, do kogo
+agent dociera, dostaje wtedy odpowiedzi z tego źródła, także osoby, które same nie
+mogłyby go otworzyć.
 
 Zakładka **Toolbox** w Builderze pokazuje, skąd pochodzi wiedza agenta: do kogo
 agent dociera, a przy każdym źródle, czy jest całej organizacji, czy których grup.
@@ -73,5 +92,4 @@ grup rozdzielonymi przecinkami albo pustym tekstem dla odwiedzającego. Zobacz
 
 ## Czego jeszcze nie obejmuje { #what-is-not-covered-yet }
 
-Połączenia MCP są udostępniane na poziomie organizacji albo osobiste, nie per
-grupa. Budżety i analityka w podziale na grupy nie są jeszcze częścią tej funkcji.
+Budżety i analityka w podziale na grupy nie są jeszcze częścią tej funkcji.

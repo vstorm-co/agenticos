@@ -188,26 +188,30 @@ class SharingService:
         )
         return grant
 
-    async def restrict_to_groups(
+    async def restrict_to(
         self,
         ctx: AuthContext,
         resource: OwnedResource,
         *,
         resource_type: ResourceType,
         group_ids: list[UUID],
+        user_ids: list[UUID],
     ) -> None:
-        """Share a resource just created with the groups its creator limited it to.
+        """Share a resource just created with the groups and people its creator chose.
 
         The other half of `AudienceChoice` (#2072): the resource was created private,
-        and each group gets a `use` grant - its members find it, run it and attach
-        it. Called inside the creating request, so a refusal here takes the new row
-        with it rather than leaving it visible to nobody but its creator.
+        and each group and person gets a `use` grant - they find it, run it and
+        attach it. The creator owns it already, so naming themselves adds nothing.
+        Called inside the creating request, so a refusal here takes the new row with
+        it rather than leaving it visible to nobody but its creator.
 
         Raises:
-            BadRequestError: Naming `group_ids`, when one is not this organization's.
+            BadRequestError: Naming `group_ids` or `user_ids`, when one is not this
+                organization's.
         """
-        unique = list(dict.fromkeys(group_ids))
-        for group_id in unique:
+        groups = list(dict.fromkeys(group_ids))
+        people = [user for user in dict.fromkeys(user_ids) if user != ctx.user_id]
+        for group_id in groups:
             if (
                 await group_repo.get(
                     self.db, organization_id=ctx.organization_id, group_id=group_id
@@ -215,9 +219,23 @@ class SharingService:
                 is None
             ):
                 raise refused_field("group_ids", "Choose groups from this organization.")
-        for group_id in unique:
+        for user_id in people:
+            if (
+                await member_repo.get(self.db, organization_id=ctx.organization_id, user_id=user_id)
+                is None
+            ):
+                raise refused_field("user_ids", "Choose people from this organization.")
+        for group_id in groups:
             await self.share_with_group(
                 ctx, resource, resource_type=resource_type, group_id=group_id, level=GrantLevel.USE
+            )
+        for user_id in people:
+            await self.share(
+                ctx,
+                resource,
+                resource_type=resource_type,
+                subject_user_id=user_id,
+                level=GrantLevel.USE,
             )
 
     async def revoke_group(

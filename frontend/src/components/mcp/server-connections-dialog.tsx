@@ -1,7 +1,10 @@
 "use client";
 
-import { Building2, Plug, User } from "lucide-react";
+import { useState } from "react";
+import { Building2, Lock, Plug, User, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { SharingPanel } from "@/components/sharing/sharing-panel";
 
 import {
   Button,
@@ -59,55 +62,82 @@ export function ServerConnectionsDialog({
   onOAuth: (scope: Scope, row: McpServerRow, connection: McpConnectionRecord) => void;
 }) {
   const t = useTranslations("mcp");
+  const [audienceOf, setAudienceOf] = useState<McpConnectionRecord | null>(null);
 
   return (
-    <Dialog open={row !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
-        {row !== null && (
-          <>
-            <DialogHeader>
-              <DialogTitle>{row.name}</DialogTitle>
-              <DialogDescription>{t("accountsOnThisServer")}</DialogDescription>
-            </DialogHeader>
+    <>
+      <Dialog open={row !== null} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+          {row !== null && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{row.name}</DialogTitle>
+                <DialogDescription>{t("accountsOnThisServer")}</DialogDescription>
+              </DialogHeader>
 
-            <div className="space-y-5">
-              <Owners
-                heading={t("theOrganizations")}
-                caption={t("boundByAgents")}
-                icon={Building2}
-                connections={row.organizations}
-                // A viewer sees them and cannot act: the account is the
-                // organization's, and reading who holds it is not managing it.
-                readOnly={!canManageOrganization}
-                busyId={busyId}
-                onEdit={(connection) => onEdit("organization", row, connection)}
-                onTools={(connection) => onTools("organization", connection)}
-                onDisconnect={(connection) => onDisconnect("organization", connection)}
-                onOAuth={(connection) => onOAuth("organization", row, connection)}
-                onConnect={canManageOrganization ? () => onConnect("organization", row) : undefined}
+              <div className="space-y-5">
+                <Owners
+                  heading={t("theOrganizations")}
+                  caption={t("boundByAgents")}
+                  icon={Building2}
+                  connections={row.organizations}
+                  // A viewer sees them and cannot act: the account is the
+                  // organization's, and reading who holds it is not managing it.
+                  readOnly={!canManageOrganization}
+                  busyId={busyId}
+                  onEdit={(connection) => onEdit("organization", row, connection)}
+                  onTools={(connection) => onTools("organization", connection)}
+                  onDisconnect={(connection) => onDisconnect("organization", connection)}
+                  onOAuth={(connection) => onOAuth("organization", row, connection)}
+                  onConnect={
+                    canManageOrganization ? () => onConnect("organization", row) : undefined
+                  }
+                  onAudience={setAudienceOf}
+                />
+                <Owners
+                  heading={t("yours")}
+                  caption={t("yourChatAndDirectMessages")}
+                  icon={User}
+                  connections={row.personals}
+                  readOnly={false}
+                  busyId={busyId}
+                  onEdit={(connection) => onEdit("personal", row, connection)}
+                  onTools={(connection) => onTools("personal", connection)}
+                  onDisconnect={(connection) => onDisconnect("personal", connection)}
+                  onOAuth={(connection) => onOAuth("personal", row, connection)}
+                  onConnect={() => onConnect("personal", row)}
+                  // Only where there is a choice to make. One account is
+                  // substituted whether or not it is marked, so a switch beside it
+                  // would be a control that changes nothing (#1342).
+                  onNominate={row.personals.length > 1 ? onNominate : undefined}
+                />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+      {/* Who sees and binds one of the organization's servers (#2072): the same
+        panel as an agent's or a skill's, so a department narrows it the same way. */}
+      <Dialog open={audienceOf !== null} onOpenChange={(open) => !open && setAudienceOf(null)}>
+        <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+          {audienceOf !== null && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {t("whoCanUseNamed", { name: audienceOf.label ?? audienceOf.name })}
+                </DialogTitle>
+                <DialogDescription>{t("whoCanUseHint")}</DialogDescription>
+              </DialogHeader>
+              <SharingPanel
+                resourceType="mcp_connection"
+                resourceId={audienceOf.id}
+                canManage={canManageOrganization}
               />
-              <Owners
-                heading={t("yours")}
-                caption={t("yourChatAndDirectMessages")}
-                icon={User}
-                connections={row.personals}
-                readOnly={false}
-                busyId={busyId}
-                onEdit={(connection) => onEdit("personal", row, connection)}
-                onTools={(connection) => onTools("personal", connection)}
-                onDisconnect={(connection) => onDisconnect("personal", connection)}
-                onOAuth={(connection) => onOAuth("personal", row, connection)}
-                onConnect={() => onConnect("personal", row)}
-                // Only where there is a choice to make. One account is
-                // substituted whether or not it is marked, so a switch beside it
-                // would be a control that changes nothing (#1342).
-                onNominate={row.personals.length > 1 ? onNominate : undefined}
-              />
-            </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -124,6 +154,7 @@ function Owners({
   onOAuth,
   onConnect,
   onNominate,
+  onAudience,
 }: {
   heading: string;
   caption: string;
@@ -137,6 +168,8 @@ function Owners({
   onOAuth: (connection: McpConnectionRecord) => void;
   onNominate?: (connection: McpConnectionRecord, use: boolean) => void;
   onConnect?: () => void;
+  /** Who sees and binds it - the organization's servers only (#2072). */
+  onAudience?: (connection: McpConnectionRecord) => void;
 }) {
   const t = useTranslations("mcp");
 
@@ -164,6 +197,7 @@ function Owners({
               onTools={() => onTools(connection)}
               onDisconnect={() => onDisconnect(connection)}
               onOAuth={() => onOAuth(connection)}
+              onAudience={onAudience ? () => onAudience(connection) : undefined}
               onNominate={
                 onNominate && connection.catalog_key !== null
                   ? (use) => onNominate(connection, use)
@@ -193,6 +227,7 @@ function Account({
   onDisconnect,
   onOAuth,
   onNominate,
+  onAudience,
 }: {
   connection: McpConnectionRecord;
   readOnly: boolean;
@@ -207,9 +242,11 @@ function Account({
    * choice exists and can be recorded (#1342).
    */
   onNominate?: (use: boolean) => void;
+  onAudience?: () => void;
 }) {
   const t = useTranslations("mcp");
   const state = connectionState(connection);
+  const narrowed = onAudience !== undefined && connection.visibility !== "org";
 
   return (
     <li className="border-border flex items-center gap-2 rounded-lg border px-3 py-2">
@@ -230,7 +267,15 @@ function Account({
             calls a tool, and a run's calls are recorded under it - so hiding it
             leaves "why did it call `notion-2_search`" unanswerable from the
             page that names the account. */}
-        <span className="block truncate text-sm">{connection.label ?? connection.name}</span>
+        <span className="flex items-center gap-1.5 truncate text-sm">
+          {connection.label ?? connection.name}
+          {narrowed && (
+            <span className="text-muted-foreground flex items-center gap-0.5 text-xs">
+              <Lock className="h-3 w-3" aria-hidden />
+              {t("narrowed")}
+            </span>
+          )}
+        </span>
         <span className="text-muted-foreground text-xs">
           {connection.label === null ? (
             t(MCP_STATE_LABEL[state])
@@ -264,6 +309,19 @@ function Account({
           <Button size="sm" variant="ghost" disabled={busy} onClick={onTools}>
             {t("tools")}
           </Button>
+          {onAudience && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              disabled={busy}
+              onClick={onAudience}
+              aria-label={t("whoCanUse")}
+              title={t("whoCanUse")}
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+          )}
           <Button size="sm" variant="ghost" disabled={busy} onClick={onEdit}>
             {t("edit")}
           </Button>

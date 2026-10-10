@@ -36,12 +36,21 @@ from app.repositories import (
     directory_mapping_repo,
     group_repo,
     knowledge_base_repo,
+    mcp_connection_repo,
     member_repo,
     resource_grant_repo,
     skill_repo,
 )
 from app.schemas.group import GroupCreate, GroupResource, GroupUpdate
-from app.services.access import AGENT, ARTIFACT, COLLECTION, CONTEXT, SKILL, accessible_ids
+from app.services.access import (
+    AGENT,
+    ARTIFACT,
+    COLLECTION,
+    CONTEXT,
+    MCP_CONNECTION,
+    SKILL,
+    accessible_ids,
+)
 
 
 class GroupService:
@@ -234,6 +243,19 @@ class GroupService:
             self.db, ctx, apps.values(), ARTIFACT.view, resource_type=ARTIFACT
         )
         names.update({key: app.title for key, app in apps.items() if key in reachable_apps})
+        servers = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db, connection_ids=ids(MCP_CONNECTION.key), organization_id=org
+        )
+        reachable_servers = await accessible_ids(
+            self.db, ctx, servers.values(), MCP_CONNECTION.view, resource_type=MCP_CONNECTION
+        )
+        names.update(
+            {
+                key: server.label or server.name
+                for key, server in servers.items()
+                if key in reachable_servers
+            }
+        )
         return [
             GroupResource.model_validate(
                 {

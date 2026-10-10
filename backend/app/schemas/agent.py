@@ -771,11 +771,15 @@ class PromptVariableCatalog(BaseSchema):
     items: list[PromptVariableRead]
 
 
-KnowledgeSourceKind = Literal["collection", "skill", "context"]
+KnowledgeSourceKind = Literal["collection", "skill", "context", "mcp"]
 
 
 class KnowledgeSource(BaseSchema):
-    """One knowledge source an agent binds, and who it is shared with (#2072)."""
+    """One knowledge source an agent binds, and who it is shared with (#2072).
+
+    An organization MCP server counts: its tools read a department's systems as
+    surely as a knowledge base reads its documents.
+    """
 
     kind: KnowledgeSourceKind
     id: UUID

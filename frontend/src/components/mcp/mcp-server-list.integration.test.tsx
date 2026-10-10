@@ -68,6 +68,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "github",
     is_default: false,
     label: null,
@@ -213,6 +214,9 @@ describe("McpServerList", () => {
         url: "https://api.githubcopilot.com/mcp/",
         auth_token: "ghp-secret-9876",
         catalog_key: "github",
+        visibility: "org",
+        group_ids: [],
+        user_ids: [],
       }),
     );
   });

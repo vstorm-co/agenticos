@@ -48,6 +48,7 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -288,11 +289,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     name: string,
     scope: Scope = "personal",
     client?: McpOAuthClient,
+    audience?: AudiencePayload,
   ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
+        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client, ...audience },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -400,6 +402,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         name,
         scope,
         mcpOAuthClient(values.clientId, values.clientSecret),
+        scope === "organization" ? values.audience : undefined,
       );
       return;
     }
@@ -416,6 +419,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           // and a personal connection without it can never be matched to a
           // binding to each person's own account.
           ...(row.entry ? { catalog_key: row.entry.key } : {}),
+          ...(scope === "organization" ? values.audience : {}),
         });
         toast.success(
           scope === "organization"

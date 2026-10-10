@@ -106,6 +106,7 @@ from app.services.access import (
     AGENT,
     COLLECTION,
     CONTEXT,
+    MCP_CONNECTION,
     SECRET,
     SKILL,
     accessible_ids,
@@ -1125,6 +1126,7 @@ class AgentRegistryService:
         categories: list[str] | None = None,
         tags: list[str] | None = None,
         group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1191,9 +1193,13 @@ class AgentRegistryService:
             target_id=str(agent.id),
             details={"slug": slug, "name": spec.name},
         )
-        if group_ids:
-            await SharingService(self.db).restrict_to_groups(
-                ctx, agent, resource_type=AGENT, group_ids=group_ids
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                agent,
+                resource_type=AGENT,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
             )
         return agent
 
@@ -1563,6 +1569,19 @@ class AgentRegistryService:
                 prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
                 continue
             connection = found.get(ref.connection_id)
+            if (
+                connection is not None
+                and connection.visibility != Visibility.ORG.value
+                and not await resolve_access(
+                    self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                )
+            ):
+                # Narrowed to groups the publisher is not in (#2072): binding it
+                # would lend a department's server out, which is the publisher's
+                # to do only once it is shared with them. Worded as a missing one,
+                # so a guessed id maps nothing.
+                problems.append(f"MCP server not found: {ref.connection_id}")
+                continue
             if connection is None:
                 # Says which of the two ways it can fail applies, because the
                 # likely one - a personal connection picked in the Builder - is

@@ -6,6 +6,7 @@
  * responses only carry `has_auth_token`.
  */
 
+import type { AudiencePayload, Visibility } from "@/types/sharing";
 import { apiClient } from "./api-client";
 
 export interface McpConnectionRecord {
@@ -31,6 +32,12 @@ export interface McpConnectionRecord {
   last_status: string | null;
   last_error: string | null;
   last_checked_at: string | null;
+  /**
+   * Who sees and binds an organization connection: `org`, or `private` - its
+   * creator and the groups and people it was shared with (#2072). Meaningless on
+   * a personal connection, which only its owner reaches.
+   */
+  visibility: Visibility;
   /** Which catalog entry it points at, where it was connected from one. */
   catalog_key: string | null;
   /**
@@ -136,7 +143,7 @@ export async function startMcpOAuth(
     catalog_key?: string;
     client_id?: string;
     client_secret?: string;
-  },
+  } & Partial<AudiencePayload>,
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when

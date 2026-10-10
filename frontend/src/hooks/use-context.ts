@@ -20,6 +20,7 @@ export interface NewContextFile {
   /** Who it reaches (#2072): the organization unless narrowed. */
   visibility?: Visibility;
   group_ids?: string[];
+  user_ids?: string[];
 }
 
 /** How the server may order a listing. */

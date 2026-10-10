@@ -108,6 +108,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        # Per connection since an organization's MCP server can be narrowed to the
+        # groups that use it (#2072): Finance's ledger server is Finance's.
+        Perm.MCP_MANAGE,
     }
 )
 
@@ -210,6 +213,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.MCP_MANAGE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -228,6 +232,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.MCP_MANAGE: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -246,7 +251,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
-        Perm.MCP_MANAGE: Scope.ALL,
+        # The organization's servers, its own, and those shared with its groups -
+        # not a department's server narrowed to somebody else's group.
+        Perm.MCP_MANAGE: Scope.SHARED,
         # Both halves, spelled out. Nothing in this catalog models one permission
         # implying another - `agents:edit` does not carry `agents:view` either -
         # so a role that manages connections is given the read as well, or it

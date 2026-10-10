@@ -1,5 +1,5 @@
 ---
-source_sha: "9ea6636a0d1c"
+source_sha: "4576627e8758"
 ---
 
 # Permisos { #permissions }
@@ -98,7 +98,7 @@ Dos clases de permiso, y se comportan de forma distinta.
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `connections:view`, `connections:manage`,
-`mcp:manage`, `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
 
 `api_keys:create` permite a un miembro emitir [claves de
 API](api.md#organization-api-keys) para sí mismo; `api_keys:manage` lista y
@@ -134,6 +134,12 @@ Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*
 agents.
 
+`mcp:manage` es uno de ellos: un servidor MCP de la organización se puede limitar
+a grupos o personas, como un skill
+([Departamentos](departments.md#a-departments-mcp-servers)). Un rol que lo tiene en
+`SHARED` ve los servidores de la organización, los suyos y los compartidos con él;
+`ALL` los ve todos.
+
 ### Scope { #scope }
 
 Ordenado `NONE < OWN < SHARED < TEAM < ALL`.
@@ -162,7 +168,7 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 |---|---|---|---|---|
 | `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
 | `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
 | `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
 | `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
 | `viewer` | lee | `view` `SHARED` | ninguno | ninguno |

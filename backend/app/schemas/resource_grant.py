@@ -139,8 +139,8 @@ class AudienceChoice(BaseSchema):
     """Who a new resource reaches, chosen in the control that creates it (#2072).
 
     The whole organization by default, because a company's agents and knowledge are
-    for the company. Naming groups narrows it to them: the resource is created
-    private and shared with each group, so a department's skills, knowledge and
+    for the company. Naming groups or people narrows it to them: the resource is
+    created private and shared with each, so a department's skills, knowledge and
     agents stay the department's.
     """
 
@@ -148,7 +148,8 @@ class AudienceChoice(BaseSchema):
         default=Visibility.ORG,
         description=(
             "`org` - the default - is everyone in the organization; `private` is the "
-            "creator and whoever they share it with. Naming `group_ids` makes it private."
+            "creator and whoever they share it with. Naming `group_ids` or `user_ids` "
+            "makes it private."
         ),
     )
     group_ids: list[UUID] = Field(
@@ -160,8 +161,14 @@ class AudienceChoice(BaseSchema):
         ),
     )
 
+    user_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        description=("Limit it to these members as well, or instead: each gets it at `use`."),
+    )
+
     @model_validator(mode="after")
-    def _groups_narrow_it(self) -> Self:
-        if self.group_ids:
+    def _an_audience_narrows_it(self) -> Self:
+        if self.group_ids or self.user_ids:
             self.visibility = Visibility.PRIVATE
         return self

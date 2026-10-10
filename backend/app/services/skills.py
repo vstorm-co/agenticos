@@ -353,6 +353,7 @@ class SkillService:
         visibility: Visibility = Visibility.PRIVATE,
         library_fingerprint: str | None = None,
         group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> Skill:
         """Create a skill.
 
@@ -396,9 +397,13 @@ class SkillService:
             target_id=str(skill.id),
             details={"name": name},
         )
-        if group_ids:
-            await SharingService(self.db).restrict_to_groups(
-                ctx, skill, resource_type=SKILL, group_ids=group_ids
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                skill,
+                resource_type=SKILL,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
             )
         return skill
 

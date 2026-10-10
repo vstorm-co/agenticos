@@ -476,9 +476,13 @@ class KnowledgeBaseService:
             embedding_secret_id=embedding_secret_id,
             embedding_endpoint_id=embedding_endpoint_id,
         )
-        if data.group_ids and data.scope == KBScope.ORG.value:
-            await SharingService(self.db).restrict_to_groups(
-                ctx, kb, resource_type=COLLECTION, group_ids=data.group_ids
+        if (data.group_ids or data.user_ids) and data.scope == KBScope.ORG.value:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                kb,
+                resource_type=COLLECTION,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
             )
         return kb
 

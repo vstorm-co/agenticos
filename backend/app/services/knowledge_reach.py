@@ -1,7 +1,7 @@
 """Which groups an agent's knowledge comes from, and where it reaches further (#2072).
 
-A company's departments keep their own skills, context and knowledge bases by
-sharing them with their group. An agent bound to Finance's knowledge base and
+A company's departments keep their own skills, context, knowledge bases and MCP
+servers by sharing them with their group. An agent bound to Finance's knowledge base and
 shared with the whole organization answers everyone from Finance's documents -
 the binding is allowed, and the agent reads them with its publisher's access,
 so nothing refuses it. This makes that visible in the Builder instead.
@@ -15,13 +15,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec
-from app.core.permissions import AuthContext
+from app.agents.spec import AgentSpec, OrgMcpServerRef
+from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.repositories import (
     context_repo,
     group_repo,
     knowledge_base_repo,
+    mcp_connection_repo,
     resource_grant_repo,
     skill_repo,
 )
@@ -30,6 +31,7 @@ from app.services.access import (
     AGENT,
     COLLECTION,
     CONTEXT,
+    MCP_CONNECTION,
     SKILL,
     OwnedResource,
     ResourceType,
@@ -115,6 +117,23 @@ class KnowledgeReachService:
                 if key in visible:
                     reach = await self._reach(ctx, row, resource_type)
                     sources.append((kind, row, reach))
+
+        servers = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                ref.connection_id for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)
+            ],
+            organization_id=org,
+        )
+        # A server left to the organization is everyone's to see; one narrowed to
+        # groups is shown to those it reaches, as the Builder's own list does.
+        narrowed = [row for row in servers.values() if row.visibility != Visibility.ORG.value]
+        reached = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        )
+        for row in servers.values():
+            if row.visibility == Visibility.ORG.value or row.id in reached:
+                sources.append(("mcp", row, await self._reach(ctx, row, MCP_CONNECTION)))
 
         every_group = set(agent_reach.group_ids)
         for *_, reach in sources:

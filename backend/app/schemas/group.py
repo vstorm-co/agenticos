@@ -85,7 +85,7 @@ class GroupMemberList(BaseSchema):
     total: int
 
 
-GroupResourceKind = Literal["agent", "collection", "skill", "context", "artifact"]
+GroupResourceKind = Literal["agent", "collection", "skill", "context", "artifact", "mcp_connection"]
 
 
 class GroupResource(BaseSchema):

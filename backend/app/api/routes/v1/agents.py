@@ -280,6 +280,7 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         categories=data.categories,
         tags=data.tags,
         group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 

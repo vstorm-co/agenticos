@@ -32,6 +32,7 @@ function record(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConnecti
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "github",
     is_default: false,
     label: null,

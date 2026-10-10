@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.resource_grant import Visibility
 
 
 async def get_by_id(db: AsyncSession, connection_id: UUID) -> McpConnection | None:
@@ -413,13 +414,14 @@ async def create_org_scoped(
     purpose: str = "mcp",
     portal_key: str | None = None,
     label: str | None = None,
+    visibility: str = Visibility.ORG.value,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
     Separate from :func:`create` rather than a flag on it, because the two
     differ in the fields that matter: no `user_id` (the check constraint
-    refuses one), a `created_by_user_id` that records rather than authorizes,
-    and a catalog key. A single function taking both shapes would make the wrong
+    refuses one), a `created_by_user_id` that owns rather than holds it, a
+    visibility, and a catalog key. A single function taking both shapes would make the wrong
     combination expressible.
 
     `purpose="portal"` with a `portal_key` stores a third-party grant a trigger
@@ -443,6 +445,7 @@ async def create_org_scoped(
         purpose=purpose,
         portal_key=portal_key,
         label=label,
+        visibility=visibility,
     )
     db.add(connection)
     await db.flush()

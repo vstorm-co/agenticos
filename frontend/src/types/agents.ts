@@ -709,7 +709,7 @@ export interface AgentUsage {
 
 /** One knowledge source an agent binds, and who it is shared with (#2072). */
 export interface KnowledgeSource {
-  kind: "collection" | "skill" | "context";
+  kind: "collection" | "skill" | "context" | "mcp";
   id: string;
   name: string;
   whole_organization: boolean;

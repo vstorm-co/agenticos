@@ -13,6 +13,7 @@
  * for the organization, and no response ever carries it back.
  */
 
+import type { AudiencePayload } from "@/types/sharing";
 import { apiClient } from "./api-client";
 import type { McpConnectionRecord, McpConnectionTestResult } from "./mcp-connections-api";
 
@@ -42,7 +43,8 @@ interface OrgMcpConnectionList {
   total: number;
 }
 
-export interface OrgMcpConnectionInput {
+/** Narrowing it to groups or people is optional; left out, the organization sees it (#2072). */
+export interface OrgMcpConnectionInput extends Partial<AudiencePayload> {
   name: string;
   url: string;
   auth_token?: string;

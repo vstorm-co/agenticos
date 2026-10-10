@@ -2642,7 +2642,11 @@
     "signInChecking": "Prüfe, ob dieser Server eine Anmeldung unterstützt…",
     "signInNone": "Keine Anmeldung gefunden. Verwenden Sie ein Zugriffstoken oder keine Zugangsdaten.",
     "signInSupported": "Dieser Server unterstützt die Anmeldung. Verbinden öffnet sie.",
-    "signInNeedsClient": "Dieser Server unterstützt die Anmeldung, registriert Apps aber nicht selbst. Tragen Sie unten Client-ID und Secret vom Anbieter ein."
+    "signInNeedsClient": "Dieser Server unterstützt die Anmeldung, registriert Apps aber nicht selbst. Tragen Sie unten Client-ID und Secret vom Anbieter ein.",
+    "narrowed": "Eingeschränkt",
+    "whoCanUse": "Wer ihn nutzen darf",
+    "whoCanUseNamed": "Wer {name} nutzen darf",
+    "whoCanUseHint": "Alle, die MCP-Server verwalten, sehen ihn und können ihn an einen Agent binden, außer Sie beschränken ihn auf Gruppen oder Personen. Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen dürfen."
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",
@@ -5578,7 +5582,8 @@
         "name": "Betrieb",
         "description": "Lieferanten, Logistik und der laufende Betrieb."
       }
-    }
+    },
+    "resourceMcpServers": "MCP-Server"
   },
   "directory": {
     "navLabel": "Verzeichnis",
@@ -6046,9 +6051,15 @@
     "everyoneHint": "Alle in der Organisation.",
     "onlyMe": "Nur ich",
     "onlyMeHint": "Sie und alle, mit denen Sie es später teilen.",
-    "groups": "Ausgewählte Gruppen",
-    "groupsHint": "Nur die Abteilungen, die Sie wählen.",
-    "noGroupsYet": "Noch keine Gruppen - fügen Sie sie unter Gruppen hinzu.",
-    "chooseGroups": "Gruppen, die es nutzen dürfen"
+    "noGroupsYet": "Noch keine Gruppen - fügen Sie sie unter Gruppen hinzu, oder suchen Sie eine Person.",
+    "chosen": "Ausgewählte Gruppen oder Personen",
+    "chosenHint": "Nur die Abteilungen und Personen, die Sie wählen.",
+    "chooseAudience": "Gruppen und Personen, die es nutzen dürfen",
+    "chosenList": "Bisher ausgewählt",
+    "remove": "{name} entfernen",
+    "search": "Gruppen und Personen suchen",
+    "searchPlaceholder": "Gruppen und Personen suchen…",
+    "noMatches": "Keine Treffer - versuchen Sie einen Namen oder eine E-Mail-Adresse.",
+    "typeForPeople": "Geben Sie einen Namen oder eine E-Mail-Adresse ein, um eine Person zu finden."
   }
 }

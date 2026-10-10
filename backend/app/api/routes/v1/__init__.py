@@ -119,6 +119,9 @@ v1_router.include_router(
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
 v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])
 v1_router.include_router(
+    sharing.mcp_connection_sharing_router, prefix="/mcp-connections", tags=["mcp:sharing"]
+)
+v1_router.include_router(
     sharing.artifact_sharing_router, prefix="/artifacts", tags=["apps:sharing"], deprecated=True
 )
 

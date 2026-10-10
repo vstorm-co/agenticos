@@ -71,7 +71,7 @@ export interface GroupMemberList {
 
 /** One thing shared with a group, at the level it was shared at (#2072). */
 export interface GroupResource {
-  kind: "agent" | "collection" | "skill" | "context" | "artifact";
+  kind: "agent" | "collection" | "skill" | "context" | "artifact" | "mcp_connection";
   id: string;
   name: string;
   level: GrantLevel;

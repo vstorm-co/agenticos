@@ -10,11 +10,19 @@
 /** How widely a resource is exposed inside its organization. */
 export type Visibility = "private" | "team" | "org";
 
+/** Who a new resource reaches, as a create request carries it (#2072). */
+export interface AudiencePayload {
+  visibility: Visibility;
+  group_ids: string[];
+  user_ids: string[];
+}
+
 /** What a grant lets its subject do. Ordered read < use < edit. */
 export type GrantLevel = "read" | "use" | "edit";
 
 /** The resource kinds that carry an owner, a visibility and a grant list. */
-export type SharingResourceType = "agent" | "skill" | "collection" | "secret" | "artifact";
+export type SharingResourceType =
+  "agent" | "skill" | "collection" | "secret" | "artifact" | "mcp_connection";
 
 interface GrantBase {
   id: string;

@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { AppWindow, BookOpen, Bot, Database, FileText, Pencil, Users } from "lucide-react";
+import { AppWindow, BookOpen, Bot, Database, FileText, Pencil, Plug, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -34,6 +34,7 @@ const KINDS: readonly {
   { kind: "skill", icon: BookOpen, heading: "Skills", href: () => ROUTES.SKILLS },
   { kind: "context", icon: FileText, heading: "Context", href: () => ROUTES.CONTEXT },
   { kind: "artifact", icon: AppWindow, heading: "Apps", href: ROUTES.ARTIFACT_DETAIL },
+  { kind: "mcp_connection", icon: Plug, heading: "McpServers", href: () => ROUTES.MCP_SERVERS },
 ];
 
 /**

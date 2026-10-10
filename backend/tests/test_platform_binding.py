@@ -36,7 +36,7 @@ class TestTheCredential:
 class TestPublishing:
     async def test_the_platform_is_bound_under_its_own_prefix(self) -> None:
         registry = AgentRegistryService(MagicMock())
-        connection = MagicMock()
+        connection = MagicMock(visibility="org")
         connection.name = "agenticos"
         org_ref = OrgMcpServerRef(connection_id=uuid.uuid4())
 

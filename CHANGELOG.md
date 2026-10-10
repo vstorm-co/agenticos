@@ -221,6 +221,18 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
   `0112_group_icon` (#2072).
 
+- **A department's MCP servers, and people beside groups.** A shared MCP server
+  can be limited to groups or people like any other resource: they and whoever
+  connected it see and bind it, owners and admins see every one, and a builder
+  outside them neither lists it, opens it by id nor publishes an agent bound to
+  it. An agent already bound keeps working, and the Builder lists the server
+  where the agent's knowledge comes from. The audience control finds groups and
+  people by typing and keeps each as a chip. `mcp:manage` becomes a resource
+  permission, held by builders at `SHARED`. API: `visibility`, `group_ids` and
+  `user_ids` on the organization's MCP creates and OAuth start,
+  `/mcp-connections/{id}/sharing`, and `user_ids` on every audience; migration
+  `0114_mcp_connection_audience` (#2072).
+
 - **MCP connections in plain words, and a shorter path.** The connect dialog asks
   one question as two explained cards - one shared account for everyone, or my
   own account - and recommends one per catalog server. A custom server's

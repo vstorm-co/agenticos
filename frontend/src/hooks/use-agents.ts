@@ -93,15 +93,18 @@ export function useAgents({
       spec,
       visibility,
       group_ids,
+      user_ids,
       categories,
       tags,
     }: {
       spec: AgentSpec;
       visibility?: Visibility;
       group_ids?: string[];
+      user_ids?: string[];
       categories?: string[];
       tags?: string[];
-    }) => apiClient.post<Agent>("/agents", { spec, visibility, group_ids, categories, tags }),
+    }) =>
+      apiClient.post<Agent>("/agents", { spec, visibility, group_ids, user_ids, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));

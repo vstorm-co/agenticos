@@ -70,15 +70,16 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, mcp_registry_server_repo
+from app.repositories import mcp_connection_repo, mcp_registry_server_repo, resource_grant_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
@@ -86,12 +87,15 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.schemas.resource_grant import AudienceChoice
 from app.services import portal_catalog, portals
+from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_app, github_oauth, google_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -761,8 +765,13 @@ class McpConnectionService:
         catalog_key: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
+        audience: AudienceChoice | None = None,
     ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
+
+        `audience` narrows a new connection to groups or people (#2072), from the
+        moment its row is staged; re-authorizing an existing one leaves who sees
+        it alone.
 
         The grant is still one person's - somebody clicks consent, and the
         tokens that come back are theirs at the provider. What differs is who
@@ -782,6 +791,29 @@ class McpConnectionService:
                 refusal #1438 made for personal connections (#1490).
         """
         refuse_binding_while_impersonating("Connecting an integration")
+        chosen = audience or AudienceChoice()
+
+        async def create(**kwargs: Any) -> McpConnection:
+            connection = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=catalog_key,
+                sealed_token=None,
+                visibility=chosen.visibility.value,
+                **kwargs,
+            )
+            if chosen.group_ids or chosen.user_ids:
+                await SharingService(self.db).restrict_to(
+                    ctx,
+                    connection,
+                    resource_type=MCP_CONNECTION,
+                    group_ids=chosen.group_ids,
+                    user_ids=chosen.user_ids,
+                )
+            return connection
+
         return await self._oauth_start(
             name=name,
             url=url,
@@ -791,15 +823,7 @@ class McpConnectionService:
                 self.db, organization_id=ctx.organization_id, name=name
             ),
             vault_scope=VaultScope.organization(ctx.organization_id),
-            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
-                self.db,
-                organization_id=ctx.organization_id,
-                created_by_user_id=ctx.subject_id,
-                allowed_tools=None,
-                catalog_key=catalog_key,
-                sealed_token=None,
-                **kwargs,
-            ),
+            create=create,
         )
 
     async def oauth_start(
@@ -1462,9 +1486,17 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        return await mcp_connection_repo.list_org_scoped(
+        """The organization's servers the caller reaches: every one not narrowed to
+        groups, and those narrowed to theirs (#2072)."""
+        rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        reached = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        )
+        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        return kept, len(kept)
 
     async def _known_catalog_key(self, catalog_key: str) -> bool:
         """Whether a key names a server this deployment can identify.
@@ -1524,6 +1556,7 @@ class McpConnectionService:
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
                 label=_stored_label(data.label),
+                visibility=data.visibility.value,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1541,6 +1574,14 @@ class McpConnectionService:
             # the name and where it points, both of which are already public.
             details={"name": data.name, "url": url, "catalog_key": data.catalog_key},
         )
+        if data.group_ids or data.user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                connection,
+                resource_type=MCP_CONNECTION,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
         return connection
 
     async def update_for_org(
@@ -1646,6 +1687,12 @@ class McpConnectionService:
 
         await AgentTriggerService(self.db).release_connection(ctx, connection_id)
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
+        await resource_grant_repo.delete_for_resource(
+            self.db,
+            organization_id=ctx.organization_id,
+            resource_type=MCP_CONNECTION.key,
+            resource_id=connection_id,
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1752,7 +1799,16 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        if db_connection is None:
+        # A server narrowed to groups is not there for anybody outside them - the
+        # same refusal as a missing one (#2072). One left to the organization is
+        # everybody's who got past the route's gate, including a trigger's author
+        # reaching a portal grant without managing servers at all.
+        if db_connection is None or (
+            db_connection.visibility != Visibility.ORG.value
+            and not await resolve_access(
+                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            )
+        ):
             raise NotFoundError(
                 message="MCP connection not found",
                 details={"connection_id": str(connection_id)},

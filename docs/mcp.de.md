@@ -1,5 +1,5 @@
 ---
-source_sha: "e875d068afe3"
+source_sha: "32405ccbcab5"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -78,9 +78,20 @@ eine persönliche Connection hat keine, und ihr Besitzer kann mehreren angehöre
 sie an diejenige zu binden, die beim Anlegen aktiv war, würde das Token
 unlesbar machen, sobald er wechselt.
 
-**Organization** gilt für die Organisation, ist auf `connections:manage`
-beschränkt und ist die einzige Art, die der Spec eines veröffentlichten Agents *per
-id* benennen darf.
+**Organization** gilt für die Organisation, ist auf `mcp:manage` beschränkt und
+ist die einzige Art, die der Spec eines veröffentlichten Agents *per id* benennen
+darf.
+
+Ein Server der Organisation kann einer Abteilung gehören. Unter **Wer es nutzen
+darf** bietet der Verbindungsdialog **Alle** - der Standard - oder **Ausgewählte
+Gruppen oder Personen**, die man durch Eintippen findet; der Server wird dann
+privat und mit jeder davon auf `use` geteilt. Sie und wer ihn verbunden hat sehen
+ihn und binden ihn; Owner und Admins sehen jeden Server. Der Button **Wer ihn
+nutzen darf** am Server ändert das später. Ein Agent, der ihn bereits nutzt,
+funktioniert weiter für alle, die ihn ausführen dürfen: Die Auswahl entscheidet,
+wer den Server wählen darf, nicht, wer über ihn Antworten bekommt, deshalb markiert
+der Builder ihn unter
+[woher das Wissen eines Agents kommt](departments.md#where-an-agents-knowledge-comes-from).
 
 Ein veröffentlichter Agent, der je nach Session seines Erbauers unterschiedliche
 Tools erreicht, ließe sich weder prüfen noch nachvollziehen, und genau darum gibt
@@ -91,8 +102,11 @@ dazu mit.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Zwei Namen, und sie beantworten verschiedene Fragen { #two-names-and-they-answer-different-questions }

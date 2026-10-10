@@ -19,6 +19,12 @@ import {
 import { cn } from "@/lib/utils";
 import { McpOAuthClientFields } from "@/components/mcp/mcp-oauth-client-fields";
 import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
+import {
   SCOPE_LABEL,
   type ConnectionFormValues,
   type DraftAuth,
@@ -124,6 +130,8 @@ function ConnectionForm({
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
+  const tAudience = useTranslations("audience");
   // A server typed in by hand has no catalog key to seed the prefix from, so
   // the prefix follows the name until the person edits it themselves.
   const custom = draft.row.entry === null && draft.existing === null;
@@ -273,6 +281,17 @@ function ConnectionForm({
           )}
         </div>
 
+        {scope === "organization" && draft.existing === null && (
+          // A department's server stays the department's (#2072). "Only me" is
+          // left out: that is the other card above, the person's own account.
+          <div>
+            <Label>{tAudience("label")}</Label>
+            <div className="mt-1.5">
+              <AudiencePicker value={audience} onChange={setAudience} withOnlyMe={false} />
+            </div>
+          </div>
+        )}
+
         <div>
           <Label>{t("authentication")}</Label>
           <div
@@ -367,7 +386,18 @@ function ConnectionForm({
         </Button>
         <Button
           onClick={() =>
-            onSubmit({ label, name, url, token, auth, clearToken, scope, clientId, clientSecret })
+            onSubmit({
+              label,
+              name,
+              url,
+              token,
+              auth,
+              clearToken,
+              scope,
+              clientId,
+              clientSecret,
+              audience: audiencePayload(audience),
+            })
           }
           disabled={submitting}
           data-tour="mcp-dialog-connect"

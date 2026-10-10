@@ -182,6 +182,9 @@ describe("ConnectServerDialog", () => {
             catalog_key: "hubspot",
             client_id: "app-1",
             client_secret: "shh",
+            visibility: "org",
+            group_ids: [],
+            user_ids: [],
           },
           "organization",
         ),
@@ -201,7 +204,14 @@ describe("ConnectServerDialog", () => {
 
       await waitFor(() =>
         expect(startMcpOAuth).toHaveBeenCalledWith(
-          { name: "notion", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+          {
+            name: "notion",
+            url: "https://mcp.notion.com/mcp",
+            catalog_key: "notion",
+            visibility: "org",
+            group_ids: [],
+            user_ids: [],
+          },
           "organization",
         ),
       );

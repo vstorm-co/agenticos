@@ -10,6 +10,7 @@ from pydantic import Field, model_validator
 from app.core.secret_kinds import CredentialStr
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_grant import AudienceChoice
 
 # Slug-style names: lowercase letters, digits, hyphens. The name doubles as
 # the tool prefix in the agent (sanitized to snake_case), so keep it tight.
@@ -107,6 +108,10 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     last_status: str | None
     last_error: str | None
     last_checked_at: datetime | None
+    # Who sees and binds an organization connection: `org`, or `private` - its
+    # creator and the groups and people it was shared with (#2072). A personal
+    # connection is only ever its owner's, whatever this says.
+    visibility: str = "org"
     # Which catalog entry this points at, where it was connected from one. On
     # the personal read as well as the organization's, because it is what says a
     # member's Notion and the organization's are the same service - the join the
@@ -162,8 +167,11 @@ class McpConnectionList(BaseSchema):
     total: int
 
 
-class OrgMcpConnectionCreate(BaseSchema):
-    """A server the whole organization connects, not one person.
+class OrgMcpConnectionCreate(AudienceChoice):
+    """A server the organization connects, not one person.
+
+    Everyone who manages MCP servers sees and binds it, unless it is narrowed to
+    groups or people (#2072): then they alone, and whoever created it, do.
 
     No OAuth field, and that is deliberate rather than unfinished: an OAuth
     grant is obtained by one human at a consent screen, and storing it as the
@@ -286,6 +294,10 @@ class McpOAuthStart(BaseSchema):
         if self.client_secret is not None and self.client_id is None:
             raise ValueError("client_secret needs the client_id it belongs to")
         return self
+
+
+class OrgMcpOAuthStart(McpOAuthStart, AudienceChoice):
+    """Begin the OAuth flow for a server the organization will own, for whom (#2072)."""
 
 
 class GithubOAuthStart(BaseSchema):

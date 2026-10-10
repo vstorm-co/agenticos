@@ -2775,7 +2775,11 @@
     "signInChecking": "Checking whether this server supports sign-in…",
     "signInNone": "No sign-in found. Use an access token, or no credentials.",
     "signInSupported": "This server supports sign-in. Connect opens it.",
-    "signInNeedsClient": "This server supports sign-in but does not register apps itself. Add a client ID and secret from the provider below."
+    "signInNeedsClient": "This server supports sign-in but does not register apps itself. Add a client ID and secret from the provider below.",
+    "narrowed": "Limited",
+    "whoCanUse": "Who can use it",
+    "whoCanUseNamed": "Who can use {name}",
+    "whoCanUseHint": "Everyone who manages MCP servers sees and binds it, unless you limit it to groups or people. An agent bound to it keeps working for everyone who may run that agent."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -5716,7 +5720,8 @@
         "name": "Operations",
         "description": "Suppliers, logistics and day-to-day running."
       }
-    }
+    },
+    "resourceMcpServers": "MCP servers"
   },
   "directory": {
     "navLabel": "Directory",
@@ -6184,9 +6189,15 @@
     "everyoneHint": "Everyone in the organization.",
     "onlyMe": "Only me",
     "onlyMeHint": "You, and whoever you share it with later.",
-    "groups": "Chosen groups",
-    "groupsHint": "Only the departments you pick.",
-    "noGroupsYet": "No groups yet - add them under Groups.",
-    "chooseGroups": "Groups that can use it"
+    "noGroupsYet": "No groups yet - add them under Groups, or type to find a person.",
+    "chosen": "Chosen groups or people",
+    "chosenHint": "Only the departments and people you pick.",
+    "chooseAudience": "Groups and people who can use it",
+    "chosenList": "Chosen so far",
+    "remove": "Remove {name}",
+    "search": "Search groups and people",
+    "searchPlaceholder": "Search groups and people…",
+    "noMatches": "Nothing matches - try a name or an email address.",
+    "typeForPeople": "Type a name or an email address to find a person."
   }
 }

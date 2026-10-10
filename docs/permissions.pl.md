@@ -1,5 +1,5 @@
 ---
-source_sha: "9ea6636a0d1c"
+source_sha: "4576627e8758"
 ---
 
 # Uprawnienia { #permissions }
@@ -94,7 +94,7 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`, `mcp:manage`,
+`approvals:decide`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
 
 `api_keys:create` pozwala członkowi wydawać [klucze
@@ -130,6 +130,11 @@ Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytani
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*
 agentów.
 
+Jednym z nich jest `mcp:manage`: serwer MCP organizacji można zawęzić do grup lub
+osób, tak jak skill ([Działy](departments.md#a-departments-mcp-servers)). Rola z
+nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnione;
+`ALL` widzi każdy.
+
 ### Scope { #scope }
 
 Uporządkowany jako `NONE < OWN < SHARED < TEAM < ALL`.
@@ -159,7 +164,7 @@ własnych.
 |---|---|---|---|---|
 | `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
 | `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
 | `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
 | `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
 | `viewer` | czyta | `view` `SHARED` | żadne | żadne |

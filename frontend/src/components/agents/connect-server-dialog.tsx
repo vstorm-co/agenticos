@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
+import type { AudiencePayload } from "@/types/sharing";
 import type {
   ConnectionFormValues,
   DraftState,
@@ -24,12 +25,14 @@ import type { McpCatalogEntry } from "@/types/mcp";
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 /** Either scope's `create`, narrowed to the fields this dialog sends. */
-type CreateConnection<T extends McpConnectionRecord> = (input: {
-  name: string;
-  url: string;
-  auth_token?: string;
-  catalog_key: string;
-}) => Promise<T>;
+type CreateConnection<T extends McpConnectionRecord> = (
+  input: {
+    name: string;
+    url: string;
+    auth_token?: string;
+    catalog_key: string;
+  } & Partial<AudiencePayload>,
+) => Promise<T>;
 
 interface ConnectDialogProps<T extends McpConnectionRecord = McpConnectionRecord> {
   /** The catalog entry being connected, or null when the dialog is closed. */
@@ -189,6 +192,7 @@ function ConnectForm<T extends McpConnectionRecord>({
             url,
             catalog_key: entry.key,
             ...mcpOAuthClient(values.clientId, values.clientSecret),
+            ...(scope === "organization" ? values.audience : {}),
           },
           scope,
         );
@@ -223,6 +227,7 @@ function ConnectForm<T extends McpConnectionRecord>({
         // personal connection, what a binding to each person's own account
         // matches it on.
         catalog_key: entry.key,
+        ...(scope === "organization" ? values.audience : {}),
       });
       onClose();
       // `connected` is the bare state word; these are the sentences the servers

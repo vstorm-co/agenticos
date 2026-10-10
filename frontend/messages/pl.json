@@ -2058,7 +2058,11 @@
     "signInChecking": "Sprawdzanie, czy ten serwer obsługuje logowanie…",
     "signInNone": "Nie znaleziono logowania. Użyj tokenu dostępu albo bez poświadczeń.",
     "signInSupported": "Ten serwer obsługuje logowanie. Połączenie je otworzy.",
-    "signInNeedsClient": "Ten serwer obsługuje logowanie, ale sam nie rejestruje aplikacji. Dodaj niżej identyfikator i sekret klienta od dostawcy."
+    "signInNeedsClient": "Ten serwer obsługuje logowanie, ale sam nie rejestruje aplikacji. Dodaj niżej identyfikator i sekret klienta od dostawcy.",
+    "narrowed": "Ograniczony",
+    "whoCanUse": "Kto może z niego korzystać",
+    "whoCanUseNamed": "Kto może korzystać z {name}",
+    "whoCanUseHint": "Każdy, kto zarządza serwerami MCP, widzi go i może podpiąć do agenta, chyba że ograniczysz go do grup lub osób. Agent, który już go używa, działa dalej dla każdego, kto może go uruchomić."
   },
   "skills": {
     "addFile": "Dodaj plik",
@@ -3339,7 +3343,8 @@
         "name": "Operacje",
         "description": "Dostawcy, logistyka i bieżące działanie."
       }
-    }
+    },
+    "resourceMcpServers": "Serwery MCP"
   },
   "directory": {
     "navLabel": "Katalog",
@@ -3807,10 +3812,16 @@
     "everyoneHint": "Każdy w organizacji.",
     "onlyMe": "Tylko ja",
     "onlyMeHint": "Ty i osoby, którym udostępnisz to później.",
-    "groups": "Wybrane grupy",
-    "groupsHint": "Tylko wybrane działy.",
-    "noGroupsYet": "Brak grup - dodaj je w sekcji Grupy.",
-    "chooseGroups": "Grupy, które mogą z tego korzystać"
+    "noGroupsYet": "Brak grup - dodaj je w sekcji Grupy albo wpisz, aby znaleźć osobę.",
+    "chosen": "Wybrane grupy lub osoby",
+    "chosenHint": "Tylko wybrane działy i osoby.",
+    "chooseAudience": "Grupy i osoby, które mogą z tego korzystać",
+    "chosenList": "Wybrane",
+    "remove": "Usuń {name}",
+    "search": "Szukaj grup i osób",
+    "searchPlaceholder": "Szukaj grup i osób…",
+    "noMatches": "Brak wyników - spróbuj imienia lub adresu e-mail.",
+    "typeForPeople": "Wpisz imię lub adres e-mail, aby znaleźć osobę."
   },
   "context": {
     "whoCanUseIt": "Kto może z tego korzystać"

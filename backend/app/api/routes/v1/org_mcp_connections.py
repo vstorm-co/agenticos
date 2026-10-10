@@ -29,12 +29,12 @@ from app.schemas.mcp_connection import (
     GithubOAuthStart,
     McpConnectionRead,
     McpConnectionTestResult,
-    McpOAuthStart,
     McpOAuthStartResult,
     McpToolRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionList,
     OrgMcpConnectionUpdate,
+    OrgMcpOAuthStart,
 )
 
 router = APIRouter()
@@ -73,7 +73,7 @@ async def create_org_mcp_connection(
     response_model=McpOAuthStartResult,
     dependencies=[Depends(require(Perm.MCP_MANAGE))],
 )
-async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ctx: Auth) -> Any:
+async def start_org_mcp_oauth(data: OrgMcpOAuthStart, service: McpConnectionSvc, ctx: Auth) -> Any:
     """Begin the OAuth flow for a server the organization will own.
 
     Somebody consents, and the connection that comes back belongs to the
@@ -93,6 +93,7 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
             catalog_key=data.catalog_key,
             client_id=data.client_id,
             client_secret=data.client_secret,
+            audience=data,
         )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

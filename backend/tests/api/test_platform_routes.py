@@ -1002,6 +1002,8 @@ class _SomeoneElsesResource:
     id: UUID = field(default_factory=uuid4)
     owner_user_id: UUID = field(default_factory=uuid4)
     visibility: str = Visibility.PRIVATE.value
+    # What an MCP server's loader checks first: an organization's, not a member's own.
+    scope: str = "org"
 
 
 class _NoRows:

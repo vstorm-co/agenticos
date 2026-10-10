@@ -191,6 +191,7 @@ class ContextService:
         mode: str = "inject",
         visibility: Visibility = Visibility.PRIVATE,
         group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> ContextFile:
         """Create a context file.
 
@@ -227,9 +228,13 @@ class ContextService:
             target_id=str(file.id),
             details={"name": name, "mode": mode},
         )
-        if group_ids:
-            await SharingService(self.db).restrict_to_groups(
-                ctx, file, resource_type=CONTEXT, group_ids=group_ids
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                file,
+                resource_type=CONTEXT,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
             )
         return file
 

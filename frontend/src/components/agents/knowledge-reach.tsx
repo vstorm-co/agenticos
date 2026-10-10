@@ -1,19 +1,24 @@
 "use client";
 
-import { AlertTriangle, BookOpen, Building2, Database, FileText, Users } from "lucide-react";
+import { AlertTriangle, BookOpen, Building2, Database, FileText, Plug, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Badge, Card, CardContent } from "@/components/ui";
 import { useKnowledgeReach } from "@/hooks";
 import type { KnowledgeSource } from "@/types/agents";
 
-const KIND_ICON = { collection: Database, skill: BookOpen, context: FileText } as const;
+const KIND_ICON = {
+  collection: Database,
+  skill: BookOpen,
+  context: FileText,
+  mcp: Plug,
+} as const;
 
 /**
  * Where this agent's knowledge comes from, and who it reaches (#2072).
  *
- * A department keeps its skills, context and knowledge bases by sharing them with
- * its group. Binding one to an agent shared more widely is allowed, and the
+ * A department keeps its skills, context, knowledge bases and MCP servers by
+ * sharing them with its group. Binding one to an agent shared more widely is allowed, and the
  * agent then answers people from it who could not open it themselves - so each
  * source says whose it is, and one the agent reaches further than is flagged.
  * Nothing renders until the agent binds a source.

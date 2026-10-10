@@ -70,8 +70,17 @@ connection has none, and its owner may belong to several, so binding it to
 whichever was active when they added it would make the token unreadable the moment
 they switched.
 
-**Organization** is scoped to the organization, gated on `connections:manage`, and
-is the only kind a published agent's spec may name *by id*.
+**Organization** is scoped to the organization, gated on `mcp:manage`, and is the
+only kind a published agent's spec may name *by id*.
+
+An organization server can belong to a department. Under **Who can use it** the
+connect dialog offers **Everyone**, the default, or **Chosen groups or people**,
+found by typing; the server is then private and shared with each of them at
+`use`. They and whoever connected it see it and bind it; owners and admins see
+every server. Its **Who can use it** button changes that later. An agent already
+bound to it keeps working for everyone who may run the agent: the choice decides
+who may pick the server, not who is answered through it, so the Builder marks it
+under [where an agent's knowledge comes from](departments.md#where-an-agents-knowledge-comes-from).
 
 A published agent that reached different tools depending on whose session built
 it could not be reviewed or reasoned about, which is the whole reason for the
@@ -81,8 +90,11 @@ service, and whoever is talking to the agent supplies their own connection to it
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Two names, and they answer different questions

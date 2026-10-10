@@ -2,9 +2,9 @@
 
 Companies are organized in departments: sales, finance, HR, support. In
 AgenticOS a department is a [group](directory.md#groups), and a group decides
-who can use what. Finance can have its own agents, skills, context files and
-knowledge bases that sales never sees, while the things everyone needs stay
-open to the whole organization.
+who can use what. Finance can have its own agents, skills, context files,
+knowledge bases and MCP servers that sales never sees, while the things everyone
+needs stay open to the whole organization.
 
 ## Adding your departments
 
@@ -21,14 +21,18 @@ company already keeps its teams in a directory.
 
 ## Who can use a new thing
 
-Creating an agent, a skill, a knowledge base or a context file asks one
-question: **who can use it**.
+Creating an agent, a skill, a knowledge base, a context file or a shared MCP
+server asks one question: **who can use it**.
 
 | Choice | Who reaches it | Stored as |
 |---|---|---|
 | **Everyone** - the default | Every member of the organization | Visibility `org` |
 | **Only me** | You, and whoever you share it with later | Visibility `private` (a knowledge base becomes a personal one) |
-| **Chosen groups** | The members of the groups you pick | Visibility `private`, shared with each group at `use` |
+| **Chosen groups or people** | The members of the groups you pick, and the people you name | Visibility `private`, shared with each at `use` |
+
+Groups are offered as soon as you choose the third option; people are found by
+typing a name or an email address. Each one picked stays as a chip until you
+remove it.
 
 A group's members find what was shared with it, use it and attach it to their
 own agents. People outside the group do not see it in lists, in search, in the
@@ -41,17 +45,31 @@ Apps are published by agents and start private to the person the run was for;
 share one with a group from its **Share** panel. Every resource's **Sharing**
 panel also adds or removes groups after creation.
 
+## A department's MCP servers
+
+An organization's MCP server - one shared account, connected once - can be
+narrowed the same way, so Finance's ledger server is Finance's. Members who
+manage MCP servers see the organization's servers, the ones they connected, and
+those shared with their groups or with them; owners and admins see all of them.
+A builder outside Finance does not find its server in the list, cannot open it
+by its id, and cannot publish an agent bound to it. See
+[MCP](mcp.md#personal-or-organization-wide).
+
+An agent already bound to one keeps working for everyone who may run the agent.
+The choice decides who may pick the server, not who is answered through it, so
+the Builder shows it where the agent's knowledge comes from.
+
 ## A group's page
 
 Opening a group shows its people and everything shared with it, grouped by
-kind - agents, knowledge bases, skills, context and apps - with the level each
-was shared at. A reader sees only the items they could open anyway, so a
+kind - agents, knowledge bases, skills, context, apps and MCP servers - with the
+level each was shared at. A reader sees only the items they could open anyway, so a
 member of Sales reading Finance's page does not learn what Finance keeps.
 
 ## Where an agent's knowledge comes from
 
-An agent can be bound to a knowledge base, skill or context file that is shared
-more narrowly than the agent itself, and nothing refuses it. Everyone the agent
+An agent can be bound to a knowledge base, skill, context file or MCP server that
+is shared more narrowly than the agent itself, and nothing refuses it. Everyone the agent
 reaches is then answered from that source, including people who could not open
 it themselves.
 
@@ -70,5 +88,4 @@ becomes their group names, separated by commas, or nothing for a visitor. See
 
 ## What is not covered yet
 
-MCP connections are shared at the organization level or kept personal, not by
-group. Group-scoped budgets and per-group analytics are not part of this yet.
+Group-scoped budgets and per-group analytics are not part of this yet.

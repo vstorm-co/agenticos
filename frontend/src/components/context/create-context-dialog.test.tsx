@@ -66,6 +66,7 @@ describe("CreateContextDialog", () => {
       mode: "inject",
       visibility: "org",
       group_ids: [],
+      user_ids: [],
     });
     // Reported rather than closed: whether one file created means "done" or
     // "next of the four somebody dropped" is the page's queue to answer.
