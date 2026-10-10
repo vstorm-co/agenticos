@@ -41,6 +41,7 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
+from app.services.resource_usage import agents_using
 
 logger = logging.getLogger(__name__)
 
@@ -283,8 +284,14 @@ class SkillService:
             limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
+        used = await agents_using(
+            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
+        )
         return SkillList(
-            items=[_summary(skill, bundled_names) for skill in items],
+            items=[
+                _summary(skill, bundled_names).model_copy(update={"used_by": used[skill.id]})
+                for skill in items
+            ],
             total=total,
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),

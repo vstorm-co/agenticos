@@ -10,6 +10,7 @@ import {
   useAgentVersions,
   useAllAgentVersions,
   useAgents,
+  useAddToAgent,
   useCapabilityCatalog,
   useDelegationTree,
   usePromptVariables,
@@ -886,5 +887,51 @@ describe("usePromptVariables", () => {
     const { result } = renderHook(() => usePromptVariables(), { wrapper });
 
     expect(result.current.variables).toEqual([]);
+  });
+});
+
+describe("useAddToAgent", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("writes the draft with the resource bound", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    const answer = await result.current.mutateAsync({
+      agentId: "a1",
+      resource: { kind: "skill", id: "s1" },
+    });
+
+    expect(answer).toEqual({ already: false });
+    const [path, body] = vi.mocked(apiClient.put).mock.calls[0]!;
+    expect(path).toBe("/agents/a1/draft");
+    expect((body as { spec: AgentSpec }).spec.skill_ids).toEqual(["s1"]);
+  });
+
+  it("writes nothing when the agent already has it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: { ...SPEC, skill_ids: ["s1"] },
+    });
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    const answer = await result.current.mutateAsync({
+      agentId: "a1",
+      resource: { kind: "skill", id: "s1" },
+    });
+
+    expect(answer).toEqual({ already: true });
+    expect(apiClient.put).not.toHaveBeenCalled();
+  });
+
+  it("says what was refused", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("nope"));
+    const { result } = renderHook(() => useAddToAgent(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({ agentId: "a1", resource: { kind: "skill", id: "s1" } }),
+    ).rejects.toThrow();
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });

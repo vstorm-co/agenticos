@@ -19,6 +19,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -31,6 +32,17 @@ from app.services import skill_library
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent binds anything here; `test_resource_usage` covers the query."""
+
+    async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+
 
 _ORGANIZATION_ID = uuid.uuid4()
 

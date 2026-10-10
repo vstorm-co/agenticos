@@ -700,3 +700,9 @@ export interface JsonSchemaProperty {
     "x-enum-labels"?: Record<string, string>;
   }[];
 }
+
+/** An agent using a skill, a context file or a knowledge base, as a listing names it. */
+export interface AgentUsage {
+  id: string;
+  name: string;
+}

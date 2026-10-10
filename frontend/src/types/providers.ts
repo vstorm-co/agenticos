@@ -8,6 +8,8 @@
  * branches on, because it says which shape of credential each provider takes.
  */
 
+import type { AgentUsage } from "./agents";
+
 import type { SecretKind } from "./secrets";
 
 /** Which of OpenAI's two APIs a profile's requests go to. */
@@ -136,6 +138,11 @@ export interface SkillSummary {
   built_in: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
 }
 
 export interface SkillList {
@@ -178,6 +185,11 @@ export interface ContextFileSummary {
   size_bytes: number;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
 }
 
 export interface ContextFileList {

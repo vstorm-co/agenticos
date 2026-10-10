@@ -1,3 +1,5 @@
+import type { AgentUsage } from "./agents";
+
 export type KBScope = "personal" | "org" | "app";
 
 /**
@@ -149,6 +151,11 @@ export interface KnowledgeBase {
   document_count: number;
   indexed_count: number;
   chunk_count: number;
+  /**
+   * The agents whose draft binds this, among those the caller may see (#2075).
+   * Optional because only the listings carry it.
+   */
+  used_by?: AgentUsage[];
 }
 
 export interface KnowledgeBaseList {

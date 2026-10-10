@@ -15,6 +15,9 @@ import {
   VERSION_HISTORY_LIMIT,
   withCapability,
   withContextFiles,
+  withResource,
+  hasResource,
+  KNOWLEDGE_ID,
   withSkills,
 } from "./agent-spec";
 import type { AgentSpec, AgentVersion, CapabilityBindingSpec } from "@/types/agents";
@@ -323,5 +326,29 @@ describe("capabilityConfigErrors", () => {
 
   it("says nothing for the ordinary case, where no problem names an input", () => {
     expect(capabilityConfigErrors([], "knowledge")).toEqual({});
+  });
+});
+
+describe("withResource", () => {
+  it.each([
+    ["skill", "skill_ids", SKILLS_ID],
+    ["context", "context_ids", CONTEXT_ID],
+    ["collection", "collection_ids", KNOWLEDGE_ID],
+  ] as const)(
+    "binds a %s and switches on the capability that reads it",
+    (kind, field, capability) => {
+      const bound = withResource(spec(), { kind, id: "r1" });
+
+      expect(bound[field]).toEqual(["r1"]);
+      expect(bound.capabilities.map((binding) => binding.id)).toContain(capability);
+      expect(hasResource(bound, { kind, id: "r1" })).toBe(true);
+    },
+  );
+
+  it("does not bind the same resource twice", () => {
+    const once = withResource(spec(), { kind: "collection", id: "kb" });
+
+    expect(withResource(once, { kind: "collection", id: "kb" }).collection_ids).toEqual(["kb"]);
+    expect(hasResource(once, { kind: "skill", id: "kb" })).toBe(false);
   });
 });

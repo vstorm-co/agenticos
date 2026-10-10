@@ -1,5 +1,6 @@
 "use client";
 
+import { UsedBy } from "@/components/agents/used-by";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
@@ -248,7 +249,9 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
           )}
         </div>
 
-        <div className="text-muted-foreground mt-5 flex items-center justify-between gap-2 text-xs">
+        <UsedBy agents={kb.used_by} className="mt-4" />
+
+        <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t(meta.labelKey)}</span>

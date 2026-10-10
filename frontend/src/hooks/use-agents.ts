@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
+import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-spec";
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
@@ -501,4 +502,35 @@ export function useCapabilityCatalog() {
     [data, guide],
   );
   return { capabilities, isLoading };
+}
+
+/**
+ * Give an agent a skill, a context file or a knowledge base from where it lives.
+ *
+ * Reads the agent's draft and writes it back with the resource bound - the same
+ * draft save the Builder makes, so nothing is published and the change is in
+ * the Builder for whoever opens it next (#2075). Answers whether it was bound
+ * already rather than writing an identical draft.
+ */
+export function useAddToAgent() {
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      agentId,
+      resource,
+    }: {
+      agentId: string;
+      resource: AgentResourceRef;
+    }): Promise<{ already: boolean }> => {
+      const agent = await apiClient.get<AgentDetail>(`/agents/${agentId}`);
+      if (hasResource(agent.draft_spec, resource)) return { already: true };
+      await apiClient.put<Agent>(`/agents/${agentId}/draft`, {
+        spec: withResource(agent.draft_spec, resource),
+      });
+      return { already: false };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
 }

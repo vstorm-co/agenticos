@@ -99,7 +99,9 @@
     "expandSidebar": "Rozwiń panel boczny",
     "artifacts": "Artefakty",
     "apiKeys": "Klucze API",
-    "assistant": "Asystent"
+    "assistant": "Asystent",
+    "context": "Kontekst",
+    "routines": "Rutyny"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -3044,7 +3046,17 @@
     "showAdvancedCapabilities": "{count, plural, one {Pokaż 1 zaawansowaną capability} few {Pokaż # zaawansowane capability} many {Pokaż # zaawansowanych capability} other {Pokaż # zaawansowanych capability}}",
     "hideAdvancedCapabilities": "Ukryj zaawansowane capability",
     "workspaceFilesAndShell": "pliki i shell",
-    "workspaceFilesOnly": "pliki, bez shella"
+    "workspaceFilesOnly": "pliki, bez shella",
+    "addToAgent": "Dodaj do agenta",
+    "addToAgentHint": "Wybierz agenta. Zmienia się jego szkic; opublikuj go w Builderze, żeby zmiana zaczęła działać.",
+    "loadingAgents": "Wczytywanie agentów…",
+    "noAgentToAddTo": "Nie ma jeszcze agenta, do którego można to dodać.",
+    "createAnAgent": "Utwórz agenta",
+    "openInBuilder": "Otwórz w Builderze",
+    "addedToAgent": "Dodano {name} do szkicu agenta {agent}.",
+    "alreadyOnAgent": "Agent {agent} ma już {name}.",
+    "usedByNobody": "Nie używa tego jeszcze żaden agent",
+    "usedBy": "{more, plural, =0 {Używa: {names}} other {Używa: {names} i jeszcze #}}"
   },
   "steps": {
     "skills-gallery": {

@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.resource_usage import AgentUsage
 from app.services.ingestion_config import IngestionConfig
 
 KBScopeLiteral = Literal["personal", "org", "app"]
@@ -157,6 +158,13 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     )
     chunk_count: int = Field(
         default=0, description="Embedded chunks across this collection's documents"
+    )
+    used_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose draft binds this, among those the caller may see - so a "
+            "card says where it is used, or that it is used nowhere yet"
+        ),
     )
 
 

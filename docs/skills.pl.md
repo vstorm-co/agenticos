@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "1fd0094a9e9b"
 ---
 
 # Skille { #skills }
@@ -111,6 +111,11 @@ przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
+
+**Prosto ze skilla.** Każda karta na stronie Skille ma **Dodaj do agenta**:
+wybierasz agenta, a skill trafia do jego szkicu razem z włączoną capability
+Skille, gotowy do opublikowania w Builderze. Karta mówi też, którzy agenci
+używają skilla - albo że jeszcze żaden. Pliki kontekstu i bazy wiedzy mają to samo.
 
 **Nazwa skilla to id, pod którym model go ładuje**, więc ma formę, w jakiej
 modele piszą id: małe litery i cyfry połączone pojedynczymi myślnikami, na przykład

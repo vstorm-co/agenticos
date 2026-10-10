@@ -142,6 +142,14 @@ Two things are versioned separately from this file and worth knowing about:
   browser** (and **Web browser (step by step)**), Context management **Long
   conversations**, System reminders **Instruction reminders**. Ids, the spec
   and the docs' anchors are unchanged (#2070, #2075).
+- **Add a skill, a context file or a knowledge base to an agent from where it
+  lives.** Skill and context cards, and a knowledge base's page, have **Add to
+  an agent**: pick the agent and the resource joins its draft with the
+  capability that reads it switched on. Each card and knowledge base also says
+  which agents use it, or that none does yet - only agents the reader may see
+  are named. The listings carry `used_by`. Page descriptions for agents,
+  context, knowledge bases and sandboxes are rewritten in plain words, and
+  Workspaces is **Agent files** in the navigation (#2075).
 - **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
   channel run that stops for a decision, or for an `ask_user` question - which
   now parks a channel run instead of being read as declined - is offered in the

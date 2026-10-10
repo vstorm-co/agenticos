@@ -6,9 +6,11 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Collection, Sequence
+from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Float, and_, false, func, or_, select
+from sqlalchemy import Float, and_, bindparam, false, func, or_, select, text
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
@@ -608,3 +610,68 @@ async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: U
         )
     )
     return int(result.scalar_one())
+
+
+BoundResourceField = Literal["skill_ids", "context_ids", "collection_ids"]
+
+
+async def binding_resources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    field: BoundResourceField,
+    resource_ids: Collection[UUID],
+) -> dict[UUID, list[Agent]]:
+    """For each resource, the live agents whose draft binds it - in one query.
+
+    The draft rather than the published version, for the reason the vault's
+    `agents_using_for_secrets` gives: an agent about to be published with a skill
+    is using it. Archived agents are left out; nobody runs them. Every requested
+    id is a key, a resource nothing binds mapping to an empty list, and each list
+    is in name order.
+    """
+    usage: dict[UUID, list[Agent]] = {resource_id: [] for resource_id in resource_ids}
+    if not usage:
+        return usage
+    # `jsonb_array_elements_text` errors on anything that is not an array, so a
+    # draft missing the field hands it an empty one instead.
+    pairs = text(
+        f"""
+        SELECT a.id, ref
+        FROM agents a
+        CROSS JOIN LATERAL jsonb_array_elements_text(
+            CASE
+                WHEN jsonb_typeof(a.draft_spec -> '{field}') = 'array'
+                THEN a.draft_spec -> '{field}'
+                ELSE '[]'::jsonb
+            END
+        ) AS ref
+        WHERE a.organization_id = :organization_id
+          AND a.status != :archived
+          AND ref IN :resource_ids
+        """  # noqa: S608 - `field` is one of three literals, never input
+    ).bindparams(
+        bindparam("organization_id", type_=PG_UUID(as_uuid=True)),
+        bindparam("resource_ids", expanding=True),
+    )
+    rows = (
+        await db.execute(
+            pairs,
+            {
+                "organization_id": organization_id,
+                "archived": AgentStatus.ARCHIVED.value,
+                "resource_ids": [str(resource_id) for resource_id in usage],
+            },
+        )
+    ).all()
+    if not rows:
+        return usage
+    agents = {
+        agent.id: agent
+        for agent in (
+            await db.execute(select(Agent).where(Agent.id.in_({agent_id for agent_id, _ in rows})))
+        ).scalars()
+    }
+    for agent_id, ref in sorted(rows, key=lambda row: agents[row[0]].name.casefold()):
+        usage[UUID(ref)].append(agents[agent_id])
+    return usage

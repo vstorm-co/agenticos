@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "1fd0094a9e9b"
 ---
 
 # Skills { #skills }
@@ -114,6 +114,12 @@ gebundenen Skills eine Datei zum Lesen mitbringt.
 
 Ein Spec bindet Skills über ihre Id in `skill_ids`, sodass ein Agent genau die
 sieht, die ihm gegeben wurden, und sonst nichts.
+
+**Direkt vom Skill aus.** Jede Karte auf der Skills-Seite hat **Zu einem
+Agenten hinzufügen**: Agent wählen, und der Skill landet in dessen Entwurf, mit
+eingeschalteter Skills-Capability, bereit zum Veröffentlichen im Builder. Die
+Karte sagt auch, welche Agents den Skill nutzen - oder dass es noch keiner tut.
+Kontextdateien und Wissensdatenbanken bieten dasselbe.
 
 **Der Name eines Skills ist die id, unter der ein Modell ihn lädt**, also hat
 er die Form, in der Modelle ids schreiben: Kleinbuchstaben und Ziffern, verbunden

@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "1fd0094a9e9b"
 ---
 
 # Skills { #skills }
@@ -114,6 +114,12 @@ archivo que leer.
 
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.
+
+**Desde el propio skill.** Cada tarjeta de la página de Skills tiene **Add to an
+agent**: eliges el agent y el skill se añade a su borrador, con la capability
+Skills activada, listo para publicar en el Builder. La tarjeta dice también qué
+agents usan el skill, o que todavía ninguno. Los archivos de contexto y las bases
+de conocimiento ofrecen lo mismo.
 
 **El nombre de un skill es el id con el que un modelo lo carga**, así que
 tiene la forma en que los modelos escriben ids: minúsculas y dígitos unidos por

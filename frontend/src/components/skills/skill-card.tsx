@@ -5,6 +5,9 @@ import { FileText, Tag, Trash2 } from "lucide-react";
 import { Badge, BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
+import { AddToAgent } from "@/components/agents/add-to-agent";
+import { UsedBy } from "@/components/agents/used-by";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 interface SkillCardProps {
@@ -39,7 +42,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
         >
           {skill.excerpt ? <TextPeek source={skill.excerpt} /> : <BlankPeek />}
         </DocPeek>
-        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5">
+        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
           <span className="flex items-center gap-2 pr-8">
             <span className="text-foreground truncate font-mono text-sm font-medium">
               {skill.name}
@@ -62,8 +65,16 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               </span>
             )}
           </span>
+          <UsedBy agents={skill.used_by} />
         </span>
       </button>
+      {/* Beside the card's own controls rather than inside the button that opens
+          it: giving it to an agent is the next step after writing one (#2075). */}
+      <AddToAgent
+        resource={{ kind: "skill", id: skill.id }}
+        name={skill.name}
+        className={cn("absolute bottom-2 h-8 text-xs", canEdit ? "right-12" : "right-2")}
+      />
       {canEdit && (
         // Outside the open button - a button cannot hold another - and quiet until
         // the card is pointed at, so a grid of skills is not a column of bins.

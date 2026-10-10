@@ -5,6 +5,13 @@ import userEvent from "@testing-library/user-event";
 import { SkillCard } from "./skill-card";
 import type { SkillSummary } from "@/types/providers";
 
+// Its own spec covers the picker; a card only has to offer it for the right thing.
+vi.mock("@/components/agents/add-to-agent", () => ({
+  AddToAgent: ({ resource }: { resource: { kind: string; id: string } }) => (
+    <span>{`add-to-agent ${resource.kind} ${resource.id}`}</span>
+  ),
+}));
+
 const SKILL: SkillSummary = {
   id: "skill-1",
   name: "refund-policy",
@@ -117,5 +124,9 @@ describe("SkillCard", () => {
     expect(screen.getAllByText(SKILL.description)).toHaveLength(1);
     expect(screen.queryByText("+2 files")).toBeNull();
     expect(container.querySelectorAll(".peek-sheet")).toHaveLength(0);
+  });
+  it("offers to give the skill to an agent, even to a reader who cannot edit it", () => {
+    renderCard({ canEdit: false });
+    expect(screen.getByText("add-to-agent skill skill-1")).toBeInTheDocument();
   });
 });

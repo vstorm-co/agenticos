@@ -378,3 +378,41 @@ export function capabilityConfigErrors(
   }
   return errors;
 }
+
+/** Something an organization owns that an agent can be given from where it lives. */
+export interface AgentResourceRef {
+  kind: "skill" | "context" | "collection";
+  id: string;
+}
+
+/**
+ * The spec with one more resource bound, and the capability that reads it on.
+ *
+ * What "Add to an agent" on a skill, a context file or a knowledge base writes
+ * (#2075): the same pair the Builder writes, so an agent given a knowledge base
+ * from its page can search it rather than holding an id nothing reads. Binding
+ * one already bound changes nothing.
+ */
+export function withResource(spec: AgentSpec, resource: AgentResourceRef): AgentSpec {
+  const add = (ids: string[]) => (ids.includes(resource.id) ? ids : [...ids, resource.id]);
+  if (resource.kind === "skill") return { ...spec, ...withSkills(spec, add(spec.skill_ids)) };
+  if (resource.kind === "context") {
+    return { ...spec, ...withContextFiles(spec, add(spec.context_ids)) };
+  }
+  return {
+    ...spec,
+    collection_ids: add(spec.collection_ids),
+    capabilities: withCapability(spec.capabilities, KNOWLEDGE_ID, true),
+  };
+}
+
+/** Whether a spec already holds this resource. */
+export function hasResource(spec: AgentSpec, resource: AgentResourceRef): boolean {
+  const ids =
+    resource.kind === "skill"
+      ? spec.skill_ids
+      : resource.kind === "context"
+        ? spec.context_ids
+        : spec.collection_ids;
+  return ids.includes(resource.id);
+}

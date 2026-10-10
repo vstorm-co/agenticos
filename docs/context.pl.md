@@ -1,5 +1,5 @@
 ---
-source_sha: "854111718543"
+source_sha: "e32baf02f7e8"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -89,6 +89,10 @@ Ta capability ma jedno ustawienie warte poznania. Wyłączenie narzędzia do
 czytania oznacza, że do modelu trafiają tylko pliki wstrzykiwane i nic nie jest
 czytane na żądanie — rozsądny wybór, gdy chcesz, żeby wejścia agenta były
 całkowicie przewidywalne.
+
+Można też zacząć od pliku: **Dodaj do agenta** na jego karcie dodaje go do
+szkicu agenta razem z włączoną capability Kontekst, a karta mówi, którzy agenci
+już go mają. Baza wiedzy ma tę samą akcję na swojej stronie.
 
 ## Dostęp { #access }
 

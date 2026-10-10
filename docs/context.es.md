@@ -1,5 +1,5 @@
 ---
-source_sha: "854111718543"
+source_sha: "e32baf02f7e8"
 ---
 
 # Archivos de contexto { #context-files }
@@ -90,6 +90,11 @@ La capability tiene un ajuste que vale la pena conocer. **Desactivar** la herram
 lectura significa que solo los archivos inyectados llegan al modelo y que no se
 lee nada bajo demanda — una elección razonable cuando quieres que las entradas de
 un agent sean del todo predecibles.
+
+También se puede empezar por el archivo: **Add to an agent** en su tarjeta lo
+añade al borrador del agent con la capability Context activada, y la tarjeta dice
+qué agents lo llevan ya. Una base de conocimiento tiene la misma acción en su
+propia página.
 
 ## Acceso { #access }
 

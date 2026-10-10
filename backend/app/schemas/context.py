@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
+from app.schemas.resource_usage import AgentUsage
 
 ContextModeLiteral = Literal["inject", "link"]
 
@@ -44,6 +45,13 @@ class ContextFileSummary(BaseSchema):
     excerpt: str = Field(
         default="",
         description="The body's first lines, front matter dropped and bounded, for a card",
+    )
+    used_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "The agents whose draft binds this, among those the caller may see - so a "
+            "card says where it is used, or that it is used nowhere yet"
+        ),
     )
 
 

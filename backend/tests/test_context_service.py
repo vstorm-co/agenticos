@@ -8,6 +8,7 @@ private file the caller cannot reach is a 404 rather than a 403.
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 
@@ -18,6 +19,17 @@ from app.schemas.context import ContextFileUpdate
 from app.services.context import ContextService, _summary
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent binds anything here; `test_resource_usage` covers the query."""
+
+    async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.context.agents_using", nowhere)
+
 
 CONTEXT_PATH = "app.services.context"
 

@@ -38,6 +38,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.rag import embedding_providers
+from app.services.resource_usage import agents_using
 
 logger = logging.getLogger(__name__)
 
@@ -154,8 +155,16 @@ class KnowledgeBaseService:
         """
         items = await self.list_accessible(ctx, shared_with_me=shared_with_me)
         counts = await self.counts_for(items)
+        used = await agents_using(
+            self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]
+        )
         return KnowledgeBaseList(
-            items=[_with_counts(kb, counts.get(kb.collection_name)) for kb in items],
+            items=[
+                _with_counts(kb, counts.get(kb.collection_name)).model_copy(
+                    update={"used_by": used[kb.id]}
+                )
+                for kb in items
+            ],
             total=len(items),
         )
 
