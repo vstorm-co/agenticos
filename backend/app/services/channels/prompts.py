@@ -61,6 +61,26 @@ _ARGS_SHOWN = 300
 """How much of a gated call's arguments the approval message quotes."""
 
 
+async def linked_member(
+    db: AsyncSession, bot: ChannelBot, platform: str, platform_user_id: str
+) -> AuthContext | None:
+    """A chat user, as a member acting with their own role, or `None` if unlinked."""
+    identity = await channel_identity_repo.get_by_platform_user(db, platform, platform_user_id)
+    if identity is None or identity.user_id is None:
+        return None
+    membership = await member_repo.get_active(
+        db, organization_id=bot.organization_id, user_id=identity.user_id
+    )
+    if membership is None:
+        return None
+    return AuthContext(
+        user_id=identity.user_id,
+        organization_id=bot.organization_id,
+        role=membership.role,
+        channel_identity_id=identity.id,
+    )
+
+
 def _arguments(args: dict[str, object]) -> str:
     shown = json.dumps(args, ensure_ascii=False, default=str)
     return shown if len(shown) <= _ARGS_SHOWN else f"{shown[:_ARGS_SHOWN]}…"
@@ -197,7 +217,7 @@ class ChannelPrompts:
         if prompt.answered_at is not None:
             await say(ALREADY)
             return
-        ctx = await self._presser(bot, press)
+        ctx = await linked_member(self.db, bot, press.platform, press.platform_user_id)
         if ctx is None:
             await say(LINK_FIRST)
             return
@@ -221,25 +241,6 @@ class ChannelPrompts:
             )
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
-
-    async def _presser(self, bot: ChannelBot, press: IncomingPress) -> AuthContext | None:
-        """The presser, as a member acting with their own role, or `None` if unlinked."""
-        identity = await channel_identity_repo.get_by_platform_user(
-            self.db, press.platform, press.platform_user_id
-        )
-        if identity is None or identity.user_id is None:
-            return None
-        membership = await member_repo.get_active(
-            self.db, organization_id=bot.organization_id, user_id=identity.user_id
-        )
-        if membership is None:
-            return None
-        return AuthContext(
-            user_id=identity.user_id,
-            organization_id=bot.organization_id,
-            role=membership.role,
-            channel_identity_id=identity.id,
-        )
 
     async def _decide(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None

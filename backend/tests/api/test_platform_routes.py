@@ -1591,6 +1591,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/slack/{{bot_id}}/interactions"),
         ("POST", f"{V1}/slack/{{bot_id}}/commands"),
         ("POST", f"{V1}/mattermost/{{bot_id}}/actions"),
+        # Mattermost's `/agent` and the "what was wrong?" dialog (#2084): the
+        # command carries the slash command's token, the dialog this
+        # deployment's signature over its state - neither has a session.
+        ("POST", f"{V1}/mattermost/{{bot_id}}/commands"),
+        ("POST", f"{V1}/mattermost/{{bot_id}}/dialogs"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

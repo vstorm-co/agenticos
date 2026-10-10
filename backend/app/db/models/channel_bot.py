@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,6 +55,27 @@ class ChannelBot(Base, TimestampMixin):
     # registered before the credentials moved off the environment.
     slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # The token Mattermost gives a slash command when it is created, which every
+    # `/agent` request carries (#2084). Sealed like the rest; Mattermost bots only.
+    command_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    # The emoji the bot reacts to a question with the moment it arrives (#2084),
+    # by the platform's own name for it - `eyes`. Null reacts with nothing.
+    ack_reaction: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Whether answers stream natively where the platform can draw them (Slack),
+    # rather than as a placeholder edited into place - and, there, whether the
+    # tool calls read as a timeline of steps or as one plan. A switch rather than
+    # always-on: a workspace that finds the steps noisy turns them off.
+    stream_answers: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    step_display: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="timeline", server_default="timeline"
+    )
+    # Whether a finished answer carries thumbs to rate it.
+    rate_answers: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
 
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -91,6 +112,11 @@ class ChannelBot(Base, TimestampMixin):
     def has_slack_signing_secret(self) -> bool:
         """Whether inbound Slack events can be verified - never the secret itself."""
         return self.slack_signing_secret_encrypted is not None
+
+    @property
+    def has_command_token(self) -> bool:
+        """Whether `/agent` requests can be verified - never the token itself."""
+        return self.command_token_encrypted is not None
 
     @property
     def has_slack_app_token(self) -> bool:

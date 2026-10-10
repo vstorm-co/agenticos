@@ -77,6 +77,26 @@ def inbound_actions_url(bot_id: str) -> str:
     return f"{base}{MATTERMOST_ACTIONS_PATH.format(bot_id=bot_id)}"
 
 
+MATTERMOST_DIALOGS_PATH = "/api/v1/mattermost/{bot_id}/dialogs"
+"""Where a Mattermost server posts a submitted dialog - "what was wrong?" (#2084)."""
+
+
+def inbound_dialogs_url(bot_id: str) -> str:
+    """The URL a Mattermost dialog of this bot posts its answers to."""
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}{MATTERMOST_DIALOGS_PATH.format(bot_id=bot_id)}"
+
+
+MATTERMOST_COMMANDS_PATH = "/api/v1/mattermost/{bot_id}/commands"
+"""Where a Mattermost server posts the bot's `/agent` slash command (#2084)."""
+
+
+def inbound_command_url(bot_id: str) -> str:
+    """The URL to paste as the `/agent` slash command's request URL in Mattermost."""
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    return f"{base}{MATTERMOST_COMMANDS_PATH.format(bot_id=bot_id)}"
+
+
 def sign_press(bot_id: str, value: str) -> str:
     """This deployment's signature over a button's value, for a platform that signs nothing.
 

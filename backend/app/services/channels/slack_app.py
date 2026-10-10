@@ -33,9 +33,16 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     channel_identity_repo,
+    channel_session_repo,
 )
 from app.services.channel_bot import unseal_bot_token
-from app.services.channels.base import IncomingMessage, IncomingPress, thread_key
+from app.services.channels.base import (
+    FeedbackComment,
+    IncomingMessage,
+    IncomingPress,
+    split_thread,
+    thread_key,
+)
 from app.services.channels.slack_manifest import SHORTCUT_ID
 
 logger = logging.getLogger(__name__)
@@ -75,6 +82,57 @@ def parse_press(payload: dict[str, Any], bot_id: str) -> IncomingPress | None:
         platform_username=user.get("username"),
         message_id=message.get("ts") or container.get("message_ts"),
         prompt_text=message.get("text"),
+        trigger_id=payload.get("trigger_id"),
+    )
+
+
+FEEDBACK_COMMENT = "aos_feedback_comment"
+"""The `callback_id` of the "what was wrong?" modal (#2084)."""
+
+_COMMENT_BLOCK = "comment"
+
+
+def feedback_comment_view(run_id: str) -> dict[str, Any]:
+    """The modal a thumbs-down opens, carrying the run it is about."""
+    return {
+        "type": "modal",
+        "callback_id": FEEDBACK_COMMENT,
+        "private_metadata": run_id,
+        "title": {"type": "plain_text", "text": "What was wrong?"},
+        "submit": {"type": "plain_text", "text": "Send"},
+        "close": {"type": "plain_text", "text": "Skip"},
+        "blocks": [
+            {
+                "type": "input",
+                "block_id": _COMMENT_BLOCK,
+                "label": {"type": "plain_text", "text": "Tell the agent's builders"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": _COMMENT_BLOCK,
+                    "multiline": True,
+                    "max_length": 2000,
+                },
+            }
+        ],
+    }
+
+
+def parse_feedback_comment(payload: dict[str, Any], bot_id: str) -> FeedbackComment | None:
+    """The "what was wrong?" modal, submitted - or `None` for any other view."""
+    view = payload.get("view") or {}
+    if payload.get("type") != "view_submission" or view.get("callback_id") != FEEDBACK_COMMENT:
+        return None
+    values = (view.get("state") or {}).get("values") or {}
+    text = ((values.get(_COMMENT_BLOCK) or {}).get(_COMMENT_BLOCK) or {}).get("value") or ""
+    run_id = view.get("private_metadata") or ""
+    if not text.strip() or not run_id:
+        return None
+    return FeedbackComment(
+        platform="slack",
+        bot_id=bot_id,
+        platform_user_id=(payload.get("user") or {}).get("id", ""),
+        run_id=run_id,
+        text=text.strip(),
     )
 
 
@@ -135,7 +193,8 @@ class SlackSurfaces:
             client = _client(unseal_bot_token(bot))
             if kind == "app_home_opened" and event.get("tab") == "home":
                 await client.views_publish(
-                    user_id=event.get("user", ""), view=await self._home(bot, event.get("user", ""))
+                    user_id=event.get("user", ""),
+                    view=await self._home(bot, event.get("user", ""), client),
                 )
             elif kind == "assistant_thread_started":
                 thread = event.get("assistant_thread") or {}
@@ -157,8 +216,42 @@ class SlackSurfaces:
         except Exception:
             logger.exception("Slack %s for bot %s failed", kind, bot.id)
 
-    async def _home(self, bot: ChannelBot, slack_user: str) -> dict[str, Any]:
-        """The App Home tab: the agent, what waits on this person, the console."""
+    async def _recent(
+        self, bot: ChannelBot, identity_id: UUID, client: Any
+    ) -> list[dict[str, Any]]:
+        """This person's latest conversations with the bot, each a link to its thread (#2084).
+
+        Linked to the Slack thread rather than the console: a channel conversation
+        belongs to the chat it happened in, not to anybody's console history. A
+        thread Slack will not give a permalink for is listed without one.
+        """
+        recent = await channel_session_repo.recent_for_identity(
+            self.db, bot_id=bot.id, identity_id=identity_id
+        )
+        if not recent:
+            return []
+        lines: list[str] = []
+        for session, title in recent:
+            channel, thread_ts = split_thread(session.platform_chat_id)
+            name = (title or "Untitled conversation").replace(">", "")
+            try:
+                link = await client.chat_getPermalink(channel=channel, message_ts=thread_ts)
+                lines.append(f"• <{link['permalink']}|{name}>")
+            except Exception:
+                lines.append(f"• {name}")
+        return [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Your recent conversations*\n" + "\n".join(lines),
+                },
+            }
+        ]
+
+    async def _home(self, bot: ChannelBot, slack_user: str, client: Any) -> dict[str, Any]:
+        """The App Home tab: the agent, this person's recent conversations, what waits
+        on them, and the console."""
         console = settings.FRONTEND_URL.rstrip("/")
         blocks: list[dict[str, Any]] = []
         binding = await agent_exposure_repo.bound_to_bot(self.db, channel_bot_id=bot.id)
@@ -200,6 +293,7 @@ class SlackSurfaces:
                 }
             )
         else:
+            blocks.extend(await self._recent(bot, identity.id, client))
             waiting = await agent_run_repo.count_pending_approval_runs(
                 self.db, organization_id=bot.organization_id, user_id=identity.user_id
             )

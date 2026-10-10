@@ -84,6 +84,7 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
             "webhook_secret_encrypted",
             "slack_signing_secret_encrypted",
             "slack_app_token_encrypted",
+            "command_token_encrypted",
         ),
         version_attr="secret_key_version",
         scope=_org_scope,

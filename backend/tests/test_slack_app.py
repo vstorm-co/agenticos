@@ -153,7 +153,13 @@ class TestSurfaces:
                 f"{module}.agent_run_repo.count_pending_approval_runs",
                 new=AsyncMock(return_value=patches.get("waiting", 0)),
             ),
+            patch(
+                f"{module}.channel_session_repo.recent_for_identity",
+                new=AsyncMock(return_value=patches.get("recent", [])),
+            ),
         ):
+            if "permalink" in patches:
+                client.chat_getPermalink = patches["permalink"]
             await SlackSurfaces(MagicMock()).handle(payload, _bot())
         return client
 
@@ -177,6 +183,27 @@ class TestSurfaces:
         assert "*Refunds*\\nAnswers refund questions" in text
         assert "*2* of your runs wait for an approval" in text
         assert "Ask the AI Architect" in text
+
+    async def test_app_home_links_the_person_s_recent_conversations(self):
+        sessions = [
+            (MagicMock(platform_chat_id="C1:1.1"), "Refund for order 42"),
+            (MagicMock(platform_chat_id="C2:2.2"), None),
+        ]
+        permalink = AsyncMock(
+            side_effect=[{"permalink": "https://acme.slack.com/p1"}, RuntimeError("gone")]
+        )
+        client = await self._handle(
+            {"event": {"type": "app_home_opened", "tab": "home", "user": "U1"}},
+            identity=MagicMock(user_id=uuid.uuid4()),
+            recent=sessions,
+            permalink=permalink,
+        )
+
+        text = json.dumps(client.views_publish.await_args.kwargs["view"])
+        assert "*Your recent conversations*" in text
+        assert "<https://acme.slack.com/p1|Refund for order 42>" in text
+        assert "Untitled conversation" in text and "|Untitled" not in text
+        assert permalink.await_args_list[0].kwargs == {"channel": "C1", "message_ts": "1.1"}
 
     async def test_app_home_asks_an_unlinked_person_to_link(self):
         client = await self._handle(
@@ -459,6 +486,29 @@ class TestTheRequestURLs:
         )
 
         assert self.spawn.call_args.kwargs["name"].startswith("slack_shortcut:")
+        self.spawn.call_args.args[0].close()
+
+    async def test_what_was_wrong_is_kept_in_the_background(self):
+        from app.services.channels.slack_app import FEEDBACK_COMMENT
+
+        response = await slack_interactions(
+            uuid.uuid4(),
+            self._payload(
+                {
+                    "type": "view_submission",
+                    "user": {"id": "U1"},
+                    "view": {
+                        "callback_id": FEEDBACK_COMMENT,
+                        "private_metadata": "run-1",
+                        "state": {"values": {"comment": {"comment": {"value": "Wrong"}}}},
+                    },
+                }
+            ),
+            _bot_service(MagicMock()),
+        )
+
+        assert response.status_code == 200
+        assert self.spawn.call_args.kwargs["name"].startswith("slack_feedback:")
         self.spawn.call_args.args[0].close()
 
     async def test_anything_else_is_acknowledged_and_dropped(self):

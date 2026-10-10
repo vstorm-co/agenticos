@@ -335,9 +335,9 @@ class TestTheBackgroundHandlers:
             db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             prompts.return_value.press = AsyncMock()
-            await process_channel_press(MagicMock())
+            await process_channel_press(MagicMock(value="aos:prompt:0"))
             prompts.return_value.press.side_effect = RuntimeError("boom")
-            await process_channel_press(MagicMock())
+            await process_channel_press(MagicMock(value="aos:prompt:0"))
 
         assert prompts.return_value.press.await_count == 2
 

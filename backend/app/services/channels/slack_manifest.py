@@ -27,13 +27,24 @@ def slack_manifest(bot: ChannelBot) -> dict[str, Any]:
     Everything the app needs and nothing more: the bot's events and its buttons
     arrive at this deployment, the assistant pane and App Home are switched on,
     `/agent` and the message shortcut are declared, and the scopes are the ones
-    those use. Socket Mode is left off - this is the deployed shape; an app run
-    against a laptop sets it in Slack itself.
+    those use.
+
+    Which way the connection runs follows the bot (#2084): a bot Slack calls names
+    this deployment's URLs, and a bot that connects out to Slack - Socket Mode,
+    for a deployment with no public address - turns Socket Mode on and names no
+    URL at all, since nothing would answer at one.
+
+    Org-ready, so an Enterprise Grid administrator can install it once for every
+    workspace in the organization (#2084). An ordinary workspace installs it the
+    same way it always did; the flag only matters on Grid.
     """
     base = settings.PUBLIC_BASE_URL.rstrip("/")
 
-    def url(kind: str) -> str:
-        return f"{base}{SLACK_PATHS[kind].format(bot_id=bot.id)}"
+    socket = not bot.webhook_mode
+
+    def at(field: str, kind: str) -> dict[str, str]:
+        """`{field: url}` for a bot Slack calls; nothing for one that connects out."""
+        return {} if socket else {field: f"{base}{SLACK_PATHS[kind].format(bot_id=bot.id)}"}
 
     console_host = urlparse(settings.FRONTEND_URL).netloc
     return {
@@ -49,7 +60,7 @@ def slack_manifest(bot: ChannelBot) -> dict[str, Any]:
             "slash_commands": [
                 {
                     "command": "/agent",
-                    "url": url("commands"),
+                    **at("url", "commands"),
                     "description": "Ask the agent something",
                     "usage_hint": "what is our refund window?",
                     "should_escape": False,
@@ -84,13 +95,14 @@ def slack_manifest(bot: ChannelBot) -> dict[str, Any]:
                     "links:read",
                     "links:write",
                     "mpim:history",
+                    "reactions:write",
                     "users:read",
                 ]
             }
         },
         "settings": {
             "event_subscriptions": {
-                "request_url": url("events"),
+                **at("request_url", "events"),
                 "bot_events": [
                     "app_home_opened",
                     "app_mention",
@@ -102,9 +114,12 @@ def slack_manifest(bot: ChannelBot) -> dict[str, Any]:
                     "message.mpim",
                 ],
             },
-            "interactivity": {"is_enabled": True, "request_url": url("interactions")},
-            "org_deploy_enabled": False,
-            "socket_mode_enabled": False,
+            "interactivity": {
+                "is_enabled": True,
+                **at("request_url", "interactions"),
+            },
+            "org_deploy_enabled": True,
+            "socket_mode_enabled": socket,
             "token_rotation_enabled": False,
         },
     }

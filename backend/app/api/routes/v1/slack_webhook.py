@@ -15,12 +15,14 @@ from app.services.channels import get_adapter
 from app.services.channels.slack_app import (
     SURFACE_EVENTS,
     parse_command,
+    parse_feedback_comment,
     parse_press,
     parse_shortcut,
 )
 from app.worker.background.channel import (
     process_channel_event,
     process_channel_press,
+    process_feedback_comment,
     process_slack_surface,
 )
 
@@ -114,6 +116,11 @@ async def slack_interactions(bot_id: UUID, request: Request, bot_service: Channe
     if form is None:
         return Response(status_code=200)
     payload: dict[str, Any] = json.loads(form.get("payload") or "{}")
+    # The "what was wrong?" modal: an empty 200 is what closes it.
+    comment = parse_feedback_comment(payload, str(bot_id))
+    if comment is not None:
+        spawn(process_feedback_comment(comment), name=f"slack_feedback:{bot_id}")
+        return Response(status_code=200)
     press = parse_press(payload, str(bot_id))
     if press is not None:
         spawn(process_channel_press(press), name=f"slack_press:{bot_id}")

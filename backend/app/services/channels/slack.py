@@ -35,14 +35,17 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     IncomingPress,
+    NativeAnswer,
     OutgoingMessage,
     PromptMessage,
+    StepDisplay,
     split_thread,
     supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.slack_answer import SlackNativeAnswer, feedback_block
 
 if TYPE_CHECKING:
     from slack_sdk.web.async_client import AsyncWebClient
@@ -165,6 +168,74 @@ class SlackAdapter(ChannelAdapter):
         response = await self._web(bot_token).chat_postMessage(**kwargs)
         posted = response.get("ts")
         return str(posted) if posted else None
+
+    async def open_answer(
+        self, bot_token: str, incoming: IncomingMessage, *, steps: StepDisplay
+    ) -> NativeAnswer | None:
+        """Start a streamed reply under the question, for the person who asked (#2084).
+
+        Every Slack answer is in the question's thread, which is what a stream
+        has to reply into. `None` when Slack refuses to start one - an older
+        workspace, a missing scope - and the router edits a placeholder instead.
+        """
+        channel, thread_ts = split_thread(incoming.platform_chat_id)
+        if not thread_ts:
+            return None
+        client = self._web(bot_token)
+        await self._working(bot_token, channel, thread_ts)
+        try:
+            response = await client.chat_startStream(
+                channel=channel,
+                thread_ts=thread_ts,
+                recipient_user_id=incoming.platform_user_id or None,
+                recipient_team_id=incoming.platform_team_id,
+                task_display_mode=steps,
+            )
+        except Exception:
+            logger.warning("Slack would not start a streamed answer", exc_info=True)
+            return None
+        handle = response.get("ts")
+        if not handle:
+            return None
+        # A plan is headed by what it is for: the question, as the asker put it.
+        title = incoming.text.strip().splitlines()[0][:80] if steps == "plan" else None
+        return SlackNativeAnswer(client, channel=channel, handle=str(handle), plan_title=title)
+
+    async def offer_feedback(
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Thumbs under an answer that was edited into place rather than streamed."""
+        channel, _thread_ts = split_thread(msg.platform_chat_id)
+        await self._web(bot_token).chat_update(
+            channel=channel,
+            ts=handle,
+            text=msg.text,
+            blocks=[{"type": "markdown", "text": msg.text}, feedback_block(run_id)],
+        )
+
+    async def ask_feedback_comment(
+        self, bot_token: str, press: IncomingPress, run_id: str, *, bot_id: str
+    ) -> None:
+        """Open the "what was wrong?" modal for whoever pressed thumbs-down."""
+        # Deferred like the other `slack_app` imports here: it imports the router.
+        from app.services.channels.slack_app import feedback_comment_view
+
+        if press.trigger_id is None:
+            return
+        await self._web(bot_token).views_open(
+            trigger_id=press.trigger_id, view=feedback_comment_view(run_id)
+        )
+
+    async def acknowledge_message(
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to the question with the bot's chosen emoji (#2084)."""
+        if not incoming.message_id:
+            return
+        channel, _thread_ts = split_thread(incoming.platform_chat_id)
+        await self._web(bot_token).reactions_add(
+            channel=channel, timestamp=incoming.message_id, name=reaction
+        )
 
     async def _working(self, bot_token: str, channel: str, thread_ts: str) -> None:
         """Say "is thinking…" in Slack's assistant pane while the agent works (#2067).
@@ -677,6 +748,8 @@ class SlackAdapter(ChannelAdapter):
             message_id=message_ts,
             attachments=attachments,
             addressed=addressed,
+            # Beside the event under the Events API, on it over the socket.
+            platform_team_id=raw_payload.get("team_id") or event.get("team"),
         )
 
     def _without_own_mention(self, text: str, raw_payload: dict[str, Any]) -> str:
@@ -819,13 +892,26 @@ class SlackAdapter(ChannelAdapter):
 
     async def _handle_interaction(self, kind: str, payload: dict[str, Any], bot_id: str) -> None:
         """One Socket Mode interaction or slash command, routed like its webhook twin."""
-        from app.services.channels.slack_app import parse_command, parse_press, parse_shortcut
-        from app.worker.background.channel import process_channel_event, process_channel_press
+        from app.services.channels.slack_app import (
+            parse_command,
+            parse_feedback_comment,
+            parse_press,
+            parse_shortcut,
+        )
+        from app.worker.background.channel import (
+            process_channel_event,
+            process_channel_press,
+            process_feedback_comment,
+        )
 
         if kind == "slash_commands":
             command = parse_command({key: str(value) for key, value in payload.items()}, bot_id)
             if command is not None:
                 await process_channel_event(command)
+            return
+        comment = parse_feedback_comment(payload, bot_id)
+        if comment is not None:
+            await process_feedback_comment(comment)
             return
         press = parse_press(payload, bot_id)
         if press is not None:

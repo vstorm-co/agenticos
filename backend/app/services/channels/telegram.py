@@ -11,7 +11,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
-from aiogram.types import BotCommand, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    BotCommand,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReactionTypeEmoji,
+)
 from aiogram.types import Message as AiogramMessage
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
@@ -26,6 +32,7 @@ from app.services.channels.base import (
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    feedback_value,
     split_thread,
     supervise_stream,
 )
@@ -48,6 +55,21 @@ _MEDIA_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("video", "video.mp4", "video/mp4"),
     ("video_note", "video-note.mp4", "video/mp4"),
 )
+
+
+_REACTIONS = {
+    "eyes": "👀",
+    "+1": "👍",
+    "thumbsup": "👍",
+    "ok_hand": "👌",
+    "fire": "🔥",
+    "thinking_face": "🤔",
+    "writing_hand": "✍",
+    "zap": "⚡",
+    "hourglass": "⏳",
+}
+"""Telegram reacts with the emoji itself, and only from a fixed set; these are the
+names Slack and Mattermost use for ones that set holds. Another name is skipped."""
 
 
 def _where(platform_chat_id: str) -> dict[str, Any]:
@@ -521,6 +543,51 @@ class TelegramAdapter(ChannelAdapter):
                         for choice in prompt.choices
                     ]
                 ),
+            )
+
+    async def offer_feedback(
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Thumbs under a finished answer, as an inline keyboard on it (#2084)."""
+        async with self._bot(bot_token) as bot:
+            await bot.edit_message_reply_markup(
+                chat_id=_where(msg.platform_chat_id)["chat_id"],
+                message_id=int(handle),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="👍", callback_data=feedback_value(run_id, helpful=True)
+                            ),
+                            InlineKeyboardButton(
+                                text="👎", callback_data=feedback_value(run_id, helpful=False)
+                            ),
+                        ]
+                    ]
+                ),
+            )
+
+    async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
+        """Take the thumbs off the answer once one is pressed."""
+        if press.message_id is None:
+            return
+        async with self._bot(bot_token) as bot:
+            await bot.edit_message_reply_markup(
+                chat_id=press.platform_chat_id, message_id=int(press.message_id), reply_markup=None
+            )
+
+    async def acknowledge_message(
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to the question with the bot's emoji, where Telegram allows it (#2084)."""
+        emoji = _REACTIONS.get(reaction)
+        if emoji is None or not incoming.message_id:
+            return
+        async with self._bot(bot_token) as bot:
+            await bot.set_message_reaction(
+                chat_id=_where(incoming.platform_chat_id)["chat_id"],
+                message_id=int(incoming.message_id),
+                reaction=[ReactionTypeEmoji(emoji=emoji)],
             )
 
     async def acknowledge(self, bot_token: str, press: IncomingPress) -> None:

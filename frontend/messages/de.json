@@ -1627,7 +1627,8 @@
         },
         "subline": "von {count} bewerteten Antworten waren in diesem Zeitraum positiv",
         "title": "Antwortqualität",
-        "description": "Wie Antworten in der ganzen Organisation bewertet werden."
+        "description": "Wie Antworten in der ganzen Organisation bewertet werden.",
+        "bySurface": "{surface}: {percent} % positiv"
       },
       "outcomes": {
         "attention": "1 von {n} Runs brauchte in diesem Zeitraum Aufmerksamkeit",
@@ -3717,7 +3718,29 @@
       "webhookToken": "Kein Webhook-Token",
       "slackManifestWhy": "Legen Sie die Slack-App aus ihrem Manifest an: in Slack Create New App, From a manifest, und einfügen. Schaltflächen, /agent, der Assistenten-Bereich und App Home sind dabei.",
       "slackManifestCopy": "Slack-App-Manifest kopieren",
-      "slackManifestCopied": "Manifest kopiert. Fügen Sie es in Slack unter Create New App, From a manifest ein."
+      "slackManifestCopied": "Manifest kopiert. Fügen Sie es in Slack unter Create New App, From a manifest ein.",
+      "answerStyle": "Wie er antwortet",
+      "ackReaction": "Auf eine Frage reagieren mit",
+      "ackReactionHint": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes, sobald eine Frage eintrifft. Leer für keine Reaktion.",
+      "ackReactionHintTelegram": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes. Telegram erlaubt nur einige: eyes, +1, ok_hand, fire, thinking_face, writing_hand, zap, hourglass.",
+      "ackReactionInvalid": "Den Namen des Emojis kleingeschrieben und ohne Doppelpunkte angeben - eyes, nicht :eyes:.",
+      "rateAnswers": "Daumen unter Antworten",
+      "rateAnswersHint": "Antworten lassen sich mit Daumen hoch oder runter bewerten; ein Daumen runter fragt, was falsch war. Bewertungen erscheinen in Activity und auf dem Dashboard.",
+      "streamAnswers": "Antworten mit ihren Schritten streamen",
+      "streamAnswersHint": "Slack zeichnet die Antwort, während sie entsteht, mit einer Zeile für alles, was der Agent tut - eine Suche, ein Nachschlagen, eine Rechnung.",
+      "stepDisplay": "Schritte zeigen als",
+      "stepDisplayHint": "Eine Zeitleiste zeigt jeden Schritt, wenn er passiert; ein Plan fasst sie unter der Frage zusammen.",
+      "stepDisplayTimeline": "Zeitleiste",
+      "stepDisplayPlan": "Plan",
+      "slackTransport": "Wie Slack AgenticOS erreicht",
+      "slackCallsUs": "Slack ruft dieses Deployment auf",
+      "slackCallsUsHint": "Slack schickt jede Nachricht an die öffentliche Adresse dieses Deployments. Braucht das Signing Secret.",
+      "weConnectToSlack": "AgenticOS verbindet sich mit Slack",
+      "weConnectToSlackHint": "Dieses Deployment baut die Verbindung selbst auf (Socket Mode) und braucht keine öffentliche Adresse - für ein Deployment hinter einer Firewall. Braucht das App-Level-Token.",
+      "mattermostCommandWhy": "Für /agent in Mattermost einen Slash Command anlegen (Integrations - Slash Commands) mit dem Auslösewort agent und dieser Request URL, dann das Token, das Mattermost zeigt, hier einfügen.",
+      "mattermostCommandUrlCopy": "URL kopieren",
+      "mattermostCommandUrlCopied": "Request URL kopiert",
+      "mattermostCommandToken": "Token des Slash Commands"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

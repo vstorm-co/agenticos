@@ -6,10 +6,11 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
+from app.services.channels.webhooks import inbound_command_url
 from app.services.speech_to_text import is_offered
 
 
@@ -57,6 +58,14 @@ class UsageReporting(BaseSchema):
     )
 
 
+ACK_REACTION_PATTERN = r"^[a-z0-9_+\-]{1,64}$"
+"""An emoji's name as Slack and Mattermost spell it, without the colons."""
+
+
+StepDisplay = Literal["timeline", "plan"]
+"""How a streamed answer shows its tool calls: one row each, or one plan."""
+
+
 class ChannelBotCreate(BaseSchema):
     """Schema for creating a channel bot."""
 
@@ -100,6 +109,37 @@ class ChannelBotCreate(BaseSchema):
         min_length=8,
         max_length=500,
         description="This Slack app's xapp- token, for Socket Mode. Slack bots only.",
+    )
+    command_token: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=255,
+        description=(
+            "The token Mattermost shows for the `/agent` slash command, which every "
+            "request from it carries. Mattermost bots only; sealed, never returned."
+        ),
+    )
+    stream_answers: bool = Field(
+        default=True,
+        description=(
+            "Stream answers natively where the platform draws them (Slack), with a "
+            "step per tool call; otherwise a message is edited into place."
+        ),
+    )
+    step_display: StepDisplay = Field(
+        default="timeline",
+        description="Show a streamed answer's tool calls as a `timeline` or as one `plan`.",
+    )
+    rate_answers: bool = Field(
+        default=True, description="Put thumbs under a finished answer to rate it."
+    )
+    ack_reaction: str | None = Field(
+        default=None,
+        pattern=ACK_REACTION_PATTERN,
+        description=(
+            "The emoji the bot reacts to a question with as it arrives, by the "
+            "platform's name for it (`eyes`). Slack and Mattermost; null for none."
+        ),
     )
     speech_to_text_provider: str | None = Field(
         default=None,
@@ -188,6 +228,11 @@ class ChannelBotUpdate(BaseSchema):
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
+    command_token: str | None = Field(default=None, min_length=8, max_length=255)
+    ack_reaction: str | None = Field(default=None, pattern=ACK_REACTION_PATTERN)
+    stream_answers: bool | None = None
+    step_display: StepDisplay | None = None
+    rate_answers: bool | None = None
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
 
@@ -250,6 +295,18 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    has_command_token: bool = False
+    ack_reaction: str | None = None
+    stream_answers: bool = True
+    step_display: StepDisplay = "timeline"
+    rate_answers: bool = True
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def command_url(self) -> str | None:
+        """The request URL for a Mattermost bot's `/agent` slash command, to paste there."""
+        return inbound_command_url(str(self.id)) if self.platform == "mattermost" else None
+
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
     """Which model transcribes voice notes here, or null for none.

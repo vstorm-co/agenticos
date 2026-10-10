@@ -1639,7 +1639,8 @@
         },
         "subline": "of {count} rated answers were positive this period",
         "title": "Answer quality",
-        "description": "How answers are rated across the organization."
+        "description": "How answers are rated across the organization.",
+        "bySurface": "{surface}: {percent}% positive"
       },
       "outcomes": {
         "attention": "1 in {n} runs needed attention this period",
@@ -3854,7 +3855,29 @@
       "webhookToken": "No webhook token",
       "slackManifestWhy": "Create the Slack app from its manifest: in Slack, Create New App, From a manifest, and paste. Buttons, /agent, the assistant pane and App Home come with it.",
       "slackManifestCopy": "Copy Slack app manifest",
-      "slackManifestCopied": "Manifest copied. Paste it in Slack under Create New App, From a manifest."
+      "slackManifestCopied": "Manifest copied. Paste it in Slack under Create New App, From a manifest.",
+      "answerStyle": "How it answers",
+      "ackReaction": "React to a question with",
+      "ackReactionHint": "An emoji's name without colons, such as eyes, added to a question the moment it arrives. Empty for none.",
+      "ackReactionHintTelegram": "An emoji's name without colons, such as eyes. Telegram allows only some: eyes, +1, ok_hand, fire, thinking_face, writing_hand, zap, hourglass.",
+      "ackReactionInvalid": "Use the emoji's name in lower case, without colons - eyes, not :eyes:.",
+      "rateAnswers": "Thumbs under answers",
+      "rateAnswersHint": "People rate an answer with thumbs up or down; a thumbs down asks what was wrong. Ratings show in Activity and on the dashboard.",
+      "streamAnswers": "Stream answers with their steps",
+      "streamAnswersHint": "Slack draws the answer as it is written, with a row for each thing the agent does - a search, a lookup, a calculation.",
+      "stepDisplay": "Show the steps as",
+      "stepDisplayHint": "A timeline lists each step as it happens; a plan groups them under the question.",
+      "stepDisplayTimeline": "A timeline",
+      "stepDisplayPlan": "A plan",
+      "slackTransport": "How Slack reaches AgenticOS",
+      "slackCallsUs": "Slack calls this deployment",
+      "slackCallsUsHint": "Slack sends each message to this deployment's public address. Needs the signing secret.",
+      "weConnectToSlack": "AgenticOS connects to Slack",
+      "weConnectToSlackHint": "This deployment opens the connection itself (Socket Mode), so it needs no public address - for a deployment behind a firewall. Needs the app-level token.",
+      "mattermostCommandWhy": "To ask with /agent, create a slash command in Mattermost (Integrations - Slash Commands) with the trigger word agent and this request URL, then paste the token Mattermost shows below.",
+      "mattermostCommandUrlCopy": "Copy URL",
+      "mattermostCommandUrlCopied": "Request URL copied",
+      "mattermostCommandToken": "Slash command token"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

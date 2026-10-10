@@ -145,4 +145,12 @@ export interface RatingsSummary {
   with_comments: number;
   /** Sparse - days nobody rated are absent. */
   ratings_by_day: RatingsByDay[];
+  /** Thumbs per surface the answer was given on - web, slack and the rest (#2084). */
+  ratings_by_surface?: SurfaceRatings[];
+}
+
+export interface SurfaceRatings {
+  surface: string;
+  likes: number;
+  dislikes: number;
 }

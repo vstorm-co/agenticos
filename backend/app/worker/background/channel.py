@@ -10,6 +10,8 @@ from uuid import UUID
 
 from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
+from app.services.channels.base import FeedbackComment, read_feedback
+from app.services.channels.feedback import ChannelFeedback
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.slack_app import SlackSurfaces
@@ -39,9 +41,22 @@ async def process_channel_press(press: Any) -> None:
     """
     try:
         async with get_db_context() as db:
-            await ChannelPrompts(db).press(press)
+            # A thumbs button rates an answer; every other button answers a prompt.
+            if read_feedback(press.value) is not None:
+                await ChannelFeedback(db).rate(press)
+            else:
+                await ChannelPrompts(db).press(press)
     except Exception:
         logger.exception("channel_press_processing_failed")
+
+
+async def process_feedback_comment(comment: FeedbackComment) -> None:
+    """Keep what somebody said was wrong with an answer (#2084); failures are logged."""
+    try:
+        async with get_db_context() as db:
+            await ChannelFeedback(db).comment(comment)
+    except Exception:
+        logger.exception("channel_feedback_comment_failed")
 
 
 async def process_slack_surface(payload: dict[str, Any], bot_id: str) -> None:

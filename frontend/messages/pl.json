@@ -949,7 +949,8 @@
           "title": "Brak ocen",
           "description": "Kciuki przy odpowiedziach lądują tutaj."
         },
-        "description": "Jak oceniane są odpowiedzi w całej organizacji."
+        "description": "Jak oceniane są odpowiedzi w całej organizacji.",
+        "bySurface": "{surface}: {percent}% pozytywnych"
       },
       "my-agents": {
         "title": "Twoi agenci",

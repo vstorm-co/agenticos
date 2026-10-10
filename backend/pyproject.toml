@@ -725,11 +725,13 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
@@ -1124,11 +1126,13 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",

@@ -50,20 +50,25 @@ from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
+    FeedbackComment,
     IncomingAttachment,
     IncomingMessage,
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    feedback_value,
     split_thread,
     supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
-from app.services.channels.webhooks import inbound_actions_url, sign_press
+from app.services.channels.webhooks import inbound_actions_url, inbound_dialogs_url, sign_press
 
 logger = logging.getLogger(__name__)
+
+FEEDBACK_DIALOG = "aos_feedback_comment"
+"""The `callback_id` of the "what was wrong?" dialog (#2084)."""
 
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
@@ -304,6 +309,102 @@ class MattermostAdapter(ChannelAdapter):
             )
         response.raise_for_status()
 
+    async def offer_feedback(
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Thumbs under a finished answer, signed like any other button of ours (#2084)."""
+        base_url = (msg.api_base_url or "").rstrip("/")
+        actions = [
+            {
+                "id": f"aosfb{index}",
+                "name": label,
+                "integration": {
+                    "url": inbound_actions_url(bot_id),
+                    "context": {
+                        "value": value,
+                        "text": msg.text,
+                        "signature": sign_press(bot_id, value),
+                    },
+                },
+            }
+            for index, (label, value) in enumerate(
+                (
+                    (":+1: Helpful", feedback_value(run_id, helpful=True)),
+                    (":-1: Not helpful", feedback_value(run_id, helpful=False)),
+                )
+            )
+        ]
+        async with self._client() as client:
+            response = await client.put(
+                f"{base_url}/api/v4/posts/{handle}/patch",
+                headers=self._headers(bot_token),
+                json={"props": {"attachments": [{"text": "", "actions": actions}]}},
+            )
+        response.raise_for_status()
+
+    async def acknowledge_message(
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to the question with the bot's chosen emoji, as the bot (#2084)."""
+        base_url = self._base_urls.get(incoming.bot_id)
+        if not base_url or not incoming.message_id:
+            return
+        own = self._own_ids.get(incoming.bot_id) or await self._own_user_id(
+            incoming.bot_id, bot_token
+        )
+        if own is None:
+            return
+        async with self._client() as client:
+            response = await client.post(
+                f"{base_url}/api/v4/reactions",
+                headers=self._headers(bot_token),
+                json={"user_id": own, "post_id": incoming.message_id, "emoji_name": reaction},
+            )
+        response.raise_for_status()
+
+    async def ask_feedback_comment(
+        self, bot_token: str, press: IncomingPress, run_id: str, *, bot_id: str
+    ) -> None:
+        """Open the "what was wrong?" dialog for whoever pressed thumbs-down.
+
+        Mattermost signs nothing a dialog sends back, so its state carries our
+        signature over the run, as a button's context does.
+        """
+        base_url = self._base_urls.get(bot_id)
+        if base_url is None or press.trigger_id is None:
+            return
+        dialog = {
+            "callback_id": FEEDBACK_DIALOG,
+            "title": "What was wrong?",
+            "submit_label": "Send",
+            "elements": [
+                {
+                    "display_name": "Tell the agent's builders",
+                    "name": "comment",
+                    "type": "textarea",
+                    "max_length": 2000,
+                }
+            ],
+            "state": f"{run_id}:{sign_press(bot_id, run_id)}",
+        }
+        async with self._client() as client:
+            response = await client.post(
+                f"{base_url}/api/v4/actions/dialogs/open",
+                headers=self._headers(bot_token),
+                json={
+                    "trigger_id": press.trigger_id,
+                    "url": inbound_dialogs_url(bot_id),
+                    "dialog": dialog,
+                },
+            )
+        response.raise_for_status()
+
+    async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
+        """Take the thumbs off, saying which was pressed - Mattermost's buttons do not."""
+        await self.settle_prompt(
+            bot_token, press, ":+1: Rated helpful" if helpful else ":-1: Rated not helpful"
+        )
+
     async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
         """Take the buttons off the pressed post, leaving what was asked and chosen."""
         base_url = self._base_urls.get(press.bot_id)
@@ -317,6 +418,32 @@ class MattermostAdapter(ChannelAdapter):
                 json={"message": shown, "props": {"attachments": []}},
             )
         response.raise_for_status()
+
+    @staticmethod
+    def parse_command(form: dict[str, str], bot_id: str) -> IncomingMessage | None:
+        """`/agent <question>`, asked in the channel it was typed in (#2084).
+
+        A direct message's channel is named `<user>__<user>`, which is how a
+        private chat is told from a room - the same rule the event stream reads
+        off its channel type.
+        """
+        text = (form.get("text") or "").strip()
+        channel = form.get("channel_id", "")
+        if not text or not channel:
+            return None
+        return IncomingMessage(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=form.get("user_id", ""),
+            platform_chat_id=channel,
+            chat_type="private" if "__" in form.get("channel_name", "") else "group",
+            text=text,
+            raw=dict(form),
+            platform_username=form.get("user_name"),
+            message_id=form.get("trigger_id"),
+            addressed=True,
+            platform_team_id=form.get("team_id"),
+        )
 
     @staticmethod
     def parse_press(payload: dict[str, Any], bot_id: str) -> IncomingPress | None:
@@ -337,6 +464,26 @@ class MattermostAdapter(ChannelAdapter):
             platform_username=payload.get("user_name"),
             message_id=payload.get("post_id"),
             prompt_text=context.get("text") if isinstance(context.get("text"), str) else None,
+            trigger_id=payload.get("trigger_id"),
+        )
+
+    @staticmethod
+    def parse_feedback_comment(payload: dict[str, Any], bot_id: str) -> FeedbackComment | None:
+        """A submitted "what was wrong?" dialog, if its state carries our signature."""
+        if payload.get("cancelled") or payload.get("callback_id") != FEEDBACK_DIALOG:
+            return None
+        run_id, _, signature = str(payload.get("state") or "").partition(":")
+        if not run_id or not secrets.compare_digest(signature, sign_press(bot_id, run_id)):
+            return None
+        text = str((payload.get("submission") or {}).get("comment") or "").strip()
+        if not text:
+            return None
+        return FeedbackComment(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=str(payload.get("user_id", "")),
+            run_id=run_id,
+            text=text,
         )
 
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:

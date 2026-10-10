@@ -61,6 +61,8 @@ def _attachment(**overrides: Any) -> IncomingAttachment:
 
 def _adapter(*, downloads: Any = b"month,total") -> MagicMock:
     adapter = MagicMock(platform="slack")
+    # No native stream: these turns answer through an edited placeholder.
+    adapter.open_answer = AsyncMock(return_value=None)
     adapter.download_attachment = AsyncMock(
         side_effect=downloads if isinstance(downloads, Exception) else None,
         return_value=downloads if not isinstance(downloads, Exception) else None,
@@ -171,7 +173,9 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         ),
         patch(
             f"{router}.get_adapter",
-            return_value=MagicMock(begin_reply=AsyncMock(return_value=None)),
+            return_value=MagicMock(
+                begin_reply=AsyncMock(return_value=None), open_answer=AsyncMock(return_value=None)
+            ),
         ),
         patch(f"{router}.unseal_bot_token", return_value="xoxb-token"),
         patch(f"{router}.ChannelAttachmentService", _Attachments),

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { ClipboardCopy } from "lucide-react";
 import { toast } from "sonner";
 
+import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
+import { SlackTransport } from "@/components/channels/slack-transport";
 import {
   Button,
   Dialog,
@@ -23,7 +25,7 @@ import {
 import { useCopySlackManifest } from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import type { ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
+import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -44,8 +46,19 @@ export interface ChannelBotDraft {
   webhookSecret: string;
   signingSecret: string;
   appToken: string;
+  commandToken: string;
+  /** Slack: whether Slack calls this deployment, or the deployment connects out. */
+  webhookMode: boolean;
+  answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
 }
+
+const ANSWER_STYLE_FIELDS = [
+  "ack_reaction",
+  "stream_answers",
+  "step_display",
+  "rate_answers",
+] as const;
 
 /**
  * The fields that actually changed, as the PATCH body.
@@ -71,6 +84,8 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (serverUrl && serverUrl !== bot.api_base_url) patch.api_base_url = serverUrl;
     const webhookSecret = draft.webhookSecret.trim();
     if (webhookSecret) patch.webhook_secret = webhookSecret;
+    const commandToken = draft.commandToken.trim();
+    if (commandToken) patch.command_token = commandToken;
   }
 
   if (bot.platform === "slack") {
@@ -78,6 +93,13 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (signingSecret) patch.slack_signing_secret = signingSecret;
     const appToken = draft.appToken.trim();
     if (appToken) patch.slack_app_token = appToken;
+    if (draft.webhookMode !== bot.webhook_mode) patch.webhook_mode = draft.webhookMode;
+  }
+
+  for (const field of ANSWER_STYLE_FIELDS) {
+    if (draft.answerStyle[field] !== bot[field]) {
+      Object.assign(patch, { [field]: draft.answerStyle[field] });
+    }
   }
 
   // Both halves whenever either moved, because the server pairs them against the
@@ -121,6 +143,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
+    commandToken: "",
+    webhookMode: bot.webhook_mode,
+    answerStyle: {
+      ack_reaction: bot.ack_reaction,
+      stream_answers: bot.stream_answers,
+      step_display: bot.step_display,
+      rate_answers: bot.rate_answers,
+    },
     transcription: {
       provider: bot.speech_to_text_provider,
       model: bot.speech_to_text_model,
@@ -128,7 +158,17 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  function set<K extends keyof ChannelBotDraft>(field: K, value: string) {
+  function set(
+    field:
+      | "name"
+      | "token"
+      | "serverUrl"
+      | "webhookSecret"
+      | "signingSecret"
+      | "appToken"
+      | "commandToken",
+    value: string,
+  ) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
@@ -140,6 +180,9 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
   const patch = botPatch(bot, draft);
   const shortToken = draft.token.trim().length > 0 && draft.token.trim().length < MIN_TOKEN;
   const nothingToSave = Object.keys(patch).length === 0;
+  const badReaction =
+    draft.answerStyle.ack_reaction !== null &&
+    !REACTION_PATTERN.test(draft.answerStyle.ack_reaction);
 
   async function submit() {
     try {
@@ -236,10 +279,26 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
           </div>
         )}
 
-        {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
+        {bot.platform === "mattermost" && bot.command_url && (
+          <MattermostCommand
+            url={bot.command_url}
+            token={draft.commandToken}
+            stored={stored(bot.has_command_token)}
+            onToken={(value) => set("commandToken", value)}
+          />
+        )}
 
         {bot.platform === "slack" && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <SlackTransport
+            webhookMode={draft.webhookMode}
+            onChange={(webhookMode) => setDraft((current) => ({ ...current, webhookMode }))}
+          />
+        )}
+
+        {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
+
+        {bot.platform === "slack" &&
+          (draft.webhookMode ? (
             <FormField
               label={t("signingSecret")}
               htmlFor="edit-channel-signing-secret"
@@ -253,7 +312,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
                 autoComplete="off"
               />
             </FormField>
-
+          ) : (
             <FormField
               label={t("appLevelToken")}
               htmlFor="edit-channel-app-token"
@@ -267,8 +326,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
                 autoComplete="off"
               />
             </FormField>
-          </div>
-        )}
+          ))}
+
+        <AnswerStyleFields
+          idPrefix="edit-channel"
+          platform={bot.platform}
+          value={draft.answerStyle}
+          onChange={(answerStyle) => setDraft((current) => ({ ...current, answerStyle }))}
+        />
 
         <TranscriptionFields
           idPrefix="edit-channel"
@@ -281,7 +346,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <Button variant="outline" onClick={() => onOpenChange(false)}>
           {t("cancel")}
         </Button>
-        <Button onClick={submit} disabled={nothingToSave || shortToken || isPending}>
+        <Button onClick={submit} disabled={nothingToSave || shortToken || badReaction || isPending}>
           {t("save")}
         </Button>
       </DialogFooter>
@@ -360,6 +425,58 @@ function SlackManifest({ botId }: { botId: string }) {
         <ClipboardCopy className="h-4 w-4" />
         {t("slackManifestCopy")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Mattermost's `/agent` (#2084): the request URL to paste into the slash command
+ * Mattermost creates, and the token it hands back, which every request carries.
+ */
+function MattermostCommand({
+  url,
+  token,
+  stored,
+  onToken,
+}: {
+  url: string;
+  token: string;
+  stored: string;
+  onToken: (value: string) => void;
+}) {
+  const t = useTranslations("pages.channels");
+  return (
+    <div className="space-y-3 rounded-lg border p-3">
+      <p className="text-muted-foreground text-sm">{t("mattermostCommandWhy")}</p>
+      <div className="flex items-center gap-2">
+        <code className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1 text-xs">{url}</code>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            toast.success(t("mattermostCommandUrlCopied"));
+          }}
+        >
+          <ClipboardCopy className="h-4 w-4" />
+          {t("mattermostCommandUrlCopy")}
+        </Button>
+      </div>
+      <FormField
+        label={t("mattermostCommandToken")}
+        htmlFor="edit-channel-command-token"
+        description={stored}
+      >
+        <Input
+          id="edit-channel-command-token"
+          type="password"
+          value={token}
+          onChange={(event) => onToken(event.target.value)}
+          autoComplete="off"
+          maxLength={255}
+        />
+      </FormField>
     </div>
   );
 }

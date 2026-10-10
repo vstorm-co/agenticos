@@ -221,6 +221,21 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /agents/{id}/knowledge-reach`, and `icon` on groups; migration
   `0112_group_icon` (#2072).
 
+- **Slack answers it draws itself, reactions and ratings in every chat.** A Slack
+  answer streams natively under the question, with each tool call a step that goes
+  from in progress to done or failed - as a timeline or as one plan - and a step
+  that read web pages linking them; a Markdown table is drawn as a Slack table. A
+  bot can react to a question as it arrives, and a finished answer carries thumbs
+  in Slack, Mattermost and Telegram that record the presser's rating; a
+  thumbs-down asks what was wrong in a Slack modal or a Mattermost dialog. Each is
+  switched in the bot's settings. The Slack bot form asks which way the connection
+  runs - Slack calling this deployment, or the deployment connecting out over
+  Socket Mode with no public address - and the manifest follows it and is
+  org-ready for Enterprise Grid. App Home lists the person's recent conversations.
+  Mattermost gets `/agent`, verified with the slash command's token. The
+  dashboard's answer quality card splits ratings by surface, and "my" ratings now
+  include those given in a chat. Migration `0115_channel_bot_touches` (#2084).
+
 - **A department's MCP servers, and people beside groups.** A shared MCP server
   can be limited to groups or people like any other resource: they and whoever
   connected it see and bind it, owners and admins see every one, and a builder

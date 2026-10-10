@@ -214,6 +214,9 @@ class AnsweredTurn:
     """The run, when it stopped for somebody in this chat - a decision or a question -
     so the chat is offered the choices as buttons (#2064, #2067)."""
 
+    run_id: UUID | None = None
+    """The run that answered, so the thumbs under the answer can rate it (#2084)."""
+
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
 
@@ -398,6 +401,7 @@ class ChannelAgentRouter:
             ),
             parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def answer_default(
@@ -501,6 +505,7 @@ class ChannelAgentRouter:
             ),
             parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def _with_usage(

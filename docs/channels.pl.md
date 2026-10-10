@@ -1,5 +1,5 @@
 ---
-source_sha: "6e891ee0d892"
+source_sha: "4652a40eba33"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -851,9 +851,42 @@ aplikację:
   [Akceptacje i pytania jako przyciski](#approvals-and-questions-as-buttons).
 - **Unfurle.** Link z konsoli do agenta organizacji pokazuje jego nazwę.
 
-Odpowiedzi nadal strumieniują się przez edycję odpowiedzi na miejscu. Bot obsługuje
-dokładnie jednego agenta, więc w wiadomości prywatnej nie ma wyboru agenta; drugi
-agent to drugi bot.
+Bot obsługuje dokładnie jednego agenta, więc w wiadomości prywatnej nie ma wyboru
+agenta; drugi agent to drugi bot.
+
+Manifest jest **org-ready**, więc administrator Enterprise Grid może zainstalować
+aplikację raz dla wszystkich workspace'ów w organizacji; zwykły workspace instaluje
+ją tak jak wcześniej. Każda odpowiedź wskazuje workspace osoby pytającej, czego Slack
+potrzebuje, żeby ją strumieniować w Gridzie.
+
+### W którą stronę idzie połączenie { #which-way-the-connection-runs }
+
+Ustawienia bota pytają, **jak Slack dociera do AgenticOS**:
+
+- **Slack woła ten deployment.** Slack wysyła każdą wiadomość na publiczny adres
+  tego deploymentu, weryfikowaną signing secretem. Manifest podaje adresy URL.
+- **AgenticOS łączy się ze Slackiem.** Deployment sam otwiera połączenie (Socket
+  Mode) tokenem `xapp-` na poziomie aplikacji, więc nie potrzebuje publicznego
+  adresu - to wybór dla deploymentu za firewallem albo on-premise. Manifest włącza
+  Socket Mode i nie podaje żadnego URL, bo nic by pod nim nie odpowiedziało.
+
+Formularz pyta tylko o dane, których używa wybrany kierunek.
+
+### Odpowiedzi, które Slack rysuje sam { #answers-slack-draws-itself }
+
+Aplikacje AI w Slacku rysują odpowiedź w trakcie pisania, zamiast edytować ją na
+miejscu. Odpowiedź strumieniuje się pod pytaniem, a każda rzecz, którą agent robi
+po drodze - wyszukiwanie w sieci, sprawdzenie w wiedzy, obliczenie - jest wierszem,
+który przechodzi z „w toku” do „gotowe” albo „nieudane”. Krok, który czytał strony,
+linkuje je. Ustawienia bota pokazują kroki jako **oś czasu** albo jako jeden **plan**
+z pytaniem w nagłówku, albo wyłączają strumieniowanie, wracając do odpowiedzi
+edytowanej raz na sekundę. Strumieniowanie wraca do tego trybu także samo, gdy
+Slack odmówi jego rozpoczęcia.
+
+Tabela Markdown w odpowiedzi jest rysowana jako tabela Slacka, a wykres przychodzi
+jako obrazek, jak zawsze. Jeśli gotowa odpowiedź nie jest tym, co zostało
+wystrumieniowane - guardrail wyjściowy coś zredagował - wiadomość jest przepisywana
+w całości.
 
 ### Scope'y i eventy { #scopes-and-events }
 
@@ -1098,6 +1131,14 @@ pod `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, więc serwe
 Mattermost musi sięgać do API; w sieci prywatnej dodaj host API w *System Console →
 Developer → Allow untrusted internal connections to*.
 
+### `/agent` w Mattermost { #agent-in-mattermost }
+
+Komenda slash pyta agenta tam, gdzie ją wpisano, tak jak `/agent` w Slacku. W
+Mattermost: *Integrations → Slash Commands → Add Slash Command*: słowo wyzwalające
+`agent`, metoda `POST` i adres żądania, który pokazują ustawienia bota. Mattermost
+pokaże wtedy token; wklej go w pole **Slash command token** bota. Każde żądanie go
+niesie, a bot bez niego odrzuca wszystkie.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
@@ -1142,6 +1183,27 @@ na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, ja
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
 naciśnięcie bez niego jest odrzucane.
+
+## Reakcje i oceny { #reactions-and-ratings }
+
+Dwa elementy wspólne dla każdej platformy czatu tutaj, oba przełączane w
+ustawieniach bota:
+
+- **Reakcja na pytanie.** Bot reaguje w chwili, gdy przychodzi pytanie, na które
+  odpowie, emoji wskazanym w ustawieniach - na przykład `eyes` - żeby pytający
+  widział, że został usłyszany. Slack i Mattermost przyjmują nazwę dowolnego emoji;
+  Telegram pozwala na stały zestaw, a nazwy, które przyjmuje, to `eyes`, `+1`,
+  `ok_hand`, `fire`, `thinking_face`, `writing_hand`, `zap` i `hourglass`.
+- **Kciuki pod odpowiedzią.** Gotowa odpowiedź ma kciuk w górę i w dół.
+  Naciśnięcie to ocena odpowiedzi tego runu przez naciskającego, ta sama, którą
+  zapisuje konsola, a ponowne naciśnięcie ją zmienia. Kciuk w dół pyta potem **co
+  było nie tak?** w modalu Slacka albo dialogu Mattermost; odpowiedź zostaje jako
+  komentarz do oceny. Telegram przyjmuje kciuki bez pytania.
+
+Ocena wymaga powiązanego członka, tak jak naciśnięcie przy akceptacji; kciuki osoby
+niepowiązanej nie są liczone. Karta *Answer quality* na dashboardzie dzieli udział
+dobrych odpowiedzi według powierzchni, gdy ocen jest więcej niż na jednej, więc
+agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 
