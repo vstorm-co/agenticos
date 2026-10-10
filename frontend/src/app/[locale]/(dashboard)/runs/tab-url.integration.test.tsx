@@ -34,6 +34,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   usePathname: () => "/runs",
 }));
