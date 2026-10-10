@@ -1,5 +1,5 @@
 ---
-source_sha: "e48316b831b8"
+source_sha: "819895897d3c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -790,6 +790,15 @@ No hay un backend `docker` ni `daytona` que elegir. *Dónde* se ejecuta una sand
 es una propiedad de la conexión que registró un operador — Sandboxes en la
 aplicación —, así que nombrar la conexión es nombrar el tipo. Elegirlos por
 separado hacía posible elegir dos cosas que se contradicen.
+
+Un despliegue que ejecuta su propio servicio de sandbox - `sandboxd` arrancado
+desde el archivo compose de este proyecto, con el token que generó
+`make sandbox-token` - no necesita registrar nada. La primera vez que una
+organización sin conexión predeterminada lista sus sandboxes o ejecuta un agente
+que necesita una, la plataforma registra *This deployment's sandbox* como
+predeterminada, en nombre del propietario de la organización, con el token en su
+bóveda y una entrada de auditoría como cualquier otra conexión. Del mismo modo,
+el AI Architect recibe archivos y código cuando se instala en un despliegue así.
 
 **`backend` es infraestructura; `session_scope` es una política de compartición de
 datos.** Equivocarse en lo primero cuesta una funcionalidad. Equivocarse en lo

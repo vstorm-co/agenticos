@@ -36,6 +36,7 @@ from app.repositories import (
 from app.schemas.assistant import AssistantRead, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
 
@@ -125,11 +126,17 @@ class AssistantService:
         # Its skills - this platform's good practice for building agents (#2069) -
         # installed from the gallery the way a template install installs them.
         skills = await self.registry.template_skills(installer, template)
+        capabilities = list(template.capabilities)
+        # Files and code - reading a pasted agent, running it - where the
+        # deployment has a sandbox to give it. Not in the template: bound there, an
+        # organization with none could never publish its assistant (#2069, #2070).
+        if await SandboxConnectionService(self.db).ensure_local_connection(organization_id):
+            capabilities.append({"id": "sandbox", "config": {"include_execute": True}})
         spec = AgentSpec(
             name=name,
             description=template.description,
             instructions=template.instructions,
-            capabilities=list(template.capabilities),
+            capabilities=capabilities,
             mcp_servers=list(template.mcp_servers),
             skill_ids=[skill.id for skill in skills],
             budget=(

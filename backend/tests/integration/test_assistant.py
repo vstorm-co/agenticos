@@ -22,6 +22,19 @@ from app.services.assistant import AssistantService
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No sandbox on this deployment, unless a test says otherwise - so a test never
+    depends on a `sandboxd` that happens to answer on the machine running it."""
+    from unittest.mock import AsyncMock
+
+    from app.services.sandbox_connection import SandboxConnectionService
+
+    monkeypatch.setattr(
+        SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=None)
+    )
+
+
 async def _person(db: AsyncSession) -> User:
     user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", is_active=True)
     db.add(user)
@@ -218,3 +231,26 @@ def test_the_row_names_its_organization_and_agent() -> None:
     )
 
     assert str(organization_id) in shown and str(agent_id) in shown
+
+
+async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading a pasted agent and running it needs one (#2069, #2070)."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.sandbox_connection import SandboxConnectionService
+
+    monkeypatch.setattr(
+        SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=MagicMock())
+    )
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+
+    state = await AssistantService(db).state(ctx)
+
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    sandbox = [
+        b for b in AgentSpec.model_validate(agent.draft_spec).capabilities if b.id == "sandbox"
+    ]
+    assert sandbox and sandbox[0].config == {"include_execute": True}

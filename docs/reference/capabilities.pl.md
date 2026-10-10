@@ -1,5 +1,5 @@
 ---
-source_sha: "e48316b831b8"
+source_sha: "819895897d3c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -776,6 +776,15 @@ Nie ma backendu `docker` ani `daytona` do wyboru. *Gdzie* działa sandbox, jest
 własnością połączenia, które zarejestrował operator — Sandboxes w aplikacji — więc
 wskazanie połączenia jest wskazaniem rodzaju. Wybieranie ich osobno pozwalało
 wybrać dwie rzeczy, które się ze sobą nie zgadzają.
+
+Wdrożenie, które ma własną usługę sandboksa - `sandboxd` uruchomiony z pliku
+compose tego projektu, z tokenem wygenerowanym przez `make sandbox-token` - nie
+wymaga żadnej rejestracji. Gdy organizacja bez domyślnego połączenia pierwszy raz
+otwiera listę sandboksów albo uruchamia agenta, który go potrzebuje, platforma sama
+rejestruje *This deployment's sandbox* jako domyślne połączenie, w imieniu
+właściciela organizacji, z tokenem w jego sejfie i wpisem w dzienniku audytu jak
+każde inne połączenie. Tak samo AI Architect dostaje pliki i kod, gdy jest
+instalowany na takim wdrożeniu.
 
 **`backend` to infrastruktura; `session_scope` to polityka współdzielenia danych.**
 Pomyłka w pierwszym kosztuje funkcję. Pomyłka w drugim pokazuje jednej osobie pliki

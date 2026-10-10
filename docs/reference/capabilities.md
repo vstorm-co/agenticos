@@ -744,6 +744,15 @@ property of the connection an operator registered — Sandboxes in the app — s
 naming the connection is naming the kind. Choosing them separately made it
 possible to choose two things that disagree.
 
+A deployment that runs its own sandbox service - `sandboxd` started by this
+project's compose file, with the token `make sandbox-token` generated - needs no
+registering at all. The first time an organization with no default connection
+lists its sandboxes or runs an agent that needs one, the platform registers *This
+deployment's sandbox* as the default, as the organization's owner, with the token
+in the owner's vault and an audit entry like any other connection. The AI
+Architect is given files and code the same way when it is installed on such a
+deployment.
+
 **`backend` is infrastructure; `session_scope` is a data-sharing policy.** Getting
 the first wrong costs a feature. Getting the second wrong shows one person
 another person's files, so it is worth reading twice:

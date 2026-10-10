@@ -125,6 +125,12 @@ Two things are versioned separately from this file and worth knowing about:
   written with Pydantic AI, which it turns into a draft and a list of what did
   not translate. The platform MCP server gains `list_capabilities`, and
   `create_agent_draft` takes the capabilities to switch on (#2069).
+- **A deployment's own sandbox needs no registering.** Where `sandboxd` runs
+  beside the API with the token `make sandbox-token` generated, an organization
+  with no default sandbox connection gets *This deployment's sandbox* set up on
+  its own - as its owner, with the token in the vault and an audit entry - the
+  first time it lists its sandboxes or runs an agent that needs one. The AI
+  Architect is installed with files and code on such a deployment (#2070).
 - **Approvals and questions are buttons in Slack, Telegram and Mattermost.** A
   channel run that stops for a decision, or for an `ask_user` question - which
   now parks a channel run instead of being read as declined - is offered in the

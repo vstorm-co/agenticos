@@ -24,15 +24,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, AppException, BadRequestError, NotFoundError
 from app.core.field_errors import field_details, refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     agent_workspace_repo,
+    member_repo,
     organization_secret_repo,
     sandbox_connection_repo,
     sandbox_operation_repo,
@@ -83,6 +84,9 @@ environment the service was started with, so a second copy under a second name i
 two answers to "which key opens this host" and only one of them stays right.
 """
 
+LOCAL_CONNECTION_NAME = "This deployment's sandbox"
+"""What the connection set up on its own is called (#2070)."""
+
 
 @dataclass(frozen=True)
 class ResolvedConnection:
@@ -130,6 +134,9 @@ class SandboxConnectionService:
         self.secrets = OrganizationSecretService(db)
 
     async def list_connections(self, ctx: AuthContext) -> list[SandboxConnectionRead]:
+        # The page that lists them is where somebody looks for one, so it is also
+        # where the deployment's own sandbox is set up when it can be (#2070).
+        await self.ensure_local_connection(ctx.organization_id)
         rows = await sandbox_connection_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id
         )
@@ -278,6 +285,51 @@ class SandboxConnectionService:
             )
             for runtime in CATALOG
         ]
+
+    async def ensure_local_connection(self, organization_id: UUID) -> SandboxConnection | None:
+        """The organization's default sandbox, set up on its own when this deployment runs one.
+
+        A deployment whose compose stack started `sandboxd` beside the API, with
+        the token `make sandbox-token` generated, has everything a connection
+        needs - so nobody is asked to register it, find the token and paste it
+        before an agent can keep files (#2070). Done as the organization's owner,
+        whose vault the token goes into, and recorded like any connection.
+
+        `None` - and nothing set up - when the organization has no default and
+        this deployment has no sandbox service to offer, or setting one up fails:
+        an agent that needs one is then refused with the sentence that says how
+        to register one, as before.
+        """
+        existing = await sandbox_connection_repo.get_default(
+            self.db, organization_id=organization_id
+        )
+        if existing is not None or not settings.SANDBOXD_TOKEN:
+            return existing
+        url = await self._first_answering()
+        owner_id = await member_repo.first_owner_id(self.db, organization_id=organization_id)
+        if url is None or owner_id is None:
+            return None
+        owner = AuthContext(
+            user_id=owner_id, organization_id=organization_id, role=OrgRoleName.OWNER
+        )
+        try:
+            credential = await self.store_local_credential(owner)
+            await self.create(
+                owner,
+                SandboxConnectionCreate(
+                    name=LOCAL_CONNECTION_NAME,
+                    kind="docker",
+                    base_url=url,
+                    secret_id=credential.secret_id,
+                    is_default=True,
+                ),
+            )
+        except AppException:
+            # A second request setting it up at the same moment took the name; the
+            # row it made is the one to use. Anything else is logged and answered
+            # as "none", which refuses the agent with its usual sentence.
+            logger.warning("Could not set up this deployment's sandbox", exc_info=True)
+        return await sandbox_connection_repo.get_default(self.db, organization_id=organization_id)
 
     async def local_service(self, ctx: AuthContext) -> SandboxLocalServiceRead:
         """Whether a sandbox service is already running where this stack puts one.
@@ -514,7 +566,7 @@ class SandboxConnectionService:
             return await self._named(ctx, connection_id)
         row = await sandbox_connection_repo.get_default(
             self.db, organization_id=ctx.organization_id
-        )
+        ) or await self.ensure_local_connection(ctx.organization_id)
         if row is None:
             raise BadRequestError(
                 message=(

@@ -1,5 +1,5 @@
 ---
-source_sha: "e48316b831b8"
+source_sha: "819895897d3c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -824,6 +824,16 @@ ist eine Eigenschaft der Verbindung, die ein Betreiber registriert hat — Sandb
 in der App —, also heißt die Verbindung zu benennen, die Art zu benennen. Beides
 getrennt zu wählen, machte es möglich, zwei Dinge zu wählen, die einander
 widersprechen.
+
+Ein Deployment, das seinen eigenen Sandbox-Dienst betreibt - `sandboxd`, gestartet
+aus der Compose-Datei dieses Projekts, mit dem Token, das `make sandbox-token`
+erzeugt hat -, muss nichts registrieren. Wenn eine Organisation ohne
+Standardverbindung zum ersten Mal ihre Sandboxes auflistet oder einen Agenten
+ausführt, der eine braucht, registriert die Plattform *This deployment's sandbox*
+als Standard, im Namen des Eigentümers der Organisation, mit dem Token in dessen
+Tresor und einem Audit-Eintrag wie bei jeder anderen Verbindung. Auf dieselbe
+Weise bekommt der AI Architect Dateien und Code, wenn er auf einem solchen
+Deployment installiert wird.
 
 **`backend` ist Infrastruktur; `session_scope` ist eine Richtlinie zur
 Datenteilung.** Das Erste falsch zu setzen, kostet eine Funktion. Das Zweite falsch
