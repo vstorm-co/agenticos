@@ -20,6 +20,7 @@ import type {
   WorkflowRead,
   WorkflowSettings,
   WorkflowStats,
+  WorkflowsSummary,
   WorkflowUpdate,
   WorkflowVersionDetail,
   WorkflowVersionList,
@@ -33,6 +34,11 @@ export async function getWorkflowStats(workflowId: string, days: number): Promis
   return apiClient.get<WorkflowStats>(`${ROOT}/${workflowId}/stats`, {
     params: { days: String(days) },
   });
+}
+
+/** The real runs of every workflow the caller may see, on the inclusive days given. */
+export async function getWorkflowsSummary(from: string, to: string): Promise<WorkflowsSummary> {
+  return apiClient.get<WorkflowsSummary>(`${ROOT}/summary`, { params: { from, to } });
 }
 
 /** Every registered node type, for the editor's palette. */

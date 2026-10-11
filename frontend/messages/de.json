@@ -1781,7 +1781,8 @@
           "schedule": "Zeitplan",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web-Chat"
+          "web": "Web-Chat",
+          "workflow": "Workflow"
         },
         "title": "Woher die Runs kommen",
         "description": "Woher Runs kommen — Web-Chat, API, Kanäle.",
@@ -1926,6 +1927,21 @@
           "title": "Noch keine Tabellen",
           "description": "Erstellen Sie eine, und sie erscheint hier."
         }
+      },
+      "workflows": {
+        "title": "Workflows",
+        "description": "Was die echten Runs Ihrer Workflows im Zeitraum ergeben haben, die aktivsten zuerst, und wie viele Runs gerade auf eine Person warten.",
+        "empty": {
+          "title": "Keine Workflow-Runs in diesem Zeitraum",
+          "description": "Veröffentlichen und starten Sie einen Workflow, dann erscheinen seine Runs hier."
+        },
+        "needsYou": "{count, plural, one {# Run wartet auf Sie} other {# Runs warten auf Sie}}",
+        "runs": "Runs",
+        "succeeded": "{count, number} erfolgreich",
+        "failed": "Fehlgeschlagen",
+        "cost": "Kosten",
+        "row": "{runs, plural, one {# Run} other {# Runs}}",
+        "rowFailed": "{runs, plural, one {# Run} other {# Runs}}, {failed, number} fehlgeschlagen"
       }
     },
     "edit": {
@@ -3298,6 +3314,14 @@
       "workflows-runs": {
         "title": "Die Läufe aller Workflows",
         "body": "Was gelaufen ist, über alle Workflows, die Sie sehen, der neueste zuerst. Grenzen Sie auf fehlgeschlagene Läufe, auf Testläufe von Entwürfen oder auf das ein, was ein Auslöser gestartet hat. Öffnen Sie einen Lauf, um die Daten jedes Schritts zu sehen, ihn ab dem fehlgeschlagenen Schritt zu wiederholen oder seine Daten in den Editor zu holen."
+      },
+      "workflow-stats": {
+        "title": "Wie es läuft",
+        "body": "Die echten Runs dieses Workflows der letzten Woche, des letzten Monats oder Quartals: wie viele gut endeten, wie lange sie dauerten, was sie gemessen am Monatsbudget kosteten und aus welchen Schritten Kosten und Fehler kamen."
+      },
+      "workflow-run-history": {
+        "title": "Seine Runs",
+        "body": "Jeder Run dieses Workflows, die neuesten zuerst. Grenzen Sie auf fehlgeschlagene oder Test-Runs ein und öffnen Sie einen, um die Daten jedes Schritts zu sehen oder ihn ab dem fehlgeschlagenen Schritt erneut zu starten."
       }
     }
   },

@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,7 +29,7 @@ from app.db.models.workflow import WorkflowStatus
 from app.main import app
 from app.schemas.workflow import WorkflowDetail
 from app.schemas.workflow_eval import EvalCaseList, EvalCaseRead, EvalRunRead
-from app.schemas.workflow_stats import WorkflowStats
+from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
 from app.services.workflow_registry import WorkflowRegistryService
 from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -653,6 +653,31 @@ async def test_the_figures_route_reads_the_window_asked_and_refuses_one_out_of_r
     assert answered.status_code == 200 and answered.json()["days"] == 7
     assert figures.await_args.kwargs == {"days": 7}
     assert refused.status_code == 422
+
+
+async def test_the_summary_route_reads_the_days_asked_and_refuses_a_window_backwards_or_too_long(
+    owner_client: OpenClient,
+):
+    summary = AsyncMock(
+        return_value=WorkflowsSummary(
+            runs=3, succeeded=2, failed=1, cost_usd=0.5, needs_you=0, workflows=[]
+        )
+    )
+    with patch("app.services.workflow_stats.WorkflowStatsService.summary", new=summary):
+        async with owner_client() as http:
+            answered = await http.get(
+                _url("/summary"), params={"from": "2026-10-01", "to": "2026-10-07"}
+            )
+            backwards = await http.get(
+                _url("/summary"), params={"from": "2026-10-07", "to": "2026-10-01"}
+            )
+            too_long = await http.get(
+                _url("/summary"), params={"from": "2024-01-01", "to": "2026-10-01"}
+            )
+
+    assert answered.status_code == 200 and answered.json()["runs"] == 3
+    assert summary.await_args.kwargs == {"first": date(2026, 10, 1), "last": date(2026, 10, 7)}
+    assert (backwards.status_code, too_long.status_code) == (400, 400)
 
 
 async def test_the_eval_routes_reach_the_service_with_the_step_and_the_case(

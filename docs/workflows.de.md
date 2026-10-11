@@ -1,5 +1,5 @@
 ---
-source_sha: "15d4c56edd5d"
+source_sha: "f3d9346aa399"
 ---
 
 # Workflows { #workflows }
@@ -548,6 +548,13 @@ und was sie je Tag kosteten. Die Kostenkarte nennt auch die Ausgaben dieses Mona
 Testläufe eingeschlossen, im Vergleich zum Monatsbudget des Workflows - rot, sobald es
 aufgebraucht ist. **By step** zeigt, woher Zeit, Kosten und Fehler kamen, die teuersten
 zuerst. Über die API ist es `GET /api/v1/workflows/{id}/stats?days=30`.
+
+Die Karte **Workflows** im Dashboard rechnet dasselbe über jeden Workflow zusammen,
+den Sie sehen, im Zeitraum, auf den das Dashboard eingestellt ist: Runs, Fehler,
+Kosten und die fünf aktivsten. Darüber zählt sie die Runs, die gerade auf eine Person
+warten - eine Freigabe oder einen Schritt, der Aufmerksamkeit braucht -, egal wann sie
+begonnen haben. Über die API ist es
+`GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
 Ein Run öffnet mit seiner Dauer, seinen Kosten und der Zahl erledigter Schritte,
 dann mit dem Fehler, mit dem er endete, falls es einen gab. Daneben steht der Graph,

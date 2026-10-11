@@ -1,5 +1,5 @@
 ---
-source_sha: "15d4c56edd5d"
+source_sha: "f3d9346aa399"
 ---
 
 # Workflows { #workflows }
@@ -512,6 +512,12 @@ por día. La tarjeta de coste da también el gasto de este mes, ejecuciones de p
 incluidas, frente al presupuesto mensual del workflow - en rojo cuando se agota. **By
 step** muestra de dónde vinieron el tiempo, el coste y los fallos, primero lo más caro.
 Por la API es `GET /api/v1/workflows/{id}/stats?days=30`.
+
+La tarjeta **Workflows** del dashboard suma lo mismo para cada workflow que puedes
+ver, en el periodo al que está ajustado el dashboard: runs, fallos, coste y los cinco
+más activos. Encima cuenta los runs que esperan ahora a una persona - una aprobación o
+un paso que necesita atención -, empezaran cuando empezaran. Por la API es
+`GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
 Un run se abre con su duración, su coste y cuántos pasos dio, y luego con el error
 con el que terminó, si lo hubo. Junto a ellos está el grafo que ejecutó, con cada

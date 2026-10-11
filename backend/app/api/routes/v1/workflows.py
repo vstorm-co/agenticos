@@ -8,6 +8,7 @@ unprobeable - the same split `.claude/rules/permissions-rbac.md` documents
 for agents.
 """
 
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +21,7 @@ from app.api.deps import (
     WorkflowStatsSvc,
     require,
 )
+from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
 from app.schemas.workflow import (
     NodeCatalog,
@@ -38,7 +40,7 @@ from app.schemas.workflow import (
     WorkflowVersionRestore,
 )
 from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
-from app.schemas.workflow_stats import WorkflowStats
+from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
 
 router = APIRouter()
 
@@ -86,6 +88,25 @@ async def import_workflow(data: WorkflowExport, service: WorkflowPortableSvc, ct
     carry - an agent, a table, a secret, a member - is listed in `unresolved`, to
     be chosen before the draft publishes."""
     return await service.import_(ctx, data)
+
+
+@router.get(
+    "/summary",
+    response_model=WorkflowsSummary,
+    dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))],
+)
+async def summarize_workflows(
+    service: WorkflowStatsSvc,
+    ctx: Auth,
+    first: date = Query(alias="from", description="The first UTC day, inclusive"),
+    last: date = Query(alias="to", description="The last UTC day, inclusive"),
+) -> Any:
+    """The real runs of every workflow the caller may see over the days asked - how
+    many, how many failed, what they cost - the five busiest, and how many runs wait
+    for a person now. For the dashboard's card."""
+    if last < first or (last - first).days > 366:
+        raise BadRequestError(message="Ask for at most a year, from a day before the last")
+    return await service.summary(ctx, first=first, last=last)
 
 
 @router.get("/{workflow_id}/export", response_model=WorkflowExport)

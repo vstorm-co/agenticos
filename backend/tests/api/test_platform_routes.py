@@ -329,6 +329,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/tables", Perm.TABLES_VIEW),
     Call("POST", "/tables", Perm.TABLES_CREATE, body={"name": "orders"}),
     Call("GET", "/workflows/node-catalog", Perm.WORKFLOWS_VIEW),
+    Call("GET", "/workflows/summary", Perm.WORKFLOWS_VIEW, query="?from=2020-01-01&to=2020-01-07"),
     Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
     Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),

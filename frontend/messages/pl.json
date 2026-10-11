@@ -1353,7 +1353,8 @@
           "slack": "Slack",
           "telegram": "Telegram",
           "mattermost": "Mattermost",
-          "schedule": "Harmonogram"
+          "schedule": "Harmonogram",
+          "workflow": "Workflow"
         },
         "empty": {
           "title": "Brak uruchomień w tym okresie",
@@ -1759,6 +1760,21 @@
           "title": "Brak tabel",
           "description": "Utwórz tabelę, a pojawi się tutaj."
         }
+      },
+      "workflows": {
+        "title": "Workflow",
+        "description": "Co zrobiły prawdziwe runy Twoich workflow w tym okresie, od najczęściej uruchamianych, i ile runów czeka teraz na człowieka.",
+        "empty": {
+          "title": "Brak runów workflow w tym okresie",
+          "description": "Opublikuj workflow i uruchom go, a jego runy pojawią się tutaj."
+        },
+        "needsYou": "{count, plural, one {# run czeka na Ciebie} few {# runy czekają na Ciebie} many {# runów czeka na Ciebie} other {# runu czeka na Ciebie}}",
+        "runs": "Runy",
+        "succeeded": "udane: {count, number}",
+        "failed": "Nieudane",
+        "cost": "Koszt",
+        "row": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
+        "rowFailed": "{runs, plural, one {# run} few {# runy} many {# runów} other {# runu}}, nieudane: {failed, number}"
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -2555,6 +2571,14 @@
       "workflows-runs": {
         "title": "Przebiegi wszystkich workflow",
         "body": "Co się uruchomiło we wszystkich workflow, które widzisz, od najnowszego. Zawęź do nieudanych przebiegów, testów wersji roboczych albo tego, co uruchomił jeden wyzwalacz. Otwórz przebieg, żeby zobaczyć dane każdego kroku, ponowić go od nieudanego kroku albo przenieść jego dane do edytora."
+      },
+      "workflow-stats": {
+        "title": "Jak to idzie",
+        "body": "Prawdziwe runy tego workflow z ostatniego tygodnia, miesiąca lub kwartału: ile zakończyło się dobrze, ile trwały, ile kosztowały na tle miesięcznego budżetu i z których kroków wziął się koszt i błędy."
+      },
+      "workflow-run-history": {
+        "title": "Jego runy",
+        "body": "Każdy run tego workflow, od najnowszego. Zawęź listę do nieudanych lub testowych runów i otwórz jeden, by zobaczyć dane każdego kroku albo ponowić go od kroku, który zawiódł."
       }
     }
   },

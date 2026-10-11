@@ -61,3 +61,29 @@ class WorkflowStats(BaseSchema):
     monthly_budget_usd: float | None = None
     by_day: list[WorkflowStatsDay]
     steps: list[WorkflowStatsStep]
+
+
+class WorkflowSummaryRow(BaseSchema):
+    """One workflow's real runs over the window, for the dashboard's card."""
+
+    id: UUID
+    name: str
+    runs: int
+    failed: int
+    cost_usd: float
+
+
+class WorkflowsSummary(BaseSchema):
+    """The real runs of every workflow the caller may see, over a window of days."""
+
+    runs: int
+    succeeded: int
+    failed: int
+    cost_usd: float
+    needs_you: int = Field(
+        description="Runs under way now that wait for a person - an approval, or a step "
+        "that needs attention"
+    )
+    workflows: list[WorkflowSummaryRow] = Field(
+        description="The busiest of them, most runs first, at most five"
+    )

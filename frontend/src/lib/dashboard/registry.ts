@@ -58,6 +58,7 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "tables"
+  | "workflows"
   | "artifacts";
 
 /** The closed set of card widths the grid supports (12 columns). */
@@ -268,6 +269,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
     seeAll: ROUTES.TABLES,
+  },
+  // The period sets what the figures count; the runs waiting on a person are
+  // counted whatever the window, because they are waiting now.
+  // Four rows: the waiting-runs line, the figures and five workflows under them.
+  workflows: {
+    id: "workflows",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
   },
   notifications: {
     id: "notifications",

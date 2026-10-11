@@ -150,7 +150,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     <ListCard
       title={t("runsTitle")}
       counted={isLoading ? null : t("runsCount", { count: total })}
-      data-tour={workflowId === undefined ? "workflows-runs" : undefined}
+      data-tour={workflowId === undefined ? "workflows-runs" : "workflow-run-history"}
       controls={
         <div className="flex flex-wrap items-center gap-2">
           <Filter

@@ -14,6 +14,7 @@ import {
   stepsForPage,
   TOUR_STEPS,
   visibleTourSteps,
+  WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
@@ -82,6 +83,18 @@ describe("pageKey", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
     expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
+  });
+
+  it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
+    expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
+    expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
+    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(
+      ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"),
+    );
+    expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
+      "workflow-stats",
+      "workflow-run-history",
+    ]);
   });
 });
 

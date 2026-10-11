@@ -41,7 +41,7 @@ export function WorkflowStats({ workflowId }: { workflowId: string }) {
   const { stats, isLoading } = useWorkflowStats(workflowId, days);
 
   return (
-    <section className="space-y-3" aria-label={t("heading")}>
+    <section className="space-y-3" aria-label={t("heading")} data-tour="workflow-stats">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium">{t("heading")}</h2>
         <div

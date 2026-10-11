@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A Workflows card on the dashboard.** Real runs, failures and cost over the
+  dashboard's period across every workflow the reader can see, the five
+  busiest, and how many runs wait for a person now -
+  `GET /api/v1/workflows/summary`. The "?" on a workflow's runs page explains
+  its figures and its run list.
+
 - **Evals for a model step.** A step a model answers has an **Evals** tab:
   cases written from the input it was last tested with, each saying where in
   the answer to look and whether it should contain, not contain or equal a

@@ -17,6 +17,7 @@ import {
   ORG_ROLES,
   SETTINGS_DETAIL,
   TABLE_DETAIL,
+  WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
@@ -152,17 +153,18 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: orgPending,
         href: orgId ? ROUTES.ORG_DIRECTORY(orgId) : null,
       },
-      // Three "?"-only sections with nothing to fetch. Settings resolves to its own
+      // Four "?"-only sections with nothing to fetch. Settings resolves to its own
       // first page for the rare navigation into it, but its stop is really shown in
       // place on whichever settings page the reader opened help from. A workspace
       // has no seeded example to open — it is a person's own agent output — and
-      // neither has a table, so neither resolves an href and neither is walked into
+      // neither has a table or a workflow, so none resolves an href and none is walked into
       // from its list; the entry exists only so the engine treats it as a detail it
       // need not navigate to. Without it the engine reads the pseudo-page as a
       // route and pushes to it.
       [SETTINGS_DETAIL]: { pending: false, href: ROUTES.SETTINGS_PROFILE },
       [WORKSPACE_DETAIL]: { pending: false, href: null },
       [TABLE_DETAIL]: { pending: false, href: null },
+      [WORKFLOW_RUNS_DETAIL]: { pending: false, href: null },
     }),
     [enabled, agents.isPending, agentId, kbs.isPending, kbId, orgPending, orgId],
   );

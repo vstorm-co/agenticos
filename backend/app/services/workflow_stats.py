@@ -23,12 +23,21 @@ from app.db.models.workflow_run import WorkflowRunStatus
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import StoredWorkflowSettings
-from app.schemas.workflow_stats import WorkflowStats, WorkflowStatsDay, WorkflowStatsStep
-from app.services.access import WORKFLOW, resolve_access
+from app.schemas.workflow_stats import (
+    WorkflowsSummary,
+    WorkflowStats,
+    WorkflowStatsDay,
+    WorkflowStatsStep,
+    WorkflowSummaryRow,
+)
+from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution.limits import month_start
 from app.workflows.graph.model import WorkflowGraph
 
 _ENDED = frozenset(status.value for status in WorkflowRunStatus if status.is_terminal)
+
+_SUMMARY_WORKFLOWS = 500
+"""The most workflows the dashboard's summary reads: an organization's whole set, in practice."""
 
 
 class WorkflowStatsService:
@@ -84,6 +93,57 @@ class WorkflowStatsService:
             monthly_budget_usd=settings.monthly_budget_usd,
             by_day=_days(first_day, days, await workflow_run_repo.runs_by_day(self.db, **scope)),
             steps=await self._steps(workflow, scope),
+        )
+
+    async def summary(self, ctx: AuthContext, *, first: date, last: date) -> WorkflowsSummary:
+        """The real runs of every workflow this caller may see, admitted on the UTC days
+        from `first` to `last`, and how many of their runs wait for a person now."""
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
+        )
+        workflows, _total = await workflow_repo.list_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=shared is None,
+            shared_ids=shared or [],
+            skip=0,
+            limit=_SUMMARY_WORKFLOWS,
+        )
+        names = {workflow.id: workflow.name for workflow in workflows}
+        ids = list(names)
+        rows = await workflow_run_repo.runs_by_workflow(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_ids=ids,
+            since=datetime.combine(first, datetime.min.time(), tzinfo=UTC),
+            until=datetime.combine(last + timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+        )
+        per: dict[UUID, WorkflowSummaryRow] = {}
+        succeeded = 0
+        for row in rows:
+            entry = per.setdefault(
+                row.workflow_id,
+                WorkflowSummaryRow(
+                    id=row.workflow_id, name=names[row.workflow_id], runs=0, failed=0, cost_usd=0
+                ),
+            )
+            entry.runs += int(row.runs)
+            entry.cost_usd += float(row.cost)
+            if row.status == WorkflowRunStatus.FAILED.value:
+                entry.failed += int(row.runs)
+            elif row.status == WorkflowRunStatus.SUCCEEDED.value:
+                succeeded += int(row.runs)
+        busiest = sorted(per.values(), key=lambda entry: (-entry.runs, entry.name))
+        return WorkflowsSummary(
+            runs=sum(entry.runs for entry in per.values()),
+            succeeded=succeeded,
+            failed=sum(entry.failed for entry in per.values()),
+            cost_usd=sum(entry.cost_usd for entry in per.values()),
+            needs_you=await workflow_run_repo.count_waiting_on_people(
+                self.db, organization_id=ctx.organization_id, workflow_ids=ids
+            ),
+            workflows=busiest[:5],
         )
 
     async def _steps(self, workflow: Workflow, scope: dict[str, Any]) -> list[WorkflowStatsStep]:

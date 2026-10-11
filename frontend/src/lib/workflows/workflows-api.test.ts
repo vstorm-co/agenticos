@@ -14,6 +14,7 @@ import {
   getNodeCatalog,
   getWorkflow,
   getWorkflowStats,
+  getWorkflowsSummary,
   getWorkflowVersion,
   listWorkflowVersions,
   listWorkflows,
@@ -89,6 +90,14 @@ describe("workflows-api", () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ runs: 1 });
     await getWorkflowStats("wf-1", 7);
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/stats", { params: { days: "7" } });
+  });
+
+  it("reads every workflow's summary over the days given", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ runs: 1 });
+    await getWorkflowsSummary("2026-10-01", "2026-10-07");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/summary", {
+      params: { from: "2026-10-01", to: "2026-10-07" },
+    });
   });
 
   it("gets one workflow with its draft graph", async () => {

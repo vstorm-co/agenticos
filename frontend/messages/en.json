@@ -1795,7 +1795,8 @@
           "schedule": "Schedule",
           "slack": "Slack",
           "telegram": "Telegram",
-          "web": "Web chat"
+          "web": "Web chat",
+          "workflow": "Workflow"
         },
         "title": "Where runs come from",
         "description": "Where runs come from — web chat, API, channels.",
@@ -1940,6 +1941,21 @@
           "title": "No tables yet",
           "description": "Create one and it shows here."
         }
+      },
+      "workflows": {
+        "title": "Workflows",
+        "description": "What your workflows' real runs did over the period, the busiest first, and how many runs wait for a person now.",
+        "empty": {
+          "title": "No workflow runs in this period",
+          "description": "Publish a workflow and start it, and its runs show here."
+        },
+        "needsYou": "{count, plural, one {# run waits for you} other {# runs wait for you}}",
+        "runs": "Runs",
+        "succeeded": "{count, number} succeeded",
+        "failed": "Failed",
+        "cost": "Cost",
+        "row": "{runs, plural, one {# run} other {# runs}}",
+        "rowFailed": "{runs, plural, one {# run} other {# runs}}, {failed, number} failed"
       }
     },
     "edit": {
@@ -3435,6 +3451,14 @@
       "workflows-runs": {
         "title": "Every workflow's runs",
         "body": "What ran, across every workflow you can see, newest first. Narrow it to failed runs, to test runs of drafts or to what one trigger started. Open a run to see each step's data, retry it from the step that failed, or bring its data into the editor."
+      },
+      "workflow-stats": {
+        "title": "How it has been going",
+        "body": "This workflow's real runs over the last week, month or quarter: how many ended well, how long they took, what they cost against the month's budget, and which steps the cost and the failures came from."
+      },
+      "workflow-run-history": {
+        "title": "Its runs",
+        "body": "Every run of this workflow, newest first. Narrow it to failed runs or to test runs, and open one to see each step's data or retry it from the step that failed."
       }
     }
   },

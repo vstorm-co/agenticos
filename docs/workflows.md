@@ -487,6 +487,12 @@ monthly budget, in red once it is spent. **By step** lists where the time, the c
 and the failures came from, costliest first. Over the API it is
 `GET /api/v1/workflows/{id}/stats?days=30`.
 
+The dashboard's **Workflows** card adds the same up across every workflow you can
+see, over the period the dashboard is set to: runs, failures, cost and the five
+busiest. Above them it counts the runs waiting for a person now - an approval or a
+step that needs attention - whenever they started. Over the API it is
+`GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
+
 A run opens on its duration, its cost and how many steps it took, then the error it
 ended with, if any. Beside them is the graph it executed, with each step marked by
 what the run did with it, its tries and its error, and the steps it never reached

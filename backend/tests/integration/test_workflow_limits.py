@@ -108,6 +108,7 @@ class TestRunsAtOnce:
 
 
 class TestWhatARunMaySpend:
+    @pytest.mark.security
     async def test_a_run_gets_the_tighter_of_the_setting_and_the_versions_budget(self, db, owner):
         workflow = await _published(db, owner, run_budget_usd=0.5)
         assert (await _start(db, owner, workflow)).budget_limit == 0.5
@@ -119,6 +120,7 @@ class TestWhatARunMaySpend:
         )
         assert (await _start(db, owner, workflow)).budget_limit == 0.2
 
+    @pytest.mark.security
     async def test_with_no_setting_the_version_budget_holds(self, db, owner):
         workflow = await _published(db, owner)
         assert (await _start(db, owner, workflow)).budget_limit is None
@@ -332,3 +334,61 @@ class TestTheFigures:
                 workflow.id,
                 days=7,
             )
+
+
+class TestTheSummary:
+    async def test_real_runs_of_the_window_by_workflow_busiest_first(self, db, owner):
+        quiet, _graph_ = await _two_step(db, owner)
+        busy, _graph_ = await _two_step(db, owner)
+        busy.name = "Busy"
+        await _ran(db, owner, busy, status="succeeded", seconds=1, cost="0.10")
+        await _ran(db, owner, busy, status="failed", seconds=1, cost="0.20")
+        await _ran(db, owner, quiet, status="succeeded", seconds=1, cost="0.30")
+        await _ran(db, owner, quiet, status="needs_attention", seconds=1, cost="0")
+        await _ran(
+            db, owner, quiet, status="succeeded", seconds=1, cost="9", mode=WorkflowRunMode.TEST
+        )
+        await _ran(
+            db,
+            owner,
+            quiet,
+            status="succeeded",
+            seconds=1,
+            cost="9",
+            created_at=datetime.now(UTC) - timedelta(days=40),
+        )
+        today = datetime.now(UTC).date()
+
+        summary = await WorkflowStatsService(db).summary(
+            owner, first=today - timedelta(days=6), last=today
+        )
+
+        assert (summary.runs, summary.succeeded, summary.failed) == (4, 2, 1)
+        assert summary.cost_usd == pytest.approx(0.6)
+        assert summary.needs_you == 1
+        assert [(row.name, row.runs, row.failed) for row in summary.workflows] == [
+            ("Busy", 2, 1),
+            ("Limited", 2, 0),
+        ]
+
+    async def test_with_no_workflow_in_sight_everything_reads_nothing(self, db, owner):
+        today = datetime.now(UTC).date()
+
+        summary = await WorkflowStatsService(db).summary(owner, first=today, last=today)
+
+        assert (summary.runs, summary.needs_you, summary.workflows) == (0, 0, [])
+
+    @pytest.mark.security
+    async def test_another_organizations_runs_are_not_counted(self, db, owner):
+        workflow, _graph_ = await _two_step(db, owner)
+        await _ran(db, owner, workflow, status="succeeded", seconds=1, cost="1")
+        stranger, elsewhere = await seed_member(db)
+        today = datetime.now(UTC).date()
+
+        summary = await WorkflowStatsService(db).summary(
+            AuthContext(user_id=stranger.id, organization_id=elsewhere.id, role="owner"),
+            first=today,
+            last=today,
+        )
+
+        assert (summary.runs, summary.workflows) == (0, [])

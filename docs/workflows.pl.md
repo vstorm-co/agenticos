@@ -1,5 +1,5 @@
 ---
-source_sha: "15d4c56edd5d"
+source_sha: "f3d9346aa399"
 ---
 
 # Workflows { #workflows }
@@ -495,6 +495,12 @@ podaje też wydatki z tego miesiąca, łącznie z runami testowymi, na tle miesi
 budżetu workflow - na czerwono, gdy jest wyczerpany. **By step** pokazuje, skąd
 wziął się czas, koszt i błędy, od najdroższych. Przez API to
 `GET /api/v1/workflows/{id}/stats?days=30`.
+
+Karta **Workflows** na dashboardzie sumuje to samo dla każdego workflow, który
+widzisz, w okresie ustawionym na dashboardzie: runy, błędy, koszt i pięć najczęściej
+uruchamianych. Nad nimi liczy runy, które czekają teraz na człowieka - na
+zatwierdzenie albo krok wymagający uwagi - niezależnie od tego, kiedy się zaczęły.
+Przez API to `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
 
 Run otwiera się na czasie trwania, koszcie i liczbie wykonanych kroków, a potem na
 błędzie, którym się zakończył, jeśli taki był. Obok jest graf, który wykonał, z każdym

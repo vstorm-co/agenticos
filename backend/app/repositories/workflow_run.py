@@ -461,6 +461,63 @@ async def step_figures(
     )
 
 
+async def runs_by_workflow(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_ids: Sequence[UUID],
+    since: datetime,
+    until: datetime,
+) -> list[Any]:
+    """Each workflow's real runs admitted in `[since, until)`, by status."""
+    if not workflow_ids:
+        return []
+    return list(
+        (
+            await db.execute(
+                select(
+                    WorkflowRun.workflow_id,
+                    WorkflowRun.status,
+                    func.count().label("runs"),
+                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
+                )
+                .where(
+                    WorkflowRun.organization_id == organization_id,
+                    WorkflowRun.workflow_id.in_(workflow_ids),
+                    WorkflowRun.mode == "real",
+                    WorkflowRun.created_at >= since,
+                    WorkflowRun.created_at < until,
+                )
+                .group_by(WorkflowRun.workflow_id, WorkflowRun.status)
+            )
+        ).all()
+    )
+
+
+async def count_waiting_on_people(
+    db: AsyncSession, *, organization_id: UUID, workflow_ids: Sequence[UUID]
+) -> int:
+    """The workflows' real runs waiting now for an approval or a person's attention."""
+    if not workflow_ids:
+        return 0
+    return int(
+        await db.scalar(
+            select(func.count()).where(
+                WorkflowRun.organization_id == organization_id,
+                WorkflowRun.workflow_id.in_(workflow_ids),
+                WorkflowRun.mode == "real",
+                WorkflowRun.status.in_(
+                    (
+                        WorkflowRunStatus.WAITING_APPROVAL.value,
+                        WorkflowRunStatus.NEEDS_ATTENTION.value,
+                    )
+                ),
+            )
+        )
+        or 0
+    )
+
+
 async def sum_reserved_node_work(
     db: AsyncSession,
     *,

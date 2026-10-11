@@ -65,6 +65,12 @@ export const WORKSPACE_DETAIL = "workspace-detail";
 export const TABLE_DETAIL = "table-detail";
 
 /**
+ * One workflow's runs, `/workflows/<id>/runs`, collapsed the same way. Not
+ * `/workflows/runs` - every workflow's runs - which is a page of its own.
+ */
+export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -326,6 +332,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "workflows-runs",
     permission: Perm.workflowsView,
   },
+  // One workflow's runs, `/workflows/<id>/runs`: "?"-only and shown in place, like
+  // a table - there is no seeded workflow to open from the list. Ungated: anyone
+  // who reached the page may see a workflow, which is all both stops need.
+  { id: "workflow-stats", page: WORKFLOW_RUNS_DETAIL, target: "workflow-stats" },
+  { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -649,6 +660,9 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
+/** `/workflows/<id>/runs` - three segments, so every workflow's `/workflows/runs` is not one. */
+const WORKFLOW_RUNS_PATH = /^\/workflows\/[^/]+\/runs$/;
+
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
@@ -663,6 +677,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
+  if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
   return path;
 }
 

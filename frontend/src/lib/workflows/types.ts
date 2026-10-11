@@ -746,6 +746,27 @@ export interface WorkflowStatsStep {
   avg_seconds: number | null;
 }
 
+/** One workflow's real runs over the dashboard's window. Mirrors `WorkflowSummaryRow`. */
+export interface WorkflowSummaryRow {
+  id: string;
+  name: string;
+  runs: number;
+  failed: number;
+  cost_usd: number;
+}
+
+/** The real runs of every workflow the caller may see. Mirrors `WorkflowsSummary`. */
+export interface WorkflowsSummary {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  cost_usd: number;
+  /** Runs under way now that wait for an approval or a person's attention. */
+  needs_you: number;
+  /** The busiest five, most runs first. */
+  workflows: WorkflowSummaryRow[];
+}
+
 /** What a workflow's real runs did over a window. Mirrors `WorkflowStats`. */
 export interface WorkflowStats {
   days: number;
