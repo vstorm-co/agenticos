@@ -1,5 +1,5 @@
 ---
-source_sha: "714eb0c5f737"
+source_sha: "e502ad9ccdea"
 ---
 
 # La consola { #the-console }
@@ -163,10 +163,19 @@ interruptor para apagarlo para todos.
 Una página abierta se mantiene al día con los cambios hechos en otro lugar: la
 consola de un compañero, un script con una [clave de API](api.md), Claude Code a
 través del [servidor MCP de la plataforma](mcp.md#agenticos-as-an-mcp-server) o el
-asistente. Cada escritura correcta a través de la API pública se anuncia a las
-consolas abiertas de la organización en cuanto se confirma, y una lista o una
-página de detalle sin nada sin guardar vuelve a pedir los datos en su sitio: un
-agent creado con una clave aparece en la página Agents sin recargar.
+Architect. Cada escritura correcta se anuncia a las consolas abiertas de la
+organización en cuanto se confirma, también las que solo hace la consola —
+compartir, rutinas, bots de canal, comparticiones de grupo, ajustes de
+notificaciones—, y una lista o una página de detalle sin nada sin guardar vuelve a
+pedir los datos en su sitio.
+
+Un agent creado con una clave aparece en la página Agents sin recargar, y un agent
+compartido en una pestaña muestra su nueva audiencia en otra.
+
+También se anuncian los runs, cuando empiezan, se detienen en una aprobación o una
+pregunta y terminan: un run que lanza una programación aparece en una página
+Activity abierta y cambia de estado allí, sin que haya ninguna petición tuya
+detrás.
 
 La excepción es el Builder, porque guarda tu borrador mientras escribes. Cuando el
 agent que editas cambia en otro lugar, deja de guardar y obtiene la nueva versión.
@@ -175,9 +184,11 @@ dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su vers
 o **Conservar mis cambios** (la tuya, guardada encima de la suya).
 
 Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
-de conocimiento, un archivo de contexto o una página que no ves nunca llega a tu
-consola, y una eliminación solo llega a los roles que ven todas las filas de ese
-tipo. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
+de conocimiento, un archivo de contexto, una página, una clave o un servidor MCP
+que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
+ven todas las filas de ese tipo. Los runs llegan a los roles que leen el historial
+de runs o deciden aprobaciones, los bots de canal a los roles que los gestionan, y
+tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
 
 ## Chat { #chat }
 

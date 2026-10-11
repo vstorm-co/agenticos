@@ -1,5 +1,5 @@
 ---
-source_sha: "714eb0c5f737"
+source_sha: "e502ad9ccdea"
 ---
 
 # Konsola { #the-console }
@@ -165,10 +165,16 @@ przełącznik, który wyłącza go dla wszystkich.
 Otwarta strona nadąża za zmianami wprowadzonymi gdzie indziej: w konsoli
 współpracownika, przez skrypt z [kluczem API](api.md), przez Claude Code
 połączone z [serwerem MCP platformy](mcp.md#agenticos-as-an-mcp-server) albo przez
-asystenta. Każdy udany zapis przez publiczne API jest ogłaszany otwartym konsolom
-organizacji, gdy tylko zostanie zatwierdzony, a lista lub strona szczegółów bez
-niezapisanych zmian pobiera dane ponownie na miejscu — agent utworzony kluczem
-pojawia się na stronie Agents bez przeładowania.
+Architekta. Każdy udany zapis jest ogłaszany otwartym konsolom organizacji, gdy
+tylko zostanie zatwierdzony, także te, które wykonuje tylko konsola — udostępnianie,
+rutyny, boty kanałów, udostępnienia grup, ustawienia powiadomień — a lista lub
+strona szczegółów bez niezapisanych zmian pobiera dane ponownie na miejscu. Agent
+utworzony kluczem pojawia się na stronie Agents bez przeładowania, a agent
+udostępniony w jednej karcie pokazuje nowych odbiorców w innej.
+
+Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub pytaniu
+i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
+stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
@@ -177,8 +183,11 @@ którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
 **Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
 
 Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
-pliku kontekstu albo strony, której nie widzisz, nigdy nie trafia do twojej
-konsoli, a usunięcie trafia tylko do ról, które widzą każdy wiersz danego rodzaju.
+pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
+trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
+wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
+decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje
+powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 
 ## Chat { #chat }

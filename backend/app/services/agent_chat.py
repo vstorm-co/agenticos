@@ -52,6 +52,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
+from app.services import change_feed
 from app.services.agent_runner import (
     AgentRunnerService,
     ParkedApproval,
@@ -518,6 +519,7 @@ class ChatAgentRunner:
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
         await self.db.commit()
+        await change_feed.publish_run(prepared.run, "created")
         try:
             async with prepared.iterate(
                 user_input,
@@ -584,6 +586,7 @@ class ChatAgentRunner:
                     budget_scope=budget_scope,
                 )
                 await self.db.commit()
+                await change_feed.publish_run(prepared.run, "updated")
             except Exception:
                 if finished_cleanly:
                     raise

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useRemoteDraft } from "./use-remote-draft";
 import { CONSOLE_TAB } from "@/lib/console-tab";
 import { announceChange } from "@/lib/live-updates";
-import type { ChangeEvent } from "@/types/change-events";
+import type { MadeChange } from "@/types/change-events";
 
 type Draft = { instructions: string };
 
@@ -16,7 +16,7 @@ interface Props {
 
 const adopt = vi.fn();
 
-function change(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
+function change(overrides: Partial<MadeChange> = {}): MadeChange {
   return {
     organization_id: "org-1",
     resource: "agent",
@@ -46,6 +46,25 @@ beforeEach(() => {
 });
 
 describe("useRemoteDraft", () => {
+  it("is not held by a run, which is nobody's edit", () => {
+    const view = mount({ local: mine, stored: kept, fetchedAt: 1 });
+
+    act(() =>
+      announceChange({
+        organization_id: "org-1",
+        resource: "run",
+        id: "agent-1",
+        action: "updated",
+        surface: "run",
+        actor_user_id: null,
+        actor_name: null,
+        origin_tab: null,
+      }),
+    );
+
+    expect(view.result.current.held).toBe(false);
+  });
+
   it("holds saving from the event until the refetch, then adopts a clean draft silently", () => {
     const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
 

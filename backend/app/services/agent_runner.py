@@ -204,6 +204,7 @@ from app.repositories import (
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.services import change_feed
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -4524,6 +4525,11 @@ class AgentRunnerService:
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
         await self.db.commit()
+        # A resume carries the decisions it continues from; anything else is a
+        # run that just started.
+        await change_feed.publish_run(
+            prepared.run, "created" if deferred_tool_results is None else "updated"
+        )
         try:
             result = await self._answer(
                 prepared,
@@ -4663,6 +4669,7 @@ class AgentRunnerService:
                     if checklist or not prepared.finished_plan_withheld:
                         await conversations.keep_plan(prepared.run.conversation_id, checklist)
                 await self.db.commit()
+                await change_feed.publish_run(prepared.run, "updated")
             except Exception:
                 if finished_cleanly:
                     raise

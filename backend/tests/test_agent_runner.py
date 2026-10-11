@@ -2102,6 +2102,40 @@ class TestTheTransactionEndsBeforeTheModelCall:
 
         assert order[:2] == ["commit", "model"]
 
+    @pytest.mark.anyio
+    async def test_a_run_is_announced_after_each_commit_and_never_before(self):
+        """An open Activity page hears a run start and finish (#2099) - only once
+        each state is committed, or the refetch the event starts would miss it."""
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        order: list[str] = []
+
+        async def commit() -> None:
+            order.append("commit")
+
+        async def model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="hi")
+
+        async def announce(_run: Any, action: str) -> None:
+            order.append(action)
+
+        db.commit = AsyncMock(side_effect=commit)
+        prepared.built.agent.run = AsyncMock(side_effect=model)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.change_feed.publish_run",
+                new=AsyncMock(side_effect=announce),
+            ),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order == ["commit", "created", "model", "commit", "updated"]
+
 
 class TestApprovals:
     @pytest.mark.anyio

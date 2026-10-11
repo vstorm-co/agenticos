@@ -26,6 +26,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_access_token
 from app.db.models.agent import Agent
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
 from app.main import app
@@ -271,6 +272,28 @@ class TestPublishing:
         )
         assert (event.surface, event.actor_name) == ("console", owner.email)
 
+    async def test_sharing_from_the_console_reaches_the_member_it_was_shared_with(
+        self, db: AsyncSession, http: AsyncClient, bus: _Bus
+    ) -> None:
+        """Sharing is a console-only route; it publishes all the same (#2099), and
+        the event is one the grantee may now hear, about the row they now see."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        private = await _agent(db, organization, owner, Visibility.PRIVATE)
+        token = create_access_token(str(owner.id))
+
+        shared = await http.put(
+            f"{settings.API_V1_STR}/agents/{private.id}/sharing/grants",
+            headers={"Authorization": f"Bearer {token}", "X-Organization-Id": str(organization.id)},
+            json={"subject_user_id": str(viewer.id), "level": "read"},
+        )
+
+        assert shared.status_code == 200
+        [event] = bus.published
+        assert (event.resource, event.id, event.action) == ("agent", private.id, "updated")
+        assert await change_feed.visible(db, _ctx(organization, viewer, OrgRoleName.VIEWER), event)
+
 
 class TestVisibility:
     @pytest.mark.security
@@ -353,6 +376,85 @@ class TestVisibility:
             db, _ctx(organization, member, OrgRoleName.MEMBER), invited
         )
         assert await change_feed.visible(db, _ctx(organization, member, OrgRoleName.MEMBER), joined)
+
+    @pytest.mark.security
+    async def test_a_routine_is_heard_by_whoever_may_read_its_agent(self, db: AsyncSession) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        private = await _agent(db, organization, owner, Visibility.PRIVATE)
+        shared = await _agent(db, organization, owner, Visibility.ORG)
+        ctx = _ctx(organization, viewer, OrgRoleName.VIEWER)
+
+        assert not await change_feed.visible(
+            db, ctx, _event(organization, owner, resource="trigger", id=private.id)
+        )
+        assert await change_feed.visible(
+            db, ctx, _event(organization, owner, resource="trigger", id=shared.id)
+        )
+
+    @pytest.mark.security
+    async def test_a_private_key_or_server_is_not_announced_to_others(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        secret = OrganizationSecret(
+            organization_id=organization.id,
+            owner_user_id=owner.id,
+            visibility=Visibility.PRIVATE,
+            name="stripe",
+            kind="api_key",
+            sealed_secret="x",
+            hint="1234",
+        )
+        db.add(secret)
+        await db.flush()
+        ctx = _ctx(organization, member, OrgRoleName.MEMBER)
+
+        assert not await change_feed.visible(
+            db, ctx, _event(organization, owner, resource="secret", id=secret.id)
+        )
+        assert not await change_feed.visible(
+            db, ctx, _event(organization, owner, resource="mcp_connection", id=uuid.uuid4())
+        )
+
+    @pytest.mark.security
+    async def test_an_inbox_change_reaches_its_owner_alone(self, db: AsyncSession) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        read = _event(organization, member, resource="notification", action="updated")
+
+        assert await change_feed.visible(db, _ctx(organization, member, OrgRoleName.MEMBER), read)
+        assert not await change_feed.visible(db, _ctx(organization, owner, OrgRoleName.OWNER), read)
+
+    @pytest.mark.security
+    async def test_channel_bots_and_runs_reach_only_the_roles_that_list_them(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        bot = _event(organization, owner, resource="channel", id=uuid.uuid4())
+        run = _event(
+            organization,
+            owner,
+            resource="run",
+            id=uuid.uuid4(),
+            surface="run",
+            actor_name=None,
+        )
+        admin, outsider = (
+            _ctx(organization, owner, OrgRoleName.OWNER),
+            _ctx(organization, viewer, OrgRoleName.VIEWER),
+        )
+
+        assert await change_feed.visible(db, admin, bot)
+        assert await change_feed.visible(db, admin, run)
+        assert not await change_feed.visible(db, outsider, bot)
+        assert not await change_feed.visible(db, outsider, run)
 
     @pytest.mark.security
     async def test_another_organization_s_change_reaches_nobody_here(

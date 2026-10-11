@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { CONSOLE_TAB } from "@/lib/console-tab";
 import { onRemoteChange } from "@/lib/live-updates";
-import type { ChangeEvent, ChangeResource } from "@/types/change-events";
+import type { ChangeResource, MadeChange } from "@/types/change-events";
 
 interface RemoteDraftOptions<T> {
   resource: ChangeResource;
@@ -23,7 +23,7 @@ interface RemoteDraft {
    *  saving the local draft now would overwrite it unseen. */
   held: boolean;
   /** A change made elsewhere to a draft with unsaved edits here. */
-  conflict: ChangeEvent | null;
+  conflict: MadeChange | null;
   /** Take the stored version, dropping the edits made here. */
   reload: () => void;
   /** Keep the edits made here; the next save overwrites the other change. */
@@ -52,12 +52,12 @@ export function useRemoteDraft<T>({
   adopt,
 }: RemoteDraftOptions<T>): RemoteDraft {
   const [waiting, setWaiting] = useState<{
-    event: ChangeEvent;
+    event: MadeChange;
     since: number;
     stored: string;
     edited: boolean;
   } | null>(null);
-  const [conflict, setConflict] = useState<ChangeEvent | null>(null);
+  const [conflict, setConflict] = useState<MadeChange | null>(null);
   // Read when an event arrives rather than subscribed to, so typing does not
   // re-register the listener on every keystroke.
   const current = useRef({ local, stored, fetchedAt });
@@ -68,7 +68,8 @@ export function useRemoteDraft<T>({
   useEffect(
     () =>
       onRemoteChange((event) => {
-        if (event.resource !== resource || event.id !== id) return;
+        // A run is nobody's edit, so there is no one to name in a conflict.
+        if (event.surface === "run" || event.resource !== resource || event.id !== id) return;
         // This tab's own saves - it already has them. The same person's edit in
         // another tab is a change elsewhere like any other.
         if (event.origin_tab === CONSOLE_TAB) return;

@@ -122,6 +122,134 @@ class TestWhatIsAChange:
         )
 
 
+class TestConsoleOnlyRoutes:
+    """The routes only the console calls, which publish since #2099."""
+
+    @pytest.mark.parametrize(
+        ("prefix", "resource"),
+        [
+            ("/agents", "agent"),
+            ("/skills", "skill"),
+            ("/context", "context"),
+            ("/kb", "knowledge_base"),
+            ("/apps", "artifact"),
+            ("/artifacts", "artifact"),
+            ("/secrets", "secret"),
+            ("/mcp-connections", "mcp_connection"),
+        ],
+    )
+    def test_sharing_a_row_updates_that_row(self, prefix: str, resource: str) -> None:
+        row, person = uuid.uuid4(), str(uuid.uuid4())
+
+        granted = _change("PUT", f"{prefix}/{row}/sharing/grants", {"resource_id": str(row)})
+        revoked = _change(
+            "DELETE",
+            f"{prefix}/{row}/sharing/grants/{person}",
+            {"resource_id": str(row), "subject_user_id": person},
+        )
+
+        for change in (granted, revoked):
+            assert change is not None
+            assert (change.resource, change.id, change.action) == (resource, row, "updated")
+
+    def test_a_routine_changed_names_the_agent_it_belongs_to(self) -> None:
+        agent, trigger = uuid.uuid4(), str(uuid.uuid4())
+        params = {"agent_id": str(agent), "trigger_id": trigger}
+
+        created = _change("POST", f"/agents/{agent}/triggers", {"agent_id": str(agent)})
+        removed = _change("DELETE", f"/agents/{agent}/triggers/{trigger}", params)
+        fired = _change("POST", f"/agents/{agent}/triggers/{trigger}/run", params)
+
+        for change in (created, removed):
+            assert change is not None
+            assert (change.resource, change.id, change.action) == ("trigger", agent, "updated")
+        assert fired is None
+
+    def test_an_embed_is_not_an_agent(self) -> None:
+        embed = str(uuid.uuid4())
+
+        assert _change("POST", "/agents/embeds", {}, f'{{"id": "{embed}"}}'.encode()) is None
+        assert _change("PATCH", f"/agents/embeds/{embed}", {"embed_id": embed}) is None
+
+    def test_starting_an_oauth_dance_or_probing_a_server_changes_nothing(self) -> None:
+        server = str(uuid.uuid4())
+
+        assert _change("POST", "/mcp-connections/oauth/start", {}) is None
+        assert _change("POST", f"/mcp-connections/{server}/test", {"connection_id": server}) is None
+
+    def test_a_channel_bot_is_created_and_removed(self) -> None:
+        bot = uuid.uuid4()
+
+        created = _change("POST", "/channels/bots", {}, f'{{"id": "{bot}"}}'.encode())
+        removed = _change("DELETE", f"/channels/bots/{bot}", {"bot_id": str(bot)})
+
+        assert created is not None and removed is not None
+        assert (created.resource, created.id, created.action) == ("channel", bot, "created")
+        assert (removed.id, removed.action) == (bot, "deleted")
+
+    def test_an_inbox_written_in_bulk_names_no_row(self) -> None:
+        """Marking everything read answers with a count, not a row it created."""
+        for path in ("/notifications/mark-all-read", "/notifications/preferences"):
+            changed = _change("POST", path, {}, b'{"id": "not-a-row", "count": 3}')
+            assert changed is not None
+            assert (changed.resource, changed.id, changed.action) == (
+                "notification",
+                None,
+                "updated",
+            )
+
+
+class TestRuns:
+    def test_a_run_event_is_the_run_s_own_and_names_no_one_as_its_author(self) -> None:
+        run = MagicMock(organization_id=uuid.uuid4(), id=uuid.uuid4(), user_id=None)
+
+        event = change_feed.run_event(run, "created")
+
+        assert (event.resource, event.id, event.action) == ("run", run.id, "created")
+        assert (event.surface, event.actor_user_id, event.actor_name) == ("run", None, None)
+        assert event.organization_id == run.organization_id
+
+    async def test_a_run_s_change_is_published_to_its_organization(self, redis: Any) -> None:
+        run = MagicMock(organization_id=uuid.uuid4(), id=uuid.uuid4(), user_id=uuid.uuid4())
+
+        await change_feed.publish_run(run, "updated")
+
+        [call] = redis.raw.publish.await_args_list
+        assert call.args[0] == f"changes:{run.organization_id}"
+        assert ChangeEvent.model_validate_json(call.args[1]).actor_user_id == run.user_id
+
+    async def test_without_redis_a_run_is_not_even_read(self) -> None:
+        """On every run's path: a process with nothing to publish to does no work."""
+        change_feed.configure(None)
+        run = MagicMock(spec=[])
+
+        await change_feed.publish_run(run, "created")
+
+    async def test_a_worker_connects_once_and_keeps_its_client(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A routine's run publishes from a Prefect flow, which the API lifespan
+        never configured."""
+        made: list[MagicMock] = []
+
+        def client() -> MagicMock:
+            made.append(MagicMock(spec=RedisClient, connect=AsyncMock()))
+            return made[-1]
+
+        monkeypatch.setattr(change_feed, "RedisClient", client)
+        change_feed.configure(None)
+        try:
+            await change_feed.connect_in_worker()
+            await change_feed.connect_in_worker()
+        finally:
+            connected = change_feed._redis
+            change_feed.configure(None)
+
+        assert len(made) == 1
+        made[0].connect.assert_awaited_once()
+        assert connected is made[0]
+
+
 class TestPublishing:
     async def test_without_redis_nothing_is_published_and_nothing_fails(self) -> None:
         change_feed.configure(None)
@@ -195,19 +323,28 @@ def _app() -> FastAPI:
 
 
 class TestMiddleware:
-    async def test_only_a_public_write_by_a_known_caller_is_published(self, redis: Any) -> None:
+    async def test_every_write_by_a_known_caller_is_published(self, redis: Any) -> None:
+        """A console-only route publishes as a public one does (#2099): sharing and
+        routines are written through routes no API key may call."""
         async with AsyncClient(transport=ASGITransport(app=_app()), base_url="http://t") as http:
             await http.get(f"{V1}/kb")
             await http.post(f"{V1}/kb/anonymous")
-            await http.post(f"{V1}/context")
+            console = await http.post(f"{V1}/context")
             await http.post(f"{V1}/ml/pii")
             created = await http.post(f"{V1}/kb")
 
-        [call] = redis.raw.publish.await_args_list
-        channel, data = call.args
-        event = ChangeEvent.model_validate_json(data)
-        assert channel == f"changes:{ORIGIN.organization_id}"
-        assert str(event.id) == created.json()["id"]
+        channels, events = zip(
+            *(
+                (call.args[0], ChangeEvent.model_validate_json(call.args[1]))
+                for call in redis.raw.publish.await_args_list
+            ),
+            strict=True,
+        )
+        assert set(channels) == {f"changes:{ORIGIN.organization_id}"}
+        assert [(event.resource, str(event.id)) for event in events] == [
+            ("context", console.json()["id"]),
+            ("knowledge_base", created.json()["id"]),
+        ]
 
     async def test_an_answer_too_long_to_be_a_row_is_not_read_for_an_id(self, redis: Any) -> None:
         async with AsyncClient(transport=ASGITransport(app=_app()), base_url="http://t") as http:

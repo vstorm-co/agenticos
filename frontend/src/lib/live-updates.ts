@@ -6,14 +6,16 @@ import type { ChangeEvent, ChangeResource } from "@/types/change-events";
 /**
  * Which cached answers a change makes stale. Whole families rather than the one
  * row: a renamed agent is also a different row in every list that shows it, and
- * a member removed from the organization is also gone from each group.
+ * a member removed from the organization is also gone from each group. A row
+ * shareable with people also refreshes the sharing panels - a grant made in one
+ * tab is the audience another tab is showing.
  */
 const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
-  agent: () => [qk.agents.all()],
-  skill: () => [qk.skills.all()],
-  context: () => [qk.context.all()],
-  knowledge_base: () => [qk.kb.all()],
-  artifact: () => [qk.artifacts.all()],
+  agent: () => [qk.agents.all(), qk.sharing.all()],
+  skill: () => [qk.skills.all(), qk.sharing.all()],
+  context: () => [qk.context.all(), qk.sharing.all()],
+  knowledge_base: () => [qk.kb.all(), qk.sharing.all()],
+  artifact: () => [qk.artifacts.all(), qk.sharing.all()],
   member: (orgId) => [
     qk.organizations.members(orgId),
     qk.organizations.groups(orgId),
@@ -21,8 +23,17 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     qk.organizations.permissions(orgId),
   ],
   invitation: (orgId) => [qk.invitations.list(orgId)],
-  group: (orgId) => [qk.organizations.groups(orgId)],
+  // A group's members and shares are who reaches what it was shared.
+  group: (orgId) => [qk.organizations.groups(orgId), qk.sharing.all()],
   organization: () => [qk.organizations.all()],
+  trigger: () => [qk.triggers.all()],
+  // A bot is also the surface an agent is exposed on.
+  channel: () => [qk.channelBots.list(), qk.exposures.all()],
+  notification: () => [qk.notifications.all()],
+  secret: () => [qk.secrets.all(), qk.sharing.all()],
+  mcp_connection: () => [qk.mcpConnections.all(), qk.sharing.all()],
+  // Run history, the approvals inbox and spend all live under `runs`.
+  run: () => [qk.runs.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

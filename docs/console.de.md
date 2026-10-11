@@ -1,5 +1,5 @@
 ---
-source_sha: "714eb0c5f737"
+source_sha: "e502ad9ccdea"
 ---
 
 # Die Konsole { #the-console }
@@ -176,11 +176,18 @@ Assistenten sowie einen Schalter, der ihn für alle abschaltet.
 Eine offene Seite hält mit Änderungen Schritt, die anderswo gemacht werden: in
 der Konsole eines Kollegen, durch ein Skript mit einem [API-Schlüssel](api.md),
 durch Claude Code über den [MCP-Server der Plattform](mcp.md#agenticos-as-an-mcp-server)
-oder durch den Assistenten. Jeder erfolgreiche Schreibvorgang über die öffentliche
-API wird den offenen Konsolen der Organisation gemeldet, sobald er festgeschrieben
-ist, und eine Liste oder Detailseite ohne ungespeicherte Änderungen lädt an Ort
-und Stelle neu — ein mit einem Schlüssel erstellter Agent erscheint auf der Seite
-Agents, ohne dass Sie neu laden.
+oder durch den Architekten. Jeder erfolgreiche Schreibvorgang wird den offenen
+Konsolen der Organisation gemeldet, sobald er festgeschrieben ist, auch die, die
+nur die Konsole macht — Freigaben, Routinen, Kanal-Bots, Gruppenfreigaben,
+Benachrichtigungseinstellungen —, und eine Liste oder Detailseite ohne
+ungespeicherte Änderungen lädt an Ort und Stelle neu. Ein mit einem Schlüssel
+erstellter Agent erscheint auf der Seite Agents, ohne dass Sie neu laden, und ein
+in einem Tab freigegebener Agent zeigt sein neues Publikum in einem anderen.
+
+Auch Runs werden gemeldet, wenn sie starten, bei einer Freigabe oder einer Frage
+anhalten und enden: Ein Run, den ein Zeitplan auslöst, erscheint auf einer
+offenen Activity-Seite und ändert dort seinen Status, ohne dass eine Anfrage von
+Ihnen dahintersteht.
 
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
@@ -190,9 +197,11 @@ Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ih
 über deren gespeichert).
 
 Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
-Skill, einer Wissensbasis, einer Kontextdatei oder einer Seite, die Sie nicht
-sehen, erreicht Ihre Konsole nie, und eine Löschung erreicht nur Rollen, die
-jede Zeile dieser Art sehen. Bricht die Verbindung ab, arbeitet die Konsole wie
+Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel oder
+einem MCP-Server, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
+Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
+Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
+Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie
 bisher und verbindet sich selbst wieder.
 
 ## Chat { #chat }

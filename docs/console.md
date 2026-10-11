@@ -154,11 +154,17 @@ to turn it off for everyone.
 
 An open page keeps up with changes made somewhere else: a colleague's console,
 a script with an [API key](api.md), Claude Code over the
-[platform's MCP server](mcp.md#agenticos-as-an-mcp-server), or the assistant.
-Each successful write through the public API is announced to the organization's
-open consoles once it has committed, and a list or detail page with nothing
-unsaved on it refetches in place — an agent created by a key appears on the
-Agents page without a reload.
+[platform's MCP server](mcp.md#agenticos-as-an-mcp-server), or the Architect.
+Each successful write is announced to the organization's open consoles once it
+has committed, including the ones only the console makes — sharing, routines,
+channel bots, group shares, notification settings — and a list or detail page
+with nothing unsaved on it refetches in place. An agent created by a key appears
+on the Agents page without a reload, and an agent shared in one tab shows its
+new audience in another.
+
+Runs are announced too, as they start, park on an approval or a question, and
+finish: a run a schedule fires appears on an open Activity page and changes
+status there, with no request from you behind it.
 
 The Builder is the exception, because it saves your draft as you type. When the
 agent you are editing changes elsewhere it stops saving and fetches the new
@@ -167,8 +173,10 @@ who changed it and through what, and waits for you to choose **Reload** (their
 version) or **Keep my changes** (yours, saved over theirs).
 
 You only hear about what you could read: a change to an agent, skill, knowledge
-base, context file or page you cannot see never reaches your console, and a
-deletion reaches only roles that see every row of its kind. When the connection
+base, context file, page, key or MCP server you cannot see never reaches your
+console, and a deletion reaches only roles that see every row of its kind. Runs
+reach the roles that read run history or decide approvals, channel bots the roles
+that manage them, and your notifications only you. When the connection
 drops the console works as before and reconnects on its own.
 
 ## Chat

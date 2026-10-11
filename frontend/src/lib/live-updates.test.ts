@@ -21,12 +21,27 @@ function change(resource: ChangeResource): ChangeEvent {
 
 describe("staleQueries", () => {
   it("marks a resource's whole family stale, not only the row", () => {
-    expect(staleQueries(change("agent"))).toEqual([qk.agents.all()]);
-    expect(staleQueries(change("skill"))).toEqual([qk.skills.all()]);
-    expect(staleQueries(change("context"))).toEqual([qk.context.all()]);
-    expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all()]);
-    expect(staleQueries(change("artifact"))).toEqual([qk.artifacts.all()]);
     expect(staleQueries(change("organization"))).toEqual([qk.organizations.all()]);
+    expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
+    expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
+    expect(staleQueries(change("run"))).toEqual([qk.runs.all()]);
+  });
+
+  it("refreshes the sharing panels with every row somebody can share", () => {
+    expect(staleQueries(change("agent"))).toEqual([qk.agents.all(), qk.sharing.all()]);
+    expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
+    expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
+    expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all(), qk.sharing.all()]);
+    expect(staleQueries(change("artifact"))).toEqual([qk.artifacts.all(), qk.sharing.all()]);
+    expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
+    expect(staleQueries(change("mcp_connection"))).toEqual([
+      qk.mcpConnections.all(),
+      qk.sharing.all(),
+    ]);
+  });
+
+  it("refreshes the surfaces an agent is exposed on with the channel bots", () => {
+    expect(staleQueries(change("channel"))).toEqual([qk.channelBots.list(), qk.exposures.all()]);
   });
 
   it("refreshes a member's groups and the reader's own permissions with the member list", () => {
@@ -36,7 +51,7 @@ describe("staleQueries", () => {
       qk.organizations.permissions(ORG),
     ]);
     expect(staleQueries(change("invitation"))).toEqual([qk.invitations.list(ORG)]);
-    expect(staleQueries(change("group"))).toEqual([qk.organizations.groups(ORG)]);
+    expect(staleQueries(change("group"))).toEqual([qk.organizations.groups(ORG), qk.sharing.all()]);
   });
 });
 

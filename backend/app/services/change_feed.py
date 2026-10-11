@@ -4,12 +4,16 @@ A write through the public API - a key in Postman, Claude Code over the platform
 MCP server, the in-app Platform assistant, another person's console - commits, and
 a page already showing the old rows has no way to know. This module closes that:
 
-- :class:`ChangeFeedMiddleware` watches every public write that succeeded and
-  publishes one :class:`ChangeEvent` to its organization's Redis channel. It sits
-  at the HTTP boundary rather than in each service so that no write path can
-  forget it, and it publishes once the response has gone out - which is after the
-  commit, because `DBSession` commits before the response is written - so a page
-  that refetches on the event reads the new row.
+- :class:`ChangeFeedMiddleware` watches every write that succeeded - a public
+  route or one only the console calls, like sharing, routines or channel bots
+  (#2099) - and publishes one :class:`ChangeEvent` to its organization's Redis
+  channel. It sits at the HTTP boundary rather than in each service so that no
+  write path can forget it, and it publishes once the response has gone out -
+  which is after the commit, because `DBSession` commits before the response is
+  written - so a page that refetches on the event reads the new row.
+- :func:`publish_run` is the one change no request makes: a run moving through
+  its states. The runner calls it after each of its own commits, in the API
+  process or in the worker that fired a routine.
 - :func:`stream_changes` serves one console tab's socket. It forwards an event only
   when the subscriber may see the resource it is about, and re-reads their access
   for every event, so a socket outliving a membership or a revoked key goes quiet.
@@ -38,18 +42,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.api.public_api import is_public_route
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.permissions import AuthContext, Perm
 from app.core.permissions import Scope as PermScope
+from app.db.models.agent_run import AgentRun
 from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
 from app.repositories import knowledge_base as knowledge_base_repo
+from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member as member_repo
+from app.repositories import organization_secret as secret_repo
 from app.repositories import skill as skill_repo
 from app.schemas.change_event import ChangeAction, ChangeEvent, ChangeResource, ChangeSurface
 from app.services.access import (
@@ -57,6 +63,8 @@ from app.services.access import (
     ARTIFACT,
     COLLECTION,
     CONTEXT,
+    MCP_CONNECTION,
+    SECRET,
     SKILL,
     OwnedResource,
     ResourceType,
@@ -109,6 +117,14 @@ class _Feed:
     id_param: str | None = None
     """The path parameter naming the row. A write under the prefix that does not
     carry it created one, and the row's id is read from the response."""
+    creates: bool = True
+    """Whether a write naming no row made one. A per-person list - the inbox, its
+    preferences - is changed in bulk and its writes never answer with a row."""
+
+
+def _shared(prefix: str, resource: ChangeResource) -> _Feed:
+    """A resource's sharing routes: a change to who can see that row."""
+    return _Feed(f"{prefix}/{{resource_id}}/sharing", resource, "resource_id")
 
 
 # First match wins, so a route that is not a change - or is a change to something
@@ -117,15 +133,35 @@ _FEEDS = (
     _Feed("/agents/{agent_id}/run", None),
     _Feed("/agents/{agent_id}/validate", None),
     _Feed("/agents/{agent_id}/clone", "agent"),
+    # Firing a routine by hand is a run, which publishes its own events.
+    _Feed("/agents/{agent_id}/triggers/{trigger_id}/run", None),
+    _Feed("/agents/{agent_id}/triggers", "trigger", "agent_id"),
+    # An embed is its own row with its own page, not a change to an agent.
+    _Feed("/agents/embeds", None),
+    _shared("/agents", "agent"),
     _Feed("/agents", "agent", "agent_id"),
     _Feed("/apps/{artifact_id}/follow", None),
+    _shared("/apps", "artifact"),
     _Feed("/apps", "artifact", "artifact_id"),
     # The deprecated paths from before apps were called that (#2071).
     _Feed("/artifacts/{artifact_id}/follow", None),
+    _shared("/artifacts", "artifact"),
     _Feed("/artifacts", "artifact", "artifact_id"),
+    _shared("/context", "context"),
     _Feed("/context", "context", "context_id"),
+    _shared("/kb", "knowledge_base"),
     _Feed("/kb", "knowledge_base", "kb_id"),
+    _shared("/skills", "skill"),
     _Feed("/skills", "skill", "skill_id"),
+    _shared("/secrets", "secret"),
+    _Feed("/secrets", "secret", "secret_id"),
+    # Starting an OAuth dance or probing a server changes no row.
+    _Feed("/mcp-connections/oauth", None),
+    _Feed("/mcp-connections/{connection_id}/test", None),
+    _shared("/mcp-connections", "mcp_connection"),
+    _Feed("/mcp-connections", "mcp_connection", "connection_id"),
+    _Feed("/channels/bots", "channel", "bot_id"),
+    _Feed("/notifications", "notification", "notification_id", creates=False),
     _Feed("/orgs/{org_id}/members", "member", "target_user_id"),
     _Feed("/orgs/{org_id}/invitations", "invitation", "invitation_id"),
     _Feed("/orgs/{org_id}/groups", "group", "group_id"),
@@ -134,13 +170,32 @@ _FEEDS = (
 
 _OWNED: dict[ChangeResource, ResourceType] = {
     "agent": AGENT,
+    "trigger": AGENT,
     "skill": SKILL,
     "context": CONTEXT,
     "knowledge_base": COLLECTION,
     "artifact": ARTIFACT,
+    "secret": SECRET,
+    "mcp_connection": MCP_CONNECTION,
 }
 
 _redis: RedisClient | None = None
+
+
+async def connect_in_worker() -> None:
+    """Give a worker process a Redis to publish on, once.
+
+    A routine's run executes in a Prefect flow, in a process that ran none of the
+    API's startup, so the lifespan's `configure` never reached it and every event
+    it published went nowhere - the run an open Activity page most wants to see
+    arrive. The client lives for the process; a flow-run subprocess exits with it.
+    """
+    global _redis
+    if _redis is not None:
+        return
+    client = RedisClient()
+    await client.connect()
+    _redis = client
 
 
 def configure(redis: RedisClient | None) -> None:
@@ -205,7 +260,7 @@ def change_for(
     origin: ChangeOrigin,
     body: bytes,
 ) -> ChangeEvent | None:
-    """The change a successful public write made, or `None` when it made none."""
+    """The change a successful write made, or `None` when it made none."""
     template = _template(path.removeprefix(settings.API_V1_STR), path_params)
     feed = _feed(template)
     if feed is None or feed.resource is None:
@@ -216,9 +271,12 @@ def change_for(
         row_id: UUID | None = UUID(str(named))
         ends_on_row = template.endswith(f"{{{feed.id_param}}}")
         action = "deleted" if method == "DELETE" and ends_on_row else "updated"
-    else:
+    elif feed.creates:
         row_id = _created_id(body)
         action = "created"
+    else:
+        row_id = None
+        action = "updated"
     return ChangeEvent(
         organization_id=origin.organization_id,
         resource=feed.resource,
@@ -229,6 +287,31 @@ def change_for(
         actor_name=origin.actor_name,
         origin_tab=origin.tab,
     )
+
+
+def run_event(run: AgentRun, action: ChangeAction) -> ChangeEvent:
+    """The event a run's state change publishes, built from the row while it is
+    still attached - publishing may happen after its session has moved on."""
+    return ChangeEvent(
+        organization_id=run.organization_id,
+        resource="run",
+        id=run.id,
+        action=action,
+        surface="run",
+        actor_user_id=run.user_id,
+        actor_name=None,
+    )
+
+
+async def publish_run(run: AgentRun, action: ChangeAction) -> None:
+    """Tell open consoles a run started, parked or finished. Called after the
+    commit that made the state readable, so a page that refetches sees it.
+
+    Nothing is built where nothing listens - a process with no Redis, like the
+    CLI - because this sits on every run's path."""
+    if _redis is None:
+        return
+    await publish(run_event(run, action))
 
 
 async def publish(event: ChangeEvent) -> None:
@@ -243,7 +326,7 @@ async def publish(event: ChangeEvent) -> None:
 
 
 class ChangeFeedMiddleware:
-    """Publishes the change each successful public write made.
+    """Publishes the change each successful write made.
 
     Pure ASGI, so a response passes through unchanged and nothing is re-streamed.
     The event is published after the app returns, when the response has been sent.
@@ -275,8 +358,6 @@ class ChangeFeedMiddleware:
         origin = scope.get("state", {}).get("change_origin")
         if not 200 <= status < 300 or not isinstance(origin, ChangeOrigin):
             return
-        if not is_public_route(scope.get("route")):
-            return
         event = change_for(
             method=scope["method"],
             path=scope["path"],
@@ -290,8 +371,14 @@ class ChangeFeedMiddleware:
 
 async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResource | None:
     organization_id = event.organization_id
-    if event.resource == "agent":
+    if event.resource in ("agent", "trigger"):
         return await agent_repo.get(db, row_id, organization_id=organization_id)
+    if event.resource == "secret":
+        return await secret_repo.get(db, row_id, organization_id=organization_id)
+    if event.resource == "mcp_connection":
+        return await mcp_connection_repo.get_org_scoped_by_id(
+            db, connection_id=row_id, organization_id=organization_id
+        )
     if event.resource == "skill":
         return await skill_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "context":
@@ -308,11 +395,22 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
     the organization itself, being in it. A deleted row cannot be read back, so its
     deletion reaches only those whose role already reaches every row of its kind -
     anyone else learning it would learn that a row they could not see existed.
+
+    Runs and channel bots are read through a permission rather than per row - the
+    run history and the bot list are each one gate - and an inbox is its owner's
+    alone, whoever else is in the organization.
     """
     if event.organization_id != ctx.organization_id:
         return False
     if event.resource == "invitation":
         return ctx.has(Perm.MEMBERS_MANAGE)
+    if event.resource == "channel":
+        return ctx.has(Perm.CHANNELS_MANAGE)
+    if event.resource == "notification":
+        return event.actor_user_id == ctx.user_id
+    if event.resource == "run":
+        # The approvals inbox lists parked runs to whoever decides them.
+        return ctx.has(Perm.RUNS_VIEW) or ctx.has(Perm.APPROVALS_DECIDE)
     resource_type = _OWNED.get(event.resource)
     if resource_type is None:
         return True

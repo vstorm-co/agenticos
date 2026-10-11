@@ -408,11 +408,13 @@ export const qk = {
     list: () => ["slash-commands", "list"] as const,
   },
   notifications: {
+    all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
   },
   mcpConnections: {
+    all: () => ["mcp-connections"] as const,
     list: () => ["mcp-connections", "list"] as const,
     workspace: () => ["mcp-connections", "workspace"] as const,
     // The organization's own servers. A separate key rather than a parameter on

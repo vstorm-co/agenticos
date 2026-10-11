@@ -39,6 +39,13 @@ Two things are versioned separately from this file and worth knowing about:
   run, for `runs:view` and the department's lead. A new dashboard card,
   **Answer quality by department**, ranks departments least helpful first.
   `GET /orgs/{org_id}/groups/quality` and `.../groups/{group_id}/quality` (#2101).
+- **Every change reaches an open page, and runs arrive as they happen.** Writes
+  only the console makes - sharing, routines, channel bots, group shares,
+  notification settings - are announced to the organization's open consoles like
+  public API writes, so an agent shared in one tab shows its new audience in
+  another. Runs are announced as they start, park and finish, including those a
+  schedule fires, so Activity updates on its own. The same per-row read check
+  decides who hears what (#2099).
 - **You hear when an MCP server stops answering.** The deployment checks each
   organization server every fifteen minutes, and runs check the servers their
   agent uses. The first check that finds one down tells the administrators and

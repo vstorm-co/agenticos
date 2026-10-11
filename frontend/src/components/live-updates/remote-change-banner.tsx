@@ -4,10 +4,10 @@ import { RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Alert, AlertDescription, Button } from "@/components/ui";
-import type { ChangeEvent } from "@/types/change-events";
+import type { MadeChange } from "@/types/change-events";
 
 interface RemoteChangeBannerProps {
-  change: ChangeEvent;
+  change: MadeChange;
   onReload: () => void;
   onKeepMine: () => void;
 }
