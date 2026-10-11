@@ -32,7 +32,8 @@
     "category": "observability",
     "kind": "api_key",
     "help_url": "https://logfire.pydantic.dev",
-    "description": "A write token that sends an agent's traces to a Logfire project of its own."
+    "description": "A write token that sends an agent's traces to a Logfire project of its own.",
+    "icon": "pydantic"
   },
   {
     "id": "llamaparse",

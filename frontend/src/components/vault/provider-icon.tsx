@@ -1,10 +1,29 @@
 "use client";
 
+import { Box, Brain, KeyRound, MousePointerClick, type LucideIcon } from "lucide-react";
+
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
 import { Monogram } from "@/components/icons/monogram";
 import { BRAND_GLYPHS, PROVIDER_GLYPHS, type BrandName } from "@/lib/brand-glyphs.generated";
 import { cn } from "@/lib/utils";
+
+/**
+ * What a service with no brand mark anywhere is drawn as: what it does.
+ *
+ * Neither Simple Icons nor the lobehub set carries Daytona, mem0 or TypeSafe,
+ * and the platform's own sandbox service and a custom key are not brands at
+ * all. A bordered initial for each read as five unfinished rows in a vault
+ * whose other rows wear real marks, so these wear the console's own icon for
+ * the job instead - never a hand-drawn logo, which is the generator's rule.
+ */
+const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
+  custom: KeyRound,
+  sandboxd: Box,
+  daytona: Box,
+  mem0: Brain,
+  typesafe: MousePointerClick,
+};
 
 /** Every provider id with a mark - what the monochrome pin in the test iterates. */
 export const MARKED_PROVIDERS: readonly string[] = Object.keys(PROVIDER_GLYPHS);
@@ -56,6 +75,8 @@ export function ProviderIcon({ provider, brand, className }: ProviderIconProps) 
 
   if (glyph) return <GlyphIcon glyph={glyph} aria-hidden className={size} />;
   if (custom.has(provider)) return <CustomMark name={provider} className={size} />;
+  const ServiceMark = SERVICE_MARKS[provider];
+  if (ServiceMark) return <ServiceMark aria-hidden className={cn(size, "text-foreground")} />;
 
   return <Monogram label={provider} className={size} />;
 }

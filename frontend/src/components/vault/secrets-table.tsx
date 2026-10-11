@@ -115,7 +115,12 @@ export function SecretsTable({
             {/* The service's own mark. A vault is scanned, not read:
                 fifty rows of identical text is a list nobody finds
                 anything in, and the logo is what the eye lands on. */}
-            <ProviderIcon provider={secret.purpose ?? "custom"} />
+            <ProviderIcon
+              provider={secret.purpose ?? "custom"}
+              // The catalog's mark for a service whose id is not a brand -
+              // GitHub App, LlamaParse, S3 - as the vault's picker draws it.
+              brand={purposes.find((entry) => entry.id === secret.purpose)?.icon || undefined}
+            />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{secret.name}</p>
               <p className="text-muted-foreground font-mono text-xs">····{secret.hint}</p>

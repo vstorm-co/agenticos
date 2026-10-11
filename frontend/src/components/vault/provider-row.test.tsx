@@ -18,10 +18,24 @@ describe("ProviderRow", () => {
   it("falls back to a monogram rather than a gap for an id with no mark", () => {
     // A deployment gains a provider whenever Pydantic AI does, and a key can be
     // for a service nobody has a logo for - so this is the normal case.
-    const { container } = render(<ProviderRow provider="custom" name="Acme webhook" />);
+    const { container } = render(<ProviderRow provider="acme_crm" name="Acme webhook" />);
 
     expect(container.querySelector("svg")).toBeNull();
-    expect(screen.getByText("c")).toBeInTheDocument();
+    expect(screen.getByText("a")).toBeInTheDocument();
+  });
+
+  it("draws what a service does where it has no brand mark anywhere", () => {
+    // A custom key and the platform's own sandbox service are not brands, and
+    // no icon set carries Daytona or mem0: each wears an icon, not an initial.
+    for (const [provider, icon] of [
+      ["custom", "lucide-key-round"],
+      ["sandboxd", "lucide-box"],
+      ["mem0", "lucide-brain"],
+    ] as const) {
+      const { container, unmount } = render(<ProviderRow provider={provider} name="Key" />);
+      expect(container.querySelector(`svg.${icon}`)).not.toBeNull();
+      unmount();
+    }
   });
 
   it("masks a key's hint the way the vault listing does", () => {
