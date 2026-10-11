@@ -291,7 +291,7 @@ describe("UsageMeter, open", () => {
     expect(screen.queryByText("Workspace")).toBeNull();
     expect(
       screen.getByText(
-        "512 B of 2 KiB — the memory ceiling of this conversation's own container, " +
+        "512 B of 2 KiB - the memory ceiling of this conversation's own container, " +
           "not a quota shared with anything else",
       ),
     ).toBeVisible();
@@ -302,7 +302,7 @@ describe("UsageMeter, open", () => {
     await openMeter({ usage: usage({ sandbox: container(null, null, null) }) });
 
     expect(valueOf("Sandbox memory")).toHaveTextContent("in use");
-    expect(screen.getByText("in use — this host did not report a number")).toBeVisible();
+    expect(screen.getByText("in use - this host did not report a number")).toBeVisible();
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 

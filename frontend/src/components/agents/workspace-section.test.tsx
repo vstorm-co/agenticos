@@ -437,7 +437,7 @@ describe("WorkspaceSection", () => {
       await userEvent.click(screen.getByRole("combobox", { name: "Runtime" }));
 
       expect(
-        screen.getByRole("option", { name: "The connection's default — python" }),
+        screen.getByRole("option", { name: "The connection's default - python" }),
       ).toBeVisible();
       // Matched loosely: an option's accessible name now carries what the image
       // is for as well as its alias.

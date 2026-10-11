@@ -54,11 +54,21 @@ export function ListCard({
         </div>
         {controls}
       </CardHeader>
-      {/* Tighter on a phone, where a card of cards spent a third of the width
-          on two paddings. */}
-      <CardContent className={cn("p-3 sm:p-5", contentClassName)}>{children}</CardContent>
+      <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
     </Card>
   );
+}
+
+/**
+ * The content's classes: tighter on a phone, where a card of cards spent a third
+ * of the width on two paddings - unless the caller sets padding of its own.
+ *
+ * Not `cn("p-3 sm:p-5", own)`: merging drops `p-3` for the caller's `p-0` but
+ * keeps `sm:p-5`, so a flush table regained a 20px inset from the small
+ * breakpoint up.
+ */
+function contentPadding(own: string | undefined): string {
+  return own !== undefined && /(^|\s)p[xytrbl]?-/.test(own) ? own : cn("p-3 sm:p-5", own);
 }
 
 /**

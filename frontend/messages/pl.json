@@ -173,7 +173,7 @@
     "connectedOnly": "Tylko połączone",
     "connectionNoLongerAllows": "To połączenie nie zezwala już na <code>{runtime}</code>. Wybierz taki, na który zezwala, albo agent zawiedzie przy pierwszym wywołaniu narzędzia.",
     "connectionSDefault": "Domyślny z połączenia",
-    "connectionSDefaultIs": "Domyślny z połączenia — {alias}",
+    "connectionSDefaultIs": "Domyślny z połączenia - {alias}",
     "considerOnlyMostLikely": "Rozważaj tylko najbardziej prawdopodobne tokeny składające się na tę część masy prawdopodobieństwa. Ustaw to albo temperaturę, nie oba.",
     "contextCount": "{count, plural, =1 {1 plik kontekstu} few {# pliki kontekstu} many {# plików kontekstu} other {# pliku kontekstu}}",
     "contextFilesDetail": "Stały kontekst, który czyta ten agent - słowniczek lub polityka wstrzyknięta do jego promptu, albo pliki, które czyta na żądanie.",
@@ -252,12 +252,12 @@
     "failedReleaseMode": "Nie udało się zapisać trybu wydania",
     "failedRemoveEnvironment": "Nie udało się usunąć środowiska",
     "failedRenameEnvironment": "Nie udało się zmienić nazwy środowiska",
-    "filesWorkspaceHasNo": "Workspace Pliki nie ma shella — sparuj go z Run Python, aby liczyć.",
+    "filesWorkspaceHasNo": "Workspace Pliki nie ma shella - sparuj go z Run Python, aby liczyć.",
     "followCapabilityAlwaysAsk": "Zgodnie z capability - zawsze pytaj",
     "followCapabilityNeverAsk": "Zgodnie z capability - nigdy nie pytaj",
     "followsLatest": "Podąża za najnowszą",
     "pinnedFor": "{name} jest przypięte",
-    "gatewayLitellmProxyModel": "Bramka, proxy LiteLLM lub serwer modeli w tej sieci. Podaj jeden, a klucz stanie się opcjonalny — na własnym sprzęcie nie ma się wobec czego uwierzytelniać.",
+    "gatewayLitellmProxyModel": "Bramka, proxy LiteLLM lub serwer modeli w tej sieci. Podaj jeden, a klucz stanie się opcjonalny - na własnym sprzęcie nie ma się wobec czego uwierzytelniać.",
     "giveSpecialistCapability": "Daj temu specjaliście {name}",
     "giveThisAgent": "Daj temu agentowi {name}",
     "handleDescription": "Będzie wspominany jako <at>{handle}</at>, co jest niezmienne po utworzeniu i tak zwracają się do niego Slack oraz API.",
@@ -511,9 +511,9 @@
     "separateWithCommas": "Oddzielaj przecinkami",
     "separatesStagingTrafficFrom": "Oddziela ruch staging od prawdziwego w tym samym projekcie.",
     "traceContent": "Zawartość trace'ów",
-    "traceContentFull": "Pełna — wiadomości, wyjście i wywołania narzędzi",
-    "traceContentNone": "Brak — tylko czas i koszt",
-    "traceContentHint": "„Brak\" zachowuje czas, tokeny, koszt i nazwy narzędzi, ale nie wysyła treści wiadomości ani argumentów narzędzi — dla projektu na danych medycznych, prawnych lub HR.",
+    "traceContentFull": "Pełna - wiadomości, wyjście i wywołania narzędzi",
+    "traceContentNone": "Brak - tylko czas i koszt",
+    "traceContentHint": "„Brak\" zachowuje czas, tokeny, koszt i nazwy narzędzi, ale nie wysyła treści wiadomości ani argumentów narzędzi - dla projektu na danych medycznych, prawnych lub HR.",
     "serverCount": "{count, plural, =1 {1 serwer} few {# serwery} many {# serwerów} other {# serwera}}",
     "servesVersion": "obsługuje v{version}",
     "serviceName": "Nazwa usługi",
@@ -620,7 +620,7 @@
     "visibilityTeam": "Zespół",
     "webhook": "Webhook",
     "whatAgentCalledLogfire": "Jak agent nazywa się w Logfire.",
-    "whatServiceAllowsNever": "Na co zezwala usługa. Nigdy nie nazywa obrazu — to decyzja operatora.",
+    "whatServiceAllowsNever": "Na co zezwala usługa. Nigdy nie nazywa obrazu - to decyzja operatora.",
     "whatThePageSupplies": "Co dostarcza strona",
     "whatThePageSuppliesHint": "Ustaw je na stronie jako window.AgenticOSContext, zanim załaduje się skrypt widgetu. Są dołączane do instrukcji agenta jako informacja o odwiedzającym - nigdy jako instrukcje, bo wartość z przeglądarki to taka, którą odwiedzający może edytować.",
     "whereAgentAvailable": "Gdzie ten agent jest dostępny",
@@ -750,7 +750,7 @@
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz swój <em>workspace.</em>",
     "creatingAccount": "Tworzę konto...",
-    "dropYourEmailBelow": "Podaj swój email — wyślemy jednorazowy link do ustawienia nowego hasła.",
+    "dropYourEmailBelow": "Podaj swój email - wyślemy jednorazowy link do ustawienia nowego hasła.",
     "email": "Email",
     "emailPlaceholder": "imie@firma.com",
     "emailRequired": "Email jest wymagany",
@@ -855,7 +855,7 @@
     "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",
     "agentPicker": {
-      "appliesNext": "Działa od Twojej następnej wiadomości — wcześniejsze odpowiedzi zachowują swojego agenta.",
+      "appliesNext": "Działa od Twojej następnej wiadomości - wcześniejsze odpowiedzi zachowują swojego agenta.",
       "current": "Agent: {name}",
       "default": "Domyślny",
       "defaultForNewChats": "Domyślny agent dla nowych czatów",
@@ -1161,7 +1161,7 @@
     "thoughtAboutIt": "Przemyślał to",
     "title": "Czat",
     "tokensDetail": "{input, number} tokenów wejścia · {output, number} wyjścia",
-    "tokensDetailPartial": "{input, number} tokenów wejścia · {output, number} wyjścia — wartość minimalna: któryś model w tym runie nie miał ceny",
+    "tokensDetailPartial": "{input, number} tokenów wejścia · {output, number} wyjścia - wartość minimalna: któryś model w tym runie nie miał ceny",
     "toolApprovalRequired": "Wymagane zatwierdzenie narzędzia",
     "draftProposalTitle": "Nowa wersja robocza agenta",
     "draftProposalIn": "Powstanie w {organization}",
@@ -1239,7 +1239,7 @@
       "memorySaving": "Zapisuje w pamięci",
       "memoryUpdating": "Aktualizuje wspomnienie",
       "messageDelegate": "Wiadomość do delegata",
-      "moreEntries": "i {count, plural, one {1 więcej} few {# więcej} many {# więcej} other {# więcej}} — otwórz surowy widok, aby zobaczyć wszystkie",
+      "moreEntries": "i {count, plural, one {1 więcej} few {# więcej} many {# więcej} other {# więcej}} - otwórz surowy widok, aby zobaczyć wszystkie",
       "noArguments": "Brak argumentów",
       "noContext": "Do tego agenta nie są dołączone pliki kontekstu.",
       "noSkills": "Do tego agenta nie są dołączone skille.",
@@ -1312,7 +1312,7 @@
       "context": "Kontekst",
       "contextOf": "{used, number} z {window, number} tokenów w oknie kontekstu modelu",
       "conversation": "Ta rozmowa",
-      "inContainer": "{used} z {limit} — limit pamięci własnego kontenera tej rozmowy, a nie pula dzielona z czymkolwiek innym",
+      "inContainer": "{used} z {limit} - limit pamięci własnego kontenera tej rozmowy, a nie pula dzielona z czymkolwiek innym",
       "inUse": "w użyciu",
       "label": "Użycie w tej rozmowie",
       "labelNearLimit": "Użycie w tej rozmowie - blisko limitu",
@@ -1325,8 +1325,8 @@
       "threadTotal": "${cost}",
       "threadTotalDetail": "{input, number} na wejściu · {output, number} na wyjściu naliczone w tej rozmowie",
       "threadTotalPartial": "≥ ${cost}",
-      "threadTotalPartialDetail": "{input, number} na wejściu · {output, number} na wyjściu naliczone w tej rozmowie — wartość minimalna: któryś model nie miał ceny",
-      "unmeasured": "w użyciu — ten host nie podał liczby",
+      "threadTotalPartialDetail": "{input, number} na wejściu · {output, number} na wyjściu naliczone w tej rozmowie - wartość minimalna: któryś model nie miał ceny",
+      "unmeasured": "w użyciu - ten host nie podał liczby",
       "workspace": "Workspace",
       "workspaceUsed": "Wykorzystany workspace"
     },
@@ -1419,7 +1419,7 @@
       "retry": "Ponów",
       "title": "Nie udało się załadować"
     },
-    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane — poza tym jednym.",
+    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane - poza tym jednym.",
     "failedRevokeSession": "Nie udało się unieważnić sesji",
     "failedRevokeSessions": "Nie udało się unieważnić sesji",
     "lastActive": "Ostatnia aktywność {when}",
@@ -1583,7 +1583,7 @@
         "p95": "Najwolniejsze 5% (p95)",
         "title": "Opóźnienie",
         "viewSlowest": "Otwórz te runy, od najwolniejszego",
-        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu.",
+        "description": "Ile trwają uruchomienia - mediana i ogon rozkładu.",
         "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
       },
       "mcp-health": {
@@ -1691,7 +1691,7 @@
           "other": "W toku lub anulowane"
         },
         "title": "Wyniki",
-        "description": "Jak kończyły się uruchomienia — ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
+        "description": "Jak kończyły się uruchomienia - ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
       },
       "platform": {
         "active24h": "{count} aktywnych w 24 h",
@@ -1740,7 +1740,7 @@
         "description": "Ile uruchomień odbyło się w danym okresie, dzień po dniu."
       },
       "sandbox-capacity": {
-        "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
+        "elsewhere": "Działa na Daytonie - tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
         "empty": {
           "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj.",
           "title": "Nie zarejestrowano hosta sandboxów"
@@ -1759,7 +1759,7 @@
         },
         "default": "domyślny",
         "elsewhere": {
-          "description": "Daytona nie publikuje własnej listy dozwolonych — to, na co pozwala, jest ustawieniem na tamtym koncie.",
+          "description": "Daytona nie publikuje własnej listy dozwolonych - to, na co pozwala, jest ustawieniem na tamtym koncie.",
           "title": "Sandboxy działają na Daytonie"
         },
         "empty": {
@@ -1792,7 +1792,7 @@
         "nothingRunning": "Nic nie działa. Sandbox otwiera się, gdy agent pierwszy raz uruchamia kod.",
         "runningOn": "na {name}",
         "sampleUsage": "Pamięć",
-        "sampleUsageHint": "Próbka pamięci i CPU — jedno zapytanie do hosta na sandbox",
+        "sampleUsageHint": "Próbka pamięci i CPU - jedno zapytanie do hosta na sandbox",
         "scope": {
           "agent": "dzielony w obrębie całego agenta",
           "channel": "dzielony w jednym kanale",
@@ -1848,7 +1848,7 @@
           "web": "Czat web"
         },
         "title": "Skąd pochodzą uruchomienia",
-        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały.",
+        "description": "Skąd pochodzą uruchomienia - czat web, API, kanały.",
         "unit": "uruchomień"
       },
       "top-orgs": {
@@ -2004,12 +2004,12 @@
     },
     "edit": {
       "customize": "Dostosuj",
-      "subtitle": "Ułóż swój dashboard — przeciągaj karty, aby zmieniać ich kolejność między sekcjami, zmieniaj im rozmiar, koloruj i zwijaj sekcje albo dodaj kolejne.",
+      "subtitle": "Ułóż swój dashboard - przeciągaj karty, aby zmieniać ich kolejność między sekcjami, zmieniaj im rozmiar, koloruj i zwijaj sekcje albo dodaj kolejne.",
       "banner": "Przeciągaj, zmieniaj rozmiar i układaj karty, a potem Zapisz, aby zachować, lub Anuluj, aby odrzucić.",
       "addWidget": "Dodaj widget",
       "saveAsPreset": "Zapisz jako…",
       "addTitle": "Dodaj widget",
-      "addDescription": "Wybierz kartę, a wskoczy na dashboard, gotowa do przeciągnięcia na miejsce. Najedź na wiersz, aby zobaczyć podgląd z danymi na żywo — tę samą kartę możesz dodać więcej niż raz.",
+      "addDescription": "Wybierz kartę, a wskoczy na dashboard, gotowa do przeciągnięcia na miejsce. Najedź na wiersz, aby zobaczyć podgląd z danymi na żywo - tę samą kartę możesz dodać więcej niż raz.",
       "searchPlaceholder": "Szukaj widgetów…",
       "searchLabel": "Szukaj widgetów",
       "noResults": "Żaden widget nie pasuje do „{query}”.",
@@ -2056,7 +2056,7 @@
       "shorter": "Zmniejsz wysokość {title}",
       "taller": "Zwiększ wysokość {title}",
       "emptySection": "Upuść tu kartę albo dodaj kartę do tej sekcji.",
-      "emptyDraft": "Jeszcze żadnych kart — dodaj jakąś albo anuluj, aby zachować obecny dashboard.",
+      "emptyDraft": "Jeszcze żadnych kart - dodaj jakąś albo anuluj, aby zachować obecny dashboard.",
       "emptyTitle": "Twój dashboard jest pusty",
       "emptyDescription": "Wszystkie karty są ukryte. Dodaj kilka z powrotem albo przywróć domyślny układ.",
       "saveFailed": "Nie udało się zapisać dashboardu. Spróbuj ponownie.",
@@ -2140,7 +2140,7 @@
     "loginFailed": "Logowanie nie powiodło się",
     "missingAuthorizationCode": "Brak kodu autoryzacji",
     "missingTokens": "Brak tokenów sesji",
-    "noRefreshToken": "Sesja wygasła — zaloguj się ponownie",
+    "noRefreshToken": "Sesja wygasła - zaloguj się ponownie",
     "notAuthenticated": "Nie jesteś zalogowany",
     "registrationFailed": "Rejestracja nie powiodła się",
     "requestFailed": "Żądanie nie powiodło się",
@@ -2179,7 +2179,7 @@
     "previousFile": "Poprzedni plik",
     "removeFile": "Usuń {name}",
     "renderedPage": "{name}, wyrenderowane",
-    "servedAsFile": "Tego nie da się tutaj pokazać — serwer podaje to jako plik.",
+    "servedAsFile": "Tego nie da się tutaj pokazać - serwer podaje to jako plik.",
     "shortened": "To zostało skrócone. Agent czyta cały plik.",
     "source": "Źródło",
     "truncatedRows": "Pokazano {shown, number} z {total, plural, =1 {1 wiersza} other {# wierszy}} · pobierz, żeby zobaczyć wszystkie",
@@ -2423,7 +2423,7 @@
     "scopePersonal": "Osobisty - tylko Ty",
     "syncSourceConnected": "Źródło synchronizacji podłączone",
     "syncSourceRemoved": "Źródło synchronizacji usunięte",
-    "syncStarted": "Synchronizacja ruszyła — dokumenty pojawią się w miarę ingestii",
+    "syncStarted": "Synchronizacja ruszyła - dokumenty pojawią się w miarę ingestii",
     "title": "Bazy wiedzy",
     "updated": "Baza wiedzy zaktualizowana",
     "uploadFailed": "Przesyłanie nie powiodło się",
@@ -2496,7 +2496,7 @@
     "authNoCredentials": "Brak danych uwierzytelniających",
     "authNoneHint": "Serwer jest otwarty albo stoi w sieci, do której tylko Ty masz dostęp.",
     "authOauth": "OAuth",
-    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera — zwykle nie ma tu czego konfigurować.",
+    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera - zwykle nie ma tu czego konfigurować.",
     "authTokenHint": "Stałe dane uwierzytelniające, wysyłane jako `Authorization: Bearer`.",
     "authentication": "Uwierzytelnianie",
     "authentication2": "Uwierzytelnianie",
@@ -2533,7 +2533,7 @@
     "disconnectServerTitle": "Odłączyć serwer?",
     "disconnectWarning": "Odłączyć „{name}”?",
     "displayName": "Nazwa",
-    "displayNameHint": "Jak to połączenie nazywa się na ekranie. Opcjonalne — bez niej jest pokazywane pod swoim prefiksem narzędzi.",
+    "displayNameHint": "Jak to połączenie nazywa się na ekranie. Opcjonalne - bez niej jest pokazywane pod swoim prefiksem narzędzi.",
     "displayNamePlaceholder": "Firmowa wiki",
     "documentation": "Dokumentacja",
     "edit": "Edytuj",
@@ -2542,7 +2542,7 @@
     "existingConnectionCannotChange": "Istniejące połączenie nie może zmienić właściciela.",
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
-    "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj — serwer pojawi się na liście po autoryzacji.",
+    "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj - serwer pojawi się na liście po autoryzacji.",
     "consentTabBlocked": "Przeglądarka zablokowała kartę logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
     "fromRegistry": "Rejestr",
     "fromRegistryHint": "Z publicznego rejestru MCP. Nikt tutaj go nie sprawdzał: opis pochodzi od wydawcy i nie ma wskazówek, jakiego poświadczenia wymaga.",
@@ -2565,10 +2565,10 @@
     "oauthFailed": "Logowanie się nie powiodło i żadne połączenie nie zostało zapisane.",
     "oauthMissingCode": "Provider nie przesłał kodu autoryzacji.",
     "oauthOwnClient": "Własny klient (opcjonalnie)",
-    "oauthOwnClientHint": "Większość serwerów rejestruje tę aplikację sama — zostaw te pola puste. Provider, który tego odmawia, np. HubSpot, wydaje dane tylko dla aplikacji założonej w jego własnym portalu: załóż ją tam, wpisz jej poniższy redirect URL i wklej tu jej dane.",
+    "oauthOwnClientHint": "Większość serwerów rejestruje tę aplikację sama - zostaw te pola puste. Provider, który tego odmawia, np. HubSpot, wydaje dane tylko dla aplikacji założonej w jego własnym portalu: załóż ją tam, wpisz jej poniższy redirect URL i wklej tu jej dane.",
     "oauthRedirectUrl": "Redirect URL",
     "oauthRedirectUrlHint": "Wpisz u providera dokładnie w tej postaci.",
-    "oauthRefusedWithReason": "Logowanie się nie powiodło i żadne połączenie nie zostało zapisane — {reason}",
+    "oauthRefusedWithReason": "Logowanie się nie powiodło i żadne połączenie nie zostało zapisane - {reason}",
     "organization": "organizacja",
     "pasteHere": "Wklej go tutaj",
     "redirecting": "Przekierowywanie…",
@@ -2584,7 +2584,7 @@
     "searchTools": "Szukaj narzędzi…",
     "selectAll": "Zaznacz wszystkie",
     "selectNone": "Odznacz wszystkie",
-    "selfHostedYouSupply": "Self-hosted — URL podajesz przy podłączaniu",
+    "selfHostedYouSupply": "Self-hosted - URL podajesz przy podłączaniu",
     "serverCouldNotBe": "Nie udało się połączyć z serwerem",
     "serverCount": "{count, plural, one {1 serwer} few {# serwery} many {# serwerów} other {# serwera}}",
     "serverDisconnected": "{name} odłączony.",
@@ -2601,11 +2601,11 @@
     "toolsSelected": "{on} z {total} włączonych",
     "unreachable": "Nieosiągalny",
     "urlMustStartWithHttp": "URL musi zaczynać się od http:// lub https://",
-    "useServiceCredentialNot": "Użyj poświadczenia serwisowego, nie własnego — z nim działa każdy agent związany z tym serwerem. Zapieczętowane dla tej organizacji i nigdy więcej niepokazywane.",
-    "whichToolsAgent": "Które z tych narzędzi ten agent może wywoływać. Lista samego połączenia nadal obowiązuje — to zawęża w jej obrębie. Zaznaczenie wszystkich sprawia, że agent idzie za połączeniem, łącznie z narzędziami, które serwer doda później.",
+    "useServiceCredentialNot": "Użyj poświadczenia serwisowego, nie własnego - z nim działa każdy agent związany z tym serwerem. Zapieczętowane dla tej organizacji i nigdy więcej niepokazywane.",
+    "whichToolsAgent": "Które z tych narzędzi ten agent może wywoływać. Lista samego połączenia nadal obowiązuje - to zawęża w jej obrębie. Zaznaczenie wszystkich sprawia, że agent idzie za połączeniem, łącznie z narzędziami, które serwer doda później.",
     "whichToolsConnection": "Które narzędzia to połączenie w ogóle udostępnia. Zaznaczenie wszystkich automatycznie włącza też narzędzia, które serwer doda później.{scope, select, organization { Dotyczy każdego agenta powiązanego z tym serwerem; agent może zawęzić dalej, ale nie może wyjść poza to.} other {}}",
-    "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie — dlatego użyj konta, które kontroluje organizacja.",
-    "yourChatAndDirectMessages": "Tylko twoje — twój czat i twoje prywatne wiadomości w kanale.",
+    "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie - dlatego użyj konta, które kontroluje organizacja.",
+    "yourChatAndDirectMessages": "Tylko twoje - twój czat i twoje prywatne wiadomości w kanale.",
     "yours": "Twoje",
     "yoursAloneYourOwn": "Tylko Ty. Używane w Twoich czatach i przez agentów ustawionych tak, by działali w imieniu każdej osoby, z Twoim dostępem.",
     "recommended": "Zalecane",
@@ -2631,7 +2631,7 @@
       "failed": "błąd",
       "awaiting_approval": "czeka na zatwierdzenie"
     },
-    "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem — wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}"
+    "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem - wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",
@@ -2728,7 +2728,7 @@
     "finish": "Zakończ",
     "progress": "Krok {current} z {total}",
     "saveFailed": "Nie udało się zapisać ukończenia przewodnika, więc może pojawić się ponownie następnym razem.",
-    "helpReminder": "Wskazówki każdej strony możesz odtworzyć, kiedy chcesz — wystarczy kliknąć ? w jej nagłówku.",
+    "helpReminder": "Wskazówki każdej strony możesz odtworzyć, kiedy chcesz - wystarczy kliknąć ? w jej nagłówku.",
     "coachClose": "Zamknij",
     "coachYes": "Tak, zróbmy to",
     "coachSkip": "Pomiń",
@@ -2771,7 +2771,7 @@
     "steps": {
       "activity-approvals": {
         "title": "Co czeka na Ciebie",
-        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło — ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
+        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło - ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
       },
       "activity-overview": {
         "title": "Obserwuj aktywność",
@@ -2783,11 +2783,11 @@
       },
       "activity-spend": {
         "title": "Gdzie poszły pieniądze",
-        "body": "Wydatki w czasie i według agenta, względem ustawionych budżetów — więc agent, który po cichu drożeje, pojawi się tutaj, zanim zrobi to rachunek."
+        "body": "Wydatki w czasie i według agenta, względem ustawionych budżetów - więc agent, który po cichu drożeje, pojawi się tutaj, zanim zrobi to rachunek."
       },
       "agent-availability": {
         "title": "Zaprzęgnij go do pracy",
-        "body": "Dostępność to miejsce, gdzie opublikowany agent wchodzi na żywo — czat na stronie, osadzenie w Twojej witrynie, Slack czy Telegram — i gdzie decydujesz, komu go udostępnić."
+        "body": "Dostępność to miejsce, gdzie opublikowany agent wchodzi na żywo - czat na stronie, osadzenie w Twojej witrynie, Slack czy Telegram - i gdzie decydujesz, komu go udostępnić."
       },
       "agent-history": {
         "title": "Każda wersja zachowana",
@@ -2807,11 +2807,11 @@
       },
       "agent-mcp": {
         "title": "I całe zestawy narzędzi",
-        "body": "Pod możliwościami podepnij serwery MCP — gotowe zestawy narzędzi jak GitHub czy Slack, podłączone raz dla organizacji i używane przez wielu agentów."
+        "body": "Pod możliwościami podepnij serwery MCP - gotowe zestawy narzędzi jak GitHub czy Slack, podłączone raz dla organizacji i używane przez wielu agentów."
       },
       "agent-model": {
         "title": "Wybierz mózg",
-        "body": "Model pod spodem robi rozumowanie. Podmień go, ustaw, jak mocno myśli, albo włącz rozumowanie krok po kroku — wszystko bez ruszania instrukcji powyżej."
+        "body": "Model pod spodem robi rozumowanie. Podmień go, ustaw, jak mocno myśli, albo włącz rozumowanie krok po kroku - wszystko bez ruszania instrukcji powyżej."
       },
       "agent-publish": {
         "title": "Opublikuj, żeby go wypuścić",
@@ -2819,7 +2819,7 @@
       },
       "agent-skills": {
         "title": "Daj mu instrukcję działania",
-        "body": "Umiejętności to spisana wiedza, którą agent czyta przed działaniem — procedura, styl firmy, lista kontrolna — i tę samą można współdzielić między agentami."
+        "body": "Umiejętności to spisana wiedza, którą agent czyta przed działaniem - procedura, styl firmy, lista kontrolna - i tę samą można współdzielić między agentami."
       },
       "agent-toolbox": {
         "title": "Daj mu narzędzia",
@@ -2831,7 +2831,7 @@
       },
       "agents-new": {
         "title": "Zbuduj agenta",
-        "body": "Agent to jego instrukcje, model oraz narzędzia, serwery MCP i umiejętności, które mu dasz. Utwórz jednego tutaj, potem opublikuj wersję, żeby działał tak samo wszędzie — czat, API, Slack czy widżet."
+        "body": "Agent to jego instrukcje, model oraz narzędzia, serwery MCP i umiejętności, które mu dasz. Utwórz jednego tutaj, potem opublikuj wersję, żeby działał tak samo wszędzie - czat, API, Slack czy widżet."
       },
       "channels-list": {
         "title": "Podłączone kanały",
@@ -2839,7 +2839,7 @@
       },
       "channels-new": {
         "title": "Docieraj tam, gdzie są ludzie",
-        "body": "Zarejestruj platformę czatu — Slack, Telegram, Mattermost — i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
+        "body": "Zarejestruj platformę czatu - Slack, Telegram, Mattermost - i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
       },
       "chat-agent-picker": {
         "title": "Wybierz, kto odpowiada",
@@ -2859,7 +2859,7 @@
       },
       "chat-model-picker": {
         "title": "Dostrój model",
-        "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
+        "body": "Wybierz, który z modeli organizacji odpowiada - tylko dla tej rozmowy, bez zmiany agenta."
       },
       "chat-plan": {
         "title": "Do czego dąży",
@@ -2875,7 +2875,7 @@
       },
       "context-new": {
         "title": "Dodaj stały kontekst",
-        "body": "Pliki kontekstu to tło, które nosi każdy agent — fakty o firmie, ton, terminy — wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
+        "body": "Pliki kontekstu to tło, które nosi każdy agent - fakty o firmie, ton, terminy - wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
       },
       "dashboard-actions": {
         "title": "Zacznij tutaj",
@@ -2891,22 +2891,22 @@
       },
       "finish": {
         "title": "Wszystko gotowe",
-        "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze — przejdź na pulpit, gdy będziesz gotów zacząć budować."
+        "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze - przejdź na pulpit, gdy będziesz gotów zacząć budować."
       },
       "flow-agent-create": {
         "title": "Nazwij agenta",
-        "body": "Wybierz New agent — nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
+        "body": "Wybierz New agent - nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
       },
       "flow-agent-instructions": {
         "title": "Napisz jego instrukcje",
-        "body": "Powiedz agentowi, kim jest i co ma robić — to jego prompt systemowy. Napisz linijkę lub dwie, potem wybierz Dalej."
+        "body": "Powiedz agentowi, kim jest i co ma robić - to jego prompt systemowy. Napisz linijkę lub dwie, potem wybierz Dalej."
       },
       "flow-agent-knowledge": {
         "title": "Daj mu dokumenty do czytania (opcjonalnie)",
-        "body": "Podepnij bazę wiedzy, a agent będzie mógł przeszukiwać te dokumenty i się na nie powoływać. Możesz to pominąć i dodać w każdej chwili — wybierz Dalej, żeby przejść dalej."
+        "body": "Podepnij bazę wiedzy, a agent będzie mógł przeszukiwać te dokumenty i się na nie powoływać. Możesz to pominąć i dodać w każdej chwili - wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-knowledge-ask": {
-        "title": "Nie ma jeszcze bazy wiedzy — utworzyć?",
+        "title": "Nie ma jeszcze bazy wiedzy - utworzyć?",
         "body": "Baza wiedzy pozwala temu agentowi przeszukiwać Twoje dokumenty i się na nie powoływać, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
       },
       "flow-agent-knowledge-attach": {
@@ -2915,7 +2915,7 @@
       },
       "flow-agent-knowledge-create": {
         "title": "Utwórz bazę wiedzy",
-        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+        "body": "Wybierz New knowledge base - otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Otwórz agenta ponownie",
@@ -2934,8 +2934,8 @@
         "body": "Serwery MCP dają agentowi narzędzia z innych systemów, które są już podłączone. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-mcp-ask": {
-        "title": "Nie podłączono serwera MCP — podłączyć?",
-        "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączono. Podłączyć jeden teraz? To szybkie okno tutaj — bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
+        "title": "Nie podłączono serwera MCP - podłączyć?",
+        "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączono. Podłączyć jeden teraz? To szybkie okno tutaj - bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
       },
       "flow-agent-mcp-attach": {
         "title": "Daj mu ten serwer",
@@ -2943,23 +2943,23 @@
       },
       "flow-agent-mcp-connect": {
         "title": "Otwórz katalog",
-        "body": "Wybierz Connect server — katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
+        "body": "Wybierz Connect server - katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
       },
       "flow-agent-model-add": {
         "title": "Dodaj model",
-        "body": "Twoja organizacja nie ma jeszcze modelu. Wybierz dostawcę, nazwij model i wklej klucz — trafi do Sejfu i model jest gotowy. Przejdziemy dalej, gdy zostanie dodany."
+        "body": "Twoja organizacja nie ma jeszcze modelu. Wybierz dostawcę, nazwij model i wklej klucz - trafi do Sejfu i model jest gotowy. Przejdziemy dalej, gdy zostanie dodany."
       },
       "flow-agent-model-none": {
         "title": "W tej organizacji nie ma jeszcze modelu",
-        "body": "Agent potrzebuje modelu, żeby działać, a ta organizacja żadnego nie ma. Dodanie wymaga uprawnienia do połączeń, którego nie masz — poproś administratora o dodanie modelu, wtedy ten agent będzie mógł go użyć. Wybierz Dalej, żeby na razie obejrzeć resztę."
+        "body": "Agent potrzebuje modelu, żeby działać, a ta organizacja żadnego nie ma. Dodanie wymaga uprawnienia do połączeń, którego nie masz - poproś administratora o dodanie modelu, wtedy ten agent będzie mógł go użyć. Wybierz Dalej, żeby na razie obejrzeć resztę."
       },
       "flow-agent-model-pick": {
         "title": "Wybierz jego model",
-        "body": "Wybierz z listy model, na którym ma działać ten agent — agent potrzebuje go, żeby działać, więc przejdziemy dalej, gdy zostanie ustawiony."
+        "body": "Wybierz z listy model, na którym ma działać ten agent - agent potrzebuje go, żeby działać, więc przejdziemy dalej, gdy zostanie ustawiony."
       },
       "flow-agent-publish": {
         "title": "Opublikuj go",
-        "body": "Agent musi być opublikowany, żeby dało się z nim pisać — szkic nie przyjmuje wiadomości. Kliknij Publish, aby udostępnić tę wersję; przejdziemy dalej w chwili, gdy się opublikuje."
+        "body": "Agent musi być opublikowany, żeby dało się z nim pisać - szkic nie przyjmuje wiadomości. Kliknij Publish, aby udostępnić tę wersję; przejdziemy dalej w chwili, gdy się opublikuje."
       },
       "flow-agent-run-pick": {
         "title": "Wybierz swojego agenta",
@@ -2967,14 +2967,14 @@
       },
       "flow-agent-run-send": {
         "title": "Wyślij mu wiadomość",
-        "body": "Wpisz prompt i wyślij — pierwsze uruchomienie Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
+        "body": "Wpisz prompt i wyślij - pierwsze uruchomienie Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
       },
       "flow-agent-skills": {
         "title": "Daj mu umiejętności (opcjonalnie)",
-        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna — polityka zwrotów, styl firmy. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
+        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna - polityka zwrotów, styl firmy. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-skills-ask": {
-        "title": "Nie ma jeszcze umiejętności — utworzyć?",
+        "title": "Nie ma jeszcze umiejętności - utworzyć?",
         "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
       },
       "flow-agent-skills-attach": {
@@ -2983,7 +2983,7 @@
       },
       "flow-agent-skills-create": {
         "title": "Utwórz umiejętność",
-        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+        "body": "Wybierz New skill - otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
       },
       "flow-agent-skills-return-edit": {
         "title": "Otwórz agenta ponownie",
@@ -2995,19 +2995,19 @@
       },
       "flow-agent-tools": {
         "title": "Daj mu narzędzia (opcjonalnie)",
-        "body": "Możliwości pozwalają agentowi działać — przeszukać sieć, uruchomić kod, wywołać inny system. Włącz to, czego potrzebuje, albo wybierz Dalej, żeby przejść dalej."
+        "body": "Możliwości pozwalają agentowi działać - przeszukać sieć, uruchomić kod, wywołać inny system. Włącz to, czego potrzebuje, albo wybierz Dalej, żeby przejść dalej."
       },
       "flow-chat-agent": {
         "title": "Wybierz, kto odpowiada",
-        "body": "To wybiera, który z Twoich opublikowanych agentów odpowiada. Otwórz, żeby przełączać agentów — możesz zmienić nawet w trakcie rozmowy. Wybierz Dalej."
+        "body": "To wybiera, który z Twoich opublikowanych agentów odpowiada. Otwórz, żeby przełączać agentów - możesz zmienić nawet w trakcie rozmowy. Wybierz Dalej."
       },
       "flow-chat-composer": {
         "title": "Wpisz i wyślij",
-        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
+        "body": "Napisz tu swoją wiadomość i wyślij - to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
       },
       "flow-chat-controls": {
         "title": "Dostrój tę rozmowę",
-        "body": "Otwórz Controls, żeby uruchomić ten czat na innym modelu albo zmienić, jak mocno myśli — tylko dla tej rozmowy, bez ruszania samego agenta. Wybierz Dalej."
+        "body": "Otwórz Controls, żeby uruchomić ten czat na innym modelu albo zmienić, jak mocno myśli - tylko dla tej rozmowy, bez ruszania samego agenta. Wybierz Dalej."
       },
       "flow-chat-needs-agent": {
         "title": "Nie ma jeszcze opublikowanego agenta do rozmowy",
@@ -3019,19 +3019,19 @@
       },
       "flow-kb-create": {
         "title": "Utwórz bazę wiedzy",
-        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+        "body": "Wybierz New knowledge base - otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
       "flow-kb-field-create": {
         "title": "Utwórz ją",
-        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy powstanie — dokumenty dodasz do niej zaraz potem."
+        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy powstanie - dokumenty dodasz do niej zaraz potem."
       },
       "flow-kb-field-embeddings": {
         "title": "Embeddingi (zostaw domyślne)",
-        "body": "Jak dokumenty są indeksowane do wyszukiwania. Zamraża się przy tworzeniu, ale domyślne ustawienie wdrożenia jest dobre dla niemal każdego — rozwiń je tylko, jeśli wiesz, że potrzebujesz innego modelu. Wybierz Dalej."
+        "body": "Jak dokumenty są indeksowane do wyszukiwania. Zamraża się przy tworzeniu, ale domyślne ustawienie wdrożenia jest dobre dla niemal każdego - rozwiń je tylko, jeśli wiesz, że potrzebujesz innego modelu. Wybierz Dalej."
       },
       "flow-kb-field-name": {
         "title": "Nazwij ją",
-        "body": "Nazwij ją od tego, co będzie zawierać — Dokumentacja produktu, Wiki wsparcia — żeby każdy, kto podpina ją do agenta, wiedział, co daje. Potem wybierz Dalej."
+        "body": "Nazwij ją od tego, co będzie zawierać - Dokumentacja produktu, Wiki wsparcia - żeby każdy, kto podpina ją do agenta, wiedział, co daje. Potem wybierz Dalej."
       },
       "flow-kb-field-scope": {
         "title": "Wybierz, do kogo należy",
@@ -3039,11 +3039,11 @@
       },
       "flow-mcp-field-connect": {
         "title": "Połącz",
-        "body": "Kliknij Connect. Sprawdzamy, czy serwer odpowiada, i ruszamy dalej w chwili połączenia — serwer, który loguje się przez dostawcę, przekieruje zamiast tego na jego ekran zgody."
+        "body": "Kliknij Connect. Sprawdzamy, czy serwer odpowiada, i ruszamy dalej w chwili połączenia - serwer, który loguje się przez dostawcę, przekieruje zamiast tego na jego ekran zgody."
       },
       "flow-mcp-field-form": {
         "title": "Wypełnij połączenie",
-        "body": "Nazwij je — nazwa poprzedza nazwy jego narzędzi — zostaw zakres organizacyjny, żeby Twoi agenci mogli z niego korzystać, i wklej token, jeśli ten serwer o niego prosi. Potem wybierz Dalej."
+        "body": "Nazwij je - nazwa poprzedza nazwy jego narzędzi - zostaw zakres organizacyjny, żeby Twoi agenci mogli z niego korzystać, i wklej token, jeśli ten serwer o niego prosi. Potem wybierz Dalej."
       },
       "flow-mcp-field-pick": {
         "title": "Wybierz serwer",
@@ -3051,7 +3051,7 @@
       },
       "flow-org-create": {
         "title": "Utwórz organizację",
-        "body": "Wybierz New organization — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
+        "body": "Wybierz New organization - nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
       },
       "flow-routine-run-now": {
         "title": "Odpal ją raz, teraz",
@@ -3059,7 +3059,7 @@
       },
       "flow-skill-create": {
         "title": "Dodaj swoją umiejętność",
-        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+        "body": "Wybierz New skill - otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
       "flow-skill-field-create": {
         "title": "Utwórz ją",
@@ -3067,15 +3067,15 @@
       },
       "flow-skill-field-description": {
         "title": "Napisz, kiedy jej używać",
-        "body": "To jedyna część, którą model czyta, decydując, czy w ogóle otworzyć umiejętność — napisz, kiedy po nią sięgnąć, nie co jest w środku. Potem wybierz Dalej."
+        "body": "To jedyna część, którą model czyta, decydując, czy w ogóle otworzyć umiejętność - napisz, kiedy po nią sięgnąć, nie co jest w środku. Potem wybierz Dalej."
       },
       "flow-skill-field-name": {
         "title": "Nazwij ją",
-        "body": "Krótko i konkretnie, np. refund-policy — tak model odwołuje się do tej umiejętności i nie da się tego później zmienić. Potem wybierz Dalej."
+        "body": "Krótko i konkretnie, np. refund-policy - tak model odwołuje się do tej umiejętności i nie da się tego później zmienić. Potem wybierz Dalej."
       },
       "flow-skill-field-source": {
         "title": "Napisz umiejętność",
-        "body": "Przełącz na Source i napisz samą wiedzę w Markdown — kroki, reguły, wyjątki. Możesz ją dopracować później w każdej chwili. Potem wybierz Dalej."
+        "body": "Przełącz na Source i napisz samą wiedzę w Markdown - kroki, reguły, wyjątki. Możesz ją dopracować później w każdej chwili. Potem wybierz Dalej."
       },
       "kb-documents": {
         "title": "Co jest w środku",
@@ -3083,11 +3083,11 @@
       },
       "kb-header": {
         "title": "Wnętrze kolekcji",
-        "body": "Nazwa kolekcji, zakres i sterowanie są na górze — odśwież ją, wrzuć pliki, zmień sposób ich czytania albo usuń ją."
+        "body": "Nazwa kolekcji, zakres i sterowanie są na górze - odśwież ją, wrzuć pliki, zmień sposób ich czytania albo usuń ją."
       },
       "kb-ingestion": {
         "title": "Jak czytane są dokumenty",
-        "body": "Parser, dzielenie na fragmenty i model embeddingów za tą kolekcją — to, co zamienia Twoje pliki w coś przeszukiwalnego. Zmień to, a nowe wgrania pójdą za nowymi ustawieniami."
+        "body": "Parser, dzielenie na fragmenty i model embeddingów za tą kolekcją - to, co zamienia Twoje pliki w coś przeszukiwalnego. Zmień to, a nowe wgrania pójdą za nowymi ustawieniami."
       },
       "kb-sync": {
         "title": "Trzymaj w synchronizacji",
@@ -3095,7 +3095,7 @@
       },
       "knowledge-add-integration": {
         "title": "Dodaj połączenie",
-        "body": "Zacznij nowe tutaj — wybierz konektor jak S3 czy Google Drive, podaj dane logowania, a stanie się dostępne do sklonowania do każdej kolekcji, która go potrzebuje."
+        "body": "Zacznij nowe tutaj - wybierz konektor jak S3 czy Google Drive, podaj dane logowania, a stanie się dostępne do sklonowania do każdej kolekcji, która go potrzebuje."
       },
       "knowledge-integrations": {
         "title": "Połączenia wielokrotnego użytku",
@@ -3103,7 +3103,7 @@
       },
       "knowledge-new": {
         "title": "Bazy wiedzy",
-        "body": "Wgraj dokumenty, żeby Twoi agenci mogli z nich odpowiadać. Każda kolekcja jest przeszukiwalna i pozostaje prywatna dla Twojej organizacji — utwórz pierwszą tutaj."
+        "body": "Wgraj dokumenty, żeby Twoi agenci mogli z nich odpowiadać. Każda kolekcja jest przeszukiwalna i pozostaje prywatna dla Twojej organizacji - utwórz pierwszą tutaj."
       },
       "knowledge-tabs": {
         "title": "Przeglądaj lub szukaj",
@@ -3111,7 +3111,7 @@
       },
       "mcp-add": {
         "title": "Dodaj własny",
-        "body": "Nie ma go w katalogu? Dodaj własny serwer, wklejając jego URL — dla całej organizacji albo tylko dla siebie."
+        "body": "Nie ma go w katalogu? Dodaj własny serwer, wklejając jego URL - dla całej organizacji albo tylko dla siebie."
       },
       "mcp-catalog": {
         "title": "Podłącz narzędzia",
@@ -3131,7 +3131,7 @@
       },
       "org-members": {
         "title": "Kto w niej jest",
-        "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś — wszystko z tej listy."
+        "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś - wszystko z tej listy."
       },
       "org-profile": {
         "title": "Nazwa i twarz",
@@ -3171,7 +3171,7 @@
       },
       "orgs-new": {
         "title": "Twoje organizacje",
-        "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz — każda trzyma swoich agentów, klucze i wiedzę osobno."
+        "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz - każda trzyma swoich agentów, klucze i wiedzę osobno."
       },
       "routines-create": {
         "title": "Dwa sposoby, by ją uruchomić",
@@ -3183,7 +3183,7 @@
       },
       "run-detail-input": {
         "title": "Co model faktycznie dostał",
-        "body": "Prompt w postaci, w jakiej został złożony i wysłany, każde narzędzie z opisem, który czyta model, ustawienia i jeden pasek na żądanie — zapisane z przewodu, więc to jest to, co wysłano, a nie to, co mówi spec."
+        "body": "Prompt w postaci, w jakiej został złożony i wysłany, każde narzędzie z opisem, który czyta model, ustawienia i jeden pasek na żądanie - zapisane z przewodu, więc to jest to, co wysłano, a nie to, co mówi spec."
       },
       "sandboxes-connections": {
         "title": "Gdzie agenci uruchamiają kod",
@@ -3191,7 +3191,7 @@
       },
       "settings-tabs": {
         "title": "Twoje ustawienia",
-        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
+        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika - wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
       },
       "skills-list": {
         "title": "Twoje umiejętności",
@@ -3211,11 +3211,11 @@
       },
       "welcome": {
         "title": "Witaj w AgenticOS",
-        "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę — jakaś minuta, a zamkniesz to, kiedy chcesz."
+        "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę - jakaś minuta, a zamkniesz to, kiedy chcesz."
       },
       "workspaces-browser": {
         "title": "Pliki, które agenci zachowali dla Ciebie",
-        "body": "Gdy agent zapisuje plik, trafia tutaj — przeglądaj, podglądaj i pobieraj to, co wytworzyły Twoje rozmowy."
+        "body": "Gdy agent zapisuje plik, trafia tutaj - przeglądaj, podglądaj i pobieraj to, co wytworzyły Twoje rozmowy."
       },
       "workspaces-detail": {
         "title": "Wnętrze przestrzeni",
@@ -3243,7 +3243,7 @@
       },
       "settings-connected-apps": {
         "title": "Podłączone aplikacje",
-        "body": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu w granicach tego, na co pozwolono — odłącz ją, żeby od razu zakończyć jej dostęp."
+        "body": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu w granicach tego, na co pozwolono - odłącz ją, żeby od razu zakończyć jej dostęp."
       },
       "assistant-widget": {
         "title": "Twój Architekt",
@@ -3315,7 +3315,7 @@
       "keptForEver": "Trzymane, dopóki ktoś nie usunie",
       "afterDays": "Usuwane po {days} dniach",
       "atLeastDays": "Trzymane co najmniej {days} dni",
-      "cappedByDeployment": "Usuwane po {days} dniach — limit wdrożenia",
+      "cappedByDeployment": "Usuwane po {days} dniach - limit wdrożenia",
       "conflictingBounds": "Własne granice tego wdrożenia są sprzeczne dla: {classes}. Administrator musi rozstrzygnąć, która obowiązuje, zanim te okresy cokolwiek znaczą.",
       "hardDeleteNotice": "Sweep chodzi raz dziennie i usuwa na stałe. To, co wydał usunięty run, dalej liczy się do rachunku miesiąca.",
       "save": "Zapisz",
@@ -3578,7 +3578,7 @@
       "noLimit": "Bez limitu",
       "noMcpServersAttached": "Brak podpiętych serwerów MCP",
       "noModel": "Brak modelu",
-      "noModelNeedsConnections": "Twoja organizacja nie ma jeszcze modelu, a agent potrzebuje go do publikacji. Dodanie modelu wymaga uprawnienia \"Zarządzanie połączeniami\" — poproś admina, żeby go dodał.",
+      "noModelNeedsConnections": "Twoja organizacja nie ma jeszcze modelu, a agent potrzebuje go do publikacji. Dodanie modelu wymaga uprawnienia \"Zarządzanie połączeniami\" - poproś admina, żeby go dodał.",
       "noSkillsAttached": "Brak podpiętych skilli",
       "nobodyHasSharedAgent": "Nikt jeszcze nie udostępnił Ci agenta.",
       "nothingMatches": "Nic nie pasuje",
@@ -4345,7 +4345,7 @@
       "recentlyUpdated": "Ostatnio zaktualizowane",
       "searchSkills": "Szukaj skilli…",
       "skillCount": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilla}}",
-      "skillKnowHowWritten": "Skill to wiedza spisana raz i dzielona przez każdego agenta, który jej potrzebuje — jak obsługiwane są zwroty, jaki jest styl firmy. Edytujesz go tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.",
+      "skillKnowHowWritten": "Skill to wiedza spisana raz i dzielona przez każdego agenta, który jej potrzebuje - jak obsługiwane są zwroty, jaki jest styl firmy. Edytujesz go tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.",
       "skills": "Skille",
       "skills2": "Skille",
       "sort": "Sortuj",
@@ -4356,10 +4356,10 @@
       "accessTo": "Dostęp do {name}",
       "addKey": "Dodaj klucz",
       "addKey2": "Dodaj klucz",
-      "addOneBecomesSelectable": "Dodaj jeden, a stanie się wybieralny wszędzie tam, gdzie jest potrzebny — provider modeli w Builderze, usługa wyszukiwania w capability.",
+      "addOneBecomesSelectable": "Dodaj jeden, a stanie się wybieralny wszędzie tam, gdzie jest potrzebny - provider modeli w Builderze, usługa wyszukiwania w capability.",
       "keys": "Klucze",
       "noKeysYet": "Nie ma jeszcze kluczy",
-      "pageDescription": "Każdy klucz zapisany przez tę organizację. Zaszyfrowany, związany z tą organizacją i nigdy więcej do odczytania — klucz da się zastąpić, nie odsłonić.",
+      "pageDescription": "Każdy klucz zapisany przez tę organizację. Zaszyfrowany, związany z tą organizacją i nigdy więcej do odczytania - klucz da się zastąpić, nie odsłonić.",
       "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
       "vault": "Vault",
       "vault2": "Vault",
@@ -4367,7 +4367,7 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Nie udało się wczytać workspace",
-      "pageDescription": "Pliki, które agenci trzymają dla Ciebie. Workspace to brudnopis — jest usuwany razem z rozmową, do której należy, i nie służy do trwałego przechowywania.",
+      "pageDescription": "Pliki, które agenci trzymają dla Ciebie. Workspace to brudnopis - jest usuwany razem z rozmową, do której należy, i nie służy do trwałego przechowywania.",
       "whatOneAgentKeeping": "Co trzyma jeden agent, folder po folderze. Wyszukiwanie obejmuje każdy folder, nie tylko ten na ekranie.",
       "workspace": "Workspace",
       "workspaceUnreadable": "Nie udało się odczytać tego workspace",
@@ -4402,7 +4402,7 @@
     },
     "routines": {
       "title": "Rutyny",
-      "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
+      "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie."
     }
   },
   "profile": {
@@ -4419,7 +4419,7 @@
     "addSyncSource": "Dodaj źródło synchronizacji",
     "audienceApp": "{credentialing, select, none {Wszystko, co pobiera to źródło} unknown {Poświadczenie, którego używa to źródło, może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera} other {{credential} może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera}} staje się przeszukiwalne w {collection} dla każdego w tym wdrożeniu.",
     "audienceOrg": "{credentialing, select, none {Wszystko, co pobiera to źródło} unknown {Poświadczenie, którego używa to źródło, może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera} other {{credential} może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera}} staje się przeszukiwalne w {collection} dla każdego w tej organizacji, kto widzi tę kolekcję.",
-    "audiencePersonal": "{credentialing, select, none {Wszystko, co pobiera to źródło} unknown {Poświadczenie, którego używa to źródło, może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera} other {{credential} może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera}} staje się przeszukiwalne w {collection} — tylko dla Ciebie.",
+    "audiencePersonal": "{credentialing, select, none {Wszystko, co pobiera to źródło} unknown {Poświadczenie, którego używa to źródło, może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera} other {{credential} może czytać wszystko, do czego dostało dostęp, a wszystko, co pobiera}} staje się przeszukiwalne w {collection} - tylko dla Ciebie.",
     "audienceTitle": "Kto będzie mógł to czytać",
     "audienceUnassigned": "Ta integracja nie jest jeszcze przypisana do żadnej bazy wiedzy, więc nic nie może przeszukiwać tego, co pobiera. Kto może to czytać, rozstrzyga się, gdy zostanie skopiowana do jakiejś bazy.",
     "back": "Wstecz",
@@ -4471,7 +4471,7 @@
     "organizationalUnitPlaceholder": "np. Dział prawny",
     "orgIntegrations": "Integracje organizacji",
     "orgIntegrationsLoadFailed": "Nie udało się wczytać istniejących integracji przestrzeni; nadal możesz utworzyć nowe źródło.",
-    "pickExistingOrgIntegration": "Wybierz istniejącą integrację organizacji do użycia w tej bazie wiedzy. Jej poświadczenia są kopiowane niezależnie — harmonogram możesz dostosować osobno.",
+    "pickExistingOrgIntegration": "Wybierz istniejącą integrację organizacji do użycia w tej bazie wiedzy. Jej poświadczenia są kopiowane niezależnie - harmonogram możesz dostosować osobno.",
     "removedCount": "{count} usuniętych",
     "schedule": "Harmonogram",
     "search": {
@@ -4528,8 +4528,8 @@
       "dockerTokenHint": "Token usługi. Kto go ma, może otworzyć sesję, a sesja uruchamia polecenia na tym hoście.",
       "editTitle": "Edytuj połączenie sandboxa",
       "kind": "Rodzaj",
-      "kindDaytona": "Daytona — sandboxy w chmurze na Twoim koncie",
-      "kindDocker": "Usługa kontenerowa — sandboxd, który uruchamiasz",
+      "kindDaytona": "Daytona - sandboxy w chmurze na Twoim koncie",
+      "kindDocker": "Usługa kontenerowa - sandboxd, który uruchamiasz",
       "localServiceAlreadyConnected": "Usługa sandboxów odpowiedziała pod {url}, a ta organizacja ma już połączenie, które tam wskazuje.",
       "localServiceFound": "Usługa sandboxów odpowiedziała pod {url}, więc ten adres jest wpisany powyżej.",
       "name": "Nazwa",
@@ -4575,7 +4575,7 @@
       "network": "Sieć",
       "notKept": "Usuwany",
       "perOrganization": "Sandboxy na organizację",
-      "readFromServiceItself": "Odczytane z usługi i zmienialne tylko tam — w jej własnym środowisku, gdzie uruchamia ją Twój plik compose. Celowo nie ma endpointu do ich zapisu: aplikacja, która mogłaby przekonfigurować proces trzymający gniazdo Dockera, przejęłaby host.",
+      "readFromServiceItself": "Odczytane z usługi i zmienialne tylko tam - w jej własnym środowisku, gdzie uruchamia ją Twój plik compose. Celowo nie ma endpointu do ich zapisu: aplikacja, która mogłaby przekonfigurować proces trzymający gniazdo Dockera, przejęłaby host.",
       "runtimesHeading": "Runtime'y, o które agent może poprosić",
       "sandboxdIdleTimeout": "SANDBOXD_IDLE_TIMEOUT",
       "sandboxdMaxSessionsPer": "SANDBOXD_MAX_SESSIONS_PER_TENANT",
@@ -4584,7 +4584,7 @@
       "whatConnectionAllows": "Na co pozwala {name}"
     },
     "readFromServiceItself": "Odczytane z samej usługi i zmienialne tylko tam. To limity obowiązujące każdego agenta na tym połączeniu.",
-    "readSoManyWorkspaces": "Wczytano {count} workspace — jest ich więcej. ",
+    "readSoManyWorkspaces": "Wczytano {count} workspace - jest ich więcej. ",
     "runtime": {
       "allowedCount": "Ten host zezwala na {count} z nich.",
       "askAgain": "Zapytaj ponownie",
@@ -4776,7 +4776,7 @@
     "accessRemoved": "Dostęp cofnięty",
     "addSubject": "Dodaj osobę lub grupę",
     "chooseSubject": "Wybierz członka lub grupę",
-    "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić — także dla osób, które same nie mogą otworzyć kolekcji.",
+    "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić - także dla osób, które same nie mogą otworzyć kolekcji.",
     "everyoneAlreadyHasAccess": "Wszyscy już mają dostęp",
     "failedLoadShares": "Nie udało się wczytać udostępnień",
     "failedRevoke": "Nie udało się cofnąć",
@@ -4788,17 +4788,17 @@
     "ownedBy": "Właściciel: {email}",
     "peopleAndGroups": "Osoby i grupy",
     "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby albo wszystkich w grupie do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}}, nie zmieniając ich ról nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
-    "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować — nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
+    "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować - nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
     "share": "Udostępnij",
     "sharingUpdated": "Udostępnianie zaktualizowane",
     "visibility": "Widoczność",
     "visibilityOrg": "Organizacja",
     "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {aplikacje} other {sekrety}}.",
     "visibilityPrivate": "Prywatne",
-    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} na swojej liście — a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
+    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} na swojej liście - a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
     "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
     "visibilityTeam": "Zespół (już nieoferowane)",
-    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
+    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} other {sekretów}}. Ta organizacja nie ma zespołów - wybierz jedną z dwóch powyżej.",
     "visibilityUpdated": "Widoczność zaktualizowana",
     "groupsHeading": "Grupy",
     "membersHeading": "Członkowie",
@@ -4844,13 +4844,13 @@
     "filesUploaded": "{count, plural, one {Przesłano 1 plik} few {Przesłano # pliki} many {Przesłano # plików} other {Przesłano # pliku}}",
     "folder": "Folder",
     "folder2": "Folder",
-    "folderMadeByNaming": "Folder powstaje przez nazwanie pliku w środku — nie ma tu nic innego do utworzenia.",
+    "folderMadeByNaming": "Folder powstaje przez nazwanie pliku w środku - nie ma tu nic innego do utworzenia.",
     "groupsListingNeverReaches": "Grupuje listę. Nigdy nie dociera do modelu.",
     "hide": "Ukryj",
     "howModelRefersSkill": "Tak model odwołuje się do tego skilla: małe litery, cyfry i myślniki, na przykład refund-policy. Później nie da się tego zmienić.",
     "howRefundsTheirExceptions": "Jak obsługiwane są zwroty i ich wyjątki.",
     "markdownLoadedOnlyAfter": "Markdown. Wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął, więc długość nic nie kosztuje, dopóki nie jest potrzebna.",
-    "markdownYouCanFill": "Markdown. Możesz uzupełnić to później — jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",
+    "markdownYouCanFill": "Markdown. Możesz uzupełnić to później - jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",
     "name": "Nazwa",
     "new": "Nowy",
     "new2": "Nowy",
@@ -4858,8 +4858,8 @@
     "newSkill": "Nowy skill",
     "newSkill2": "Nowy skill",
     "noCategory": "Bez kategorii",
-    "noDescriptionWorthAdding": "Brak opisu — warto go dodać przed przyjęciem zmiany.",
-    "notShownHereAgent": "Nie pokazujemy tego tutaj — agent i tak czyta to jako plik.",
+    "noDescriptionWorthAdding": "Brak opisu - warto go dodać przed przyjęciem zmiany.",
+    "notShownHereAgent": "Nie pokazujemy tego tutaj - agent i tak czyta to jako plik.",
     "onlyPartModelReads": "Jedyna część, którą model czyta, zanim zdecyduje, czy w ogóle otworzyć skilla. Napisz, kiedy ma zastosowanie, a nie co jest w środku.",
     "onlyPartModelReads2": "Jedyna część, którą model czyta, zanim zdecyduje, czy w ogóle otworzyć skilla. Napisz, kiedy ma zastosowanie, a nie co jest w środku.",
     "optionalGroupsListingNever": "Opcjonalne. Grupuje listę. Nigdy nie dociera do modelu.",
@@ -4933,7 +4933,7 @@
     "inviteLinkLabel": "Link z zaproszeniem",
     "inviteLinkOnce": "Pokazywany raz. Nic go nie przechowuje, więc skopiuj go przed zamknięciem.",
     "inviteMember": "Zaproś członka",
-    "inviteNotEmailed": "Zaproszenie istnieje, ale żaden e-mail nie dotarł do {email} — to wdrożenie go nie wysłało. Przekaż link samodzielnie.",
+    "inviteNotEmailed": "Zaproszenie istnieje, ale żaden e-mail nie dotarł do {email} - to wdrożenie go nie wysłało. Przekaż link samodzielnie.",
     "inviteReady": "Zaproszenie gotowe",
     "inviteWithLink": "Zaproś linkiem",
     "joinAs": "Dołącz jako",
@@ -5023,8 +5023,8 @@
     "somethingElse": "Coś innego",
     "somethingWentWrong": "Coś poszło nie tak",
     "sortBy": "Sortuj po tej kolumnie",
-    "sortedAscending": "Posortowane rosnąco — kliknij, aby odwrócić",
-    "sortedDescending": "Posortowane malejąco — kliknij, aby odwrócić",
+    "sortedAscending": "Posortowane rosnąco - kliknij, aby odwrócić",
+    "sortedDescending": "Posortowane malejąco - kliknij, aby odwrócić",
     "source": "Źródło",
     "typeToConfirm": "Wpisz <mono>{phrase}</mono>, aby potwierdzić",
     "typeYourAnswer": "Wpisz odpowiedź…",
@@ -5050,7 +5050,7 @@
     "cancel3": "Anuluj",
     "customService": "Własna usługa",
     "eitherWayAgentRunsWithIt": "Tak czy inaczej, agent, który używa tego klucza, działa z nim dla każdego, kto może go uruchomić.",
-    "encryptedBoundOrganizationAgent": "Zaszyfrowany i związany z tą organizacją. Agent nazywa go po id, nigdy po wartości — więc da się go zrotować bez dotykania choćby jednego agenta, i nie da się go odczytać z powrotem.",
+    "encryptedBoundOrganizationAgent": "Zaszyfrowany i związany z tą organizacją. Agent nazywa go po id, nigdy po wartości - więc da się go zrotować bez dotykania choćby jednego agenta, i nie da się go odczytać z powrotem.",
     "everyoneOrganization": "Wszyscy w tej organizacji",
     "filterByService": "Filtruj według usługi",
     "for": "Dla",
@@ -5062,7 +5062,7 @@
     "name": "Nazwa",
     "nameCurrentlyEnds": "{name} · obecnie kończy się na",
     "namingServiceWhatLets": "Nazwanie usługi jest tym, co pozwala pickerowi modeli ją zaproponować, a capability poprosić o właściwy klucz.",
-    "newValueReplacesOld": "Nowa wartość zastępuje starą w chwili zapisu, a stara znika. Każdy agent związany z tym sekretem działa dalej — nazywa go po id, a id się nie zmienia.",
+    "newValueReplacesOld": "Nowa wartość zastępuje starą w chwili zapisu, a stara znika. Każdy agent związany z tym sekretem działa dalej - nazywa go po id, a id się nie zmienia.",
     "noLongerHere": "już go tu nie ma",
     "notUsedYet": "jeszcze nieużywany",
     "noteOptional": "Notatka (opcjonalnie)",
@@ -5090,7 +5090,7 @@
     "sharedAccountAnyoneHere": "Wspólne konto. Każdy tutaj może związać je z agentem.",
     "sharedWithPeople": "udostępniony {count, plural, one {1 osobie} other {# osobom}}",
     "showKey": "Pokaż klucz",
-    "shownNextPickerWhich": "Pokazywane obok pickera — które to konto, czyje jest, cokolwiek, czego potrzebuje następna osoba.",
+    "shownNextPickerWhich": "Pokazywane obok pickera - które to konto, czyje jest, cokolwiek, czego potrzebuje następna osoba.",
     "storeSecret": "Zapisz sekret",
     "storedOrganizationAposS": "Zapisany w vaulcie tej organizacji, zaszyfrowany i nigdy więcej niepokazywany.",
     "storingNeedsPermission": "Zapisanie klucza wymaga uprawnienia, którego nie masz. Musi go dodać ktoś, kto może zarządzać vaultem tej organizacji.",
@@ -5147,12 +5147,12 @@
   "memory": {
     "clearAction": "Wyczyść pamięć",
     "clearBody": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nic ich nie przywróci.",
-    "clearBodyWithMem0": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nie sięga tego, co agent pamięta w mem0 — tam wpisy są przypisane do osób i usuwa się je, zapominając daną osobę.",
+    "clearBodyWithMem0": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nie sięga tego, co agent pamięta w mem0 - tam wpisy są przypisane do osób i usuwa się je, zapominając daną osobę.",
     "clearConfirm": "Ten agent straci wszystko, co zapisał. Jego rozmowy zostają nietknięte.",
     "clearTitle": "Wyczyść pamięć tego agenta",
     "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 notatkę} few {Usunięto # notatki} many {Usunięto # notatek} other {Usunięto # notatki}}",
     "forgetAction": "Zapomnij wszystko o mnie",
-    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał — w tym wdrożeniu i w mem0, jeśli agent trzyma tam swoje wspomnienia. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
+    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu i w mem0, jeśli agent trzyma tam swoje wspomnienia. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
     "forgetConfirm": "Każdy agent w tej organizacji zapomni, co o Tobie zanotował. Twoje rozmowy zostają nietknięte.",
     "forgetMemberConfirm": "Każdy agent w tej organizacji zapomni, co zanotował o {name}. Rozmowy tej osoby zostają nietknięte.",
     "forgetNamed": "Zapomnij, co agenci wiedzą o {name}",
@@ -5242,7 +5242,7 @@
     "sourceGithub": "Zgłoszeniu GitHub",
     "webhookUrlPreview": "Adres dostarczania",
     "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹identyfikator nadany przy zapisie›",
-    "webhookUrlPreviewHelp": "Dostawca wysyła tu żądania. Pełny adres, na hoście API, pojawi się po utworzeniu wyzwalacza — sekret podpisujący poniżej weryfikuje każde dostarczenie do niego.",
+    "webhookUrlPreviewHelp": "Dostawca wysyła tu żądania. Pełny adres, na hoście API, pojawi się po utworzeniu wyzwalacza - sekret podpisujący poniżej weryfikuje każde dostarczenie do niego.",
     "secret": "Sekret podpisujący",
     "secretHelp": "Webhook jest weryfikowany tym sekretem. Wklej go u dostawcy albo wygeneruj.",
     "secretPlaceholder": "Silny współdzielony sekret",
@@ -5316,7 +5316,7 @@
     "rotateSecretTitle": "Sekret podpisujący",
     "rotateSecretHelp": "Rotacja zastępuje sekret uwierzytelniający dostarczenia. Poprzedni przestaje działać w momencie rotacji.",
     "rotateSecret": "Rotuj sekret podpisujący",
-    "rotateRevealNote": "Skopiuj go teraz — nie zostanie pokazany ponownie. Wklej go u dostawcy, aby dostarczenia były nadal weryfikowane.",
+    "rotateRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Wklej go u dostawcy, aby dostarczenia były nadal weryfikowane.",
     "rotateAutoNote": "Platforma ponownie zarejestrowała webhook z nowym sekretem. Nie ma nic do wklejenia.",
     "secretRotated": "Sekret podpisujący zrotowany",
     "templatesLabel": "Zacznij od szablonu",
@@ -5402,7 +5402,7 @@
     "bringsSkills": "{count, plural, one {Instaluje z nim 1 skill} few {Instaluje z nim # skille} many {Instaluje z nim # skilli} other {Instaluje z nim # skilli}}",
     "needsAttaching": "Musisz jeszcze podłączyć: {what}",
     "suggestsMcp": "Dobrze działa z: {servers}",
-    "installed": "{name} utworzony jako draft — wybierz model, potem opublikuj",
+    "installed": "{name} utworzony jako draft - wybierz model, potem opublikuj",
     "industry": {
       "healthcare": "Ochrona zdrowia",
       "finance": "Finanse i ubezpieczenia",

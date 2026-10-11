@@ -40,6 +40,32 @@ describe("ListCard", () => {
   });
 });
 
+describe("ListCard's content padding", () => {
+  it("is tighter on a phone by default, and keeps the caller's other classes", () => {
+    render(
+      <ListCard title="Skills" counted="2" contentClassName="space-y-4">
+        <p>body</p>
+      </ListCard>,
+    );
+
+    expect(screen.getByText("body").parentElement).toHaveClass("p-3", "sm:p-5", "space-y-4");
+  });
+
+  it("stays flush when the caller asks for no padding, on every screen", () => {
+    // Merged, `p-0` dropped `p-3` but kept `sm:p-5`: a flush table regained an
+    // inset from the small breakpoint up.
+    render(
+      <ListCard title="Runs" counted="2" contentClassName="p-0">
+        <p>table</p>
+      </ListCard>,
+    );
+
+    const content = screen.getByText("table").parentElement;
+    expect(content).toHaveClass("p-0");
+    expect(content).not.toHaveClass("sm:p-5");
+  });
+});
+
 describe("ListCardEmpty", () => {
   it("says what is missing and offers the way out", async () => {
     const user = userEvent.setup();

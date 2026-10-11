@@ -53,7 +53,7 @@ describe("announcing an MCP OAuth outcome", () => {
     arriveAt("?mcp_oauth=error&mcp_oauth_detail=You%20said%20no");
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Sign-in failed, and no connection was saved — You said no",
+      "Sign-in failed, and no connection was saved - You said no",
     );
   });
 

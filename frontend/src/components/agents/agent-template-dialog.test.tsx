@@ -128,7 +128,7 @@ describe("AgentTemplateDialog", () => {
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(toast.success).toHaveBeenCalledWith(
-      "Procedure Assistant created as a draft — pick a model, then publish",
+      "Procedure Assistant created as a draft - pick a model, then publish",
     );
   });
 

@@ -574,7 +574,7 @@ describe("several accounts on one server", () => {
 
     expect(dialog.getByText("The only kind an agent can be bound to.")).toBeInTheDocument();
     expect(
-      dialog.getByText("Yours alone — your chat, and your direct messages in a channel."),
+      dialog.getByText("Yours alone - your chat, and your direct messages in a channel."),
     ).toBeInTheDocument();
   });
 });

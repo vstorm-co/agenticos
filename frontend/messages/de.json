@@ -173,7 +173,7 @@
     "connectedOnly": "Nur verbundene",
     "connectionNoLongerAllows": "Diese Verbindung erlaubt <code>{runtime}</code> nicht mehr. Wählen Sie eine, die sie erlaubt, sonst scheitert der Agent an seinem ersten Tool-Aufruf.",
     "connectionSDefault": "Der Standard der Verbindung",
-    "connectionSDefaultIs": "Der Standard der Verbindung — {alias}",
+    "connectionSDefaultIs": "Der Standard der Verbindung - {alias}",
     "considerOnlyMostLikely": "Nur die wahrscheinlichsten Token berücksichtigen, die zusammen diese Wahrscheinlichkeitsmasse ausmachen. Setzen Sie dies oder die Temperatur, nicht beides.",
     "contextCount": "{count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}",
     "contextFilesDetail": "Ständiger Kontext, den dieser Agent liest – ein Glossar oder eine Richtlinie, in seinen Prompt eingefügt, oder Dateien, die er bei Bedarf liest.",
@@ -252,12 +252,12 @@
     "failedReleaseMode": "Der Release-Modus konnte nicht gespeichert werden",
     "failedRemoveEnvironment": "Environment konnte nicht entfernt werden",
     "failedRenameEnvironment": "Environment konnte nicht umbenannt werden",
-    "filesWorkspaceHasNo": "Der Dateien-Workspace hat keine Shell — kombinieren Sie ihn mit „Python ausführen“, um zu rechnen.",
+    "filesWorkspaceHasNo": "Der Dateien-Workspace hat keine Shell - kombinieren Sie ihn mit „Python ausführen“, um zu rechnen.",
     "followCapabilityAlwaysAsk": "Der Capability folgen – immer fragen",
     "followCapabilityNeverAsk": "Der Capability folgen – nie fragen",
     "followsLatest": "Folgt der neuesten",
     "pinnedFor": "{name} ist angeheftet",
-    "gatewayLitellmProxyModel": "Ein Gateway, ein LiteLLM-Proxy oder ein Modellserver in diesem Netz. Geben Sie eines an, und der Schlüssel wird optional — auf Ihrer eigenen Hardware gibt es nichts, wogegen man sich authentifizieren müsste.",
+    "gatewayLitellmProxyModel": "Ein Gateway, ein LiteLLM-Proxy oder ein Modellserver in diesem Netz. Geben Sie eines an, und der Schlüssel wird optional - auf Ihrer eigenen Hardware gibt es nichts, wogegen man sich authentifizieren müsste.",
     "giveSpecialistCapability": "Diesem Spezialisten {name} geben",
     "giveThisAgent": "Diesem Agent {name} geben",
     "handleDescription": "Er wird als <at>{handle}</at> erwähnt, was nach dem Anlegen feststeht und die Art ist, wie Slack und die API ihn ansprechen.",
@@ -511,9 +511,9 @@
     "separateWithCommas": "Mit Kommas trennen",
     "separatesStagingTrafficFrom": "Trennt Staging-Verkehr im selben Projekt vom echten.",
     "traceContent": "Trace-Inhalt",
-    "traceContentFull": "Vollständig — Nachrichten, Ausgabe und Tool-Aufrufe",
-    "traceContentNone": "Keiner — nur Zeiten und Kosten",
-    "traceContentHint": "„Keiner“ behält Zeiten, Token, Kosten und Tool-Namen, sendet aber keinen Nachrichtentext und keine Tool-Argumente — für ein Projekt mit Gesundheits-, Rechts- oder Personaldaten.",
+    "traceContentFull": "Vollständig - Nachrichten, Ausgabe und Tool-Aufrufe",
+    "traceContentNone": "Keiner - nur Zeiten und Kosten",
+    "traceContentHint": "„Keiner“ behält Zeiten, Token, Kosten und Tool-Namen, sendet aber keinen Nachrichtentext und keine Tool-Argumente - für ein Projekt mit Gesundheits-, Rechts- oder Personaldaten.",
     "serverCount": "{count, plural, =1 {1 Server} other {# Server}}",
     "servesVersion": "liefert v{version}",
     "serviceName": "Dienstname",
@@ -620,7 +620,7 @@
     "visibilityTeam": "Team",
     "webhook": "Webhook",
     "whatAgentCalledLogfire": "Wie der Agent in Logfire heißt.",
-    "whatServiceAllowsNever": "Was der Dienst erlaubt. Er nennt nie ein Image — das ist die Entscheidung des Betreibers.",
+    "whatServiceAllowsNever": "Was der Dienst erlaubt. Er nennt nie ein Image - das ist die Entscheidung des Betreibers.",
     "whatThePageSupplies": "Was die Seite liefert",
     "whatThePageSuppliesHint": "Setzen Sie diese auf der Seite als window.AgenticOSContext, bevor das Widget-Skript lädt. Sie werden den Instruktionen des Agents als Information über den Besucher angehängt – nie als Instruktionen, denn einen Wert aus einem Browser kann ein Besucher bearbeiten.",
     "whereAgentAvailable": "Wo dieser Agent verfügbar ist",
@@ -855,7 +855,7 @@
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
     "agentPicker": {
-      "appliesNext": "Gilt ab Ihrer nächsten Nachricht — frühere Antworten behalten ihren Agent.",
+      "appliesNext": "Gilt ab Ihrer nächsten Nachricht - frühere Antworten behalten ihren Agent.",
       "current": "Agent: {name}",
       "default": "Standard",
       "defaultForNewChats": "Standard-Agent für neue Chats",
@@ -1161,7 +1161,7 @@
     "thoughtAboutIt": "Hat darüber nachgedacht",
     "title": "Chat",
     "tokensDetail": "{input, number} Eingabe · {output, number} Ausgabe-Token",
-    "tokensDetailPartial": "{input, number} Eingabe · {output, number} Ausgabe-Token — eine Untergrenze: Für ein Modell in diesem Run gab es keinen Preis",
+    "tokensDetailPartial": "{input, number} Eingabe · {output, number} Ausgabe-Token - eine Untergrenze: Für ein Modell in diesem Run gab es keinen Preis",
     "toolApprovalRequired": "Tool-Freigabe erforderlich",
     "draftProposalTitle": "Ein neuer Agent-Entwurf",
     "draftProposalIn": "Wird in {organization} angelegt",
@@ -1239,7 +1239,7 @@
       "memorySaving": "Speichert ins Gedächtnis",
       "memoryUpdating": "Aktualisiert eine Erinnerung",
       "messageDelegate": "Delegat anschreiben",
-      "moreEntries": "und {count, plural, =1 {1 weiterer} other {# weitere}} — öffnen Sie die Rohansicht für alle",
+      "moreEntries": "und {count, plural, =1 {1 weiterer} other {# weitere}} - öffnen Sie die Rohansicht für alle",
       "noArguments": "Keine Argumente",
       "noContext": "An diesen Agent sind keine Kontextdateien angehängt.",
       "noSkills": "An diesen Agent sind keine Skills angehängt.",
@@ -1312,7 +1312,7 @@
       "context": "Kontext",
       "contextOf": "{used, number} von {window, number} Token im Kontextfenster des Modells",
       "conversation": "Diese Unterhaltung",
-      "inContainer": "{used} von {limit} — die Speicherobergrenze des eigenen Containers dieser Unterhaltung, kein mit anderem geteiltes Kontingent",
+      "inContainer": "{used} von {limit} - die Speicherobergrenze des eigenen Containers dieser Unterhaltung, kein mit anderem geteiltes Kontingent",
       "inUse": "in Nutzung",
       "label": "Verbrauch dieser Unterhaltung",
       "labelNearLimit": "Verbrauch dieser Unterhaltung - nahe an einem Limit",
@@ -1325,8 +1325,8 @@
       "threadTotal": "${cost}",
       "threadTotalDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet",
       "threadTotalPartial": "≥ ${cost}",
-      "threadTotalPartialDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet — eine Untergrenze: Für ein Modell darin gab es keinen Preis",
-      "unmeasured": "in Nutzung — dieser Host hat keine Zahl gemeldet",
+      "threadTotalPartialDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet - eine Untergrenze: Für ein Modell darin gab es keinen Preis",
+      "unmeasured": "in Nutzung - dieser Host hat keine Zahl gemeldet",
       "workspace": "Workspace",
       "workspaceUsed": "Workspace belegt"
     },
@@ -1691,7 +1691,7 @@
           "other": "Läuft oder abgebrochen"
         },
         "title": "Ergebnisse",
-        "description": "Wie Runs endeten — abgeschlossen, fehlgeschlagen, über Budget, wartend."
+        "description": "Wie Runs endeten - abgeschlossen, fehlgeschlagen, über Budget, wartend."
       },
       "platform": {
         "active24h": "{count} aktiv in 24 Std.",
@@ -1848,7 +1848,7 @@
           "web": "Web-Chat"
         },
         "title": "Woher die Runs kommen",
-        "description": "Woher Runs kommen — Web-Chat, API, Kanäle.",
+        "description": "Woher Runs kommen - Web-Chat, API, Kanäle.",
         "unit": "Runs"
       },
       "top-orgs": {
@@ -2004,12 +2004,12 @@
     },
     "edit": {
       "customize": "Anpassen",
-      "subtitle": "Richten Sie Ihr Dashboard ein — ziehen Sie Karten, um sie über Abschnitte hinweg umzusortieren, ändern Sie ihre Größe, färben und klappen Sie Abschnitte ein oder fügen Sie weitere hinzu.",
+      "subtitle": "Richten Sie Ihr Dashboard ein - ziehen Sie Karten, um sie über Abschnitte hinweg umzusortieren, ändern Sie ihre Größe, färben und klappen Sie Abschnitte ein oder fügen Sie weitere hinzu.",
       "banner": "Ziehen Sie Karten, ändern Sie ihre Größe und ordnen Sie sie an, dann Speichern zum Behalten oder Abbrechen zum Verwerfen.",
       "addWidget": "Widget hinzufügen",
       "saveAsPreset": "Speichern unter …",
       "addTitle": "Widget hinzufügen",
-      "addDescription": "Wählen Sie eine Karte, und sie landet in Ihrem Dashboard, bereit zum Verschieben. Fahren Sie über eine Zeile, um sie mit Echtdaten zu sehen — dieselbe Karte lässt sich auch mehrfach hinzufügen.",
+      "addDescription": "Wählen Sie eine Karte, und sie landet in Ihrem Dashboard, bereit zum Verschieben. Fahren Sie über eine Zeile, um sie mit Echtdaten zu sehen - dieselbe Karte lässt sich auch mehrfach hinzufügen.",
       "searchPlaceholder": "Widgets suchen …",
       "searchLabel": "Widgets suchen",
       "noResults": "Keine Widgets passen zu „{query}“.",
@@ -2056,7 +2056,7 @@
       "shorter": "{title} niedriger machen",
       "taller": "{title} höher machen",
       "emptySection": "Ziehen Sie eine Karte hierher oder fügen Sie diesem Abschnitt eine hinzu.",
-      "emptyDraft": "Noch keine Karten — fügen Sie eine hinzu, oder brechen Sie ab, um Ihr aktuelles Dashboard zu behalten.",
+      "emptyDraft": "Noch keine Karten - fügen Sie eine hinzu, oder brechen Sie ab, um Ihr aktuelles Dashboard zu behalten.",
       "emptyTitle": "Ihr Dashboard ist leer",
       "emptyDescription": "Sie haben jede Karte ausgeblendet. Fügen Sie welche zurück, oder setzen Sie auf das Standard-Layout zurück.",
       "saveFailed": "Ihr Dashboard konnte nicht gespeichert werden. Versuchen Sie es erneut.",
@@ -2179,7 +2179,7 @@
     "previousFile": "Vorherige Datei",
     "removeFile": "{name} entfernen",
     "renderedPage": "{name}, gerendert",
-    "servedAsFile": "Diese lässt sich hier nicht anzeigen — der Server liefert sie als Datei aus.",
+    "servedAsFile": "Diese lässt sich hier nicht anzeigen - der Server liefert sie als Datei aus.",
     "shortened": "Dies wurde gekürzt. Der Agent liest die gesamte Datei.",
     "source": "Quelle",
     "truncatedRows": "{shown, number} von {total, plural, =1 {1 Zeile} other {# Zeilen}} werden angezeigt · zum Ansehen aller herunterladen",
@@ -2646,7 +2646,7 @@
     "disconnectServerTitle": "Server trennen?",
     "disconnectWarning": "„{name}“ trennen?",
     "displayName": "Name",
-    "displayNameHint": "Wie diese Verbindung auf dem Bildschirm heißt. Optional — ohne Namen wird sie unter ihrem Tool-Präfix angezeigt.",
+    "displayNameHint": "Wie diese Verbindung auf dem Bildschirm heißt. Optional - ohne Namen wird sie unter ihrem Tool-Präfix angezeigt.",
     "displayNamePlaceholder": "Firmen-Wiki",
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",
@@ -2655,7 +2655,7 @@
     "existingConnectionCannotChange": "Eine bestehende Verbindung kann den Besitzer nicht wechseln.",
     "failedLoadConnections": "Verbindungen konnten nicht geladen werden",
     "failedLoadOrgServers": "Die MCP-Server der Organisation konnten nicht geladen werden",
-    "finishConsentThenReturn": "Schließen Sie es im geöffneten Tab ab und kommen Sie zurück — der Server erscheint hier, sobald er autorisiert ist.",
+    "finishConsentThenReturn": "Schließen Sie es im geöffneten Tab ab und kommen Sie zurück - der Server erscheint hier, sobald er autorisiert ist.",
     "consentTabBlocked": "Ihr Browser hat den Anmelde-Tab blockiert. Erlauben Sie Pop-ups für diese Seite und versuchen Sie es erneut.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Aus der öffentlichen MCP-Registry. Niemand hier hat ihn geprüft: Die Beschreibung stammt vom Herausgeber, und es gibt keinen Hinweis darauf, welches Credential er verlangt.",
@@ -2681,7 +2681,7 @@
     "oauthOwnClientHint": "Die meisten Server registrieren diese App selbst – lassen Sie das leer. Ein Provider, der das verweigert, etwa HubSpot, gibt Zugangsdaten nur für eine im eigenen Portal angelegte App heraus: Legen Sie dort eine an, tragen Sie die untenstehende Redirect-URL ein und fügen Sie deren Zugangsdaten hier ein.",
     "oauthRedirectUrl": "Redirect-URL",
     "oauthRedirectUrlHint": "Tragen Sie sie beim Provider genau so ein, wie sie hier steht.",
-    "oauthRefusedWithReason": "Die Anmeldung ist fehlgeschlagen, und es wurde keine Verbindung gespeichert — {reason}",
+    "oauthRefusedWithReason": "Die Anmeldung ist fehlgeschlagen, und es wurde keine Verbindung gespeichert - {reason}",
     "organization": "die Organisation",
     "pasteHere": "Hier einfügen",
     "redirecting": "Weiterleitung …",
@@ -2715,10 +2715,10 @@
     "unreachable": "Nicht erreichbar",
     "urlMustStartWithHttp": "Die URL muss mit http:// oder https:// beginnen",
     "useServiceCredentialNot": "Verwenden Sie ein Dienst-Credential, nicht Ihr eigenes – jeder an diesen Server gebundene Agent handelt damit. Für diese Organisation versiegelt und nie wieder angezeigt.",
-    "whichToolsAgent": "Welche dieser Tools dieser Agent aufrufen darf. Die eigene Liste der Verbindung gilt weiterhin — dies grenzt innerhalb davon ein. Alle auszuwählen lässt den Agent der Verbindung folgen, einschließlich Tools, die der Server später hinzufügt.",
+    "whichToolsAgent": "Welche dieser Tools dieser Agent aufrufen darf. Die eigene Liste der Verbindung gilt weiterhin - dies grenzt innerhalb davon ein. Alle auszuwählen lässt den Agent der Verbindung folgen, einschließlich Tools, die der Server später hinzufügt.",
     "whichToolsConnection": "Welche Tools diese Verbindung überhaupt bereitstellt. Alle auszuwählen hält Tools, die der Server später hinzufügt, automatisch aktiviert.{scope, select, organization { Es gilt für jeden an diesen Server gebundenen Agent; ein Agent kann weiter eingrenzen und kommt nicht darüber hinaus.} other {}}",
     "whoeverSignsGrantsIf": "Wer sich anmeldet, gewährt ihn. Wird dessen Zugriff beim Provider entzogen, hört dieser Server für jeden Agent auf zu funktionieren, bis sich jemand erneut anmeldet – verwenden Sie also ein Konto, das die Organisation kontrolliert.",
-    "yourChatAndDirectMessages": "Nur Ihres — Ihr Chat und Ihre Direktnachrichten in einem Kanal.",
+    "yourChatAndDirectMessages": "Nur Ihres - Ihr Chat und Ihre Direktnachrichten in einem Kanal.",
     "yours": "Ihre",
     "yoursAloneYourOwn": "Nur Sie. Genutzt in Ihren Chats und von Agents, die im Namen jeder Person handeln, mit Ihrem eigenen Zugriff.",
     "recommended": "Empfohlen",
@@ -2840,7 +2840,7 @@
     "finish": "Fertigstellen",
     "progress": "Schritt {current} von {total}",
     "saveFailed": "Wir konnten nicht speichern, dass Sie die Tour gesehen haben, sie erscheint also womöglich beim nächsten Mal erneut.",
-    "helpReminder": "Sie können die Tipps jeder Seite jederzeit erneut abspielen — klicken Sie einfach auf das ? in ihrer Kopfzeile.",
+    "helpReminder": "Sie können die Tipps jeder Seite jederzeit erneut abspielen - klicken Sie einfach auf das ? in ihrer Kopfzeile.",
     "coachClose": "Schließen",
     "coachYes": "Ja, machen wir das",
     "coachSkip": "Überspringen",
@@ -2883,7 +2883,7 @@
     "steps": {
       "activity-approvals": {
         "title": "Was auf Sie wartet",
-        "body": "Runs, die für eine menschliche Entscheidung angehalten haben, reihen sich hier ein. Geben Sie jeden frei oder lehnen Sie ihn ab, und der Run macht dort weiter, wo er stehen geblieben ist — dieser Tab erscheint nur, wenn Sie darüber entscheiden dürfen."
+        "body": "Runs, die für eine menschliche Entscheidung angehalten haben, reihen sich hier ein. Geben Sie jeden frei oder lehnen Sie ihn ab, und der Run macht dort weiter, wo er stehen geblieben ist - dieser Tab erscheint nur, wenn Sie darüber entscheiden dürfen."
       },
       "activity-overview": {
         "title": "Aktivität beobachten",
@@ -2895,11 +2895,11 @@
       },
       "activity-spend": {
         "title": "Wohin das Geld geflossen ist",
-        "body": "Ausgaben über die Zeit und pro Agent, gegen die Budgets, die Sie gesetzt haben — ein Agent, der still und leise teuer wird, taucht hier auf, bevor es die Rechnung tut."
+        "body": "Ausgaben über die Zeit und pro Agent, gegen die Budgets, die Sie gesetzt haben - ein Agent, der still und leise teuer wird, taucht hier auf, bevor es die Rechnung tut."
       },
       "agent-availability": {
         "title": "Bringen Sie ihn an die Arbeit",
-        "body": "Verfügbarkeit ist der Ort, an dem ein veröffentlichter Agent live geht — ein Web-Chat, ein Embed auf Ihrer Website, Slack oder Telegram — und an dem Sie entscheiden, mit wem Sie ihn teilen."
+        "body": "Verfügbarkeit ist der Ort, an dem ein veröffentlichter Agent live geht - ein Web-Chat, ein Embed auf Ihrer Website, Slack oder Telegram - und an dem Sie entscheiden, mit wem Sie ihn teilen."
       },
       "agent-history": {
         "title": "Jede Version, aufbewahrt",
@@ -2919,11 +2919,11 @@
       },
       "agent-mcp": {
         "title": "Und ganze Tool-Sammlungen",
-        "body": "Unter den Capabilities hängen Sie MCP-Server an — fertige Tool-Sammlungen wie GitHub oder Slack, einmal für die Organisation verbunden und über Agents hinweg wiederverwendet."
+        "body": "Unter den Capabilities hängen Sie MCP-Server an - fertige Tool-Sammlungen wie GitHub oder Slack, einmal für die Organisation verbunden und über Agents hinweg wiederverwendet."
       },
       "agent-model": {
         "title": "Wählen Sie das Gehirn",
-        "body": "Das Modell darunter erledigt das Denken. Tauschen Sie es aus, stellen Sie ein, wie gründlich es denkt, oder schalten Sie schrittweises Reasoning ein — alles, ohne die Instruktionen darüber anzufassen."
+        "body": "Das Modell darunter erledigt das Denken. Tauschen Sie es aus, stellen Sie ein, wie gründlich es denkt, oder schalten Sie schrittweises Reasoning ein - alles, ohne die Instruktionen darüber anzufassen."
       },
       "agent-publish": {
         "title": "Veröffentlichen heißt ausliefern",
@@ -2931,7 +2931,7 @@
       },
       "agent-skills": {
         "title": "Geben Sie ihm ein Drehbuch",
-        "body": "Skills sind aufgeschriebenes Know-how, das der Agent liest, bevor er handelt — ein Verfahren, ein Hausstil, eine Checkliste — und derselbe kann von mehreren Agents genutzt werden."
+        "body": "Skills sind aufgeschriebenes Know-how, das der Agent liest, bevor er handelt - ein Verfahren, ein Hausstil, eine Checkliste - und derselbe kann von mehreren Agents genutzt werden."
       },
       "agent-toolbox": {
         "title": "Geben Sie ihm Tools",
@@ -2943,7 +2943,7 @@
       },
       "agents-new": {
         "title": "Einen Agent bauen",
-        "body": "Ein Agent besteht aus seinen Instruktionen, einem Modell und den Tools, MCP-Servern und Skills, die Sie ihm geben. Erstellen Sie hier einen und veröffentlichen Sie eine Version, damit er überall gleich läuft — Chat, API, Slack oder Widget."
+        "body": "Ein Agent besteht aus seinen Instruktionen, einem Modell und den Tools, MCP-Servern und Skills, die Sie ihm geben. Erstellen Sie hier einen und veröffentlichen Sie eine Version, damit er überall gleich läuft - Chat, API, Slack oder Widget."
       },
       "channels-list": {
         "title": "Verbundene Kanäle",
@@ -2951,7 +2951,7 @@
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
-        "body": "Registrieren Sie eine Chat-Plattform — Slack, Telegram, Mattermost — und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
+        "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
       },
       "chat-agent-picker": {
         "title": "Wählen Sie, wer antwortet",
@@ -2971,7 +2971,7 @@
       },
       "chat-model-picker": {
         "title": "Das Modell einstellen",
-        "body": "Wählen Sie, welches Modell der Organisation antwortet — nur für diese Unterhaltung, ohne den Agent zu ändern."
+        "body": "Wählen Sie, welches Modell der Organisation antwortet - nur für diese Unterhaltung, ohne den Agent zu ändern."
       },
       "chat-plan": {
         "title": "Worauf er hinarbeitet",
@@ -2987,7 +2987,7 @@
       },
       "context-new": {
         "title": "Ständigen Kontext hinzufügen",
-        "body": "Kontextdateien sind der Hintergrund, den jeder Agent mitträgt — Firmenfakten, Tonfall, Begriffe — in jeden Prompt eingefügt, ohne dass Sie sie jedes Mal einfügen müssen. Fügen Sie hier eine hinzu."
+        "body": "Kontextdateien sind der Hintergrund, den jeder Agent mitträgt - Firmenfakten, Tonfall, Begriffe - in jeden Prompt eingefügt, ohne dass Sie sie jedes Mal einfügen müssen. Fügen Sie hier eine hinzu."
       },
       "dashboard-actions": {
         "title": "Fangen Sie hier an",
@@ -3003,7 +3003,7 @@
       },
       "finish": {
         "title": "Alles bereit",
-        "body": "Das war die Tour. Spielen Sie die Tipps jeder Seite jederzeit über die Hilfe-Schaltfläche oben erneut ab — gehen Sie zu Ihrem Dashboard, wann immer Sie loslegen möchten."
+        "body": "Das war die Tour. Spielen Sie die Tipps jeder Seite jederzeit über die Hilfe-Schaltfläche oben erneut ab - gehen Sie zu Ihrem Dashboard, wann immer Sie loslegen möchten."
       },
       "flow-agent-create": {
         "title": "Benennen Sie Ihren Agent",
@@ -3011,14 +3011,14 @@
       },
       "flow-agent-instructions": {
         "title": "Schreiben Sie seine Instruktionen",
-        "body": "Sagen Sie dem Agent, wer er ist und was er tun soll — das ist sein System-Prompt. Schreiben Sie ein oder zwei Zeilen und wählen Sie dann Weiter."
+        "body": "Sagen Sie dem Agent, wer er ist und was er tun soll - das ist sein System-Prompt. Schreiben Sie ein oder zwei Zeilen und wählen Sie dann Weiter."
       },
       "flow-agent-knowledge": {
         "title": "Geben Sie ihm Dokumente zu lesen (optional)",
-        "body": "Hängen Sie eine Wissensdatenbank an, und der Agent kann diese Dokumente durchsuchen und zitieren. Sie können das überspringen und jederzeit eine hinzufügen — wählen Sie Weiter, um fortzufahren."
+        "body": "Hängen Sie eine Wissensdatenbank an, und der Agent kann diese Dokumente durchsuchen und zitieren. Sie können das überspringen und jederzeit eine hinzufügen - wählen Sie Weiter, um fortzufahren."
       },
       "flow-agent-knowledge-ask": {
-        "title": "Noch keine Wissensdatenbank — eine erstellen?",
+        "title": "Noch keine Wissensdatenbank - eine erstellen?",
         "body": "Eine Wissensdatenbank lässt diesen Agent Ihre Dokumente durchsuchen und zitieren, und Sie haben noch keine. Wollen Sie jetzt eine erstellen und anhängen? Wir führen Sie hin und den ganzen Weg zurück."
       },
       "flow-agent-knowledge-attach": {
@@ -3027,7 +3027,7 @@
       },
       "flow-agent-knowledge-create": {
         "title": "Die Wissensdatenbank erstellen",
-        "body": "Wählen Sie Neue Wissensdatenbank — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch. Danach führen wir Sie zurück zu Ihrem Agent."
+        "body": "Wählen Sie Neue Wissensdatenbank - das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch. Danach führen wir Sie zurück zu Ihrem Agent."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Öffnen Sie Ihren Agent wieder",
@@ -3046,8 +3046,8 @@
         "body": "MCP-Server geben dem Agent Tools aus anderen Systemen, die Sie verbunden haben. Hängen Sie hier welche an oder wählen Sie Weiter, um fortzufahren."
       },
       "flow-agent-mcp-ask": {
-        "title": "Kein MCP-Server verbunden — einen verbinden?",
-        "body": "Ein MCP-Server gibt diesem Agent Tools aus einem anderen System, und Sie haben noch keinen verbunden. Wollen Sie jetzt einen verbinden? Das ist ein kurzer Dialog genau hier — Sie verlassen den Builder nicht, und wir machen weiter, sobald er verbunden ist."
+        "title": "Kein MCP-Server verbunden - einen verbinden?",
+        "body": "Ein MCP-Server gibt diesem Agent Tools aus einem anderen System, und Sie haben noch keinen verbunden. Wollen Sie jetzt einen verbinden? Das ist ein kurzer Dialog genau hier - Sie verlassen den Builder nicht, und wir machen weiter, sobald er verbunden ist."
       },
       "flow-agent-mcp-attach": {
         "title": "Geben Sie ihm den Server",
@@ -3055,23 +3055,23 @@
       },
       "flow-agent-mcp-connect": {
         "title": "Den Katalog öffnen",
-        "body": "Wählen Sie Server verbinden — der Katalog öffnet sich direkt hier im Builder, und wir wählen gemeinsam einen aus."
+        "body": "Wählen Sie Server verbinden - der Katalog öffnet sich direkt hier im Builder, und wir wählen gemeinsam einen aus."
       },
       "flow-agent-model-add": {
         "title": "Ein Modell hinzufügen",
-        "body": "Ihre Organisation hat noch kein Modell. Wählen Sie einen Provider, nennen Sie ein Modell und fügen Sie einen Schlüssel ein — er wird im Vault gespeichert, und das Modell ist bereit. Wir machen weiter, sobald es hinzugefügt ist."
+        "body": "Ihre Organisation hat noch kein Modell. Wählen Sie einen Provider, nennen Sie ein Modell und fügen Sie einen Schlüssel ein - er wird im Vault gespeichert, und das Modell ist bereit. Wir machen weiter, sobald es hinzugefügt ist."
       },
       "flow-agent-model-none": {
         "title": "Noch kein Modell in dieser Organisation",
-        "body": "Ein Agent braucht ein Modell, um zu laufen, und diese Organisation hat keines. Eines hinzuzufügen braucht die Berechtigung für Verbindungen, die Sie nicht haben — bitten Sie einen Admin, ein Modell hinzuzufügen, dann kann dieser Agent es nutzen. Wählen Sie Weiter, um sich vorerst den Rest anzusehen."
+        "body": "Ein Agent braucht ein Modell, um zu laufen, und diese Organisation hat keines. Eines hinzuzufügen braucht die Berechtigung für Verbindungen, die Sie nicht haben - bitten Sie einen Admin, ein Modell hinzuzufügen, dann kann dieser Agent es nutzen. Wählen Sie Weiter, um sich vorerst den Rest anzusehen."
       },
       "flow-agent-model-pick": {
         "title": "Wählen Sie sein Modell",
-        "body": "Wählen Sie aus der Liste das Modell, auf dem dieser Agent laufen soll — ein Agent braucht eines zum Laufen, wir machen also weiter, sobald es gesetzt ist."
+        "body": "Wählen Sie aus der Liste das Modell, auf dem dieser Agent laufen soll - ein Agent braucht eines zum Laufen, wir machen also weiter, sobald es gesetzt ist."
       },
       "flow-agent-publish": {
         "title": "Veröffentlichen Sie ihn",
-        "body": "Ein Agent muss veröffentlicht sein, bevor Sie mit ihm chatten können — ein Entwurf nimmt keine Nachrichten an. Klicken Sie auf Veröffentlichen, um diese Version live zu schalten; wir machen weiter, sobald sie veröffentlicht ist."
+        "body": "Ein Agent muss veröffentlicht sein, bevor Sie mit ihm chatten können - ein Entwurf nimmt keine Nachrichten an. Klicken Sie auf Veröffentlichen, um diese Version live zu schalten; wir machen weiter, sobald sie veröffentlicht ist."
       },
       "flow-agent-run-pick": {
         "title": "Wählen Sie Ihren Agent",
@@ -3079,14 +3079,14 @@
       },
       "flow-agent-run-send": {
         "title": "Schicken Sie ihm eine Nachricht",
-        "body": "Tippen Sie einen Prompt und senden Sie ihn — der erste Run Ihres Agents und das Ende der Tour. Wir schließen, sobald er unterwegs ist."
+        "body": "Tippen Sie einen Prompt und senden Sie ihn - der erste Run Ihres Agents und das Ende der Tour. Wir schließen, sobald er unterwegs ist."
       },
       "flow-agent-skills": {
         "title": "Geben Sie ihm Skills (optional)",
-        "body": "Ein Skill ist aufgeschriebenes Know-how, das der Agent lädt, wenn es passt — eine Rückerstattungsregel, ein Hausstil. Hängen Sie welche an oder wählen Sie Weiter, um fortzufahren."
+        "body": "Ein Skill ist aufgeschriebenes Know-how, das der Agent lädt, wenn es passt - eine Rückerstattungsregel, ein Hausstil. Hängen Sie welche an oder wählen Sie Weiter, um fortzufahren."
       },
       "flow-agent-skills-ask": {
-        "title": "Noch keine Skills — einen erstellen?",
+        "title": "Noch keine Skills - einen erstellen?",
         "body": "Ein Skill ist aufgeschriebenes Know-how, das der Agent lädt, wenn es passt, und Sie haben noch keinen. Wollen Sie jetzt einen erstellen und anhängen? Wir führen Sie hin und den ganzen Weg zurück."
       },
       "flow-agent-skills-attach": {
@@ -3095,7 +3095,7 @@
       },
       "flow-agent-skills-create": {
         "title": "Den Skill erstellen",
-        "body": "Wählen Sie Neuer Skill — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch. Danach führen wir Sie zurück zu Ihrem Agent."
+        "body": "Wählen Sie Neuer Skill - das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch. Danach führen wir Sie zurück zu Ihrem Agent."
       },
       "flow-agent-skills-return-edit": {
         "title": "Öffnen Sie Ihren Agent wieder",
@@ -3107,19 +3107,19 @@
       },
       "flow-agent-tools": {
         "title": "Geben Sie ihm Tools (optional)",
-        "body": "Capabilities lassen den Agent Dinge tun — das Web durchsuchen, Code ausführen, ein anderes System aufrufen. Schalten Sie ein, was er braucht, oder wählen Sie Weiter, um fortzufahren."
+        "body": "Capabilities lassen den Agent Dinge tun - das Web durchsuchen, Code ausführen, ein anderes System aufrufen. Schalten Sie ein, was er braucht, oder wählen Sie Weiter, um fortzufahren."
       },
       "flow-chat-agent": {
         "title": "Wählen Sie, wer antwortet",
-        "body": "Das wählt, welcher Ihrer veröffentlichten Agents antwortet. Öffnen Sie es, um den Agent zu wechseln — Sie können das sogar mitten in einer Unterhaltung. Wählen Sie Weiter."
+        "body": "Das wählt, welcher Ihrer veröffentlichten Agents antwortet. Öffnen Sie es, um den Agent zu wechseln - Sie können das sogar mitten in einer Unterhaltung. Wählen Sie Weiter."
       },
       "flow-chat-composer": {
         "title": "Tippen und senden",
-        "body": "Schreiben Sie hier Ihre Nachricht und senden Sie sie — das ist Ihre erste Unterhaltung. Wählen Sie Fertigstellen, wenn Sie so weit sind."
+        "body": "Schreiben Sie hier Ihre Nachricht und senden Sie sie - das ist Ihre erste Unterhaltung. Wählen Sie Fertigstellen, wenn Sie so weit sind."
       },
       "flow-chat-controls": {
         "title": "Diese Unterhaltung einstellen",
-        "body": "Öffnen Sie Steuerung, um diesen Chat auf einem anderen Modell laufen zu lassen oder zu ändern, wie gründlich es denkt — nur für diese Unterhaltung, ohne den Agent selbst anzufassen. Wählen Sie Weiter."
+        "body": "Öffnen Sie Steuerung, um diesen Chat auf einem anderen Modell laufen zu lassen oder zu ändern, wie gründlich es denkt - nur für diese Unterhaltung, ohne den Agent selbst anzufassen. Wählen Sie Weiter."
       },
       "flow-chat-needs-agent": {
         "title": "Noch kein veröffentlichter Agent zum Chatten",
@@ -3131,19 +3131,19 @@
       },
       "flow-kb-create": {
         "title": "Die Wissensdatenbank erstellen",
-        "body": "Wählen Sie Neue Wissensdatenbank — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
+        "body": "Wählen Sie Neue Wissensdatenbank - das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
       },
       "flow-kb-field-create": {
         "title": "Erstellen Sie sie",
-        "body": "Wählen Sie Erstellen. Wir machen weiter, sobald sie besteht — Dokumente fügen Sie gleich danach hinzu."
+        "body": "Wählen Sie Erstellen. Wir machen weiter, sobald sie besteht - Dokumente fügen Sie gleich danach hinzu."
       },
       "flow-kb-field-embeddings": {
         "title": "Embeddings (den Standard lassen)",
-        "body": "Wie Dokumente für die Suche indexiert werden. Es wird beim Anlegen festgeschrieben, aber der Deployment-Standard passt für fast alle — klappen Sie es nur auf, wenn Sie wissen, dass Sie ein anderes Modell brauchen. Wählen Sie Weiter."
+        "body": "Wie Dokumente für die Suche indexiert werden. Es wird beim Anlegen festgeschrieben, aber der Deployment-Standard passt für fast alle - klappen Sie es nur auf, wenn Sie wissen, dass Sie ein anderes Modell brauchen. Wählen Sie Weiter."
       },
       "flow-kb-field-name": {
         "title": "Benennen Sie sie",
-        "body": "Benennen Sie sie nach dem, was sie enthalten wird — Produktdokumentation, Support-Wiki — damit jeder, der sie an einen Agent hängt, weiß, was er ihm gibt. Wählen Sie dann Weiter."
+        "body": "Benennen Sie sie nach dem, was sie enthalten wird - Produktdokumentation, Support-Wiki - damit jeder, der sie an einen Agent hängt, weiß, was er ihm gibt. Wählen Sie dann Weiter."
       },
       "flow-kb-field-scope": {
         "title": "Wählen Sie, wem sie gehört",
@@ -3151,11 +3151,11 @@
       },
       "flow-mcp-field-connect": {
         "title": "Verbinden Sie ihn",
-        "body": "Wählen Sie Verbinden. Wir prüfen, ob der Server antwortet, und machen weiter, sobald er verbunden ist — ein Server, der sich über den Provider anmeldet, übergibt stattdessen an dessen Zustimmungsseite."
+        "body": "Wählen Sie Verbinden. Wir prüfen, ob der Server antwortet, und machen weiter, sobald er verbunden ist - ein Server, der sich über den Provider anmeldet, übergibt stattdessen an dessen Zustimmungsseite."
       },
       "flow-mcp-field-form": {
         "title": "Füllen Sie die Verbindung aus",
-        "body": "Benennen Sie ihn — der Name geht seinen Tool-Namen voran —, behalten Sie Organisation, damit Ihre Agents ihn nutzen können, und fügen Sie ein Token ein, falls dieser Server eines verlangt. Wählen Sie dann Weiter."
+        "body": "Benennen Sie ihn - der Name geht seinen Tool-Namen voran —, behalten Sie Organisation, damit Ihre Agents ihn nutzen können, und fügen Sie ein Token ein, falls dieser Server eines verlangt. Wählen Sie dann Weiter."
       },
       "flow-mcp-field-pick": {
         "title": "Wählen Sie einen Server",
@@ -3171,7 +3171,7 @@
       },
       "flow-skill-create": {
         "title": "Fügen Sie Ihren Skill hinzu",
-        "body": "Wählen Sie Neuer Skill — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
+        "body": "Wählen Sie Neuer Skill - das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
       },
       "flow-skill-field-create": {
         "title": "Erstellen Sie ihn",
@@ -3179,15 +3179,15 @@
       },
       "flow-skill-field-description": {
         "title": "Sagen Sie, wann er greift",
-        "body": "Das ist der einzige Teil, den das Modell liest, wenn es entscheidet, ob es den Skill überhaupt öffnet — schreiben Sie, wann man danach greift, nicht was darin steht. Wählen Sie dann Weiter."
+        "body": "Das ist der einzige Teil, den das Modell liest, wenn es entscheidet, ob es den Skill überhaupt öffnet - schreiben Sie, wann man danach greift, nicht was darin steht. Wählen Sie dann Weiter."
       },
       "flow-skill-field-name": {
         "title": "Benennen Sie ihn",
-        "body": "Kurz und konkret, etwa rueckerstattungs-regel — so verweist das Modell auf diesen Skill, und später lässt es sich nicht mehr ändern. Wählen Sie dann Weiter."
+        "body": "Kurz und konkret, etwa rueckerstattungs-regel - so verweist das Modell auf diesen Skill, und später lässt es sich nicht mehr ändern. Wählen Sie dann Weiter."
       },
       "flow-skill-field-source": {
         "title": "Schreiben Sie den Skill",
-        "body": "Wechseln Sie zu Quelle und schreiben Sie das Know-how selbst in Markdown — die Schritte, die Regeln, die Ausnahmen. Sie können es danach jederzeit verfeinern. Wählen Sie dann Weiter."
+        "body": "Wechseln Sie zu Quelle und schreiben Sie das Know-how selbst in Markdown - die Schritte, die Regeln, die Ausnahmen. Sie können es danach jederzeit verfeinern. Wählen Sie dann Weiter."
       },
       "kb-documents": {
         "title": "Was darin ist",
@@ -3195,11 +3195,11 @@
       },
       "kb-header": {
         "title": "In einer Collection",
-        "body": "Name, Geltungsbereich und Bedienelemente der Collection sitzen oben — aktualisieren Sie sie, legen Sie Dateien ab, ändern Sie, wie sie gelesen werden, oder entfernen Sie sie."
+        "body": "Name, Geltungsbereich und Bedienelemente der Collection sitzen oben - aktualisieren Sie sie, legen Sie Dateien ab, ändern Sie, wie sie gelesen werden, oder entfernen Sie sie."
       },
       "kb-ingestion": {
         "title": "Wie Dokumente gelesen werden",
-        "body": "Der Parser, das Chunking und das Embedding-Modell hinter dieser Collection — was Ihre Dateien in etwas Durchsuchbares verwandelt. Ändern Sie es, und neue Uploads folgen den neuen Einstellungen."
+        "body": "Der Parser, das Chunking und das Embedding-Modell hinter dieser Collection - was Ihre Dateien in etwas Durchsuchbares verwandelt. Ändern Sie es, und neue Uploads folgen den neuen Einstellungen."
       },
       "kb-sync": {
         "title": "Halten Sie sie im Gleichschritt",
@@ -3207,7 +3207,7 @@
       },
       "knowledge-add-integration": {
         "title": "Eine Verbindung hinzufügen",
-        "body": "Beginnen Sie hier eine neue — wählen Sie einen Konnektor wie S3 oder Google Drive, geben Sie ihm Zugangsdaten, und er steht zum Klonen in jede Collection bereit, die ihn braucht."
+        "body": "Beginnen Sie hier eine neue - wählen Sie einen Konnektor wie S3 oder Google Drive, geben Sie ihm Zugangsdaten, und er steht zum Klonen in jede Collection bereit, die ihn braucht."
       },
       "knowledge-integrations": {
         "title": "Wiederverwendbare Verbindungen",
@@ -3215,7 +3215,7 @@
       },
       "knowledge-new": {
         "title": "Wissensdatenbanken",
-        "body": "Laden Sie Dokumente hoch, damit Ihre Agents daraus antworten können. Jede Collection ist durchsuchbar und bleibt Ihrer Organisation vorbehalten — erstellen Sie hier Ihre erste."
+        "body": "Laden Sie Dokumente hoch, damit Ihre Agents daraus antworten können. Jede Collection ist durchsuchbar und bleibt Ihrer Organisation vorbehalten - erstellen Sie hier Ihre erste."
       },
       "knowledge-tabs": {
         "title": "Stöbern oder suchen",
@@ -3223,7 +3223,7 @@
       },
       "mcp-add": {
         "title": "Bringen Sie Ihren eigenen mit",
-        "body": "Nicht im Katalog? Fügen Sie einen eigenen Server hinzu, indem Sie seine URL einfügen — für die ganze Organisation oder nur für Sie."
+        "body": "Nicht im Katalog? Fügen Sie einen eigenen Server hinzu, indem Sie seine URL einfügen - für die ganze Organisation oder nur für Sie."
       },
       "mcp-catalog": {
         "title": "Tools anstecken",
@@ -3243,7 +3243,7 @@
       },
       "org-members": {
         "title": "Wer dabei ist",
-        "body": "Alle in der Organisation und die Rolle, die jeder innehat. Laden Sie Kolleginnen und Kollegen ein, ändern Sie eine Rolle oder entfernen Sie jemanden — alles aus dieser Liste."
+        "body": "Alle in der Organisation und die Rolle, die jeder innehat. Laden Sie Kolleginnen und Kollegen ein, ändern Sie eine Rolle oder entfernen Sie jemanden - alles aus dieser Liste."
       },
       "org-profile": {
         "title": "Name und Gesicht",
@@ -3283,7 +3283,7 @@
       },
       "orgs-new": {
         "title": "Ihre Organisationen",
-        "body": "Alles gehört zu einer Organisation. Erstellen Sie eine oder wechseln Sie zwischen denen, in denen Sie Mitglied sind — jede hält ihre Agents, Schlüssel und ihr Wissen getrennt."
+        "body": "Alles gehört zu einer Organisation. Erstellen Sie eine oder wechseln Sie zwischen denen, in denen Sie Mitglied sind - jede hält ihre Agents, Schlüssel und ihr Wissen getrennt."
       },
       "routines-create": {
         "title": "Zwei Wege, eine zu beginnen",
@@ -3295,7 +3295,7 @@
       },
       "run-detail-input": {
         "title": "Was das Modell tatsächlich bekommen hat",
-        "body": "Der Prompt, wie er zusammengestellt und gesendet wurde, jedes Tool mit der Beschreibung, die das Modell liest, die Einstellungen und ein Balken pro Anfrage — von der Leitung aufgezeichnet, es ist also das, was gesendet wurde, und nicht das, was der Spec sagt."
+        "body": "Der Prompt, wie er zusammengestellt und gesendet wurde, jedes Tool mit der Beschreibung, die das Modell liest, die Einstellungen und ein Balken pro Anfrage - von der Leitung aufgezeichnet, es ist also das, was gesendet wurde, und nicht das, was der Spec sagt."
       },
       "sandboxes-connections": {
         "title": "Wo Agents Code ausführen",
@@ -3303,7 +3303,7 @@
       },
       "settings-tabs": {
         "title": "Ihre Einstellungen",
-        "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs — wechseln Sie hier zwischen ihnen."
+        "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs - wechseln Sie hier zwischen ihnen."
       },
       "skills-list": {
         "title": "Ihre Skills",
@@ -3323,11 +3323,11 @@
       },
       "welcome": {
         "title": "Willkommen bei AgenticOS",
-        "body": "Hier baut, betreibt und steuert Ihr Team seine KI-Agents. Wir gehen jeden Bereich durch und zeigen, worauf es ankommt — etwa eine Minute, und Sie können jederzeit schließen."
+        "body": "Hier baut, betreibt und steuert Ihr Team seine KI-Agents. Wir gehen jeden Bereich durch und zeigen, worauf es ankommt - etwa eine Minute, und Sie können jederzeit schließen."
       },
       "workspaces-browser": {
         "title": "Dateien, die Agents für Sie aufbewahrt haben",
-        "body": "Wenn ein Agent eine Datei speichert, landet sie hier — stöbern, ansehen und herunterladen, was Ihre Unterhaltungen hervorgebracht haben."
+        "body": "Wenn ein Agent eine Datei speichert, landet sie hier - stöbern, ansehen und herunterladen, was Ihre Unterhaltungen hervorgebracht haben."
       },
       "workspaces-detail": {
         "title": "In einem Workspace",
@@ -3427,7 +3427,7 @@
       "keptForEver": "Bleibt, bis jemand es löscht",
       "afterDays": "Nach {days} Tagen gelöscht",
       "atLeastDays": "Mindestens {days} Tage aufbewahrt",
-      "cappedByDeployment": "Nach {days} Tagen gelöscht — die Grenze des Deployments",
+      "cappedByDeployment": "Nach {days} Tagen gelöscht - die Grenze des Deployments",
       "conflictingBounds": "Die eigenen Grenzen dieses Deployments widersprechen sich für: {classes}. Eine Administration muss klären, welche gilt, bevor diese Zeiträume etwas bedeuten.",
       "hardDeleteNotice": "Ein Durchlauf läuft einmal täglich und löscht endgültig. Was ein bereinigter Run ausgegeben hat, zählt weiterhin zur Monatsrechnung.",
       "save": "Speichern",
@@ -3690,7 +3690,7 @@
       "noLimit": "Kein Limit",
       "noMcpServersAttached": "Keine MCP-Server angehängt",
       "noModel": "Kein Modell",
-      "noModelNeedsConnections": "Ihre Organisation hat noch kein Modell, und ein Agent braucht eines zum Veröffentlichen. Ein Modell hinzuzufügen braucht die Berechtigung „Verbindungen verwalten“ — bitten Sie einen Admin, eines hinzuzufügen.",
+      "noModelNeedsConnections": "Ihre Organisation hat noch kein Modell, und ein Agent braucht eines zum Veröffentlichen. Ein Modell hinzuzufügen braucht die Berechtigung „Verbindungen verwalten“ - bitten Sie einen Admin, eines hinzuzufügen.",
       "noSkillsAttached": "Keine Skills angehängt",
       "nobodyHasSharedAgent": "Noch hat niemand einen Agent mit Ihnen geteilt.",
       "nothingMatches": "Nichts passt",
@@ -4479,7 +4479,7 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspaces konnten nicht geladen werden",
-      "pageDescription": "Die Dateien, die Agents für Sie aufbewahren. Ein Workspace ist Arbeitsfläche — er wird mit der Unterhaltung gelöscht, zu der er gehört, und ist kein Ort für etwas Dauerhaftes.",
+      "pageDescription": "Die Dateien, die Agents für Sie aufbewahren. Ein Workspace ist Arbeitsfläche - er wird mit der Unterhaltung gelöscht, zu der er gehört, und ist kein Ort für etwas Dauerhaftes.",
       "whatOneAgentKeeping": "Was ein Agent aufbewahrt, Ordner für Ordner. Die Suche erfasst jeden Ordner, nicht nur den auf dem Bildschirm.",
       "workspace": "Workspace",
       "workspaceUnreadable": "Dieser Workspace konnte nicht gelesen werden",
@@ -4514,7 +4514,7 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Alles, was Ihre Agents von allein tun — nach Zeitplan oder auf ein Ereignis."
+      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis."
     }
   },
   "profile": {
@@ -4531,7 +4531,7 @@
     "addSyncSource": "Sync-Quelle hinzufügen",
     "audienceApp": "{credentialing, select, none {Alles, was diese Quelle einliest} unknown {Die Zugangsdaten dieser Quelle können lesen, wofür sie berechtigt wurden, und alles, was sie einliest} other {{credential} kann lesen, wofür es berechtigt wurde, und alles, was es einliest}} wird in {collection} für jeden in diesem Deployment durchsuchbar.",
     "audienceOrg": "{credentialing, select, none {Alles, was diese Quelle einliest} unknown {Die Zugangsdaten dieser Quelle können lesen, wofür sie berechtigt wurden, und alles, was sie einliest} other {{credential} kann lesen, wofür es berechtigt wurde, und alles, was es einliest}} wird in {collection} für alle in dieser Organisation durchsuchbar, die diese Collection ansehen dürfen.",
-    "audiencePersonal": "{credentialing, select, none {Alles, was diese Quelle einliest} unknown {Die Zugangsdaten dieser Quelle können lesen, wofür sie berechtigt wurden, und alles, was sie einliest} other {{credential} kann lesen, wofür es berechtigt wurde, und alles, was es einliest}} wird in {collection} durchsuchbar — allein für Sie.",
+    "audiencePersonal": "{credentialing, select, none {Alles, was diese Quelle einliest} unknown {Die Zugangsdaten dieser Quelle können lesen, wofür sie berechtigt wurden, und alles, was sie einliest} other {{credential} kann lesen, wofür es berechtigt wurde, und alles, was es einliest}} wird in {collection} durchsuchbar - allein für Sie.",
     "audienceTitle": "Wer das wird lesen können",
     "audienceUnassigned": "Diese Integration ist noch unter keiner Wissensdatenbank abgelegt, also kann nichts durchsuchen, was sie einliest. Wer sie lesen darf, entscheidet sich beim Klonen in eine Wissensdatenbank.",
     "back": "Zurück",
@@ -4583,7 +4583,7 @@
     "organizationalUnitPlaceholder": "z. B. Recht",
     "orgIntegrations": "Organisations-Integrationen",
     "orgIntegrationsLoadFailed": "Bestehende Workspace-Integrationen konnten nicht geladen werden; Sie können trotzdem eine neue Quelle anlegen.",
-    "pickExistingOrgIntegration": "Wählen Sie eine bestehende Organisations-Integration für diese Wissensdatenbank. Ihre Zugangsdaten werden unabhängig kopiert — den Zeitplan können Sie getrennt anpassen.",
+    "pickExistingOrgIntegration": "Wählen Sie eine bestehende Organisations-Integration für diese Wissensdatenbank. Ihre Zugangsdaten werden unabhängig kopiert - den Zeitplan können Sie getrennt anpassen.",
     "removedCount": "{count} entfernt",
     "schedule": "Zeitplan",
     "search": {
@@ -4640,8 +4640,8 @@
       "dockerTokenHint": "Das Dienst-Token. Wer es hat, kann eine Session öffnen, und eine Session führt Befehle auf diesem Host aus.",
       "editTitle": "Sandbox-Verbindung bearbeiten",
       "kind": "Art",
-      "kindDaytona": "Daytona — Cloud-Sandboxes auf Ihrem Konto",
-      "kindDocker": "Container-Dienst — ein sandboxd, den Sie betreiben",
+      "kindDaytona": "Daytona - Cloud-Sandboxes auf Ihrem Konto",
+      "kindDocker": "Container-Dienst - ein sandboxd, den Sie betreiben",
       "localServiceAlreadyConnected": "Unter {url} hat ein Sandbox-Dienst geantwortet, und diese Organisation hat bereits eine Verbindung, die dorthin zeigt.",
       "localServiceFound": "Unter {url} hat ein Sandbox-Dienst geantwortet, deshalb steht das oben schon eingetragen.",
       "name": "Name",
@@ -4687,7 +4687,7 @@
       "network": "Netzwerk",
       "notKept": "Entfernt",
       "perOrganization": "Sandboxes pro Organisation",
-      "readFromServiceItself": "Wird aus dem Dienst gelesen und ist nur dort änderbar — in seiner eigenen Umgebung, wo Ihre Compose-Datei ihn startet. Es gibt bewusst keinen Endpunkt, um dies zu schreiben: Eine Anwendung, die den Prozess mit dem Docker-Socket umkonfigurieren könnte, hätte den Host in der Hand.",
+      "readFromServiceItself": "Wird aus dem Dienst gelesen und ist nur dort änderbar - in seiner eigenen Umgebung, wo Ihre Compose-Datei ihn startet. Es gibt bewusst keinen Endpunkt, um dies zu schreiben: Eine Anwendung, die den Prozess mit dem Docker-Socket umkonfigurieren könnte, hätte den Host in der Hand.",
       "runtimesHeading": "Runtimes, die ein Agent anfordern darf",
       "sandboxdIdleTimeout": "SANDBOXD_IDLE_TIMEOUT",
       "sandboxdMaxSessionsPer": "SANDBOXD_MAX_SESSIONS_PER_TENANT",
@@ -4696,7 +4696,7 @@
       "whatConnectionAllows": "Was {name} erlaubt"
     },
     "readFromServiceItself": "Wird aus dem Dienst selbst gelesen und ist nur dort änderbar. Das sind die Obergrenzen, die für jeden Agent auf dieser Verbindung gelten.",
-    "readSoManyWorkspaces": "{count} Workspaces gelesen — es gibt mehr. ",
+    "readSoManyWorkspaces": "{count} Workspaces gelesen - es gibt mehr. ",
     "runtime": {
       "allowedCount": "Dieser Host erlaubt {count} davon.",
       "askAgain": "Erneut fragen",
@@ -4970,7 +4970,7 @@
     "newSkill": "Neuer Skill",
     "newSkill2": "Neuer Skill",
     "noCategory": "Keine Kategorie",
-    "noDescriptionWorthAdding": "Keine Beschreibung — es lohnt sich, vor dem Annehmen eine hinzuzufügen.",
+    "noDescriptionWorthAdding": "Keine Beschreibung - es lohnt sich, vor dem Annehmen eine hinzuzufügen.",
     "notShownHereAgent": "Wird hier nicht angezeigt – der Agent liest es so oder so als Datei.",
     "onlyPartModelReads": "Der einzige Teil, den das Modell liest, bevor es entscheidet, ob es den Skill überhaupt öffnet. Schreiben Sie, wann er greift, nicht was darin steht.",
     "onlyPartModelReads2": "Der einzige Teil, den das Modell liest, bevor es entscheidet, ob es den Skill überhaupt öffnet. Schreiben Sie, wann er greift, nicht was darin steht.",
@@ -5045,7 +5045,7 @@
     "inviteLinkLabel": "Einladungslink",
     "inviteLinkOnce": "Wird einmal angezeigt. Nichts speichert ihn, kopieren Sie ihn also, bevor Sie dies schließen.",
     "inviteMember": "Mitglied einladen",
-    "inviteNotEmailed": "Die Einladung besteht, aber es erreichte {email} keine E-Mail — dieses Deployment hat keine versendet. Geben Sie den Link selbst weiter.",
+    "inviteNotEmailed": "Die Einladung besteht, aber es erreichte {email} keine E-Mail - dieses Deployment hat keine versendet. Geben Sie den Link selbst weiter.",
     "inviteReady": "Einladung bereit",
     "inviteWithLink": "Mit einem Link einladen",
     "joinAs": "Beitreten als",
@@ -5136,8 +5136,8 @@
     "somethingElse": "Etwas anderes",
     "somethingWentWrong": "Etwas ist schiefgelaufen",
     "sortBy": "Nach dieser Spalte sortieren",
-    "sortedAscending": "Aufsteigend sortiert — zum Umkehren klicken",
-    "sortedDescending": "Absteigend sortiert — zum Umkehren klicken",
+    "sortedAscending": "Aufsteigend sortiert - zum Umkehren klicken",
+    "sortedDescending": "Absteigend sortiert - zum Umkehren klicken",
     "source": "Quelle",
     "typeToConfirm": "Tippen Sie <mono>{phrase}</mono> zur Bestätigung",
     "typeYourAnswer": "Antwort eingeben …",
@@ -5353,7 +5353,7 @@
     "sourceGithub": "Einem GitHub-Issue",
     "webhookUrlPreview": "Zustell-URL",
     "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹beim Speichern vergebene ID›",
-    "webhookUrlPreviewHelp": "Der Provider sendet hierher. Die vollständige URL auf dem API-Host erscheint, sobald Sie den Trigger erstellen — das Signatur-Secret unten ist es, was jede Zustellung dorthin verifiziert.",
+    "webhookUrlPreviewHelp": "Der Provider sendet hierher. Die vollständige URL auf dem API-Host erscheint, sobald Sie den Trigger erstellen - das Signatur-Secret unten ist es, was jede Zustellung dorthin verifiziert.",
     "secret": "Signatur-Secret",
     "secretHelp": "Der Webhook wird dagegen verifiziert. Fügen Sie es beim Provider ein oder erzeugen Sie eines.",
     "secretPlaceholder": "Ein starkes gemeinsames Secret",
@@ -5427,7 +5427,7 @@
     "rotateSecretTitle": "Signatur-Secret",
     "rotateSecretHelp": "Das Rotieren ersetzt das Secret, das Zustellungen authentifiziert. Das alte funktioniert ab dem Rotieren nicht mehr.",
     "rotateSecret": "Signatur-Secret rotieren",
-    "rotateRevealNote": "Kopieren Sie es jetzt — es wird nicht erneut angezeigt. Fügen Sie es beim Provider ein, damit Zustellungen weiter verifiziert werden.",
+    "rotateRevealNote": "Kopieren Sie es jetzt - es wird nicht erneut angezeigt. Fügen Sie es beim Provider ein, damit Zustellungen weiter verifiziert werden.",
     "rotateAutoNote": "Die Plattform hat den Webhook mit dem neuen Secret neu registriert. Es gibt nichts einzufügen.",
     "secretRotated": "Signatur-Secret rotiert",
     "templatesLabel": "Mit einer Vorlage beginnen",
@@ -5511,7 +5511,7 @@
     "bringsSkills": "{count, plural, =1 {Installiert 1 Skill mit} other {Installiert # Skills mit}}",
     "needsAttaching": "Sie hängen noch an: {what}",
     "suggestsMcp": "Passt gut zu: {servers}",
-    "installed": "{name} als Entwurf erstellt — Modell wählen, dann veröffentlichen",
+    "installed": "{name} als Entwurf erstellt - Modell wählen, dann veröffentlichen",
     "industry": {
       "healthcare": "Gesundheitswesen",
       "finance": "Finanzen und Versicherung",

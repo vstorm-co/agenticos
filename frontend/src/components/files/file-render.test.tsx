@@ -190,7 +190,7 @@ describe("showing a file's bytes", () => {
     );
 
     expect(
-      screen.getByText("This one cannot be shown here — the server serves it as a file."),
+      screen.getByText("This one cannot be shown here - the server serves it as a file."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Download/ }));
     expect(onDownload).toHaveBeenCalled();

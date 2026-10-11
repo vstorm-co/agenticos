@@ -173,7 +173,7 @@
     "connectedOnly": "Connected only",
     "connectionNoLongerAllows": "This connection no longer allows <code>{runtime}</code>. Pick one it does, or the agent fails on its first tool call.",
     "connectionSDefault": "The connection's default",
-    "connectionSDefaultIs": "The connection's default — {alias}",
+    "connectionSDefaultIs": "The connection's default - {alias}",
     "considerOnlyMostLikely": "Consider only the most likely tokens making up this much probability mass. Set this or temperature, not both.",
     "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
     "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
@@ -252,12 +252,12 @@
     "failedReleaseMode": "The release mode could not be saved",
     "failedRemoveEnvironment": "Failed to remove environment",
     "failedRenameEnvironment": "Failed to rename environment",
-    "filesWorkspaceHasNo": "The Files workspace has no shell — pair it with Run Python to compute.",
+    "filesWorkspaceHasNo": "The Files workspace has no shell - pair it with Run Python to compute.",
     "followCapabilityAlwaysAsk": "Follow the capability - always ask",
     "followCapabilityNeverAsk": "Follow the capability - never ask",
     "followsLatest": "Follows latest",
     "pinnedFor": "{name} is pinned",
-    "gatewayLitellmProxyModel": "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional — there is nothing to authenticate against on your own hardware.",
+    "gatewayLitellmProxyModel": "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional - there is nothing to authenticate against on your own hardware.",
     "giveSpecialistCapability": "Give this specialist {name}",
     "giveThisAgent": "Give this agent {name}",
     "handleDescription": "It will be mentioned as <at>{handle}</at>, which is fixed once created and is how Slack and the API address it.",
@@ -511,9 +511,9 @@
     "separateWithCommas": "Separate with commas",
     "separatesStagingTrafficFrom": "Separates staging traffic from the real thing in the same project.",
     "traceContent": "Trace content",
-    "traceContentFull": "Full — messages, output and tool calls",
-    "traceContentNone": "None — timing and cost only",
-    "traceContentHint": "\"None\" keeps timing, tokens, cost and tool names but sends no message text or tool arguments — for a project over health, legal or HR data.",
+    "traceContentFull": "Full - messages, output and tool calls",
+    "traceContentNone": "None - timing and cost only",
+    "traceContentHint": "\"None\" keeps timing, tokens, cost and tool names but sends no message text or tool arguments - for a project over health, legal or HR data.",
     "serverCount": "{count, plural, =1 {1 server} other {# servers}}",
     "servesVersion": "serves v{version}",
     "serviceName": "Service name",
@@ -620,7 +620,7 @@
     "visibilityTeam": "Team",
     "webhook": "Webhook",
     "whatAgentCalledLogfire": "What the agent is called in Logfire.",
-    "whatServiceAllowsNever": "What the service allows. It never names an image — that is the operator's decision.",
+    "whatServiceAllowsNever": "What the service allows. It never names an image - that is the operator's decision.",
     "whatThePageSupplies": "What the page supplies",
     "whatThePageSuppliesHint": "Set these on the page as window.AgenticOSContext before the widget script loads. They are appended to the agent's instructions as information about the visitor - never as instructions, because a value from a browser is one a visitor can edit.",
     "whereAgentAvailable": "Where this agent is available",
@@ -855,7 +855,7 @@
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
     "agentPicker": {
-      "appliesNext": "Applies from your next message — earlier answers keep their agent.",
+      "appliesNext": "Applies from your next message - earlier answers keep their agent.",
       "current": "Agent: {name}",
       "default": "Default",
       "defaultForNewChats": "Default agent for new chats",
@@ -1161,7 +1161,7 @@
     "thoughtAboutIt": "Thought about it",
     "title": "Chat",
     "tokensDetail": "{input, number} input · {output, number} output tokens",
-    "tokensDetailPartial": "{input, number} input · {output, number} output tokens — a floor: some model in this run had no price",
+    "tokensDetailPartial": "{input, number} input · {output, number} output tokens - a floor: some model in this run had no price",
     "toolApprovalRequired": "Tool approval required",
     "draftProposalTitle": "A new agent draft",
     "draftProposalIn": "Created in {organization}",
@@ -1239,7 +1239,7 @@
       "memorySaving": "Saving to memory",
       "memoryUpdating": "Updating a memory",
       "messageDelegate": "Message Delegate",
-      "moreEntries": "and {count, plural, =1 {1 more} other {# more}} — open the raw view for all of them",
+      "moreEntries": "and {count, plural, =1 {1 more} other {# more}} - open the raw view for all of them",
       "noArguments": "No arguments",
       "noContext": "No context files are attached to this agent.",
       "noSkills": "No skills are attached to this agent.",
@@ -1312,7 +1312,7 @@
       "context": "Context",
       "contextOf": "{used, number} of {window, number} tokens in the model's context window",
       "conversation": "This conversation",
-      "inContainer": "{used} of {limit} — the memory ceiling of this conversation's own container, not a quota shared with anything else",
+      "inContainer": "{used} of {limit} - the memory ceiling of this conversation's own container, not a quota shared with anything else",
       "inUse": "in use",
       "label": "Usage of this conversation",
       "labelNearLimit": "Usage of this conversation - near a limit",
@@ -1325,8 +1325,8 @@
       "threadTotal": "${cost}",
       "threadTotalDetail": "{input, number} in · {output, number} out billed across this conversation",
       "threadTotalPartial": "≥ ${cost}",
-      "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation — a floor: some model in it had no price",
-      "unmeasured": "in use — this host did not report a number",
+      "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation - a floor: some model in it had no price",
+      "unmeasured": "in use - this host did not report a number",
       "workspace": "Workspace",
       "workspaceUsed": "Workspace used"
     },
@@ -1691,7 +1691,7 @@
           "other": "Running or cancelled"
         },
         "title": "Outcomes",
-        "description": "How runs ended — completed, failed, over budget, waiting."
+        "description": "How runs ended - completed, failed, over budget, waiting."
       },
       "platform": {
         "active24h": "{count} active in 24 h",
@@ -1848,7 +1848,7 @@
           "web": "Web chat"
         },
         "title": "Where runs come from",
-        "description": "Where runs come from — web chat, API, channels.",
+        "description": "Where runs come from - web chat, API, channels.",
         "unit": "runs"
       },
       "top-orgs": {
@@ -2004,12 +2004,12 @@
     },
     "edit": {
       "customize": "Customize",
-      "subtitle": "Arrange your dashboard — drag cards to reorder across sections, resize them, colour and collapse sections, or add more.",
+      "subtitle": "Arrange your dashboard - drag cards to reorder across sections, resize them, colour and collapse sections, or add more.",
       "banner": "Drag, resize and arrange your cards, then Save to keep it or Cancel to discard.",
       "addWidget": "Add a widget",
       "saveAsPreset": "Save as…",
       "addTitle": "Add a widget",
-      "addDescription": "Pick a card and it drops into your dashboard, ready to drag into place. Hover a row to preview it with live data — you can add the same card more than once.",
+      "addDescription": "Pick a card and it drops into your dashboard, ready to drag into place. Hover a row to preview it with live data - you can add the same card more than once.",
       "searchPlaceholder": "Search widgets…",
       "searchLabel": "Search widgets",
       "noResults": "No widgets match “{query}”.",
@@ -2056,7 +2056,7 @@
       "shorter": "Make {title} shorter",
       "taller": "Make {title} taller",
       "emptySection": "Drop a card here, or add one to this section.",
-      "emptyDraft": "No cards yet — add one, or cancel to keep your current dashboard.",
+      "emptyDraft": "No cards yet - add one, or cancel to keep your current dashboard.",
       "emptyTitle": "Your dashboard is empty",
       "emptyDescription": "You have hidden every card. Add some back, or reset to the default layout.",
       "saveFailed": "Could not save your dashboard. Try again.",
@@ -2179,7 +2179,7 @@
     "previousFile": "Previous file",
     "removeFile": "Remove {name}",
     "renderedPage": "{name}, rendered",
-    "servedAsFile": "This one cannot be shown here — the server serves it as a file.",
+    "servedAsFile": "This one cannot be shown here - the server serves it as a file.",
     "shortened": "This has been shortened. The agent reads the whole file.",
     "source": "Source",
     "truncatedRows": "Showing {shown, number} of {total, plural, =1 {1 row} other {# rows}} · download to see all",
@@ -2764,7 +2764,7 @@
     "disconnectServerTitle": "Disconnect server?",
     "disconnectWarning": "Disconnect \"{name}\"?",
     "displayName": "Name",
-    "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix.",
+    "displayNameHint": "What this connection is called on screen. Optional - without one it is shown under its tool prefix.",
     "displayNamePlaceholder": "Company wiki",
     "documentation": "Documentation",
     "edit": "Edit",
@@ -2773,7 +2773,7 @@
     "existingConnectionCannotChange": "An existing connection cannot change owner.",
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
-    "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
+    "finishConsentThenReturn": "Finish in the tab that opened, then come back - the server appears here once it is authorised.",
     "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
@@ -2799,7 +2799,7 @@
     "oauthOwnClientHint": "Most servers register this app themselves - leave these empty. A provider that refuses to, such as HubSpot, hands out credentials only for an app created in its own portal: create one there, give it the redirect URL below, and paste its credentials here.",
     "oauthRedirectUrl": "Redirect URL",
     "oauthRedirectUrlHint": "Enter it at the provider exactly as shown.",
-    "oauthRefusedWithReason": "Sign-in failed, and no connection was saved — {reason}",
+    "oauthRefusedWithReason": "Sign-in failed, and no connection was saved - {reason}",
     "organization": "the organization",
     "pasteHere": "Paste it here",
     "redirecting": "Redirecting…",
@@ -2833,10 +2833,10 @@
     "unreachable": "Unreachable",
     "urlMustStartWithHttp": "URL must start with http:// or https://",
     "useServiceCredentialNot": "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again.",
-    "whichToolsAgent": "Which of these tools this agent may call. The connection's own list still applies — this narrows within it. Selecting all leaves the agent following the connection, including tools the server adds later.",
+    "whichToolsAgent": "Which of these tools this agent may call. The connection's own list still applies - this narrows within it. Selecting all leaves the agent following the connection, including tools the server adds later.",
     "whichToolsConnection": "Which tools this connection exposes at all. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { It applies to every agent bound to this server; an agent can narrow further, and cannot reach past it.} other {}}",
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
-    "yourChatAndDirectMessages": "Yours alone — your chat, and your direct messages in a channel.",
+    "yourChatAndDirectMessages": "Yours alone - your chat, and your direct messages in a channel.",
     "yours": "Yours",
     "yoursAloneYourOwn": "Only you. Used in your chats, and by agents set up to act as each person, with your own access.",
     "recommended": "Recommended",
@@ -2958,7 +2958,7 @@
     "finish": "Finish",
     "progress": "Step {current} of {total}",
     "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
-    "helpReminder": "You can replay any page's tips whenever you like — just click the ? in its header.",
+    "helpReminder": "You can replay any page's tips whenever you like - just click the ? in its header.",
     "coachClose": "Close",
     "coachYes": "Yes, let's do it",
     "coachSkip": "Skip",
@@ -3001,7 +3001,7 @@
     "steps": {
       "activity-approvals": {
         "title": "What's waiting on you",
-        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
+        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped - this tab only appears if you're allowed to decide them."
       },
       "activity-overview": {
         "title": "Watch activity",
@@ -3013,11 +3013,11 @@
       },
       "activity-spend": {
         "title": "Where the money went",
-        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
+        "body": "Spend over time and by agent, against the budgets you've set - so an agent quietly getting expensive shows up here before the bill does."
       },
       "agent-availability": {
         "title": "Put it to work",
-        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
+        "body": "Availability is where a published agent goes live - a web chat, an embed on your site, Slack or Telegram - and where you decide who to share it with."
       },
       "agent-history": {
         "title": "Every version, kept",
@@ -3037,11 +3037,11 @@
       },
       "agent-mcp": {
         "title": "And whole tool sets",
-        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
+        "body": "Below the capabilities, attach MCP servers - ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
       },
       "agent-model": {
         "title": "Choose the brain",
-        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
+        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning - all without touching the instructions above."
       },
       "agent-publish": {
         "title": "Publish to ship it",
@@ -3049,7 +3049,7 @@
       },
       "agent-skills": {
         "title": "Hand it a playbook",
-        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
+        "body": "Skills are written know-how the agent reads before it acts - a procedure, a house style, a checklist - and the same one can be shared across agents."
       },
       "agent-toolbox": {
         "title": "Give it tools",
@@ -3061,7 +3061,7 @@
       },
       "agents-new": {
         "title": "Build an agent",
-        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere - chat, API, Slack or a widget."
       },
       "channels-list": {
         "title": "Connected channels",
@@ -3069,7 +3069,7 @@
       },
       "channels-new": {
         "title": "Reach agents where people are",
-        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+        "body": "Register a chat platform - Slack, Telegram, Mattermost - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
       },
       "chat-agent-picker": {
         "title": "Choose who answers",
@@ -3089,7 +3089,7 @@
       },
       "chat-model-picker": {
         "title": "Tune the model",
-        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+        "body": "Pick which of the organization's models answers - just for this conversation, without changing the agent."
       },
       "chat-plan": {
         "title": "What it is working to",
@@ -3105,7 +3105,7 @@
       },
       "context-new": {
         "title": "Add standing context",
-        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
+        "body": "Context files are the background every agent carries - company facts, tone, terms - injected into each prompt without you pasting them in every time. Add one here."
       },
       "dashboard-actions": {
         "title": "Start here",
@@ -3121,7 +3121,7 @@
       },
       "finish": {
         "title": "You're all set",
-        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
+        "body": "That's the tour. Replay any page's tips anytime from the help button at the top - head to your dashboard whenever you're ready to start building."
       },
       "flow-agent-create": {
         "title": "Name your agent",
@@ -3129,14 +3129,14 @@
       },
       "flow-agent-instructions": {
         "title": "Write its instructions",
-        "body": "Tell the agent who it is and what it should do — this is its system prompt. Write a line or two, then choose Next."
+        "body": "Tell the agent who it is and what it should do - this is its system prompt. Write a line or two, then choose Next."
       },
       "flow-agent-knowledge": {
         "title": "Give it documents to read (optional)",
-        "body": "Attach a knowledge base and the agent can search those documents and cite them. You can skip this and add one anytime — choose Next to move on."
+        "body": "Attach a knowledge base and the agent can search those documents and cite them. You can skip this and add one anytime - choose Next to move on."
       },
       "flow-agent-knowledge-ask": {
-        "title": "No knowledge base yet — create one?",
+        "title": "No knowledge base yet - create one?",
         "body": "A knowledge base lets this agent search your documents and cite them, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
       "flow-agent-knowledge-attach": {
@@ -3145,7 +3145,7 @@
       },
       "flow-agent-knowledge-create": {
         "title": "Create the knowledge base",
-        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
+        "body": "Choose New knowledge base - the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Open your agent again",
@@ -3164,8 +3164,8 @@
         "body": "MCP servers give the agent tools from other systems you've connected. Attach any here, or choose Next to move on."
       },
       "flow-agent-mcp-ask": {
-        "title": "No MCP server connected — connect one?",
-        "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here — no leaving the builder, and we'll pick up the moment it's connected."
+        "title": "No MCP server connected - connect one?",
+        "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here - no leaving the builder, and we'll pick up the moment it's connected."
       },
       "flow-agent-mcp-attach": {
         "title": "Give it the server",
@@ -3173,23 +3173,23 @@
       },
       "flow-agent-mcp-connect": {
         "title": "Open the catalog",
-        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
+        "body": "Choose Connect a server - the catalog opens right here in the builder, and we'll pick one together."
       },
       "flow-agent-model-add": {
         "title": "Add a model",
-        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
+        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key - it's stored in the vault and the model is ready. We'll move on once it's added."
       },
       "flow-agent-model-none": {
         "title": "No model in this organization yet",
-        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
+        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have - ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
       },
       "flow-agent-model-pick": {
         "title": "Choose its model",
-        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
+        "body": "Pick the model this agent should run on from the list - an agent needs one to run, so we'll move on once it's set."
       },
       "flow-agent-publish": {
         "title": "Publish it",
-        "body": "An agent has to be published before you can chat with it — a draft can't take messages. Click Publish to make this version live; we'll move on the moment it's published."
+        "body": "An agent has to be published before you can chat with it - a draft can't take messages. Click Publish to make this version live; we'll move on the moment it's published."
       },
       "flow-agent-run-pick": {
         "title": "Pick your agent",
@@ -3197,14 +3197,14 @@
       },
       "flow-agent-run-send": {
         "title": "Send it a message",
-        "body": "Type a prompt and send it — your agent's first run, and the end of the tour. We'll close the moment it's on its way."
+        "body": "Type a prompt and send it - your agent's first run, and the end of the tour. We'll close the moment it's on its way."
       },
       "flow-agent-skills": {
         "title": "Give it skills (optional)",
-        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
+        "body": "A skill is written know-how the agent loads when it's relevant - a refund policy, a house style. Attach any, or choose Next to move on."
       },
       "flow-agent-skills-ask": {
-        "title": "No skills yet — create one?",
+        "title": "No skills yet - create one?",
         "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
       "flow-agent-skills-attach": {
@@ -3213,7 +3213,7 @@
       },
       "flow-agent-skills-create": {
         "title": "Create the skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
+        "body": "Choose New skill - the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
       "flow-agent-skills-return-edit": {
         "title": "Open your agent again",
@@ -3225,19 +3225,19 @@
       },
       "flow-agent-tools": {
         "title": "Give it tools (optional)",
-        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
+        "body": "Capabilities let the agent do things - search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
       },
       "flow-chat-agent": {
         "title": "Choose who answers",
-        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
+        "body": "This picks which of your published agents replies. Open it to switch agents - you can even change partway through a conversation. Choose Next."
       },
       "flow-chat-composer": {
         "title": "Type and send",
-        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
+        "body": "Write your message here and send it - that's your first conversation. Choose Finish when you're ready."
       },
       "flow-chat-controls": {
         "title": "Tune this conversation",
-        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
+        "body": "Open Controls to run this chat on a different model, or change how hard it thinks - just for this conversation, without touching the agent itself. Choose Next."
       },
       "flow-chat-needs-agent": {
         "title": "No published agent to chat with yet",
@@ -3249,19 +3249,19 @@
       },
       "flow-kb-create": {
         "title": "Create the knowledge base",
-        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
+        "body": "Choose New knowledge base - the form opens and we'll walk it together, field by field."
       },
       "flow-kb-field-create": {
         "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
+        "body": "Choose Create. We'll move on the moment it exists - you'll add documents to it right after."
       },
       "flow-kb-field-embeddings": {
         "title": "Embeddings (leave the default)",
-        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
+        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone - expand it only if you know you need a different model. Choose Next."
       },
       "flow-kb-field-name": {
         "title": "Name it",
-        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
+        "body": "Name it after what it will hold - Product docs, Support wiki - so anyone attaching it to an agent knows what they're giving it. Then choose Next."
       },
       "flow-kb-field-scope": {
         "title": "Choose who it belongs to",
@@ -3269,11 +3269,11 @@
       },
       "flow-mcp-field-connect": {
         "title": "Connect it",
-        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
+        "body": "Choose Connect. We check the server answers and move on the moment it's connected - a server that signs in through the provider will hand off to their consent screen instead."
       },
       "flow-mcp-field-form": {
         "title": "Fill in the connection",
-        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
+        "body": "Name it - the name prefixes its tool names - keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
       },
       "flow-mcp-field-pick": {
         "title": "Pick a server",
@@ -3289,7 +3289,7 @@
       },
       "flow-skill-create": {
         "title": "Add your skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
+        "body": "Choose New skill - the form opens and we'll walk it together, field by field."
       },
       "flow-skill-field-create": {
         "title": "Create it",
@@ -3297,15 +3297,15 @@
       },
       "flow-skill-field-description": {
         "title": "Say when it applies",
-        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
+        "body": "This is the only part the model reads when deciding whether to open the skill at all - write when to reach for it, not what's inside. Then choose Next."
       },
       "flow-skill-field-name": {
         "title": "Name it",
-        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
+        "body": "Short and specific, like refund-policy - it's how the model refers to this skill, and it can't be changed later. Then choose Next."
       },
       "flow-skill-field-source": {
         "title": "Write the skill",
-        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
+        "body": "Switch to Source and write the know-how itself in Markdown - the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
       },
       "kb-documents": {
         "title": "What's in it",
@@ -3313,11 +3313,11 @@
       },
       "kb-header": {
         "title": "Inside a collection",
-        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
+        "body": "The collection's name, scope and controls sit up top - refresh it, drop in files, change how they're read, or remove it."
       },
       "kb-ingestion": {
         "title": "How documents are read",
-        "body": "The parser, chunking and embedding model behind this collection — what turns your files into something searchable. Change it, and new uploads follow the new settings."
+        "body": "The parser, chunking and embedding model behind this collection - what turns your files into something searchable. Change it, and new uploads follow the new settings."
       },
       "kb-sync": {
         "title": "Keep it in step",
@@ -3325,7 +3325,7 @@
       },
       "knowledge-add-integration": {
         "title": "Add a connection",
-        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
+        "body": "Start a new one here - pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
       },
       "knowledge-integrations": {
         "title": "Reusable connections",
@@ -3333,7 +3333,7 @@
       },
       "knowledge-new": {
         "title": "Knowledge bases",
-        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
+        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization - create your first one here."
       },
       "knowledge-tabs": {
         "title": "Browse or search",
@@ -3341,7 +3341,7 @@
       },
       "mcp-add": {
         "title": "Bring your own",
-        "body": "Not in the catalog? Add a custom server by pasting its URL — for the whole organization, or just for yourself."
+        "body": "Not in the catalog? Add a custom server by pasting its URL - for the whole organization, or just for yourself."
       },
       "mcp-catalog": {
         "title": "Plug in tools",
@@ -3361,7 +3361,7 @@
       },
       "org-members": {
         "title": "Who's in it",
-        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone - all from this list."
       },
       "org-profile": {
         "title": "Name and face",
@@ -3401,7 +3401,7 @@
       },
       "orgs-new": {
         "title": "Your organizations",
-        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
+        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to - each keeps its own agents, keys and knowledge apart."
       },
       "routines-create": {
         "title": "Two ways to start one",
@@ -3413,7 +3413,7 @@
       },
       "run-detail-input": {
         "title": "What the model was actually given",
-        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
+        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request - recorded from the wire, so it is what was sent rather than what the spec says."
       },
       "sandboxes-connections": {
         "title": "Where agents run code",
@@ -3421,7 +3421,7 @@
       },
       "settings-tabs": {
         "title": "Your settings",
-        "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
+        "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
       },
       "skills-list": {
         "title": "Your skills",
@@ -3441,11 +3441,11 @@
       },
       "welcome": {
         "title": "Welcome to AgenticOS",
-        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
+        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing - about a minute, and you can close it whenever you like."
       },
       "workspaces-browser": {
         "title": "Files agents kept for you",
-        "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."
+        "body": "When an agent saves a file, it lands here - browse, preview and download whatever your conversations produced."
       },
       "workspaces-detail": {
         "title": "Inside a workspace",
@@ -3545,7 +3545,7 @@
       "keptForEver": "Kept until somebody deletes it",
       "afterDays": "Deleted after {days} days",
       "atLeastDays": "Kept at least {days} days",
-      "cappedByDeployment": "Deleted after {days} days — the deployment's limit",
+      "cappedByDeployment": "Deleted after {days} days - the deployment's limit",
       "conflictingBounds": "This deployment's own bounds contradict each other for: {classes}. An administrator has to settle which applies before those periods mean anything.",
       "hardDeleteNotice": "A sweep runs once a day and deletes for good. What a purged run spent still counts toward the month's bill.",
       "save": "Save",
@@ -3808,7 +3808,7 @@
       "noLimit": "No limit",
       "noMcpServersAttached": "No MCP servers attached",
       "noModel": "No model",
-      "noModelNeedsConnections": "Your organization has no model yet, and an agent needs one to publish. Adding a model needs the \"Manage connections\" permission — ask an admin to add one.",
+      "noModelNeedsConnections": "Your organization has no model yet, and an agent needs one to publish. Adding a model needs the \"Manage connections\" permission - ask an admin to add one.",
       "noSkillsAttached": "No skills attached",
       "nobodyHasSharedAgent": "Nobody has shared an agent with you yet.",
       "nothingMatches": "Nothing matches",
@@ -4597,7 +4597,7 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
-      "pageDescription": "The files agents are keeping for you. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
+      "pageDescription": "The files agents are keeping for you. A workspace is scratch space - it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
       "whatOneAgentKeeping": "What one agent is keeping, folder by folder. Search covers every folder, not just the one on screen.",
       "workspace": "Workspace",
       "workspaceUnreadable": "That workspace could not be read",
@@ -4632,7 +4632,7 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Everything your agents do on their own — on a schedule, or on an event."
+      "description": "Everything your agents do on their own - on a schedule, or on an event."
     }
   },
   "profile": {
@@ -4649,7 +4649,7 @@
     "addSyncSource": "Add sync source",
     "audienceApp": "{credentialing, select, none {Everything this source ingests} unknown {The credential this source uses can read whatever it has been granted, and everything it ingests} other {{credential} can read whatever it has been granted, and everything it ingests}} becomes searchable in {collection} by anybody in this deployment.",
     "audienceOrg": "{credentialing, select, none {Everything this source ingests} unknown {The credential this source uses can read whatever it has been granted, and everything it ingests} other {{credential} can read whatever it has been granted, and everything it ingests}} becomes searchable in {collection} by everyone in this organization who can view that collection.",
-    "audiencePersonal": "{credentialing, select, none {Everything this source ingests} unknown {The credential this source uses can read whatever it has been granted, and everything it ingests} other {{credential} can read whatever it has been granted, and everything it ingests}} becomes searchable in {collection} — by you alone.",
+    "audiencePersonal": "{credentialing, select, none {Everything this source ingests} unknown {The credential this source uses can read whatever it has been granted, and everything it ingests} other {{credential} can read whatever it has been granted, and everything it ingests}} becomes searchable in {collection} - by you alone.",
     "audienceTitle": "Who will be able to read this",
     "audienceUnassigned": "This integration is filed under no knowledge base yet, so nothing can search what it ingests. Who can read it is decided when it is cloned into one.",
     "back": "Back",
@@ -4701,7 +4701,7 @@
     "organizationalUnitPlaceholder": "e.g. Legal",
     "orgIntegrations": "Org integrations",
     "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
-    "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
+    "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently - you can adjust the schedule separately.",
     "removedCount": "{count} removed",
     "schedule": "Schedule",
     "search": {
@@ -4758,8 +4758,8 @@
       "dockerTokenHint": "The service token. Whoever holds it can open a session, and a session runs commands on that host.",
       "editTitle": "Edit sandbox connection",
       "kind": "Kind",
-      "kindDaytona": "Daytona — cloud sandboxes on your account",
-      "kindDocker": "Container service — a sandboxd you run",
+      "kindDaytona": "Daytona - cloud sandboxes on your account",
+      "kindDocker": "Container service - a sandboxd you run",
       "localServiceAlreadyConnected": "A sandbox service answered at {url}, and this organization already has a connection pointing there.",
       "localServiceFound": "A sandbox service answered at {url}, so that is filled in above.",
       "name": "Name",
@@ -4805,7 +4805,7 @@
       "network": "Network",
       "notKept": "Removed",
       "perOrganization": "Sandboxes per organization",
-      "readFromServiceItself": "Read from the service and changeable only there — its own environment, where your compose file starts it. There is deliberately no endpoint to write these: an application that could reconfigure the process holding the Docker socket would own the host.",
+      "readFromServiceItself": "Read from the service and changeable only there - its own environment, where your compose file starts it. There is deliberately no endpoint to write these: an application that could reconfigure the process holding the Docker socket would own the host.",
       "runtimesHeading": "Runtimes an agent may ask for",
       "sandboxdIdleTimeout": "SANDBOXD_IDLE_TIMEOUT",
       "sandboxdMaxSessionsPer": "SANDBOXD_MAX_SESSIONS_PER_TENANT",
@@ -4814,7 +4814,7 @@
       "whatConnectionAllows": "What {name} allows"
     },
     "readFromServiceItself": "Read from the service itself, and only changeable there. These are the ceilings in force for every agent on this connection.",
-    "readSoManyWorkspaces": "Read {count} workspaces — there are more. ",
+    "readSoManyWorkspaces": "Read {count} workspaces - there are more. ",
     "runtime": {
       "allowedCount": "This host allows {count} of them.",
       "askAgain": "Ask again",
@@ -5088,7 +5088,7 @@
     "newSkill": "New skill",
     "newSkill2": "New skill",
     "noCategory": "No category",
-    "noDescriptionWorthAdding": "No description — worth adding one before accepting.",
+    "noDescriptionWorthAdding": "No description - worth adding one before accepting.",
     "notShownHereAgent": "Not shown here - the agent reads it as a file either way.",
     "onlyPartModelReads": "The only part the model reads before deciding whether to open the skill at all. Write when it applies, not what is inside it.",
     "onlyPartModelReads2": "The only part the model reads before deciding whether to open the skill at all. Write when it applies, not what is inside it.",
@@ -5163,7 +5163,7 @@
     "inviteLinkLabel": "Invitation link",
     "inviteLinkOnce": "Shown once. Nothing stores it, so copy it before you close this.",
     "inviteMember": "Invite member",
-    "inviteNotEmailed": "The invitation exists, but no email reached {email} — this deployment did not send one. Pass them the link yourself.",
+    "inviteNotEmailed": "The invitation exists, but no email reached {email} - this deployment did not send one. Pass them the link yourself.",
     "inviteReady": "Invitation ready",
     "inviteWithLink": "Invite with a link",
     "joinAs": "Join as",
@@ -5253,8 +5253,8 @@
     "somethingElse": "Something else",
     "somethingWentWrong": "Something went wrong",
     "sortBy": "Sort by this column",
-    "sortedAscending": "Sorted ascending — click to reverse",
-    "sortedDescending": "Sorted descending — click to reverse",
+    "sortedAscending": "Sorted ascending - click to reverse",
+    "sortedDescending": "Sorted descending - click to reverse",
     "source": "Source",
     "typeToConfirm": "Type <mono>{phrase}</mono> to confirm",
     "typeYourAnswer": "Type your answer…",
@@ -5377,12 +5377,12 @@
   "memory": {
     "clearAction": "Clear memory",
     "clearBody": "Deletes every note this agent has written, for every person and every group chat it has talked to. Nothing brings them back.",
-    "clearBodyWithMem0": "Deletes every note this agent has written, for every person and every group chat it has talked to. It does not reach what this agent remembers in mem0 — those are addressed per person, and are removed by forgetting that person.",
+    "clearBodyWithMem0": "Deletes every note this agent has written, for every person and every group chat it has talked to. It does not reach what this agent remembers in mem0 - those are addressed per person, and are removed by forgetting that person.",
     "clearConfirm": "This agent will lose everything it has written down. Its conversations are untouched.",
     "clearTitle": "Clear this agent's memory",
     "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 note deleted} other {# notes deleted}}",
     "forgetAction": "Forget everything about me",
-    "forgetBody": "Every agent in this organization forgets what it has written down about you — in this deployment and in mem0, where an agent keeps its memories there. Your conversations stay; only what agents noted about you goes.",
+    "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment and in mem0, where an agent keeps its memories there. Your conversations stay; only what agents noted about you goes.",
     "forgetConfirm": "Every agent in this organization will forget what it noted about you. Your conversations are untouched.",
     "forgetMemberConfirm": "Every agent in this organization will forget what it noted about {name}. Their conversations are untouched.",
     "forgetNamed": "Forget what agents know about {name}",
@@ -5470,7 +5470,7 @@
     "sourceGithub": "A GitHub issue",
     "webhookUrlPreview": "Delivery URL",
     "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹id assigned on save›",
-    "webhookUrlPreviewHelp": "The provider posts here. The full URL, on the API host, appears once you create the trigger — the signing secret below is what verifies each delivery to it.",
+    "webhookUrlPreviewHelp": "The provider posts here. The full URL, on the API host, appears once you create the trigger - the signing secret below is what verifies each delivery to it.",
     "secret": "Signing secret",
     "secretHelp": "The webhook is verified against this. Paste it into the provider, or generate one.",
     "secretPlaceholder": "A strong shared secret",
@@ -5544,7 +5544,7 @@
     "rotateSecretTitle": "Signing secret",
     "rotateSecretHelp": "Rotating replaces the secret that authenticates deliveries. The old one stops working the moment you rotate.",
     "rotateSecret": "Rotate signing secret",
-    "rotateRevealNote": "Copy it now — it won't be shown again. Paste it into the provider so deliveries keep verifying.",
+    "rotateRevealNote": "Copy it now - it won't be shown again. Paste it into the provider so deliveries keep verifying.",
     "rotateAutoNote": "The platform re-registered the webhook with the new secret. There's nothing to paste.",
     "secretRotated": "Signing secret rotated",
     "templatesLabel": "Start from a template",
@@ -5628,7 +5628,7 @@
     "bringsSkills": "{count, plural, =1 {Installs 1 skill with it} other {Installs # skills with it}}",
     "needsAttaching": "You still attach: {what}",
     "suggestsMcp": "Works well with: {servers}",
-    "installed": "{name} created as a draft — pick a model, then publish",
+    "installed": "{name} created as a draft - pick a model, then publish",
     "industry": {
       "healthcare": "Healthcare",
       "finance": "Finance and insurance",
