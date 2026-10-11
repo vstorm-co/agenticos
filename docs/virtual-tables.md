@@ -250,10 +250,15 @@ to `POST /tables/{id}/records/batch`, which writes each record on its own and li
 the ones it refused with their codes, and the console lists every failed row with its
 line. Each record added starts the table's triggers, as any other would.
 
+With **External id** mapped, **Update records already here** imports a file again to
+bring the table up to date: a row whose external id the table holds changes that
+record's cells it names, rather than being refused as taken (`update_existing` on the
+batch), and the import counts what it added and what it updated.
+
 **New table** starts with a **Name** column. It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
-integer, number, yes/no, date, or an ISO date and time - and otherwise text, or long
+integer, number, yes/no, date, an ISO date and time, an email address or a link - and otherwise text, or long
 text once a value has a line break or runs past 1,000 characters. The name comes from
 the file, and both can be changed before creating, which costs less than a type change later.
 Once the table exists the import opens with every column already mapped, and the

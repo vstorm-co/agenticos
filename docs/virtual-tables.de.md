@@ -1,5 +1,5 @@
 ---
-source_sha: "1707bc3517bc"
+source_sha: "aba33b00ad86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -284,10 +284,16 @@ Datensatz einzeln schreibt und die abgelehnten mit ihren Codes auflistet, und di
 listet jede gescheiterte Zeile mit ihrer Zeilennummer. Jeder hinzugefügte Datensatz
 startet die Trigger der Tabelle wie jeder andere.
 
+Mit zugeordneter **External id** importiert **Update records already here** eine Datei
+erneut, um die Tabelle zu aktualisieren: Eine Zeile, deren externe ID die Tabelle schon
+hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgelehnt zu
+werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
+aktualisiert hat.
+
 **New table** beginnt mit einer Spalte **Name**. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
-sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum oder Datum und
-Uhrzeit in ISO - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
+sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
+Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
 hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
 sich vor dem Erstellen ändern, was weniger kostet als eine spätere Typänderung. Sobald die
 Tabelle existiert, öffnet sich der Import mit jeder Spalte schon zugeordnet, danach die

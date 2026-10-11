@@ -285,6 +285,11 @@ class RecordBatchCreate(_Request):
     """Records to create together, each on its own: one refused is reported, not fatal."""
 
     records: list[RecordCreate] = Field(min_length=1, max_length=MAX_BATCH)
+    update_existing: bool = Field(
+        default=False,
+        description="Update a record whose external id the table already holds with the "
+        "values given, rather than refusing it as taken - importing a file again.",
+    )
 
 
 class RecordBatchFailure(_Schema):
@@ -296,6 +301,9 @@ class RecordBatchFailure(_Schema):
 
 class RecordBatchResult(_Schema):
     created: int = Field(description="How many of the batch's records were written")
+    updated: int = Field(
+        default=0, description="How many existing records an `update_existing` batch changed"
+    )
     failed: list[RecordBatchFailure] = Field(description="Each record that was not, and why")
 
 

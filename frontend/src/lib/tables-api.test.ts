@@ -134,9 +134,15 @@ describe("bulk records", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [] });
 
     await createRecords("t1", [{ values: {} }]);
+    await createRecords("t1", [{ values: {} }], true);
 
-    expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/records/batch", {
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/tables/t1/records/batch", {
       records: [{ values: {} }],
+      update_existing: false,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/tables/t1/records/batch", {
+      records: [{ values: {} }],
+      update_existing: true,
     });
   });
 

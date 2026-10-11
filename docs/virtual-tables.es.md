@@ -1,5 +1,5 @@
 ---
-source_sha: "1707bc3517bc"
+source_sha: "aba33b00ad86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -267,9 +267,14 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
+Con **External id** asignado, **Update records already here** vuelve a importar un archivo
+para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia las celdas
+que nombra de ese registro, en lugar de rechazarse como ocupada (`update_existing` en el
+lote), y la importación cuenta lo que añadió y lo que actualizó.
+
 **New table** empieza con una columna **Name**. En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
-en que se leen todos sus valores - entero, número, sí/no, fecha, o fecha y hora ISO -
+en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora ISO, una dirección de correo o un enlace -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
 caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, lo
 que cuesta menos que un cambio de tipo después. Cuando la tabla existe, la importación se abre

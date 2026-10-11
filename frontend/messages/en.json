@@ -6891,10 +6891,13 @@
       "mapTo": "Where {header} goes",
       "skip": "Don't import",
       "externalId": "External id",
+      "updateExisting": "Update records already here",
+      "updateExistingHint": "A row whose external id the table already holds changes that record's cells it names, instead of being refused.",
       "back": "Back",
       "import": "{count, plural, one {Import # row} other {Import # rows}}",
       "progress": "{done} of {total} sent",
       "created": "{count, plural, =0 {No records were added.} one {# record added.} other {# records added.}}",
+      "updated": "{count, plural, one {# record updated.} other {# records updated.}}",
       "failed": "{count, plural, one {# row was not imported:} other {# rows were not imported:}}",
       "line": "Line {line}:",
       "more": "And {count} more.",
@@ -6912,7 +6915,7 @@
         "phone": "not a phone number",
         "rating": "not a rating from 1 to 5",
         "link": "not record ids separated by ;",
-        "computed": "worked out from a link, so it cannot be imported"
+        "computed": "worked out from other columns, so it cannot be imported"
       }
     },
     "dependents": {

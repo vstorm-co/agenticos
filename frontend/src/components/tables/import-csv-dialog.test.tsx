@@ -134,6 +134,34 @@ describe("ImportCsvDialog", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["tables", "t1", "records"] });
   });
 
+  it("updates the records a file names by external id when asked, and says how many", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, updated: 2, failed: [] });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await choose("Name,External ID\nAcme,a-1\nGlobex,a-2\nInitech,a-3\n");
+    await user.click(screen.getByRole("checkbox", { name: /Update records already here/ }));
+    await user.click(screen.getByRole("button", { name: "Import 3 rows" }));
+
+    expect(await screen.findByText("1 record added.")).toBeInTheDocument();
+    expect(screen.getByText("2 records updated.")).toBeInTheDocument();
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).toMatchObject({ update_existing: true });
+  });
+
+  it("offers no update of existing records without an external id to find them by", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [] });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await choose("Name\nAcme\n");
+    expect(screen.queryByRole("checkbox", { name: /Update records already here/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Import 1 row" }));
+
+    expect(await screen.findByText("1 record added.")).toBeInTheDocument();
+    expect(screen.queryByText(/updated/)).toBeNull();
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).toMatchObject({ update_existing: false });
+  });
+
   it("sends a long file in batches, and lists every row not sent once a batch is refused", async () => {
     let release!: () => void;
     vi.mocked(apiClient.post)

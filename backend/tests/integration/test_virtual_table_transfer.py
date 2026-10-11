@@ -82,6 +82,40 @@ async def test_a_batch_writes_every_record_that_fits_and_names_each_that_does_no
     assert events == 3  # the first record, then the batch's two
 
 
+async def test_a_batch_imported_again_updates_the_records_it_names_by_external_id(db):
+    service, ctx, table = await _setup(db)
+    customer, quantity = cid(table, "Customer"), cid(table, "Quantity")
+    first = await service.create_record(
+        ctx,
+        table.id,
+        RecordCreate(external_id="acme", values={customer: "Acme", quantity: 1}),
+    )
+    await service.create_record(
+        ctx, table.id, RecordCreate(external_id="same", values={customer: "Same"})
+    )
+
+    result = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            update_existing=True,
+            records=[
+                RecordCreate(external_id="acme", values={quantity: 5}),
+                RecordCreate(external_id="same", values={customer: "Same"}),
+                RecordCreate(external_id="globex", values={customer: "Globex"}),
+                RecordCreate(external_id="acme", values={quantity: "five"}),
+            ],
+        ),
+    )
+
+    assert (result.created, result.updated) == (1, 1)
+    assert [(failure.index, failure.code) for failure in result.failed] == [(3, "INVALID_RECORD")]
+    acme = await service.get_record(ctx, table.id, first.record.id)
+    # Only the cells the row names change; the rest stay as they were.
+    assert acme.values == {customer: "Acme", quantity: 5}
+    assert acme.revision == 2
+
+
 async def test_a_batch_lists_in_the_order_it_was_written(db):
     """One transaction wrote them all: `now()` gave every record one `created_at`
     and the id tiebreak shuffled an imported file."""

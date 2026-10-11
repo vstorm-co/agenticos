@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Import a CSV file again to update a table.** With an external id column mapped,
+  **Update records already here** changes the cells a row names on the record
+  holding its external id instead of refusing it, and the import counts what it
+  added and what it updated (`update_existing` on `POST .../records/batch`).
+
 - **Table triggers on a record's change and deletion.** A workflow's **Table
   record** trigger (formerly **New table record**) can start on records added,
   changed or deleted, and a change only when one of the columns chosen for the

@@ -429,6 +429,10 @@ class RecordOperations(Operations):
     ) -> RecordBatchResult:
         """Create each record on its own, reporting the ones refused rather than failing all.
 
+        With `update_existing`, a record whose external id the table already holds
+        updates that record instead - only the cells it names, as an upsert does - so
+        a file can be imported again to bring the table up to date.
+
         Every record is written under its own savepoint, so one that does not fit its
         columns, repeats a taken external id, names an archived column or is too large is
         rolled back alone and answered with the code a single create would give. Once the
@@ -442,12 +446,15 @@ class RecordOperations(Operations):
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
         self._ensure_live(table)
-        created = 0
+        created = updated = 0
         failed: list[RecordBatchFailure] = []
         for index, record in enumerate(data.records):
             try:
                 async with self.db.begin_nested():
-                    await self._create_one(ctx, table, record)
+                    made = await self._create_one(ctx, table, record, update=data.update_existing)
+            except _Unchanged:
+                # Already holds what the row says: nothing written, nothing to report.
+                continue
             except QuotaExceededError as refused:
                 if refused.details is not None and refused.details["quota"] == "records":
                     failed.extend(_failure(at, refused) for at in range(index, len(data.records)))
@@ -456,17 +463,32 @@ class RecordOperations(Operations):
             except (InvalidRecordError, ArchivedColumnError, AlreadyExistsError) as refused:
                 failed.append(_failure(index, refused))
             else:
-                created += 1
-        return RecordBatchResult(created=created, failed=failed)
+                if made:
+                    created += 1
+                else:
+                    updated += 1
+        return RecordBatchResult(created=created, updated=updated, failed=failed)
 
-    async def _create_one(self, ctx: AuthContext, table: VirtualTable, data: RecordCreate) -> None:
+    async def _create_one(
+        self, ctx: AuthContext, table: VirtualTable, data: RecordCreate, *, update: bool
+    ) -> bool:
+        """Create the record - or, with `update`, change the one holding its external id.
+
+        Returns whether it was created. An update that changes nothing raises
+        `_Unchanged`, as a single one does.
+        """
         if data.external_id is not None:
             # As in `create_record`: an id that exists is answered as taken, not as a quota.
             await quotas.lock_record_count(self.db, table)
-            if await self._lookup(ctx, table, data.external_id) is not None:
+            existing = await self._lookup(ctx, table, data.external_id)
+            if existing is not None and not update:
                 raise self._already_exists(data.external_id)
+            if existing is not None:
+                await self._apply(ctx, table, existing, data.values, existing.revision)
+                return False
         if await self._insert(ctx, table, data.external_id, data.values) is None:
             raise self._already_exists(data.external_id)
+        return True
 
     async def export_records(
         self, ctx: AuthContext, table_id: UUID, query: RecordExportQuery

@@ -1,5 +1,5 @@
 ---
-source_sha: "1707bc3517bc"
+source_sha: "aba33b00ad86"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -265,10 +265,15 @@ zapisuje każdy rekord osobno i wymienia odrzucone z ich kodami, a konsola wypis
 nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabeli, jak
 każdy inny.
 
+Gdy zmapowane jest **External id**, **Update records already here** importuje plik
+ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma, zmienia
+wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty (`update_existing` w
+partii), a import podaje, ile dodał i ile zaktualizował.
+
 **New table** zaczyna się od kolumny **Name**. Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
-wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data albo data i godzina
-w ISO - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
+wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data, data i godzina
+w ISO, adres e-mail albo link - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
 przekracza 1000 znaków. Nazwa pochodzi z pliku i obie rzeczy można zmienić przed
 utworzeniem, co kosztuje mniej niż późniejsza zmiana typu. Gdy tabela już istnieje, import
 otwiera się z każdą kolumną już przypisaną, a po nim otwiera się tabela.

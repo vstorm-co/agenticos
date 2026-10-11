@@ -6749,10 +6749,13 @@
       "mapTo": "Wohin {header} geht",
       "skip": "Nicht importieren",
       "externalId": "Externe ID",
+      "updateExisting": "Datensätze aktualisieren, die schon hier sind",
+      "updateExistingHint": "Eine Zeile, deren externe ID die Tabelle schon hat, ändert die genannten Zellen dieses Datensatzes, statt abgelehnt zu werden.",
       "back": "Zurück",
       "import": "{count, plural, one {# Zeile importieren} other {# Zeilen importieren}}",
       "progress": "{done} von {total} gesendet",
       "created": "{count, plural, =0 {Es wurden keine Datensätze hinzugefügt.} one {# Datensatz hinzugefügt.} other {# Datensätze hinzugefügt.}}",
+      "updated": "{count, plural, one {# Datensatz aktualisiert.} other {# Datensätze aktualisiert.}}",
       "failed": "{count, plural, one {# Zeile wurde nicht importiert:} other {# Zeilen wurden nicht importiert:}}",
       "line": "Zeile {line}:",
       "more": "Und {count} weitere.",
@@ -6770,7 +6773,7 @@
         "phone": "keine Telefonnummer",
         "rating": "keine Bewertung von 1 bis 5",
         "link": "keine durch ; getrennten Datensatz-IDs",
-        "computed": "aus einer Verknüpfung ermittelt und daher nicht importierbar"
+        "computed": "aus anderen Spalten ermittelt und daher nicht importierbar"
       }
     },
     "dependents": {

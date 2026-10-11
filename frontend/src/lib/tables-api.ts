@@ -78,8 +78,12 @@ export function countRecords(tableId: string, query: RecordCountQuery): Promise<
 export function createRecords(
   tableId: string,
   records: RecordCreate[],
+  updateExisting = false,
 ): Promise<RecordBatchResult> {
-  return apiClient.post<RecordBatchResult>(`/tables/${tableId}/records/batch`, { records });
+  return apiClient.post<RecordBatchResult>(`/tables/${tableId}/records/batch`, {
+    records,
+    update_existing: updateExisting,
+  });
 }
 
 /**

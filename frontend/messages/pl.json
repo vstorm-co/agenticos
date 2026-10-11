@@ -4519,10 +4519,13 @@
       "mapTo": "Dokąd trafia {header}",
       "skip": "Nie importuj",
       "externalId": "Identyfikator zewnętrzny",
+      "updateExisting": "Aktualizuj rekordy, które już tu są",
+      "updateExistingHint": "Wiersz, którego zewnętrzne id tabela już ma, zmienia wskazane komórki tego rekordu zamiast zostać odrzucony.",
       "back": "Wstecz",
       "import": "{count, plural, one {Importuj # wiersz} few {Importuj # wiersze} many {Importuj # wierszy} other {Importuj # wiersza}}",
       "progress": "Wysłano {done} z {total}",
       "created": "{count, plural, =0 {Nie dodano żadnego rekordu.} one {Dodano # rekord.} few {Dodano # rekordy.} many {Dodano # rekordów.} other {Dodano # rekordu.}}",
+      "updated": "{count, plural, one {Zaktualizowano # rekord.} few {Zaktualizowano # rekordy.} many {Zaktualizowano # rekordów.} other {Zaktualizowano # rekordu.}}",
       "failed": "{count, plural, one {# wiersz nie został zaimportowany:} few {# wiersze nie zostały zaimportowane:} many {# wierszy nie zostało zaimportowanych:} other {# wiersza nie zaimportowano:}}",
       "line": "Wiersz {line}:",
       "more": "I jeszcze {count}.",
@@ -4540,7 +4543,7 @@
         "phone": "to nie numer telefonu",
         "rating": "to nie ocena od 1 do 5",
         "link": "to nie identyfikatory rekordów rozdzielone ;",
-        "computed": "jest wyliczana z powiązania, więc nie można jej importować"
+        "computed": "jest wyliczana z innych kolumn, więc nie można jej importować"
       }
     },
     "dependents": {

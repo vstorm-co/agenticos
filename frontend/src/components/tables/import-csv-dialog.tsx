@@ -8,6 +8,7 @@ import { Upload } from "lucide-react";
 import { type CellProblem, readCell, readCsvFile } from "./csv-cells";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -44,7 +45,7 @@ type Step =
   | { name: "pick"; error: string | null }
   | { name: "map"; fileName: string; headers: string[]; rows: string[][] }
   | { name: "importing"; done: number; total: number }
-  | { name: "done"; created: number; failures: Failure[] };
+  | { name: "done"; created: number; updated: number; failures: Failure[] };
 
 /** A file read before the dialog opened, and where each of its columns goes. */
 export interface CsvPreset {
@@ -97,6 +98,10 @@ export function ImportCsvDialog({
   const [mapping, setMapping] = useState<string[]>(
     preset?.mapping.map((target) => target ?? SKIP) ?? [],
   );
+  // A file imported again: a row whose external id the table holds updates that
+  // record rather than being refused as taken. Meaningful only with that column.
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const byExternalId = mapping.includes(EXTERNAL_ID);
 
   const close = (next: boolean) => {
     if (step.name === "importing") return;
@@ -147,6 +152,7 @@ export function ImportCsvDialog({
       else ready.push({ line, record: read.record });
     });
     let created = 0;
+    let updated = 0;
     setStep({ name: "importing", done: 0, total: ready.length });
     for (let start = 0; start < ready.length; start += BATCH) {
       const batch = ready.slice(start, start + BATCH);
@@ -154,8 +160,10 @@ export function ImportCsvDialog({
         const result = await createRecords(
           tableId,
           batch.map((entry) => entry.record),
+          updateExisting && byExternalId,
         );
         created += result.created;
+        updated += result.updated ?? 0;
         for (const failure of result.failed) {
           failures.push({
             line: (batch[failure.index] as (typeof batch)[number]).line,
@@ -177,7 +185,7 @@ export function ImportCsvDialog({
     }
     await queryClient.invalidateQueries({ queryKey: qk.tables.recordsAll(tableId) });
     failures.sort((a, b) => a.line - b.line);
-    setStep({ name: "done", created, failures });
+    setStep({ name: "done", created, updated, failures });
   };
 
   return (
@@ -251,6 +259,20 @@ export function ImportCsvDialog({
           </div>
         )}
 
+        {step.name === "map" && byExternalId && (
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={updateExisting}
+              onCheckedChange={(on) => setUpdateExisting(on === true)}
+              className="mt-0.5"
+            />
+            <span>
+              {t("updateExisting")}
+              <span className="text-muted-foreground block text-xs">{t("updateExistingHint")}</span>
+            </span>
+          </label>
+        )}
+
         {step.name === "importing" && (
           <div className="space-y-2 py-4">
             <Progress value={step.total === 0 ? 100 : (step.done / step.total) * 100} />
@@ -263,6 +285,7 @@ export function ImportCsvDialog({
         {step.name === "done" && (
           <div className="space-y-3">
             <p className="text-sm">{t("created", { count: step.created })}</p>
+            {step.updated > 0 && <p className="text-sm">{t("updated", { count: step.updated })}</p>}
             {step.failures.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-destructive text-sm">

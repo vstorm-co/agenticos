@@ -236,6 +236,8 @@ export interface RecordBatchFailure {
 
 export interface RecordBatchResult {
   created: number;
+  /** How many existing records an `update_existing` batch changed. */
+  updated?: number;
   failed: RecordBatchFailure[];
 }
 
