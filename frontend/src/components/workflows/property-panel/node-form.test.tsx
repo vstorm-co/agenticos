@@ -348,7 +348,7 @@ describe("NodeForm sections", () => {
     renderForm({ definition: filter });
 
     const labels = Array.from(document.querySelectorAll("label")).map((label) =>
-      label.textContent?.replace("*", "").trim(),
+      label.textContent?.replaceAll("*", "").trim(),
     );
     expect(labels.filter((text) => ["Items", "Match mode", "Label"].includes(text ?? ""))).toEqual([
       "Items",
