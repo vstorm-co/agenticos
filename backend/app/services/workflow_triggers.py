@@ -3,10 +3,11 @@
 A workflow starts from one trigger node, its entry. Publishing a version is
 what makes that trigger live, the way a builder expects from n8n or Zapier:
 
-* a webhook or a schedule gets its exposure (`WorkflowExposureService`), and a
-  new table record its subscription (`TableTriggerService`), running the new
+* a webhook, a schedule or a form gets its exposure (`WorkflowExposureService`),
+  and a table record its subscription (`TableTriggerService`), running the new
   version as the member who published it. The row a node already had is kept,
-  so a webhook's address and signing secret survive the publish;
+  so a webhook's address and signing secret, and a form's link, survive the
+  publish;
 * a trigger the new version no longer starts from is removed, so a workflow
   never keeps a second way in that its graph does not show;
 * manual/API and chat triggers need no row - whoever starts the run is present
@@ -36,10 +37,10 @@ from app.services.virtual_tables.triggers import TableTriggerService
 from app.services.workflow_exposure import WorkflowExposureService
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig, TableRecordTriggerConfig
-from app.workflows.triggers import SCHEDULE, TABLE_RECORD, WEBHOOK, live_trigger
+from app.workflows.triggers import FORM, SCHEDULE, TABLE_RECORD, WEBHOOK, live_trigger
 
 # The triggers nobody is present for: each fire acts as the publisher.
-_UNATTENDED = frozenset({WEBHOOK, SCHEDULE, TABLE_RECORD})
+_UNATTENDED = frozenset({WEBHOOK, SCHEDULE, TABLE_RECORD, FORM})
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,8 @@ class WorkflowTriggerSync:
             exposure = await self.exposures.switch_on_schedule(
                 ctx, workflow, version, node.id, ScheduleTriggerConfig.model_validate(node.config)
             )
+        elif trigger == FORM:
+            exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
         else:
             await self.exposures.switch_off(ctx, workflow)
         if trigger == TABLE_RECORD:

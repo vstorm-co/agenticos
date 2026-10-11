@@ -1,5 +1,5 @@
 ---
-source_sha: "8f28f7cd93ef"
+source_sha: "e271559652ed"
 ---
 
 # Configuración { #configuration }
@@ -1140,7 +1140,8 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, por llamante |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Todas las rutas de `auth.py` — login, registro, refresh y las rutas de petición y verificación del restablecimiento y del enlace mágico. Se cuenta **por IP y, donde el cuerpo lleve una, por dirección enviada**. Ver más abajo |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Por dirección, y **dos contadores separados de este tamaño**: uno para `widget.js`, otro para la admisión — el `/config` del widget más el handshake del socket de cualquiera de las dos superficies. Ver más abajo |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. El [formulario](workflows.md#from-a-form) de un workflow se lee en un contador de este tamaño por formulario. Ver más abajo |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Escrituras en [Virtual Tables](virtual-tables.md), **por miembro y organización**: un create, update, upsert o delete de registro, un create, renombrado, archivado o cambio de esquema de tabla, y guardar, cambiar o borrar una vista guardada. Se aplica a la consola igual que a un script. Las lecturas no se cuentan |

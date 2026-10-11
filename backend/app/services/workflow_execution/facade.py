@@ -108,7 +108,7 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
 
 def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
     """Refuse `payload` when the graph's entry declares fields it does not fit: a Manual,
-    API or Called by a workflow trigger.
+    API, Form or Called by a workflow trigger.
 
     Raises:
         WorkflowRunInputInvalidError: A declared field is missing or of the
@@ -119,7 +119,9 @@ def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
-    problems = input_problems(TriggerInputConfig.model_validate(entry.config), payload)
+    # Only the fields: a Form trigger's config carries its page's words beside them.
+    fields = TriggerInputConfig.model_validate({"fields": entry.config.get("fields", [])})
+    problems = input_problems(fields, payload)
     if problems:
         raise WorkflowRunInputInvalidError(problems=problems)
 

@@ -161,6 +161,7 @@ def load_builtins() -> None:
         text_extract,
         transform,
         trigger_chat,
+        trigger_form,
         trigger_manual,
         trigger_schedule,
         trigger_table_record,

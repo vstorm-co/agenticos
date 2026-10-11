@@ -1,0 +1,102 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { PublicForm, type PublicFormPage } from "./public-form";
+
+const PAGE: PublicFormPage = {
+  title: "Talk to our team",
+  description: "We answer within a day.",
+  submit_label: "Send request",
+  fields: [
+    {
+      name: "name",
+      label: "Your name",
+      type: "text",
+      required: true,
+      description: null,
+      options: [],
+    },
+    {
+      name: "seats",
+      label: "Team size",
+      type: "integer",
+      required: false,
+      description: null,
+      options: [],
+    },
+  ],
+};
+
+function answer(status: number, body: unknown = {}) {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status }));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("PublicForm", () => {
+  it("names a missing answer before sending anything", async () => {
+    const fetchMock = answer(201);
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    expect(screen.getByRole("heading", { name: "Talk to our team" })).toBeVisible();
+    expect(screen.getByText("We answer within a day.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Your name")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("sends typed answers with the empty trap, and shows the form's thanks", async () => {
+    const fetchMock = answer(201, { message: "Thanks - we will call you." });
+    render(<PublicForm page={PAGE} token="tok_1" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.type(screen.getByLabelText(/Team size/), "12");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Thanks - we will call you.");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/forms/tok_1");
+    expect(JSON.parse(init.body)).toEqual({ values: { name: "Ada", seats: 12 }, website: null });
+  });
+
+  it("sends whatever a script typed into the trap", async () => {
+    const fetchMock = answer(201, { message: "Thanks" });
+    render(<PublicForm page={{ ...PAGE, description: null }} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Bot");
+    await userEvent.type(screen.getByLabelText("Leave this empty"), "spam.example");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).website).toBe("spam.example");
+  });
+
+  it.each([
+    [422, "Some answers do not fit this form"],
+    [429, "taking a lot of answers"],
+    [404, "This form is closed."],
+    [500, "could not be sent"],
+  ])("says why the form refused a %s", async (status, words) => {
+    answer(status);
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(words);
+  });
+
+  it("says the answers could not be sent when the network fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be sent");
+  });
+});

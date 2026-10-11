@@ -13,6 +13,7 @@ vi.mock("@/lib/workflows/exposures-api", () => ({
   getWorkflowExposure: vi.fn(),
   updateWorkflowExposure: vi.fn(),
   rotateWorkflowExposureSecret: vi.fn(),
+  renewWorkflowFormLink: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -45,6 +46,19 @@ describe("useWorkflowExposure", () => {
     expect(toast.success).toHaveBeenCalledWith("Trigger resumed");
     const rotated = await act(() => result.current.rotate.mutateAsync("e1"));
     expect(rotated.reveal_secret).toBe("s");
+  });
+
+  it("replaces a form's link and says so", async () => {
+    vi.mocked(api.getWorkflowExposure).mockResolvedValue(exposure);
+    vi.mocked(api.renewWorkflowFormLink).mockResolvedValue({ ...exposure, form_token: "new" });
+    const { result } = renderHook(() => useWorkflowExposure("wf"), { wrapper });
+    await waitFor(() => expect(result.current.exposure?.id).toBe("e1"));
+
+    const renewed = await act(() => result.current.renewLink.mutateAsync("e1"));
+
+    expect(api.renewWorkflowFormLink).toHaveBeenCalledWith("wf", "e1");
+    expect(renewed.form_token).toBe("new");
+    expect(toast.success).toHaveBeenCalledWith("The form has a new link");
   });
 
   it("answers with none for a workflow that starts another way, and says why a write failed", async () => {

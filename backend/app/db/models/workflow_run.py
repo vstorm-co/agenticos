@@ -74,6 +74,7 @@ class WorkflowRunTrigger(enum.StrEnum):
     WORKFLOW_FAILED = "workflow_failed"
     WORKFLOW_CALL = "workflow_call"
     AGENT = "agent"
+    FORM = "form"
 
 
 class WorkflowRunStatus(enum.StrEnum):
@@ -344,7 +345,8 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "triggered_by IN ('api', 'websocket', 'webhook', 'chat', 'schedule', 'table_created', "
-            "'table_updated', 'table_deleted', 'workflow_failed', 'workflow_call', 'agent')",
+            "'table_updated', 'table_deleted', 'workflow_failed', 'workflow_call', 'agent', "
+            "'form')",
             name="ck_workflow_run_triggered_by",
         ),
         CheckConstraint(

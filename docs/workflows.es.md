@@ -1,5 +1,5 @@
 ---
-source_sha: "49394aac76fd"
+source_sha: "b9d577c33d55"
 ---
 
 # Workflows { #workflows }
@@ -19,8 +19,8 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece seis triggers - **Manual**, **API request**,
-**Chat message**, **Webhook**, **Schedule** y **Table record** -, cada uno un
+plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** y
+**On failure of a workflow** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
 renombrar y conectar, y **Two-step sequence**, dos pasos ya conectados para un flujo
@@ -504,14 +504,14 @@ acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en el selector de pasos, tiene seis: **Manual**, **API request**, **Chat message**,
-**Webhook**, **Schedule** y **Table record**. Añadir uno a un workflow que ya
+**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** y
+**On failure of a workflow**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
 workflow por el trigger que elijas ahí.
 
-Publicar una versión es lo que enciende su trigger. Un webhook, una programación y un
-trigger de tabla ejecutan entonces esa versión como el miembro que la publicó, y la
+Publicar una versión es lo que enciende su trigger. Un webhook, una programación, un
+trigger de tabla y un formulario ejecutan entonces esa versión como el miembro que la publicó, y la
 siguiente publicación los pasa a la nueva versión. Una publicación que empieza por
 otro trigger apaga el anterior. **Trigger**, en **More** en la cabecera del editor, muestra el
 trigger en vivo y su estado, y avisa cuando el draft empieza de otra forma.
@@ -607,6 +607,23 @@ en bucle.
 **Triggers**, en la propia tabla, enumera los workflows que empiezan por ella, los
 pausa y reanuda, y muestra lo que cada uno decidió sobre cada registro. Consulta
 [Virtual Tables](virtual-tables.md#triggers).
+
+### Desde un formulario { #from-a-form }
+
+Un trigger **Form** da al workflow una página pública: un título, una descripción y
+un campo por cada campo que declara, tipado como los de **Manual**, con sus propias
+palabras en el botón y tras el envío. Publicar crea la página, y **Trigger** muestra
+su enlace para copiarlo o abrirlo. Cualquiera con el enlace la rellena sin iniciar
+sesión, y cada respuesta que encaja con los campos inicia una ejecución como el
+miembro que publicó el formulario. Los pasos siguientes leen las respuestas como
+`payload`, y la página de ejecuciones dice que la inició un formulario.
+
+El enlace es la única credencial de la página y sobrevive a cada publicación del
+mismo nodo. **New link** lo sustituye, y el antiguo responde entonces como si no
+hubiera formulario; pausar el trigger cierra la página. Las respuestas que no encajan
+se señalan en la página y no inician nada, un campo oculto atrapa los scripts, y cada
+formulario admite como mucho `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` respuestas por
+minuto. Ver [trigger.form](reference/workflow-nodes.md#trigger-form).
 
 ### Cuando otro workflow lo llama { #when-another-workflow-calls-it }
 

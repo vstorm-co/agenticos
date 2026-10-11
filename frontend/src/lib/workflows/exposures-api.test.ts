@@ -6,6 +6,7 @@ import {
   getWebhookTest,
   getWorkflowExposure,
   listenForWebhookTest,
+  renewWorkflowFormLink,
   rotateWorkflowExposureSecret,
   updateWorkflowExposure,
 } from "./exposures-api";
@@ -32,6 +33,9 @@ describe("exposures-api", () => {
 
     await rotateWorkflowExposureSecret("wf", "e1");
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/exposures/e1/rotate-secret");
+
+    await renewWorkflowFormLink("wf", "e1");
+    expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/exposures/e1/renew-form-link");
 
     await listenForWebhookTest("wf");
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/webhook-test");

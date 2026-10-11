@@ -50,6 +50,7 @@ import {
 import {
   CHAT_TRIGGER,
   FIELD_TRIGGERS,
+  FORM_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   WEBHOOK_TRIGGER,
@@ -64,6 +65,7 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { FormPageForm } from "./form-page-form";
 import { InputFieldsForm } from "./input-fields-form";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
@@ -1027,9 +1029,14 @@ function NodeFields({
               ? "triggerHintManual"
               : definition.id === WORKFLOW_CALL_TRIGGER
                 ? "triggerHintCall"
-                : "triggerHintApi",
+                : definition.id === FORM_TRIGGER
+                  ? "triggerHintForm"
+                  : "triggerHintApi",
           )}
         </p>
+        {definition.id === FORM_TRIGGER && (
+          <FormPageForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+        )}
         <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
       </div>
     );

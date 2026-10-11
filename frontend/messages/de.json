@@ -4612,7 +4612,8 @@
         "table_deleted": "Datensatz gelöscht",
         "workflow_call": "Anderer Workflow",
         "workflow_failed": "Fehlgeschlagener Lauf",
-        "agent": "Ein Agent"
+        "agent": "Ein Agent",
+        "form": "Ein Formular"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -4746,6 +4747,10 @@
         "workflowCall": {
           "name": "Von einem Workflow aufgerufen",
           "description": "Der Schritt Run a workflow eines anderen Workflows startet ihn mit den Feldern, die er deklariert."
+        },
+        "form": {
+          "name": "Formular",
+          "description": "Jeder mit dem Link füllt ein Formular aus, und jede Antwort startet einen Lauf."
         }
       },
       "startRunOptional": "optional",
@@ -4885,7 +4890,14 @@
       "cardNotRun": "Noch nicht gelaufen",
       "cardNotRunEdited": "Noch nicht gelaufen · bearbeitet {when}",
       "cardSteps": "{count, plural, =0 {Noch keine Schritte} one {# Schritt} other {# Schritte}}",
-      "statusDraft": "Entwurf"
+      "statusDraft": "Entwurf",
+      "triggerFormLive": "Jeder mit dem Link füllt das Formular aus, und jede Antwort startet einen Lauf als das Mitglied, das es veröffentlicht hat. Pausieren Sie es, um die Seite zu schließen.",
+      "formUrl": "Formular-Link",
+      "formOpen": "Formular öffnen",
+      "formNewLink": "Neuer Link",
+      "formNewLinkTitle": "Link des Formulars ersetzen?",
+      "formNewLinkDescription": "Der aktuelle Link funktioniert sofort nicht mehr, wo immer er geteilt wurde. Das Formular bleibt gleich.",
+      "formLinkRenewed": "Das Formular hat einen neuen Link"
     }
   },
   "profile": {
@@ -6447,7 +6459,26 @@
     "inlineAgentApply": "Diese Konfiguration verwenden",
     "inlineAgentNoModel": "Kein Modell gewählt",
     "inlineAgentConfigure": "Konfigurieren",
-    "inlineAgentReach": "{capabilities, plural, =0 {keine Capabilities} =1 {1 Capability} other {# Capabilities}}, {servers, plural, =0 {keine MCP-Server} =1 {1 MCP-Server} other {# MCP-Server}}"
+    "inlineAgentReach": "{capabilities, plural, =0 {keine Capabilities} =1 {1 Capability} other {# Capabilities}}, {servers, plural, =0 {keine MCP-Server} =1 {1 MCP-Server} other {# MCP-Server}}",
+    "triggerHintForm": "Die Veröffentlichung gibt diesem Workflow eine öffentliche Seite mit diesen Feldern. Jede Antwort startet einen Lauf als Sie; Trigger zeigt den Link. Die Schritte danach lesen die Antworten als payload.",
+    "formPage": {
+      "title": {
+        "label": "Titel",
+        "placeholder": "Formular"
+      },
+      "description": {
+        "label": "Beschreibung",
+        "placeholder": "Wofür das Formular da ist"
+      },
+      "submit_label": {
+        "label": "Schaltfläche",
+        "placeholder": "Senden"
+      },
+      "success_message": {
+        "label": "Nach dem Senden",
+        "placeholder": "Vielen Dank - Ihre Antworten wurden gesendet."
+      }
+    }
   },
   "artifacts": {
     "title": "Artefakte",
@@ -6908,5 +6939,14 @@
     },
     "agentsOwn": "Wie der Agent antwortet",
     "agentsOwnHint": "Das eigene Antwortformat des Agenten: Text oder das Objekt, das dieses Format beschreibt."
+  },
+  "publicForm": {
+    "trapLabel": "Dieses Feld leer lassen",
+    "refused": {
+      "invalid": "Einige Antworten passen nicht zu diesem Formular. Prüfen Sie sie und senden Sie erneut.",
+      "busy": "Dieses Formular nimmt gerade viele Antworten an. Versuchen Sie es in einer Minute erneut.",
+      "gone": "Dieses Formular ist geschlossen.",
+      "failed": "Ihre Antworten konnten nicht gesendet werden. Versuchen Sie es erneut."
+    }
   }
 }

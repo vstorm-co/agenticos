@@ -1406,6 +1406,12 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # The same link behind a password (#1972): the password in the body, the
         # link's own bucket bounding a guessing loop.
         ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
+        # A workflow's form (`trigger.form`). The link is the page's only
+        # credential, minted at publish with 192 bits and replaced on request;
+        # reading and submitting are counted per form before anything is read, and
+        # each submission is a run as the member who published the form.
+        ("GET", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
+        ("POST", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
     }
 )
 
@@ -1561,6 +1567,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # The same link with its password (#1972). Refusals: a wrong password is a
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
+        # A workflow's form. The link is the page's only credential, 192 bits,
+        # replaced on request; reading and submitting are counted per form before
+        # anything is read, and a submission is a run as the form's publisher.
+        # Refusals: `tests/integration/test_workflow_exposures.py::TestForms`.
+        ("GET", f"{V1}/public/workflow-forms/{{token}}"),
+        ("POST", f"{V1}/public/workflow-forms/{{token}}"),
         # The library set a published page may load (#1971): three static files
         # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
         # opaque origin fetches with no credentials by construction.

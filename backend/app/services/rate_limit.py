@@ -310,6 +310,32 @@ async def public_artifact_allowed(public_key: str) -> Decision:
     )
 
 
+async def form_page_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may be read again right now.
+
+    Keyed on the form, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own.
+    """
+    return await consume(
+        surface="workflow_form_page",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def form_submission_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may take another submission right now.
+
+    Per form: each submission starts a run its publisher pays for, and the
+    console's server is the one caller every visitor arrives as.
+    """
+    return await consume(
+        surface="workflow_form_submission",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE),
+    )
+
+
 ARTIFACT_CONTENT_LOADS_PER_MINUTE = 10
 """How often one signed artifact address may be loaded in a minute.
 

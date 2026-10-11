@@ -1,5 +1,5 @@
 ---
-source_sha: "49394aac76fd"
+source_sha: "b9d577c33d55"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje sześć wyzwalaczy - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **Table record** - każdy jako poza nim
+**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -488,14 +488,14 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma ich sześć: **Manual**, **API request**, **Chat message**,
-**Webhook**, **Schedule** i **Table record**. Dodanie jednego do workflow, który
+**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** i
+**On failure of a workflow**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
 wyzwalacza, który tam wybierzesz.
 
-To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram i wyzwalacz tabeli
-uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
+To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram, wyzwalacz tabeli i
+formularz uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
 publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
 wyzwalacza, wyłącza stary. **Trigger** w menu **More** w nagłówku edytora pokazuje żywy wyzwalacz i
 jego stan oraz mówi, kiedy szkic startuje inaczej.
@@ -589,6 +589,23 @@ blokowany zamiast się zapętlić.
 **Triggers** samej tabeli wymienia workflow, które od niej startują, wstrzymuje je i
 wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
+
+### Z formularza { #from-a-form }
+
+Wyzwalacz **Form** daje workflow publiczną stronę: tytuł, opis i jedno pole na
+każde zadeklarowane pole, typowane tak jak pola **Manual**, z własnymi słowami na
+przycisku i po wysłaniu. Publikacja tworzy stronę, a **Trigger** pokazuje link do
+skopiowania lub otwarcia. Każdy z linkiem wypełnia ją bez logowania, a każda
+odpowiedź pasująca do pól uruchamia jeden run jako członek, który opublikował
+formularz. Kolejne kroki czytają odpowiedzi jako `payload`, a strona runów mówi,
+że uruchomił go formularz.
+
+Link jest jedynym poświadczeniem strony i przetrwa każdą publikację tego samego
+węzła. **New link** go zastępuje, a stary odpowiada wtedy tak, jakby formularza nie
+było; wstrzymanie wyzwalacza zamyka stronę. Odpowiedzi, które nie pasują, są
+wskazane na stronie i niczego nie uruchamiają, ukryte pole łapie skrypty, a każdy
+formularz przyjmuje najwyżej `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` odpowiedzi na
+minutę. Zobacz [trigger.form](reference/workflow-nodes.md#trigger-form).
 
 ### Gdy wywołuje go inny workflow { #when-another-workflow-calls-it }
 

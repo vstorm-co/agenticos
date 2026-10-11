@@ -1,9 +1,10 @@
 /**
- * API client for a workflow's exposure - its webhook or schedule,
+ * API client for a workflow's exposure - its webhook, schedule or form,
  * `backend/app/api/routes/v1/workflow_exposures.py`.
  *
  * Publishing a version whose trigger node is one of them is what makes it; here
- * it is read, paused and resumed, and a webhook's secret rotated - and, before
+ * it is read, paused and resumed, a webhook's secret rotated and a form's link
+ * replaced - and, before
  * any of that, a draft's test URL opened and read. Thin wrappers
  * over `apiClient`, one per route; `use-workflow-exposure.ts` calls these,
  * components never do.
@@ -42,6 +43,16 @@ export async function rotateWorkflowExposureSecret(
 ): Promise<WorkflowExposureWithSecret> {
   return apiClient.post<WorkflowExposureWithSecret>(
     `${root(workflowId)}/exposures/${exposureId}/rotate-secret`,
+  );
+}
+
+/** A new link for a form; the old one stops working at once. */
+export async function renewWorkflowFormLink(
+  workflowId: string,
+  exposureId: string,
+): Promise<WorkflowExposureRead> {
+  return apiClient.post<WorkflowExposureRead>(
+    `${root(workflowId)}/exposures/${exposureId}/renew-form-link`,
   );
 }
 

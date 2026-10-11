@@ -1,5 +1,5 @@
 ---
-source_sha: "8f28f7cd93ef"
+source_sha: "e271559652ed"
 ---
 
 # Konfiguracja { #configuration }
@@ -1123,7 +1123,8 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, na wołającego |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |

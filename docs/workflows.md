@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers six triggers - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record** - each an otherwise
+**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -479,13 +479,13 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds six: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record**. Adding one to a
+**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
 
-Publishing a version is what switches its trigger on. A webhook, a schedule and a
-table trigger then run that version as the member who published it, and the next
+Publishing a version is what switches its trigger on. A webhook, a schedule, a
+table trigger and a form then run that version as the member who published it, and the next
 publish moves them to the new version. A publish that starts from a different
 trigger switches the old one off. **Trigger**, under **More** in the editor's header, shows the live
 trigger and its state, and says when the draft starts differently.
@@ -575,6 +575,23 @@ looping.
 The table's own **Triggers** lists the workflows that start from it, pauses and
 resumes them, and shows what each decided about every record. See
 [Virtual Tables](virtual-tables.md#triggers).
+
+### From a form { #from-a-form }
+
+A **Form** trigger gives the workflow a public page: a title, a description and one
+box per field it declares, typed as **Manual**'s fields are, with its own words on
+the button and after sending. Publishing creates the page, and **Trigger** shows its
+link to copy or open. Anyone with the link fills it in, without signing in, and
+each answer that fits the fields starts one run as the member who published the
+form. The steps after it read the answers as `payload`, and the runs page says a
+form started it.
+
+The link is the page's only credential and survives every publish of the same node.
+**New link** replaces it, and the old one then answers as if there were no form;
+pausing the trigger closes the page. Answers that do not fit are named on the page
+and start nothing, a hidden box catches scripts, and each form takes at most
+`RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute. See
+[trigger.form](reference/workflow-nodes.md#trigger-form).
 
 ### When another workflow calls it { #when-another-workflow-calls-it }
 

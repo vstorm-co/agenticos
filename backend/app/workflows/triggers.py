@@ -16,13 +16,14 @@ SCHEDULE = "trigger.schedule"
 TABLE_RECORD = "trigger.table_record"
 WORKFLOW_FAILED = "trigger.workflow_failed"
 WORKFLOW_CALL = "trigger.workflow_call"
+FORM = "trigger.form"
 
 BY_HAND = frozenset({API, MANUAL})
 """The triggers a person or a caller starts - from the editor, the runs page, the
 API or a WebSocket."""
 
-DECLARES_FIELDS = frozenset({*BY_HAND, WORKFLOW_CALL})
-"""The triggers that may declare typed input fields, checked when a run starts."""
+DECLARES_FIELDS = frozenset({*BY_HAND, WORKFLOW_CALL, FORM})
+"""The triggers that declare typed input fields, checked when a run starts."""
 
 WEBHOOK_RESPOND = "webhook.respond"
 """Not a trigger but the webhook's other half: the step that answers its sender.

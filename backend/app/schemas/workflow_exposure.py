@@ -1,4 +1,4 @@
-"""Workflow exposure schemas - a workflow's webhooks and schedules (#1792)."""
+"""Workflow exposure schemas - a workflow's webhooks, schedules and forms (#1792)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import computed_field
+from pydantic import Field, computed_field
 
 from app.core.config import settings
 from app.db.models.workflow_exposure import ExposureAdapter, ExposureScheduleKind
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.workflows.nodes.core_input._handler import InputField
 
 
 class WorkflowExposureUpdate(BaseSchema):
@@ -40,6 +41,9 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     next_fire_at: datetime | None
     last_fired_at: datetime | None
     last_run_id: UUID | None
+    form_token: str | None = Field(
+        default=None, description="A form's link, the page's only credential; null otherwise"
+    )
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property
@@ -53,6 +57,14 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
         if self.adapter is not ExposureAdapter.WEBHOOK:
             return None
         return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/workflow-webhooks/{self.id}"
+
+    @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
+    @property
+    def form_url(self) -> str | None:
+        """Where a form's page is, on the console's own address. Null for any other."""
+        if self.form_token is None:
+            return None
+        return f"{settings.FRONTEND_URL.rstrip('/')}/f/{self.form_token}"
 
 
 class WorkflowExposureWithSecret(WorkflowExposureRead):
@@ -124,3 +136,29 @@ class WebhookTestCapture(BaseSchema):
 
     state: Literal["listening", "caught", "expired"]
     delivery: WebhookTestDelivery | None
+
+
+class WorkflowFormPage(BaseSchema):
+    """What a workflow's public form shows: its words and the fields it asks for."""
+
+    title: str
+    description: str | None
+    submit_label: str
+    fields: list[InputField]
+
+
+class WorkflowFormSubmission(BaseSchema):
+    """One person's answers, by field name.
+
+    `website` is a field the page draws out of sight: a person leaves it empty,
+    and a submission that fills it in is a script's.
+    """
+
+    values: dict[str, Any] = Field(default_factory=dict)
+    website: str | None = Field(default=None, max_length=200)
+
+
+class WorkflowFormSubmitted(BaseSchema):
+    """What the page says once the answers are in. No run is named to a stranger."""
+
+    message: str

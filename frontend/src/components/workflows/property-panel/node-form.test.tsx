@@ -699,6 +699,14 @@ describe("NodeForm sections", () => {
     expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
     expect(screen.queryByText("Settings")).toBeNull();
   });
+
+  it("gives a form its page's words above the fields it asks for", () => {
+    renderForm({ definition: makeDefinition({ id: "trigger.form", category: "triggers" }) });
+    expect(screen.getByText(/gives this workflow a public page/)).toBeVisible();
+    expect(screen.getByLabelText("Title")).toBeVisible();
+    expect(screen.getByLabelText("After sending")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
+  });
 });
 
 describe("config leaves", () => {

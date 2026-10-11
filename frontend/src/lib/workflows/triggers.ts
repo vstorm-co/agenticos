@@ -5,7 +5,7 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
  * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
  *
  * A workflow starts from one trigger, its entry: by hand or the API, a chat
- * message, a signed webhook, a schedule, or a new table record. Publishing a
+ * message, a signed webhook, a schedule, a table record or a public form. Publishing a
  * version is what switches its trigger on.
  */
 
@@ -22,14 +22,17 @@ export const TABLE_RECORD_TRIGGER = "trigger.table_record";
 export const WORKFLOW_FAILED_TRIGGER = "trigger.workflow_failed";
 /** A workflow another one's Run a workflow step calls, with the fields it declares. */
 export const WORKFLOW_CALL_TRIGGER = "trigger.workflow_call";
+/** A public page anyone with its link fills in, with the fields it declares. */
+export const FORM_TRIGGER = "trigger.form";
 
 /** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
 
-/** The triggers that may declare typed input fields: those, and a called workflow's. */
+/** The triggers that declare typed input fields: those, a called workflow's and a form's. */
 export const FIELD_TRIGGERS: ReadonlySet<string> = new Set([
   ...BY_HAND_TRIGGERS,
   WORKFLOW_CALL_TRIGGER,
+  FORM_TRIGGER,
 ]);
 
 /** Whether a catalog entry is a trigger - a way a run of the workflow begins. */
@@ -95,8 +98,8 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
 }
 
 /**
- * The typed fields a run of `graph` starts with: those its Manual or API entry
- * declares, or none - for any other entry, or a graph not loaded yet.
+ * The typed fields a run of `graph` starts with: those its Manual, API, Form or
+ * Called by a workflow entry declares, or none - for any other entry, or a graph not loaded yet.
  */
 export function declaredFields(graph: WorkflowGraph | null | undefined): InputField[] {
   const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);

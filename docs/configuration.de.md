@@ -1,5 +1,5 @@
 ---
-source_sha: "8f28f7cd93ef"
+source_sha: "e271559652ed"
 ---
 
 # Konfiguration { #configuration }
@@ -1199,7 +1199,8 @@ diese.
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, je aufrufender Seite |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Jede Route in `auth.py` — Login, Registrierung, Refresh, die Anfrage- und Verifikationsrouten für Reset und Magic Link. Gezählt **je IP und, wo der Body eine trägt, je übermittelter Adresse**. Siehe unten |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes, Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle sowie Speichern, Ändern oder Löschen einer gespeicherten Ansicht. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |

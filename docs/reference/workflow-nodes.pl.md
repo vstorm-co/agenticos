@@ -1,5 +1,5 @@
 ---
-source_sha: "d44c1b71ec94"
+source_sha: "e175bf6b8335"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -109,6 +109,15 @@ Publikacja wymaga dostępu do odczytu tabeli.
 **Called by a workflow.** Uruchamiany przez krok `workflow.run` innego workflow, z
 polami, które deklaruje - tymi samymi co **Manual** - i nigdy ręcznie ani przez API.
 Dane wejściowe wywołującego są sprawdzane względem nich, zanim przebieg się zacznie.
+
+### trigger.form { #trigger-form }
+
+**Form.** Startuje, gdy ktoś wypełni publiczną stronę workflow pod linkiem, który
+tworzy pierwsza publikacja węzła. Strona pokazuje tytuł, opis i jedno pole na każde
+pole - te same pola co **Manual** - a zgłoszenie, które do nich pasuje, uruchamia run
+jako członek, który go opublikował. `triggered_by` to `form`.
+
+::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

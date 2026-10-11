@@ -8,15 +8,16 @@ import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   getWorkflowExposure,
+  renewWorkflowFormLink,
   rotateWorkflowExposureSecret,
   updateWorkflowExposure,
 } from "@/lib/workflows/exposures-api";
 
 /**
- * A workflow's webhook or schedule - what its live trigger node switched on -
- * and the two writes made beside the graph: pausing, and rotating a webhook's
- * secret. Rotate resolves with the secret the server returns once; the caller
- * shows it, since nothing reads it back later.
+ * A workflow's webhook, schedule or form - what its live trigger node switched
+ * on - and the writes made beside the graph: pausing, rotating a webhook's
+ * secret and replacing a form's link. Rotate resolves with the secret the server
+ * returns once; the caller shows it, since nothing reads it back later.
  */
 export function useWorkflowExposure(workflowId: string) {
   const t = useTranslations("pages.workflows");
@@ -47,5 +48,13 @@ export function useWorkflowExposure(workflowId: string) {
     onSuccess: refresh,
     onError: fail,
   });
-  return { exposure: data ?? null, isLoading, setActive, rotate };
+  const renewLink = useMutation({
+    mutationFn: (id: string) => renewWorkflowFormLink(workflowId, id),
+    onSuccess: () => {
+      refresh();
+      toast.success(t("formLinkRenewed"));
+    },
+    onError: fail,
+  });
+  return { exposure: data ?? null, isLoading, setActive, rotate, renewLink };
 }

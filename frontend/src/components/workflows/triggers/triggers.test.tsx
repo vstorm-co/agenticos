@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,7 @@ const hook = {
   isLoading: false,
   setActive: { mutate: vi.fn(), isPending: false },
   rotate: { mutate: vi.fn(), isPending: false },
+  renewLink: { mutate: vi.fn(), isPending: false },
 };
 vi.mock("@/hooks", () => ({ useWorkflowExposure: () => hook }));
 
@@ -39,6 +40,8 @@ function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposu
     last_fired_at: null,
     last_run_id: null,
     webhook_url: null,
+    form_token: null,
+    form_url: null,
     created_at: null,
     ...overrides,
   };
@@ -54,6 +57,7 @@ const CATALOG = [
   definition("trigger.webhook", "Webhook"),
   definition("trigger.schedule", "Schedule"),
   definition("trigger.table_record", "Table record"),
+  definition("trigger.form", "Form"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 
@@ -237,6 +241,37 @@ describe("TriggerPanel", () => {
     expect(hook.rotate.mutate).toHaveBeenCalledWith("e1", expect.anything());
     expect(await screen.findByRole("dialog")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("shows a form's link to copy and open, and replaces it once confirmed", async () => {
+    const url = "https://console.example.com/f/abc";
+    hook.exposure = exposure({
+      adapter: "form",
+      form_token: "abc",
+      form_url: url,
+      schedule_kind: null,
+      next_fire_at: null,
+    });
+    hook.renewLink.mutate.mockImplementation((_id: string, options: { onSuccess: () => void }) =>
+      options.onSuccess(),
+    );
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.form")}
+        draft={draftOf("trigger.form")}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.getByText(/Anyone with the link fills in the form/)).toBeTruthy();
+    expect(screen.getByDisplayValue(url)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open the form" }).getAttribute("href")).toBe(url);
+    await userEvent.click(screen.getByRole("button", { name: "New link" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("stops working at once");
+    await userEvent.click(within(dialog).getByRole("button", { name: "New link" }));
+    expect(hook.renewLink.mutate).toHaveBeenCalledWith("e1", expect.anything());
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 

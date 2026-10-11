@@ -102,6 +102,15 @@ access to the table.
 the fields it declares - the same fields as **Manual** - and never by hand or over
 the API. The caller's input is checked against them before the run starts.
 
+### trigger.form { #trigger-form }
+
+**Form.** Started by somebody filling in the workflow's public page, at the link the
+first publish of the node creates. The page shows its title, description and one box
+per field - the same fields as **Manual** - and a submission that fits them starts a
+run as the member who published it. `triggered_by` is `form`.
+
+::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
 **On failure of a workflow.** Started once for each real run that fails of a

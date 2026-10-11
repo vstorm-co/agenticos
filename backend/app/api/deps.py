@@ -1034,6 +1034,21 @@ async def limit_public_artifact(public_key: str) -> None:
     )
 
 
+async def limit_form_page(token: str) -> None:
+    """Refuse a workflow's public form read too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_page_allowed(token), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_form_submission(token: str) -> None:
+    """Refuse a workflow's public form submitted too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_submission_allowed(token),
+        "This form is taking too many answers. Try again in a minute.",
+    )
+
+
 async def limit_artifact_content(token: str) -> None:
     """Refuse a signed artifact address loaded too often. Per address, before any read."""
     _refuse_if_over(

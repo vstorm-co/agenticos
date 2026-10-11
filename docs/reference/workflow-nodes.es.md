@@ -1,5 +1,5 @@
 ---
-source_sha: "d44c1b71ec94"
+source_sha: "e175bf6b8335"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -111,6 +111,16 @@ lectura a la tabla.
 **Called by a workflow.** Lo inicia el paso `workflow.run` de otro workflow, con los
 campos que declara - los mismos que **Manual** - y nunca a mano ni por la API. La
 entrada de quien llama se comprueba contra ellos antes de que empiece la ejecución.
+
+### trigger.form { #trigger-form }
+
+**Form.** Se inicia cuando alguien rellena la página pública del workflow, en el
+enlace que crea la primera publicación del nodo. La página muestra su título, su
+descripción y un campo por cada campo - los mismos que **Manual** -, y un envío que
+encaja con ellos inicia una ejecución como el miembro que lo publicó. `triggered_by`
+es `form`.
+
+::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

@@ -76,6 +76,13 @@ async def get_by_id(db: AsyncSession, exposure_id: UUID) -> WorkflowExposure | N
     return await db.get(WorkflowExposure, exposure_id)
 
 
+async def get_by_form_token(db: AsyncSession, token: str) -> WorkflowExposure | None:
+    """A form by its public link alone - a visitor carries no tenant header, and the
+    link is the page's credential."""
+    result = await db.execute(select(WorkflowExposure).where(WorkflowExposure.form_token == token))
+    return result.scalar_one_or_none()
+
+
 async def update(
     db: AsyncSession, *, exposure: WorkflowExposure, update_data: dict[str, Any]
 ) -> WorkflowExposure:

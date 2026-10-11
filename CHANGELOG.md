@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows started from a form.** A **Form** trigger gives a workflow a
+  public page with the fields it declares, its own title, description, button
+  and thanks. Anyone with the link fills it in without signing in, and each
+  answer that fits starts a run as the member who published it. **Trigger**
+  shows the link, **New link** replaces it, and pausing closes the page; each
+  form takes at most `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute,
+  and a hidden field turns scripts away. Migration `0131_workflow_form_trigger`.
+
 - **Agents start workflows.** The **Workflows** capability gives an agent the
   published workflows its spec names as tools: it reads the input each one
   asks for, starts a run as the member it acts for and waits for the answer,

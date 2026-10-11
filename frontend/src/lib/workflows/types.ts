@@ -618,7 +618,7 @@ export function isRunTerminal(status: WorkflowRunStatus): boolean {
 }
 
 /** The two ways a workflow runs with nobody pressing Start. */
-export type ExposureAdapter = "webhook" | "schedule";
+export type ExposureAdapter = "webhook" | "schedule" | "form";
 
 /** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
 export type ExposureScheduleKind = "interval" | "cron";
@@ -646,6 +646,10 @@ export interface WorkflowExposureRead {
   last_run_id: Uuid | null;
   /** Where a webhook's deliveries are POSTed - the deployment's public API address. */
   webhook_url: string | null;
+  /** A form's link, the page's only credential; null for any other trigger. */
+  form_token: string | null;
+  /** Where a form's page is, on the console's own address. */
+  form_url: string | null;
   created_at: string | null;
 }
 

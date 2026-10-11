@@ -1,4 +1,4 @@
-"""A workflow's webhook or schedule, and the door a webhook delivers to (#1792).
+"""A workflow's webhook, schedule or form, and the doors they are reached by (#1792).
 
 Every route on `router` acts on one workflow, so none carries a `require(...)`
 gate: `WorkflowExposureService` resolves access to that workflow and reports a
@@ -11,15 +11,26 @@ HMAC secret, not a session, so it carries no auth dependency - like the agent
 trigger and channel webhooks. It answers `202` with the run it admitted as soon
 as that admission commits - unless the graph answers the delivery itself with a
 Respond to webhook step, when it waits for that answer.
+
+`form_router` is a form's public page: its link is its only credential, so it
+carries no auth dependency either, and each submission that fits starts one run
+as the form's publisher. Both of its routes are counted per form before anything
+is read.
 """
 
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api.deps import Auth, WorkflowExposureSvc, WorkflowWebhookTestSvc
+from app.api.deps import (
+    Auth,
+    WorkflowExposureSvc,
+    WorkflowWebhookTestSvc,
+    limit_form_page,
+    limit_form_submission,
+)
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
@@ -29,11 +40,15 @@ from app.schemas.workflow_exposure import (
     WorkflowExposureRead,
     WorkflowExposureUpdate,
     WorkflowExposureWithSecret,
+    WorkflowFormPage,
+    WorkflowFormSubmission,
+    WorkflowFormSubmitted,
 )
 
 router = APIRouter()
 webhook_router = APIRouter()
 webhook_test_router = APIRouter()
+form_router = APIRouter()
 
 
 @router.get("/{workflow_id}/exposure", response_model=WorkflowExposureRead | None)
@@ -53,6 +68,17 @@ async def update_workflow_exposure(
 ) -> Any:
     """Pause or resume it. It keeps running as whoever published the version."""
     return await service.set_active(ctx, workflow_id, exposure_id, data)
+
+
+@router.post(
+    "/{workflow_id}/exposures/{exposure_id}/renew-form-link",
+    response_model=WorkflowExposureRead,
+)
+async def renew_workflow_form_link(
+    workflow_id: UUID, exposure_id: UUID, service: WorkflowExposureSvc, ctx: Auth
+) -> Any:
+    """A new link for a form, in `form_url`; the old one stops working at once."""
+    return await service.renew_form_link(ctx, workflow_id, exposure_id)
 
 
 @router.post(
@@ -122,3 +148,27 @@ async def receive_workflow_webhook(
             content=received.body, status_code=received.status_code, headers=received.headers
         )
     return received
+
+
+@form_router.get(
+    "/{token}", response_model=WorkflowFormPage, dependencies=[Depends(limit_form_page)]
+)
+async def get_workflow_form(token: str, service: WorkflowExposureSvc) -> Any:
+    """A form's title, words and fields. A link that is not an open form's - replaced,
+    paused, or its publisher gone - answers `404`, whichever it is."""
+    return await service.form_page(token)
+
+
+@form_router.post(
+    "/{token}",
+    response_model=WorkflowFormSubmitted,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_form_submission)],
+)
+async def submit_workflow_form(
+    token: str, data: WorkflowFormSubmission, service: WorkflowExposureSvc
+) -> Any:
+    """Start one run with the answers, as the form's publisher, and say the form's
+    thanks. Answers that do not fit its fields are `422` with the fields that are
+    wrong in `details.problems`, and start nothing."""
+    return await service.submit_form(token, data)

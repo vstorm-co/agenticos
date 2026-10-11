@@ -829,7 +829,8 @@
         "table_deleted": "Usunięty rekord",
         "workflow_call": "Inny workflow",
         "workflow_failed": "Nieudany przebieg",
-        "agent": "Agent"
+        "agent": "Agent",
+        "form": "Formularz"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -963,6 +964,10 @@
         "workflowCall": {
           "name": "Wywołany przez workflow",
           "description": "Krok Run a workflow innego workflow uruchamia go z polami, które deklaruje."
+        },
+        "form": {
+          "name": "Formularz",
+          "description": "Każdy z linkiem wypełnia formularz, a każda odpowiedź uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -1102,7 +1107,14 @@
       "cardNotRun": "Jeszcze nie uruchomiony",
       "cardNotRunEdited": "Jeszcze nie uruchomiony · edytowany {when}",
       "cardSteps": "{count, plural, =0 {Jeszcze bez kroków} one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
-      "statusDraft": "Szkic"
+      "statusDraft": "Szkic",
+      "triggerFormLive": "Każdy z linkiem wypełnia formularz, a każda odpowiedź uruchamia run jako członek, który go opublikował. Wstrzymaj go, żeby zamknąć stronę.",
+      "formUrl": "Link do formularza",
+      "formOpen": "Otwórz formularz",
+      "formNewLink": "Nowy link",
+      "formNewLinkTitle": "Zastąpić link do formularza?",
+      "formNewLinkDescription": "Obecny link od razu przestanie działać, gdziekolwiek został udostępniony. Formularz się nie zmieni.",
+      "formLinkRenewed": "Formularz ma nowy link"
     }
   },
   "rag": {
@@ -4217,7 +4229,26 @@
     "inlineAgentApply": "Użyj tej konfiguracji",
     "inlineAgentNoModel": "Nie wybrano modelu",
     "inlineAgentConfigure": "Konfiguruj",
-    "inlineAgentReach": "{capabilities, plural, =0 {bez capabilities} one {1 capability} few {# capabilities} many {# capabilities} other {# capabilities}}, {servers, plural, =0 {bez serwerów MCP} one {1 serwer MCP} few {# serwery MCP} many {# serwerów MCP} other {# serwera MCP}}"
+    "inlineAgentReach": "{capabilities, plural, =0 {bez capabilities} one {1 capability} few {# capabilities} many {# capabilities} other {# capabilities}}, {servers, plural, =0 {bez serwerów MCP} one {1 serwer MCP} few {# serwery MCP} many {# serwerów MCP} other {# serwera MCP}}",
+    "triggerHintForm": "Publikacja daje temu workflow publiczną stronę z tymi polami. Każda odpowiedź uruchamia run jako Ty; link pokazuje Trigger. Kolejne kroki czytają odpowiedzi jako payload.",
+    "formPage": {
+      "title": {
+        "label": "Tytuł",
+        "placeholder": "Formularz"
+      },
+      "description": {
+        "label": "Opis",
+        "placeholder": "Do czego służy formularz"
+      },
+      "submit_label": {
+        "label": "Przycisk",
+        "placeholder": "Wyślij"
+      },
+      "success_message": {
+        "label": "Po wysłaniu",
+        "placeholder": "Dziękujemy - odpowiedzi zostały wysłane."
+      }
+    }
   },
   "artifacts": {
     "title": "Artefakty",
@@ -4678,5 +4709,14 @@
     },
     "agentsOwn": "Tak, jak odpowiada agent",
     "agentsOwnHint": "Własny format odpowiedzi agenta: tekst albo obiekt, który ten format opisuje."
+  },
+  "publicForm": {
+    "trapLabel": "Zostaw to pole puste",
+    "refused": {
+      "invalid": "Niektóre odpowiedzi nie pasują do formularza. Sprawdź je i wyślij ponownie.",
+      "busy": "Formularz przyjmuje teraz dużo odpowiedzi. Spróbuj za minutę.",
+      "gone": "Ten formularz jest zamknięty.",
+      "failed": "Nie udało się wysłać odpowiedzi. Spróbuj ponownie."
+    }
   }
 }

@@ -3585,7 +3585,8 @@
         "table_deleted": "Record deleted",
         "workflow_call": "Another workflow",
         "workflow_failed": "A failed run",
-        "agent": "An agent"
+        "agent": "An agent",
+        "form": "A form"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",
@@ -3690,6 +3691,10 @@
         "workflowCall": {
           "name": "Called by a workflow",
           "description": "Another workflow's Run a workflow step starts it with the fields it declares."
+        },
+        "form": {
+          "name": "Form",
+          "description": "Anyone with its link fills in a form, and each answer starts a run."
         }
       },
       "startRunOptional": "optional",
@@ -3829,7 +3834,14 @@
       "cardNotRun": "Not run yet",
       "cardNotRunEdited": "Not run yet · edited {when}",
       "cardSteps": "{count, plural, =0 {No steps yet} one {# step} other {# steps}}",
-      "statusDraft": "Draft"
+      "statusDraft": "Draft",
+      "triggerFormLive": "Anyone with the link fills in the form, and each answer starts a run as the member who published it. Pause it to close the page.",
+      "formUrl": "Form link",
+      "formOpen": "Open the form",
+      "formNewLink": "New link",
+      "formNewLinkTitle": "Replace the form's link?",
+      "formNewLinkDescription": "The current link stops working at once, wherever it was shared. The form stays the same.",
+      "formLinkRenewed": "The form has a new link"
     },
     "retention": {
       "title": "Data retention",
@@ -6589,7 +6601,26 @@
     "inlineAgentApply": "Use this configuration",
     "inlineAgentNoModel": "No model chosen",
     "inlineAgentConfigure": "Configure",
-    "inlineAgentReach": "{capabilities, plural, =0 {no capabilities} =1 {1 capability} other {# capabilities}}, {servers, plural, =0 {no MCP servers} =1 {1 MCP server} other {# MCP servers}}"
+    "inlineAgentReach": "{capabilities, plural, =0 {no capabilities} =1 {1 capability} other {# capabilities}}, {servers, plural, =0 {no MCP servers} =1 {1 MCP server} other {# MCP servers}}",
+    "triggerHintForm": "Publishing gives this workflow a public page with these fields. Each answer starts a run as you; Trigger shows the link. The steps after it read the answers as payload.",
+    "formPage": {
+      "title": {
+        "label": "Title",
+        "placeholder": "Form"
+      },
+      "description": {
+        "label": "Description",
+        "placeholder": "What the form is for"
+      },
+      "submit_label": {
+        "label": "Button",
+        "placeholder": "Submit"
+      },
+      "success_message": {
+        "label": "After sending",
+        "placeholder": "Thank you - your answers were sent."
+      }
+    }
   },
   "artifacts": {
     "title": "Artifacts",
@@ -7050,5 +7081,14 @@
     },
     "agentsOwn": "As the agent answers",
     "agentsOwnHint": "The agent's own answer format: text, or the object its answer format names."
+  },
+  "publicForm": {
+    "trapLabel": "Leave this empty",
+    "refused": {
+      "invalid": "Some answers do not fit this form. Check them and send again.",
+      "busy": "This form is taking a lot of answers right now. Try again in a minute.",
+      "gone": "This form is closed.",
+      "failed": "Your answers could not be sent. Try again."
+    }
   }
 }

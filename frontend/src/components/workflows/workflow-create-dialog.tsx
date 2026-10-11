@@ -22,6 +22,7 @@ import {
 import {
   API_TRIGGER,
   CHAT_TRIGGER,
+  FORM_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
@@ -40,6 +41,7 @@ const STARTS = [
   { id: WEBHOOK_TRIGGER, key: "webhook" },
   { id: SCHEDULE_TRIGGER, key: "schedule" },
   { id: TABLE_RECORD_TRIGGER, key: "tableRecord" },
+  { id: FORM_TRIGGER, key: "form" },
   { id: WORKFLOW_CALL_TRIGGER, key: "workflowCall" },
   { id: WORKFLOW_FAILED_TRIGGER, key: "workflowFailed" },
 ] as const;

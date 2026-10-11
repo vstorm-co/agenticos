@@ -1,11 +1,12 @@
-"""`WorkflowExposureService` - a workflow's webhook or schedule (#1792).
+"""`WorkflowExposureService` - a workflow's webhook, schedule or form (#1792).
 
-A workflow that starts from a webhook or a schedule trigger node gets its
+A workflow that starts from a webhook, a schedule or a form trigger node gets its
 exposure when a version is published (`app.services.workflow_triggers`), and
 runs as the member who published it. That authority is read afresh on every
 fire - a member who has since lost the workflow, or left, stops the webhook
-answering and the schedule firing. Pausing, resuming and rotating a webhook's
-secret need `workflows:edit` and `workflows:run` on the workflow.
+answering, the schedule firing and the form taking answers. Pausing, resuming,
+rotating a webhook's secret and replacing a form's link need `workflows:edit`
+and `workflows:run` on the workflow.
 
 Firing ends in the one admission path every surface shares
 (`WorkflowExecutionService.admit_pinned`), on the version the exposure pinned.
@@ -47,6 +48,9 @@ from app.schemas.workflow_exposure import (
     WorkflowExposureRead,
     WorkflowExposureUpdate,
     WorkflowExposureWithSecret,
+    WorkflowFormPage,
+    WorkflowFormSubmission,
+    WorkflowFormSubmitted,
 )
 from app.services import trigger_events
 from app.services.access import WORKFLOW, resolve_access
@@ -54,12 +58,15 @@ from app.services.agent_trigger import _next_fire
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
+    WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowWebhookUnansweredError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig
+from app.workflows.nodes.core_input._handler import input_problems
+from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
 from app.workflows.triggers import answers_webhook
 
 logger = logging.getLogger(__name__)
@@ -94,6 +101,7 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
         next_fire_at=exposure.next_fire_at,
         last_fired_at=exposure.last_fired_at,
         last_run_id=exposure.last_run_id,
+        form_token=exposure.form_token,
         created_at=exposure.created_at,
         updated_at=exposure.updated_at,
     )
@@ -186,6 +194,39 @@ class WorkflowExposureService:
         )
         await self._audit(ctx, exposure, "workflow.exposure_created")
         return _read(exposure, version.version), secret
+
+    async def switch_on_form(
+        self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
+    ) -> WorkflowExposureRead:
+        """The form of a version just published, run as its publisher.
+
+        The row the same node had is kept - its link with it - and takes the new
+        version over; a first publish of the node mints the link.
+        """
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.FORM)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+        }
+        if exposure is not None:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            return _read(exposure, version.version)
+        exposure = await workflow_exposure_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow.id,
+            node_instance_id=node_id,
+            adapter=ExposureAdapter.FORM.value,
+            run_input={},
+            form_token=secrets.token_urlsafe(24),
+            **live,
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_created")
+        return _read(exposure, version.version)
 
     async def switch_on_schedule(
         self,
@@ -364,6 +405,100 @@ class WorkflowExposureService:
             **_read(exposure, await self._version_number(exposure)).model_dump(),
             reveal_secret=secret,
         )
+
+    async def renew_form_link(
+        self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID
+    ) -> WorkflowExposureRead:
+        """A new link for a form; the old one then answers as if there were no form.
+
+        Raises:
+            NotFoundError: The workflow or the exposure is not reachable.
+            AuthorizationError: The caller may edit the workflow but not run it.
+            WorkflowArchivedError: The workflow is archived.
+            BadRequestError: The exposure is not a form.
+        """
+        workflow = await self._editable(ctx, workflow_id)
+        exposure = await self._exposure(ctx, workflow, exposure_id)
+        if exposure.adapter != ExposureAdapter.FORM.value:
+            raise BadRequestError(
+                message="Only a form has a link to replace",
+                details={"exposure_id": str(exposure.id)},
+            )
+        exposure = await workflow_exposure_repo.update(
+            self.db, exposure=exposure, update_data={"form_token": secrets.token_urlsafe(24)}
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_link_renewed")
+        return _read(exposure, await self._version_number(exposure))
+
+    async def form_page(self, token: str) -> WorkflowFormPage:
+        """What the form behind `token` shows a visitor.
+
+        Raises:
+            NotFoundError: No open form has this link - replaced, paused, or its
+                publisher can no longer run the workflow. One answer for all of
+                them, so a link reveals nothing about why it stopped working.
+        """
+        _exposure, config, _fire = await self._open_form(token)
+        return WorkflowFormPage(
+            title=config.title,
+            description=config.description,
+            submit_label=config.submit_label,
+            fields=list(config.fields),
+        )
+
+    async def submit_form(
+        self, token: str, submission: WorkflowFormSubmission
+    ) -> WorkflowFormSubmitted:
+        """Start one run with a visitor's answers, as the form's publisher.
+
+        A submission that fills in the hidden trap field is thanked and starts
+        nothing: answering it any other way would teach a script what to skip.
+
+        Raises:
+            NotFoundError: As `form_page`.
+            WorkflowRunInputInvalidError: The answers do not fit the form's fields.
+            WorkflowRunInputTooLargeError: The answers are over the size limit.
+            WorkflowAdmissionQuotaError: Too much of the organization's work is
+                already in flight.
+        """
+        exposure, config, (ctx, workflow, version) = await self._open_form(token)
+        thanks = WorkflowFormSubmitted(message=config.success_message)
+        if submission.website:
+            logger.info("workflow_form_trap_filled", extra={"exposure_id": str(exposure.id)})
+            return thanks
+        problems = input_problems(config, submission.values)
+        if problems:
+            raise WorkflowRunInputInvalidError(problems=problems)
+        run, entry_node_run_id = await self.runs.admit_pinned(
+            ctx,
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.FORM,
+            run_input=submission.values,
+        )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
+        )
+        from app.worker.tasks.workflow_tasks import trigger_dispatch
+
+        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return thanks
+
+    async def _open_form(
+        self, token: str
+    ) -> tuple[WorkflowExposure, FormTriggerConfig, tuple[AuthContext, Workflow, WorkflowVersion]]:
+        """The form behind `token`, its configuration and the context it runs in."""
+        exposure = await workflow_exposure_repo.get_by_form_token(self.db, token)
+        fire = None
+        if exposure is not None and exposure.is_active:
+            fire = await self._fire_context(exposure)
+        if exposure is None or fire is None:
+            raise NotFoundError(message="Form not found")
+        version = fire[2]
+        node = WorkflowGraph.model_validate(version.graph).node_by_id[exposure.node_instance_id]
+        return exposure, FormTriggerConfig.model_validate(node.config), fire
 
     async def receive_webhook(
         self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]

@@ -3,8 +3,8 @@
 A caller who is present - the HTTP API, a WebSocket, the console's chat - needs
 no row: whoever may run the workflow starts it as themselves, on its live
 version, and is checked at that moment. A door nobody stands at needs one. A
-signed webhook and a schedule fire on their own, so each is a row here saying
-which published version it runs and as whom.
+signed webhook, a schedule and a public form fire on their own, so each is a row
+here saying which published version it runs and as whom.
 
 The graph says *that* a workflow starts from a webhook or a schedule - its
 trigger node - and an exposure is that node switched on: what a graph cannot
@@ -49,6 +49,7 @@ class ExposureAdapter(enum.StrEnum):
 
     WEBHOOK = "webhook"
     SCHEDULE = "schedule"
+    FORM = "form"
 
 
 class ExposureScheduleKind(enum.StrEnum):
@@ -59,7 +60,7 @@ class ExposureScheduleKind(enum.StrEnum):
 
 
 class WorkflowExposure(Base, TimestampMixin):
-    """One webhook or one schedule that runs one workflow's pinned version."""
+    """One webhook, schedule or form that runs one workflow's pinned version."""
 
     __tablename__ = "workflow_exposures"
 
@@ -108,6 +109,10 @@ class WorkflowExposure(Base, TimestampMixin):
     secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     secret_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # A form's public address: the link is its only credential, kept across
+    # publishes and replaced only when an editor asks for a new one.
+    form_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+
     # A schedule's cadence - one of the two fields, told apart by the kind - and
     # when it is next due. Null on a webhook, which the heartbeat's
     # `next_fire_at <= now` claim then never selects.
@@ -134,21 +139,29 @@ class WorkflowExposure(Base, TimestampMixin):
     # schema from the models.
     __table_args__ = (
         UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
-        CheckConstraint("adapter IN ('webhook', 'schedule')", name="ck_workflow_exposure_adapter"),
+        CheckConstraint(
+            "adapter IN ('webhook', 'schedule', 'form')", name="ck_workflow_exposure_adapter"
+        ),
         # One shape per adapter: a webhook has a sealed secret and none of the
         # clock; a schedule has exactly one cadence field and a next fire, and
-        # no secret. So "why would this fire" always has one answer.
+        # no secret; a form has its link and neither. So "why would this fire"
+        # always has one answer.
         CheckConstraint(
             "(adapter = 'webhook' AND secret_encrypted IS NOT NULL "
             "AND secret_key_version IS NOT NULL AND schedule_kind IS NULL "
             "AND interval_seconds IS NULL AND cron_expression IS NULL "
-            "AND next_fire_at IS NULL) "
+            "AND next_fire_at IS NULL AND form_token IS NULL) "
             "OR (adapter = 'schedule' AND secret_encrypted IS NULL "
             "AND secret_key_version IS NULL AND next_fire_at IS NOT NULL "
+            "AND form_token IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
-            "AND interval_seconds IS NULL)))",
+            "AND interval_seconds IS NULL))) "
+            "OR (adapter = 'form' AND form_token IS NOT NULL "
+            "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
+            "AND schedule_kind IS NULL AND interval_seconds IS NULL "
+            "AND cron_expression IS NULL AND next_fire_at IS NULL)",
             name="ck_workflow_exposure_shape",
         ),
         CheckConstraint(

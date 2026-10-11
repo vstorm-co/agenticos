@@ -560,6 +560,11 @@ class Settings(BaseSettings):
     # counts nobody. Wide, because it bounds a page rather than rationing
     # visitors - what rations spend is the socket, counted per address.
     RATE_LIMIT_HOSTED_PAGE_PER_MINUTE: int = 240
+    # How many submissions one workflow's public form takes in a minute. Counted
+    # per form, for the hosted page's reason: the console's server forwards them,
+    # so every visitor arrives as the same caller. Each one is a run, so this is
+    # what bounds a stranger's spend on the form's publisher.
+    RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE: int = 20
     # How many auth attempts one caller gets per minute - login, register, token
     # refresh, and the reset/magic-link request and verify routes. Counted per IP
     # and, where the body carries one, per submitted address, both in the shared

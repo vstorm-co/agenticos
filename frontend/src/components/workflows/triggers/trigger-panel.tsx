@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { KeyRound, Pause, Play } from "lucide-react";
+import { ExternalLink, KeyRound, Link2, Pause, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, ConfirmDialog } from "@/components/ui";
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWorkflowExposure } from "@/hooks";
@@ -16,6 +16,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 import {
   CHAT_TRIGGER,
   API_TRIGGER,
+  FORM_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
@@ -49,7 +50,8 @@ interface TriggerPanelProps {
  * The trigger is a node on the canvas and publishing switches it on, so this is
  * an overview rather than a form: which trigger the live version starts from,
  * whether the draft would change it, and the live state of the one that runs
- * unattended - a webhook's address and secret, a schedule's next tick, pausing.
+ * unattended - a webhook's address and secret, a schedule's next tick, a form's
+ * link, pausing.
  */
 export function TriggerPanel({ workflow, draft, catalog, canEdit }: TriggerPanelProps) {
   const t = useTranslations("pages.workflows");
@@ -152,9 +154,12 @@ function LiveTrigger({
       {trigger === CHAT_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerChatLive")}</p>
       )}
-      {(trigger === WEBHOOK_TRIGGER || trigger === SCHEDULE_TRIGGER) && (
-        <ExposureStatus workflow={workflow} canEdit={canEdit} />
+      {trigger === FORM_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("triggerFormLive")}</p>
       )}
+      {(trigger === WEBHOOK_TRIGGER ||
+        trigger === SCHEDULE_TRIGGER ||
+        trigger === FORM_TRIGGER) && <ExposureStatus workflow={workflow} canEdit={canEdit} />}
       {trigger === WORKFLOW_CALL_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerWorkflowCallLive")}</p>
       )}
@@ -175,17 +180,18 @@ function LiveTrigger({
   );
 }
 
-/** A live webhook or schedule: its address or cadence, its state, and pausing it. */
+/** A live webhook, schedule or form: its address, cadence or link, its state, and pausing it. */
 function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEdit: boolean }) {
   const t = useTranslations("pages.workflows");
   const tTriggers = useTranslations("triggers");
   const locale = useLocale();
-  const { exposure, isLoading, setActive, rotate } = useWorkflowExposure(workflow.id);
+  const { exposure, isLoading, setActive, rotate, renewLink } = useWorkflowExposure(workflow.id);
   const [revealed, setRevealed] = useState<WorkflowExposureWithSecret | null>(null);
+  const [renewing, setRenewing] = useState(false);
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
   if (exposure === null) return null;
-  const busy = setActive.isPending || rotate.isPending;
+  const busy = setActive.isPending || rotate.isPending || renewLink.isPending;
 
   return (
     <div className={cn("space-y-3 rounded-lg border p-3", !exposure.is_active && "bg-muted/30")}>
@@ -211,6 +217,12 @@ function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEd
                 {t("triggerRotate")}
               </Button>
             )}
+            {exposure.adapter === "form" && (
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRenewing(true)}>
+                <Link2 className="h-4 w-4" />
+                {t("formNewLink")}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -225,6 +237,17 @@ function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEd
       </div>
       {exposure.webhook_url !== null && (
         <CopyableValue id="webhook-url" label={t("webhookUrl")} value={exposure.webhook_url} />
+      )}
+      {exposure.form_url !== null && (
+        <div className="space-y-2">
+          <CopyableValue id="form-url" label={t("formUrl")} value={exposure.form_url} />
+          <Button variant="outline" size="sm" asChild>
+            <a href={exposure.form_url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              {t("formOpen")}
+            </a>
+          </Button>
+        </div>
       )}
       {exposure.adapter === "schedule" && (
         <p className="text-sm">{scheduleText(cadenceOf(exposure), tTriggers)}</p>
@@ -244,6 +267,15 @@ function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEd
           </Link>
         )}
       </div>
+      <ConfirmDialog
+        open={renewing}
+        onOpenChange={setRenewing}
+        title={t("formNewLinkTitle")}
+        description={t("formNewLinkDescription")}
+        confirmLabel={t("formNewLink")}
+        loading={renewLink.isPending}
+        onConfirm={() => renewLink.mutate(exposure.id, { onSuccess: () => setRenewing(false) })}
+      />
       {revealed?.webhook_url && (
         <WebhookSecretDialog
           url={revealed.webhook_url}

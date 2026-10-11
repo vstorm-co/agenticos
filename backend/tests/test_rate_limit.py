@@ -501,3 +501,28 @@ class TestStoringAFileIsCountedTwice:
         )
 
         assert decision.allowed is False
+
+
+class TestAFormIsCountedPerForm:
+    """A workflow's public form is read and submitted through the console's server,
+    so every visitor arrives as the same caller: the bucket is the form."""
+
+    async def test_reading_and_submitting_are_two_buckets_of_one_form(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.form_page_allowed("tok")).allowed is True
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is True
+
+        keys = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert keys == [
+            "ratelimit:workflow_form_page:form:tok",
+            "ratelimit:workflow_form_submission:form:tok",
+        ]
+
+    async def test_a_form_over_its_submissions_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        rate_limit.configure(_redis([4]))
+
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is False

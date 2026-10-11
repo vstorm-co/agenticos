@@ -1,4 +1,4 @@
-"""A workflow's webhook or schedule against a real Postgres (#1792).
+"""A workflow's webhook, schedule or form against a real Postgres (#1792).
 
 Each is a trigger node switched on by publishing: the publish writes the row,
 a later publish takes it over, and a publish that starts another way removes it.
@@ -46,10 +46,16 @@ from app.db.models.workflow_run import (
 from app.main import app
 from app.schemas.conversation import MessageRead
 from app.schemas.workflow import WorkflowPublish, WorkflowPublished
-from app.schemas.workflow_exposure import WebhookAdmitted, WebhookAnswer, WorkflowExposureUpdate
+from app.schemas.workflow_exposure import (
+    WebhookAdmitted,
+    WebhookAnswer,
+    WorkflowExposureUpdate,
+    WorkflowFormSubmission,
+)
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
+    WorkflowRunInputInvalidError,
     WorkflowTriggerMismatchError,
     WorkflowWebhookUnansweredError,
 )
@@ -1240,3 +1246,186 @@ class TestTheTestUrl:
         assert (caught.status_code, caught.json()) == (200, {"captured": True})
         assert read.json()["state"] == "caught"
         assert read.json()["delivery"]["body"] == {"lead": 4}
+
+
+FORM = {
+    "title": "Talk to us",
+    "description": "We answer within a day.",
+    "fields": [
+        {"name": "name", "type": "text", "required": True},
+        {"name": "seats", "type": "integer", "required": False},
+        {"name": "topic", "type": "choice", "options": ["Demo", "Pricing"]},
+    ],
+}
+
+
+async def _form(
+    db: AsyncSession, ctx: AuthContext, workflow: Workflow, config: dict | None = None
+) -> WorkflowPublished:
+    published = await _publish(db, ctx, workflow, _graph("trigger.form", config or FORM))
+    assert published.exposure is not None and published.exposure.form_token is not None
+    return published
+
+
+class TestForms:
+    async def test_publishing_gives_the_form_a_link_that_survives_the_next_publish(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        graph = _graph("trigger.form", FORM)
+        first = await _publish(db, _ctx(owner, org), workflow, graph)
+        assert first.exposure is not None and first.webhook_secret is None
+        token = first.exposure.form_token
+        assert token is not None and len(token) >= 32
+        assert first.exposure.form_url == f"{settings.FRONTEND_URL.rstrip('/')}/f/{token}"
+        assert first.exposure.webhook_url is None
+
+        again = await _publish(db, _ctx(owner, org), workflow, graph)
+
+        assert again.exposure is not None
+        assert (again.exposure.id, again.exposure.form_token) == (first.exposure.id, token)
+        assert again.exposure.version_number == 2
+
+    async def test_the_page_shows_the_forms_words_and_fields(self, db, tenant):
+        owner, org, workflow = tenant
+        token = (await _form(db, _ctx(owner, org), workflow)).exposure.form_token
+
+        page = await WorkflowExposureService(db).form_page(token)
+
+        assert (page.title, page.description, page.submit_label) == (
+            "Talk to us",
+            "We answer within a day.",
+            "Submit",
+        )
+        assert [field.name for field in page.fields] == ["name", "seats", "topic"]
+
+    async def test_answers_that_fit_start_one_run_as_the_publisher(self, db, tenant):
+        owner, org, workflow = tenant
+        published = await _form(db, _ctx(owner, org), workflow)
+        answers = {"name": "Ada", "seats": 12, "topic": "Demo"}
+
+        thanks = await WorkflowExposureService(db).submit_form(
+            published.exposure.form_token, WorkflowFormSubmission(values=answers)
+        )
+
+        assert thanks.message == "Thank you - your answers were sent."
+        (run,) = await _runs(db)
+        assert run.triggered_by == WorkflowRunTrigger.FORM.value
+        assert (run.input, run.execution_principal_user_id) == (answers, owner.id)
+        assert run.workflow_version_id == published.id
+        exposure = await db.get(WorkflowExposure, published.exposure.id)
+        assert exposure is not None and exposure.last_run_id == run.id
+
+    async def test_answers_that_do_not_fit_are_named_and_start_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        token = (await _form(db, _ctx(owner, org), workflow)).exposure.form_token
+
+        with pytest.raises(WorkflowRunInputInvalidError) as refused:
+            await WorkflowExposureService(db).submit_form(
+                token, WorkflowFormSubmission(values={"seats": "12", "topic": "Lunch"})
+            )
+
+        fields = {problem["field"] for problem in refused.value.details["problems"]}
+        assert fields == {"name", "seats", "topic"}
+        assert await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_filled_in_trap_is_thanked_and_starts_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        token = (await _form(db, _ctx(owner, org), workflow)).exposure.form_token
+
+        thanks = await WorkflowExposureService(db).submit_form(
+            token, WorkflowFormSubmission(values={"name": "x"}, website="spam.example")
+        )
+
+        assert thanks.message == "Thank you - your answers were sent."
+        assert await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_replaced_paused_or_orphaned_link_is_no_form(self, db, tenant):
+        owner, org, workflow = tenant
+        service = WorkflowExposureService(db)
+        published = await _form(db, _ctx(owner, org), workflow)
+        old = published.exposure.form_token
+
+        renewed = await service.renew_form_link(
+            _ctx(owner, org), workflow.id, published.exposure.id
+        )
+
+        assert renewed.form_token not in (None, old)
+        with pytest.raises(NotFoundError):
+            await service.form_page(old)
+        await service.set_active(
+            _ctx(owner, org), workflow.id, renewed.id, WorkflowExposureUpdate(is_active=False)
+        )
+        with pytest.raises(NotFoundError):
+            await service.form_page(renewed.form_token)
+        await service.set_active(
+            _ctx(owner, org), workflow.id, renewed.id, WorkflowExposureUpdate(is_active=True)
+        )
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+        with pytest.raises(NotFoundError):
+            await service.submit_form(
+                renewed.form_token, WorkflowFormSubmission(values={"name": "Ada", "topic": "Demo"})
+            )
+        assert await _runs(db) == []
+
+    async def test_only_a_form_has_a_link_to_replace(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id, _secret = await _webhook(db, _ctx(owner, org), workflow)
+        with pytest.raises(BadRequestError):
+            await WorkflowExposureService(db).renew_form_link(
+                _ctx(owner, org), workflow.id, exposure_id
+            )
+
+    async def test_a_form_asks_for_at_least_one_field(self, db, tenant):
+        owner, org, workflow = tenant
+        with pytest.raises(BadRequestError):
+            await _publish(
+                db, _ctx(owner, org), workflow, _graph("trigger.form", {"title": "Empty"})
+            )
+
+    async def test_a_test_run_of_a_form_draft_is_checked_against_its_fields(self, db, tenant):
+        owner, org, workflow = tenant
+        workflow.draft_graph = _graph("trigger.form", FORM).model_dump(mode="json")
+        await db.flush()
+        service = WorkflowExecutionService(db)
+        with pytest.raises(WorkflowRunInputInvalidError):
+            await service.start(
+                _ctx(owner, org), workflow.id, mode=WorkflowRunMode.TEST, run_input={}
+            )
+        started = await service.start(
+            _ctx(owner, org),
+            workflow.id,
+            mode=WorkflowRunMode.TEST,
+            run_input={"name": "Ada", "topic": "Pricing"},
+        )
+        assert started.mode == WorkflowRunMode.TEST
+
+    async def test_a_form_is_read_submitted_and_renewed_over_http(self, http):
+        client, workflow_id, factory = http
+        published = await _publish_over_http(client, workflow_id, _graph("trigger.form", FORM))
+        token = published["exposure"]["form_token"]
+        url = f"{settings.API_V1_STR}/public/workflow-forms/{token}"
+
+        page = await client.get(url)
+        refused = await client.post(url, json={"values": {"topic": "Demo"}})
+        sent = await client.post(url, json={"values": {"name": "Ada", "topic": "Demo"}})
+
+        assert (page.status_code, page.json()["title"]) == (200, "Talk to us")
+        assert refused.status_code == 422
+        assert refused.json()["error"]["details"]["problems"][0]["field"] == "name"
+        assert (sent.status_code, sent.json()) == (
+            201,
+            {"message": "Thank you - your answers were sent."},
+        )
+        async with factory() as fresh:
+            (run,) = (await fresh.execute(select(WorkflowRun))).scalars().all()
+            assert run.triggered_by == "form"
+
+        base = f"{settings.API_V1_STR}/workflows/{workflow_id}"
+        renewed = await client.post(
+            f"{base}/exposures/{published['exposure']['id']}/renew-form-link"
+        )
+        assert renewed.json()["form_url"].endswith(renewed.json()["form_token"])
+        assert (await client.get(url)).status_code == 404

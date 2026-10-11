@@ -1,5 +1,5 @@
 ---
-source_sha: "d44c1b71ec94"
+source_sha: "e175bf6b8335"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -116,6 +116,16 @@ sofern Spalten gewählt sind. Das Veröffentlichen braucht Lesezugriff auf die T
 gestartet, mit den Feldern, die er deklariert - denselben wie bei **Manual** - und nie
 von Hand oder über die API. Die Eingabe des Aufrufers wird vor dem Start dagegen
 geprüft.
+
+### trigger.form { #trigger-form }
+
+**Form.** Gestartet, wenn jemand die öffentliche Seite des Workflows ausfüllt, unter
+dem Link, den die erste Veröffentlichung des Knotens anlegt. Die Seite zeigt Titel,
+Beschreibung und ein Feld je Feld - dieselben Felder wie **Manual** -, und eine
+Einsendung, die zu ihnen passt, startet einen Lauf als das Mitglied, das ihn
+veröffentlicht hat. `triggered_by` ist `form`.
+
+::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 
