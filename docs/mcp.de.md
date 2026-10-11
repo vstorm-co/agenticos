@@ -1,5 +1,5 @@
 ---
-source_sha: "57668d8e8424"
+source_sha: "3b234d824fff"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -539,6 +539,17 @@ dort erneut prüfen.
 Ein OAuth-Konto, dessen Anmeldung nicht erneuert werden konnte, wird als
 autorisierungsbedürftig statt als unerreichbar gezeigt, mit **Autorisieren**, um
 sich erneut anzumelden.
+
+Alle fünfzehn Minuten prüft die Installation jeden Server der Organisation, und
+jeder Run prüft vor der Runde die Server, an die sein Agent gebunden ist. Hört
+ein Server auf zu antworten, bekommen die Administratoren und die Eigentümer der
+daran gebundenen Agents eine Benachrichtigung **MCP-Server antwortet nicht** für
+diesen Ausfall, egal wie viele Prüfungen oder Runs ihn finden, und **MCP-Server
+antwortet wieder**, sobald er zurück ist. Der nächste Ausfall meldet sich
+erneut. Beide kommen in der App und per E-Mail, und jede Person kann jede davon
+unter **Einstellungen → Benachrichtigungen** abschalten. Die eigene Verbindung
+eines Mitglieds sendet keine, und eine Anmeldung, die erneuert werden muss,
+zählt nicht als Ausfall.
 
 Auf der MCP-Seite nennt jedes Konto der Organisation die Agents, die daran
 gebunden sind, und **Was Agents gefragt haben** listet die letzten Aufrufe ihrer

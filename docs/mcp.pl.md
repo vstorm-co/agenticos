@@ -1,5 +1,5 @@
 ---
-source_sha: "57668d8e8424"
+source_sha: "3b234d824fff"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -514,6 +514,16 @@ tam ponownie.
 Konto OAuth, którego logowania nie udało się odnowić, jest pokazywane jako
 wymagające autoryzacji, a nie nieosiągalne, z przyciskiem **Autoryzuj**, by
 zalogować się ponownie.
+
+Co piętnaście minut wdrożenie sprawdza każdy serwer organizacji, a każdy run
+sprawdza przed turą serwery, do których podpięty jest jego agent. Gdy serwer
+przestaje odpowiadać, administratorzy i właściciele agentów, którzy z niego
+korzystają, dostają jedno powiadomienie **Serwer MCP nie odpowiada** na tę
+awarię, niezależnie od tego, ile sprawdzeń czy runów to wykryje, oraz **Serwer
+MCP znów odpowiada**, gdy wróci. Kolejna awaria znów wywołuje alert. Oba
+przychodzą w aplikacji i e-mailem, a każdy może wyłączyć dowolne z nich w
+**Ustawienia → Powiadomienia**. Własne połączenie członka nie wysyła żadnego, a
+logowanie do odnowienia nie jest liczone jako awaria.
 
 Na stronie MCP każde konto organizacji wymienia agentów, którzy są do niego
 podpięci, a **O co pytały agenty** pokazuje ostatnie wywołania jego narzędzi:

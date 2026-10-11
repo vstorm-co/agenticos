@@ -60,8 +60,10 @@ from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
+from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
@@ -601,6 +603,68 @@ class NotificationService:
             actor_user_id=actor_user_id,
             use_savepoint=True,
         )
+
+    async def mcp_server_down(
+        self, connection: McpConnection, *, organization_id: UUID, since: datetime
+    ) -> None:
+        """An organization's MCP server stopped answering (#2100).
+
+        Once per outage: the occurrence is the server and the moment the outage
+        began, and only the check or run that opened it calls this. Until it is
+        back, every agent bound to it runs without its tools - which a person
+        would otherwise first learn from an agent that quietly cannot do
+        something any more.
+        """
+        await self._center.write(
+            recipients=list(await self._mcp_audience(connection, organization_id)),
+            event_type=NotificationEventType.MCP_SERVER_DOWN,
+            occurrence_id=f"{connection.id}:{since.isoformat()}",
+            summary=(
+                f"The MCP server {connection.name} stopped answering. Agents bound to it "
+                "run without its tools until it is back."
+            ),
+            context_url=self._link("/mcp-servers", organization_id),
+            render_context={"server_name": connection.name},
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def mcp_server_recovered(
+        self, connection: McpConnection, *, organization_id: UUID, since: datetime
+    ) -> None:
+        """The server answers again, closing the outage `mcp_server_down` opened (#2100).
+
+        Keyed on the same outage, so its end is announced once and the next
+        outage, with a start of its own, alerts again.
+        """
+        await self._center.write(
+            recipients=list(await self._mcp_audience(connection, organization_id)),
+            event_type=NotificationEventType.MCP_SERVER_RECOVERED,
+            occurrence_id=f"{connection.id}:{since.isoformat()}",
+            summary=f"The MCP server {connection.name} is answering again.",
+            context_url=self._link("/mcp-servers", organization_id),
+            render_context={"server_name": connection.name},
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def _mcp_audience(self, connection: McpConnection, organization_id: UUID) -> set[UUID]:
+        """Whoever manages the organization's servers, and whoever owns an agent bound to this one.
+
+        Owners are read off the agents' drafts and scoped to the organization's
+        members, so an agent whose owner has left notifies the administrators
+        alone.
+        """
+        bound = await agent_repo.binding_mcp_connections(
+            self.db, organization_id=organization_id, connection_ids=[connection.id]
+        )
+        owners = [
+            agent.owner_user_id for agent in bound[connection.id] if agent.owner_user_id is not None
+        ]
+        members = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=owners
+        )
+        return await self._administrator_ids(organization_id) | set(members)
 
     async def hold_security_audience(self, organization_id: UUID | None) -> list[UUID]:
         """Lock the rows `security_event` is about to reference, before the

@@ -585,6 +585,10 @@ class TestToolsetsForAgent:
             return [(spec, None if spec.url == first.url else spec.name) for spec in specs]
 
         monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
+        # The dead holder opens an outage after the run commits (#2100) - not this test's subject.
+        monkeypatch.setattr(
+            mcp_connection_service, "spawn_after_commit", lambda db, coro, *, name: coro.close()
+        )
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
             "get_org_scoped_by_ids",

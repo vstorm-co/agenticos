@@ -1,5 +1,5 @@
 ---
-source_sha: "57668d8e8424"
+source_sha: "3b234d824fff"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -528,6 +528,17 @@ comprobarlo ahí.
 Una cuenta OAuth cuyo inicio de sesión no se pudo renovar se muestra como
 pendiente de autorización y no como inalcanzable, con **Autorizar** para volver
 a iniciar sesión.
+
+Cada quince minutos el despliegue comprueba cada servidor de la organización, y
+cada run comprueba antes del turno los servidores a los que está vinculado su
+agent. Cuando un servidor deja de responder, los administradores y los
+propietarios de los agents vinculados a él reciben una notificación **MCP server
+not answering** por esa caída, por muchas comprobaciones o runs que la detecten,
+y **MCP server answering again** cuando vuelve. La siguiente caída vuelve a
+avisar. Ambas llegan en la aplicación y por correo, y cada persona puede
+desactivar cualquiera en **Settings → Notifications**. La conexión propia de un
+miembro no envía ninguna, y un inicio de sesión que hay que renovar no cuenta
+como caída.
 
 En la página MCP, cada cuenta de la organización nombra los agents vinculados a
 ella, y **What agents asked it** lista las últimas llamadas a sus herramientas:

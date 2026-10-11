@@ -4422,7 +4422,11 @@
       "prefResourceShared": "Mit Ihrer Gruppe geteilt",
       "prefResourceSharedTrigger": "Etwas - ein Agent, ein Skill, Wissen, eine App - wird mit einer Gruppe geteilt, in der Sie sind.",
       "prefBudgetWarning": "Abteilungsbudget bei 80 %",
-      "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert."
+      "prefBudgetWarningTrigger": "Eine Abteilung, die Sie leiten, hat 80 % ihres monatlichen Budgets verbraucht. Administratoren werden über jede Abteilung informiert.",
+      "prefMcpServerDown": "MCP-Server antwortet nicht",
+      "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
+      "prefMcpServerRecovered": "MCP-Server antwortet wieder",
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",

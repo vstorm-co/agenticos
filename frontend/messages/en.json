@@ -4540,7 +4540,11 @@
       "prefResourceShared": "Shared with your group",
       "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in.",
       "prefBudgetWarning": "Department budget at 80%",
-      "prefBudgetWarningTrigger": "A department you lead has used 80% of its monthly budget. Administrators hear about every department."
+      "prefBudgetWarningTrigger": "A department you lead has used 80% of its monthly budget. Administrators hear about every department.",
+      "prefMcpServerDown": "MCP server not answering",
+      "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
+      "prefMcpServerRecovered": "MCP server answering again",
+      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",

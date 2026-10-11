@@ -4310,7 +4310,11 @@
       "prefResourceShared": "Udostępnione Twojej grupie",
       "prefResourceSharedTrigger": "Coś - agent, skill, wiedza, aplikacja - zostaje udostępnione grupie, w której jesteś.",
       "prefBudgetWarning": "Budget działu na 80%",
-      "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale."
+      "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale.",
+      "prefMcpServerDown": "Serwer MCP nie odpowiada",
+      "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
+      "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",

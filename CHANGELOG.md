@@ -29,6 +29,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **An MCP account goes to an agent from where it lives.** Each usable
   organization account on a server offers **Add to an agent**, and connecting one
   with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **You hear when an MCP server stops answering.** The deployment checks each
+  organization server every fifteen minutes, and runs check the servers their
+  agent uses. The first check that finds one down tells the administrators and
+  the owners of agents bound to it, once per outage, and the first that finds it
+  back says so. Both are in-app and email notifications with their own switches
+  in **Settings → Notifications**. Migration `0119_mcp_server_alerts` (#2100).
 - **A capability's settings are named for a person, in your language.** Each of
   the 93 config fields has its own title - "Hide personal data in the question"
   rather than "Redact Pii In" - and the Builder shows the title and description

@@ -12,6 +12,8 @@ import {
   Mail,
   Megaphone,
   PieChart,
+  ServerCrash,
+  ServerCog,
   Share2,
   UserPlus,
   XCircle,
@@ -115,6 +117,18 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "budget_warning",
     words: "prefBudgetWarning",
     icon: CircleDollarSign,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "mcp_server_down",
+    words: "prefMcpServerDown",
+    icon: ServerCrash,
+    channels: ["in_app", "email"],
+  },
+  {
+    eventType: "mcp_server_recovered",
+    words: "prefMcpServerRecovered",
+    icon: ServerCog,
     channels: ["in_app", "email"],
   },
   {

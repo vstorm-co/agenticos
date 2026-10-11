@@ -1661,3 +1661,67 @@ class TestWhatTheColumnHoldsAndWhatAnEmailPrints:
 
         call = written.calls[0]
         assert call["render_context"]["sync_url"] == f"{FRONTEND}{call['context_url']}"
+
+
+class TestMcpServerOutages:
+    """A server's managers and the owners of agents bound to it hear once per outage (#2100)."""
+
+    @staticmethod
+    def _server() -> MagicMock:
+        server = MagicMock()
+        server.id = uuid.uuid4()
+        server.name = "linear"
+        return server
+
+    @pytest.mark.anyio
+    async def test_the_administrators_and_the_bound_agents_owners_are_told(self, written):
+        admin_id, owner_id, stranger_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        server, org_id = self._server(), uuid.uuid4()
+        bound = {server.id: [_agent(owner_user_id=owner_id), _agent(owner_user_id=None)]}
+        began = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+        member_check = _members(owner_id)
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin_id)),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=member_check),
+            patch(
+                f"{MODULE}.agent_repo.binding_mcp_connections", new=AsyncMock(return_value=bound)
+            ),
+        ):
+            await NotificationService(MagicMock()).mcp_server_down(
+                server, organization_id=org_id, since=began
+            )
+
+        (call,) = written.calls
+        assert call["event_type"] is NotificationEventType.MCP_SERVER_DOWN
+        assert set(call["recipients"]) == {admin_id, owner_id}
+        assert stranger_id not in call["recipients"]
+        # An owner is a member of this organization or nobody: a departed owner
+        # is filtered here, not trusted from the agent row.
+        assert member_check.call_args.kwargs["user_ids"] == [owner_id]
+        assert call["occurrence_id"] == f"{server.id}:{began.isoformat()}"
+        assert "linear stopped answering" in call["summary"]
+        assert call["context_url"] == f"/mcp-servers?org={org_id}"
+        assert call["use_savepoint"] is True
+
+    @pytest.mark.anyio
+    async def test_the_return_closes_the_same_outage(self, written):
+        """Keyed on the outage's start, so its end is said once and the next outage
+        - a start of its own - alerts again."""
+        server, org_id = self._server(), uuid.uuid4()
+        began = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+            patch(
+                f"{MODULE}.agent_repo.binding_mcp_connections",
+                new=AsyncMock(return_value={server.id: []}),
+            ),
+        ):
+            await NotificationService(MagicMock()).mcp_server_recovered(
+                server, organization_id=org_id, since=began
+            )
+
+        (call,) = written.calls
+        assert call["event_type"] is NotificationEventType.MCP_SERVER_RECOVERED
+        assert call["occurrence_id"] == f"{server.id}:{began.isoformat()}"
+        assert call["summary"] == "The MCP server linear is answering again."

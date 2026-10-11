@@ -29,6 +29,7 @@ spec names.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
@@ -64,6 +65,7 @@ from app.agents.spec import (
     PlatformMcpServerRef,
 )
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -101,6 +103,7 @@ from app.services import portal_catalog, portals
 from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
+from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_app, github_oauth, google_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
@@ -511,6 +514,105 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
     return counts
 
 
+async def _reach(url: str, headers: dict[str, str]) -> tuple[list[McpToolInfo], str | None]:
+    """The server's tools, or the sentence saying why it did not answer."""
+    try:
+        return await probe_mcp_server(url, headers), None
+    except Exception as exc:
+        return [], probe_error_message(exc)
+
+
+async def _record_check(
+    db: AsyncSession, connection: McpConnection, tools: list[McpToolInfo], error: str | None
+) -> McpConnection:
+    """Write one check's outcome where the console reads it."""
+    return await mcp_connection_repo.update(
+        db,
+        db_connection=connection,
+        update_data={
+            "last_status": "error" if error else "ok",
+            "last_error": error,
+            "last_checked_at": datetime.now(UTC),
+            # Only on a probe that answered. A failed one says nothing about
+            # what the server offers, and blanking the list would leave an
+            # agent author with nothing to choose from because the server
+            # was briefly unreachable.
+            **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
+        },
+    )
+
+
+async def record_reachability(
+    db: AsyncSession, connection: McpConnection, *, reachable: bool
+) -> None:
+    """Open or close an organization server's outage, and say so once each way (#2100).
+
+    Called by every check that reached the point of dialling the server - the
+    console's test, the scheduled check, a run's probe before its turn. Most
+    calls change nothing: the server is up and was, or down and was. The
+    repository decides who opened or closed it, so concurrent checks agree on
+    one notification. A member's own connection is nobody else's to be told
+    about and is left alone.
+    """
+    if connection.scope != "org" or connection.organization_id is None:
+        return
+    if reachable == (connection.unreachable_since is None):
+        return
+    notifications = NotificationService(db)
+    if reachable:
+        since = await mcp_connection_repo.close_outage(db, connection=connection)
+        if since is not None:
+            await notifications.mcp_server_recovered(
+                connection, organization_id=connection.organization_id, since=since
+            )
+        return
+    now = datetime.now(UTC)
+    if await mcp_connection_repo.open_outage(db, connection=connection, at=now):
+        await notifications.mcp_server_down(
+            connection, organization_id=connection.organization_id, since=now
+        )
+
+
+async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
+    """Dial every enabled organization server and record whether it answered (#2100).
+
+    The scheduled half of the outage notice. A run finds a dead server only
+    when somebody uses an agent bound to it; this finds it within one sweep
+    either way, so whoever manages it can hear before a person does. Servers
+    are dialled concurrently and written one at a time - the session is not
+    shared across tasks. A server whose credential is not usable is skipped:
+    renewing grants is the OAuth sweep's business, not an outage.
+    """
+    counts = {"answered": 0, "unreachable": 0, "skipped": 0}
+    targets: list[tuple[McpConnection, dict[str, str]]] = []
+    for connection in await mcp_connection_repo.list_org_servers_to_check(db):
+        headers = await _resolve_auth_headers(db, connection)
+        if headers is None:
+            counts["skipped"] += 1
+            continue
+        targets.append((connection, headers))
+    outcomes = await asyncio.gather(*(_reach(c.url, headers) for c, headers in targets))
+    for (connection, _), (tools, error) in zip(targets, outcomes, strict=True):
+        connection = await _record_check(db, connection, tools, error)
+        await record_reachability(db, connection, reachable=error is None)
+        counts["answered" if error is None else "unreachable"] += 1
+    return counts
+
+
+async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
+    """Record what a run's probes found, each server in its own short transaction.
+
+    Off the run's own transaction on purpose: an outage write locks the
+    server's row, and a run holding locks on several servers, in its own
+    binding order, could deadlock with another run holding them in another.
+    """
+    for connection_id, reachable in observed:
+        async with get_db_context() as db:
+            connection = await mcp_connection_repo.get_by_id(db, connection_id)
+            if connection is not None:
+                await record_reachability(db, connection, reachable=reachable)
+
+
 async def _resolve_auth_headers(
     db: AsyncSession, connection: McpConnection
 ) -> dict[str, str] | None:
@@ -726,30 +828,15 @@ class McpConnectionService:
         self, db_connection: McpConnection
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Talk to the server, record what happened, and report its tools."""
-        tools: list[McpToolInfo] = []
-        error: str | None = None
         headers = await _resolve_auth_headers(self.db, db_connection)
         if headers is None:
+            # A grant to renew, not a server that stopped answering: no outage
+            # is opened or closed by it.
             error = "This plugin needs to be authorized before it can connect."
-        else:
-            try:
-                tools = await probe_mcp_server(db_connection.url, headers)
-            except Exception as exc:
-                error = probe_error_message(exc)
-        db_connection = await mcp_connection_repo.update(
-            self.db,
-            db_connection=db_connection,
-            update_data={
-                "last_status": "error" if error else "ok",
-                "last_error": error,
-                "last_checked_at": datetime.now(UTC),
-                # Only on a probe that answered. A failed one says nothing about
-                # what the server offers, and blanking the list would leave an
-                # agent author with nothing to choose from because the server
-                # was briefly unreachable.
-                **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
-            },
-        )
+            return await _record_check(self.db, db_connection, [], error), [], error
+        tools, error = await _reach(db_connection.url, headers)
+        db_connection = await _record_check(self.db, db_connection, tools, error)
+        await record_reachability(self.db, db_connection, reachable=error is None)
         return db_connection, tools, error
 
     async def probe_sign_in(self, url: str) -> McpSignInProbeResult:
@@ -1984,6 +2071,8 @@ async def build_toolsets_for_agent(
     """
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
+    # Whether each organization server had an outage open when this run read it.
+    outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
@@ -2042,6 +2131,7 @@ async def build_toolsets_for_agent(
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
+        outage_open[connection.id] = connection.unreachable_since is not None
     # The same prefix arithmetic publish refuses a collision with, applied to the
     # servers that answered their probe: a duplicate reaching pydantic-ai aborts
     # the turn, so the loser is dropped - but reported on `unavailable`, not left
@@ -2050,9 +2140,20 @@ async def build_toolsets_for_agent(
     # not both lose the turn and be reported as the one attached; among those
     # reachable, the first in binding order keeps the prefix. One connection
     # bound twice is the same binding on both sides: dropped, nothing to report.
-    reachable = [
-        (spec, toolset) for spec, toolset in await probe_toolsets(specs) if toolset is not None
-    ]
+    probed = await probe_toolsets(specs)
+    reachable = [(spec, toolset) for spec, toolset in probed if toolset is not None]
+    # Only what looks like news is handed on: the row read above says whether an
+    # outage is open, and a server found as it was recorded needs no write.
+    changed: list[tuple[UUID, bool]] = []
+    for spec, toolset in probed:
+        connection_id = spec.connection_id
+        if connection_id is None or connection_id not in outage_open:
+            continue
+        answered = toolset is not None
+        if answered == outage_open[connection_id]:
+            changed.append((connection_id, answered))
+    if changed:
+        spawn_after_commit(db, _record_run_reachability(changed), name="mcp-reachability")
     dropped: set[int] = set()
     for prefix, held in prefix_collisions((spec.name, spec) for spec, _ in reachable).items():
         kept = held[0]

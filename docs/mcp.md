@@ -489,6 +489,15 @@ it said if it failed; whoever manages MCP servers can check it again there.
 An OAuth account whose sign-in could not be renewed is shown as needing
 authorization rather than as unreachable, with **Authorize** to sign in again.
 
+Every fifteen minutes the deployment checks each of the organization's servers,
+and each run checks the servers its agent is bound to before the turn. When a
+server stops answering, the administrators and the owners of agents bound to it
+get one **MCP server not answering** notification for that outage, however many
+checks or runs find it down, and **MCP server answering again** when it is back.
+The next outage alerts again. Both are in-app and email, and each person can
+turn either off under **Settings → Notifications**. A member's own connection
+sends neither, and a sign-in that needs renewing is not counted as an outage.
+
 On the MCP page, each of the organization's accounts names the agents bound to
 it, and **What agents asked it** lists the latest calls agents made to its
 tools: which tool, which agent, how it went and the run it was part of. What was

@@ -265,6 +265,14 @@ class McpConnection(Base, TimestampMixin):
     last_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the current outage began: set by the first check or run that found
+    # the server not answering, cleared by the first that found it answering
+    # again (#2100). Its own column rather than read off `last_status`, which
+    # also holds "needs authorization" - an outage is the server, not the grant -
+    # and the moment it is set is what makes one outage one notification.
+    unreachable_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     user: Mapped[User | None] = relationship("User", lazy="joined", foreign_keys=[user_id])
 
