@@ -2134,3 +2134,16 @@
     font-size: 16px;
   }
 }
+
+/* A card's padding: 16px on a phone, where a card of cards spent a third of the
+   width on padding, 24px from the small breakpoint up. A variable rather than
+   "p-4 sm:p-6" on the card, because a caller's own "p-0" merges away the base
+   class and leaves the "sm:" one behind. */
+:root {
+  --card-pad: 1rem;
+}
+@media (min-width: 40rem) {
+  :root {
+    --card-pad: 1.5rem;
+  }
+}
