@@ -428,6 +428,19 @@ to every run started after it, and publishing keeps them.
   and the files it stored that many days after it ends, and a succeeded run the day
   after when succeeded runs are not kept. Unset, runs are kept for good.
 
+**Limits** bound what its runs do at once and spend, above each step's own limits -
+an agent step's cost ceiling among them:
+
+- **Runs under way at once** - a real run started past it is refused with `429`
+  until one ends. A webhook's or GitHub's sender is told to retry, a schedule waits
+  for its next tick, a mailbox is read again, and a table event or a form answer
+  past it is refused. Test runs are neither counted nor held back.
+- **Most one run may spend** - the run's own budget, the tighter of it and the
+  version's: a run that reaches it stops before its next step, out of budget.
+- **Most its runs may spend a month** - counted over the calendar month in UTC,
+  test runs included. Once reached, no run starts - `402` - until the month turns
+  or the budget is raised. The runs page shows the month's spend against it.
+
 Over the API, `PUT /api/v1/workflows/{id}/settings` replaces them.
 
 ## Running a workflow { #running-a-workflow }
@@ -447,6 +460,14 @@ version, what started it, when, for how long and at what cost. **Start a run**
 starts one by hand: **Test the draft** runs the draft as it stands, and **Published
 version** runs the live one. Its **Input (JSON)** is what the workflow's **Input**
 step hands on as `payload`.
+
+Above the list, **How it ran** sums up the real runs of the last 7, 30 or 90 days:
+how many ran and how many failed, the share of those that ended that succeeded, the
+typical time and the time 95 in 100 finished within, and what they cost by day. The
+cost card also gives this month's spend, test runs included, against the workflow's
+monthly budget, in red once it is spent. **By step** lists where the time, the cost
+and the failures came from, costliest first. Over the API it is
+`GET /api/v1/workflows/{id}/stats?days=30`.
 
 A run opens on its duration, its cost and how many steps it took, then the error it
 ended with, if any. Beside them is the graph it executed, with each step marked by

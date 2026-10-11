@@ -64,6 +64,7 @@ from app.services.virtual_tables.presentation import readable
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
@@ -610,6 +611,9 @@ class TableTriggerConsumer:
                 )
         except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError):
             await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
+            return None
+        except WorkflowBudgetReachedError:
+            await record(AdmissionStatus.BLOCKED, AdmissionReason.BUDGET)
             return None
         await record(AdmissionStatus.QUEUED, None, run.id)
         return run.id, entry_node_run_id

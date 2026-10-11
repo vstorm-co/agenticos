@@ -13,6 +13,7 @@ import {
   updateWorkflow,
   getNodeCatalog,
   getWorkflow,
+  getWorkflowStats,
   getWorkflowVersion,
   listWorkflowVersions,
   listWorkflows,
@@ -84,6 +85,12 @@ describe("workflows-api", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/import", { name: "Leads" });
   });
 
+  it("reads a workflow's figures over a window", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ runs: 1 });
+    await getWorkflowStats("wf-1", 7);
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/stats", { params: { days: "7" } });
+  });
+
   it("gets one workflow with its draft graph", async () => {
     const detail = { id: "wf-1", draft_graph: GRAPH } as unknown as WorkflowDetail;
     vi.mocked(apiClient.get).mockResolvedValue(detail);
@@ -136,6 +143,9 @@ const SETTINGS = {
   error_workflow_id: null,
   run_retention_days: 30,
   keep_succeeded_runs: false,
+  max_concurrent_runs: null,
+  run_budget_usd: null,
+  monthly_budget_usd: null,
 };
 
 describe("managing a workflow", () => {

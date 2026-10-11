@@ -19,6 +19,7 @@ import type {
   WorkflowPublished,
   WorkflowRead,
   WorkflowSettings,
+  WorkflowStats,
   WorkflowUpdate,
   WorkflowVersionDetail,
   WorkflowVersionList,
@@ -26,6 +27,13 @@ import type {
 } from "@/lib/workflows/types";
 
 const ROOT = "/workflows";
+
+/** What the workflow's real runs did over the last `days` days. */
+export async function getWorkflowStats(workflowId: string, days: number): Promise<WorkflowStats> {
+  return apiClient.get<WorkflowStats>(`${ROOT}/${workflowId}/stats`, {
+    params: { days: String(days) },
+  });
+}
 
 /** Every registered node type, for the editor's palette. */
 export async function getNodeCatalog(): Promise<NodeCatalog> {

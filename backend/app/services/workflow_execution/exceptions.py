@@ -1,5 +1,6 @@
 """Domain exceptions for workflow execution."""
 
+from decimal import Decimal
 from uuid import UUID
 
 from app.core.exceptions import AppException
@@ -23,7 +24,8 @@ class WorkflowAdmissionQuotaError(AppException):
     work one organization, and one caller within it, may hold on the shared
     runner at once, so repeated starts below the rate limit cannot grow a
     backlog that starves other tenants (#1907). `scope` names which ceiling was
-    hit (`organization` or `principal`). Retried once running work drains, so it
+    hit (`organization` or `principal`), or `workflow` for the workflow's own
+    limit on runs under way at once. Retried once running work drains, so it
     is a 429 like the rate limit rather than a permanent refusal.
     """
 
@@ -36,13 +38,36 @@ class WorkflowAdmissionQuotaError(AppException):
 
     def __init__(self, *, scope: str, limit: int, outstanding: int, requested: int) -> None:
         super().__init__(
+            # The workflow's own limit is its editors' setting, and says so.
+            message=(
+                "This workflow already has as many runs under way as its settings allow. "
+                "Try again once one ends."
+                if scope == "workflow"
+                else None
+            ),
             details={
                 "scope": scope,
                 "limit": limit,
                 "outstanding": outstanding,
                 "requested": requested,
-            }
+            },
         )
+
+
+class WorkflowBudgetReachedError(AppException):
+    """The workflow's runs have spent its monthly budget, so no run starts (402).
+
+    Counted over the calendar month in UTC, test runs included. Not retried: the
+    refusal lifts when the month turns or the budget is raised, so a surface that
+    starts runs on its own skips the start rather than queueing it.
+    """
+
+    message = "This workflow's monthly budget is spent. Raise it, or wait for the month to turn."
+    code = "WORKFLOW_MONTHLY_BUDGET_REACHED"
+    status_code = 402
+
+    def __init__(self, *, budget: Decimal, spent: Decimal) -> None:
+        super().__init__(details={"budget_usd": str(budget), "spent_usd": str(spent)})
 
 
 class WorkflowArchivedError(AppException):

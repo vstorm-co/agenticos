@@ -56,6 +56,7 @@ from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_exposure import WorkflowExposureService
@@ -587,7 +588,11 @@ class ChannelMessageRouter:
             taken = await WorkflowExposureService(db).receive_channel_message(
                 bot, incoming, sender_user_id=identity.user_id
             )
-        except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError) as exc:
+        except (
+            WorkflowAdmissionQuotaError,
+            WorkflowBudgetReachedError,
+            WorkflowRunInputTooLargeError,
+        ) as exc:
             await self._discard_files(db, files)
             await self._send_reply(bot, incoming, exc.message)
             return True

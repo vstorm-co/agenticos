@@ -23,11 +23,13 @@ export interface PublicFormPage {
 }
 
 /** Why the form could not take the answers, as the page says it. */
-type Refusal = "invalid" | "busy" | "gone" | "failed";
+type Refusal = "invalid" | "busy" | "unavailable" | "gone" | "failed";
 
 function refusalOf(status: number): Refusal {
   if (status === 422) return "invalid";
   if (status === 429) return "busy";
+  // The workflow's monthly budget is spent: nothing the visitor can do about it.
+  if (status === 402) return "unavailable";
   if (status === 404) return "gone";
   return "failed";
 }

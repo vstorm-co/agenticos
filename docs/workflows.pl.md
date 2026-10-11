@@ -1,5 +1,5 @@
 ---
-source_sha: "d39b0ef5a65e"
+source_sha: "021ead0aebf0"
 ---
 
 # Workflows { #workflows }
@@ -433,6 +433,21 @@ rozpoczętego po niej, a publikacja je zachowuje.
   następnego dnia, gdy udanych się nie przechowuje. Bez ustawienia przebiegi zostają
   na zawsze.
 
+**Limits** ograniczają, co jego runy robią naraz i ile wydają, ponad własnymi
+limitami każdego kroku - w tym pułapem kosztu kroku agenta:
+
+- **Runs under way at once** - prawdziwy run uruchomiony ponad limit jest odrzucany
+  z `429`, dopóki któryś się nie skończy. Nadawca webhooka lub GitHub dostaje prośbę
+  o ponowienie, harmonogram czeka na kolejny takt, skrzynka jest czytana ponownie, a
+  zdarzenie tabeli lub odpowiedź z formularza ponad limit są odrzucane. Runy testowe
+  nie są ani liczone, ani wstrzymywane.
+- **Most one run may spend** - własny budżet runu, ciaśniejszy z niego i budżetu
+  wersji: run, który go osiągnie, zatrzymuje się przed kolejnym krokiem, poza budżetem.
+- **Most its runs may spend a month** - liczony w miesiącu kalendarzowym w UTC,
+  łącznie z runami testowymi. Po osiągnięciu żaden run nie startuje - `402` - dopóki
+  nie zmieni się miesiąc albo budżet nie zostanie podniesiony. Strona runów pokazuje
+  wydatki miesiąca na tle budżetu.
+
 Przez API zastępuje je `PUT /api/v1/workflows/{id}/settings`.
 
 ## Uruchamianie workflow { #running-a-workflow }
@@ -453,6 +468,14 @@ wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a
 uruchamia run ręcznie: **Test the draft** uruchamia draft w obecnym stanie, a
 **Published version** uruchamia żywą wersję. Jego **Input (JSON)** to to, co krok
 **Input** workflow przekazuje dalej jako `payload`.
+
+Nad listą **How it ran** podsumowuje prawdziwe runy z ostatnich 7, 30 lub 90 dni: ile
+się uruchomiło i ile zawiodło, jaki odsetek zakończonych się udał, typowy czas i czas,
+w jakim kończy się 95 na 100, oraz ile kosztowały w poszczególne dni. Karta kosztu
+podaje też wydatki z tego miesiąca, łącznie z runami testowymi, na tle miesięcznego
+budżetu workflow - na czerwono, gdy jest wyczerpany. **By step** pokazuje, skąd
+wziął się czas, koszt i błędy, od najdroższych. Przez API to
+`GET /api/v1/workflows/{id}/stats?days=30`.
 
 Run otwiera się na czasie trwania, koszcie i liczbie wykonanych kroków, a potem na
 błędzie, którym się zakończył, jeśli taki był. Obok jest graf, który wykonał, z każdym

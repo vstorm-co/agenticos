@@ -950,6 +950,9 @@ include = [
     "app/schemas/workflow_run.py",
     "app/services/workflow_execution/**",
     "app/api/routes/v1/workflow_runs.py",
+    # What a workflow's real runs did over a window, for its runs page.
+    "app/schemas/workflow_stats.py",
+    "app/services/workflow_stats.py",
     # The ways in to a workflow (#1792): its webhooks and schedules, the
     # workflow-run WebSocket and the chat's door through it, and the publish
     # that switches its trigger node on.
@@ -1410,6 +1413,9 @@ include = [
     "app/schemas/workflow_run.py",
     "app/services/workflow_execution/**",
     "app/api/routes/v1/workflow_runs.py",
+    # What a workflow's real runs did over a window, for its runs page.
+    "app/schemas/workflow_stats.py",
+    "app/services/workflow_stats.py",
     # The ways in to a workflow (#1792): its webhooks and schedules, the
     # workflow-run WebSocket and the chat's door through it, and the publish
     # that switches its trigger node on.

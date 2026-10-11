@@ -1,5 +1,5 @@
 ---
-source_sha: "d39b0ef5a65e"
+source_sha: "021ead0aebf0"
 ---
 
 # Workflows { #workflows }
@@ -481,6 +481,23 @@ gilt für jeden danach gestarteten Lauf, und das Veröffentlichen behält sie.
   Ende, und einen erfolgreichen Lauf am nächsten Tag, wenn erfolgreiche nicht behalten
   werden. Ohne Angabe bleiben Läufe dauerhaft.
 
+**Limits** begrenzen, was seine Läufe gleichzeitig tun und ausgeben, über den
+eigenen Grenzen jedes Schritts - darunter die Kostenobergrenze eines Agentenschritts:
+
+- **Runs under way at once** - ein echter Lauf, der darüber hinaus gestartet wird,
+  wird mit `429` abgelehnt, bis einer endet. Der Absender eines Webhooks oder GitHub
+  wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten
+  Takt, ein Postfach wird erneut gelesen, und ein Tabellenereignis oder eine
+  Formularantwort darüber hinaus wird abgelehnt. Testläufe werden weder gezählt noch
+  zurückgehalten.
+- **Most one run may spend** - das eigene Budget des Laufs, das engere aus ihm und dem
+  der Version: Ein Lauf, der es erreicht, hält vor seinem nächsten Schritt an,
+  außerhalb des Budgets.
+- **Most its runs may spend a month** - über den Kalendermonat in UTC gezählt,
+  Testläufe eingeschlossen. Ist es erreicht, startet kein Lauf - `402` -, bis der Monat
+  wechselt oder das Budget erhöht wird. Die Seite der Läufe zeigt die Ausgaben des
+  Monats im Vergleich dazu.
+
 Über die API ersetzt sie `PUT /api/v1/workflows/{id}/settings`.
 
 ## Einen Workflow ausführen { #running-a-workflow }
@@ -503,6 +520,14 @@ wie lange und zu welchen Kosten. **Start a run** startet einen von Hand: **Test 
 draft** führt den Draft in seinem jetzigen Stand aus, **Published version** die
 Live-Version. Sein **Input (JSON)** ist das, was der **Input**-Schritt des Workflows
 als `payload` weitergibt.
+
+Über der Liste fasst **How it ran** die echten Läufe der letzten 7, 30 oder 90 Tage
+zusammen: wie viele liefen und wie viele fehlschlugen, der Anteil der beendeten, der
+erfolgreich war, die typische Dauer und die, innerhalb derer 95 von 100 fertig wurden,
+und was sie je Tag kosteten. Die Kostenkarte nennt auch die Ausgaben dieses Monats,
+Testläufe eingeschlossen, im Vergleich zum Monatsbudget des Workflows - rot, sobald es
+aufgebraucht ist. **By step** zeigt, woher Zeit, Kosten und Fehler kamen, die teuersten
+zuerst. Über die API ist es `GET /api/v1/workflows/{id}/stats?days=30`.
 
 Ein Run öffnet mit seiner Dauer, seinen Kosten und der Zahl erledigter Schritte,
 dann mit dem Fehler, mit dem er endete, falls es einen gab. Daneben steht der Graph,

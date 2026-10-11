@@ -19,6 +19,8 @@ from app.schemas.workflow_exposure import WorkflowExposureRead
 from app.workflows.graph.model import WorkflowGraph
 
 MAX_RETENTION_DAYS = 3650
+MAX_CONCURRENT_RUNS = 1000
+MAX_BUDGET_USD = 999_999.0
 MAX_DEFAULT_DEADLINE_SECONDS = 30 * 24 * 3600
 
 
@@ -56,6 +58,27 @@ class WorkflowSettings(BaseSchema):
         default=True,
         description="Keep runs that succeeded; when false, they are removed the day "
         "after they end, and only the ones that did not are kept",
+    )
+    max_concurrent_runs: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_CONCURRENT_RUNS,
+        description="How many real runs may be under way at once; a start past it is "
+        "refused with 429 until one ends. No limit when unset",
+    )
+    run_budget_usd: float | None = Field(
+        default=None,
+        gt=0,
+        le=MAX_BUDGET_USD,
+        description="The most one run may spend, in US dollars - the tighter of it and "
+        "the version's own budget. No limit when unset",
+    )
+    monthly_budget_usd: float | None = Field(
+        default=None,
+        gt=0,
+        le=MAX_BUDGET_USD,
+        description="The most its runs may spend in a calendar month in UTC, test runs "
+        "included; past it no run starts, with 402. No limit when unset",
     )
 
     @field_validator("timezone")

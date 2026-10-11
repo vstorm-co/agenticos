@@ -71,6 +71,7 @@ from app.services.mcp_connection import McpConnectionService
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
+    WorkflowBudgetReachedError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowWebhookUnansweredError,
@@ -813,10 +814,12 @@ class WorkflowExposureService:
             )
         except WorkflowAdmissionQuotaError:
             return False
-        except WorkflowRunInputTooLargeError:
-            # Not a refusal a later poll would lift: the message stays too large.
+        except (WorkflowBudgetReachedError, WorkflowRunInputTooLargeError) as exc:
+            # Not a refusal a later poll would lift: the month's budget is spent, or
+            # the message stays too large. It is skipped rather than read for ever.
             logger.warning(
-                "workflow_gmail_message_too_large", extra={"exposure_id": str(exposure.id)}
+                "workflow_gmail_message_refused",
+                extra={"exposure_id": str(exposure.id), "reason": type(exc).__name__},
             )
             return True
         await workflow_exposure_repo.create_delivery(
@@ -1114,7 +1117,11 @@ class WorkflowExposureService:
                         triggered_by=WorkflowRunTrigger.SCHEDULE,
                         run_input={"fired_at": now.isoformat(), "input": exposure.run_input},
                     )
-            except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError) as exc:
+            except (
+                WorkflowAdmissionQuotaError,
+                WorkflowBudgetReachedError,
+                WorkflowRunInputTooLargeError,
+            ) as exc:
                 logger.warning(
                     "workflow_schedule_refused",
                     extra={"exposure_id": str(exposure.id), "reason": type(exc).__name__},

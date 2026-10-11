@@ -31,6 +31,7 @@ from app.schemas.workflow import StoredWorkflowSettings
 from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
 from app.workflows import _registry
@@ -130,5 +131,9 @@ async def start_error_workflow(
                 ),
                 submitted=False,
             )
-    except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError):
+    except (
+        WorkflowAdmissionQuotaError,
+        WorkflowBudgetReachedError,
+        WorkflowRunInputTooLargeError,
+    ):
         logger.warning("workflow_error_workflow_refused", extra={"run_id": str(run.id)})

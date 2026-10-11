@@ -324,6 +324,143 @@ async def lock_admission(
         )
 
 
+async def count_live_runs(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, mode: str
+) -> int:
+    """How many of one workflow's runs in `mode` are still under way."""
+    return int(
+        await db.scalar(
+            select(func.count()).where(
+                WorkflowRun.organization_id == organization_id,
+                WorkflowRun.workflow_id == workflow_id,
+                WorkflowRun.mode == mode,
+                WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+            )
+        )
+        or 0
+    )
+
+
+async def spent_since(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
+) -> Decimal:
+    """What one workflow's runs admitted since `since` have spent, every mode."""
+    return Decimal(
+        await db.scalar(
+            select(func.coalesce(func.sum(WorkflowRun.spent_cost), 0)).where(
+                WorkflowRun.organization_id == organization_id,
+                WorkflowRun.workflow_id == workflow_id,
+                WorkflowRun.created_at >= since,
+            )
+        )
+        or 0
+    )
+
+
+async def run_figures(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
+) -> dict[str, Any]:
+    """One workflow's real runs since `since`: how many ended each way, their spend,
+    and how long the ones that ended took at the median and the 95th percentile."""
+    real = (
+        WorkflowRun.organization_id == organization_id,
+        WorkflowRun.workflow_id == workflow_id,
+        WorkflowRun.mode == "real",
+        WorkflowRun.created_at >= since,
+    )
+    counts = {
+        row.status: (int(row.runs), Decimal(row.cost), bool(row.partial))
+        for row in (
+            await db.execute(
+                select(
+                    WorkflowRun.status,
+                    func.count().label("runs"),
+                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
+                    func.coalesce(func.bool_or(WorkflowRun.cost_is_partial), False).label(
+                        "partial"
+                    ),
+                )
+                .where(*real)
+                .group_by(WorkflowRun.status)
+            )
+        ).all()
+    }
+    took = func.extract("epoch", WorkflowRun.ended_at - WorkflowRun.started_at)
+    p50, p95 = (
+        await db.execute(
+            select(
+                func.percentile_cont(0.5).within_group(took),
+                func.percentile_cont(0.95).within_group(took),
+            ).where(*real, WorkflowRun.started_at.is_not(None), WorkflowRun.ended_at.is_not(None))
+        )
+    ).one()
+    return {
+        "counts": counts,
+        "p50": None if p50 is None else float(p50),
+        "p95": None if p95 is None else float(p95),
+    }
+
+
+async def runs_by_day(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
+) -> list[Any]:
+    """One workflow's real runs since `since`, counted by UTC day and status."""
+    day = func.date(func.timezone("UTC", WorkflowRun.created_at)).label("day")
+    return list(
+        (
+            await db.execute(
+                select(
+                    day,
+                    WorkflowRun.status,
+                    func.count().label("runs"),
+                    func.coalesce(func.sum(WorkflowRun.spent_cost), 0).label("cost"),
+                )
+                .where(
+                    WorkflowRun.organization_id == organization_id,
+                    WorkflowRun.workflow_id == workflow_id,
+                    WorkflowRun.mode == "real",
+                    WorkflowRun.created_at >= since,
+                )
+                .group_by(day, WorkflowRun.status)
+            )
+        ).all()
+    )
+
+
+async def step_figures(
+    db: AsyncSession, *, organization_id: UUID, workflow_id: UUID, since: datetime
+) -> list[Any]:
+    """Each step's node runs in one workflow's real runs since `since`: how many,
+    how many failed, what their attempts spent and how long one took on average."""
+    attempt_cost = (
+        select(func.coalesce(func.sum(NodeAttempt.cost), 0))
+        .where(NodeAttempt.node_run_id == NodeRun.id)
+        .scalar_subquery()
+    )
+    took = func.extract("epoch", NodeRun.ended_at - NodeRun.started_at)
+    return list(
+        (
+            await db.execute(
+                select(
+                    NodeRun.node_instance_id,
+                    func.count().label("runs"),
+                    func.count().filter(NodeRun.status == "failed").label("failed"),
+                    func.coalesce(func.sum(attempt_cost), 0).label("cost"),
+                    func.avg(took).label("avg_seconds"),
+                )
+                .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
+                .where(
+                    WorkflowRun.organization_id == organization_id,
+                    WorkflowRun.workflow_id == workflow_id,
+                    WorkflowRun.mode == "real",
+                    WorkflowRun.created_at >= since,
+                )
+                .group_by(NodeRun.node_instance_id)
+            )
+        ).all()
+    )
+
+
 async def sum_reserved_node_work(
     db: AsyncSession,
     *,

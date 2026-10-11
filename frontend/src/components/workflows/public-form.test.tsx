@@ -78,6 +78,7 @@ describe("PublicForm", () => {
   it.each([
     [422, "Some answers do not fit this form"],
     [429, "taking a lot of answers"],
+    [402, "not taking answers right now"],
     [404, "This form is closed."],
     [500, "could not be sent"],
   ])("says why the form refused a %s", async (status, words) => {

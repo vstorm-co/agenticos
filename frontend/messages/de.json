@@ -4495,7 +4495,8 @@
           "depth_limit": "Zu viele Trigger tief",
           "quota": "Zu viele Runs gleichzeitig",
           "permission_denied": "Das Mitglied, als das er läuft, darf ihn nicht mehr ausführen",
-          "unavailable": "Was mit dem Datensatz geschah, ließ sich nicht lesen"
+          "unavailable": "Was mit dem Datensatz geschah, ließ sich nicht lesen",
+          "budget": "Das Monatsbudget des Workflows ist aufgebraucht"
         },
         "resumed": "Auslöser fortgesetzt",
         "paused": "Auslöser pausiert",
@@ -4917,7 +4918,39 @@
       "triggerGithubLive": "Jede von GitHub signierte Zustellung für das Repository, die Ereignisse und die Aktionen, die der Trigger nennt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Alles andere, einschließlich des Pings von GitHub, wird übersprungen.",
       "githubRegistered": "Über das GitHub-Konto der Organisation in {repository} registriert und bei jeder Veröffentlichung neu registriert.",
       "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues.",
-      "triggerGmailLive": "Das Gmail-Postfach der Organisation wird jede Minute gelesen, und jede neue Nachricht, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird."
+      "triggerGmailLive": "Das Gmail-Postfach der Organisation wird jede Minute gelesen, und jede neue Nachricht, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird.",
+      "settingsLimits": "Grenzen",
+      "settingsLimitsHint": "Was seine Läufe gleichzeitig tun und ausgeben dürfen. Jeder Schritt behält seine eigenen Grenzen - darunter die Kostenobergrenze eines Agentenschritts -, und diese gelten darüber.",
+      "settingsConcurrent": "Gleichzeitig laufende Läufe",
+      "settingsConcurrentHint": "Ein Start darüber hinaus wird abgelehnt, bis einer endet: Der Absender eines Webhooks wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten Takt, und eine Tabelle oder ein Postfach versucht es erneut.",
+      "settingsRunBudget": "Höchstens, was ein Lauf ausgeben darf (USD)",
+      "settingsRunBudgetHint": "Ein Lauf, der es erreicht, hält vor seinem nächsten Schritt an, als außerhalb des Budgets.",
+      "settingsMonthlyBudget": "Höchstens, was seine Läufe im Monat ausgeben dürfen (USD)",
+      "settingsMonthlyBudgetHint": "Über den Kalendermonat in UTC gezählt, Testläufe eingeschlossen. Ist es erreicht, startet kein Lauf, bis der Monat wechselt oder das Budget erhöht wird.",
+      "settingsNoLimit": "Keine Grenze",
+      "stats": {
+        "heading": "Wie er lief",
+        "window": "Zeitraum",
+        "days": "{days, plural, one {# Tag} other {# Tage}}",
+        "runs": "Läufe",
+        "runsCaption": "{failed, plural, =0 {Keiner fehlgeschlagen} one {# fehlgeschlagen} other {# fehlgeschlagen}}",
+        "succeeded": "Erfolgreich",
+        "succeededCaption": "{succeeded} von {ended, plural, one {# beendeten Lauf} other {# beendeten Läufen}}",
+        "duration": "Typische Dauer",
+        "durationCaption": "95 von 100 innerhalb von {p95}",
+        "cost": "Kosten",
+        "monthSpent": "{amount} in diesem Monat, Testläufe eingeschlossen",
+        "monthOfBudget": "{amount} von {budget} in diesem Monat, Testläufe eingeschlossen",
+        "stepsHeading": "Nach Schritt",
+        "stepsHint": "Woher Zeit, Kosten und Fehler kamen, die teuersten zuerst.",
+        "stepsNone": "In diesem Zeitraum ist kein Schritt gelaufen.",
+        "step": "Schritt",
+        "stepRuns": "Läufe",
+        "stepFailed": "Fehlgeschlagen",
+        "stepTime": "Mittlere Dauer",
+        "stepCost": "Kosten",
+        "stepGone": "Ein Schritt, den der Workflow nicht mehr hat"
+      }
     }
   },
   "profile": {
@@ -6986,7 +7019,8 @@
       "invalid": "Einige Antworten passen nicht zu diesem Formular. Prüfen Sie sie und senden Sie erneut.",
       "busy": "Dieses Formular nimmt gerade viele Antworten an. Versuchen Sie es in einer Minute erneut.",
       "gone": "Dieses Formular ist geschlossen.",
-      "failed": "Ihre Antworten konnten nicht gesendet werden. Versuchen Sie es erneut."
+      "failed": "Ihre Antworten konnten nicht gesendet werden. Versuchen Sie es erneut.",
+      "unavailable": "Dieses Formular nimmt gerade keine Antworten an."
     }
   }
 }

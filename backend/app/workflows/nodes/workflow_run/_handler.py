@@ -31,6 +31,7 @@ from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
 )
@@ -209,7 +210,11 @@ async def _admit(
                 retryable=True,
             )
         )
-    except (WorkflowRunInputInvalidError, WorkflowRunInputTooLargeError) as refusal:
+    except (
+        WorkflowBudgetReachedError,
+        WorkflowRunInputInvalidError,
+        WorkflowRunInputTooLargeError,
+    ) as refusal:
         return _refused(refusal.code, refusal.message, **(refusal.details or {}))
 
 

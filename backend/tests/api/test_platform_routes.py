@@ -908,6 +908,9 @@ RESOURCE_AWARE_SERVICES = (
     # draft or publish it is its grants' answer, resolved inside the service.
     # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.
     deps.get_workflow_registry_service,
+    # A workflow's figures are read for whoever may view that workflow, resolved
+    # against its grants inside the service, exactly as the workflow itself is.
+    deps.get_workflow_stats_service,
     # Exporting a workflow reads it through the same registry, so the file is
     # `workflows:view` on that workflow, resolved against its grants (#1953).
     deps.get_workflow_portable_service,

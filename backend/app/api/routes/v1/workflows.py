@@ -13,7 +13,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, WorkflowPortableSvc, WorkflowRegistrySvc, require
+from app.api.deps import (
+    Auth,
+    WorkflowPortableSvc,
+    WorkflowRegistrySvc,
+    WorkflowStatsSvc,
+    require,
+)
 from app.core.permissions import Perm
 from app.schemas.workflow import (
     NodeCatalog,
@@ -32,6 +38,7 @@ from app.schemas.workflow import (
     WorkflowVersionRestore,
 )
 from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
+from app.schemas.workflow_stats import WorkflowStats
 
 router = APIRouter()
 
@@ -150,6 +157,19 @@ async def delete_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: 
     when runs of another workflow were started by its runs.
     """
     await service.delete(ctx, workflow_id)
+
+
+@router.get("/{workflow_id}/stats", response_model=WorkflowStats)
+async def get_workflow_stats(
+    workflow_id: UUID,
+    service: WorkflowStatsSvc,
+    ctx: Auth,
+    days: int = Query(30, ge=1, le=365, description="How many UTC days back, today included"),
+) -> Any:
+    """How the workflow's real runs went over the window - how many ended each way,
+    how long they took, what they cost by day and by step - and this month's spend,
+    test runs included, against its monthly budget."""
+    return await service.stats(ctx, workflow_id, days=days)
 
 
 @router.get("/{workflow_id}/versions", response_model=WorkflowVersionList)

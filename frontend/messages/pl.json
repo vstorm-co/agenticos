@@ -712,7 +712,8 @@
           "depth_limit": "Zbyt wiele wyzwalaczy w głąb",
           "quota": "Zbyt wiele uruchomień naraz",
           "permission_denied": "Członek, w którego imieniu działa, nie może go już uruchomić",
-          "unavailable": "Nie udało się odczytać, co stało się z rekordem"
+          "unavailable": "Nie udało się odczytać, co stało się z rekordem",
+          "budget": "Miesięczny budżet workflow jest wyczerpany"
         },
         "resumed": "Wyzwalacz wznowiony",
         "paused": "Wyzwalacz wstrzymany",
@@ -1134,7 +1135,39 @@
       "triggerGithubLive": "Każda dostawa podpisana przez GitHub dla repozytorium, zdarzeń i akcji wskazanych w wyzwalaczu uruchamia run jako członek, który go opublikował. Wszystko inne, łącznie z pingiem GitHuba, jest pomijane.",
       "githubRegistered": "Zarejestrowany w {repository} przez konto GitHub organizacji i rejestrowany ponownie przy każdej publikacji.",
       "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy.",
-      "triggerGmailLive": "Skrzynka Gmail organizacji jest czytana co minutę, a każda nowa wiadomość pasująca do wyzwalacza uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana."
+      "triggerGmailLive": "Skrzynka Gmail organizacji jest czytana co minutę, a każda nowa wiadomość pasująca do wyzwalacza uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana.",
+      "settingsLimits": "Limity",
+      "settingsLimitsHint": "Ile jego runów może działać naraz i ile mogą wydać. Każdy krok zachowuje własne limity - w tym pułap kosztu kroku agenta - a te obowiązują ponad nimi.",
+      "settingsConcurrent": "Runy działające naraz",
+      "settingsConcurrentHint": "Start ponad limit jest odrzucany, dopóki któryś się nie skończy: nadawca webhooka dostaje prośbę o ponowienie, harmonogram czeka na kolejny takt, a tabela lub skrzynka próbuje ponownie.",
+      "settingsRunBudget": "Najwięcej, ile może wydać jeden run (USD)",
+      "settingsRunBudgetHint": "Run, który go osiągnie, zatrzymuje się przed kolejnym krokiem jako poza budżetem.",
+      "settingsMonthlyBudget": "Najwięcej, ile jego runy mogą wydać w miesiącu (USD)",
+      "settingsMonthlyBudgetHint": "Liczone w miesiącu kalendarzowym w UTC, łącznie z runami testowymi. Po osiągnięciu żaden run nie startuje, dopóki nie zmieni się miesiąc albo budżet nie zostanie podniesiony.",
+      "settingsNoLimit": "Bez limitu",
+      "stats": {
+        "heading": "Jak działał",
+        "window": "Okres",
+        "days": "{days, plural, one {# dzień} few {# dni} many {# dni} other {# dni}}",
+        "runs": "Runy",
+        "runsCaption": "{failed, plural, =0 {Żaden nie zawiódł} one {# zawiódł} few {# zawiodły} many {# zawiodło} other {# zawiodło}}",
+        "succeeded": "Udane",
+        "succeededCaption": "{succeeded} z {ended, plural, one {# zakończonego runu} few {# zakończonych runów} many {# zakończonych runów} other {# zakończonych runów}}",
+        "duration": "Typowy czas",
+        "durationCaption": "95 na 100 w ciągu {p95}",
+        "cost": "Koszt",
+        "monthSpent": "{amount} w tym miesiącu, łącznie z runami testowymi",
+        "monthOfBudget": "{amount} z {budget} w tym miesiącu, łącznie z runami testowymi",
+        "stepsHeading": "Według kroków",
+        "stepsHint": "Skąd wziął się czas, koszt i błędy - od najdroższych.",
+        "stepsNone": "W tym okresie nie uruchomił się żaden krok.",
+        "step": "Krok",
+        "stepRuns": "Uruchomienia",
+        "stepFailed": "Błędy",
+        "stepTime": "Średni czas",
+        "stepCost": "Koszt",
+        "stepGone": "Krok, którego nie ma już w workflow"
+      }
     }
   },
   "rag": {
@@ -4756,7 +4789,8 @@
       "invalid": "Niektóre odpowiedzi nie pasują do formularza. Sprawdź je i wyślij ponownie.",
       "busy": "Formularz przyjmuje teraz dużo odpowiedzi. Spróbuj za minutę.",
       "gone": "Ten formularz jest zamknięty.",
-      "failed": "Nie udało się wysłać odpowiedzi. Spróbuj ponownie."
+      "failed": "Nie udało się wysłać odpowiedzi. Spróbuj ponownie.",
+      "unavailable": "Ten formularz nie przyjmuje teraz odpowiedzi."
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   formatBytes,
   formatDate,
   formatDateTime,
+  formatElapsed,
   formatRunDuration,
   getPasswordStrength,
   isAppAdmin,
@@ -210,6 +211,15 @@ describe("formatDateTime", () => {
 
   it("formats in the active locale, not en-US", () => {
     expect(formatDateTime("2026-07-31T12:34:00Z", "pl")).toMatch(/31 lip 2026/);
+  });
+});
+
+describe("formatElapsed", () => {
+  it("reads a span of milliseconds, and refuses one that is not a span", () => {
+    expect(formatElapsed(850)).toBe("850 ms");
+    expect(formatElapsed(75_000)).toBe("1 min 15 s");
+    expect(formatElapsed(-1)).toBe("-");
+    expect(formatElapsed(Number.NaN)).toBe("-");
   });
 });
 

@@ -3861,7 +3861,39 @@
       "triggerGithubLive": "Each delivery GitHub signs for the repository, events and actions the trigger names starts a run as the member who published it. Anything else, GitHub's ping included, is skipped.",
       "githubRegistered": "Registered on {repository} through the organization's GitHub account, and registered again on every publish.",
       "githubPasteIt": "Paste this address into the repository's Settings > Webhooks, with the content type application/json and the secret shown when it was published. New secret shows a new one.",
-      "triggerGmailLive": "The organization's Gmail mailbox is read every minute, and each new message that fits the trigger starts a run as the member who published it. A message is run once, however often it is read."
+      "triggerGmailLive": "The organization's Gmail mailbox is read every minute, and each new message that fits the trigger starts a run as the member who published it. A message is run once, however often it is read.",
+      "settingsLimits": "Limits",
+      "settingsLimitsHint": "What its runs may do at once and spend. Each step keeps its own limits - an agent step's cost ceiling among them - and these hold above them.",
+      "settingsConcurrent": "Runs under way at once",
+      "settingsConcurrentHint": "A start past it is refused until one ends: a webhook's sender is told to retry, a schedule waits for its next tick, and a table or a mailbox tries again.",
+      "settingsRunBudget": "Most one run may spend (USD)",
+      "settingsRunBudgetHint": "A run that reaches it stops before its next step, as out of budget.",
+      "settingsMonthlyBudget": "Most its runs may spend a month (USD)",
+      "settingsMonthlyBudgetHint": "Counted over the calendar month in UTC, test runs included. Once reached, no run starts until the month turns or the budget is raised.",
+      "settingsNoLimit": "No limit",
+      "stats": {
+        "heading": "How it ran",
+        "window": "Window",
+        "days": "{days, plural, other {# days}}",
+        "runs": "Runs",
+        "runsCaption": "{failed, plural, =0 {None failed} =1 {1 failed} other {# failed}}",
+        "succeeded": "Succeeded",
+        "succeededCaption": "{succeeded} of {ended, plural, =1 {1 run that ended} other {# runs that ended}}",
+        "duration": "Typical time",
+        "durationCaption": "95 in 100 within {p95}",
+        "cost": "Cost",
+        "monthSpent": "{amount} this month, test runs included",
+        "monthOfBudget": "{amount} of {budget} this month, test runs included",
+        "stepsHeading": "By step",
+        "stepsHint": "Where the time, the cost and the failures came from, costliest first.",
+        "stepsNone": "No step has run in this window.",
+        "step": "Step",
+        "stepRuns": "Runs",
+        "stepFailed": "Failed",
+        "stepTime": "Average time",
+        "stepCost": "Cost",
+        "stepGone": "A step no longer in the workflow"
+      }
     },
     "retention": {
       "title": "Data retention",
@@ -5037,7 +5069,8 @@
           "depth_limit": "Too many triggers deep",
           "quota": "Too many runs at once",
           "permission_denied": "The member it runs as can no longer run it",
-          "unavailable": "What happened to the record could not be read"
+          "unavailable": "What happened to the record could not be read",
+          "budget": "The workflow's monthly budget is spent"
         },
         "resumed": "Trigger resumed",
         "paused": "Trigger paused",
@@ -7128,7 +7161,8 @@
       "invalid": "Some answers do not fit this form. Check them and send again.",
       "busy": "This form is taking a lot of answers right now. Try again in a minute.",
       "gone": "This form is closed.",
-      "failed": "Your answers could not be sent. Try again."
+      "failed": "Your answers could not be sent. Try again.",
+      "unavailable": "This form is not taking answers right now."
     }
   }
 }

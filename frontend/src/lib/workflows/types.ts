@@ -350,6 +350,12 @@ export interface WorkflowSettings {
   /** Days a run is kept after it ends; kept for good when null. */
   run_retention_days: number | null;
   keep_succeeded_runs: boolean;
+  /** How many of its runs may be under way at once; no limit when null. */
+  max_concurrent_runs: number | null;
+  /** The most one run may spend, in US dollars; no limit when null. */
+  run_budget_usd: number | null;
+  /** The most its runs may spend in a calendar month, UTC; no limit when null. */
+  monthly_budget_usd: number | null;
 }
 
 /** The settings as the workflow holds them. Mirrors `StoredWorkflowSettings`. */
@@ -715,4 +721,49 @@ export interface WorkflowUpdate {
   name?: string;
   description?: string | null;
   tags?: string[];
+}
+
+/** One day of a workflow's real runs. Mirrors `WorkflowStatsDay`. */
+export interface WorkflowStatsDay {
+  /** The day, YYYY-MM-DD, in UTC. */
+  day: string;
+  succeeded: number;
+  failed: number;
+  /** Every other run that day: cancelled, out of budget, or still under way. */
+  other: number;
+  cost_usd: number;
+}
+
+/** One step's share of a workflow's real runs. Mirrors `WorkflowStatsStep`. */
+export interface WorkflowStatsStep {
+  node_instance_id: Uuid;
+  /** The step's name in the live version, or its type's when it has none. */
+  label: string | null;
+  definition_id: string | null;
+  runs: number;
+  failed: number;
+  cost_usd: number;
+  avg_seconds: number | null;
+}
+
+/** What a workflow's real runs did over a window. Mirrors `WorkflowStats`. */
+export interface WorkflowStats {
+  days: number;
+  since: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  /** The runs that ended, whichever way. */
+  ended: number;
+  /** Succeeded out of the runs that ended; null when none ended. */
+  success_rate: number | null;
+  duration_p50_seconds: number | null;
+  duration_p95_seconds: number | null;
+  cost_usd: number;
+  cost_is_partial: boolean;
+  /** Every run's spend this calendar month in UTC, test runs included - what the budget counts. */
+  month_cost_usd: number;
+  monthly_budget_usd: number | null;
+  by_day: WorkflowStatsDay[];
+  steps: WorkflowStatsStep[];
 }

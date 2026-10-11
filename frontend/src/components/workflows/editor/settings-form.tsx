@@ -49,11 +49,23 @@ function wholeOrNull(text: string): number | null {
   return Number.isNaN(value) ? null : value;
 }
 
+/** An amount of money from a field, or null when it is empty. */
+function amountOrNull(text: string): number | null {
+  const value = Number.parseFloat(text);
+  return Number.isNaN(value) ? null : value;
+}
+
+/** A setting as its field shows it: empty for none. */
+function shown(value: number | null): string {
+  return value === null ? "" : String(value);
+}
+
 /**
  * A workflow's settings: what it is run with rather than what it does, so they
  * are the workflow's and every later run takes them - the timezone its schedule
  * keeps, the deadline a run gets when nothing names one, the workflow started
- * when a run fails, and how long its runs are kept. **Save** writes them all.
+ * when a run fails, how long its runs are kept, and what it may run and spend
+ * at once and in a month. **Save** writes them all.
  */
 export function WorkflowSettingsForm({
   workflow,
@@ -79,6 +91,9 @@ export function WorkflowSettingsForm({
     saved.run_retention_days === null ? "" : String(saved.run_retention_days),
   );
   const [keepSucceeded, setKeepSucceeded] = useState(saved.keep_succeeded_runs);
+  const [concurrent, setConcurrent] = useState(shown(saved.max_concurrent_runs));
+  const [runBudget, setRunBudget] = useState(shown(saved.run_budget_usd));
+  const [monthlyBudget, setMonthlyBudget] = useState(shown(saved.monthly_budget_usd));
   const handlers = workflows.filter(
     (candidate) =>
       candidate.id !== workflow.id && candidate.live_trigger === WORKFLOW_FAILED_TRIGGER,
@@ -94,6 +109,9 @@ export function WorkflowSettingsForm({
       error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
       run_retention_days: wholeOrNull(retention),
       keep_succeeded_runs: keepSucceeded,
+      max_concurrent_runs: wholeOrNull(concurrent),
+      run_budget_usd: amountOrNull(runBudget),
+      monthly_budget_usd: amountOrNull(monthlyBudget),
     });
 
   return (
@@ -191,6 +209,59 @@ export function WorkflowSettingsForm({
         </div>
         <p className="text-muted-foreground text-xs">{t("settingsRetentionHint")}</p>
       </div>
+
+      <section className="space-y-4 border-t pt-6">
+        <div className="space-y-1">
+          <h3 className="text-sm font-medium">{t("settingsLimits")}</h3>
+          <p className="text-muted-foreground text-xs">{t("settingsLimitsHint")}</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="workflow-concurrent">{t("settingsConcurrent")}</Label>
+          <Input
+            id="workflow-concurrent"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            placeholder={t("settingsNoLimit")}
+            value={concurrent}
+            disabled={disabled}
+            onChange={(event) => setConcurrent(event.target.value)}
+          />
+          <p className="text-muted-foreground text-xs">{t("settingsConcurrentHint")}</p>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="workflow-run-budget">{t("settingsRunBudget")}</Label>
+            <Input
+              id="workflow-run-budget"
+              type="number"
+              min={0.01}
+              step="any"
+              inputMode="decimal"
+              placeholder={t("settingsNoLimit")}
+              value={runBudget}
+              disabled={disabled}
+              onChange={(event) => setRunBudget(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">{t("settingsRunBudgetHint")}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="workflow-monthly-budget">{t("settingsMonthlyBudget")}</Label>
+            <Input
+              id="workflow-monthly-budget"
+              type="number"
+              min={0.01}
+              step="any"
+              inputMode="decimal"
+              placeholder={t("settingsNoLimit")}
+              value={monthlyBudget}
+              disabled={disabled}
+              onChange={(event) => setMonthlyBudget(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">{t("settingsMonthlyBudgetHint")}</p>
+          </div>
+        </div>
+      </section>
 
       {!disabled && (
         <Button onClick={save} disabled={saving || now === null}>

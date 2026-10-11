@@ -15,6 +15,7 @@ import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -70,7 +71,10 @@ from app.services.virtual_tables.triggers import (
     TableTriggerConsumer,
     TableTriggerService,
 )
-from app.services.workflow_execution.exceptions import WorkflowRunInputTooLargeError
+from app.services.workflow_execution.exceptions import (
+    WorkflowBudgetReachedError,
+    WorkflowRunInputTooLargeError,
+)
 from app.services.workflow_registry import WorkflowRegistryService
 from app.workflows.contracts.io import Binding, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
@@ -615,6 +619,20 @@ async def test_an_input_the_run_refuses_is_blocked_as_a_quota(world: _World):
     assert _statuses(await world.admissions(trigger_id)) == [("blocked", "quota")]
     async with world.factory() as db:
         assert (await db.execute(select(WorkflowRun))).first() is None
+
+
+@pytest.mark.security
+async def test_a_spent_monthly_budget_is_blocked_as_a_budget(world: _World):
+    trigger_id = await world.trigger()
+    await world.add({"Email": "a@x"})
+
+    with patch(
+        "app.services.workflow_execution.facade._checked_input",
+        side_effect=WorkflowBudgetReachedError(budget=Decimal(1), spent=Decimal(1)),
+    ):
+        assert await world.consume() == []
+
+    assert _statuses(await world.admissions(trigger_id)) == [("blocked", "budget")]
 
 
 async def test_a_publish_is_refused_for_a_table_or_filter_that_does_not_fit(world: _World):

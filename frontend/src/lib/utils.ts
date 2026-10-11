@@ -126,7 +126,11 @@ export function formatDateTime(date: Date | string, locale: string): string {
  */
 export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
   if (!startedAt || !endedAt) return "-";
-  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  return formatElapsed(new Date(endedAt).getTime() - new Date(startedAt).getTime());
+}
+
+/** A span of milliseconds, human-readable, or "-" for one that is not a span. */
+export function formatElapsed(ms: number): string {
   if (Number.isNaN(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60_000)

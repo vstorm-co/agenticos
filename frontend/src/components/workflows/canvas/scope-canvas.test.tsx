@@ -111,6 +111,9 @@ function workflow(): WorkflowDetail {
       error_workflow_id: null,
       run_retention_days: null,
       keep_succeeded_runs: true,
+      max_concurrent_runs: null,
+      run_budget_usd: null,
+      monthly_budget_usd: null,
       error_workflow_run_as: null,
     },
   };

@@ -56,6 +56,7 @@ class AdmissionReason(enum.StrEnum):
     CYCLE = "cycle"
     DEPTH_LIMIT = "depth_limit"
     QUOTA = "quota"
+    BUDGET = "budget"
     PERMISSION_DENIED = "permission_denied"
     UNAVAILABLE = "unavailable"
 

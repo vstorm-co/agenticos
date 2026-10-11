@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Limits and figures for a workflow's runs.** A workflow's settings take how
+  many real runs may be under way at once (a start past it is refused with
+  `429`), the most one run may spend (the tighter of it and the version's
+  budget) and the most its runs may spend a calendar month, test runs included
+  (past it no run starts, with `402`). Its runs page leads with **How it ran**:
+  runs, success rate, typical and 95th-percentile time and cost over 7, 30 or
+  90 days, this month's spend against the budget, and cost and failures by
+  step - `GET /api/v1/workflows/{id}/stats`.
+
 - **Workflows started from an email.** A **Gmail** trigger starts a run for
   each new message in the organization's connected Gmail mailbox that fits its
   subject, sender and label filters, read by the poll that already fires

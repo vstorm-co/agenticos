@@ -25,6 +25,9 @@ function workflow(settings: Partial<WorkflowDetail["settings"]> = {}): WorkflowD
       error_workflow_id: null,
       run_retention_days: null,
       keep_succeeded_runs: true,
+      max_concurrent_runs: null,
+      run_budget_usd: null,
+      monthly_budget_usd: null,
       error_workflow_run_as: null,
       ...settings,
     },
@@ -48,6 +51,13 @@ describe("WorkflowSettingsForm", () => {
       target: { value: "10" },
     });
     fireEvent.change(screen.getByLabelText("Keep runs for (days)"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Runs under way at once"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Most one run may spend (USD)"), {
+      target: { value: "0.5" },
+    });
+    fireEvent.change(screen.getByLabelText("Most its runs may spend a month (USD)"), {
+      target: { value: "25" },
+    });
     await userEvent.click(screen.getByRole("switch", { name: "Keep runs that succeeded" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Error workflow" }));
     expect(screen.queryByRole("option", { name: "Page on-call" })).toBeNull();
@@ -60,6 +70,9 @@ describe("WorkflowSettingsForm", () => {
       error_workflow_id: "h1",
       run_retention_days: 30,
       keep_succeeded_runs: false,
+      max_concurrent_runs: 3,
+      run_budget_usd: 0.5,
+      monthly_budget_usd: 25,
     });
   });
 
@@ -71,6 +84,9 @@ describe("WorkflowSettingsForm", () => {
           default_deadline_seconds: 300,
           run_retention_days: 7,
           error_workflow_id: "gone",
+          max_concurrent_runs: 2,
+          run_budget_usd: 1,
+          monthly_budget_usd: 40,
         })}
         disabled={false}
         saving={false}
@@ -87,6 +103,14 @@ describe("WorkflowSettingsForm", () => {
       target: { value: "" },
     });
     fireEvent.change(screen.getByLabelText("Keep runs for (days)"), { target: { value: "" } });
+    expect(screen.getByLabelText("Most its runs may spend a month (USD)")).toHaveValue(40);
+    for (const label of [
+      "Runs under way at once",
+      "Most one run may spend (USD)",
+      "Most its runs may spend a month (USD)",
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value: "" } });
+    }
     await userEvent.click(screen.getByRole("combobox", { name: "Error workflow" }));
     await userEvent.click(screen.getByRole("option", { name: "None" }));
     await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
@@ -97,6 +121,9 @@ describe("WorkflowSettingsForm", () => {
       error_workflow_id: null,
       run_retention_days: null,
       keep_succeeded_runs: true,
+      max_concurrent_runs: null,
+      run_budget_usd: null,
+      monthly_budget_usd: null,
     });
   });
 

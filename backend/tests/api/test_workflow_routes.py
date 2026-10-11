@@ -15,6 +15,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -27,6 +28,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.main import app
 from app.schemas.workflow import WorkflowDetail
+from app.schemas.workflow_stats import WorkflowStats
 from app.services.workflow_registry import WorkflowRegistryService
 from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -621,3 +623,32 @@ async def test_the_settings_are_handed_to_the_service_whole(stubbed):
     assert (unknown.status_code, nowhere.status_code) == (422, 422)
     settings = service.update_settings.await_args.args[2]
     assert (settings.timezone, settings.run_retention_days) == ("Europe/Warsaw", 30)
+
+
+async def test_the_figures_route_reads_the_window_asked_and_refuses_one_out_of_range(
+    owner_client: OpenClient,
+):
+    workflow_id = uuid.uuid4()
+    figures = AsyncMock(
+        return_value=WorkflowStats(
+            days=7,
+            since=datetime(2026, 10, 5, tzinfo=UTC),
+            runs=0,
+            succeeded=0,
+            failed=0,
+            ended=0,
+            cost_usd=0.0,
+            cost_is_partial=False,
+            month_cost_usd=0.0,
+            by_day=[],
+            steps=[],
+        )
+    )
+    with patch("app.services.workflow_stats.WorkflowStatsService.stats", new=figures):
+        async with owner_client() as http:
+            answered = await http.get(_url(f"/{workflow_id}/stats"), params={"days": 7})
+            refused = await http.get(_url(f"/{workflow_id}/stats"), params={"days": 0})
+
+    assert answered.status_code == 200 and answered.json()["days"] == 7
+    assert figures.await_args.kwargs == {"days": 7}
+    assert refused.status_code == 422

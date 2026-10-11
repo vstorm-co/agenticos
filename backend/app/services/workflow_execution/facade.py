@@ -54,7 +54,7 @@ from app.schemas.workflow_run import (
     WorkflowStepTest,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
-from app.services.workflow_execution import admission, delivery, dispatcher, events
+from app.services.workflow_execution import admission, delivery, dispatcher, events, limits
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowGraphUnresolvableError,
@@ -409,6 +409,15 @@ class WorkflowExecutionService:
 
         now = datetime.now(UTC)
         settings = StoredWorkflowSettings.model_validate(workflow.settings)
+        await limits.enforce_workflow_limits(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow.id,
+            settings=settings,
+            mode=mode,
+            now=now,
+        )
+        budget_limit = limits.run_budget(budget_limit, settings)
         if deadline_seconds is None:
             # Nothing that started the run named a deadline: the workflow's own.
             deadline_seconds = settings.default_deadline_seconds

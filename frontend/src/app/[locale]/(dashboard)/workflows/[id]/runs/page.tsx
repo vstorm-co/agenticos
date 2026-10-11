@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui";
 import { RunHistory } from "@/components/workflows/runs/run-history";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
+import { WorkflowStats } from "@/components/workflows/runs/workflow-stats";
 import { usePermissions, useWorkflow, useWorkflowRuns, useWorkflowVersion } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { declaredFields, sampleRunInput, startsByHand } from "@/lib/workflows/triggers";
@@ -19,8 +20,8 @@ interface PageProps {
 }
 
 /**
- * A workflow's runs, newest first and filtered on the server, and starting one
- * by hand.
+ * A workflow's runs: what they did over a window, the runs themselves newest
+ * first and filtered on the server, and starting one by hand.
  *
  * The list polls while any run on it is still moving, so a run started here
  * walks through its statuses without a reload. A row opens the run.
@@ -66,6 +67,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           ) : undefined
         }
       />
+      <WorkflowStats workflowId={id} />
       <RunHistory workflowId={id} />
       {startOpen && (
         <StartRunDialog
