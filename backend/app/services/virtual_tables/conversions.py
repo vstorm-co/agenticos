@@ -21,11 +21,29 @@ _TEXTS: frozenset[ColumnTypeName] = frozenset({"text", "long_text"})
 
 CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
     "text": frozenset(
-        {"long_text", "number", "integer", "boolean", "date", "datetime", "single_select"}
+        {
+            "long_text",
+            "email",
+            "url",
+            "phone",
+            "number",
+            "integer",
+            "rating",
+            "boolean",
+            "date",
+            "datetime",
+            "single_select",
+        }
     ),
-    "long_text": frozenset({"text", "number", "integer", "boolean", "date", "datetime"}),
-    "number": frozenset({"text", "long_text", "integer"}),
-    "integer": frozenset({"text", "long_text", "number"}),
+    "long_text": frozenset(
+        {"text", "email", "url", "phone", "number", "integer", "boolean", "date", "datetime"}
+    ),
+    "email": frozenset({"text", "long_text"}),
+    "url": frozenset({"text", "long_text"}),
+    "phone": frozenset({"text", "long_text"}),
+    "number": frozenset({"text", "long_text", "integer", "rating"}),
+    "integer": frozenset({"text", "long_text", "number", "rating"}),
+    "rating": frozenset({"text", "long_text", "number", "integer"}),
     "boolean": frozenset({"text", "long_text"}),
     "date": frozenset({"text", "long_text", "datetime"}),
     "datetime": frozenset({"text", "long_text"}),
@@ -69,7 +87,7 @@ def _as_text(value: object, column: ColumnDef) -> str:
 
 def _from_text(text: str, column: ColumnDef) -> object:
     """What text says as a value of `column`, for its validator to hold to its rules."""
-    if column.type == "integer":
+    if column.type in ("integer", "rating"):
         if not _INTEGER.fullmatch(text):
             raise CellProblem("Expected a whole number")
         return int(text)

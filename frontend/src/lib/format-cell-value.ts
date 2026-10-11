@@ -1,4 +1,4 @@
-import type { CellValue, ColumnDef } from "@/types/tables";
+import { MAX_RATING, type CellValue, type ColumnDef } from "@/types/tables";
 
 /**
  * A cell's value, formatted for read-only display in the grid, list and kanban
@@ -39,6 +39,10 @@ export function formatCellValue(
         .filter((label): label is string => !!label)
         .join(", ");
     }
+    case "rating":
+      return typeof value === "number"
+        ? "★".repeat(value) + "☆".repeat(Math.max(0, MAX_RATING - value))
+        : "";
     case "date":
     case "datetime": {
       if (typeof value !== "string") return "";

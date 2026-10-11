@@ -1,22 +1,46 @@
 import { parseCsv } from "@/lib/csv";
-import type { CellValue, ColumnDef, ColumnTypeName } from "@/types/tables";
+import { MAX_RATING, type CellValue, type ColumnDef, type ColumnTypeName } from "@/types/tables";
 
 /** A CSV cell read as a column's value, or the reason it cannot be one. */
 export type CsvCell = { value: CellValue } | { problem: CellProblem };
 
-export type CellProblem = "number" | "integer" | "boolean" | "date" | "datetime" | "option";
+export type CellProblem =
+  | "number"
+  | "integer"
+  | "rating"
+  | "boolean"
+  | "date"
+  | "datetime"
+  | "option"
+  | "email"
+  | "url"
+  | "phone";
 
 const TRUE = new Set(["true", "yes", "y", "1"]);
 const FALSE = new Set(["false", "no", "n", "0"]);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+// The service's own patterns (`virtual_tables/types.py`), so a file the import
+// accepts is one the service stores.
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const URL_PATTERN = /^https?:\/\/[^\s/?#]+[^\s]*$/;
+const PHONE = /^\+?[0-9 ().\-/]+$/;
+const MIN_PHONE_DIGITS = 5;
 /** The longest value a `text` column holds; `MAX_TEXT` in the service. */
 const MAX_TEXT = 1000;
 /**
  * The types a file's column is tried as, narrowest first: a column of `0` and
  * `1` reads as numbers, not yes/no, since a count is the likelier meaning.
  */
-const INFERRED: ColumnTypeName[] = ["integer", "number", "boolean", "date", "datetime"];
+const INFERRED: ColumnTypeName[] = [
+  "integer",
+  "number",
+  "boolean",
+  "date",
+  "datetime",
+  "email",
+  "url",
+];
 /** The column `inferType` reads a value into, as each candidate type in turn. */
 const INFER_COLUMN: ColumnDef = {
   id: "",
@@ -45,11 +69,23 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
     case "text":
     case "long_text":
       return { value: text };
+    case "email":
+      return EMAIL.test(trimmed) ? { value: trimmed } : { problem: "email" };
+    case "url":
+      return URL_PATTERN.test(trimmed) ? { value: trimmed } : { problem: "url" };
+    case "phone":
+      return PHONE.test(trimmed) && (trimmed.match(/\d/g) ?? []).length >= MIN_PHONE_DIGITS
+        ? { value: trimmed }
+        : { problem: "phone" };
     case "number":
-    case "integer": {
+    case "integer":
+    case "rating": {
       const number = Number(trimmed.replace(",", "."));
       if (!Number.isFinite(number)) return { problem: "number" };
-      if (column.type === "integer" && !Number.isInteger(number)) return { problem: "integer" };
+      if (column.type !== "number" && !Number.isInteger(number)) return { problem: "integer" };
+      if (column.type === "rating" && (number < 1 || number > MAX_RATING)) {
+        return { problem: "rating" };
+      }
       return { value: number };
     }
     case "boolean": {

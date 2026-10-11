@@ -1,5 +1,5 @@
 ---
-source_sha: "d078505e300c"
+source_sha: "1e5e30021f3e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -41,8 +41,12 @@ die Sie als `null` senden, bleibt leer.
 |---|---|---|
 | `text` | Text bis 1.000 Zeichen | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Text bis 100.000 Zeichen | wie `text` |
+| `email` | Eine Adresse mit einem `@` und einem Punkt in der Domain, bis 254 Zeichen | wie `text` |
+| `url` | Eine `http`- oder `https`-Adresse mit Host, bis 2.048 Zeichen | wie `text` |
+| `phone` | Ziffern, Leerzeichen und `+ ( ) - . /`, mindestens fünf Ziffern | wie `text` |
 | `number` | Eine endliche Zahl | `eq` `ne` `lt` `lte` `gt` `gte` `in` `is_null` |
 | `integer` | Eine ganze Zahl, höchstens 2^53 - 1 | wie `number` |
+| `rating` | Eine ganze Zahl von 1 bis 5 | wie `number` |
 | `boolean` | `true` oder `false` | `eq` `ne` `is_null` |
 | `date` | `YYYY-MM-DD` | wie `number` |
 | `datetime` | ISO 8601 mit Zeitzone, als UTC gespeichert | wie `number` |
@@ -56,7 +60,8 @@ das NUL-Zeichen wird abgelehnt, in Zellen ebenso wie in Namen, Bezeichnungen,
 Beschreibungen und external ids, weil PostgreSQL es nicht speichern kann.
 
 Vergleiche treffen nur Zellen, die einen Wert enthalten. Mit `is_null` finden Sie die
-leeren.
+leeren. `contains` und `starts_with` nehmen ein Stück eines Werts, sodass
+`@example.com` in einer `email`-Spalte die Adressen einer Domain findet.
 
 Die Tabellen-Tools eines Agenten und die Tabellenschritte eines Workflows benennen eine
 Auswahl stattdessen über das Label ihrer Option, ohne Beachtung der Groß- und
@@ -81,6 +86,9 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
   sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
   eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+- Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
+  sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
+  bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
 - Nichts wird gelöscht. Eine weggelassene Spalte oder Option wird **archiviert**: Ihre
   Werte bleiben les- und filterbar, und ein Schreibzugriff darauf wird mit
   `ARCHIVED_COLUMN` abgelehnt.

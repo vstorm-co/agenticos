@@ -6515,7 +6515,9 @@
       "false": "Falsch",
       "noneSelected": "Nichts ausgewählt",
       "noOptions": "Keine Optionen",
-      "value": "Wert"
+      "value": "Wert",
+      "rating": "Bewertung",
+      "rateStars": "{count, plural, one {# Stern} other {# Sterne}} von {max}"
     },
     "create": {
       "title": "Neue Tabelle",
@@ -6539,8 +6541,12 @@
       "types": {
         "text": "Text",
         "long_text": "Langer Text",
+        "email": "E-Mail",
+        "url": "Link",
+        "phone": "Telefon",
         "number": "Zahl",
         "integer": "Ganzzahl",
+        "rating": "Bewertung",
         "boolean": "Wahrheitswert",
         "date": "Datum",
         "datetime": "Datum & Uhrzeit",
@@ -6573,8 +6579,12 @@
       "types": {
         "text": "Text",
         "long_text": "Langer Text",
+        "email": "E-Mail",
+        "url": "Link",
+        "phone": "Telefon",
         "number": "Zahl",
         "integer": "Ganzzahl",
+        "rating": "Bewertung",
         "boolean": "Wahrheitswert",
         "date": "Datum",
         "datetime": "Datum & Uhrzeit",
@@ -6716,7 +6726,11 @@
         "boolean": "weder wahr noch falsch",
         "date": "kein Datum im Format JJJJ-MM-TT",
         "datetime": "kein Datum mit Uhrzeit",
-        "option": "keine der Optionen der Spalte"
+        "option": "keine der Optionen der Spalte",
+        "email": "keine E-Mail-Adresse",
+        "url": "kein Link, der mit http:// oder https:// beginnt",
+        "phone": "keine Telefonnummer",
+        "rating": "keine Bewertung von 1 bis 5"
       }
     },
     "dependents": {

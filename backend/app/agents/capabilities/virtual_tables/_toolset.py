@@ -423,8 +423,9 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         Args:
             name: Unique among the organization's live tables, at most 64 characters.
             columns: Each `{label, type}`, with `type` one of text, long_text,
-                number, integer, boolean, date, datetime, single_select,
-                multi_select, and `options: [{label}]` for a select.
+                email, url, phone, number, integer, rating (1 to 5), boolean,
+                date, datetime, single_select, multi_select, and
+                `options: [{label}]` for a select.
             description: What the table is for.
 
         Returns:

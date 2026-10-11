@@ -330,4 +330,69 @@ describe("RecordCellEditor", () => {
     );
     expect(screen.getByRole("textbox")).toBeDisabled();
   });
+
+  it.each([
+    ["email", "email"],
+    ["url", "url"],
+    ["phone", "tel"],
+  ] as const)(
+    "types a %s column into a %s field, trimmed, and empty as no value",
+    (type, input) => {
+      const onChange = vi.fn();
+      render(<RecordCellEditor column={column({ type })} value="old" onChange={onChange} />);
+      const field = screen.getByDisplayValue("old");
+      expect(field).toHaveAttribute("type", input);
+
+      fireEvent.change(field, { target: { value: "  new  " } });
+      fireEvent.blur(field);
+      fireEvent.change(field, { target: { value: "   " } });
+      fireEvent.blur(field);
+
+      expect(onChange.mock.calls).toEqual([["new"], [null]]);
+    },
+  );
+
+  it("shows a stored non-text value of a contact column as empty", () => {
+    render(<RecordCellEditor column={column({ type: "email" })} value={5} onChange={vi.fn()} />);
+    expect(screen.getByRole("textbox")).toHaveValue("");
+  });
+
+  it("rates with stars, and choosing the set star again clears an optional rating", async () => {
+    const onChange = vi.fn();
+    render(<RecordCellEditor column={column({ type: "rating" })} value={3} onChange={onChange} />);
+
+    expect(screen.getByRole("button", { name: "3 stars of 5" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "5 stars of 5" }));
+    await userEvent.click(screen.getByRole("button", { name: "3 stars of 5" }));
+
+    expect(onChange.mock.calls).toEqual([[5], [null]]);
+  });
+
+  it("keeps a required rating set when its star is chosen again", async () => {
+    const onChange = vi.fn();
+    render(
+      <RecordCellEditor
+        column={column({ type: "rating", nullable: false })}
+        value={2}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "2 stars of 5" }));
+
+    expect(onChange).toHaveBeenCalledWith(2);
+  });
+
+  it("shows an unrated column with no star pressed", () => {
+    render(
+      <RecordCellEditor column={column({ type: "rating" })} value={null} onChange={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "1 star of 5" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
 });

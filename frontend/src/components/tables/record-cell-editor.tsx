@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Input,
@@ -16,9 +17,13 @@ import { DateCell } from "./date-cell";
 import { DatetimeCell } from "./datetime-cell";
 import { MultiSelectCell } from "./multi-select-cell";
 import { OptionChip } from "./option-chip";
-import type { CellValue, ColumnDef } from "@/types/tables";
+import { cn } from "@/lib/utils";
+import { MAX_RATING, type CellValue, type ColumnDef } from "@/types/tables";
 
 const UNSET = "__unset__";
+
+/** The input each text-like column is typed into, for the keyboard a phone shows. */
+const TEXT_INPUT_TYPE = { text: "text", email: "email", url: "url", phone: "tel" } as const;
 
 /**
  * A local, re-seeded text buffer - the same render-time pattern
@@ -68,6 +73,79 @@ function TextCellInput({
       onBlur={buffer.onBlur}
       {...invalid}
     />
+  );
+}
+
+function TextLikeCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  type,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+  type: (typeof TEXT_INPUT_TYPE)[keyof typeof TEXT_INPUT_TYPE];
+} & Record<string, unknown>) {
+  // An address or a number left empty is no value, not an empty one the
+  // column's own check would refuse.
+  const buffer = useTextBuffer(value, (raw) => onChange(raw.trim() === "" ? null : raw.trim()));
+  return (
+    <Input
+      id={id}
+      type={type}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+/**
+ * A rating as stars: choosing one sets it, choosing the one already set clears
+ * it where the column may be empty.
+ */
+function RatingCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  nullable,
+}: {
+  id: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  disabled?: boolean;
+  nullable: boolean;
+}) {
+  const t = useTranslations("tables.cells");
+  return (
+    <div id={id} role="group" aria-label={t("rating")} className="flex items-center gap-0.5 py-1">
+      {Array.from({ length: MAX_RATING }, (_, index) => index + 1).map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          aria-label={t("rateStars", { count: star, max: MAX_RATING })}
+          aria-pressed={value === star}
+          className="text-muted-foreground rounded-sm p-0.5 hover:text-amber-500 focus-visible:outline-2"
+          onClick={() => onChange(value === star && nullable ? null : star)}
+        >
+          <Star
+            aria-hidden="true"
+            className={cn(
+              "size-4",
+              value !== null && star <= value && "fill-amber-400 text-amber-500",
+            )}
+          />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -174,6 +252,28 @@ export function RecordCellEditor({
           disabled={disabled}
           placeholder={placeholder}
           {...invalid}
+        />
+      )}
+
+      {(column.type === "email" || column.type === "url" || column.type === "phone") && (
+        <TextLikeCellInput
+          id={id}
+          type={TEXT_INPUT_TYPE[column.type]}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "rating" && (
+        <RatingCellInput
+          id={id}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          nullable={column.nullable}
         />
       )}
 

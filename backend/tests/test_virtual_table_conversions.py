@@ -39,6 +39,36 @@ def test_only_changes_a_value_survives_are_offered():
     assert not convertible("date", "integer")
     assert not convertible("boolean", "date")
     assert not convertible("number", "single_select")
+    assert convertible("text", "email") and convertible("email", "text")
+    assert convertible("integer", "rating") and convertible("rating", "number")
+    assert not convertible("email", "url")
+    assert not convertible("rating", "boolean")
+
+
+@pytest.mark.parametrize(
+    ("value", "old", "new", "expected"),
+    [
+        (" ada@example.com ", "text", "email", "ada@example.com"),
+        ("https://a.co", "long_text", "url", "https://a.co"),
+        ("+48 600 100 200", "text", "phone", "+48 600 100 200"),
+        ("4", "text", "rating", 4),
+        (3, "integer", "rating", 3),
+        (5, "rating", "number", 5),
+        (2, "rating", "text", "2"),
+        ("ada@example.com", "email", "text", "ada@example.com"),
+    ],
+)
+def test_contacts_and_ratings_convert_where_they_read_as_one(value, old, new, expected):
+    assert becomes(value, old, new) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "old", "new"),
+    [("not mail", "text", "email"), ("9", "text", "rating"), (7, "integer", "rating")],
+)
+def test_a_value_that_is_no_contact_or_rating_does_not_convert(value, old, new):
+    with pytest.raises(CellProblem):
+        becomes(value, old, new)
 
 
 @pytest.mark.parametrize(

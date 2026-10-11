@@ -7,8 +7,12 @@
 export const COLUMN_TYPES = [
   "text",
   "long_text",
+  "email",
+  "url",
+  "phone",
   "number",
   "integer",
+  "rating",
   "boolean",
   "date",
   "datetime",
@@ -18,16 +22,35 @@ export const COLUMN_TYPES = [
 
 export type ColumnTypeName = (typeof COLUMN_TYPES)[number];
 
+/** The highest rating a `rating` column holds; `MAX_RATING` in the service. */
+export const MAX_RATING = 5;
+
 /**
  * What a column of each type may become - every value is rewritten to it, and a
  * change some value does not survive is refused. Mirrors `CONVERSIONS` in
  * `backend/app/services/virtual_tables/conversions.py`.
  */
 export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[]> = {
-  text: ["long_text", "number", "integer", "boolean", "date", "datetime", "single_select"],
-  long_text: ["text", "number", "integer", "boolean", "date", "datetime"],
-  number: ["text", "long_text", "integer"],
-  integer: ["text", "long_text", "number"],
+  text: [
+    "long_text",
+    "email",
+    "url",
+    "phone",
+    "number",
+    "integer",
+    "rating",
+    "boolean",
+    "date",
+    "datetime",
+    "single_select",
+  ],
+  long_text: ["text", "email", "url", "phone", "number", "integer", "boolean", "date", "datetime"],
+  email: ["text", "long_text"],
+  url: ["text", "long_text"],
+  phone: ["text", "long_text"],
+  number: ["text", "long_text", "integer", "rating"],
+  integer: ["text", "long_text", "number", "rating"],
+  rating: ["text", "long_text", "number", "integer"],
   boolean: ["text", "long_text"],
   date: ["text", "long_text", "datetime"],
   datetime: ["text", "long_text"],

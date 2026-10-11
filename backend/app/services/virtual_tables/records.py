@@ -72,6 +72,7 @@ from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, ru
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
     OPTION_TYPES,
+    SEARCHED_TYPES,
     CellProblem,
     validate_cell,
     validate_filter,
@@ -269,7 +270,7 @@ def _search(columns: list[ColumnDef], term: str | None) -> SearchClause | None:
     )
     return SearchClause(
         term=term,
-        text_columns=tuple(column.id for column in live if column.type in ("text", "long_text")),
+        text_columns=tuple(column.id for column in live if column.type in SEARCHED_TYPES),
         options=tuple(entry for entry in options if entry[2]),
     )
 

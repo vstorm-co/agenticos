@@ -39,7 +39,9 @@ export function InlineCell({
   const change = (next: CellValue) => {
     if (cancelled.current) return;
     onCommit(next);
-    if (column.type === "single_select" || column.type === "boolean") onDone();
+    if (column.type === "single_select" || column.type === "boolean" || column.type === "rating") {
+      onDone();
+    }
   };
 
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {

@@ -35,8 +35,12 @@ you leave out; a cell you send as `null` stays empty.
 |---|---|---|
 | `text` | Text up to 1,000 characters | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Text up to 100,000 characters | the same as `text` |
+| `email` | An address with one `@` and a dot in its domain, up to 254 characters | the same as `text` |
+| `url` | An `http` or `https` address with a host, up to 2,048 characters | the same as `text` |
+| `phone` | Digits, spaces and `+ ( ) - . /`, at least five digits | the same as `text` |
 | `number` | A finite number | `eq` `ne` `lt` `lte` `gt` `gte` `in` `is_null` |
 | `integer` | A whole number, at most 2^53 - 1 | the same as `number` |
+| `rating` | A whole number from 1 to 5 | the same as `number` |
 | `boolean` | `true` or `false` | `eq` `ne` `is_null` |
 | `date` | `YYYY-MM-DD` | the same as `number` |
 | `datetime` | ISO 8601 with a time zone, stored as UTC | the same as `number` |
@@ -49,6 +53,8 @@ limit applies, and the NUL character is refused, in cells and equally in names, 
 descriptions and external ids, because PostgreSQL cannot store it.
 
 Comparisons match only cells that hold a value. Use `is_null` to find the empty ones.
+`contains` and `starts_with` take a piece of a value, so `@example.com` finds the
+addresses at a domain in an `email` column.
 
 An agent's table tools and a workflow's table steps name a choice by its option's
 label instead, matched case-insensitively: they write and filter by label, and read a
@@ -71,6 +77,9 @@ current columns:
   how many and one example - nothing is written. Something that uses the column
   refuses it as an archive does. A record's revision moves on, so an edit against
   its old value is a conflict.
+- Text becomes an `email`, `url`, `phone` or `rating` column when every value reads
+  as one, and a number becomes a rating when it is a whole number from 1 to 5. Each
+  of them becomes text again, and a rating a number.
 - Nothing is deleted. A column or option left out is **archived**: its values stay
   readable and filterable, and writing to it is refused with `ARCHIVED_COLUMN`.
 - Archived ones count toward the limits. A table holds at most 100 columns and a select

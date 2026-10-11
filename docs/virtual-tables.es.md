@@ -1,5 +1,5 @@
 ---
-source_sha: "d078505e300c"
+source_sha: "1e5e30021f3e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -40,8 +40,12 @@ columna rellena solo las celdas que omites; una celda que envías como `null` qu
 |---|---|---|
 | `text` | Texto de hasta 1.000 caracteres | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Texto de hasta 100.000 caracteres | igual que `text` |
+| `email` | Una dirección con una `@` y un punto en el dominio, de hasta 254 caracteres | igual que `text` |
+| `url` | Una dirección `http` o `https` con host, de hasta 2.048 caracteres | igual que `text` |
+| `phone` | Dígitos, espacios y `+ ( ) - . /`, al menos cinco dígitos | igual que `text` |
 | `number` | Un número finito | `eq` `ne` `lt` `lte` `gt` `gte` `in` `is_null` |
 | `integer` | Un número entero, como máximo 2^53 - 1 | igual que `number` |
+| `rating` | Un número entero de 1 a 5 | igual que `number` |
 | `boolean` | `true` o `false` | `eq` `ne` `is_null` |
 | `date` | `YYYY-MM-DD` | igual que `number` |
 | `datetime` | ISO 8601 con zona horaria, guardado como UTC | igual que `number` |
@@ -54,7 +58,8 @@ no se recortan. Solo se aplica un límite de longitud, y el carácter NUL se rec
 descripciones y external ids, porque PostgreSQL no puede almacenarlo.
 
 Las comparaciones solo coinciden con celdas que tienen valor. Usa `is_null` para
-encontrar las vacías.
+encontrar las vacías. `contains` y `starts_with` toman un trozo de un valor, así que
+`@example.com` encuentra en una columna `email` las direcciones de un dominio.
 
 Las herramientas de tablas de un agente y los pasos de tabla de un workflow nombran una
 elección por la etiqueta de su opción, sin distinguir mayúsculas: escriben y filtran por
@@ -78,6 +83,9 @@ las columnas actuales:
   cuántos y un ejemplo, y no se escribe nada. Lo que usa la columna lo rechaza como a un
   archivado. La revisión del registro avanza, así que una edición contra su valor
   antiguo es un conflicto.
+- El texto pasa a una columna `email`, `url`, `phone` o `rating` cuando cada valor se
+  lee como tal, y un número pasa a valoración cuando es un entero de 1 a 5. Cada una
+  vuelve a texto, y una valoración también a número.
 - No se borra nada. Una columna u opción omitida se **archiva**: sus valores siguen
   siendo legibles y filtrables, y escribir en ella se rechaza con `ARCHIVED_COLUMN`.
 - Las archivadas cuentan para los límites. Una tabla tiene como máximo 100 columnas y una

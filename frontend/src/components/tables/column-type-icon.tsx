@@ -4,9 +4,13 @@ import {
   CalendarClock,
   CircleDot,
   Hash,
+  Link2,
   ListChecks,
   type LucideIcon,
+  Mail,
+  Phone,
   SquareCheck,
+  Star,
   Type,
 } from "lucide-react";
 
@@ -16,8 +20,12 @@ import { cn } from "@/lib/utils";
 const ICON: Record<ColumnTypeName, LucideIcon> = {
   text: Type,
   long_text: AlignLeft,
+  email: Mail,
+  url: Link2,
+  phone: Phone,
   number: Hash,
   integer: Hash,
+  rating: Star,
   boolean: SquareCheck,
   date: Calendar,
   datetime: CalendarClock,

@@ -4285,7 +4285,9 @@
       "false": "Fałsz",
       "noneSelected": "Nic nie wybrano",
       "noOptions": "Brak opcji",
-      "value": "Wartość"
+      "value": "Wartość",
+      "rating": "Ocena",
+      "rateStars": "{count, plural, one {# gwiazdka} few {# gwiazdki} many {# gwiazdek} other {# gwiazdki}} z {max}"
     },
     "create": {
       "title": "Nowa tabela",
@@ -4309,8 +4311,12 @@
       "types": {
         "text": "Tekst",
         "long_text": "Długi tekst",
+        "email": "E-mail",
+        "url": "Link",
+        "phone": "Telefon",
         "number": "Liczba",
         "integer": "Liczba całkowita",
+        "rating": "Ocena",
         "boolean": "Wartość logiczna",
         "date": "Data",
         "datetime": "Data i godzina",
@@ -4343,8 +4349,12 @@
       "types": {
         "text": "Tekst",
         "long_text": "Długi tekst",
+        "email": "E-mail",
+        "url": "Link",
+        "phone": "Telefon",
         "number": "Liczba",
         "integer": "Liczba całkowita",
+        "rating": "Ocena",
         "boolean": "Wartość logiczna",
         "date": "Data",
         "datetime": "Data i godzina",
@@ -4486,7 +4496,11 @@
         "boolean": "to nie prawda ani fałsz",
         "date": "to nie data w formacie RRRR-MM-DD",
         "datetime": "to nie data i godzina",
-        "option": "to nie jedna z opcji kolumny"
+        "option": "to nie jedna z opcji kolumny",
+        "email": "to nie adres e-mail",
+        "url": "to nie link zaczynający się od http:// lub https://",
+        "phone": "to nie numer telefonu",
+        "rating": "to nie ocena od 1 do 5"
       }
     },
     "dependents": {

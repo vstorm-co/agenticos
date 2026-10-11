@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Email, link, phone and rating columns.** A table column can hold an email
+  address, an `http(s)` link, a phone number or a 1-5 rating, each checked as it
+  is written, typed into the field a phone keyboard expects and rated with
+  stars. Text converts to each when every value reads as one, and an import
+  reads and infers them. `contains` and `starts_with` take a piece of a value,
+  so `@example.com` finds the addresses at a domain.
+
 - **MCP tool and email steps in workflows.** **Call an MCP tool** calls one tool
   on one of the organization's MCP servers, picked with its service's mark and
   then from the tools the server listed; by default a person approves any tool

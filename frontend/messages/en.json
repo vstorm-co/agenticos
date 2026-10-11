@@ -6657,7 +6657,9 @@
       "false": "False",
       "noneSelected": "None selected",
       "noOptions": "No options",
-      "value": "Value"
+      "value": "Value",
+      "rating": "Rating",
+      "rateStars": "{count, plural, one {# star} other {# stars}} of {max}"
     },
     "create": {
       "title": "New table",
@@ -6681,8 +6683,12 @@
       "types": {
         "text": "Text",
         "long_text": "Long text",
+        "email": "Email",
+        "url": "Link",
+        "phone": "Phone",
         "number": "Number",
         "integer": "Integer",
+        "rating": "Rating",
         "boolean": "Boolean",
         "date": "Date",
         "datetime": "Date & time",
@@ -6715,8 +6721,12 @@
       "types": {
         "text": "Text",
         "long_text": "Long text",
+        "email": "Email",
+        "url": "Link",
+        "phone": "Phone",
         "number": "Number",
         "integer": "Integer",
+        "rating": "Rating",
         "boolean": "Boolean",
         "date": "Date",
         "datetime": "Date & time",
@@ -6858,7 +6868,11 @@
         "boolean": "not true or false",
         "date": "not a date written YYYY-MM-DD",
         "datetime": "not a date and time",
-        "option": "not one of the column's options"
+        "option": "not one of the column's options",
+        "email": "not an email address",
+        "url": "not a link starting with http:// or https://",
+        "phone": "not a phone number",
+        "rating": "not a rating from 1 to 5"
       }
     },
     "dependents": {

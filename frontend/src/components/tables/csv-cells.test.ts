@@ -58,6 +58,30 @@ describe("readCell", () => {
   });
 });
 
+describe("contacts and ratings", () => {
+  it("reads an address, a link and a phone number as the service would store them", () => {
+    expect(readCell(col("email"), " ada@example.com ")).toEqual({ value: "ada@example.com" });
+    expect(readCell(col("email"), "ada")).toEqual({ problem: "email" });
+    expect(readCell(col("url"), "https://a.co/x")).toEqual({ value: "https://a.co/x" });
+    expect(readCell(col("url"), "a.co")).toEqual({ problem: "url" });
+    expect(readCell(col("phone"), "+48 600 100 200")).toEqual({ value: "+48 600 100 200" });
+    expect(readCell(col("phone"), "+1 23")).toEqual({ problem: "phone" });
+    expect(readCell(col("phone"), "call me")).toEqual({ problem: "phone" });
+  });
+
+  it("reads a rating as a whole number from 1 to 5", () => {
+    expect(readCell(col("rating"), "4")).toEqual({ value: 4 });
+    expect(readCell(col("rating"), "4.5")).toEqual({ problem: "integer" });
+    expect(readCell(col("rating"), "6")).toEqual({ problem: "rating" });
+    expect(readCell(col("rating"), "0")).toEqual({ problem: "rating" });
+  });
+
+  it("types a column of addresses or links as one", () => {
+    expect(inferType(["ada@example.com", "", "bob@example.org"])).toBe("email");
+    expect(inferType(["https://a.co", "http://b.io/x"])).toBe("url");
+  });
+});
+
 describe("inferType", () => {
   it("picks the narrowest type every value reads as, ignoring blanks", () => {
     expect(inferType(["3", "", "12"])).toBe("integer");

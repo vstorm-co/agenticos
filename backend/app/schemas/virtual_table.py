@@ -25,8 +25,12 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 ColumnTypeName = Literal[
     "text",
     "long_text",
+    "email",
+    "url",
+    "phone",
     "number",
     "integer",
+    "rating",
     "boolean",
     "date",
     "datetime",

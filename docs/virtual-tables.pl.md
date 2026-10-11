@@ -1,5 +1,5 @@
 ---
-source_sha: "d078505e300c"
+source_sha: "1e5e30021f3e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -40,8 +40,12 @@ pusta.
 |---|---|---|
 | `text` | Tekst do 1000 znaków | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Tekst do 100 000 znaków | tak samo jak `text` |
+| `email` | Adres z jednym `@` i kropką w domenie, do 254 znaków | tak samo jak `text` |
+| `url` | Adres `http` lub `https` z hostem, do 2048 znaków | tak samo jak `text` |
+| `phone` | Cyfry, spacje i `+ ( ) - . /`, co najmniej pięć cyfr | tak samo jak `text` |
 | `number` | Skończona liczba | `eq` `ne` `lt` `lte` `gt` `gte` `in` `is_null` |
 | `integer` | Liczba całkowita, co najwyżej 2^53 - 1 | tak samo jak `number` |
+| `rating` | Liczba całkowita od 1 do 5 | tak samo jak `number` |
 | `boolean` | `true` lub `false` | `eq` `ne` `is_null` |
 | `date` | `YYYY-MM-DD` | tak samo jak `number` |
 | `datetime` | ISO 8601 ze strefą czasową, zapisywany jako UTC | tak samo jak `number` |
@@ -54,6 +58,8 @@ nie są przycinane. Obowiązuje tylko limit długości, a znak NUL jest odrzucan
 external id, bo PostgreSQL nie potrafi go zapisać.
 
 Porównania pasują tylko do komórek, które mają wartość. Puste znajdziesz przez `is_null`.
+`contains` i `starts_with` przyjmują fragment wartości, więc `@example.com` znajdzie
+w kolumnie `email` adresy w tej domenie.
 
 Narzędzia tabel agenta i kroki tabel w workflow nazywają wybór etykietą opcji,
 bez rozróżniania wielkości liter: po etykiecie zapisują i filtrują, a wybory rekordu
@@ -76,6 +82,9 @@ ją z bieżącymi kolumnami:
   taka, której któraś wartość nie przetrwa - z liczbą i przykładem, a nic nie zostaje
   zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rewizja rekordu
   idzie dalej, więc edycja według starej wartości jest konfliktem.
+- Tekst staje się kolumną `email`, `url`, `phone` lub `rating`, gdy każda wartość
+  się nią czyta, a liczba staje się oceną, gdy jest liczbą całkowitą od 1 do 5. Każda
+  z nich wraca do tekstu, a ocena także do liczby.
 - Nic nie jest usuwane. Pominięta kolumna lub opcja zostaje **zarchiwizowana**: jej
   wartości pozostają czytelne i filtrowalne, a zapis do niej jest odrzucany kodem
   `ARCHIVED_COLUMN`.

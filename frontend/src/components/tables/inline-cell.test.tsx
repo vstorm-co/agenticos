@@ -30,4 +30,22 @@ describe("InlineCell", () => {
     expect(onDone).toHaveBeenCalled();
     expect(onCommit).not.toHaveBeenCalled();
   });
+
+  it("ends the edit as soon as a rating is chosen", () => {
+    const onCommit = vi.fn();
+    const onDone = vi.fn();
+    render(
+      <InlineCell
+        column={{ ...name, type: "rating" }}
+        value={null}
+        onCommit={onCommit}
+        onDone={onDone}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "4 stars of 5" }));
+
+    expect(onCommit).toHaveBeenCalledWith(4);
+    expect(onDone).toHaveBeenCalled();
+  });
 });

@@ -27,6 +27,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from app.repositories.virtual_table import SqlKind
@@ -38,6 +39,17 @@ MAX_INTEGER = 2**53 - 1
 """The largest integer a JavaScript client can hold exactly, which the API shares with them."""
 
 MAX_IN_OPERANDS = 100
+MAX_EMAIL = 254
+"""The longest address SMTP carries (RFC 5321's path limit)."""
+MAX_URL = 2_048
+MAX_RATING = 5
+
+# Deliberately loose: one `@`, a dot in the domain, no spaces. Whether a mailbox
+# exists is not a cell's question, and a stricter pattern refuses real addresses.
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+_PHONE = re.compile(r"\+?[0-9 ().\-/]+")
+_MIN_PHONE_DIGITS = 5
+_MAX_PHONE = 32
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -82,6 +94,37 @@ def _text_of(limit: int) -> Validator:
         return value
 
     return validate
+
+
+def _email(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    text = str(_text_of(MAX_EMAIL)(value, column, writing))
+    if not _EMAIL.fullmatch(text):
+        raise CellProblem("Expected an email address such as ada@example.com")
+    return text
+
+
+def _url(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    text = str(_text_of(MAX_URL)(value, column, writing))
+    parsed = urlsplit(text)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or " " in text:
+        raise CellProblem("Expected a web address starting with http:// or https://")
+    return text
+
+
+def _phone(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    text = str(_text_of(_MAX_PHONE)(value, column, writing))
+    if not _PHONE.fullmatch(text):
+        raise CellProblem("Expected a phone number of digits, spaces and + ( ) - .")
+    if sum(character.isdigit() for character in text) < _MIN_PHONE_DIGITS:
+        raise CellProblem(f"A phone number has at least {_MIN_PHONE_DIGITS} digits")
+    return text
+
+
+def _rating(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    rating = _integer(value, column, writing)
+    if not isinstance(rating, int) or not 1 <= rating <= MAX_RATING:
+        raise CellProblem(f"Expected a rating from 1 to {MAX_RATING}")
+    return rating
 
 
 def _number(value: object, column: ColumnDef, writing: bool) -> CellValue:
@@ -176,8 +219,12 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
     for column_type in (
         ColumnType("text", SqlKind.TEXT, _TEXTUAL, True, _text_of(MAX_TEXT)),
         ColumnType("long_text", SqlKind.TEXT, _TEXTUAL, True, _text_of(MAX_LONG_TEXT)),
+        ColumnType("email", SqlKind.TEXT, _TEXTUAL, True, _email),
+        ColumnType("url", SqlKind.TEXT, _TEXTUAL, True, _url),
+        ColumnType("phone", SqlKind.TEXT, _TEXTUAL, True, _phone),
         ColumnType("number", SqlKind.NUMERIC, _ORDERED, True, _number),
         ColumnType("integer", SqlKind.INTEGER, _ORDERED, True, _integer),
+        ColumnType("rating", SqlKind.INTEGER, _ORDERED, True, _rating),
         ColumnType("boolean", SqlKind.BOOLEAN, _EQUALITY, True, _boolean),
         ColumnType("date", SqlKind.DATE, _ORDERED, True, _date),
         ColumnType("datetime", SqlKind.DATETIME, _ORDERED, True, _datetime),
@@ -199,6 +246,10 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
 }
 
 OPTION_TYPES: frozenset[ColumnTypeName] = frozenset({"single_select", "multi_select"})
+SEARCHED_TYPES: frozenset[ColumnTypeName] = frozenset(
+    {"text", "long_text", "email", "url", "phone"}
+)
+"""The types a table's search box reads as text."""
 
 
 def validate_cell(column: ColumnDef, value: object) -> CellValue:
@@ -234,6 +285,10 @@ def validate_filter(column: ColumnDef, op: FilterOp, value: FilterValue) -> Filt
         return operands
     if op == "contains" and column_type.kind is SqlKind.ARRAY:
         return _option_id(value, column, False)
+    if op in ("contains", "starts_with"):
+        # A piece of a value, not a whole one: `@example` finds addresses at a
+        # domain without being an address itself.
+        return _text_of(MAX_TEXT)(value, column, False)
     if value is None:
         raise CellProblem(f"{op} needs a value; use is_null to test for an empty cell")
     return column_type.validate(value, column, False)

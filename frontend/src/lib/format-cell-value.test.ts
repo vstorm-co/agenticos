@@ -104,4 +104,10 @@ describe("formatCellValue", () => {
     expect(formatCellValue(column({ type: "number" }), 3.5, boolLabel)).toBe("3.5");
     expect(formatCellValue(column({ type: "integer" }), 7, boolLabel)).toBe("7");
   });
+
+  it("draws a rating as stars out of five, and nothing for a value that is not one", () => {
+    const col = column({ type: "rating" });
+    expect(formatCellValue(col, 3, boolLabel)).toBe("★★★☆☆");
+    expect(formatCellValue(col, "3", boolLabel)).toBe("");
+  });
 });

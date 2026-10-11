@@ -32,8 +32,12 @@ def test_every_declared_type_is_registered():
     assert set(COLUMN_TYPES) == {
         "text",
         "long_text",
+        "email",
+        "url",
+        "phone",
         "number",
         "integer",
+        "rating",
         "boolean",
         "date",
         "datetime",
@@ -198,3 +202,52 @@ def test_text_that_merely_looks_unusual_is_still_stored_as_sent():
     paired = "pair " + chr(0x1F680) + " é"
 
     assert validate_cell(_column("text"), paired) == paired
+
+
+@pytest.mark.parametrize(
+    ("type_", "value"),
+    [
+        ("email", "ada@example.com"),
+        ("email", "first.last+tag@sub.example.co.uk"),
+        ("url", "https://example.com/a?b=c"),
+        ("url", "http://localhost:8000"),
+        ("phone", "+48 600 100 200"),
+        ("phone", "(555) 010-9999"),
+        ("rating", 1),
+        ("rating", 5),
+        ("rating", 4.0),
+    ],
+)
+def test_a_contact_or_a_rating_is_kept_as_given(type_, value):
+    assert validate_cell(_column(type_), value) == value
+
+
+@pytest.mark.parametrize(
+    ("type_", "value", "says"),
+    [
+        ("email", "ada.example.com", "email address"),
+        ("email", "ada@example", "email address"),
+        ("email", "a b@example.com", "email address"),
+        ("email", "x" * 250 + "@a.co", "longer"),
+        ("email", 5, "Expected text"),
+        ("url", "example.com", "http"),
+        ("url", "ftp://example.com", "http"),
+        ("url", "https://", "http"),
+        ("url", "https://exa mple.com", "http"),
+        ("phone", "call me", "phone number"),
+        ("phone", "+1 23", "at least 5 digits"),
+        ("rating", 0, "1 to 5"),
+        ("rating", 6, "1 to 5"),
+        ("rating", 2.5, "whole number"),
+    ],
+)
+def test_a_contact_or_a_rating_that_is_not_one_is_refused(type_, value, says):
+    with pytest.raises(CellProblem, match=says):
+        validate_cell(_column(type_), value)
+
+
+def test_a_contact_is_filtered_as_text_and_a_rating_as_a_number():
+    assert validate_filter(_column("email"), "contains", "@example") == "@example"
+    assert validate_filter(_column("rating"), "gte", 4) == 4
+    with pytest.raises(CellProblem, match="operators"):
+        validate_filter(_column("url"), "gt", "https://a.co")
