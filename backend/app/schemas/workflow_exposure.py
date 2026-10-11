@@ -11,7 +11,7 @@ from pydantic import Field, computed_field
 from app.core.config import settings
 from app.db.models.workflow_exposure import ExposureAdapter, ExposureScheduleKind
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.workflows.nodes.core_input._handler import InputField
+from app.workflows.contracts.fields import InputField
 
 
 class WorkflowExposureUpdate(BaseSchema):
@@ -43,6 +43,9 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     last_run_id: UUID | None
     form_token: str | None = Field(
         default=None, description="A form's link, the page's only credential; null otherwise"
+    )
+    channel_bot_id: UUID | None = Field(
+        default=None, description="The bot whose messages a channel trigger takes; null otherwise"
     )
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property

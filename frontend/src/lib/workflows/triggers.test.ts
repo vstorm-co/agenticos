@@ -77,6 +77,12 @@ describe("triggers", () => {
       sampleRunInput(graph("trigger.table_record", { table: { table_id: "tbl" } })),
     ).toMatchObject({ table_id: "tbl", values: {}, fields: {} });
     expect(sampleRunInput(graph("trigger.table_record")).table_id).toMatch(/^0{8}-/);
+    expect(sampleRunInput(graph("trigger.channel_message", { bot_id: "bot-1" }))).toMatchObject({
+      bot_id: "bot-1",
+      text: "Hello",
+      sender: { platform_user_id: "U0SAMPLE" },
+    });
+    expect(sampleRunInput(graph("trigger.channel_message")).bot_id).toMatch(/^0{8}-/);
     expect(sampleRunInput(graph("trigger.workflow_failed"))).toMatchObject({
       workflow_name: "sample",
       error: { code: "SAMPLE_FAILURE" },

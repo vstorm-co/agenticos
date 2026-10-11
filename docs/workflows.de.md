@@ -1,5 +1,5 @@
 ---
-source_sha: "b9d577c33d55"
+source_sha: "41b50d1d535f"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** und **On failure of a workflow** -, jeder
+beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
 eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
 Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
@@ -541,14 +541,14 @@ hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `P
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** und **On failure of a workflow**. Einen
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
 den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
 wählen.
 
 Erst das Veröffentlichen einer Version schaltet ihren Trigger ein. Ein Webhook, ein
-Zeitplan, ein Tabellen-Trigger und ein Formular führen dann diese Version als das Mitglied aus, das
+Zeitplan, ein Tabellen-Trigger, ein Formular und die Nachrichten eines Bots führen dann diese Version als das Mitglied aus, das
 sie veröffentlicht hat, und die nächste Veröffentlichung verschiebt sie auf die neue
 Version. Eine Veröffentlichung, die mit einem anderen Trigger startet, schaltet den
 alten ab. **Trigger** unter **More** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
@@ -669,6 +669,25 @@ Antworten, die nicht passen, werden auf der Seite benannt und starten nichts, ei
 verstecktes Feld fängt Skripte ab, und jedes Formular nimmt höchstens
 `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` Antworten pro Minute an. Siehe
 [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### Über eine Kanalnachricht { #from-a-channel-message }
+
+Ein Trigger **Channel message** übergibt dem Workflow die Nachrichten eines Slack-,
+Mattermost- oder Telegram-Bots. Jede Nachricht, die der Bot mit seinem eigenen
+Agenten beantwortet hätte - sie hat die Zugriffsrichtlinie des Bots passiert, ihr
+Absender wurde zugelassen, und in einem Kanal hat sie den Bot genannt -, startet
+einen Lauf als das Mitglied, das den Workflow veröffentlicht hat, wenn sie zu
+**Where** und **Only when the message contains** passt. Eine Nachricht, die einen
+Agenten per `@handle` nennt, erreicht weiterhin diesen, und eine, die nicht passt,
+beantwortet der Agent des Bots wie bisher.
+
+Der Trigger übergibt `text`, `sender` - mit dem Mitglied, das der Absender verknüpft
+hat, falls er es tat - sowie `channel_id` und `thread_id`, die ein Schritt **Send a
+message** derselben Plattform annimmt, sodass die Antwort im Thread der Nachricht
+landet. Die Nachrichten eines Bots starten höchstens einen Workflow, und das Zuhören
+braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+Anhänge werden nicht übergeben. Siehe
+[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
 ### Wenn ein anderer Workflow ihn aufruft { #when-another-workflow-calls-it }
 

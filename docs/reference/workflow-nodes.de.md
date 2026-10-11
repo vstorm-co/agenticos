@@ -1,5 +1,5 @@
 ---
-source_sha: "e175bf6b8335"
+source_sha: "13ff14d038c4"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -60,7 +60,7 @@ falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
 `WORKFLOW_RUN_INPUT_INVALID` abgelehnt, und ein Binding an `payload.<feld>` wird beim
 Veröffentlichen auf seinen Typ geprüft.
 
-::: app.workflows.nodes.core_input._handler.InputField
+::: app.workflows.contracts.fields.InputField
 
 ### trigger.manual { #trigger-manual }
 
@@ -126,6 +126,18 @@ Einsendung, die zu ihnen passt, startet einen Lauf als das Mitglied, das ihn
 veröffentlicht hat. `triggered_by` ist `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.channel_message { #trigger-channel-message }
+
+**Channel message.** Gestartet von einer Nachricht an einen der Slack-, Mattermost-
+oder Telegram-Bots der Organisation, die der Bot mit seinem eigenen Agenten
+beantwortet hätte und die zum Filter des Knotens passt. Das Veröffentlichen braucht
+`channels:manage`, und die Nachrichten eines Bots starten höchstens einen Workflow.
+`triggered_by` ist `channel_message`.
+
+::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+
+::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

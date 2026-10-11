@@ -16,6 +16,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 import {
   CHAT_TRIGGER,
   API_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
   FORM_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
@@ -157,9 +158,15 @@ function LiveTrigger({
       {trigger === FORM_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerFormLive")}</p>
       )}
+      {trigger === CHANNEL_MESSAGE_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("triggerChannelLive")}</p>
+      )}
       {(trigger === WEBHOOK_TRIGGER ||
         trigger === SCHEDULE_TRIGGER ||
-        trigger === FORM_TRIGGER) && <ExposureStatus workflow={workflow} canEdit={canEdit} />}
+        trigger === FORM_TRIGGER ||
+        trigger === CHANNEL_MESSAGE_TRIGGER) && (
+        <ExposureStatus workflow={workflow} canEdit={canEdit} />
+      )}
       {trigger === WORKFLOW_CALL_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerWorkflowCallLive")}</p>
       )}

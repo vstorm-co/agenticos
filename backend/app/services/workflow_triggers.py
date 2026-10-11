@@ -3,7 +3,8 @@
 A workflow starts from one trigger node, its entry. Publishing a version is
 what makes that trigger live, the way a builder expects from n8n or Zapier:
 
-* a webhook, a schedule or a form gets its exposure (`WorkflowExposureService`),
+* a webhook, a schedule, a form or a bot's messages get their exposure
+  (`WorkflowExposureService`),
   and a table record its subscription (`TableTriggerService`), running the new
   version as the member who published it. The row a node already had is kept,
   so a webhook's address and signing secret, and a form's link, survive the
@@ -37,10 +38,18 @@ from app.services.virtual_tables.triggers import TableTriggerService
 from app.services.workflow_exposure import WorkflowExposureService
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig, TableRecordTriggerConfig
-from app.workflows.triggers import FORM, SCHEDULE, TABLE_RECORD, WEBHOOK, live_trigger
+from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
+from app.workflows.triggers import (
+    CHANNEL_MESSAGE,
+    FORM,
+    SCHEDULE,
+    TABLE_RECORD,
+    WEBHOOK,
+    live_trigger,
+)
 
 # The triggers nobody is present for: each fire acts as the publisher.
-_UNATTENDED = frozenset({WEBHOOK, SCHEDULE, TABLE_RECORD, FORM})
+_UNATTENDED = frozenset({WEBHOOK, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE})
 
 
 @dataclass(frozen=True)
@@ -74,6 +83,8 @@ class WorkflowTriggerSync:
             NotFoundError: A new-record trigger's table is out of reach.
             TableArchivedError: A new-record trigger's table is archived.
             BadRequestError: A new-record trigger's filter no longer fits its table.
+            AlreadyExistsError: Another workflow already starts from the channel
+                trigger's bot.
         """
         trigger = live_trigger(graph)
         if trigger in _UNATTENDED and not await resolve_access(
@@ -96,6 +107,14 @@ class WorkflowTriggerSync:
             )
         elif trigger == FORM:
             exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
+        elif trigger == CHANNEL_MESSAGE:
+            exposure = await self.exposures.switch_on_channel(
+                ctx,
+                workflow,
+                version,
+                node.id,
+                ChannelMessageTriggerConfig.model_validate(node.config),
+            )
         else:
             await self.exposures.switch_off(ctx, workflow)
         if trigger == TABLE_RECORD:

@@ -54,6 +54,11 @@ from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit, LocalWindows
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
+from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
+    WorkflowRunInputTooLargeError,
+)
+from app.services.workflow_exposure import WorkflowExposureService
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -264,8 +269,10 @@ class ChannelMessageRouter:
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
-            8. Otherwise run the bot's only exposed agent.
-            9. Send reply via adapter.
+            8. Otherwise start the workflow listening to this bot, if it takes
+               the message, and stop.
+            9. Otherwise run the bot's only exposed agent.
+            10. Send reply via adapter.
         """
         bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if not bot or not bot.is_active:
@@ -405,6 +412,9 @@ class ChannelMessageRouter:
             file_refusals=file_refusals,
             thread_history=thread_history,
         ):
+            return
+
+        if await self._start_workflow(bot, incoming, identity, db, files=files):
             return
 
         live, handle = await self._open_reply(bot, incoming)
@@ -555,6 +565,35 @@ class ChannelMessageRouter:
             files=files,
             file_refusals=file_refusals,
         )
+
+    async def _start_workflow(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+        *,
+        files: list[Any],
+    ) -> bool:
+        """Hand the message to the workflow listening to this bot, if it takes it.
+
+        After the mention path, so a message naming an agent still reaches it, and
+        before the bot's own agent, which answers whatever the workflow leaves.
+        The workflow answers with a step of its own, so nothing is posted here
+        unless the run cannot be admitted; the files stored for the turn are given
+        back, since a run is handed the message's text and not its attachments.
+        """
+        try:
+            taken = await WorkflowExposureService(db).receive_channel_message(
+                bot, incoming, sender_user_id=identity.user_id
+            )
+        except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError) as exc:
+            await self._discard_files(db, files)
+            await self._send_reply(bot, incoming, exc.message)
+            return True
+        if taken:
+            await self._discard_files(db, files)
+        return taken
 
     async def _run_turn(
         self,

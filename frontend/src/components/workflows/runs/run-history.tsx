@@ -40,6 +40,7 @@ const TRIGGERS = [
   "workflow_failed",
   "agent",
   "form",
+  "channel_message",
 ] as const;
 const HOUR_MS = 3_600_000;
 /** How far back each "started within" choice reaches. */

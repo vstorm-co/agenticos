@@ -28,9 +28,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -52,6 +58,7 @@ from app.schemas.workflow_exposure import (
     WorkflowExposureUpdate,
     WorkflowFormSubmission,
 )
+from app.services.channels.base import IncomingMessage
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
@@ -1429,3 +1436,149 @@ class TestForms:
         )
         assert renewed.json()["form_url"].endswith(renewed.json()["form_token"])
         assert (await client.get(url)).status_code == 404
+
+
+async def _bot(db: AsyncSession, org: Organization, platform: str = "slack") -> ChannelBot:
+    bot = ChannelBot(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        platform=platform,
+        name="Support",
+        token_encrypted="sealed",
+        secret_key_version=1,
+    )
+    db.add(bot)
+    await db.flush()
+    return bot
+
+
+def _message(bot: ChannelBot, text: str = "refund order 42", chat_type: str = "private"):
+    return IncomingMessage(
+        platform=bot.platform,
+        bot_id=str(bot.id),
+        platform_user_id="U1",
+        platform_chat_id="C1:1700.1",
+        chat_type=chat_type,
+        text=text,
+        platform_username="ada",
+        platform_display_name="Ada",
+        message_id="1700.2",
+    )
+
+
+class TestChannelMessages:
+    async def test_a_message_that_fits_starts_a_run_with_where_to_answer_it(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.channel_message", {"bot_id": str(bot.id), "text_contains": "REFUND"}),
+        )
+        assert published.exposure is not None and published.exposure.channel_bot_id == bot.id
+        service = WorkflowExposureService(db)
+        member = uuid.uuid4()
+
+        taken = await service.receive_channel_message(bot, _message(bot), sender_user_id=member)
+
+        assert taken is True
+        (run,) = await _runs(db)
+        assert run.triggered_by == WorkflowRunTrigger.CHANNEL_MESSAGE.value
+        assert run.execution_principal_user_id == owner.id
+        assert run.input == {
+            "platform": "slack",
+            "bot_id": str(bot.id),
+            "channel_id": "C1",
+            "thread_id": "1700.1",
+            "chat_type": "private",
+            "message_id": "1700.2",
+            "text": "refund order 42",
+            "sender": {
+                "platform_user_id": "U1",
+                "username": "ada",
+                "display_name": "Ada",
+                "user_id": str(member),
+            },
+        }
+
+    async def test_what_does_not_fit_is_left_to_the_bots_agent(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        config = {"bot_id": str(bot.id), "chat_types": ["group"], "text_contains": "refund"}
+        published = await _publish(
+            db, _ctx(owner, org), workflow, _graph("trigger.channel_message", config)
+        )
+        service = WorkflowExposureService(db)
+        other = await _bot(db, org)
+
+        assert not await service.receive_channel_message(bot, _message(bot), sender_user_id=None)
+        assert not await service.receive_channel_message(
+            bot, _message(bot, "hello", "group"), sender_user_id=None
+        )
+        assert not await service.receive_channel_message(
+            other, _message(other), sender_user_id=None
+        )
+        assert await service.receive_channel_message(
+            bot, _message(bot, chat_type="group"), sender_user_id=None
+        )
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=False),
+        )
+        assert not await service.receive_channel_message(
+            bot, _message(bot, chat_type="group"), sender_user_id=None
+        )
+        assert len(await _runs(db)) == 1
+
+    @pytest.mark.security
+    async def test_a_listener_whose_publisher_left_starts_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
+        )
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+
+        taken = await WorkflowExposureService(db).receive_channel_message(
+            bot, _message(bot), sender_user_id=None
+        )
+
+        assert taken is False and await _runs(db) == []
+
+    async def test_a_bots_messages_start_one_workflow_at_most(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        graph = _graph("trigger.channel_message", {"bot_id": str(bot.id)})
+        first = await _publish(db, _ctx(owner, org), workflow, graph)
+        again = await _publish(db, _ctx(owner, org), workflow, graph)
+        assert again.exposure is not None and again.exposure.id == first.exposure.id
+
+        other = await _another_workflow(db, org, owner)
+        with pytest.raises(AlreadyExistsError):
+            await _publish(
+                db,
+                _ctx(owner, org),
+                other,
+                _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
+            )
+
+    @pytest.mark.security
+    async def test_listening_to_a_bot_needs_channels_manage(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        builder = await _user(db)
+        await _member(db, org=org, user=builder, role="builder")
+        own = await _workflow(db, org=org, owner=builder)
+        with pytest.raises(BadRequestError):
+            await _publish(
+                db,
+                _ctx(builder, org, "builder"),
+                own,
+                _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
+            )

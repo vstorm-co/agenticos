@@ -1,5 +1,5 @@
 ---
-source_sha: "b9d577c33d55"
+source_sha: "41b50d1d535f"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
+**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -488,14 +488,14 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** i
+**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
 **On failure of a workflow**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
 wyzwalacza, który tam wybierzesz.
 
-To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram, wyzwalacz tabeli i
-formularz uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
+To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram, wyzwalacz tabeli,
+formularz i wiadomości do bota uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
 publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
 wyzwalacza, wyłącza stary. **Trigger** w menu **More** w nagłówku edytora pokazuje żywy wyzwalacz i
 jego stan oraz mówi, kiedy szkic startuje inaczej.
@@ -606,6 +606,24 @@ było; wstrzymanie wyzwalacza zamyka stronę. Odpowiedzi, które nie pasują, s�
 wskazane na stronie i niczego nie uruchamiają, ukryte pole łapie skrypty, a każdy
 formularz przyjmuje najwyżej `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` odpowiedzi na
 minutę. Zobacz [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### Z wiadomości na kanale { #from-a-channel-message }
+
+Wyzwalacz **Channel message** przekazuje workflow wiadomości do bota na Slacku,
+Mattermost lub Telegramie. Każda wiadomość, na którą bot odpowiedziałby własnym
+agentem - przeszła politykę dostępu bota, jej nadawca został dopuszczony, a na
+kanale wskazała bota - uruchamia run jako członek, który opublikował workflow, jeśli
+pasuje do **Where** i **Only when the message contains**. Wiadomość wskazująca
+agenta przez `@handle` nadal trafia do niego, a ta, która nie pasuje, dostaje
+odpowiedź od agenta bota jak dotąd, więc workflow może przejąć zwroty i zostawić resztę.
+
+Wyzwalacz przekazuje `text`, `sender` - z członkiem, którego nadawca powiązał, jeśli
+to zrobił - oraz `channel_id` i `thread_id`, które przyjmuje krok **Send a message**
+tej samej platformy, więc odpowiedź trafia do wątku, z którego przyszła wiadomość.
+Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota
+wymaga `channels:manage`. Notatka głosowa przychodzi jako transkrypcja; inne
+załączniki nie są przekazywane. Zobacz
+[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
 ### Gdy wywołuje go inny workflow { #when-another-workflow-calls-it }
 

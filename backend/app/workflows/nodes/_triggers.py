@@ -138,6 +138,35 @@ class TableRecordTriggerOutput(_Frozen):
     author_id: UUID | None = None
 
 
+class ChannelSender(_Frozen):
+    """Who sent a channel message: as the platform knows them, and the member they
+    linked their account to, when they did."""
+
+    platform_user_id: str
+    username: str | None = None
+    display_name: str | None = None
+    user_id: UUID | None = Field(
+        default=None, description="The member this sender linked, if they linked one"
+    )
+
+
+class ChannelMessageTriggerOutput(_Frozen):
+    """One message to the bot: what it said, who said it, and where to answer it.
+
+    `channel_id` and `thread_id` are what a Send a message step of the same
+    platform takes, so a reply goes back into the thread the message came from.
+    """
+
+    platform: str
+    bot_id: UUID
+    channel_id: str
+    thread_id: str = Field(default="", description="The thread, or empty for the chat itself")
+    chat_type: Literal["private", "group"]
+    message_id: str | None = None
+    text: str
+    sender: ChannelSender
+
+
 class FailedRunError(_Frozen):
     """What the failed run ended with: the typed error its failing step recorded."""
 

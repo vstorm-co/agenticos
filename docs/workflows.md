@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
+**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -479,13 +479,14 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
+**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
 
 Publishing a version is what switches its trigger on. A webhook, a schedule, a
-table trigger and a form then run that version as the member who published it, and the next
+table trigger, a form and a bot's messages then run that version as the member who
+published it, and the next
 publish moves them to the new version. A publish that starts from a different
 trigger switches the old one off. **Trigger**, under **More** in the editor's header, shows the live
 trigger and its state, and says when the draft starts differently.
@@ -592,6 +593,24 @@ pausing the trigger closes the page. Answers that do not fit are named on the pa
 and start nothing, a hidden box catches scripts, and each form takes at most
 `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute. See
 [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### From a channel message { #from-a-channel-message }
+
+A **Channel message** trigger hands a Slack, Mattermost or Telegram bot's messages
+to the workflow. Each message the bot would have answered with its own agent - it
+passed the bot's access policy, its sender was admitted, and in a channel it named
+the bot - starts a run as the member who published the workflow, when it fits
+**Where** and **Only when the message contains**. A message naming an agent by
+`@handle` still reaches that agent, and one that does not fit is answered by the
+bot's agent as before, so a workflow can take refunds and leave the rest.
+
+The trigger hands on the `text`, the `sender` - with the member they linked, if
+they did - and the `channel_id` and `thread_id` a **Send a message** step of the
+same platform takes, so the answer lands in the thread the message came from. A
+bot's messages start one workflow at most, and listening to a bot needs
+`channels:manage`. A voice note arrives as its transcript; other attachments are
+not handed on. See
+[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
 ### When another workflow calls it { #when-another-workflow-calls-it }
 

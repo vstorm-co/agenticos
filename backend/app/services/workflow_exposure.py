@@ -1,10 +1,12 @@
-"""`WorkflowExposureService` - a workflow's webhook, schedule or form (#1792).
+"""`WorkflowExposureService` - a workflow's webhook, schedule, form or bot (#1792).
 
-A workflow that starts from a webhook, a schedule or a form trigger node gets its
+A workflow that starts from a webhook, a schedule, a form or a channel message
+trigger node gets its
 exposure when a version is published (`app.services.workflow_triggers`), and
 runs as the member who published it. That authority is read afresh on every
 fire - a member who has since lost the workflow, or left, stops the webhook
-answering, the schedule firing and the form taking answers. Pausing, resuming,
+answering, the schedule firing, the form taking answers and the bot's messages
+starting it. Pausing, resuming,
 rotating a webhook's secret and replacing a form's link need `workflows:edit`
 and `workflows:run` on the workflow.
 
@@ -28,9 +30,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.background import start_deferred
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
+from app.db.models.channel_bot import ChannelBot
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import (
     ExposureAdapter,
@@ -55,6 +63,7 @@ from app.schemas.workflow_exposure import (
 from app.services import trigger_events
 from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
+from app.services.channels.base import IncomingMessage, split_thread
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
@@ -64,8 +73,13 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.graph.model import WorkflowGraph
-from app.workflows.nodes._triggers import ScheduleTriggerConfig
+from app.workflows.nodes._triggers import (
+    ChannelMessageTriggerOutput,
+    ChannelSender,
+    ScheduleTriggerConfig,
+)
 from app.workflows.nodes.core_input._handler import input_problems
+from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
 from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
 from app.workflows.triggers import answers_webhook
 
@@ -102,6 +116,7 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
         last_fired_at=exposure.last_fired_at,
         last_run_id=exposure.last_run_id,
         form_token=exposure.form_token,
+        channel_bot_id=exposure.channel_bot_id,
         created_at=exposure.created_at,
         updated_at=exposure.updated_at,
     )
@@ -223,6 +238,52 @@ class WorkflowExposureService:
             adapter=ExposureAdapter.FORM.value,
             run_input={},
             form_token=secrets.token_urlsafe(24),
+            **live,
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_created")
+        return _read(exposure, version.version)
+
+    async def switch_on_channel(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        node_id: UUID,
+        config: ChannelMessageTriggerConfig,
+    ) -> WorkflowExposureRead:
+        """The bot a version just published listens to, run as its publisher.
+
+        Raises:
+            AlreadyExistsError: Another workflow's messages trigger already takes
+                this bot's messages. A bot starts one workflow at most, so which one
+                a message starts never depends on the order they were published in.
+        """
+        taken = await workflow_exposure_repo.get_channel_listener(self.db, config.bot_id)
+        if taken is not None and taken.workflow_id != workflow.id:
+            raise AlreadyExistsError(
+                message="Another workflow already starts from this bot's messages",
+                details={"bot_id": str(config.bot_id), "workflow_id": str(taken.workflow_id)},
+            )
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.CHANNEL)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+            "channel_bot_id": config.bot_id,
+        }
+        if exposure is not None:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            return _read(exposure, version.version)
+        exposure = await workflow_exposure_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow.id,
+            node_instance_id=node_id,
+            adapter=ExposureAdapter.CHANNEL.value,
+            run_input={},
             **live,
         )
         await self._audit(ctx, exposure, "workflow.exposure_created")
@@ -499,6 +560,69 @@ class WorkflowExposureService:
         version = fire[2]
         node = WorkflowGraph.model_validate(version.graph).node_by_id[exposure.node_instance_id]
         return exposure, FormTriggerConfig.model_validate(node.config), fire
+
+    async def receive_channel_message(
+        self, bot: ChannelBot, incoming: IncomingMessage, *, sender_user_id: UUID | None
+    ) -> bool:
+        """Start the run a message to `bot` starts, and say whether one took it.
+
+        `incoming` has passed the bot's own admission - its access policy, the
+        sender's link, the mention rule - so this decides only whether the
+        workflow listening to the bot takes it: one is live and on, its publisher
+        can still run it, and the message fits its filter. `False` leaves the
+        message to the bot's agent.
+
+        Raises:
+            WorkflowAdmissionQuotaError: Too much of the organization's work is in
+                flight to admit the run.
+            WorkflowRunInputTooLargeError: The message is over the input limit.
+        """
+        exposure = await workflow_exposure_repo.get_channel_listener(self.db, bot.id)
+        if exposure is None or not exposure.is_active:
+            return False
+        fire = await self._fire_context(exposure)
+        if fire is None:
+            logger.warning(
+                "workflow_channel_trigger_cannot_run", extra={"exposure_id": str(exposure.id)}
+            )
+            return False
+        ctx, workflow, version = fire
+        node = WorkflowGraph.model_validate(version.graph).node_by_id[exposure.node_instance_id]
+        config = ChannelMessageTriggerConfig.model_validate(node.config)
+        if not config.takes(chat_type=incoming.chat_type, text=incoming.text):
+            return False
+        channel_id, thread_id = split_thread(incoming.platform_chat_id)
+        message = ChannelMessageTriggerOutput(
+            platform=incoming.platform,
+            bot_id=bot.id,
+            channel_id=channel_id,
+            thread_id=thread_id,
+            chat_type="private" if incoming.chat_type == "private" else "group",
+            message_id=incoming.message_id,
+            text=incoming.text,
+            sender=ChannelSender(
+                platform_user_id=incoming.platform_user_id,
+                username=incoming.platform_username,
+                display_name=incoming.platform_display_name,
+                user_id=sender_user_id,
+            ),
+        )
+        run, entry_node_run_id = await self.runs.admit_pinned(
+            ctx,
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.CHANNEL_MESSAGE,
+            run_input=message.model_dump(mode="json"),
+        )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
+        )
+        from app.worker.tasks.workflow_tasks import trigger_dispatch
+
+        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return True
 
     async def receive_webhook(
         self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]

@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows started from a channel message.** A **Channel message** trigger
+  hands a Slack, Mattermost or Telegram bot's messages to a workflow: each one
+  the bot's agent would have answered, and that fits the trigger's chats and
+  words, starts a run as its publisher with the text, the sender and where to
+  answer. The rest still reach the bot's agent, and a bot's messages start one
+  workflow at most. Migration `0132_workflow_channel_trigger`.
+
 - **Workflows started from a form.** A **Form** trigger gives a workflow a
   public page with the fields it declares, its own title, description, button
   and thanks. Anyone with the link fills it in without signing in, and each

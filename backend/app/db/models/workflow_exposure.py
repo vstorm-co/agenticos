@@ -3,8 +3,9 @@
 A caller who is present - the HTTP API, a WebSocket, the console's chat - needs
 no row: whoever may run the workflow starts it as themselves, on its live
 version, and is checked at that moment. A door nobody stands at needs one. A
-signed webhook, a schedule and a public form fire on their own, so each is a row
-here saying which published version it runs and as whom.
+signed webhook, a schedule, a public form and a channel bot's messages fire on
+their own, so each is a row here saying which published version it runs and as
+whom.
 
 The graph says *that* a workflow starts from a webhook or a schedule - its
 trigger node - and an exposure is that node switched on: what a graph cannot
@@ -50,6 +51,7 @@ class ExposureAdapter(enum.StrEnum):
     WEBHOOK = "webhook"
     SCHEDULE = "schedule"
     FORM = "form"
+    CHANNEL = "channel"
 
 
 class ExposureScheduleKind(enum.StrEnum):
@@ -60,7 +62,7 @@ class ExposureScheduleKind(enum.StrEnum):
 
 
 class WorkflowExposure(Base, TimestampMixin):
-    """One webhook, schedule or form that runs one workflow's pinned version."""
+    """One webhook, schedule, form or bot's messages that run one workflow's pinned version."""
 
     __tablename__ = "workflow_exposures"
 
@@ -112,6 +114,13 @@ class WorkflowExposure(Base, TimestampMixin):
     # A form's public address: the link is its only credential, kept across
     # publishes and replaced only when an editor asks for a new one.
     form_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    # The bot whose messages a channel trigger takes. SET NULL so deleting the
+    # bot keeps the row's history; a row with no bot hears nothing.
+    channel_bot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("channel_bots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     # A schedule's cadence - one of the two fields, told apart by the kind - and
     # when it is next due. Null on a webhook, which the heartbeat's
@@ -140,7 +149,8 @@ class WorkflowExposure(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
         CheckConstraint(
-            "adapter IN ('webhook', 'schedule', 'form')", name="ck_workflow_exposure_adapter"
+            "adapter IN ('webhook', 'schedule', 'form', 'channel')",
+            name="ck_workflow_exposure_adapter",
         ),
         # One shape per adapter: a webhook has a sealed secret and none of the
         # clock; a schedule has exactly one cadence field and a next fire, and
@@ -150,15 +160,19 @@ class WorkflowExposure(Base, TimestampMixin):
             "(adapter = 'webhook' AND secret_encrypted IS NOT NULL "
             "AND secret_key_version IS NOT NULL AND schedule_kind IS NULL "
             "AND interval_seconds IS NULL AND cron_expression IS NULL "
-            "AND next_fire_at IS NULL AND form_token IS NULL) "
+            "AND next_fire_at IS NULL AND form_token IS NULL AND channel_bot_id IS NULL) "
             "OR (adapter = 'schedule' AND secret_encrypted IS NULL "
             "AND secret_key_version IS NULL AND next_fire_at IS NOT NULL "
-            "AND form_token IS NULL "
+            "AND form_token IS NULL AND channel_bot_id IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
-            "OR (adapter = 'form' AND form_token IS NOT NULL "
+            "OR (adapter = 'form' AND form_token IS NOT NULL AND channel_bot_id IS NULL "
+            "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
+            "AND schedule_kind IS NULL AND interval_seconds IS NULL "
+            "AND cron_expression IS NULL AND next_fire_at IS NULL) "
+            "OR (adapter = 'channel' AND form_token IS NULL "
             "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
             "AND schedule_kind IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL AND next_fire_at IS NULL)",
@@ -167,6 +181,13 @@ class WorkflowExposure(Base, TimestampMixin):
         CheckConstraint(
             f"interval_seconds IS NULL OR interval_seconds >= {MIN_INTERVAL_SECONDS}",
             name="ck_workflow_exposure_interval_floor",
+        ),
+        # A bot's messages start one workflow at most.
+        Index(
+            "uq_workflow_exposure_channel_bot",
+            "channel_bot_id",
+            unique=True,
+            postgresql_where="adapter = 'channel' AND channel_bot_id IS NOT NULL",
         ),
         # The heartbeat's claim: active schedules by when they are due.
         Index(

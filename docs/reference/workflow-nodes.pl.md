@@ -1,5 +1,5 @@
 ---
-source_sha: "e175bf6b8335"
+source_sha: "13ff14d038c4"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -56,7 +56,7 @@ którego wejściu brakuje pola, który wysyła pole złego typu albo niezadeklar
 jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
 `payload.<pole>` jest sprawdzany pod kątem typu przy publikacji.
 
-::: app.workflows.nodes.core_input._handler.InputField
+::: app.workflows.contracts.fields.InputField
 
 ### trigger.manual { #trigger-manual }
 
@@ -118,6 +118,17 @@ pole - te same pola co **Manual** - a zgłoszenie, które do nich pasuje, urucha
 jako członek, który go opublikował. `triggered_by` to `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.channel_message { #trigger-channel-message }
+
+**Channel message.** Startuje od wiadomości do jednego z botów organizacji na
+Slacku, Mattermost lub Telegramie, na którą bot odpowiedziałby własnym agentem i
+która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, a wiadomości
+jednego bota uruchamiają najwyżej jeden workflow. `triggered_by` to `channel_message`.
+
+::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+
+::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

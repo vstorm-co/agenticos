@@ -49,7 +49,7 @@ a run whose input misses one, sends one of the wrong type or sends one not decla
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
 
-::: app.workflows.nodes.core_input._handler.InputField
+::: app.workflows.contracts.fields.InputField
 
 ### trigger.manual { #trigger-manual }
 
@@ -110,6 +110,17 @@ per field - the same fields as **Manual** - and a submission that fits them star
 run as the member who published it. `triggered_by` is `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.channel_message { #trigger-channel-message }
+
+**Channel message.** Started by a message to one of the organization's Slack,
+Mattermost or Telegram bots that the bot would have answered with its own agent and
+that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
+messages start one workflow at most. `triggered_by` is `channel_message`.
+
+::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+
+::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

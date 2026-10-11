@@ -1,5 +1,5 @@
 ---
-source_sha: "b9d577c33d55"
+source_sha: "41b50d1d535f"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** y
+plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
@@ -504,14 +504,14 @@ acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Called by a workflow** y
+**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
 workflow por el trigger que elijas ahí.
 
 Publicar una versión es lo que enciende su trigger. Un webhook, una programación, un
-trigger de tabla y un formulario ejecutan entonces esa versión como el miembro que la publicó, y la
+trigger de tabla, un formulario y los mensajes de un bot ejecutan entonces esa versión como el miembro que la publicó, y la
 siguiente publicación los pasa a la nueva versión. Una publicación que empieza por
 otro trigger apaga el anterior. **Trigger**, en **More** en la cabecera del editor, muestra el
 trigger en vivo y su estado, y avisa cuando el draft empieza de otra forma.
@@ -624,6 +624,24 @@ hubiera formulario; pausar el trigger cierra la página. Las respuestas que no e
 se señalan en la página y no inician nada, un campo oculto atrapa los scripts, y cada
 formulario admite como mucho `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` respuestas por
 minuto. Ver [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### Desde un mensaje en un canal { #from-a-channel-message }
+
+Un trigger **Channel message** entrega al workflow los mensajes de un bot de Slack,
+Mattermost o Telegram. Cada mensaje que el bot habría respondido con su propio
+agente - pasó la política de acceso del bot, su remitente fue admitido y, en un
+canal, nombró al bot - inicia una ejecución como el miembro que publicó el workflow,
+si encaja con **Where** y **Only when the message contains**. Un mensaje que nombra
+a un agente por `@handle` sigue llegando a ese agente, y uno que no encaja lo
+responde el agente del bot como hasta ahora.
+
+El trigger entrega `text`, `sender` - con el miembro que vinculó, si lo hizo - y el
+`channel_id` y el `thread_id` que admite un paso **Send a message** de la misma
+plataforma, así que la respuesta llega al hilo del que vino el mensaje. Los mensajes
+de un bot inician como mucho un workflow, y escuchar a un bot requiere
+`channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
+no se entregan. Ver
+[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
 ### Cuando otro workflow lo llama { #when-another-workflow-calls-it }
 

@@ -83,12 +83,13 @@ def failed(code: str, message: str, **details: Any) -> Failed:
 
 
 async def _usable_bot(
-    db: AsyncSession, auth: AuthContext, bot_id: UUID, platform: Platform
+    db: AsyncSession, auth: AuthContext, bot_id: UUID, platform: Platform | None
 ) -> ChannelBot | None:
+    """The bot, if `auth` may act as it and it is on and on `platform` - any, for `None`."""
     if not auth.has(Perm.CHANNELS_MANAGE):
         return None
     bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=auth.organization_id)
-    usable = bot is not None and bot.is_active and bot.platform == platform
+    usable = bot is not None and bot.is_active and (platform is None or bot.platform == platform)
     return bot if usable else None
 
 
@@ -117,6 +118,22 @@ def check_bot_on(platform: Platform) -> ResourceCheck:
         ]
 
     return check_bot
+
+
+async def check_listening_bot(
+    db: AsyncSession, ctx: AuthContext, config: BaseModel
+) -> list[tuple[str, str]]:
+    """The publish check for the Channel message trigger: a bot of any platform the
+    author may act as - what it hears is the organization's, so listening to it takes
+    `channels:manage` as speaking as it does."""
+    if not isinstance(config, ChannelBotConfig) or await _usable_bot(db, ctx, config.bot_id, None):
+        return []
+    return [
+        (
+            "bot_id",
+            "This is not an active channel bot you can act as - using one needs channels:manage",
+        )
+    ]
 
 
 type BotCall = Callable[[ChannelAdapter, str, str | None], Awaitable[NodeResult]]

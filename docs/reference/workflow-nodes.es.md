@@ -1,5 +1,5 @@
 ---
-source_sha: "e175bf6b8335"
+source_sha: "13ff14d038c4"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -58,7 +58,7 @@ equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
 al publicar.
 
-::: app.workflows.nodes.core_input._handler.InputField
+::: app.workflows.contracts.fields.InputField
 
 ### trigger.manual { #trigger-manual }
 
@@ -121,6 +121,18 @@ encaja con ellos inicia una ejecución como el miembro que lo publicó. `trigger
 es `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.channel_message { #trigger-channel-message }
+
+**Channel message.** Se inicia con un mensaje a uno de los bots de Slack,
+Mattermost o Telegram de la organización que el bot habría respondido con su propio
+agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`, y
+los mensajes de un bot inician como mucho un workflow. `triggered_by` es
+`channel_message`.
+
+::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+
+::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 
 ### trigger.workflow_failed { #trigger-workflow-failed }
 

@@ -618,7 +618,7 @@ export function isRunTerminal(status: WorkflowRunStatus): boolean {
 }
 
 /** The two ways a workflow runs with nobody pressing Start. */
-export type ExposureAdapter = "webhook" | "schedule" | "form";
+export type ExposureAdapter = "webhook" | "schedule" | "form" | "channel";
 
 /** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
 export type ExposureScheduleKind = "interval" | "cron";
@@ -650,6 +650,8 @@ export interface WorkflowExposureRead {
   form_token: string | null;
   /** Where a form's page is, on the console's own address. */
   form_url: string | null;
+  /** The bot whose messages a channel trigger takes; null for any other trigger. */
+  channel_bot_id: Uuid | null;
   created_at: string | null;
 }
 

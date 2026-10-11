@@ -3586,7 +3586,8 @@
         "workflow_call": "Another workflow",
         "workflow_failed": "A failed run",
         "agent": "An agent",
-        "form": "A form"
+        "form": "A form",
+        "channel_message": "A channel message"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",
@@ -3695,6 +3696,10 @@
         "form": {
           "name": "Form",
           "description": "Anyone with its link fills in a form, and each answer starts a run."
+        },
+        "channelMessage": {
+          "name": "Channel message",
+          "description": "A message to one of your Slack, Mattermost or Telegram bots starts a run."
         }
       },
       "startRunOptional": "optional",
@@ -3841,7 +3846,8 @@
       "formNewLink": "New link",
       "formNewLinkTitle": "Replace the form's link?",
       "formNewLinkDescription": "The current link stops working at once, wherever it was shared. The form stays the same.",
-      "formLinkRenewed": "The form has a new link"
+      "formLinkRenewed": "The form has a new link",
+      "triggerChannelLive": "Each message to the bot that it would have answered with its agent, and that fits the trigger, starts a run as the member who published it. Messages that do not fit still reach the bot's agent. Pause it to hand every message back."
     },
     "retention": {
       "title": "Data retention",

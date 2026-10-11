@@ -83,6 +83,16 @@ async def get_by_form_token(db: AsyncSession, token: str) -> WorkflowExposure | 
     return result.scalar_one_or_none()
 
 
+async def get_channel_listener(db: AsyncSession, bot_id: UUID) -> WorkflowExposure | None:
+    """The channel exposure that takes a bot's messages, paused or not - at most one."""
+    result = await db.execute(
+        select(WorkflowExposure).where(
+            WorkflowExposure.adapter == "channel", WorkflowExposure.channel_bot_id == bot_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def update(
     db: AsyncSession, *, exposure: WorkflowExposure, update_data: dict[str, Any]
 ) -> WorkflowExposure:

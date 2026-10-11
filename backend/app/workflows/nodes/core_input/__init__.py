@@ -5,14 +5,13 @@ from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition
 from app.workflows.contracts.io import WorkflowInputPayload
 from app.workflows.nodes.core_input._handler import (
     STATIC_PORTS,
-    InputField,
     TriggerInputConfig,
     handle,
     ports_for,
 )
 from app.workflows.triggers import API
 
-__all__ = ["InputField", "TriggerInputConfig"]
+__all__ = ["TriggerInputConfig"]
 
 register(
     NodeDefinition(

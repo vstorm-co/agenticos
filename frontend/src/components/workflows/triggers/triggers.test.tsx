@@ -42,6 +42,7 @@ function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposu
     webhook_url: null,
     form_token: null,
     form_url: null,
+    channel_bot_id: null,
     created_at: null,
     ...overrides,
   };
@@ -58,6 +59,7 @@ const CATALOG = [
   definition("trigger.schedule", "Schedule"),
   definition("trigger.table_record", "Table record"),
   definition("trigger.form", "Form"),
+  definition("trigger.channel_message", "Channel message"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 
@@ -273,6 +275,26 @@ describe("TriggerPanel", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "New link" }));
     expect(hook.renewLink.mutate).toHaveBeenCalledWith("e1", expect.anything());
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says a bot's messages start the workflow, and pauses it", async () => {
+    hook.exposure = exposure({
+      adapter: "channel",
+      channel_bot_id: "b1",
+      schedule_kind: null,
+      next_fire_at: null,
+    });
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.channel_message")}
+        draft={draftOf("trigger.channel_message")}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.getByText(/Messages that do not fit still reach the bot's agent/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(hook.setActive.mutate).toHaveBeenCalledWith({ id: "e1", active: false });
   });
 
   it("waits for the exposure, and shows nothing when the version has none", () => {

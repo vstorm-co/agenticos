@@ -21,6 +21,7 @@ import {
 } from "@/lib/workflows/templates";
 import {
   API_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
   CHAT_TRIGGER,
   FORM_TRIGGER,
   MANUAL_TRIGGER,
@@ -42,6 +43,7 @@ const STARTS = [
   { id: SCHEDULE_TRIGGER, key: "schedule" },
   { id: TABLE_RECORD_TRIGGER, key: "tableRecord" },
   { id: FORM_TRIGGER, key: "form" },
+  { id: CHANNEL_MESSAGE_TRIGGER, key: "channelMessage" },
   { id: WORKFLOW_CALL_TRIGGER, key: "workflowCall" },
   { id: WORKFLOW_FAILED_TRIGGER, key: "workflowFailed" },
 ] as const;

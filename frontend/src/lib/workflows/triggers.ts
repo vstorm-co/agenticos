@@ -5,7 +5,8 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
  * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
  *
  * A workflow starts from one trigger, its entry: by hand or the API, a chat
- * message, a signed webhook, a schedule, a table record or a public form. Publishing a
+ * message, a signed webhook, a schedule, a table record, a public form or a
+ * message to a bot. Publishing a
  * version is what switches its trigger on.
  */
 
@@ -24,6 +25,8 @@ export const WORKFLOW_FAILED_TRIGGER = "trigger.workflow_failed";
 export const WORKFLOW_CALL_TRIGGER = "trigger.workflow_call";
 /** A public page anyone with its link fills in, with the fields it declares. */
 export const FORM_TRIGGER = "trigger.form";
+/** A message to one of the organization's Slack, Mattermost or Telegram bots. */
+export const CHANNEL_MESSAGE_TRIGGER = "trigger.channel_message";
 
 /** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
@@ -73,6 +76,19 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
       return { prompt: "Hello", conversation_id: SAMPLE_ID, user_id: null };
     case WEBHOOK_TRIGGER:
       return { body: {}, delivery_id: "test" };
+    case CHANNEL_MESSAGE_TRIGGER: {
+      const bot = entry.config["bot_id"];
+      return {
+        platform: "slack",
+        bot_id: typeof bot === "string" ? bot : SAMPLE_ID,
+        channel_id: "C0SAMPLE",
+        thread_id: "",
+        chat_type: "private",
+        message_id: null,
+        text: "Hello", // i18n-exempt: sample run data, not console copy
+        sender: { platform_user_id: "U0SAMPLE", username: null, display_name: null, user_id: null },
+      };
+    }
     case SCHEDULE_TRIGGER:
       return { fired_at: new Date().toISOString(), input: entry.config["input"] ?? {} };
     case TABLE_RECORD_TRIGGER: {

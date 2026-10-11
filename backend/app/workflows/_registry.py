@@ -160,6 +160,7 @@ def load_builtins() -> None:
         table_record_upsert,
         text_extract,
         transform,
+        trigger_channel_message,
         trigger_chat,
         trigger_form,
         trigger_manual,

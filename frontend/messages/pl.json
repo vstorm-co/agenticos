@@ -830,7 +830,8 @@
         "workflow_call": "Inny workflow",
         "workflow_failed": "Nieudany przebieg",
         "agent": "Agent",
-        "form": "Formularz"
+        "form": "Formularz",
+        "channel_message": "Wiadomość na kanale"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -968,6 +969,10 @@
         "form": {
           "name": "Formularz",
           "description": "Każdy z linkiem wypełnia formularz, a każda odpowiedź uruchamia run."
+        },
+        "channelMessage": {
+          "name": "Wiadomość na kanale",
+          "description": "Wiadomość do jednego z Twoich botów na Slacku, Mattermost lub Telegramie uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -1114,7 +1119,8 @@
       "formNewLink": "Nowy link",
       "formNewLinkTitle": "Zastąpić link do formularza?",
       "formNewLinkDescription": "Obecny link od razu przestanie działać, gdziekolwiek został udostępniony. Formularz się nie zmieni.",
-      "formLinkRenewed": "Formularz ma nowy link"
+      "formLinkRenewed": "Formularz ma nowy link",
+      "triggerChannelLive": "Każda wiadomość do bota, na którą odpowiedziałby jego agent i która pasuje do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomości, które nie pasują, nadal trafiają do agenta bota. Wstrzymaj go, żeby oddać agentowi wszystkie wiadomości."
     }
   },
   "rag": {
