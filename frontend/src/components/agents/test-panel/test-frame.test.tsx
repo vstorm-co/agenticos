@@ -151,3 +151,16 @@ describe("testingFromMode", () => {
     expect(testingFromMode(mode)).toEqual(expected);
   });
 });
+
+describe("the test panel's frame, rendered on the server", () => {
+  it("renders with no pinned questions before the browser's are read", async () => {
+    // The server has no localStorage: the frame's first paint must not reach for it.
+    const { renderToString } = await import("react-dom/server");
+    const html = renderToString(
+      <TestFrame agentId="a1" testing={{ draft: true, environmentId: null }} />,
+    );
+
+    expect(typeof html).toBe("string");
+    expect(lastProps().pins.pinned).toEqual([]);
+  });
+});
