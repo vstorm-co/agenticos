@@ -46,15 +46,4 @@ test.describe("Chat on a phone", () => {
     await expect(sheet.getByRole("button", { name: "Attach file" })).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Voice input" })).toBeVisible();
   });
-
-  test("puts the tab bar away while somebody types", async ({ page }) => {
-    await page.goto("/chat");
-    await expect(page.getByText("Live")).toBeVisible();
-    const tabs = page.getByRole("navigation", { name: "Primary" });
-    await expect(tabs).toBeVisible();
-
-    await page.getByRole("textbox", { name: "Type a message..." }).tap();
-
-    await expect(tabs).toBeHidden();
-  });
 });

@@ -48,7 +48,7 @@ export function AssistantBubble({
     <div
       role="status"
       className={cn(
-        "group bg-background border-border bubble-rise fixed right-4 bottom-[calc(9.25rem+env(safe-area-inset-bottom))] z-50 w-[19rem] rounded-2xl border p-3.5 shadow-[0_10px_30px_rgb(20_22_28/0.10),0_2px_6px_rgb(20_22_28/0.06)] md:right-6 md:bottom-[6.5rem]",
+        "group bg-background border-border bubble-rise fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 w-[19rem] rounded-2xl border p-3.5 shadow-[0_10px_30px_rgb(20_22_28/0.10),0_2px_6px_rgb(20_22_28/0.06)] md:right-6 md:bottom-[6.5rem]",
         !proactive && "hidden md:block",
       )}
     >

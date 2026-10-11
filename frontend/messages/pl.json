@@ -2667,7 +2667,6 @@
     "conversations": "Rozmowy",
     "dashboard": "Panel",
     "esc": "ESC",
-    "home": "Strona główna",
     "kb": "Wiedza",
     "knowledge": "Wiedza",
     "knowledgeBase": "Baza wiedzy",
@@ -2717,7 +2716,6 @@
   },
   "navigation": {
     "dashboard": "Panel",
-    "home": "Strona główna",
     "logout": "Wyloguj",
     "profile": "Profil",
     "settings": "Ustawienia"

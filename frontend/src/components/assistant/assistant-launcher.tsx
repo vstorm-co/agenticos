@@ -41,7 +41,7 @@ export function AssistantLauncher({
       // Gone while the window is open, on every screen: the window takes its
       // corner, and the window's own × closes it.
       className={cn(
-        "bg-background border-border fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
+        "bg-background border-border fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
         open && "hidden",
         overComposer && "hidden",
       )}

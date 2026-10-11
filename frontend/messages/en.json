@@ -2897,7 +2897,6 @@
     "conversations": "Conversations",
     "dashboard": "Dashboard",
     "esc": "ESC",
-    "home": "Home",
     "kb": "Knowledge",
     "knowledge": "Knowledge",
     "knowledgeBase": "Knowledge Base",
@@ -2947,7 +2946,6 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
-    "home": "Home",
     "logout": "Logout",
     "profile": "Profile",
     "settings": "Settings"

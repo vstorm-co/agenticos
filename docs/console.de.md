@@ -1,5 +1,5 @@
 ---
-source_sha: "2a4c8514c96f"
+source_sha: "714eb0c5f737"
 ---
 
 # Die Konsole { #the-console }
@@ -226,7 +226,7 @@ können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
-Nachricht, wenn sie aufgeht, die Tab-Leiste tritt beim Tippen zur Seite, Enter
+Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
 

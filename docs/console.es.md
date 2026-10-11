@@ -1,5 +1,5 @@
 ---
-source_sha: "2a4c8514c96f"
+source_sha: "714eb0c5f737"
 ---
 
 # La consola { #the-console }
@@ -209,7 +209,7 @@ Son tuyos, no de la organización.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras
-se abre, la barra de pestañas se aparta mientras escribes, Enter empieza una
+se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 

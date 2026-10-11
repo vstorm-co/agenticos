@@ -1,5 +1,5 @@
 ---
-source_sha: "2a4c8514c96f"
+source_sha: "714eb0c5f737"
 ---
 
 # Konsola { #the-console }
@@ -209,8 +209,8 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 ukryć. Należą do ciebie, nie do organizacji.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
-klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera, pasek
-zakładek chowa się na czas pisania, Enter zaczyna nową linię, a załącznik i
+klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
+Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
 

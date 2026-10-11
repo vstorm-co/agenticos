@@ -2779,7 +2779,6 @@
     "conversations": "Unterhaltungen",
     "dashboard": "Dashboard",
     "esc": "ESC",
-    "home": "Start",
     "kb": "Wissen",
     "knowledge": "Wissen",
     "knowledgeBase": "Wissensdatenbank",
@@ -2829,7 +2828,6 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
-    "home": "Start",
     "logout": "Abmelden",
     "profile": "Profil",
     "settings": "Einstellungen"

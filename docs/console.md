@@ -199,10 +199,9 @@ ones ship with the product; you can write your own under
 yours, not the organization's.
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
-the keyboard and the conversation stays on its last message while it opens, the
-tab bar steps aside while you type, Enter starts a new line, and attaching a file
-or dictating sits behind one **+**. Fields are never small enough for iOS to zoom
-into them.
+the keyboard and the conversation stays on its last message while it opens,
+Enter starts a new line, and attaching a file or dictating sits behind one
+**+**. Fields are never small enough for iOS to zoom into them.
 
 **Watching a browse.** An agent with
 [browser automation](reference/capabilities.md#browser-automation-choose) opens a
