@@ -97,6 +97,7 @@ from app.workflows.contracts.io import (
     TableIORef,
     TemplateValue,
     output_refs,
+    target_path,
 )
 from app.workflows.contracts.policy import ERROR_PORT, RetryPolicy
 from app.workflows.contracts.results import (
@@ -423,13 +424,17 @@ def _resolve_io(
             if isinstance(binding.source, TemplateValue)
             else _resolve_source(binding.source, outputs)
         )
-        owner = _field_owner(definition, binding.target_field)
-        if owner == "input":
-            input_values[binding.target_field] = value
-        elif owner == "config":
-            config_overrides[binding.target_field] = value
-        # `owner is None` cannot happen for a published graph - rule 9
+        field, key = target_path(binding.target_field)
+        # No owner cannot happen for a published graph - rule 9
         # (`_binding_target_field_problems`) already refused it at publish.
+        values = {"input": input_values, "config": config_overrides}.get(
+            _field_owner(definition, field) or ""
+        )
+        if values is not None and key is None:
+            values[field] = value
+        elif values is not None:
+            # One key of an open object; publish refused binding it whole as well.
+            values.setdefault(field, {})[key] = value
 
     config_obj = None
     if definition.config_schema is not None:

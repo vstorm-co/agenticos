@@ -6041,7 +6041,9 @@
       "mattermost": "Mattermost",
       "telegram": "Telegram",
       "transform": "Umformen",
-      "model": "Modelle"
+      "model": "Modelle",
+      "mcp": "MCP-Server",
+      "email": "E-Mail"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -6125,6 +6127,17 @@
     "pickerHostsAdd": "Einen verbinden",
     "pickerHostOrphaned": "Der Host dieses Schritts ist weg oder kein sandboxd-Host. Wähle einen anderen.",
     "pickerHostNeedsPermission": "Einen Host zu wählen braucht connections:view. Der Schritt läuft auf dem Standard-Host der Organisation.",
+    "pickerMcpServerLabel": "MCP-Server",
+    "pickerMcpServerPlaceholder": "Server wählen",
+    "pickerMcpEmpty": "Die Organisation hat noch keinen MCP-Server.",
+    "pickerMcpAdd": "Einen verbinden",
+    "pickerMcpOrphaned": "Der Server dieses Schritts existiert nicht mehr. Wählen Sie einen anderen.",
+    "pickerMcpNeedsPermission": "Die Wahl eines MCP-Servers erfordert mcp:manage. Fragen Sie jemanden, der die Server der Organisation verwaltet.",
+    "pickerMcpToolLabel": "Tool",
+    "pickerMcpToolPlaceholder": "Tool wählen",
+    "pickerMcpRefresh": "Tools aktualisieren",
+    "pickerMcpTestFailed": "Der Server war nicht erreichbar.",
+    "pickerMcpNeverTested": "Dieser Server wurde noch nicht getestet, daher sind seine Tools unbekannt. Aktualisieren Sie, um sie abzurufen.",
     "categoryHint": {
       "triggers": "Wie ein Run startet",
       "agent": "Einen deiner Agenten ausführen",
@@ -6145,7 +6158,9 @@
       "http": "Eine API aufrufen, herunter- oder hochladen",
       "notification": "Mitglieder deiner Organisation benachrichtigen",
       "transform": "Listen sortieren, begrenzen und umformen",
-      "model": "Ein Modell fragen, klassifizieren, extrahieren oder zusammenfassen"
+      "model": "Ein Modell fragen, klassifizieren, extrahieren oder zusammenfassen",
+      "mcp": "Ein Tool auf einem Ihrer MCP-Server aufrufen",
+      "email": "Personen außerhalb Ihrer Organisation mailen"
     },
     "pickerSection": {
       "start": "Start",

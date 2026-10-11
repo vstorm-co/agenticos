@@ -32,9 +32,11 @@ import {
   Library,
   ListChecks,
   ListEnd,
+  Mail,
   MessageSquare,
   MessageSquareText,
   PhoneIncoming,
+  Plug,
   Play,
   Repeat,
   Reply,
@@ -165,6 +167,8 @@ const BY_CATEGORY: Record<string, NodeIcon> = {
   control: Repeat,
   error: ShieldAlert,
   http: Globe,
+  mcp: Plug,
+  email: Mail,
   notification: Bell,
   people: UserCheck,
   debug: Bug,
@@ -207,7 +211,10 @@ export const PICKER_SECTIONS = [
   { id: "ai", groups: ["agent", "model", "decide", "knowledge"] },
   { id: "flow", groups: ["logic", "control", "error", "people", "core"] },
   { id: "data", groups: ["tables", "data", "transform", "files", "code"] },
-  { id: "apps", groups: ["slack", "mattermost", "telegram", "http", "notification"] },
+  {
+    id: "apps",
+    groups: ["slack", "mattermost", "telegram", "mcp", "http", "email", "notification"],
+  },
 ] as const;
 
 /** Every group in picker order - what `categoryRank` sorts by. */

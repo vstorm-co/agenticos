@@ -1,5 +1,5 @@
 ---
-source_sha: "5969e59fec72"
+source_sha: "401b3cac88df"
 ---
 
 # Workflows { #workflows }
@@ -258,6 +258,7 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 | **Agent** i **Version** | Agenta, po jego awatarze i opisie, a potem jedną z jego opublikowanych wersji, z oznaczoną wersją live oraz datą i notatką każdej. Zmiana agenta czyści przypiętą wersję, bo wersja należy do jednego agenta. Karta kroku pokazuje wtedy awatar agenta i „nazwa · v3” |
 | **Table** i **Columns** | [Virtual Table](virtual-tables.md), a potem kolumny, które krok odczytuje — ograniczone do bieżącego schematu tej tabeli |
 | **Secret** | Sekret w [vault](secrets.md), przez referencję. Krok zapisuje id sekretu, nigdy jego wartość |
+| **MCP server** i **Tool** | Jeden z [serwerów MCP](mcp.md) organizacji, ze znakiem jego usługi, a potem jedno z narzędzi, które wypisał przy ostatnim teście. Wybór wymaga `mcp:manage` |
 
 Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
 referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do

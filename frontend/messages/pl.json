@@ -3811,7 +3811,9 @@
       "mattermost": "Mattermost",
       "telegram": "Telegram",
       "transform": "Przekształcenia",
-      "model": "Modele"
+      "model": "Modele",
+      "mcp": "Serwery MCP",
+      "email": "E-mail"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -3895,6 +3897,17 @@
     "pickerHostsAdd": "Podłącz host",
     "pickerHostOrphaned": "Host wskazany przez ten krok zniknął albo nie jest hostem sandboxd. Wybierz inny.",
     "pickerHostNeedsPermission": "Wybór hosta wymaga connections:view. Krok działa na domyślnym hoście organizacji.",
+    "pickerMcpServerLabel": "Serwer MCP",
+    "pickerMcpServerPlaceholder": "Wybierz serwer",
+    "pickerMcpEmpty": "Organizacja nie ma jeszcze serwera MCP.",
+    "pickerMcpAdd": "Podłącz serwer",
+    "pickerMcpOrphaned": "Serwera wskazanego w tym kroku już nie ma. Wybierz inny.",
+    "pickerMcpNeedsPermission": "Wybór serwera MCP wymaga uprawnienia mcp:manage. Poproś osobę, która zarządza serwerami organizacji.",
+    "pickerMcpToolLabel": "Narzędzie",
+    "pickerMcpToolPlaceholder": "Wybierz narzędzie",
+    "pickerMcpRefresh": "Odśwież narzędzia",
+    "pickerMcpTestFailed": "Nie udało się połączyć z serwerem.",
+    "pickerMcpNeverTested": "Nikt jeszcze nie przetestował tego serwera, więc jego narzędzia nie są znane. Odśwież, aby je pobrać.",
     "categoryHint": {
       "triggers": "Jak startuje run",
       "agent": "Uruchom jednego ze swoich agentów",
@@ -3915,7 +3928,9 @@
       "http": "Wywołaj API, pobierz albo wyślij plik",
       "notification": "Powiadom członków organizacji",
       "transform": "Sortuj, ogranicz i przekształcaj listy",
-      "model": "Zapytaj model, klasyfikuj, wyciągnij dane lub podsumuj"
+      "model": "Zapytaj model, klasyfikuj, wyciągnij dane lub podsumuj",
+      "mcp": "Wywołaj narzędzie na jednym z serwerów MCP",
+      "email": "Wyślij e-mail osobom spoza organizacji"
     },
     "pickerSection": {
       "start": "Start",

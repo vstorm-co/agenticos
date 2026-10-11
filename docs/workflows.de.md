@@ -1,5 +1,5 @@
 ---
-source_sha: "5969e59fec72"
+source_sha: "401b3cac88df"
 ---
 
 # Workflows { #workflows }
@@ -284,6 +284,7 @@ hat:
 | **Agent** und **Version** | Einen Agent, an seinem Avatar und seiner Beschreibung erkennbar, dann eine seiner veröffentlichten Versionen, mit markierter Live-Version sowie Datum und Release Note jeder Version. Ein Wechsel des Agents löscht die gepinnte Version, weil eine Version zu einem Agent gehört. Die Karte des Schritts zeigt dann den Avatar des Agents und „Name · v3“ |
 | **Table** und **Columns** | Eine [Virtual Table](virtual-tables.md), dann die Spalten, die der Schritt liest — begrenzt auf das aktuelle Schema dieser Tabelle |
 | **Secret** | Ein [Vault](secrets.md)-Secret, per Referenz. Ein Schritt speichert die id des Secrets, nie seinen Wert |
+| **MCP server** und **Tool** | Einer der [MCP-Server](mcp.md) der Organisation, mit dem Zeichen seines Dienstes, dann eines der Tools, die er beim letzten Test gelistet hat. Die Wahl erfordert `mcp:manage` |
 
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und

@@ -173,6 +173,8 @@ describe("a node card", () => {
       "gone conditionOps.empty:{}nodeSummaryAnd:{}item = x",
     );
     expect(summary("data.filter", {})).toBeNull();
+    expect(summary("mcp.call", { tool: "find_contact" })).toBe("find_contact");
+    expect(summary("mcp.call", { tool: "" })).toBeNull();
   });
 
   it("says what a Transform step and a schedule are set to do", () => {

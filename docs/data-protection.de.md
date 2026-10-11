@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0b4b100c2"
+source_sha: "d7a7b037c774"
 ---
 
 # Datenschutz { #data-protection }
@@ -115,7 +115,7 @@ davon. Beides sind Kopien des Chats und gehen mit ihm.
 | Redis | Rate-Limit-Buckets, geschlüsselt auf den Aufrufer — bei einer öffentlichen Oberfläche ist das die **IP-Adresse im Klartext**, im Schlüssel, für die TTL des Fensters; Dedup-Schlüssel für Trigger und Kanäle; OAuth-Austauschzustand; vorgemerkte Einladungen | Beim Ablauf; nichts hier überlebt seine Minuten |
 | Prefect | Historie und Logs der Flow-Runs | Parameter sind Ids und Pfade, mit einer Ausnahme: der **`event_context` eines ereignisgesteuerten Runs** — Absender, Betreff und Text einer Gmail-Nachricht, eines GitHub-Issues, eines Webhook-Payloads — reist als Flow-Parameter und bleibt in der Run-Historie. Die Logs des Workers laufen durch denselben Redaktionsfilter wie die der API |
 | Logfire, wenn konfiguriert | Traces jedes Runs | Die Aufbewahrung des Providers. Heute trägt ein Trace den vollen Prompt, die Ausgabe und die Tool-Argumente — siehe [Traces](#traces) |
-| Ihr SMTP-Relay | Einladungen, Magic Links, Freigabeanfragen, Budget-Warnungen, Nutzungsberichte, und die eigene Mail des [Benachrichtigungs-Postfachs](governance.md#alerts) - ein Run, der unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die abschließt oder scheitert, ein Sicherheitsereignis oder eine Konfigurationsänderung, die eigene Ankündigung eines Admins | Was das Relay aufbewahrt. Eine Freigabe-Mail nennt den Agent, das Tool und einen Link, nicht die Argumente des Tools |
+| Ihr SMTP-Relay | Einladungen, Magic Links, Freigabeanfragen, Budget-Warnungen, Nutzungsberichte, und die eigene Mail des [Benachrichtigungs-Postfachs](governance.md#alerts) - ein Run, der unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die abschließt oder scheitert, ein Sicherheitsereignis oder eine Konfigurationsänderung, die eigene Ankündigung eines Admins - und Betreff und Text eines [`email.send`](reference/workflow-nodes.md#email-send)-Schritts eines Workflows, an die Adressen, die er bekommt | Was das Relay aufbewahrt. Eine Freigabe-Mail nennt den Agent, das Tool und einen Link, nicht die Argumente des Tools |
 | Backups | Ein `pg_dump` ist die ganze Datenbank; das Media-Volume sind die Dateien | Ihr Backup-Ablauf. Eine Löschung erreicht ein bereits gezogenes Backup nie — siehe [Backups](deploy.md#backups) |
 
 ## Was das Deployment verlässt { #what-leaves-the-deployment }
@@ -135,13 +135,13 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Web-Fetch und Browser-Nutzung | Die URL; bei Browser-Nutzung die ganze Aufgabe | Die Capability auf dem Spec; Browser-Nutzung braucht zusätzlich einen CDP-Endpunkt, den Sie benennen | Die abgerufene Seite; der Browser-Host |
 | Das Entscheidungsmodell des Browsings | Jeder Schritt eines Durchlaufs: die URL der Seite, ihr Titel, die Beschriftungen der sichtbaren Elemente und bis zu 1.500 Zeichen ihres sichtbaren Textes — was der Inhalt eines internen Systems sein kann. Ein Wert, den der Agent eintippt, wird **nicht** gesendet - und auch nicht, was ein Feld schon enthält: Die Elementtabelle meldet nur, dass ein Feld gefüllt ist, ein Passwort oder eine Adresse erreicht diesen Endpunkt also nicht | Die Capability `browser_choice`, die ohne einen von einem Betreiber hinterlegten Vault-Key nicht läuft; `decision_base_url` verschiebt das Ziel. Welchen Browser sie steuert, begrenzt `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Der Anbieter des Entscheidungsmodells oder Ihr eigener Host |
 | Die Sandbox, ausgehend | **Alles im Workspace, an jeden beliebigen Host** — die Runtime `workbench` hat ein Netz, eine Shell und `curl` | Die Capability `sandbox` und eine Runtime mit `needs_network`; die Kommandofreigabe steuert, was läuft, nicht wohin es sich verbindet | Wohin das Kommando ging. Egress-Kontrolle ist die Firewall des Sandbox-Hosts, keine Einstellung hier |
-| Ein MCP-Server | Tool-Argumente und -Ergebnisse | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
+| Ein MCP-Server | Tool-Argumente und -Ergebnisse, eines Agents oder eines [`mcp.call`](reference/workflow-nodes.md#mcp-call)-Schritts eines Workflows | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |
 | Logfire | Spans für jede Anfrage und jeden Run | `LOGFIRE_TOKEN` deploymentweit; ein `observability`-Token auf einem Spec oder `logfire_token_secret_id` auf einem Environment lenkt diese Runs in ein anderes Projekt. `LOGFIRE_BASE_URL` wählt das US- oder EU-Deployment. Überall ungesetzt wird nichts gesendet | Die von Pydantic, US oder EU |
 | Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
 | Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
-| Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |
+| Ihr SMTP-Relay | Die oben genannte Post und der Text eines [`email.send`](reference/workflow-nodes.md#email-send)-Schritts, an die Adressen, die sein Autor gewählt hat | `SMTP_HOST`, `SMTP_TLS` | Ihre, dann die jedes Empfängers |
 
 Sync-Konnektoren laufen andersherum: Eine Google-Drive- oder S3-Quelle zieht
 Dokumente **herein**, authentifiziert durch ein `connector`-Secret, und von da an

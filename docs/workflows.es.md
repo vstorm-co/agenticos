@@ -1,5 +1,5 @@
 ---
-source_sha: "5969e59fec72"
+source_sha: "401b3cac88df"
 ---
 
 # Workflows { #workflows }
@@ -266,6 +266,7 @@ que un paso nombre algo real que tu organización tiene:
 | **Agent** y **Version** | Un agent, por su avatar y su descripción, y luego una de sus versiones publicadas, con la versión live marcada y la fecha y la nota de cada una. Cambiar el agent borra la versión fijada, porque una versión pertenece a un agent. La tarjeta del paso muestra entonces el avatar del agent y «nombre · v3» |
 | **Table** y **Columns** | Una [Virtual Table](virtual-tables.md), y luego las columnas que el paso lee — acotadas al esquema actual de esa tabla |
 | **Secret** | Un secreto del [vault](secrets.md), por referencia. Un paso guarda la id del secreto, nunca su valor |
+| **MCP server** y **Tool** | Uno de los [servidores MCP](mcp.md) de la organización, con la marca de su servicio, y luego una de las herramientas que listó en su última prueba. Elegirlo requiere `mcp:manage` |
 
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**

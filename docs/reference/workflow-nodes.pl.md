@@ -1,5 +1,5 @@
 ---
-source_sha: "9dc95beb06d1"
+source_sha: "ea006cd517a1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -442,6 +442,45 @@ originie nie dostaje danych uwierzytelniających.
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
+## mcp.call { #mcp-call }
+
+**Call an MCP tool** wywołuje jedno narzędzie na jednym z
+[serwerów MCP](../mcp.md) organizacji, z `arguments` zbindowanymi z wcześniejszych
+kroków. Edytor pokazuje serwery ze znakiem ich usługi, a potem narzędzia, które
+serwer wypisał przy ostatnim teście; **Refresh tools** testuje go ponownie.
+Każdy argument narzędzia jest wtedy osobnym polem, wpisanym albo zbindowanym
+jako `arguments/<name>`.
+Kwalifikuje się tylko serwer należący do organizacji, nigdy własny serwer
+członka, a publikacja odrzuca serwer, który nie jest organizacji, jest wyłączony
+albo nie wypisał tego narzędzia. Poświadczenie pochodzi z vaultu, tak jak dla
+agenta.
+
+`approval` decyduje, kiedy osoba najpierw zatwierdza wywołanie: `writes`,
+domyślnie, przed każdym narzędziem, którego serwer nie oznacza jako tylko do
+odczytu; `all` przed każdym wywołaniem; `none` nigdy. Prośba trafia do zakładki
+**Approvals**, tak jak przy [human.approval](#human-approval), do `approvers` albo
+do każdego z `approvals:decide`. Zatwierdzone - narzędzie jest wywoływane;
+odrzucone - krok kończy się błędem `MCP_CALL_REJECTED`. Oznaczenie „tylko do
+odczytu” to deklaracja samego serwera, więc dla serwera, któremu tego nie
+powierzasz, wybierz `all`.
+
+Wyjście to `text` odpowiedzi, jej `structured` dane, gdy narzędzie je zwraca, i
+`is_error`. Błąd, którym odpowiada narzędzie, kończy krok błędem
+`MCP_TOOL_ERROR`, chyba że `on_tool_error` to `complete`. MCP nie ma klucza
+idempotencji, więc awaria po wywołaniu powtarza je przy ponowieniu.
+
+| Co się stało | Wynik |
+|---|---|
+| Serwera nie ma albo jest wyłączony | `MCP_SERVER_UNAVAILABLE`, nic nie wysłano |
+| Jego poświadczenie trzeba ponownie autoryzować | `MCP_SERVER_UNAUTHORIZED`, nic nie wysłano |
+| Serwer nie oferuje narzędzia | `MCP_TOOL_NOT_FOUND` |
+| Nie udało się połączyć z serwerem albo połączenie zerwało się | `MCP_CALL_FAILED` |
+| Narzędzie odpowiedziało błędem | `MCP_TOOL_ERROR` albo odpowiedź jako wyjście |
+
+::: app.workflows.nodes.mcp_call._handler.McpCallConfig
+
+::: app.workflows.nodes.mcp_call._handler.McpCallOutput
+
 ## notification.send { #notification-send }
 
 Powiadamia członków organizacji w aplikacji, mailem albo na oba sposoby, przez
@@ -454,6 +493,29 @@ zapisane, a mail wychodzi później. Ponowiony krok nie zapisuje drugiego
 powiadomienia.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## email.send { #email-send }
+
+**Send an email** wysyła maila na maksymalnie dziesięć adresów z nadawcy i
+[dostawcy poczty](../configuration.md#email-smtp) wdrożenia, osobną kopię do
+każdego, więc żaden odbiorca nie widzi adresu innego. Jest dla osób spoza
+organizacji, takich jak lead czy klient: członków dosięga
+[notification.send](#notification-send) zgodnie z ich preferencjami. `to`,
+`subject` i zwykły tekst `body` wpisuje się albo binduje z wcześniejszych
+kroków, a `reply_to` kieruje odpowiedzi gdzie indziej niż na adres odpowiedzi
+wdrożenia.
+
+Wyjście wymienia adresy, które dostawca przyjął. `delivered` jest fałszywe, gdy
+dostawca tylko loguje pocztę, co jest domyślne w środowisku deweloperskim, więc
+run nigdy nie twierdzi, że dotarł do kogoś, do kogo nie dotarł. Kopia odrzucona
+przez dostawcę kończy krok błędem `EMAIL_NOT_SENT`, wymieniając, co już wysłano.
+Poczta nie ma klucza idempotencji, więc ponowiony krok wysyła ponownie.
+
+::: app.workflows.nodes.email_send._handler.EmailSendConfig
+
+::: app.workflows.nodes.email_send._handler.EmailSendInput
+
+::: app.workflows.nodes.email_send._handler.EmailSendOutput
 
 ## human.approval { #human-approval }
 

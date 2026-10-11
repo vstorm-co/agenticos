@@ -1,5 +1,5 @@
 ---
-source_sha: "9dc95beb06d1"
+source_sha: "ea006cd517a1"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -449,6 +449,45 @@ credencial.
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
+## mcp.call { #mcp-call }
+
+**Call an MCP tool** llama a una herramienta en uno de los
+[servidores MCP](../mcp.md) de la organización, con `arguments` enlazados desde
+pasos anteriores. El editor ofrece los servidores con la marca de su servicio y
+luego las herramientas que el servidor listó en su última prueba; **Refresh
+tools** lo vuelve a probar. Cada argumento de la herramienta es entonces un
+campo propio, escrito o enlazado como `arguments/<name>`. Solo sirve un servidor de la organización, nunca el
+propio de un miembro, y publicar rechaza un servidor que no es de la
+organización, está apagado o no listó la herramienta. La credencial sale del
+vault, como para un agent.
+
+`approval` decide cuándo una persona aprueba antes la llamada: `writes`, por
+defecto, antes de cualquier herramienta que el servidor no marque como de solo
+lectura; `all` antes de cada llamada; `none` nunca. La petición va a la pestaña
+**Approvals**, como con [human.approval](#human-approval), a `approvers` o a
+quien tenga `approvals:decide`. Aprobada, se llama a la herramienta; rechazada,
+el paso falla con `MCP_CALL_REJECTED`. La marca de solo lectura es una
+afirmación del propio servidor, así que elige `all` para un servidor en el que no
+confías para hacerla.
+
+La salida es el `text` de la respuesta, sus datos `structured` cuando la
+herramienta los devuelve, e `is_error`. Un error con el que responde la
+herramienta hace fallar el paso con `MCP_TOOL_ERROR` salvo que `on_tool_error`
+sea `complete`. MCP no tiene clave de idempotencia, así que un fallo tras la
+llamada la repite en el reintento.
+
+| Qué pasó | Resultado |
+|---|---|
+| El servidor ya no existe o está apagado | `MCP_SERVER_UNAVAILABLE`, nada enviado |
+| Hay que volver a autorizar su credencial | `MCP_SERVER_UNAUTHORIZED`, nada enviado |
+| El servidor no ofrece la herramienta | `MCP_TOOL_NOT_FOUND` |
+| No se pudo llegar al servidor, o cortó | `MCP_CALL_FAILED` |
+| La herramienta respondió con un error | `MCP_TOOL_ERROR`, o la respuesta como salida |
+
+::: app.workflows.nodes.mcp_call._handler.McpCallConfig
+
+::: app.workflows.nodes.mcp_call._handler.McpCallOutput
+
 ## notification.send { #notification-send }
 
 Notifica a miembros de la organización en la aplicación, por email o por ambos,
@@ -461,6 +500,30 @@ notificación queda escrita, y el email se entrega después. Un paso reintentado
 escribe una segunda notificación.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## email.send { #email-send }
+
+**Send an email** envía un correo a hasta diez direcciones desde el remitente y
+el [proveedor de correo](../configuration.md#email-smtp) del despliegue, una
+copia a cada una, para que ningún destinatario vea la dirección de otro. Es para
+personas de fuera de la organización, como un lead o un cliente: a los miembros
+los alcanza [notification.send](#notification-send) según sus preferencias.
+`to`, `subject` y el texto plano `body` se escriben o se enlazan desde pasos
+anteriores, y `reply_to` manda las respuestas a otro sitio que la dirección de
+respuesta del despliegue.
+
+La salida lista las direcciones que el proveedor aceptó. `delivered` es false
+cuando el proveedor solo registra el correo, lo predeterminado en desarrollo, así
+que un run nunca afirma haber llegado a alguien a quien no llegó. Una copia que el
+proveedor rechaza hace fallar el paso con `EMAIL_NOT_SENT`, nombrando lo ya
+enviado. El correo no tiene clave de idempotencia, así que un paso reintentado
+vuelve a enviar.
+
+::: app.workflows.nodes.email_send._handler.EmailSendConfig
+
+::: app.workflows.nodes.email_send._handler.EmailSendInput
+
+::: app.workflows.nodes.email_send._handler.EmailSendOutput
 
 ## human.approval { #human-approval }
 

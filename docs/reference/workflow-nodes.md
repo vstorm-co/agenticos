@@ -431,6 +431,42 @@ there is no next page, when a page has no items, or at `max_pages`, when
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
+## mcp.call { #mcp-call }
+
+**Call an MCP tool** calls one tool on one of the organization's
+[MCP servers](../mcp.md), with `arguments` bound from earlier steps. The editor
+offers the servers with their service's mark, then the tools the server listed
+when it was last tested; **Refresh tools** tests it again. Each argument the
+tool takes is then a field of its own, typed in or bound, as `arguments/<name>`. Only an
+organization-owned server qualifies, never a member's own, and publishing
+refuses a server that is not the organization's, is turned off, or did not list
+the tool. The credential comes from the vault, as it does for an agent.
+
+`approval` decides when a person approves the call first: `writes`, the
+default, before any tool the server does not mark read-only; `all` before every
+call; `none` never. The request goes to the **Approvals** tab, like
+[human.approval](#human-approval), to `approvers` or to anyone holding
+`approvals:decide`. Approved, the tool is called; rejected, the step fails with
+`MCP_CALL_REJECTED`. A read-only mark is the server's own claim, so choose `all`
+for a server you do not trust to make it.
+
+The output is the answer's `text`, its `structured` data when the tool returns
+some, and `is_error`. An error the tool answers with fails the step with
+`MCP_TOOL_ERROR` unless `on_tool_error` is `complete`. MCP has no idempotency
+key, so a crash after the call repeats it on the retry.
+
+| What happened | Result |
+|---|---|
+| The server is gone or turned off | `MCP_SERVER_UNAVAILABLE`, nothing sent |
+| Its credential needs authorizing again | `MCP_SERVER_UNAUTHORIZED`, nothing sent |
+| The server does not offer the tool | `MCP_TOOL_NOT_FOUND` |
+| The server could not be reached, or broke off | `MCP_CALL_FAILED` |
+| The tool answered with an error | `MCP_TOOL_ERROR`, or the answer as output |
+
+::: app.workflows.nodes.mcp_call._handler.McpCallConfig
+
+::: app.workflows.nodes.mcp_call._handler.McpCallOutput
+
 ## notification.send { #notification-send }
 
 Notifies members of the organization in the app, by email, or both, through
@@ -442,6 +478,28 @@ completes when the notification is written, and email is delivered afterwards.
 A retried step writes no second notification.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## email.send { #email-send }
+
+**Send an email** mails up to ten addresses from the deployment's own sender
+and [email provider](../configuration.md), one copy to each, so no recipient
+sees another's address. It is for people outside the organization, such as a
+lead or a customer: members are reached through
+[notification.send](#notification-send) and their preferences. `to`, `subject`
+and the plain-text `body` are typed in or bound from earlier steps, and
+`reply_to` sends replies somewhere other than the deployment's reply address.
+
+The output lists the addresses the provider accepted. `delivered` is false when
+the provider only logs mail, which is the development default, so a run never
+claims it reached anyone it did not. A copy the provider refuses fails the step
+with `EMAIL_NOT_SENT`, naming what was already sent. Mail has no idempotency
+key, so a retried step sends again.
+
+::: app.workflows.nodes.email_send._handler.EmailSendConfig
+
+::: app.workflows.nodes.email_send._handler.EmailSendInput
+
+::: app.workflows.nodes.email_send._handler.EmailSendOutput
 
 ## human.approval { #human-approval }
 

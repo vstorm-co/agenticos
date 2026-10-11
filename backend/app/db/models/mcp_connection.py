@@ -162,7 +162,7 @@ class McpConnection(Base, TimestampMixin):
     # catalogue `allowed_tools` is chosen from. Recorded so the Builder can list
     # them without holding `connections:manage`, which gates the probe because it
     # dials out to a third party. Null until the connection is next checked.
-    last_tools: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    last_tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     # Which of this member's accounts on one service an agent speaks as, where a
     # binding asked to substitute theirs and they hold more than one. False on
     # every row until somebody chooses: a single account is substituted whether
@@ -250,11 +250,11 @@ class McpConnection(Base, TimestampMixin):
     def account_authorized(self) -> bool:
         """Whether this connection's stored credential can be used right now.
 
-        The side-effect-free half of `_resolve_auth_headers`, and the single place
+        The side-effect-free half of `resolve_auth_headers`, and the single place
         the answer is decided so a run and the rendered list cannot drift (#1443):
         an OAuth or bearer credential is usable once its payload/token is written
         and the master key that sealed it is still configured - the half
-        `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
+        `resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
         decrypts and refreshes nothing, so two failures it cannot see are left to
         the run that actually unseals: a ciphertext tampered with under a still
         configured key, and an OAuth grant the provider has revoked or expired past

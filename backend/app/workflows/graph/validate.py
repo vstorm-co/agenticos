@@ -94,6 +94,7 @@ from app.workflows.contracts.io import (
     TableIORef,
     TemplateValue,
     output_refs,
+    target_path,
 )
 from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
@@ -469,7 +470,9 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
     problems: Problems = []
     bound_fields_by_node: dict[UUID, set[str]] = {}
     for binding in graph.bindings:
-        bound_fields_by_node.setdefault(binding.target_node_id, set()).add(binding.target_field)
+        bound_fields_by_node.setdefault(binding.target_node_id, set()).add(
+            target_path(binding.target_field)[0]
+        )
 
     for node in graph.nodes:
         definition = definitions[node.id]
@@ -852,10 +855,26 @@ def _type_name(annotation: Any) -> str:
 
 
 def _field_type(definition: NodeDefinition, field_name: str) -> Any:
+    """What a binding's `target_field` takes: its field's type, or `Any` for one
+    key of a field that takes an open object. `_UNKNOWN` when neither exists."""
+    field, key = target_path(field_name)
     for schema in (definition.input_schema, definition.config_schema):
-        if schema is not None and field_name in schema.model_fields:
-            return schema.model_fields[field_name].annotation
+        if schema is not None and field in schema.model_fields:
+            annotation = schema.model_fields[field].annotation
+            if key is None:
+                return annotation
+            one_key = bool(key) and field_name.count("/") == 1
+            return Any if one_key and _takes_keys(annotation) else _UNKNOWN
     return _UNKNOWN
+
+
+def _takes_keys(annotation: Any) -> bool:
+    """Whether a field is an open object a binding may fill one key at a time:
+    `dict[str, Any]`, optionally `| None`."""
+    if get_origin(annotation) in (Union, types.UnionType):
+        members = [arg for arg in get_args(annotation) if arg is not type(None)]
+        return len(members) == 1 and _takes_keys(members[0])
+    return get_origin(annotation) is dict and get_args(annotation) == (str, Any)
 
 
 def _resolve_field_path(ports: tuple[Port, ...], port_id: str, field_path: tuple[str, ...]) -> Any:
@@ -1366,9 +1385,19 @@ def _rule_8_no_parallel_fanout(graph: WorkflowGraph, definitions: DefinitionMap)
 def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
     problems: Problems = []
     bound_counts: dict[tuple[UUID, str], int] = {}
+    # A field bound one key at a time is bound - and must not be bound whole too,
+    # or which value a key holds would depend on the order the bindings ran in.
+    keyed: set[tuple[UUID, str]] = set()
     for binding in graph.bindings:
         key = (binding.target_node_id, binding.target_field)
         bound_counts[key] = bound_counts.get(key, 0) + 1
+        field, by_key = target_path(binding.target_field)
+        if by_key is not None:
+            keyed.add((binding.target_node_id, field))
+    for node_id, field_name in sorted(keyed & set(bound_counts), key=str):
+        problems.append(
+            (f"nodes.{node_id}.{field_name}", "This input is bound whole and by key at once")
+        )
 
     # Every bound field, not only a required one: two competing sources for
     # an optional field are just as ambiguous - which one an executor would
@@ -1383,7 +1412,11 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
         if definition is None or definition.input_schema is None:
             continue
         for field_name, field in definition.input_schema.model_fields.items():
-            if field.is_required() and bound_counts.get((node.id, field_name), 0) == 0:
+            if (
+                field.is_required()
+                and bound_counts.get((node.id, field_name), 0) == 0
+                and (node.id, field_name) not in keyed
+            ):
                 problems.append(
                     (f"nodes.{node.id}.{field_name}", "This required input is not bound")
                 )

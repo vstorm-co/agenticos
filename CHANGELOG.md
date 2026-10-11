@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **MCP tool and email steps in workflows.** **Call an MCP tool** calls one tool
+  on one of the organization's MCP servers, picked with its service's mark and
+  then from the tools the server listed; by default a person approves any tool
+  the server does not mark read-only before it runs, through the same Approvals
+  inbox as **Ask for approval**. **Send an email** mails up to ten addresses, a
+  copy each, from the deployment's sender, and says when the provider only logs
+  mail rather than delivering it. A tool's arguments are one field each, from the
+  schema the server listed, since a binding can now fill one key of an open
+  object (`arguments/email`).
+
 - **Model steps and a knowledge write.** **Ask a model** answers a prompt under
   the step's instructions, as text or an object; **Classify** puts a text in one
   of the step's categories and branches on it; **Extract data** pulls the fields

@@ -268,7 +268,8 @@ export type ResourceKind =
   | "channel_bot"
   | "sandbox_connection"
   | "workflow"
-  | "model_profile";
+  | "model_profile"
+  | "mcp_connection";
 
 const RESOURCE_KINDS: readonly ResourceKind[] = [
   "agent",
@@ -280,6 +281,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   "sandbox_connection",
   "workflow",
   "model_profile",
+  "mcp_connection",
 ];
 
 /** The resource a leaf pins through a picker, or null for an ordinary literal leaf. */

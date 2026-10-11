@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0b4b100c2"
+source_sha: "d7a7b037c774"
 ---
 
 # Protección de datos { #data-protection }
@@ -113,7 +113,7 @@ por el modelo. Ambos son copias del chat y se van con él.
 | Redis | Cubos de rate limit con clave en quien llama — en una superficie pública eso es la **dirección IP en claro**, dentro de la clave, durante el TTL de la ventana; claves de deduplicación de triggers y canales; estado del intercambio OAuth; invitaciones en espera | Al expirar; nada de esto sobrevive a sus minutos |
 | Prefect | Historial y logs de los flow-runs | Los parámetros son ids y rutas, con una excepción: el **`event_context` de un run disparado por un evento** — el remitente, el asunto y el cuerpo de un mensaje de Gmail, una incidencia de GitHub, un payload de webhook — viaja como parámetro del flow y se queda en el historial. Los logs del worker pasan por el mismo filtro de redacción que los de la API |
 | Logfire, si está configurado | Trazas de cada run | La retención del provider. Hoy una traza lleva el prompt completo, la salida y los argumentos de las herramientas — consulta [Trazas](#traces) |
-| Tu relay SMTP | Invitaciones, enlaces mágicos, peticiones de aprobación, alertas de budget, informes de uso, y el propio correo del [buzón de notificaciones](governance.md#alerts) - un run que termina o falla desatendido, la ingesta de un documento que se completa o falla, un evento de seguridad o un cambio de configuración, el propio anuncio de un admin | Lo que el relay conserve. El correo de aprobación nombra el agent, la herramienta y un enlace, no los argumentos de la herramienta |
+| Tu relay SMTP | Invitaciones, enlaces mágicos, peticiones de aprobación, alertas de budget, informes de uso, y el propio correo del [buzón de notificaciones](governance.md#alerts) - un run que termina o falla desatendido, la ingesta de un documento que se completa o falla, un evento de seguridad o un cambio de configuración, el propio anuncio de un admin - y el asunto y el texto de un paso [`email.send`](reference/workflow-nodes.md#email-send) de un workflow, a las direcciones que reciba | Lo que el relay conserve. El correo de aprobación nombra el agent, la herramienta y un enlace, no los argumentos de la herramienta |
 | Copias de seguridad | Un `pg_dump` es la base de datos entera; el volumen de medios son los archivos | Tu caducidad de copias. El borrado nunca alcanza una copia ya tomada — consulta [Copias de seguridad](deploy.md#backups) |
 
 ## Qué sale del deployment { #what-leaves-the-deployment }
@@ -132,13 +132,13 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Web fetch y uso del navegador | La URL; para el uso del navegador, la tarea entera | La capability en el spec; el uso del navegador necesita además un endpoint CDP que nombres tú | El sitio consultado; el host del navegador |
 | El modelo de decisión de la navegación | Cada paso de un recorrido: la URL de la página, su título, las etiquetas de los elementos a la vista y hasta 1.500 caracteres de su texto visible, que pueden ser el contenido de un sistema interno. Un valor que el agent escribe **no** se envía, ni tampoco lo que un campo ya contiene: la tabla de elementos solo indica que un campo está rellenado, así que una contraseña o una dirección no llegan a ese endpoint | La capability `browser_choice`, que no se ejecuta sin una clave del vault que añada un operador; `decision_base_url` cambia el destino. Qué navegador dirige lo limita `BROWSER_CDP_ALLOWED_HOSTS`, vacío por defecto | El proveedor del modelo de decisión, o tu propio host |
 | La sandbox, hacia fuera | **Cualquier cosa del workspace, a cualquier host** — la runtime `workbench` tiene red, shell y `curl` | La capability `sandbox` y una runtime con `needs_network`; la aprobación de comandos controla qué se ejecuta, no adónde se conecta | Adonde fuera el comando. El control de salida es el firewall del host de la sandbox, no un ajuste de aquí |
-| Un servidor MCP | Argumentos y resultados de herramientas | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
+| Un servidor MCP | Argumentos y resultados de herramientas, de un agent o de un paso [`mcp.call`](reference/workflow-nodes.md#mcp-call) de un workflow | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
 | Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
-| Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |
+| Tu relay SMTP | El correo de arriba y el texto de un paso [`email.send`](reference/workflow-nodes.md#email-send), a las direcciones que eligió su autor | `SMTP_HOST`, `SMTP_TLS` | La tuya, luego la de cada destinatario |
 
 Los conectores de sincronización van al revés: un origen de Google Drive o S3
 trae documentos **hacia dentro**, autenticado por un secreto `connector`, y a

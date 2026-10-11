@@ -5,6 +5,7 @@ and unavailable branch bindings fail publication with actionable errors.
 """
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
@@ -1238,3 +1239,85 @@ def test_a_file_ref_and_a_literal_binding_need_no_table_lookup():
     )
     assert isinstance(file_binding.source, FileRef)
     assert isinstance(literal_binding.source, LiteralValue)
+
+
+# An open object bound one key at a time
+
+
+class _OpenInput(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    arguments: dict[str, Any]
+    extra: dict[str, Any] | None = None
+    counts: dict[str, int] | None = None
+    tags: list[str] | None = None
+
+
+def _open_consumer(registered_node, node_id: str) -> NodeInstance:
+    registered_node(
+        NodeDefinition(
+            id=node_id,
+            version=1,
+            name=node_id,
+            category="test",
+            description="takes an open object",
+            kind="action",
+            config_schema=None,
+            input_schema=_OpenInput,
+            output_schema=_PlainOutput,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="out", label="Out", kind="output", schema=_PlainOutput),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    return NodeInstance(
+        id=uuid4(), definition_id=node_id, definition_version=1, config={}, layout=_pos()
+    )
+
+
+def _open_graph(consumer: NodeInstance, *fields: str) -> WorkflowGraph:
+    a = _echo_node()
+    return WorkflowGraph(
+        entry_node_id=a.id,
+        nodes=(a, consumer),
+        edges=(_edge(a.id, "out", consumer.id, "in"),),
+        bindings=tuple(
+            Binding(target_node_id=consumer.id, target_field=field, source=LiteralValue(value="x"))
+            for field in fields
+        ),
+    )
+
+
+async def test_an_open_object_bound_key_by_key_counts_as_bound(mock_db_session, registered_node):
+    consumer = _open_consumer(registered_node, "test.open_keys")
+    graph = _open_graph(consumer, "arguments/email", "arguments/a~1b", "extra/note")
+
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert len(validated.bindings) == 3
+
+
+async def test_an_open_object_bound_whole_and_by_key_is_refused(mock_db_session, registered_node):
+    consumer = _open_consumer(registered_node, "test.open_both")
+    graph = _open_graph(consumer, "arguments", "arguments/email")
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any("whole and by key" in f["message"] for f in excinfo.value.details["fields"])
+
+
+@pytest.mark.parametrize(
+    "field", ["counts/a", "tags/0", "arguments/a/b", "arguments/", "missing/a"]
+)
+async def test_only_one_key_of_an_open_object_can_be_bound(mock_db_session, registered_node, field):
+    consumer = _open_consumer(registered_node, "test.open_refused")
+    graph = _open_graph(consumer, "arguments/email", field)
+
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    assert any("does not exist" in f["message"] for f in excinfo.value.details["fields"])

@@ -59,6 +59,11 @@ import {
 import { BindingField } from "./binding-field";
 import { type ConditionRoot, ConditionField, useConditionFields } from "./condition-field";
 import { AgentSourceField } from "@/components/workflows/agent-step/agent-source-field";
+import {
+  McpConnectionPicker,
+  McpToolField,
+  useMcpToolSchema,
+} from "@/components/workflows/pickers/mcp-tool-picker";
 import { InputFieldsForm } from "./input-fields-form";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
@@ -107,6 +112,11 @@ const ANSWER_SHAPES: Record<string, { field: string; mode: "keepsOwn" | "text" |
 /** `agent.run`'s agent: `agent` (a catalog pin) or `inline` (configured here), one field. */
 const AGENT_SOURCE = "agent";
 const AGENT_INLINE = "inline";
+/** `mcp.call`'s server and tool: one field, since the tool is one the server offers. */
+const MCP_CALL = "mcp.call";
+const MCP_SERVER = "connection_id";
+const MCP_TOOL = "tool";
+const MCP_ARGUMENTS = "arguments";
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
@@ -330,6 +340,16 @@ function ResourcePin({
     return (
       <SandboxConnectionPicker
         label={label}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "mcp_connection") {
+    return (
+      <McpConnectionPicker
         value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}
@@ -945,7 +965,24 @@ export interface NodeFormProps {
  * `input_schema` bindings in one list — extending `schema-form.tsx` with `$ref`, nested
  * objects, repeatable arrays, discriminated unions and binding-aware leaves.
  */
-export function NodeForm({
+export function NodeForm(props: NodeFormProps) {
+  return props.definition.id === MCP_CALL ? (
+    <McpCallForm {...props} />
+  ) : (
+    <NodeFields {...props} toolSchema={null} />
+  );
+}
+
+/** `mcp.call`'s form, with its tool's argument schema looked up for its fields. */
+function McpCallForm(props: NodeFormProps) {
+  const toolSchema = useMcpToolSchema(
+    strOrNull(props.node.config[MCP_SERVER]),
+    strOrNull(props.node.config[MCP_TOOL]),
+  );
+  return <NodeFields {...props} toolSchema={toolSchema} />;
+}
+
+function NodeFields({
   definition,
   node,
   graph,
@@ -956,7 +993,11 @@ export function NodeForm({
   updateNodeConfig,
   upsertBinding,
   removeBinding,
-}: NodeFormProps) {
+  toolSchema,
+}: NodeFormProps & {
+  /** An MCP tool's argument schema, drawn as one field per argument; null elsewhere. */
+  toolSchema: Record<string, unknown> | null;
+}) {
   const t = useTranslations("workflows");
   const [allShown, setAllShown] = useState(false);
   const ctx: FieldCtx = {
@@ -997,9 +1038,22 @@ export function NodeForm({
   const inputSchema = definition.input_schema;
   const configFields =
     configSchema === null ? [] : objectFields(configSchema, defsOf(configSchema));
-  const inputFields = inputSchema === null ? [] : objectFields(inputSchema, defsOf(inputSchema));
+  // An MCP tool's arguments, once its schema is known, are one field per
+  // argument - each bound on its own as `arguments/<name>` - not one object.
+  const toolArguments =
+    toolSchema !== null && isRecord(toolSchema["properties"]) ? (toolSchema as Schema) : null;
+  const inputFields = (
+    inputSchema === null ? [] : objectFields(inputSchema, defsOf(inputSchema))
+  ).map((entry) =>
+    toolArguments !== null && entry.name === MCP_ARGUMENTS
+      ? { ...entry, schema: { ...toolArguments, title: labelOf(entry.schema, entry.name) } }
+      : entry,
+  );
   const configDefs = configSchema === null ? {} : defsOf(configSchema);
-  const inputDefs = inputSchema === null ? {} : defsOf(inputSchema);
+  const inputDefs = {
+    ...(inputSchema === null ? {} : defsOf(inputSchema)),
+    ...(toolArguments === null ? {} : defsOf(toolArguments)),
+  };
 
   if (configFields.length === 0 && inputFields.length === 0) {
     const hint = TRIGGER_HINTS[definition.id];
@@ -1017,23 +1071,34 @@ export function NodeForm({
     bindings.some(
       (binding) =>
         binding.target_node_id === node.id &&
-        (binding.target_field === name || binding.target_field.startsWith(`${name}.`)),
+        (binding.target_field === name || binding.target_field.startsWith(`${name}/`)),
     );
   const agentStep = definition.id === AGENT_RUN;
+  const mcpStep = definition.id === MCP_CALL;
+  // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
+  // tool by its server.
+  const drawnElsewhere = (name: string) =>
+    (agentStep && name === AGENT_INLINE) || (mcpStep && name === MCP_TOOL);
   const configShown = configFields.filter(
     (entry) =>
-      // `inline` is drawn by the `agent` field, which an agent step always shows:
-      // neither half is required alone, but one of the two always is.
-      !(agentStep && entry.name === AGENT_INLINE) &&
+      // An agent step always shows `agent`: neither it nor `inline` is required
+      // alone, but one of the two always is.
+      !drawnElsewhere(entry.name) &&
       ((agentStep && entry.name === AGENT_SOURCE) ||
         allShown ||
         entry.required ||
         node.config[entry.name] !== undefined ||
         bound(entry.name)),
   );
-  const inputShown = inputFields.filter((entry) => allShown || entry.required || bound(entry.name));
-  // `inline` is drawn by the `agent` field, so it is neither shown nor folded.
-  const foldable = configFields.filter((entry) => !(agentStep && entry.name === AGENT_INLINE));
+  const inputShown = inputFields.filter(
+    (entry) =>
+      allShown ||
+      entry.required ||
+      bound(entry.name) ||
+      (toolArguments !== null && entry.name === MCP_ARGUMENTS),
+  );
+  // A field drawn by another is neither shown nor folded.
+  const foldable = configFields.filter((entry) => !drawnElsewhere(entry.name));
   const folded = foldable.length + inputFields.length - configShown.length - inputShown.length;
   // One list, as a builder reads it: the list a step works on first - Filter's
   // items before its condition - then what it is set to do, then what else it reads.
@@ -1074,6 +1139,24 @@ export function NodeForm({
                   error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
                   disabled={disabled}
                   onChange={(next) => updateNodeConfig(node.id, next)}
+                />
+              ) : mcpStep && entry.name === MCP_SERVER ? (
+                <McpToolField
+                  connectionId={strOrNull(node.config[MCP_SERVER])}
+                  tool={strOrNull(node.config[MCP_TOOL])}
+                  serverError={ctx.errors.get(MCP_SERVER)}
+                  toolError={ctx.errors.get(MCP_TOOL)}
+                  disabled={disabled}
+                  onChange={({ connectionId, tool }) =>
+                    updateNodeConfig(
+                      node.id,
+                      setKey(
+                        setKey(node.config, MCP_SERVER, connectionId ?? undefined),
+                        MCP_TOOL,
+                        tool ?? undefined,
+                      ),
+                    )
+                  }
                 />
               ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
                 <AnswerFormatForm

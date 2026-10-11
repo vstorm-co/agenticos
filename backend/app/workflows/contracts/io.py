@@ -122,7 +122,10 @@ class Binding(BaseModel):
     `target_field` names a field of the target node's `input_schema` (or
     `config_schema`, for a value that is configuration rather than runtime
     input) - `app.workflows.graph.validate` is what confirms the field, the
-    node and the source all actually agree.
+    node and the source all actually agree. A field that takes an open object
+    (`dict[str, Any]`, an MCP tool's `arguments`) can also be bound one key at a
+    time, as `field/key` - the JSON Pointer the editor writes, `~1` for a `/` in
+    the key and `~0` for a `~`. See `target_path`.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -130,6 +133,19 @@ class Binding(BaseModel):
     target_node_id: UUID
     target_field: str
     source: BindingSource
+
+
+def target_path(target_field: str) -> tuple[str, str | None]:
+    """A binding's `target_field` as `(field, key)`: `("arguments", "email")` for
+    `arguments/email`, and `(field, None)` for a field bound whole.
+
+    One level only. Deeper is refused at publish as a field that does not exist,
+    because the key is all an open object's schema can say anything about.
+    """
+    field, slash, key = target_field.partition("/")
+    if not slash:
+        return field, None
+    return field, key.replace("~1", "/").replace("~0", "~")
 
 
 class SourceRef(BaseModel):

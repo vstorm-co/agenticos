@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0b4b100c2"
+source_sha: "d7a7b037c774"
 ---
 
 # Ochrona danych { #data-protection }
@@ -110,7 +110,7 @@ kopiami czatu i idą razem z nim.
 | Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia | Po wygaśnięciu; nic tutaj nie przeżywa swoich minut |
 | Prefect | Historia i logi flow-runów | Parametry to id i ścieżki, z jednym wyjątkiem: **`event_context` runu wyzwolonego zdarzeniem** — nadawca, temat i treść wiadomości Gmail, zgłoszenia GitHub, ładunku webhooka — podróżuje jako parametr flow i zostaje w historii runów. Logi workera przechodzą przez ten sam filtr redakcji co logi API |
 | Logfire, jeśli skonfigurowany | Trace'y każdego runu | Retencja providera. Dziś trace niesie pełny prompt, wyjście i argumenty narzędzi — zobacz [Trace'y](#traces) |
-| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
+| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora - oraz temat i treść kroku [`email.send`](reference/workflow-nodes.md#email-send) workflow, na adresy, które dostał | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
 | Kopie zapasowe | `pg_dump` to cała baza; wolumen mediów to pliki | Twoje wygaśnięcie kopii. Usunięcie nigdy nie sięga kopii już zrobionej — zobacz [Kopie zapasowe](deploy.md#backups) |
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }
@@ -129,13 +129,13 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Web fetch i browser use | URL; dla browser use całe zadanie | Capability w specu; browser use potrzebuje też endpointu CDP, który wskażesz | Pobieranej strony; hosta przeglądarki |
 | Model decyzyjny przeglądania | Każdy krok przeglądania: adres strony, jej tytuł, etykiety widocznych elementów i do 1500 znaków jej widocznego tekstu — co może być zawartością systemu wewnętrznego. Wartość, którą agent wpisuje, **nie** jest wysyłana — ani to, co pole już zawiera: tabela elementów podaje wyłącznie, że pole jest wypełnione, więc hasło ani adres nie trafiają do tego endpointu | Capability `browser_choice`, która nie zadziała bez klucza z vault dodanego przez operatora; `decision_base_url` zmienia miejsce docelowe. To, jaką przeglądarkę prowadzi, ogranicza `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pusta | Dostawcy modelu decyzyjnego albo twojego własnego hosta |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
-| Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
+| Serwer MCP | Argumenty i wyniki narzędzi, agenta albo kroku [`mcp.call`](reference/workflow-nodes.md#mcp-call) workflow | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
 | Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
-| Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |
+| Twój relay SMTP | Poczta wymieniona wyżej oraz tekst kroku [`email.send`](reference/workflow-nodes.md#email-send) workflow, na adresy wybrane przez jego autora | `SMTP_HOST`, `SMTP_TLS` | Twoja, potem każdego odbiorcy |
 
 Konektory synchronizacji działają w drugą stronę: źródło Google Drive albo S3
 zaciąga dokumenty **do środka**, uwierzytelnione sekretem `connector`, a od tej

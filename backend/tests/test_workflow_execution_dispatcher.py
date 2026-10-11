@@ -329,6 +329,21 @@ class TestResolveIO:
         config_obj, _input_obj = dispatcher._resolve_io(graph, node, definition, outputs={})
         assert config_obj.message == "original"
 
+    def test_an_open_object_is_assembled_from_its_keys(self):
+        definition = REGISTRY["mcp.call"][1]
+        node = _node_instance(
+            "mcp.call", config={"connection_id": str(uuid.uuid4()), "tool": "find_lead"}
+        )
+        bindings = tuple(
+            Binding(target_node_id=node.id, target_field=field, source=LiteralValue(value=value))
+            for field, value in (("arguments/email", "a@b.co"), ("arguments/a~1b~0c", 1))
+        )
+        graph = _graph(node, bindings=bindings)
+
+        _config_obj, input_obj = dispatcher._resolve_io(graph, node, definition, outputs={})
+
+        assert input_obj.arguments == {"email": "a@b.co", "a/b~c": 1}
+
 
 class TestResolveGraph:
     async def test_real_mode_reads_the_published_version(self, test_node: str):

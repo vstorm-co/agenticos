@@ -1,5 +1,5 @@
 ---
-source_sha: "9dc95beb06d1"
+source_sha: "ea006cd517a1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -464,6 +464,45 @@ nächste Seite auf einem anderen Origin bekommt keine Zugangsdaten.
 
 ::: app.workflows.nodes.http_request._handler.HttpRequestOutput
 
+## mcp.call { #mcp-call }
+
+**Call an MCP tool** ruft ein Tool auf einem der
+[MCP-Server](../mcp.md) der Organisation auf, mit `arguments`, die aus früheren
+Schritten gebunden sind. Der Editor bietet die Server mit dem Zeichen ihres
+Dienstes an, dann die Tools, die der Server beim letzten Test gelistet hat;
+**Refresh tools** testet ihn erneut. Jedes Argument des Tools ist dann ein
+eigenes Feld, eingetippt oder gebunden als `arguments/<name>`. Nur ein Server der Organisation kommt in
+Frage, nie der eigene eines Mitglieds, und die Veröffentlichung lehnt einen
+Server ab, der nicht der Organisation gehört, ausgeschaltet ist oder das Tool
+nicht gelistet hat. Die Zugangsdaten kommen aus dem Vault, wie bei einem Agent.
+
+`approval` bestimmt, wann eine Person den Aufruf vorher freigibt: `writes`, der
+Standard, vor jedem Tool, das der Server nicht als nur lesend markiert; `all`
+vor jedem Aufruf; `none` nie. Die Anfrage landet im Tab **Approvals**, wie bei
+[human.approval](#human-approval), bei `approvers` oder bei allen mit
+`approvals:decide`. Freigegeben, wird das Tool aufgerufen; abgelehnt, scheitert
+der Schritt mit `MCP_CALL_REJECTED`. Eine Nur-lesen-Markierung ist die eigene
+Angabe des Servers, wählen Sie also `all` für einen Server, dem Sie diese Angabe
+nicht zutrauen.
+
+Die Ausgabe ist der `text` der Antwort, ihre `structured` Daten, wenn das Tool
+welche liefert, und `is_error`. Ein Fehler, mit dem das Tool antwortet, lässt den
+Schritt mit `MCP_TOOL_ERROR` scheitern, außer `on_tool_error` ist `complete`. MCP
+hat keinen Idempotenzschlüssel, daher wiederholt ein Absturz nach dem Aufruf ihn
+beim erneuten Versuch.
+
+| Was passiert ist | Ergebnis |
+|---|---|
+| Der Server ist weg oder ausgeschaltet | `MCP_SERVER_UNAVAILABLE`, nichts gesendet |
+| Seine Zugangsdaten müssen neu autorisiert werden | `MCP_SERVER_UNAUTHORIZED`, nichts gesendet |
+| Der Server bietet das Tool nicht an | `MCP_TOOL_NOT_FOUND` |
+| Der Server war nicht erreichbar oder brach ab | `MCP_CALL_FAILED` |
+| Das Tool antwortete mit einem Fehler | `MCP_TOOL_ERROR` oder die Antwort als Ausgabe |
+
+::: app.workflows.nodes.mcp_call._handler.McpCallConfig
+
+::: app.workflows.nodes.mcp_call._handler.McpCallOutput
+
 ## notification.send { #notification-send }
 
 Benachrichtigt Mitglieder der Organisation in der App, per E-Mail oder beides,
@@ -476,6 +515,30 @@ abgeschlossen, wenn die Benachrichtigung geschrieben ist, die E-Mail wird danach
 zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## email.send { #email-send }
+
+**Send an email** schickt eine Mail an bis zu zehn Adressen, vom eigenen Absender
+und [E-Mail-Anbieter](../configuration.md#email-smtp) des Deployments, je eine
+Kopie, sodass kein Empfänger die Adresse eines anderen sieht. Der Schritt ist für
+Personen außerhalb der Organisation gedacht, etwa einen Lead oder einen Kunden:
+Mitglieder erreicht [notification.send](#notification-send) über ihre eigenen
+Einstellungen. `to`, `subject` und der Klartext `body` werden eingetippt oder aus
+früheren Schritten gebunden, und `reply_to` leitet Antworten an eine andere
+Adresse als die Antwortadresse des Deployments.
+
+Die Ausgabe nennt die Adressen, die der Anbieter angenommen hat. `delivered` ist
+false, wenn der Anbieter Mail nur protokolliert, was in der Entwicklung der
+Standard ist, damit ein Run nie behauptet, jemanden erreicht zu haben, den er
+nicht erreicht hat. Eine Kopie, die der Anbieter ablehnt, lässt den Schritt mit
+`EMAIL_NOT_SENT` scheitern und nennt, was schon gesendet wurde. Mail hat keinen
+Idempotenzschlüssel, daher sendet ein wiederholter Schritt erneut.
+
+::: app.workflows.nodes.email_send._handler.EmailSendConfig
+
+::: app.workflows.nodes.email_send._handler.EmailSendInput
+
+::: app.workflows.nodes.email_send._handler.EmailSendOutput
 
 ## human.approval { #human-approval }
 

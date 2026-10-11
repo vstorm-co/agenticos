@@ -180,6 +180,8 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
     }
     case "error.raise":
       return typeof config.code === "string" && config.code ? config.code : null;
+    case "mcp.call":
+      return typeof config.tool === "string" && config.tool ? config.tool : null;
     case "error.handle": {
       const branches = Array.isArray(config.branches) ? config.branches.length : 0;
       return t("nodeSummaryBranches", { count: branches });

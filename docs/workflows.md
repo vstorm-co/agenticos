@@ -251,6 +251,7 @@ step names a real thing your organization has:
 | **Agent** and **Version** | An agent, by its face and description, then one of its published versions, with the live one marked and each one's date and release note. Changing the agent clears the pinned version, because a version belongs to one agent. The step's card then shows the agent's face and "name · v3" |
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
 | **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
+| **MCP server** and **Tool** | One of the organization's [MCP servers](mcp.md), with its service's mark, then one of the tools it listed when last tested. Choosing it needs `mcp:manage` |
 
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a

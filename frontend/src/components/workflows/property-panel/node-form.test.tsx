@@ -39,6 +39,43 @@ vi.mock("@/components/workflows/agent-step/agent-source-field", () => ({
   ),
 }));
 
+const mcpTool = vi.hoisted(() => ({ schema: null as Record<string, unknown> | null }));
+
+vi.mock("@/components/workflows/pickers/mcp-tool-picker", () => ({
+  useMcpToolSchema: () => mcpTool.schema,
+  McpToolField: ({
+    connectionId,
+    tool,
+    toolError,
+    onChange,
+  }: {
+    connectionId: string | null;
+    tool: string | null;
+    toolError?: string;
+    onChange: (next: { connectionId: string | null; tool: string | null }) => void;
+  }) => (
+    <div>
+      <span>{`mcp-tool:${connectionId}:${tool}:${toolError ?? ""}`}</span>
+      <button
+        type="button"
+        aria-label="pick-tool"
+        onClick={() => onChange({ connectionId: "c1", tool: "find" })}
+      />
+      <button
+        type="button"
+        aria-label="clear-server"
+        onClick={() => onChange({ connectionId: null, tool: null })}
+      />
+    </div>
+  ),
+  McpConnectionPicker: ({ onChange }: { onChange: (next: string | null) => void }) => (
+    <div>
+      <button type="button" aria-label="pick-server" onClick={() => onChange("c2")} />
+      <button type="button" aria-label="unpick-server" onClick={() => onChange(null)} />
+    </div>
+  ),
+}));
+
 vi.mock("@/components/workflows/pickers", () => ({
   ChannelBotPicker: ({
     value,
@@ -398,6 +435,115 @@ describe("NodeForm sections", () => {
     expect(screen.getByRole("button", { name: "1 more option" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "go-inline" }));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { inline: { name: "x" } });
+  });
+
+  it("draws an MCP step's server and tool as one field, writing both", async () => {
+    const mcpCall = makeDefinition({
+      id: "mcp.call",
+      config_schema: {
+        type: "object",
+        properties: {
+          connection_id: { "x-resource": "mcp_connection" },
+          tool: { type: "string" },
+          timeout_seconds: { type: "integer", default: 60 },
+        },
+        required: ["connection_id", "tool"],
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({
+      definition: mcpCall,
+      config: { connection_id: "c0", tool: "old", timeout_seconds: 5 },
+      errors: new Map([["tool", "Not offered"]]),
+    });
+
+    expect(screen.getByText("mcp-tool:c0:old:Not offered")).toBeVisible();
+    // The tool is the server field's, never a text box of its own.
+    expect(screen.queryByRole("textbox", { name: /tool/i })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "pick-tool" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      connection_id: "c1",
+      tool: "find",
+      timeout_seconds: 5,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "clear-server" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { timeout_seconds: 5 });
+  });
+
+  it("edits an MCP tool's arguments as one field each, bound by key", async () => {
+    const mcpCall = makeDefinition({
+      id: "mcp.call",
+      config_schema: {
+        type: "object",
+        properties: { connection_id: { "x-resource": "mcp_connection" }, tool: { type: "string" } },
+      } as Schema,
+      input_schema: {
+        type: "object",
+        properties: { arguments: { anyOf: [{ type: "object" }, { type: "null" }] } },
+      } as Schema,
+    });
+    mcpTool.schema = {
+      type: "object",
+      properties: {
+        email: { type: "string", description: "Whose lead" },
+        limit: { type: "integer" },
+      },
+      required: ["email"],
+    };
+    const { upsertBinding } = renderForm({
+      definition: mcpCall,
+      config: { connection_id: "c1", tool: "find_lead" },
+      folded: true,
+    });
+
+    // Shown at once, not folded: they are what the tool is called with.
+    const email = screen.getByRole("textbox", { name: /email/i });
+    await userEvent.type(email, "a");
+    expect(upsertBinding).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target_field: "arguments/email" }),
+    );
+    expect(screen.getByText("Whose lead")).toBeInTheDocument();
+    mcpTool.schema = null;
+  });
+
+  it("keeps the arguments one object while the tool's schema is unknown", () => {
+    const mcpCall = makeDefinition({
+      id: "mcp.call",
+      config_schema: {
+        type: "object",
+        properties: { connection_id: { "x-resource": "mcp_connection" }, tool: { type: "string" } },
+      } as Schema,
+      input_schema: {
+        type: "object",
+        properties: { arguments: { anyOf: [{ type: "object" }, { type: "null" }] } },
+      } as Schema,
+    });
+    mcpTool.schema = { type: "object" };
+    renderForm({
+      definition: mcpCall,
+      config: { connection_id: "c1", tool: "find_lead" },
+      folded: true,
+    });
+
+    expect(screen.queryByRole("textbox", { name: /email/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "1 more option" })).toBeVisible();
+    mcpTool.schema = null;
+  });
+
+  it("pins an MCP server anywhere else through the server picker", async () => {
+    const other = makeDefinition({
+      id: "other.step",
+      config_schema: {
+        type: "object",
+        properties: { server: { "x-resource": "mcp_connection", title: "Server" } },
+        required: ["server"],
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({ definition: other, config: { server: "c1" } });
+
+    await userEvent.click(screen.getByRole("button", { name: "pick-server" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { server: "c2" });
+    await userEvent.click(screen.getByRole("button", { name: "unpick-server" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
   });
 
   it("picks a model step's model from the organization's models", async () => {
