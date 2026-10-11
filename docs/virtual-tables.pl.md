@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5e30021f3e"
+source_sha: "11094feb134d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -51,6 +51,8 @@ pusta.
 | `datetime` | ISO 8601 ze strefą czasową, zapisywany jako UTC | tak samo jak `number` |
 | `single_select` | Id opcji | `eq` `ne` `in` `is_null` |
 | `multi_select` | Lista id opcji | `contains` `is_null` |
+| `link` | Lista do 100 id rekordów tabeli, z którą łączy | `contains` (id rekordu) `is_null` |
+| `lookup`, `rollup` | Nic: wyliczane przy odczycie rekordu | brak |
 
 Tekst jest zapisywany dokładnie tak, jak został wysłany. Spacje na początku i na
 końcu, podziały wierszy i wartości złożone z samych spacji to dane użytkownika, więc
@@ -65,6 +67,29 @@ Narzędzia tabel agenta i kroki tabel w workflow nazywają wybór etykietą opcj
 bez rozróżniania wielkości liter: po etykiecie zapisują i filtrują, a wybory rekordu
 odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie wskazuje
 żadnej aktywnej opcji, jest odrzucana wraz z listą opcji kolumny.
+
+## Powiązania, odczyty i podsumowania { #links-lookups-and-rollups }
+
+Kolumna `link` przechowuje rekordy innej tabeli albo tej samej, wskazanej przez
+`link_table_id`. Zapis sprawdza, czy każdy rekord istnieje w tej tabeli i czy
+zapisujący ją widzi, więc powiązanie nie pozwala sprawdzić, jakie id ma
+prywatna tabela. Rekord zwraca swoje powiązania nazwane, w `links`, pierwszą
+wartością tekstową każdego powiązanego rekordu, a w drugiej kolejności jego
+zewnętrznym id. Powiązany rekord usunięty w międzyczasie po prostu znika.
+
+`lookup` czyta jedną kolumnę powiązanych rekordów przez kolumnę powiązania tej
+samej tabeli (`link_column_id`, `target_column_id`): wartości, a wybór po
+etykiecie. `rollup` coś z nich wylicza: `count` powiązań albo `sum`, `avg`, `min`
+lub `max` kolumny liczb - `min` i `max` także dat. Obie są wyliczane przy
+odczycie rekordu i nigdy nie są zapisywane, filtrowane ani sortowane.
+
+To, co pokazuje odczyt, nie sięga dalej niż czytelnik: powiązana tabela, której
+czytelnik nie widzi, zostawia powiązania bez nazw, a każdy odczyt i każde
+podsumowanie przez nie puste. Powiązanie zachowuje swoją tabelę na zawsze.
+Odczyt czyta kolumnę z wartościami, nie inne powiązanie ani odczyt, a
+archiwizacja kolumny powiązania jest odrzucana, dopóki czyta przez nią odczyt
+lub podsumowanie. Eksport zapisuje powiązanie nazwami jego rekordów, a odczyt
+tym, co przeczytał.
 
 ## Zmiana schematu { #changing-a-schema }
 

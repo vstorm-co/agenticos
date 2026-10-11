@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5e30021f3e"
+source_sha: "11094feb134d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -52,6 +52,8 @@ die Sie als `null` senden, bleibt leer.
 | `datetime` | ISO 8601 mit Zeitzone, als UTC gespeichert | wie `number` |
 | `single_select` | Die id einer Option | `eq` `ne` `in` `is_null` |
 | `multi_select` | Eine Liste von Options-ids | `contains` `is_null` |
+| `link` | Eine Liste von bis zu 100 Datensatz-ids der verknüpften Tabelle | `contains` (eine Datensatz-id) `is_null` |
+| `lookup`, `rollup` | Nichts: beim Lesen eines Datensatzes ermittelt | keine |
 
 Text wird genau so gespeichert, wie er gesendet wurde. Führende und nachgestellte
 Leerzeichen, Zeilenumbrüche und Werte, die nur aus Leerzeichen bestehen, sind Daten des
@@ -68,6 +70,32 @@ Auswahl stattdessen über das Label ihrer Option, ohne Beachtung der Groß- und
 Kleinschreibung: Sie schreiben und filtern per Label und lesen die Auswahl eines
 Datensatzes als Labels zurück, auch die einer archivierten Option. Ein Wert, der keine
 aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
+
+## Verknüpfungen, Nachschlagen und Zusammenfassungen { #links-lookups-and-rollups }
+
+Eine `link`-Spalte hält Datensätze einer anderen Tabelle oder derselben,
+benannt durch `link_table_id`. Beim Schreiben wird geprüft, dass jeder Datensatz
+in dieser Tabelle existiert und der Schreibende sie sehen kann, sodass eine
+Verknüpfung nicht verrät, welche ids eine private Tabelle hat. Ein Datensatz
+liefert seine Verknüpfungen benannt zurück, in `links`, nach dem ersten
+Textwert jedes verknüpften Datensatzes, sonst nach seiner externen id. Ein
+inzwischen gelöschter verknüpfter Datensatz fällt einfach weg.
+
+Ein `lookup` liest eine Spalte der verknüpften Datensätze über eine
+Verknüpfungsspalte derselben Tabelle (`link_column_id`, `target_column_id`): die
+Werte, eine Auswahl nach ihrem Label. Ein `rollup` ermittelt daraus etwas:
+`count` der Verknüpfungen oder `sum`, `avg`, `min` oder `max` einer Zahlenspalte -
+`min` und `max` auch von Datumswerten. Beide werden beim Lesen ermittelt und nie
+gespeichert, geschrieben, gefiltert oder sortiert.
+
+Was ein Nachschlagen zeigt, reicht nicht weiter als der Leser darf: Eine
+verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen
+unbenannt und jedes Nachschlagen und jede Zusammenfassung darüber leer. Eine
+Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
+mit Werten, keine andere Verknüpfung und kein Nachschlagen, und das Archivieren
+einer Verknüpfungsspalte wird abgelehnt, solange etwas über sie liest. Ein
+Export schreibt eine Verknüpfung mit den Namen ihrer Datensätze und ein
+Nachschlagen mit dem Gelesenen.
 
 ## Ein Schema ändern { #changing-a-schema }
 

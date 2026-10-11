@@ -43,6 +43,8 @@ MAX_EMAIL = 254
 """The longest address SMTP carries (RFC 5321's path limit)."""
 MAX_URL = 2_048
 MAX_RATING = 5
+MAX_LINKS = 100
+"""Records one link cell names: a link is a reference, not a way to hold a list."""
 
 # Deliberately loose: one `@`, a dot in the domain, no spaces. Whether a mailbox
 # exists is not a cell's question, and a stricter pattern refuses real addresses.
@@ -76,6 +78,9 @@ class ColumnType:
     validate: Validator
     """`(value, column, writing) -> stored value`. `writing` is false for a filter
     operand, which may name an archived select option that a write may not."""
+    computed: bool = False
+    """Read from other values when a record is read, never stored, written,
+    filtered or sorted by - see `computed.py`."""
 
 
 def _text_of(limit: int) -> Validator:
@@ -201,6 +206,31 @@ def _option_id(value: object, column: ColumnDef, writing: bool) -> str:
     raise _not_an_option(column)
 
 
+def _record_id(value: object) -> str:
+    if not isinstance(value, str):
+        raise CellProblem("Expected a record id")
+    try:
+        return str(UUID(value))
+    except ValueError:
+        raise CellProblem("Expected a record id") from None
+
+
+def _link(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    """Record ids of the linked table. Whether each exists is the service's question."""
+    if not isinstance(value, list):
+        raise CellProblem("Expected a list of record ids")
+    if len(value) > MAX_LINKS:
+        raise CellProblem(f"A cell links at most {MAX_LINKS} records")
+    linked = [_record_id(item) for item in value]
+    if len(set(linked)) != len(linked):
+        raise CellProblem("The same record is linked twice")
+    return linked
+
+
+def _computed(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    raise CellProblem("This column is worked out from others and cannot be written")
+
+
 def _single_select(value: object, column: ColumnDef, writing: bool) -> CellValue:
     return _option_id(value, column, writing)
 
@@ -242,10 +272,18 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
             False,
             _multi_select,
         ),
+        ColumnType("link", SqlKind.ARRAY, frozenset({"contains", "is_null"}), False, _link),
+        ColumnType("lookup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
+        ColumnType("rollup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
     )
 }
 
 OPTION_TYPES: frozenset[ColumnTypeName] = frozenset({"single_select", "multi_select"})
+COMPUTED_TYPES: frozenset[ColumnTypeName] = frozenset(
+    name for name, column_type in COLUMN_TYPES.items() if column_type.computed
+)
+READ_THROUGH_LINK: frozenset[ColumnTypeName] = frozenset({"lookup", "rollup"})
+"""The computed types that read the records a link column of the same table names."""
 SEARCHED_TYPES: frozenset[ColumnTypeName] = frozenset(
     {"text", "long_text", "email", "url", "phone"}
 )
@@ -271,6 +309,8 @@ def validate_default(column: ColumnDef) -> CellValue:
 def validate_filter(column: ColumnDef, op: FilterOp, value: FilterValue) -> FilterValue:
     """A filter's operand, or :class:`CellProblem` when the operator does not suit the column."""
     column_type = COLUMN_TYPES[column.type]
+    if column_type.computed:
+        raise CellProblem("A worked-out column cannot be filtered on; filter the column it reads")
     if op not in column_type.filter_ops:
         allowed = ", ".join(sorted(column_type.filter_ops))
         raise CellProblem(f"A {column.type} column supports these operators: {allowed}")
@@ -283,6 +323,8 @@ def validate_filter(column: ColumnDef, op: FilterOp, value: FilterValue) -> Filt
             raise CellProblem(f"in takes a list of 1 to {MAX_IN_OPERANDS} values")
         operands: list[CellValue] = [column_type.validate(item, column, False) for item in value]
         return operands
+    if op == "contains" and column.type == "link":
+        return _record_id(value)
     if op == "contains" and column_type.kind is SqlKind.ARRAY:
         return _option_id(value, column, False)
     if op in ("contains", "starts_with"):

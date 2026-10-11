@@ -43,6 +43,9 @@ def test_every_declared_type_is_registered():
         "datetime",
         "single_select",
         "multi_select",
+        "link",
+        "lookup",
+        "rollup",
     }
 
 
@@ -251,3 +254,24 @@ def test_a_contact_is_filtered_as_text_and_a_rating_as_a_number():
     assert validate_filter(_column("rating"), "gte", 4) == 4
     with pytest.raises(CellProblem, match="operators"):
         validate_filter(_column("url"), "gt", "https://a.co")
+
+
+def test_a_link_holds_distinct_record_ids_and_is_filtered_by_one():
+    record = str(uuid.uuid4())
+    link = _column("link")
+
+    assert validate_cell(link, [record]) == [record]
+    assert validate_filter(link, "contains", record) == record
+    for refused in ("one", [record, record], [5], [str(uuid.uuid4()) for _ in range(101)]):
+        with pytest.raises(CellProblem):
+            validate_cell(link, refused)
+    with pytest.raises(CellProblem, match="record id"):
+        validate_filter(link, "contains", "not-an-id")
+
+
+@pytest.mark.parametrize("type_", ["lookup", "rollup"])
+def test_a_worked_out_column_is_never_written_or_filtered(type_):
+    with pytest.raises(CellProblem, match="worked out"):
+        validate_cell(_column(type_), 3)
+    with pytest.raises(CellProblem, match="cannot be filtered"):
+        validate_filter(_column(type_), "is_null", True)

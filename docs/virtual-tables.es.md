@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5e30021f3e"
+source_sha: "11094feb134d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -51,6 +51,8 @@ columna rellena solo las celdas que omites; una celda que envías como `null` qu
 | `datetime` | ISO 8601 con zona horaria, guardado como UTC | igual que `number` |
 | `single_select` | El id de una opción | `eq` `ne` `in` `is_null` |
 | `multi_select` | Una lista de ids de opciones | `contains` `is_null` |
+| `link` | Una lista de hasta 100 ids de registros de la tabla que enlaza | `contains` (un id de registro) `is_null` |
+| `lookup`, `rollup` | Nada: se calcula al leer un registro | ninguno |
 
 El texto se guarda exactamente como se envía. Los espacios al principio y al final, los
 saltos de línea y los valores formados solo por espacios son datos del usuario, así que
@@ -66,6 +68,30 @@ elección por la etiqueta de su opción, sin distinguir mayúsculas: escriben y 
 etiqueta, y leen las elecciones de un registro como etiquetas, también la de una opción
 archivada. Un valor que no nombra ninguna opción activa se rechaza con las opciones de
 la columna.
+
+## Enlaces, búsquedas y resúmenes { #links-lookups-and-rollups }
+
+Una columna `link` guarda registros de otra tabla, o de la misma, indicada por
+`link_table_id`. Al escribir se comprueba que cada registro existe en esa tabla
+y que quien escribe puede verla, así que un enlace no sirve para averiguar qué
+ids tiene una tabla privada. Un registro devuelve sus enlaces con nombre, en
+`links`, por el primer valor de texto de cada registro enlazado, y si no, por su
+id externo. Un registro enlazado que se borró después simplemente desaparece.
+
+Un `lookup` lee una columna de los registros enlazados a través de una columna de
+enlace de la misma tabla (`link_column_id`, `target_column_id`): los valores, y
+una elección por su etiqueta. Un `rollup` calcula algo a partir de ellos:
+`count` de los enlaces, o `sum`, `avg`, `min` o `max` de una columna de números -
+`min` y `max` también de fechas. Ambos se calculan al leer el registro y nunca se
+guardan, escriben, filtran ni ordenan.
+
+Lo que muestra una búsqueda no llega más allá de lo que su lector puede ver: una
+tabla enlazada que el lector no ve deja los enlaces sin nombre y vacía cada
+búsqueda y resumen a través de ellos. Un enlace conserva su tabla para siempre.
+Una búsqueda lee una columna con valores, no otro enlace ni otra búsqueda, y
+archivar una columna de enlace se rechaza mientras algo lea a través de ella. Una
+exportación escribe un enlace con los nombres de sus registros y una búsqueda con
+lo que leyó.
 
 ## Cambiar un esquema { #changing-a-schema }
 

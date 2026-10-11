@@ -1,4 +1,4 @@
-import { MAX_RATING, type CellValue, type ColumnDef } from "@/types/tables";
+import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/types/tables";
 
 /**
  * A cell's value, formatted for read-only display in the grid, list and kanban
@@ -39,6 +39,11 @@ export function formatCellValue(
         .filter((label): label is string => !!label)
         .join(", ");
     }
+    case "lookup":
+      return Array.isArray(value) ? value.map(String).join(", ") : String(value);
+    case "link":
+      // Ids name nothing to a reader; `recordCellText` names them from the record.
+      return Array.isArray(value) ? String(value.length) : "";
     case "rating":
       return typeof value === "number"
         ? "★".repeat(value) + "☆".repeat(Math.max(0, MAX_RATING - value))
@@ -64,4 +69,20 @@ function localDate(type: "date" | "datetime", value: string, locale: string): st
       ? { dateStyle: "medium", timeZone: "UTC" }
       : { dateStyle: "medium", timeStyle: "short" },
   ).format(date);
+}
+
+/**
+ * One cell of a record, formatted for read-only display - `formatCellValue`, with
+ * a link named by the records it points at, which only the record carries.
+ */
+export function recordCellText(
+  column: ColumnDef,
+  record: RecordRead,
+  boolLabel: (value: boolean) => string,
+  locale?: string,
+): string {
+  if (column.type === "link") {
+    return (record.links?.[column.id] ?? []).map((linked) => linked.label).join(", ");
+  }
+  return formatCellValue(column, record.values[column.id] ?? null, boolLabel, locale);
 }

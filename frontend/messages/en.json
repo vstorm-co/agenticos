@@ -6659,7 +6659,13 @@
       "noOptions": "No options",
       "value": "Value",
       "rating": "Rating",
-      "rateStars": "{count, plural, one {# star} other {# stars}} of {max}"
+      "rateStars": "{count, plural, one {# star} other {# stars}} of {max}",
+      "noLinks": "Not linked",
+      "unnamedLink": "A linked record",
+      "findRecord": "Find a record",
+      "finding": "Looking…",
+      "noRecordsFound": "No records match.",
+      "workedOut": "Worked out from its link"
     },
     "create": {
       "title": "New table",
@@ -6693,7 +6699,10 @@
         "date": "Date",
         "datetime": "Date & time",
         "single_select": "Single select",
-        "multi_select": "Multi select"
+        "multi_select": "Multi select",
+        "link": "Link to records",
+        "lookup": "Lookup",
+        "rollup": "Rollup"
       },
       "fromCsv": "Start from a CSV file",
       "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",
@@ -6731,7 +6740,10 @@
         "date": "Date",
         "datetime": "Date & time",
         "single_select": "Single select",
-        "multi_select": "Multi select"
+        "multi_select": "Multi select",
+        "link": "Link to records",
+        "lookup": "Lookup",
+        "rollup": "Rollup"
       },
       "required": "Required",
       "archiveColumn": "Archive {column}",
@@ -6840,7 +6852,22 @@
       "save": "Save",
       "add": "Add column",
       "hiddenCount": "{count, plural, one {# hidden} other {# hidden}}",
-      "showAll": "Show all columns"
+      "showAll": "Show all columns",
+      "linkTable": "Links to",
+      "linkTablePlaceholder": "Choose a table",
+      "needsLink": "Add a link column first: a lookup or rollup reads the records it links to.",
+      "throughLink": "Through the link",
+      "throughLinkPlaceholder": "Choose a link column",
+      "aggregate": "Works out",
+      "aggregates": {
+        "count": "How many are linked",
+        "sum": "Sum",
+        "avg": "Average",
+        "min": "Smallest",
+        "max": "Largest"
+      },
+      "reads": "Reads",
+      "readsPlaceholder": "Choose a column of the linked table"
     },
     "import": {
       "title": "Import records from CSV",
@@ -6872,7 +6899,9 @@
         "email": "not an email address",
         "url": "not a link starting with http:// or https://",
         "phone": "not a phone number",
-        "rating": "not a rating from 1 to 5"
+        "rating": "not a rating from 1 to 5",
+        "link": "not record ids separated by ;",
+        "computed": "worked out from a link, so it cannot be imported"
       }
     },
     "dependents": {

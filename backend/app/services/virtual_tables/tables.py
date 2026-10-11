@@ -8,7 +8,7 @@ from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, AuthorizationError
+from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import VirtualTable
@@ -19,6 +19,7 @@ from app.schemas.virtual_table import (
     MAX_OPTIONS,
     CellValue,
     ColumnDef,
+    ColumnTypeName,
     OperationKey,
     OptionDef,
     SchemaUpdate,
@@ -43,7 +44,7 @@ from app.services.virtual_tables.exceptions import (
 from app.services.virtual_tables.quotas import enforce_table_count
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.schema import build_columns, diff
-from app.services.virtual_tables.types import CellProblem
+from app.services.virtual_tables.types import COMPUTED_TYPES, READ_THROUGH_LINK, CellProblem
 
 _OPERATION_KEY = TypeAdapter(OperationKey)
 
@@ -92,6 +93,7 @@ class TableOperations(Operations):
 
         async def action() -> TableRead:
             columns = build_columns(data.columns, [])
+            await self._check_references(ctx, columns, [])
             await self._claim_name(ctx, data.name)
             await enforce_table_count(self.db, ctx)
             table = await virtual_table_repo.create_table(
@@ -280,6 +282,7 @@ class TableOperations(Operations):
             # A new version, an audit row and a bumped `schema_version` would make every other
             # client's `expected_version` stale for a change that changed nothing.
             return self._read(table, previous, can_edit=True)
+        await self._check_references(ctx, columns, previous)
         change = diff(previous, columns)
         await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
         columns = await self._retype(table, previous, columns, change.retyped)
@@ -363,6 +366,45 @@ class TableOperations(Operations):
             )
         return result
 
+    async def _check_references(
+        self, ctx: AuthContext, columns: list[ColumnDef], previous: list[ColumnDef]
+    ) -> None:
+        """Each new or changed link names a live table the caller can see, and each
+        lookup and rollup a column of it that its reading suits.
+
+        A column the change leaves as it was is not asked again: a linked table
+        archived since, or a column it read archived since, leaves the column
+        reading nothing rather than blocking every later edit of this table.
+        """
+        unchanged = {column.id: column for column in previous}
+        # The table each link column reads, which `build_columns` checked every
+        # lookup and rollup names.
+        linked = {
+            column.id: column.link_table_id
+            for column in columns
+            if column.type == "link" and column.link_table_id is not None
+        }
+        for index, column in enumerate(columns):
+            if column.archived or unchanged.get(column.id) == column:
+                continue
+            if column.type == "link" and column.link_table_id is not None:
+                await self._linked_table(ctx, column.link_table_id, f"columns.{index}")
+            elif column.type in READ_THROUGH_LINK and column.link_column_id is not None:
+                where = f"columns.{index}"
+                target = await self._linked_table(ctx, linked[column.link_column_id], where)
+                _check_reading(index, column, await self._columns(target))
+
+    async def _linked_table(self, ctx: AuthContext, table_id: UUID, where: str) -> VirtualTable:
+        try:
+            table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        except NotFoundError:
+            raise InvalidSchemaError(
+                f"{where}.link_table_id", "That table does not exist or you cannot see it"
+            ) from None
+        if table.archived_at is not None:
+            raise InvalidSchemaError(f"{where}.link_table_id", "That table is archived")
+        return table
+
     async def _claim_name(self, ctx: AuthContext, name: str) -> None:
         """Refuse a name a live table holds, serialized so two creates cannot both pass."""
         await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
@@ -406,6 +448,28 @@ class TableOperations(Operations):
                     for dependent in dependents
                 ]
             )
+
+
+_SUMMED: frozenset[ColumnTypeName] = frozenset({"number", "integer", "rating"})
+_ORDERED: frozenset[ColumnTypeName] = frozenset({"number", "integer", "rating", "date", "datetime"})
+
+
+def _check_reading(index: int, column: ColumnDef, target_columns: list[ColumnDef]) -> None:
+    """The linked table's column a lookup or rollup reads exists, and suits what it does."""
+    if column.target_column_id is None:  # a rollup that counts the links reads no column
+        return
+    where = f"columns.{index}.target_column_id"
+    target = next((c for c in target_columns if c.id == column.target_column_id), None)
+    if target is None or target.archived:
+        raise InvalidSchemaError(where, "That is not a live column of the linked table")
+    if target.type in COMPUTED_TYPES or target.type == "link":
+        raise InvalidSchemaError(
+            where, "A lookup reads a column holding values, not another link or worked-out one"
+        )
+    if column.aggregate in ("sum", "avg") and target.type not in _SUMMED:
+        raise InvalidSchemaError(where, f"A {column.aggregate} reads a column of numbers")
+    if column.aggregate in ("min", "max") and target.type not in _ORDERED:
+        raise InvalidSchemaError(where, f"A {column.aggregate} reads a column of numbers or dates")
 
 
 def _with_choices(index: int, column: ColumnDef, values: list[CellValue]) -> ColumnDef:

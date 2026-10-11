@@ -15,10 +15,18 @@ import {
 } from "@/components/ui";
 import { DateCell } from "./date-cell";
 import { DatetimeCell } from "./datetime-cell";
+import { LinkCell } from "./link-cell";
 import { MultiSelectCell } from "./multi-select-cell";
 import { OptionChip } from "./option-chip";
 import { cn } from "@/lib/utils";
-import { MAX_RATING, type CellValue, type ColumnDef } from "@/types/tables";
+import { formatCellValue } from "@/lib/format-cell-value";
+import {
+  COMPUTED_TYPES,
+  MAX_RATING,
+  type CellValue,
+  type ColumnDef,
+  type LinkedRecord,
+} from "@/types/tables";
 
 const UNSET = "__unset__";
 
@@ -223,6 +231,7 @@ function NumberCellInput({
 export function RecordCellEditor({
   column,
   value,
+  links,
   onChange,
   disabled,
   error,
@@ -230,6 +239,8 @@ export function RecordCellEditor({
 }: {
   column: ColumnDef;
   value: CellValue;
+  /** A link column's records, named as the record was read. */
+  links?: LinkedRecord[];
   onChange: (value: CellValue) => void;
   disabled?: boolean;
   error?: string;
@@ -378,6 +389,24 @@ export function RecordCellEditor({
               ))}
           </SelectContent>
         </Select>
+      )}
+
+      {column.type === "link" && (
+        <LinkCell
+          id={id}
+          column={column}
+          value={Array.isArray(value) ? value : []}
+          links={links ?? []}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+
+      {COMPUTED_TYPES.has(column.type) && (
+        // Worked out from the linked records; there is nothing here to edit.
+        <p id={id} className="text-muted-foreground min-h-9 py-2 text-sm">
+          {formatCellValue(column, value, (on) => t(on ? "true" : "false")) || t("workedOut")}
+        </p>
       )}
 
       {column.type === "multi_select" && (

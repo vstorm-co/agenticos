@@ -58,8 +58,10 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.computed import with_links
 from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
     InvalidQueryError,
@@ -297,6 +299,13 @@ def _csv_line(cells: list[str]) -> str:
     return buffer.getvalue()
 
 
+def _export_cell(column: ColumnDef, record: RecordRead) -> str:
+    """One cell of an export: a link by the names of its records, anything else as read."""
+    if column.type == "link" and str(column.id) in record.links:
+        return "; ".join(linked.label for linked in record.links[str(column.id)])
+    return _cell_text(column, record.values.get(str(column.id)))
+
+
 def _cell_text(column: ColumnDef, value: CellValue) -> str:
     """One cell as a person reads it: an option by its label, a yes/no as a word."""
     if value is None:
@@ -307,7 +316,8 @@ def _cell_text(column: ColumnDef, value: CellValue) -> str:
         return str(value)
     labels = {str(option.id): option.label for option in column.options}
     if isinstance(value, list):
-        text = "; ".join(labels.get(item, item) for item in value)
+        # A lookup reads numbers and dates as well as text.
+        text = "; ".join(labels.get(str(item), str(item)) for item in value)
     else:
         text = labels.get(value, value)
     return f"'{text}" if _FORMULA.match(text) else text
@@ -329,7 +339,7 @@ class RecordOperations(Operations):
         )
         if record is None:
             raise NotFoundError(message="Record not found", details={"record_id": record_id})
-        return RecordRead.model_validate(record)
+        return await self._read_through(ctx, table, RecordRead.model_validate(record))
 
     async def get_record_by_external_id(
         self, ctx: AuthContext, table_id: UUID, external_id: str
@@ -341,7 +351,7 @@ class RecordOperations(Operations):
         )
         if record is None:
             raise NotFoundError(message="Record not found", details={"external_id": external_id})
-        return RecordRead.model_validate(record)
+        return await self._read_through(ctx, table, RecordRead.model_validate(record))
 
     async def record_exists(self, ctx: AuthContext, table_id: UUID, external_id: str) -> bool:
         """Whether a record with this external id exists, without reading it."""
@@ -379,7 +389,12 @@ class RecordOperations(Operations):
             limit=query.limit + 1,
         )
         return RecordList(
-            items=[RecordRead.model_validate(row) for row in rows[: query.limit]],
+            items=await with_links(
+                self.db,
+                ctx,
+                columns,
+                [RecordRead.model_validate(row) for row in rows[: query.limit]],
+            ),
             skip=query.skip,
             limit=query.limit,
             has_more=len(rows) > query.limit,
@@ -508,10 +523,11 @@ class RecordOperations(Operations):
                     skip=skip,
                     limit=EXPORT_BATCH,
                 )
-                for row in rows:
-                    yield _csv_line(
-                        [_cell_text(column, row.values.get(str(column.id))) for column in chosen]
-                    )
+                read = await with_links(
+                    self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
+                )
+                for record in read:
+                    yield _csv_line([_export_cell(column, record) for column in chosen])
                 if len(rows) < EXPORT_BATCH:
                     return
                 skip += EXPORT_BATCH
@@ -556,6 +572,7 @@ class RecordOperations(Operations):
 
         return await self._write(
             ctx,
+            table,
             "record.create",
             operation_key,
             {"table_id": table.id, **data.model_dump(mode="json")},
@@ -628,7 +645,7 @@ class RecordOperations(Operations):
         request: dict[str, Any] = {"table_id": table.id, "record_id": record_id, "values": values}
         if expected_revision is not None:
             request["expected_revision"] = expected_revision
-        return await self._write(ctx, "record.update", operation_key, request, action)
+        return await self._write(ctx, table, "record.update", operation_key, request, action)
 
     async def upsert_record(
         self,
@@ -737,7 +754,7 @@ class RecordOperations(Operations):
         }
         if not at_current_revision:
             request["expected_revision"] = expected_revision
-        return await self._write(ctx, "record.upsert", operation_key, request, action)
+        return await self._write(ctx, table, "record.upsert", operation_key, request, action)
 
     async def delete_record(
         self,
@@ -801,6 +818,7 @@ class RecordOperations(Operations):
     async def _write(
         self,
         ctx: AuthContext,
+        table: VirtualTable,
         operation: str,
         operation_key: str | None,
         payload: dict[str, Any],
@@ -817,8 +835,59 @@ class RecordOperations(Operations):
                 action=action,
             )
         except _Unchanged as unchanged:
-            return RecordWrite(record=unchanged.record, created=False, replayed=False)
-        return RecordWrite(record=outcome.record, created=outcome.created, replayed=replayed)
+            return RecordWrite(
+                record=await self._read_through(ctx, table, unchanged.record),
+                created=False,
+                replayed=False,
+            )
+        # Worked out after the receipt, never stored in it: a replay shows what the
+        # linked records say now, as any other read would.
+        return RecordWrite(
+            record=await self._read_through(ctx, table, outcome.record),
+            created=outcome.created,
+            replayed=replayed,
+        )
+
+    async def _read_through(
+        self, ctx: AuthContext, table: VirtualTable, record: RecordRead
+    ) -> RecordRead:
+        """One record with its links named and its lookups and rollups worked out."""
+        return (await with_links(self.db, ctx, await self._columns(table), [record]))[0]
+
+    async def _check_links(
+        self, ctx: AuthContext, columns: list[ColumnDef], submitted: dict[str, CellValue]
+    ) -> None:
+        """Every record a submitted link names exists in the table it links to, which the
+        writer can see - a link is not a way to learn which ids another table holds."""
+        problems: list[tuple[str, str]] = []
+        for column in columns:
+            ids = submitted.get(str(column.id))
+            if column.type != "link" or column.link_table_id is None or not isinstance(ids, list):
+                continue
+            target = await virtual_table_repo.get_table(
+                self.db, column.link_table_id, organization_id=ctx.organization_id
+            )
+            if target is None or not await resolve_access(
+                self.db, ctx, target, Perm.TABLES_VIEW, resource_type=TABLE
+            ):
+                problems.append((f"values.{column.id}", "The linked table cannot be reached"))
+                continue
+            found = await virtual_table_repo.get_records_by_ids(
+                self.db,
+                [UUID(str(item)) for item in ids],
+                table_id=target.id,
+                organization_id=ctx.organization_id,
+            )
+            missing = set(map(str, ids)) - {str(row.id) for row in found}
+            if missing:
+                problems.append(
+                    (
+                        f"values.{column.id}",
+                        f"No record {sorted(missing)[0]} in the linked table",
+                    )
+                )
+        if problems:
+            raise InvalidRecordError(problems)
 
     @staticmethod
     def _already_exists(external_id: str | None) -> AlreadyExistsError:
@@ -851,7 +920,9 @@ class RecordOperations(Operations):
         values: dict[str, CellValue],
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
-        merged = _merge(await self._columns(table), values, None)
+        columns = await self._columns(table)
+        merged = _merge(columns, values, None)
+        await self._check_links(ctx, columns, values)
         await quotas.enforce_record_size(ctx, table, merged)
         await quotas.enforce_record_count(self.db, ctx, table)
         record = await virtual_table_repo.insert_record(
@@ -931,12 +1002,14 @@ class RecordOperations(Operations):
         """
         self._check_revision(record, expected_revision)
         before = dict(record.values)
-        merged = _merge(await self._columns(table), values, before)
+        columns = await self._columns(table)
+        merged = _merge(columns, values, before)
         if merged == before:
             # Nothing to record. Bumping the revision and keeping a full before-and-after
             # snapshot, and a receipt holding a whole copy, for a request that changed
             # nothing would let tiny repeated requests grow the shared database.
             raise _Unchanged(RecordRead.model_validate(record))
+        await self._check_links(ctx, columns, values)
         await quotas.enforce_record_size(ctx, table, merged)
         await virtual_table_repo.update_record(
             self.db,

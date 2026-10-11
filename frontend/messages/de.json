@@ -6517,7 +6517,13 @@
       "noOptions": "Keine Optionen",
       "value": "Wert",
       "rating": "Bewertung",
-      "rateStars": "{count, plural, one {# Stern} other {# Sterne}} von {max}"
+      "rateStars": "{count, plural, one {# Stern} other {# Sterne}} von {max}",
+      "noLinks": "Nicht verknüpft",
+      "unnamedLink": "Ein verknüpfter Datensatz",
+      "findRecord": "Datensatz finden",
+      "finding": "Suche…",
+      "noRecordsFound": "Keine Datensätze passen.",
+      "workedOut": "Aus der Verknüpfung ermittelt"
     },
     "create": {
       "title": "Neue Tabelle",
@@ -6551,7 +6557,10 @@
         "date": "Datum",
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
-        "multi_select": "Mehrfachauswahl"
+        "multi_select": "Mehrfachauswahl",
+        "link": "Verknüpfung zu Datensätzen",
+        "lookup": "Nachschlagen",
+        "rollup": "Zusammenfassung"
       },
       "fromCsv": "Mit einer CSV-Datei beginnen",
       "fromCsvHint": "Ihre Kopfzeile wird zu den Spalten, jede mit dem Typ ihrer Werte, und ihre Zeilen werden importiert, sobald die Tabelle existiert.",
@@ -6589,7 +6598,10 @@
         "date": "Datum",
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
-        "multi_select": "Mehrfachauswahl"
+        "multi_select": "Mehrfachauswahl",
+        "link": "Verknüpfung zu Datensätzen",
+        "lookup": "Nachschlagen",
+        "rollup": "Zusammenfassung"
       },
       "required": "Erforderlich",
       "archiveColumn": "{column} archivieren",
@@ -6698,7 +6710,22 @@
       "save": "Speichern",
       "add": "Spalte hinzufügen",
       "hiddenCount": "{count, plural, one {# ausgeblendet} other {# ausgeblendet}}",
-      "showAll": "Alle Spalten anzeigen"
+      "showAll": "Alle Spalten anzeigen",
+      "linkTable": "Verknüpft mit",
+      "linkTablePlaceholder": "Tabelle wählen",
+      "needsLink": "Fügen Sie zuerst eine Verknüpfungsspalte hinzu: Nachschlagen und Zusammenfassung lesen die verknüpften Datensätze.",
+      "throughLink": "Über die Verknüpfung",
+      "throughLinkPlaceholder": "Verknüpfungsspalte wählen",
+      "aggregate": "Ermittelt",
+      "aggregates": {
+        "count": "Wie viele verknüpft sind",
+        "sum": "Summe",
+        "avg": "Durchschnitt",
+        "min": "Kleinster Wert",
+        "max": "Größter Wert"
+      },
+      "reads": "Liest",
+      "readsPlaceholder": "Spalte der verknüpften Tabelle wählen"
     },
     "import": {
       "title": "Datensätze aus CSV importieren",
@@ -6730,7 +6757,9 @@
         "email": "keine E-Mail-Adresse",
         "url": "kein Link, der mit http:// oder https:// beginnt",
         "phone": "keine Telefonnummer",
-        "rating": "keine Bewertung von 1 bis 5"
+        "rating": "keine Bewertung von 1 bis 5",
+        "link": "keine durch ; getrennten Datensatz-IDs",
+        "computed": "aus einer Verknüpfung ermittelt und daher nicht importierbar"
       }
     },
     "dependents": {

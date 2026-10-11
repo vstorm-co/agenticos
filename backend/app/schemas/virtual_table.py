@@ -36,7 +36,12 @@ ColumnTypeName = Literal[
     "datetime",
     "single_select",
     "multi_select",
+    "link",
+    "lookup",
+    "rollup",
 ]
+Aggregate = Literal["count", "sum", "avg", "min", "max"]
+"""What a rollup column makes of the values it reads from the linked records."""
 FilterOp = Literal["eq", "ne", "lt", "lte", "gt", "gte", "contains", "starts_with", "in", "is_null"]
 SortDirection = Literal["asc", "desc"]
 VisibilityName = Literal["private", "team", "org"]
@@ -136,6 +141,21 @@ class ColumnDef(_Schema):
     default: CellValue = None
     options: list[OptionDef] = Field(default_factory=list)
     archived: bool = False
+    link_table_id: UUID | None = Field(
+        default=None, description="A link column: the table whose records it links to."
+    )
+    link_column_id: UUID | None = Field(
+        default=None,
+        description="A lookup or rollup column: the link column of this table it reads through.",
+    )
+    target_column_id: UUID | None = Field(
+        default=None,
+        description="A lookup or rollup column: the column of the linked table it reads. "
+        "A rollup that counts the links reads none.",
+    )
+    aggregate: Aggregate | None = Field(
+        default=None, description="A rollup column: what it makes of the values it reads."
+    )
 
 
 class ColumnInput(_Request):
@@ -154,6 +174,21 @@ class ColumnInput(_Request):
     default: CellValue = None
     options: list[OptionInput] = Field(default_factory=list, max_length=MAX_OPTIONS)
     archived: bool = False
+    link_table_id: UUID | None = Field(
+        default=None, description="A link column: the table whose records it links to."
+    )
+    link_column_id: UUID | None = Field(
+        default=None,
+        description="A lookup or rollup column: the link column of this table it reads through.",
+    )
+    target_column_id: UUID | None = Field(
+        default=None,
+        description="A lookup or rollup column: the column of the linked table it reads. "
+        "A rollup that counts the links reads none.",
+    )
+    aggregate: Aggregate | None = Field(
+        default=None, description="A rollup column: what it makes of the values it reads."
+    )
 
 
 class TableCreate(_Request):
@@ -269,6 +304,13 @@ class RecordUpsert(_Request):
     expected_revision: int | None = Field(default=None, ge=1)
 
 
+class LinkedRecord(_Schema):
+    """One record a link column points at, named for whoever reads the link."""
+
+    id: UUID
+    label: str = Field(description="The linked record's first text value, or its id.")
+
+
 class RecordRead(_Schema):
     id: UUID
     table_id: UUID
@@ -280,6 +322,11 @@ class RecordRead(_Schema):
     updated_at: datetime | None = None
     created_by: UUID | None = None
     updated_by: UUID | None = None
+    links: dict[str, list[LinkedRecord]] = Field(
+        default_factory=dict,
+        description="Each link column's records, by column id, with a label to show them by. "
+        "A table the reader may not see is left out.",
+    )
 
 
 class RecordFilter(_Request):

@@ -82,6 +82,21 @@ describe("contacts and ratings", () => {
   });
 });
 
+describe("links and worked-out columns", () => {
+  it("reads a link as record ids separated by semicolons", () => {
+    const id = "0b9a9a1e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+    expect(readCell(col("link"), `${id}; ${id.toUpperCase()}`)).toEqual({
+      value: [id, id.toUpperCase()],
+    });
+    expect(readCell(col("link"), "Atlas")).toEqual({ problem: "link" });
+  });
+
+  it("refuses a value for a column worked out from a link", () => {
+    expect(readCell(col("lookup"), "x")).toEqual({ problem: "computed" });
+    expect(readCell(col("rollup"), "3")).toEqual({ problem: "computed" });
+  });
+});
+
 describe("inferType", () => {
   it("picks the narrowest type every value reads as, ignoring blanks", () => {
     expect(inferType(["3", "", "12"])).toBe("integer");

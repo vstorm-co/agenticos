@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCellValue } from "./format-cell-value";
-import type { ColumnDef } from "@/types/tables";
+import { formatCellValue, recordCellText } from "./format-cell-value";
+import type { ColumnDef, RecordRead } from "@/types/tables";
 
 const boolLabel = (value: boolean) => (value ? "True" : "False");
 
@@ -109,5 +109,40 @@ describe("formatCellValue", () => {
     const col = column({ type: "rating" });
     expect(formatCellValue(col, 3, boolLabel)).toBe("★★★☆☆");
     expect(formatCellValue(col, "3", boolLabel)).toBe("");
+  });
+
+  it("joins what a lookup read, and counts a link it cannot name", () => {
+    expect(formatCellValue(column({ type: "lookup" }), ["Atlas", 3] as never, boolLabel)).toBe(
+      "Atlas, 3",
+    );
+    expect(formatCellValue(column({ type: "lookup" }), "one" as never, boolLabel)).toBe("one");
+    expect(formatCellValue(column({ type: "link" }), ["r1", "r2"], boolLabel)).toBe("2");
+    expect(formatCellValue(column({ type: "link" }), "r1", boolLabel)).toBe("");
+  });
+});
+
+describe("recordCellText", () => {
+  const record = {
+    values: { c1: ["r1", "r2"], c2: 4 },
+    links: {
+      c1: [
+        { id: "r1", label: "Atlas" },
+        { id: "r2", label: "Quill" },
+      ],
+    },
+  } as unknown as RecordRead;
+
+  it("names a link by the records it points at, and reads anything else as its value", () => {
+    expect(recordCellText(column({ id: "c1", type: "link" }), record, boolLabel)).toBe(
+      "Atlas, Quill",
+    );
+    expect(recordCellText(column({ id: "c2", type: "integer" }), record, boolLabel)).toBe("4");
+    expect(
+      recordCellText(
+        column({ id: "c3", type: "link" }),
+        { ...record, links: undefined },
+        boolLabel,
+      ),
+    ).toBe("");
   });
 });

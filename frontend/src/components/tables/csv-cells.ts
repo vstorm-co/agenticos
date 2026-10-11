@@ -14,7 +14,9 @@ export type CellProblem =
   | "option"
   | "email"
   | "url"
-  | "phone";
+  | "phone"
+  | "link"
+  | "computed";
 
 const TRUE = new Set(["true", "yes", "y", "1"]);
 const FALSE = new Set(["false", "no", "n", "0"]);
@@ -26,6 +28,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const URL_PATTERN = /^https?:\/\/[^\s/?#]+[^\s]*$/;
 const PHONE = /^\+?[0-9 ().\-/]+$/;
 const MIN_PHONE_DIGITS = 5;
+const RECORD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** The longest value a `text` column holds; `MAX_TEXT` in the service. */
 const MAX_TEXT = 1000;
 /**
@@ -114,6 +117,18 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
         .map((part) => optionFor(column, part));
       return ids.includes(null) ? { problem: "option" } : { value: ids as string[] };
     }
+    case "link": {
+      // The linked records by id, as an API client writes them; an export names
+      // them by label, which is for reading, not for linking back.
+      const ids = trimmed
+        .split(";")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      return ids.every((id) => RECORD_ID.test(id)) ? { value: ids } : { problem: "link" };
+    }
+    case "lookup":
+    case "rollup":
+      return { problem: "computed" };
   }
 }
 

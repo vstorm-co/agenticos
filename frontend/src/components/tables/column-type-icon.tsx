@@ -3,10 +3,13 @@ import {
   Calendar,
   CalendarClock,
   CircleDot,
+  Globe,
   Hash,
   Link2,
   ListChecks,
   type LucideIcon,
+  ScanSearch,
+  Sigma,
   Mail,
   Phone,
   SquareCheck,
@@ -21,7 +24,7 @@ const ICON: Record<ColumnTypeName, LucideIcon> = {
   text: Type,
   long_text: AlignLeft,
   email: Mail,
-  url: Link2,
+  url: Globe,
   phone: Phone,
   number: Hash,
   integer: Hash,
@@ -31,6 +34,9 @@ const ICON: Record<ColumnTypeName, LucideIcon> = {
   datetime: CalendarClock,
   single_select: CircleDot,
   multi_select: ListChecks,
+  link: Link2,
+  lookup: ScanSearch,
+  rollup: Sigma,
 };
 
 /** What kind of values a column holds, at a glance: its type's icon beside its name. */
@@ -41,5 +47,5 @@ export function ColumnTypeIcon({ type, className }: { type: ColumnTypeName; clas
 
 /** Whether a column holds numbers, read right-aligned so their digits line up. */
 export function isNumeric(type: ColumnTypeName): boolean {
-  return type === "number" || type === "integer";
+  return type === "number" || type === "integer" || type === "rollup";
 }

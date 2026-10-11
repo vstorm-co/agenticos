@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { choiceOf, choicesFor, isComplete, newFilter, withChoice } from "./record-filters";
+import {
+  choiceOf,
+  choicesFor,
+  filterable,
+  isComplete,
+  newFilter,
+  withChoice,
+} from "./record-filters";
 import type { ColumnDef, ColumnTypeName } from "@/types/tables";
 
 const col = (type: ColumnTypeName): ColumnDef => ({
@@ -64,5 +71,14 @@ describe("record filters", () => {
     expect(isComplete({ column_id: "c1", op: "eq", value: "" })).toBe(false);
     expect(isComplete({ column_id: "c1", op: "eq", value: null })).toBe(false);
     expect(isComplete({ column_id: "c1", op: "eq", value: false })).toBe(true);
+  });
+});
+
+describe("filterable", () => {
+  it("filters a link by whether it holds any, and never a worked-out column", () => {
+    expect(filterable(col("link"))).toBe(true);
+    expect(choicesFor(col("link"))).toEqual(["empty", "not_empty"]);
+    expect(filterable(col("lookup"))).toBe(false);
+    expect(filterable(col("rollup"))).toBe(false);
   });
 });

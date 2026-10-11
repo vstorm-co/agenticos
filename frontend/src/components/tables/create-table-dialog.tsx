@@ -24,7 +24,7 @@ import {
 } from "@/components/ui";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
-import { COLUMN_TYPES } from "@/types/tables";
+import { COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
 
 const FORM = { fields: ["name"], identifiedBy: "name" } as const;
@@ -282,7 +282,7 @@ export function CreateTableDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {COLUMN_TYPES.map((type) => (
+                    {COLUMN_TYPES.filter((type) => !REFERENCE_TYPES.has(type)).map((type) => (
                       <SelectItem key={type} value={type}>
                         <span className="inline-flex items-center gap-2">
                           <ColumnTypeIcon type={type} />

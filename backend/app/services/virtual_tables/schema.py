@@ -28,7 +28,13 @@ from app.schemas.virtual_table import (
 )
 from app.services.virtual_tables.conversions import CONVERSIONS, convertible
 from app.services.virtual_tables.exceptions import InvalidSchemaError
-from app.services.virtual_tables.types import OPTION_TYPES, CellProblem, validate_default
+from app.services.virtual_tables.types import (
+    COMPUTED_TYPES,
+    OPTION_TYPES,
+    READ_THROUGH_LINK,
+    CellProblem,
+    validate_default,
+)
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,7 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         )
     if submitted.options and submitted.type not in OPTION_TYPES:
         raise InvalidSchemaError(f"{where}.options", f"A {submitted.type} column has no options")
+    _check_reference(where, submitted, previous)
     # Options carry over from one kind of choice to the other; a column that stops
     # being a choice has none, and one that becomes one starts from what was sent.
     keeps_options = (
@@ -111,6 +118,10 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         default=submitted.default,
         options=options,
         archived=submitted.archived,
+        link_table_id=submitted.link_table_id,
+        link_column_id=submitted.link_column_id,
+        target_column_id=submitted.target_column_id,
+        aggregate=submitted.aggregate,
     )
     try:
         # Stored in its normalized form, exactly as a cell would be: a default of
@@ -125,6 +136,66 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
             "A new required column needs a default, because existing records hold nothing for it",
         )
     return column
+
+
+def _check_reference(where: str, submitted: ColumnInput, previous: ColumnDef | None) -> None:
+    """What a link, lookup or rollup column must name - and what no other column may.
+
+    Whether the named table and columns exist, and whether the caller may read
+    them, is the service's to ask: it takes the database (`TableOperations`).
+    """
+    kind = submitted.type
+    if (submitted.link_table_id is not None) != (kind == "link"):
+        raise InvalidSchemaError(
+            f"{where}.link_table_id",
+            "A link column names the table it links to, and only a link column does",
+        )
+    if (
+        previous is not None
+        and previous.type == "link"
+        and previous.link_table_id != submitted.link_table_id
+    ):
+        # Its values are ids of that table's records; in another table they name nothing.
+        raise InvalidSchemaError(
+            f"{where}.link_table_id",
+            "A link column keeps the table it links to. Add a new link column instead",
+        )
+    reads = kind in READ_THROUGH_LINK
+    if (submitted.link_column_id is not None) != reads:
+        raise InvalidSchemaError(
+            f"{where}.link_column_id",
+            "A lookup or rollup column names the link column it reads through, and only those do",
+        )
+    if (submitted.aggregate is not None) != (kind == "rollup"):
+        raise InvalidSchemaError(
+            f"{where}.aggregate", "A rollup column says what it works out, and only a rollup does"
+        )
+    counts = kind == "rollup" and submitted.aggregate == "count"
+    if (submitted.target_column_id is not None) != (reads and not counts):
+        raise InvalidSchemaError(
+            f"{where}.target_column_id",
+            "A lookup, or a rollup that is not a count, names the linked table's column it reads",
+        )
+    if kind in COMPUTED_TYPES and (not submitted.nullable or submitted.default is not None):
+        raise InvalidSchemaError(
+            f"{where}.nullable", "A worked-out column has no default and cannot be required"
+        )
+    if kind == "link" and submitted.default is not None:
+        raise InvalidSchemaError(f"{where}.default", "A link column has no default")
+
+
+def _check_links(columns: Sequence[ColumnDef]) -> None:
+    """Every live lookup and rollup reads through a live link column of the same table."""
+    links = {column.id for column in columns if column.type == "link" and not column.archived}
+    for index, column in enumerate(columns):
+        if column.archived or column.type not in READ_THROUGH_LINK:
+            continue
+        if column.link_column_id not in links:
+            raise InvalidSchemaError(
+                f"columns.{index}.link_column_id",
+                "That is not a live link column of this table. Save the link column first, "
+                "or archive the lookups and rollups that read it",
+            )
 
 
 def build_columns(
@@ -156,6 +227,7 @@ def build_columns(
     labels = [column.label for column in columns if not column.archived]
     if len(set(labels)) != len(labels):
         raise InvalidSchemaError("columns", "Two live columns have the same label")
+    _check_links(columns)
     return columns
 
 

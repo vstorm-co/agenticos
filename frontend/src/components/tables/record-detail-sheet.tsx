@@ -20,7 +20,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
 import { RecordCellEditor } from "./record-cell-editor";
 import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
-import { formatCellValue } from "@/lib/format-cell-value";
+import { recordCellText } from "@/lib/format-cell-value";
 import { formatDateTime } from "@/lib/utils";
 
 import { ColumnTypeIcon } from "./column-type-icon";
@@ -218,10 +218,7 @@ export function RecordDetailSheet({
 
   // Named by what its first column holds - "Northwind" - the way a row is read.
   const first = columns.find((column) => !column.archived);
-  const heading =
-    record && first
-      ? formatCellValue(first, record.values[first.id] ?? null, boolLabel, locale)
-      : "";
+  const heading = record && first ? recordCellText(first, record, boolLabel, locale) : "";
 
   // `Sheet` calls `onOpenChange` only from an overlay click, always to close.
   return (
@@ -254,6 +251,7 @@ export function RecordDetailSheet({
                       <RecordCellEditor
                         column={column}
                         value={value}
+                        links={record.links?.[column.id]}
                         disabled={!canEdit}
                         onChange={(next) => commitField(record, column.id, next)}
                       />

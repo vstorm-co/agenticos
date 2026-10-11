@@ -36,7 +36,15 @@ const CHOICES: Record<ColumnTypeName, FilterChoice[]> = {
   boolean: ["eq", "empty", "not_empty"],
   single_select: ["eq", "ne", "in", "empty", "not_empty"],
   multi_select: ["contains", "empty", "not_empty"],
+  link: ["empty", "not_empty"],
+  lookup: [],
+  rollup: [],
 };
+
+/** Whether a column can be filtered on at all: a worked-out one cannot. */
+export function filterable(column: ColumnDef): boolean {
+  return CHOICES[column.type].length > 0;
+}
 
 export function choicesFor(column: ColumnDef): FilterChoice[] {
   return CHOICES[column.type];

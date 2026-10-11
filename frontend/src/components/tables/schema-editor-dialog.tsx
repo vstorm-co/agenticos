@@ -24,7 +24,7 @@ import { ColumnTypeIcon } from "./column-type-icon";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
-import { COLUMN_CONVERSIONS, COLUMN_TYPES } from "@/types/tables";
+import { COLUMN_CONVERSIONS, COLUMN_TYPES, COMPUTED_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 
 /** An option row, `archived` narrowed to required - see `Row` below. */
@@ -62,6 +62,10 @@ function toRows(table: TableRead): Row[] {
       archived: option.archived,
     })),
     archived: column.archived,
+    link_table_id: column.link_table_id ?? null,
+    link_column_id: column.link_column_id ?? null,
+    target_column_id: column.target_column_id ?? null,
+    aggregate: column.aggregate ?? null,
   }));
 }
 
@@ -69,7 +73,8 @@ const OPTION_TYPES: ReadonlySet<ColumnTypeName> = new Set(["single_select", "mul
 
 /** The types a row may be set to: any for a new column, what it converts to for a saved one. */
 function typesFor(row: Row): ColumnTypeName[] {
-  if (row.savedType === undefined) return [...COLUMN_TYPES];
+  // A link, lookup or rollup names what it reads, which "Add column" asks for.
+  if (row.savedType === undefined) return COLUMN_TYPES.filter((type) => !REFERENCE_TYPES.has(type));
   const reachable = new Set([row.savedType, ...COLUMN_CONVERSIONS[row.savedType]]);
   return COLUMN_TYPES.filter((type) => reachable.has(type));
 }
@@ -250,7 +255,13 @@ export function SchemaEditorDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs whitespace-nowrap",
+                      // Worked out from a link: nothing to require of a record.
+                      COMPUTED_TYPES.has(row.type) && "invisible",
+                    )}
+                  >
                     <Switch
                       id={`${row.key}-required`}
                       checked={!row.nullable}

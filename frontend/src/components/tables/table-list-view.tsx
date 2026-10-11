@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { EmptyState } from "@/components/states";
 import { Skeleton } from "@/components/ui";
-import { formatCellValue } from "@/lib/format-cell-value";
+import { recordCellText } from "@/lib/format-cell-value";
 import type { ColumnDef, RecordRead } from "@/types/tables";
 
 /**
@@ -52,17 +52,13 @@ export function TableListView({
             className="hover:bg-accent flex w-full flex-col gap-0.5 px-3 py-2.5 text-left"
           >
             <span className="text-foreground truncate text-sm font-medium">
-              {(title &&
-                formatCellValue(title, record.values[title.id] ?? null, boolLabel, locale)) ||
-                record.id}
+              {(title && recordCellText(title, record, boolLabel, locale)) || record.id}
             </span>
             {secondary.length > 0 && (
               <span className="text-muted-foreground truncate text-xs">
                 {secondary
                   .slice(0, 3)
-                  .map((column) =>
-                    formatCellValue(column, record.values[column.id] ?? null, boolLabel, locale),
-                  )
+                  .map((column) => recordCellText(column, record, boolLabel, locale))
                   .filter(Boolean)
                   .join(" · ")}
               </span>

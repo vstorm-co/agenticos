@@ -4287,7 +4287,13 @@
       "noOptions": "Brak opcji",
       "value": "Wartość",
       "rating": "Ocena",
-      "rateStars": "{count, plural, one {# gwiazdka} few {# gwiazdki} many {# gwiazdek} other {# gwiazdki}} z {max}"
+      "rateStars": "{count, plural, one {# gwiazdka} few {# gwiazdki} many {# gwiazdek} other {# gwiazdki}} z {max}",
+      "noLinks": "Brak powiązań",
+      "unnamedLink": "Powiązany rekord",
+      "findRecord": "Znajdź rekord",
+      "finding": "Szukam…",
+      "noRecordsFound": "Żaden rekord nie pasuje.",
+      "workedOut": "Wyliczane z powiązania"
     },
     "create": {
       "title": "Nowa tabela",
@@ -4321,7 +4327,10 @@
         "date": "Data",
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
-        "multi_select": "Wybór wielokrotny"
+        "multi_select": "Wybór wielokrotny",
+        "link": "Powiązanie z rekordami",
+        "lookup": "Odczyt z powiązania",
+        "rollup": "Podsumowanie powiązań"
       },
       "fromCsv": "Zacznij od pliku CSV",
       "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",
@@ -4359,7 +4368,10 @@
         "date": "Data",
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
-        "multi_select": "Wybór wielokrotny"
+        "multi_select": "Wybór wielokrotny",
+        "link": "Powiązanie z rekordami",
+        "lookup": "Odczyt z powiązania",
+        "rollup": "Podsumowanie powiązań"
       },
       "required": "Wymagana",
       "archiveColumn": "Zarchiwizuj {column}",
@@ -4468,7 +4480,22 @@
       "save": "Zapisz",
       "add": "Dodaj kolumnę",
       "hiddenCount": "{count, plural, one {# ukryta} few {# ukryte} many {# ukrytych} other {# ukrytej}}",
-      "showAll": "Pokaż wszystkie kolumny"
+      "showAll": "Pokaż wszystkie kolumny",
+      "linkTable": "Powiązana tabela",
+      "linkTablePlaceholder": "Wybierz tabelę",
+      "needsLink": "Najpierw dodaj kolumnę powiązania: odczyt i podsumowanie czytają rekordy, z którymi ona łączy.",
+      "throughLink": "Przez powiązanie",
+      "throughLinkPlaceholder": "Wybierz kolumnę powiązania",
+      "aggregate": "Wylicza",
+      "aggregates": {
+        "count": "Ile jest powiązanych",
+        "sum": "Suma",
+        "avg": "Średnia",
+        "min": "Najmniejsza",
+        "max": "Największa"
+      },
+      "reads": "Czyta",
+      "readsPlaceholder": "Wybierz kolumnę powiązanej tabeli"
     },
     "import": {
       "title": "Import rekordów z CSV",
@@ -4500,7 +4527,9 @@
         "email": "to nie adres e-mail",
         "url": "to nie link zaczynający się od http:// lub https://",
         "phone": "to nie numer telefonu",
-        "rating": "to nie ocena od 1 do 5"
+        "rating": "to nie ocena od 1 do 5",
+        "link": "to nie identyfikatory rekordów rozdzielone ;",
+        "computed": "jest wyliczana z powiązania, więc nie można jej importować"
       }
     },
     "dependents": {

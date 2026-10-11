@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useRecordMutation } from "@/hooks/use-record-mutation";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import type { CellValue, ColumnDef } from "@/types/tables";
+import { COMPUTED_TYPES, type CellValue, type ColumnDef } from "@/types/tables";
 
 import { RecordCellEditor } from "./record-cell-editor";
 
@@ -75,7 +75,8 @@ export function NewRecordDialog({
 }: NewRecordDialogProps) {
   const t = useTranslations("pages.tables.newRecord");
   const { create } = useRecordMutation(tableId);
-  const live = columns.filter((column) => !column.archived);
+  // A worked-out column has nothing to fill in: it reads its link once one is made.
+  const live = columns.filter((column) => !column.archived && !COMPUTED_TYPES.has(column.type));
   const [values, setValues] = useState<Record<string, CellValue>>(() => ({
     ...seed(live),
     ...initial,

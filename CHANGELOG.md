@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Links, lookups and rollups between tables.** A `link` column holds records of
+  another table, picked by searching that table, and a record reads them back
+  named. A `lookup` shows one column of the linked records and a `rollup` counts
+  them or works out a sum, average, minimum or maximum - both worked out when the
+  record is read, so they always say what the linked records say now, and never
+  past what the reader may see. Writing a link checks every record exists in a
+  table the writer can see.
+
 - **Email, link, phone and rating columns.** A table column can hold an email
   address, an `http(s)` link, a phone number or a 1-5 rating, each checked as it
   is written, typed into the field a phone keyboard expects and rated with

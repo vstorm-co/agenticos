@@ -49,6 +49,11 @@ CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
     "datetime": frozenset({"text", "long_text"}),
     "single_select": frozenset({"text", "long_text", "multi_select"}),
     "multi_select": frozenset({"text", "long_text", "single_select"}),
+    # A link's values are ids of one table's records, and a worked-out column has
+    # no values of its own: neither reads as anything else, nor anything as them.
+    "link": frozenset(),
+    "lookup": frozenset(),
+    "rollup": frozenset(),
 }
 """What each type may become. Anything else - a date to a number, a yes/no to a
 date - has no reading a person would agree with, and is refused."""

@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui";
-import type { ColumnDef, RecordSort } from "@/types/tables";
+import { UNSORTABLE_TYPES, type ColumnDef, type RecordSort } from "@/types/tables";
 import { ColumnTypeIcon } from "./column-type-icon";
 
 export interface ColumnActions {
@@ -41,7 +41,7 @@ export function ColumnHeaderMenu({
 }) {
   const t = useTranslations("tables.columnMenu");
   const sortedHere = sort.by === column.id ? sort.direction : null;
-  const sortable = column.type !== "multi_select";
+  const sortable = !UNSORTABLE_TYPES.has(column.type);
 
   return (
     <DropdownMenu>

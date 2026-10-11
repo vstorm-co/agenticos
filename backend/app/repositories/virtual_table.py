@@ -16,7 +16,7 @@ of a duplicate) and :func:`claim_receipt` (a retried operation key claims the sa
 row). A caller that loses the race gets `None` and reads the winner.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -450,6 +450,24 @@ async def get_record(
         query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def get_records_by_ids(
+    db: AsyncSession, record_ids: Collection[UUID], *, table_id: UUID, organization_id: UUID
+) -> list[VirtualTableRecord]:
+    """The records of one table among `record_ids`; an id it does not hold is left out."""
+    found: list[VirtualTableRecord] = []
+    ids = list(record_ids)
+    for start in range(0, len(ids), _REWRITE_BATCH):
+        result = await db.execute(
+            select(VirtualTableRecord).where(
+                VirtualTableRecord.id.in_(ids[start : start + _REWRITE_BATCH]),
+                VirtualTableRecord.table_id == table_id,
+                VirtualTableRecord.organization_id == organization_id,
+            )
+        )
+        found.extend(result.scalars())
+    return found
 
 
 async def get_record_by_external_id(

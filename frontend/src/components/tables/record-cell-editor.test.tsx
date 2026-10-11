@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { RecordCellEditor } from "./record-cell-editor";
+
+vi.mock("./link-cell", () => ({
+  LinkCell: ({ value, links }: { value: string[]; links: { label: string }[] }) => (
+    <span>{`link:${value.join(",")}:${links.map((linked) => linked.label).join(",")}`}</span>
+  ),
+}));
 import type { ColumnDef } from "@/types/tables";
 
 function column(overrides: Partial<ColumnDef>): ColumnDef {
@@ -394,5 +400,35 @@ describe("RecordCellEditor", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("edits a link through its records, named as the record was read", () => {
+    render(
+      <RecordCellEditor
+        column={column({ type: "link", link_table_id: "t1" })}
+        value={["r1"]}
+        links={[{ id: "r1", label: "Atlas" }]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("link:r1:Atlas")).toBeVisible();
+  });
+
+  it("starts a link with no records when the value is not a list", () => {
+    render(<RecordCellEditor column={column({ type: "link" })} value={null} onChange={vi.fn()} />);
+    expect(screen.getByText("link::")).toBeVisible();
+  });
+
+  it("shows a worked-out column as what it read, with nothing to edit", () => {
+    const { rerender } = render(
+      <RecordCellEditor column={column({ type: "rollup" })} value={35.5} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText("35.5")).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+
+    rerender(
+      <RecordCellEditor column={column({ type: "lookup" })} value={null} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText("Worked out from its link")).toBeVisible();
   });
 });

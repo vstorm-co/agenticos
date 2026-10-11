@@ -36,7 +36,7 @@ import {
 import type { ColumnActions } from "@/components/tables/column-header-menu";
 import { HiddenColumnsPopover } from "@/components/tables/hidden-columns-popover";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
-import { isComplete } from "@/components/tables/record-filters";
+import { filterable, isComplete } from "@/components/tables/record-filters";
 import { RecordFiltersPopover } from "@/components/tables/record-filters-popover";
 import { SchemaDependents } from "@/components/tables/schema-dependents";
 import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
@@ -84,7 +84,7 @@ import {
 } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUrlState } from "@/hooks/use-url-state";
-import { emptyViewConfig } from "@/types/tables";
+import { COMPUTED_TYPES, emptyViewConfig } from "@/types/tables";
 import type {
   CellValue,
   ColumnDef,
@@ -421,7 +421,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             placeholder={t("search")}
             className="sm:w-56"
           />
-          <RecordFiltersPopover columns={liveColumns} filters={filters} onChange={setFilters} />
+          <RecordFiltersPopover
+            columns={liveColumns.filter(filterable)}
+            filters={filters}
+            onChange={setFilters}
+          />
           {hidden.length > 0 && (
             <HiddenColumnsPopover
               hidden={hidden}
@@ -594,6 +598,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           />
           <AddColumnDialog
             open={addingColumn}
+            columns={table.columns}
             onOpenChange={setAddingColumn}
             isSaving={changeSchema.isPending}
             onAdd={(column) =>
@@ -633,7 +638,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       {canEdit && (
         <ImportCsvDialog
           tableId={id}
-          columns={liveColumns}
+          columns={liveColumns.filter((column) => !COMPUTED_TYPES.has(column.type))}
           open={importing}
           onOpenChange={setImporting}
         />

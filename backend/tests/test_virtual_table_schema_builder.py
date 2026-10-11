@@ -282,3 +282,101 @@ def test_a_read_column_can_be_sent_back_as_a_change_at_the_limit():
 
     (rebuilt,) = build_columns([resubmitted], [column])
     assert rebuilt == column
+
+
+class TestWhatAReferenceNames:
+    """The rules a link, lookup or rollup column's references follow before any is looked up."""
+
+    TABLE = uuid.uuid4()
+    LINK = uuid.uuid4()
+    TARGET = uuid.uuid4()
+
+    def _link(self) -> ColumnDef:
+        return ColumnDef(id=self.LINK, label="Items", type="link", link_table_id=self.TABLE)
+
+    def _build(self, *submitted: ColumnInput) -> list[ColumnDef]:
+        link = self._link()
+        return build_columns(
+            [
+                ColumnInput(id=link.id, label="Items", type="link", link_table_id=self.TABLE),
+                *submitted,
+            ],
+            [link],
+        )
+
+    def test_a_lookup_and_each_rollup_build_when_they_name_what_they_read(self):
+        built = self._build(
+            ColumnInput(
+                label="Names", type="lookup", link_column_id=self.LINK, target_column_id=self.TARGET
+            ),
+            ColumnInput(label="Count", type="rollup", link_column_id=self.LINK, aggregate="count"),
+            ColumnInput(
+                label="Sum",
+                type="rollup",
+                link_column_id=self.LINK,
+                target_column_id=self.TARGET,
+                aggregate="sum",
+            ),
+        )
+
+        assert [column.type for column in built] == ["link", "lookup", "rollup", "rollup"]
+        assert built[3].aggregate == "sum" and built[3].target_column_id == self.TARGET
+
+    @pytest.mark.parametrize(
+        ("submitted", "field"),
+        [
+            ({"type": "text", "link_table_id": TABLE}, "link_table_id"),
+            ({"type": "link"}, "link_table_id"),
+            ({"type": "link", "link_table_id": TABLE, "default": [str(TABLE)]}, "default"),
+            ({"type": "text", "link_column_id": LINK}, "link_column_id"),
+            ({"type": "lookup", "target_column_id": TARGET}, "link_column_id"),
+            (
+                {
+                    "type": "lookup",
+                    "link_column_id": LINK,
+                    "target_column_id": TARGET,
+                    "aggregate": "sum",
+                },
+                "aggregate",
+            ),
+            ({"type": "rollup", "link_column_id": LINK, "target_column_id": TARGET}, "aggregate"),
+            ({"type": "lookup", "link_column_id": LINK}, "target_column_id"),
+            (
+                {
+                    "type": "rollup",
+                    "link_column_id": LINK,
+                    "aggregate": "count",
+                    "target_column_id": TARGET,
+                },
+                "target_column_id",
+            ),
+            (
+                {
+                    "type": "lookup",
+                    "link_column_id": LINK,
+                    "target_column_id": TARGET,
+                    "nullable": False,
+                },
+                "nullable",
+            ),
+        ],
+    )
+    def test_a_reference_named_where_it_does_not_belong_or_missing_is_refused(
+        self, submitted, field
+    ):
+        with pytest.raises(InvalidSchemaError) as refused:
+            self._build(ColumnInput(label="New", **submitted))
+
+        assert refused.value.details["fields"][0]["field"] == f"columns.1.{field}"
+
+    def test_a_link_cannot_become_another_type_or_another_type_a_link(self):
+        link = self._link()
+        text = _existing("Ref")
+
+        with pytest.raises(InvalidSchemaError, match="cannot become"):
+            build_columns([ColumnInput(id=link.id, label="Items", type="text")], [link])
+        with pytest.raises(InvalidSchemaError, match="cannot become"):
+            build_columns(
+                [ColumnInput(id=text.id, label="Ref", type="link", link_table_id=self.TABLE)],
+                [text],
+            )

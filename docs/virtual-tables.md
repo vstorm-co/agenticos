@@ -46,6 +46,8 @@ you leave out; a cell you send as `null` stays empty.
 | `datetime` | ISO 8601 with a time zone, stored as UTC | the same as `number` |
 | `single_select` | The id of an option | `eq` `ne` `in` `is_null` |
 | `multi_select` | A list of option ids | `contains` `is_null` |
+| `link` | A list of up to 100 record ids of the table it links to | `contains` (a record id) `is_null` |
+| `lookup`, `rollup` | Nothing: worked out when a record is read | none |
 
 Text is stored exactly as sent. Leading and trailing spaces, line breaks and
 whitespace-only values are the user's data, so they are not trimmed. Only a length
@@ -60,6 +62,28 @@ An agent's table tools and a workflow's table steps name a choice by its option'
 label instead, matched case-insensitively: they write and filter by label, and read a
 record's choices back as labels, an archived option's too. A value naming no live
 option is refused with the options the column has.
+
+## Links, lookups and rollups { #links-lookups-and-rollups }
+
+A `link` column holds records of another table, or of the same one, named by
+`link_table_id`. Writing one checks that each record exists in that table and
+that the writer can see it, so a link cannot be used to learn which ids a
+private table holds. A record reads its links back named, in `links`, by each
+linked record's first text value, then its external id. A linked record deleted
+since simply drops out.
+
+A `lookup` reads one column of the linked records through a link column of the
+same table (`link_column_id`, `target_column_id`): the values, a choice by its
+label. A `rollup` works one out: `count` the links, or the `sum`, `avg`, `min`
+or `max` of a column of numbers - `min` and `max` also of dates. Both are worked
+out when a record is read and never stored, written, filtered or sorted by.
+
+What a lookup shows goes no further than its reader may: a linked table the
+reader cannot see leaves the links unnamed and every lookup and rollup through
+them empty. A link keeps its table for life. A lookup reads a column holding
+values, not another link or lookup, and archiving a link column is refused
+while a lookup or rollup still reads through it. An export writes a link by the
+names of its records, and a lookup by what it read.
 
 ## Changing a schema { #changing-a-schema }
 

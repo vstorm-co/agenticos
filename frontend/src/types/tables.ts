@@ -18,12 +18,33 @@ export const COLUMN_TYPES = [
   "datetime",
   "single_select",
   "multi_select",
+  "link",
+  "lookup",
+  "rollup",
 ] as const;
 
 export type ColumnTypeName = (typeof COLUMN_TYPES)[number];
 
 /** The highest rating a `rating` column holds; `MAX_RATING` in the service. */
 export const MAX_RATING = 5;
+
+/** Types that name another table's records, or read through such a link. */
+export const REFERENCE_TYPES: ReadonlySet<ColumnTypeName> = new Set(["link", "lookup", "rollup"]);
+
+/** Types worked out when a record is read: never written, filtered or sorted by. */
+export const COMPUTED_TYPES: ReadonlySet<ColumnTypeName> = new Set(["lookup", "rollup"]);
+
+/** Types the service cannot sort by. */
+export const UNSORTABLE_TYPES: ReadonlySet<ColumnTypeName> = new Set([
+  "multi_select",
+  "link",
+  "lookup",
+  "rollup",
+]);
+
+/** What a rollup column makes of the values it reads; `Aggregate` in the service. */
+export const AGGREGATES = ["count", "sum", "avg", "min", "max"] as const;
+export type Aggregate = (typeof AGGREGATES)[number];
 
 /**
  * What a column of each type may become - every value is rewritten to it, and a
@@ -56,6 +77,9 @@ export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[
   datetime: ["text", "long_text"],
   single_select: ["text", "long_text", "multi_select"],
   multi_select: ["text", "long_text", "single_select"],
+  link: [],
+  lookup: [],
+  rollup: [],
 };
 
 export type FilterOp =
@@ -84,6 +108,14 @@ export interface ColumnDef {
   default: CellValue;
   options: OptionDef[];
   archived: boolean;
+  /** A link column: the table whose records it links to. */
+  link_table_id?: string | null;
+  /** A lookup or rollup: the link column of this table it reads through. */
+  link_column_id?: string | null;
+  /** A lookup or rollup: the linked table's column it reads; none for a count. */
+  target_column_id?: string | null;
+  /** A rollup: what it makes of the values it reads. */
+  aggregate?: Aggregate | null;
 }
 
 /** A column as the client submits it on a schema change - no id for a new one. */
@@ -95,6 +127,14 @@ export interface ColumnInput {
   default?: CellValue;
   options?: { id?: string; label: string; archived?: boolean }[];
   archived?: boolean;
+  /** A link column: the table whose records it links to. */
+  link_table_id?: string | null;
+  /** A lookup or rollup: the link column of this table it reads through. */
+  link_column_id?: string | null;
+  /** A lookup or rollup: the linked table's column it reads; none for a count. */
+  target_column_id?: string | null;
+  /** A rollup: what it makes of the values it reads. */
+  aggregate?: Aggregate | null;
 }
 
 export interface TableSummary {
@@ -207,6 +247,17 @@ export interface RecordRead {
   revision: number;
   created_at: string;
   updated_at?: string | null;
+  /**
+   * Each link column's records, by column id, named for showing. A linked table
+   * the reader may not see is left out.
+   */
+  links?: Record<string, LinkedRecord[]>;
+}
+
+/** One record a link names: `LinkedRecord` in the service. */
+export interface LinkedRecord {
+  id: string;
+  label: string;
 }
 
 export interface RecordList {

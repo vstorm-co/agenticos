@@ -20,10 +20,17 @@ import {
 import { EmptyState } from "@/components/states";
 import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
-import { formatCellValue } from "@/lib/format-cell-value";
+import { recordCellText } from "@/lib/format-cell-value";
 import { cn } from "@/lib/utils";
 import { useTableViewStore } from "@/stores";
-import type { CellValue, ColumnDef, RecordRead, RecordSort } from "@/types/tables";
+import {
+  COMPUTED_TYPES,
+  UNSORTABLE_TYPES,
+  type CellValue,
+  type ColumnDef,
+  type RecordRead,
+  type RecordSort,
+} from "@/types/tables";
 
 /** A cell's fixed 52px (`h-13`) and the row's bottom border. */
 const ROW_HEIGHT = 53;
@@ -146,7 +153,7 @@ export function TableGridView({
     if (column.type === "boolean" && typeof value === "boolean") {
       return <BoolMark on={value} label={boolLabel(value)} />;
     }
-    return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel, locale) || "—");
+    return selectChips(column, value) ?? (recordCellText(column, record, boolLabel, locale) || "—");
   };
 
   /**
@@ -174,13 +181,15 @@ export function TableGridView({
   };
 
   const renderCell = (column: ColumnDef, record: RecordRead) => {
-    if (!canEdit) return display(column, record);
+    // A worked-out column is read, never edited: what it shows comes from its link.
+    if (!canEdit || COMPUTED_TYPES.has(column.type)) return display(column, record);
     const value = record.values[column.id] ?? null;
     if (editing?.recordId === record.id && editing.columnId === column.id) {
       return (
         <InlineCell
           column={column}
           value={value}
+          links={record.links?.[column.id]}
           onCommit={(next) => writeCell(record, column.id, next)}
           onDone={() => setEditing(null)}
         />
@@ -225,7 +234,7 @@ export function TableGridView({
     align: isNumeric(column.type) ? ("right" as const) : undefined,
     className: isNumeric(column.type) ? "tabular-nums" : undefined,
     cell: (record) => renderCell(column, record),
-    sortable: !columnActions && column.type !== "multi_select",
+    sortable: !columnActions && !UNSORTABLE_TYPES.has(column.type),
   }));
 
   if (canEdit) {

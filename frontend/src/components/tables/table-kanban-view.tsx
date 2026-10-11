@@ -16,7 +16,7 @@ import {
 import { useTableRecords } from "@/hooks";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
-import { formatCellValue } from "@/lib/format-cell-value";
+import { recordCellText } from "@/lib/format-cell-value";
 import { useTableViewStore } from "@/stores";
 import type { RecordConflict } from "@/stores/table-view-store";
 import { selectChips } from "./option-chip";
@@ -81,12 +81,7 @@ function KanbanCard({
 }) {
   const t = useTranslations("tables.kanban");
   const locale = useLocale();
-  const title = formatCellValue(
-    titleColumn,
-    record.values[titleColumn.id] ?? null,
-    boolLabel,
-    locale,
-  );
+  const title = recordCellText(titleColumn, record, boolLabel, locale);
   const shown = properties
     .map((column) => ({ column, value: record.values[column.id] ?? null }))
     .filter(
@@ -129,7 +124,7 @@ function KanbanCard({
             <div key={column.id} className="flex min-w-0 items-center gap-2">
               <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
               <dd className="min-w-0 flex-1 truncate">
-                {selectChips(column, value) ?? formatCellValue(column, value, boolLabel, locale)}
+                {selectChips(column, value) ?? recordCellText(column, record, boolLabel, locale)}
               </dd>
             </div>
           ))}
