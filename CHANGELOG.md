@@ -375,6 +375,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Workflow approvals reach the console.** The Approvals tab's "Workflow steps
+  waiting on you" card read `/api/workflow-approvals`, which the console never
+  forwarded, so a waiting **Ask for approval** step showed as nothing waiting.
+
 - **An agent and a workflow name a select's choice by its label.** The
   schema an agent reads lists a select's options by label, yet its table tools
   wrote, filtered and read back option ids, so writing `Won` was refused and a

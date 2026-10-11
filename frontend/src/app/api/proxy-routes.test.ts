@@ -70,6 +70,7 @@ import * as tables from "./tables/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as workflowApprovals from "./workflow-approvals/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 
@@ -144,6 +145,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["workflow-approvals", workflowApprovals],
   ["workflow-runs", workflowRuns],
   ["workflows", workflows],
   ["me/permissions", permissions],
