@@ -18,6 +18,7 @@ import {
   API_TRIGGER,
   CHANNEL_MESSAGE_TRIGGER,
   FORM_TRIGGER,
+  GITHUB_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
@@ -161,7 +162,11 @@ function LiveTrigger({
       {trigger === CHANNEL_MESSAGE_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerChannelLive")}</p>
       )}
+      {trigger === GITHUB_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("triggerGithubLive")}</p>
+      )}
       {(trigger === WEBHOOK_TRIGGER ||
+        trigger === GITHUB_TRIGGER ||
         trigger === SCHEDULE_TRIGGER ||
         trigger === FORM_TRIGGER ||
         trigger === CHANNEL_MESSAGE_TRIGGER) && (
@@ -213,7 +218,7 @@ function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEd
         </div>
         {canEdit && (
           <div className="flex shrink-0 items-center gap-1">
-            {exposure.adapter === "webhook" && (
+            {(exposure.adapter === "webhook" || exposure.adapter === "github") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -244,6 +249,13 @@ function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEd
       </div>
       {exposure.webhook_url !== null && (
         <CopyableValue id="webhook-url" label={t("webhookUrl")} value={exposure.webhook_url} />
+      )}
+      {exposure.adapter === "github" && (
+        <p className="text-muted-foreground text-xs">
+          {exposure.registered_on_provider
+            ? t("githubRegistered", { repository: exposure.provider_target ?? "" })
+            : t("githubPasteIt")}
+        </p>
       )}
       {exposure.form_url !== null && (
         <div className="space-y-2">

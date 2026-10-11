@@ -831,7 +831,8 @@
         "workflow_failed": "Nieudany przebieg",
         "agent": "Agent",
         "form": "Formularz",
-        "channel_message": "Wiadomość na kanale"
+        "channel_message": "Wiadomość na kanale",
+        "github": "GitHub"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -973,6 +974,10 @@
         "channelMessage": {
           "name": "Wiadomość na kanale",
           "description": "Wiadomość do jednego z Twoich botów na Slacku, Mattermost lub Telegramie uruchamia run."
+        },
+        "github": {
+          "name": "GitHub",
+          "description": "Zgłoszenie, pull request, push albo wydanie w repozytorium uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -1120,7 +1125,10 @@
       "formNewLinkTitle": "Zastąpić link do formularza?",
       "formNewLinkDescription": "Obecny link od razu przestanie działać, gdziekolwiek został udostępniony. Formularz się nie zmieni.",
       "formLinkRenewed": "Formularz ma nowy link",
-      "triggerChannelLive": "Każda wiadomość do bota, na którą odpowiedziałby jego agent i która pasuje do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomości, które nie pasują, nadal trafiają do agenta bota. Wstrzymaj go, żeby oddać agentowi wszystkie wiadomości."
+      "triggerChannelLive": "Każda wiadomość do bota, na którą odpowiedziałby jego agent i która pasuje do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomości, które nie pasują, nadal trafiają do agenta bota. Wstrzymaj go, żeby oddać agentowi wszystkie wiadomości.",
+      "triggerGithubLive": "Każda dostawa podpisana przez GitHub dla repozytorium, zdarzeń i akcji wskazanych w wyzwalaczu uruchamia run jako członek, który go opublikował. Wszystko inne, łącznie z pingiem GitHuba, jest pomijane.",
+      "githubRegistered": "Zarejestrowany w {repository} przez konto GitHub organizacji i rejestrowany ponownie przy każdej publikacji.",
+      "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy."
     }
   },
   "rag": {

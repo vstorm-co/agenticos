@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import httpx
@@ -231,7 +232,13 @@ class GitHubAppPortalAdapter(PortalAdapter):
         return targets
 
     async def register_webhook(
-        self, *, access_token: str, target: str | None, webhook_url: str, secret: str
+        self,
+        *,
+        access_token: str,
+        target: str | None,
+        webhook_url: str,
+        secret: str,
+        events: Sequence[str] | None = None,
     ) -> RegisteredWebhook:
         """Register nothing, and say so by answering rather than raising.
 

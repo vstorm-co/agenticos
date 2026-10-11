@@ -120,6 +120,9 @@ v1_router.include_router(
     tags=["workflows:webhooks"],
 )
 v1_router.include_router(
+    workflow_exposures.github_router, prefix="/workflow-github", tags=["workflows:webhooks"]
+)
+v1_router.include_router(
     workflow_exposures.form_router, prefix="/public/workflow-forms", tags=["workflows:forms"]
 )
 v1_router.include_router(table_views.router, prefix="/tables", tags=["tables:views"])

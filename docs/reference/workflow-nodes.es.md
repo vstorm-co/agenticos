@@ -1,5 +1,5 @@
 ---
-source_sha: "13ff14d038c4"
+source_sha: "4ec6ec10b865"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -121,6 +121,17 @@ encaja con ellos inicia una ejecución como el miembro que lo publicó. `trigger
 es `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.github { #trigger-github }
+
+**GitHub.** Se inicia con una entrega que GitHub firma para el repositorio, uno de los
+eventos y - si el nodo nombra alguna - una de las acciones que nombra. La publicación
+registra el hook a través de la cuenta de GitHub conectada de la organización cuando
+puede, o muestra el secreto una vez para pegarlo. `triggered_by` es `github`.
+
+::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
+
+::: app.workflows.nodes._triggers.GithubTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 

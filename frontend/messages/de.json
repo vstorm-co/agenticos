@@ -4614,7 +4614,8 @@
         "workflow_failed": "Fehlgeschlagener Lauf",
         "agent": "Ein Agent",
         "form": "Ein Formular",
-        "channel_message": "Eine Kanalnachricht"
+        "channel_message": "Eine Kanalnachricht",
+        "github": "GitHub"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -4756,6 +4757,10 @@
         "channelMessage": {
           "name": "Kanalnachricht",
           "description": "Eine Nachricht an einen Ihrer Slack-, Mattermost- oder Telegram-Bots startet einen Lauf."
+        },
+        "github": {
+          "name": "GitHub",
+          "description": "Ein Issue, ein Pull Request, ein Push oder ein Release in einem Repository startet einen Lauf."
         }
       },
       "startRunOptional": "optional",
@@ -4903,7 +4908,10 @@
       "formNewLinkTitle": "Link des Formulars ersetzen?",
       "formNewLinkDescription": "Der aktuelle Link funktioniert sofort nicht mehr, wo immer er geteilt wurde. Das Formular bleibt gleich.",
       "formLinkRenewed": "Das Formular hat einen neuen Link",
-      "triggerChannelLive": "Jede Nachricht an den Bot, die sein Agent beantwortet hätte und die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Nachrichten, die nicht passen, erreichen weiterhin den Agenten des Bots. Pausieren Sie ihn, um alle Nachrichten zurückzugeben."
+      "triggerChannelLive": "Jede Nachricht an den Bot, die sein Agent beantwortet hätte und die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Nachrichten, die nicht passen, erreichen weiterhin den Agenten des Bots. Pausieren Sie ihn, um alle Nachrichten zurückzugeben.",
+      "triggerGithubLive": "Jede von GitHub signierte Zustellung für das Repository, die Ereignisse und die Aktionen, die der Trigger nennt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Alles andere, einschließlich des Pings von GitHub, wird übersprungen.",
+      "githubRegistered": "Über das GitHub-Konto der Organisation in {repository} registriert und bei jeder Veröffentlichung neu registriert.",
+      "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues."
     }
   },
   "profile": {

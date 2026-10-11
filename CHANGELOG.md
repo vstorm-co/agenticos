@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows started from GitHub.** A **GitHub** trigger starts a run for
+  the issues, comments, pull requests, reviews, pushes, releases or Actions
+  runs of one repository it names, optionally only for some actions. With the
+  organization's GitHub account connected, publishing registers the hook on
+  the repository for those events and keeps it in step on every publish;
+  otherwise it shows the address and secret once, to paste. Deliveries are
+  checked against GitHub's signature, a redelivery answers with its first run,
+  and a `ping` or anything not named is skipped. Migration
+  `0133_workflow_github_trigger`.
+
 - **Workflows started from a channel message.** A **Channel message** trigger
   hands a Slack, Mattermost or Telegram bot's messages to a workflow: each one
   the bot's agent would have answered, and that fits the trigger's chats and

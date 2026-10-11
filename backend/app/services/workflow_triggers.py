@@ -3,8 +3,8 @@
 A workflow starts from one trigger node, its entry. Publishing a version is
 what makes that trigger live, the way a builder expects from n8n or Zapier:
 
-* a webhook, a schedule, a form or a bot's messages get their exposure
-  (`WorkflowExposureService`),
+* a webhook, a GitHub hook, a schedule, a form or a bot's messages get their
+  exposure (`WorkflowExposureService`),
   and a table record its subscription (`TableTriggerService`), running the new
   version as the member who published it. The row a node already had is kept,
   so a webhook's address and signing secret, and a form's link, survive the
@@ -39,9 +39,11 @@ from app.services.workflow_exposure import WorkflowExposureService
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import ScheduleTriggerConfig, TableRecordTriggerConfig
 from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
+from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
 from app.workflows.triggers import (
     CHANNEL_MESSAGE,
     FORM,
+    GITHUB,
     SCHEDULE,
     TABLE_RECORD,
     WEBHOOK,
@@ -49,12 +51,12 @@ from app.workflows.triggers import (
 )
 
 # The triggers nobody is present for: each fire acts as the publisher.
-_UNATTENDED = frozenset({WEBHOOK, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE})
+_UNATTENDED = frozenset({WEBHOOK, GITHUB, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE})
 
 
 @dataclass(frozen=True)
 class SwitchedOn:
-    """What a publish switched on: the trigger, and a new webhook's secret, once."""
+    """What a publish switched on: the trigger, and a secret to paste, once."""
 
     trigger: str | None
     exposure: WorkflowExposureRead | None
@@ -104,6 +106,10 @@ class WorkflowTriggerSync:
         elif trigger == SCHEDULE:
             exposure = await self.exposures.switch_on_schedule(
                 ctx, workflow, version, node.id, ScheduleTriggerConfig.model_validate(node.config)
+            )
+        elif trigger == GITHUB:
+            exposure, secret = await self.exposures.switch_on_github(
+                ctx, workflow, version, node.id, GithubTriggerConfig.model_validate(node.config)
             )
         elif trigger == FORM:
             exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)

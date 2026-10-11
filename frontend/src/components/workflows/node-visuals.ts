@@ -106,6 +106,7 @@ const BY_ID: Record<string, NodeIcon> = {
   "trigger.workflow_call": PhoneIncoming,
   "trigger.form": ClipboardList,
   "trigger.channel_message": MessagesSquare,
+  "trigger.github": brandMark("github"),
   "logic.switch": Split,
   "flow.wait": Hourglass,
   "flow.resume_link": Link2,

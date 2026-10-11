@@ -111,6 +111,17 @@ run as the member who published it. `triggered_by` is `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
 
+### trigger.github { #trigger-github }
+
+**GitHub.** Started by a delivery GitHub signs for the repository, one of the events
+and - when it names any - one of the actions the node names. Publishing registers the
+hook through the organization's connected GitHub account when it can, or shows the
+secret once to paste. `triggered_by` is `github`.
+
+::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
+
+::: app.workflows.nodes._triggers.GithubTriggerOutput
+
 ### trigger.channel_message { #trigger-channel-message }
 
 **Channel message.** Started by a message to one of the organization's Slack,

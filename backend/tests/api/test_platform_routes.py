@@ -1631,6 +1631,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # an editor, open for one call for two minutes, and the call is only kept
         # for that editor to read - it never starts a run.
         ("POST", f"{V1}/workflow-webhook-tests/{{token}}"),
+        # A GitHub trigger's door. GitHub signs the body under the trigger's own
+        # secret in `X-Hub-Signature-256`, verified like a webhook's before
+        # anything is read past the row; the run acts as the publisher.
+        ("POST", f"{V1}/workflow-github/{{exposure_id}}"),
         # A run's resume link (#1947). The link a Resume link step hands on is the
         # credential: the run's id and a MAC of it under the deployment's secret,
         # compared in constant time, and a wrong one answers as if no run existed.

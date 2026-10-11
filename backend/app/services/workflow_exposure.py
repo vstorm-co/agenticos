@@ -1,7 +1,7 @@
-"""`WorkflowExposureService` - a workflow's webhook, schedule, form or bot (#1792).
+"""`WorkflowExposureService` - a workflow's webhook, GitHub hook, schedule, form or bot.
 
-A workflow that starts from a webhook, a schedule, a form or a channel message
-trigger node gets its
+A workflow that starts from a webhook, a GitHub, a schedule, a form or a channel
+message trigger node gets its
 exposure when a version is published (`app.services.workflow_triggers`), and
 runs as the member who published it. That authority is read afresh on every
 fire - a member who has since lost the workflow, or left, stops the webhook
@@ -46,6 +46,7 @@ from app.db.models.workflow_exposure import (
     WorkflowExposure,
 )
 from app.db.models.workflow_run import WorkflowRunStatus, WorkflowRunTrigger
+from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_exposure as workflow_exposure_repo
@@ -53,17 +54,20 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
+    WebhookSkipped,
     WorkflowExposureRead,
     WorkflowExposureUpdate,
     WorkflowExposureWithSecret,
     WorkflowFormPage,
     WorkflowFormSubmission,
     WorkflowFormSubmitted,
+    delivery_url,
 )
-from app.services import trigger_events
+from app.services import portal_catalog, portals, trigger_events
 from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
 from app.services.channels.base import IncomingMessage, split_thread
+from app.services.mcp_connection import McpConnectionService
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
@@ -76,11 +80,13 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import (
     ChannelMessageTriggerOutput,
     ChannelSender,
+    GithubTriggerOutput,
     ScheduleTriggerConfig,
 )
 from app.workflows.nodes.core_input._handler import input_problems
 from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
 from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
+from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
 from app.workflows.triggers import answers_webhook
 
 logger = logging.getLogger(__name__)
@@ -88,6 +94,9 @@ logger = logging.getLogger(__name__)
 # The signed-delivery schemes a workflow webhook accepts: a relay signing with
 # the generic headers, or GitHub's own. Both are HMAC-SHA256 over the raw body.
 _SIGNED_SOURCES = ("webhook", "github")
+
+# The portal whose connected account registers a GitHub trigger's hook.
+_GITHUB_PORTAL = "github"
 
 # The run states a schedule waits behind rather than fire on top of.
 _TERMINAL = {"succeeded", "failed", "cancelled", "budget_exceeded"}
@@ -117,6 +126,8 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
         last_run_id=exposure.last_run_id,
         form_token=exposure.form_token,
         channel_bot_id=exposure.channel_bot_id,
+        provider_target=exposure.provider_target,
+        registered_on_provider=exposure.provider_webhook_id is not None,
         created_at=exposure.created_at,
         updated_at=exposure.updated_at,
     )
@@ -289,6 +300,56 @@ class WorkflowExposureService:
         await self._audit(ctx, exposure, "workflow.exposure_created")
         return _read(exposure, version.version)
 
+    async def switch_on_github(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        node_id: UUID,
+        config: GithubTriggerConfig,
+    ) -> tuple[WorkflowExposureRead, str | None]:
+        """The GitHub hook of a version just published, run as its publisher.
+
+        The row the same node had is kept, with its address and secret. The hook is
+        registered on the repository again through the organization's connected
+        account on every publish, so a change of repository or events reaches
+        GitHub; the secret is returned this once when it has to be pasted by hand -
+        a first publish the account could not register, or one the account no
+        longer registers after it did.
+        """
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.GITHUB)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+        }
+        if exposure is None:
+            secret = secrets.token_urlsafe(32)
+            sealed = seal(secret, scope=VaultScope.organization(ctx.organization_id))
+            exposure = await workflow_exposure_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                workflow_id=workflow.id,
+                node_instance_id=node_id,
+                adapter=ExposureAdapter.GITHUB.value,
+                run_input={},
+                secret_encrypted=sealed.ciphertext,
+                secret_key_version=sealed.key_version,
+                **live,
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_created")
+            was_registered, is_new = False, True
+        else:
+            was_registered, is_new = exposure.provider_webhook_id is not None, False
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            secret = self._secret_of(exposure)
+        registered = await self._register_github(ctx, exposure, config, secret)
+        reveal = secret if not registered and (is_new or was_registered) else None
+        return _read(exposure, version.version), reveal
+
     async def switch_on_schedule(
         self,
         ctx: AuthContext,
@@ -446,9 +507,9 @@ class WorkflowExposureService:
         """
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
-        if exposure.adapter != ExposureAdapter.WEBHOOK.value:
+        if exposure.adapter not in (ExposureAdapter.WEBHOOK.value, ExposureAdapter.GITHUB.value):
             raise BadRequestError(
-                message="Only a webhook has a signing secret",
+                message="Only a webhook or a GitHub trigger has a signing secret",
                 details={"exposure_id": str(exposure.id)},
             )
         secret = secrets.token_urlsafe(32)
@@ -462,6 +523,9 @@ class WorkflowExposureService:
             },
         )
         await self._audit(ctx, exposure, "workflow.exposure_secret_rotated")
+        if exposure.provider_webhook_id is not None:
+            # The hook GitHub holds signs with the old secret: register it again.
+            await self._register_github(ctx, exposure, await self._github_config(exposure), secret)
         return WorkflowExposureWithSecret(
             **_read(exposure, await self._version_number(exposure)).model_dump(),
             reveal_secret=secret,
@@ -624,6 +688,109 @@ class WorkflowExposureService:
         trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
         return True
 
+    async def receive_github(
+        self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]
+    ) -> WebhookAdmitted | WebhookSkipped:
+        """Admit one GitHub delivery as one run, skip one the trigger does not name,
+        or answer a redelivery with the run it already admitted.
+
+        Called with no auth context: the delivery is authenticated by GitHub's
+        `X-Hub-Signature-256` under the exposure's own secret, and the run acts as
+        the exposure's member.
+
+        Raises:
+            NotFoundError: No active GitHub trigger has this id.
+            AuthorizationError: The signature did not verify, or the member it
+                runs as can no longer run the workflow.
+            BadRequestError: No `X-GitHub-Delivery`, or a body that is not a JSON
+                object.
+            WorkflowRunInputTooLargeError: The delivery is over the input limit.
+        """
+        exposure = await workflow_exposure_repo.get_by_id(self.db, exposure_id)
+        if (
+            exposure is None
+            or exposure.adapter != ExposureAdapter.GITHUB.value
+            or not exposure.is_active
+        ):
+            raise NotFoundError(message="Webhook not found", details={"exposure_id": exposure_id})
+        if not trigger_events.verify_signature(
+            "github", secret=self._secret_of(exposure), body=body, headers=headers
+        ):
+            raise AuthorizationError(
+                message="Webhook signature did not verify",
+                details={"exposure_id": str(exposure_id)},
+            )
+        delivery_id = trigger_events.delivery_id("github", headers)
+        if delivery_id is None or len(delivery_id) > 255:
+            raise BadRequestError(
+                message="A GitHub delivery names itself in X-GitHub-Delivery",
+                details={"exposure_id": str(exposure_id)},
+            )
+        payload = parse_webhook_body(body)
+        fire = await self._fire_context(exposure)
+        if fire is None:
+            raise AuthorizationError(
+                message="The member this trigger runs as can no longer run this workflow",
+                details={"exposure_id": str(exposure_id)},
+            )
+        ctx, workflow, version = fire
+        config = await self._github_config(exposure)
+        event = headers.get("x-github-event", "")
+        action = payload.get("action")
+        repository = payload.get("repository")
+        full_name = repository.get("full_name") if isinstance(repository, dict) else None
+        sender = payload.get("sender")
+        login = sender.get("login") if isinstance(sender, dict) else None
+        named_action = action if isinstance(action, str) else None
+        if not isinstance(full_name, str) or not config.takes(
+            event=event, action=named_action, repository=full_name
+        ):
+            what = event or "an unnamed event"
+            if named_action is not None:
+                what = f"{what} {named_action}"
+            where = f" on {full_name}" if isinstance(full_name, str) else ""
+            return WebhookSkipped(skipped=f"{what}{where} is not one this trigger starts on")
+
+        await workflow_exposure_repo.lock_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=delivery_id
+        )
+        seen = await workflow_exposure_repo.get_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=delivery_id
+        )
+        if seen is not None:
+            return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+        delivery = GithubTriggerOutput(
+            event=event,
+            action=named_action,
+            repository=full_name,
+            sender=login if isinstance(login, str) else None,
+            delivery_id=delivery_id,
+            payload=payload,
+        )
+        run, entry_node_run_id = await self.runs.admit_pinned(
+            ctx,
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.GITHUB,
+            run_input=delivery.model_dump(mode="json"),
+        )
+        await workflow_exposure_repo.create_delivery(
+            self.db,
+            organization_id=exposure.organization_id,
+            exposure_id=exposure.id,
+            delivery_id=delivery_id,
+            workflow_run_id=run.id,
+        )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
+        )
+        from app.worker.tasks.workflow_tasks import trigger_dispatch
+
+        trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return WebhookAdmitted(run_id=run.id, duplicate=False)
+
     async def receive_webhook(
         self, exposure_id: UUID, *, body: bytes, headers: Mapping[str, str]
     ) -> WebhookAdmitted | WebhookAnswer:
@@ -656,11 +823,7 @@ class WorkflowExposureService:
             or not exposure.is_active
         ):
             raise NotFoundError(message="Webhook not found", details={"exposure_id": exposure_id})
-        secret = unseal(
-            cast(str, exposure.secret_encrypted),
-            scope=VaultScope.organization(exposure.organization_id),
-            key_version=cast(int, exposure.secret_key_version),
-        )
+        secret = self._secret_of(exposure)
         if not any(
             trigger_events.verify_signature(source, secret=secret, body=body, headers=headers)
             for source in _SIGNED_SOURCES
@@ -931,8 +1094,120 @@ class WorkflowExposureService:
         return None
 
     async def _remove(self, ctx: AuthContext, exposure: WorkflowExposure) -> None:
+        await self._unregister_github(ctx, exposure)
         await self._audit(ctx, exposure, "workflow.exposure_deleted")
         await workflow_exposure_repo.delete(self.db, exposure=exposure)
+
+    @staticmethod
+    def _secret_of(exposure: WorkflowExposure) -> str:
+        """A webhook's or a GitHub hook's signing secret, unsealed for its organization.
+
+        The shape CHECK guarantees both columns on those two adapters.
+        """
+        return unseal(
+            cast(str, exposure.secret_encrypted),
+            scope=VaultScope.organization(exposure.organization_id),
+            key_version=cast(int, exposure.secret_key_version),
+        )
+
+    async def _github_config(self, exposure: WorkflowExposure) -> GithubTriggerConfig:
+        """The GitHub trigger's configuration, as the version the exposure runs has it."""
+        version = cast(
+            WorkflowVersion,
+            await workflow_repo.get_version(
+                self.db, exposure.workflow_version_id, organization_id=exposure.organization_id
+            ),
+        )
+        node = WorkflowGraph.model_validate(version.graph).node_by_id[exposure.node_instance_id]
+        return GithubTriggerConfig.model_validate(node.config)
+
+    async def _register_github(
+        self,
+        ctx: AuthContext,
+        exposure: WorkflowExposure,
+        config: GithubTriggerConfig,
+        secret: str,
+    ) -> bool:
+        """Register the hook on the repository through the connected account, or not.
+
+        Whatever hook the account registered before is taken down first, so a
+        change of repository or events never leaves a second one delivering.
+        `False` - no account, no permission to manage webhooks, a repository it
+        cannot reach, GitHub down - leaves the hook to be pasted by hand.
+        """
+        await self._unregister_github(ctx, exposure)
+        portal = portal_catalog.get_portal(_GITHUB_PORTAL)
+        adapter = portals.get_adapter(_GITHUB_PORTAL)
+        if not config.register_with_account or portal is None or adapter is None:
+            return False
+        connection = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            self.db,
+            organization_id=exposure.organization_id,
+            catalog_key=portal.mcp_catalog_key or _GITHUB_PORTAL,
+        )
+        if connection is None:
+            return False
+        token = await McpConnectionService(self.db).webhook_access_token(
+            ctx, connection.id, required_scopes=portal.webhook_admin_scopes
+        )
+        if token is None:
+            return False
+        try:
+            registered = await adapter.register_webhook(
+                access_token=token,
+                target=config.repository,
+                webhook_url=cast(str, delivery_url(ExposureAdapter.GITHUB, exposure.id)),
+                secret=secret,
+                events=config.events,
+            )
+        except portals.PortalError:
+            logger.info("workflow_github_hook_manual", extra={"exposure_id": str(exposure.id)})
+            return False
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={
+                "connection_id": connection.id,
+                "provider_target": config.repository,
+                "provider_webhook_id": registered.provider_webhook_id,
+            },
+        )
+        return True
+
+    async def _unregister_github(self, ctx: AuthContext, exposure: WorkflowExposure) -> None:
+        """Take down the hook the account registered, best-effort.
+
+        Never stops what called it: a hook left behind answers 404 from here on,
+        which is harmless, and a publish that failed because GitHub is down is not.
+        """
+        if exposure.provider_webhook_id is None:
+            return
+        adapter = portals.get_adapter(_GITHUB_PORTAL)
+        portal = portal_catalog.get_portal(_GITHUB_PORTAL)
+        try:
+            if adapter is not None and portal is not None and exposure.connection_id is not None:
+                token = await McpConnectionService(self.db).webhook_access_token(
+                    ctx, exposure.connection_id, required_scopes=portal.webhook_admin_scopes
+                )
+                if token is not None:
+                    await adapter.delete_webhook(
+                        access_token=token,
+                        target=exposure.provider_target,
+                        provider_webhook_id=exposure.provider_webhook_id,
+                    )
+        except Exception:
+            logger.warning(
+                "workflow_github_hook_left_behind", extra={"exposure_id": str(exposure.id)}
+            )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={
+                "connection_id": None,
+                "provider_target": None,
+                "provider_webhook_id": None,
+            },
+        )
 
     async def _exposure(
         self, ctx: AuthContext, workflow: Workflow, exposure_id: UUID

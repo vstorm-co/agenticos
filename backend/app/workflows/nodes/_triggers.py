@@ -167,6 +167,19 @@ class ChannelMessageTriggerOutput(_Frozen):
     sender: ChannelSender
 
 
+class GithubTriggerOutput(_Frozen):
+    """One GitHub delivery: which event and action, where, by whom, and all of it."""
+
+    event: str = Field(description="GitHub's event name, such as issues or pull_request")
+    action: str | None = Field(default=None, description="What happened, such as opened")
+    repository: str = Field(description="The repository, as owner/name")
+    sender: str | None = Field(default=None, description="The login of whoever did it")
+    delivery_id: str
+    payload: dict[str, Any] = Field(
+        default_factory=dict, description="The delivery's whole JSON body, as GitHub sent it"
+    )
+
+
 class FailedRunError(_Frozen):
     """What the failed run ended with: the typed error its failing step recorded."""
 

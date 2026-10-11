@@ -1,5 +1,5 @@
 ---
-source_sha: "13ff14d038c4"
+source_sha: "4ec6ec10b865"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -126,6 +126,18 @@ Einsendung, die zu ihnen passt, startet einen Lauf als das Mitglied, das ihn
 veröffentlicht hat. `triggered_by` ist `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.github { #trigger-github }
+
+**GitHub.** Gestartet von einer von GitHub signierten Zustellung für das Repository,
+eines der Ereignisse und - sofern er welche nennt - eine der Aktionen, die der Knoten
+nennt. Die Veröffentlichung registriert den Hook über das verbundene GitHub-Konto der
+Organisation, wenn sie kann, oder zeigt das Geheimnis einmal zum Einfügen.
+`triggered_by` ist `github`.
+
+::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
+
+::: app.workflows.nodes._triggers.GithubTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 

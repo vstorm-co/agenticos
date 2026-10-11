@@ -3,8 +3,8 @@
 A caller who is present - the HTTP API, a WebSocket, the console's chat - needs
 no row: whoever may run the workflow starts it as themselves, on its live
 version, and is checked at that moment. A door nobody stands at needs one. A
-signed webhook, a schedule, a public form and a channel bot's messages fire on
-their own, so each is a row here saying which published version it runs and as
+signed webhook, a GitHub repository's events, a schedule, a public form and a
+channel bot's messages fire on their own, so each is a row here saying which published version it runs and as
 whom.
 
 The graph says *that* a workflow starts from a webhook or a schedule - its
@@ -52,6 +52,7 @@ class ExposureAdapter(enum.StrEnum):
     SCHEDULE = "schedule"
     FORM = "form"
     CHANNEL = "channel"
+    GITHUB = "github"
 
 
 class ExposureScheduleKind(enum.StrEnum):
@@ -62,7 +63,7 @@ class ExposureScheduleKind(enum.StrEnum):
 
 
 class WorkflowExposure(Base, TimestampMixin):
-    """One webhook, schedule, form or bot's messages that run one workflow's pinned version."""
+    """One webhook, GitHub hook, schedule, form or bot that runs one workflow's pinned version."""
 
     __tablename__ = "workflow_exposures"
 
@@ -106,8 +107,8 @@ class WorkflowExposure(Base, TimestampMixin):
     # - a clock has no body. A webhook's is each delivery's own, so this stays `{}`.
     run_input: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
-    # A webhook's HMAC key, sealed for the organization through the vault, and
-    # the master-key version that sealed it. Null on a schedule.
+    # A webhook's or a GitHub hook's HMAC key, sealed for the organization through
+    # the vault, and the master-key version that sealed it. Null on the others.
     secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     secret_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -121,6 +122,18 @@ class WorkflowExposure(Base, TimestampMixin):
         ForeignKey("channel_bots.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # A GitHub hook the publish registered through the organization's connected
+    # account: the connection it used, the repository and GitHub's id for the
+    # hook, so a later publish or a removal can take it down. All null on a hook
+    # somebody pasted in by hand.
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    provider_target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_webhook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # A schedule's cadence - one of the two fields, told apart by the kind - and
     # when it is next due. Null on a webhook, which the heartbeat's
@@ -149,7 +162,7 @@ class WorkflowExposure(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
         CheckConstraint(
-            "adapter IN ('webhook', 'schedule', 'form', 'channel')",
+            "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github')",
             name="ck_workflow_exposure_adapter",
         ),
         # One shape per adapter: a webhook has a sealed secret and none of the
@@ -157,7 +170,7 @@ class WorkflowExposure(Base, TimestampMixin):
         # no secret; a form has its link and neither. So "why would this fire"
         # always has one answer.
         CheckConstraint(
-            "(adapter = 'webhook' AND secret_encrypted IS NOT NULL "
+            "(adapter IN ('webhook', 'github') AND secret_encrypted IS NOT NULL "
             "AND secret_key_version IS NOT NULL AND schedule_kind IS NULL "
             "AND interval_seconds IS NULL AND cron_expression IS NULL "
             "AND next_fire_at IS NULL AND form_token IS NULL AND channel_bot_id IS NULL) "

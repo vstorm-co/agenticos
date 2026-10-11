@@ -618,7 +618,7 @@ export function isRunTerminal(status: WorkflowRunStatus): boolean {
 }
 
 /** The two ways a workflow runs with nobody pressing Start. */
-export type ExposureAdapter = "webhook" | "schedule" | "form" | "channel";
+export type ExposureAdapter = "webhook" | "schedule" | "form" | "channel" | "github";
 
 /** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
 export type ExposureScheduleKind = "interval" | "cron";
@@ -644,7 +644,7 @@ export interface WorkflowExposureRead {
   next_fire_at: string | null;
   last_fired_at: string | null;
   last_run_id: Uuid | null;
-  /** Where a webhook's deliveries are POSTed - the deployment's public API address. */
+  /** Where a webhook's or a GitHub hook's deliveries are POSTed - the public API address. */
   webhook_url: string | null;
   /** A form's link, the page's only credential; null for any other trigger. */
   form_token: string | null;
@@ -652,6 +652,10 @@ export interface WorkflowExposureRead {
   form_url: string | null;
   /** The bot whose messages a channel trigger takes; null for any other trigger. */
   channel_bot_id: Uuid | null;
+  /** The repository a GitHub hook was registered on through the connected account. */
+  provider_target: string | null;
+  /** Whether the connected account registered the GitHub hook, or it is pasted by hand. */
+  registered_on_provider: boolean;
   created_at: string | null;
 }
 

@@ -43,6 +43,8 @@ function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposu
     form_token: null,
     form_url: null,
     channel_bot_id: null,
+    provider_target: null,
+    registered_on_provider: false,
     created_at: null,
     ...overrides,
   };
@@ -60,6 +62,7 @@ const CATALOG = [
   definition("trigger.table_record", "Table record"),
   definition("trigger.form", "Form"),
   definition("trigger.channel_message", "Channel message"),
+  definition("trigger.github", "GitHub"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 
@@ -296,6 +299,37 @@ describe("TriggerPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(hook.setActive.mutate).toHaveBeenCalledWith({ id: "e1", active: false });
   });
+
+  it.each([
+    [true, "Registered on acme/api through the organization's GitHub account"],
+    [false, "Paste this address into the repository's Settings > Webhooks"],
+  ])(
+    "says how a GitHub hook was set up (registered: %s), and rotates its secret",
+    async (registered, words) => {
+      const url = "https://agents.example.com/api/v1/workflow-github/e1";
+      hook.exposure = exposure({
+        adapter: "github",
+        webhook_url: url,
+        provider_target: registered ? "acme/api" : null,
+        registered_on_provider: registered,
+        schedule_kind: null,
+        next_fire_at: null,
+      });
+      render(
+        <TriggerPanel
+          workflow={workflow("trigger.github")}
+          draft={draftOf("trigger.github")}
+          catalog={CATALOG}
+          canEdit
+        />,
+      );
+      expect(screen.getByText(/Each delivery GitHub signs/)).toBeTruthy();
+      expect(screen.getByDisplayValue(url)).toBeTruthy();
+      expect(screen.getByText((text) => text.startsWith(words))).toBeTruthy();
+      await userEvent.click(screen.getByRole("button", { name: "New secret" }));
+      expect(hook.rotate.mutate).toHaveBeenCalledWith("e1", expect.anything());
+    },
+  );
 
   it("waits for the exposure, and shows nothing when the version has none", () => {
     hook.isLoading = true;

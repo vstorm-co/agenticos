@@ -1,5 +1,5 @@
 ---
-source_sha: "41b50d1d535f"
+source_sha: "9bf0c9afaea3"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
+**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -488,7 +488,7 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
+**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
 **On failure of a workflow**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
@@ -606,6 +606,25 @@ było; wstrzymanie wyzwalacza zamyka stronę. Odpowiedzi, które nie pasują, s�
 wskazane na stronie i niczego nie uruchamiają, ukryte pole łapie skrypty, a każdy
 formularz przyjmuje najwyżej `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` odpowiedzi na
 minutę. Zobacz [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### Z GitHuba { #from-github }
+
+Wyzwalacz **GitHub** uruchamia workflow, gdy coś dzieje się w jednym repozytorium:
+zgłoszenie, komentarz, pull request lub jego recenzja, push, wydanie albo przebieg
+Actions - to, co wskazuje **Starts on**, i tylko wymienione **actions**, takie jak
+`opened`, jeśli jakieś są. Publikacja daje mu własny adres i sekret podpisu. Gdy
+**Set up the webhook for me** jest włączone, a konto GitHub organizacji jest
+podłączone z uprawnieniem do zarządzania webhookami, publikacja rejestruje hook w
+repozytorium i rejestruje go ponownie przy każdej kolejnej publikacji; w przeciwnym
+razie raz pokazuje sekret do wklejenia razem z adresem z **Trigger** w
+**Settings > Webhooks** repozytorium.
+
+Każda dostawa podpisana przez GitHub dla tego repozytorium, zdarzenia i akcji
+uruchamia run jako członek, który opublikował workflow, z `event`, `action`,
+`repository`, `sender` i całym `payload`. Ponowna dostawa odpowiada pierwszym runem,
+a wszystko inne - łącznie z `ping` GitHuba - jest pomijane. **New secret** zastępuje
+sekret i ponownie rejestruje hook tam, gdzie założyło go konto. Zobacz
+[trigger.github](reference/workflow-nodes.md#trigger-github).
 
 ### Z wiadomości na kanale { #from-a-channel-message }
 

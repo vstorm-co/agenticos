@@ -5,8 +5,8 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
  * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
  *
  * A workflow starts from one trigger, its entry: by hand or the API, a chat
- * message, a signed webhook, a schedule, a table record, a public form or a
- * message to a bot. Publishing a
+ * message, a signed webhook, a GitHub repository's events, a schedule, a table
+ * record, a public form or a message to a bot. Publishing a
  * version is what switches its trigger on.
  */
 
@@ -27,6 +27,8 @@ export const WORKFLOW_CALL_TRIGGER = "trigger.workflow_call";
 export const FORM_TRIGGER = "trigger.form";
 /** A message to one of the organization's Slack, Mattermost or Telegram bots. */
 export const CHANNEL_MESSAGE_TRIGGER = "trigger.channel_message";
+/** Something happening in a GitHub repository, delivered to its own signed address. */
+export const GITHUB_TRIGGER = "trigger.github";
 
 /** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
@@ -76,6 +78,17 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
       return { prompt: "Hello", conversation_id: SAMPLE_ID, user_id: null };
     case WEBHOOK_TRIGGER:
       return { body: {}, delivery_id: "test" };
+    case GITHUB_TRIGGER: {
+      const repository = entry.config["repository"];
+      return {
+        event: "issues",
+        action: "opened",
+        repository: typeof repository === "string" ? repository : "owner/repository",
+        sender: null,
+        delivery_id: "test",
+        payload: {},
+      };
+    }
     case CHANNEL_MESSAGE_TRIGGER: {
       const bot = entry.config["bot_id"];
       return {

@@ -12,6 +12,9 @@ trigger and channel webhooks. It answers `202` with the run it admitted as soon
 as that admission commits - unless the graph answers the delivery itself with a
 Respond to webhook step, when it waits for that answer.
 
+`github_router` is a GitHub trigger's door: GitHub's own signature over the body
+under the trigger's secret is its credential, as the webhook door's is.
+
 `form_router` is a form's public page: its link is its only credential, so it
 carries no auth dependency either, and each submission that fits starts one run
 as the form's publisher. Both of its routes are counted per form before anything
@@ -34,6 +37,7 @@ from app.api.deps import (
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
+    WebhookSkipped,
     WebhookTestCapture,
     WebhookTestCaptured,
     WebhookTestListening,
@@ -49,6 +53,7 @@ router = APIRouter()
 webhook_router = APIRouter()
 webhook_test_router = APIRouter()
 form_router = APIRouter()
+github_router = APIRouter()
 
 
 @router.get("/{workflow_id}/exposure", response_model=WorkflowExposureRead | None)
@@ -148,6 +153,26 @@ async def receive_workflow_webhook(
             content=received.body, status_code=received.status_code, headers=received.headers
         )
     return received
+
+
+@github_router.post(
+    "/{exposure_id}",
+    response_model=WebhookAdmitted | WebhookSkipped,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def receive_workflow_github(
+    exposure_id: UUID, request: Request, service: WorkflowExposureSvc
+) -> Any:
+    """Admit one GitHub delivery as one run.
+
+    GitHub signs the body with the trigger's secret in `X-Hub-Signature-256` and
+    names it in `X-GitHub-Delivery`; a redelivery answers with the first run and
+    `duplicate: true`. A delivery for another repository, event or action - the
+    `ping` GitHub sends when the hook is created among them - is answered with
+    `skipped` and starts nothing."""
+    return await service.receive_github(
+        exposure_id, body=await request.body(), headers=dict(request.headers)
+    )
 
 
 @form_router.get(

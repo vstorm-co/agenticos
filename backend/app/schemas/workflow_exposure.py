@@ -14,6 +14,20 @@ from app.schemas.base import BaseSchema, TimestampSchema
 from app.workflows.contracts.fields import InputField
 
 
+def delivery_url(adapter: ExposureAdapter, exposure_id: UUID) -> str | None:
+    """Where a webhook's or a GitHub hook's sender delivers, on the deployment's public
+    address - `None` for a trigger nothing POSTs to.
+
+    Built on `PUBLIC_BASE_URL` for the reason `TriggerRead.webhook_url` gives: the
+    API host is a different origin from the console, so a URL built from the
+    browser's would 404.
+    """
+    door = {ExposureAdapter.WEBHOOK: "workflow-webhooks", ExposureAdapter.GITHUB: "workflow-github"}
+    if adapter not in door:
+        return None
+    return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/{door[adapter]}/{exposure_id}"
+
+
 class WorkflowExposureUpdate(BaseSchema):
     """Pause or resume the workflow's webhook or schedule.
 
@@ -47,19 +61,20 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     channel_bot_id: UUID | None = Field(
         default=None, description="The bot whose messages a channel trigger takes; null otherwise"
     )
+    provider_target: str | None = Field(
+        default=None, description="The repository a GitHub hook was registered on, if it was"
+    )
+    registered_on_provider: bool = Field(
+        default=False,
+        description="Whether the organization's connected account registered the GitHub "
+        "hook; false when it is pasted by hand",
+    )
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property
     def webhook_url(self) -> str | None:
-        """Where a webhook's sender delivers, on the deployment's public address.
-
-        Built on `PUBLIC_BASE_URL` for the reason `TriggerRead.webhook_url` gives:
-        the API host is a different origin from the console, so a URL built from
-        the browser's would 404. Null for a schedule, which nothing POSTs to.
-        """
-        if self.adapter is not ExposureAdapter.WEBHOOK:
-            return None
-        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/workflow-webhooks/{self.id}"
+        """Where a webhook's or a GitHub hook's sender delivers. Null for the others."""
+        return delivery_url(self.adapter, self.id)
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property
@@ -89,6 +104,13 @@ class WebhookAdmitted(BaseSchema):
 
     run_id: UUID
     duplicate: bool
+
+
+class WebhookSkipped(BaseSchema):
+    """What a GitHub delivery the trigger does not name is answered with: why it
+    started nothing - GitHub's `ping`, another event, another action."""
+
+    skipped: str
 
 
 class WebhookAnswer(BaseSchema):

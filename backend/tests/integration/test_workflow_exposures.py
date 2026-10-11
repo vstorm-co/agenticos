@@ -10,6 +10,7 @@ webhook's address and secret survive a publish of the same node.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -38,6 +39,7 @@ from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation, Message
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -55,10 +57,12 @@ from app.schemas.workflow import WorkflowPublish, WorkflowPublished
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
     WebhookAnswer,
+    WebhookSkipped,
     WorkflowExposureUpdate,
     WorkflowFormSubmission,
 )
 from app.services.channels.base import IncomingMessage
+from app.services.portals import RegisteredWebhook, WebhookRegistrationForbidden
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
@@ -1582,3 +1586,270 @@ class TestChannelMessages:
                 own,
                 _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
             )
+
+
+GITHUB = {"repository": "acme/api", "events": ["issues", "pull_request"], "actions": ["opened"]}
+
+
+def _github_delivery(
+    secret: str,
+    *,
+    event: str = "issues",
+    action: str | None = "opened",
+    repository: str | None = "acme/api",
+    delivery: str | None = "g-1",
+) -> tuple[bytes, dict[str, str]]:
+    payload: dict[str, object] = {"sender": {"login": "ada"}}
+    if repository is not None:
+        payload["repository"] = {"full_name": repository}
+    if action is not None:
+        payload["action"] = action
+    body = json.dumps(payload).encode()
+    headers = {
+        "x-hub-signature-256": "sha256="
+        + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest(),
+        "x-github-event": event,
+    }
+    if delivery is not None:
+        headers["x-github-delivery"] = delivery
+    return body, headers
+
+
+class _GithubAccount:
+    """The organization's GitHub account and the hooks it registers, recorded."""
+
+    def __init__(self, connection: McpConnection, *, refuses: bool = False) -> None:
+        self.registered: list[dict] = []
+        self.deleted: list[str] = []
+        self.refuses = refuses
+        self.connection = connection
+
+    async def register_webhook(self, **kwargs):
+        if self.refuses:
+            raise WebhookRegistrationForbidden(details={})
+        self.registered.append(kwargs)
+        return RegisteredWebhook(provider_webhook_id=f"hook-{len(self.registered)}")
+
+    async def delete_webhook(self, *, access_token, target, provider_webhook_id):
+        self.deleted.append(provider_webhook_id)
+
+    @contextlib.contextmanager
+    def connected(self, token: str | None = "gho_token"):
+        service = "app.services.workflow_exposure"
+        with (
+            patch(f"{service}.portals.get_adapter", return_value=self),
+            patch(
+                f"{service}.mcp_connection_repo.get_org_scoped_by_catalog_key",
+                AsyncMock(return_value=self.connection),
+            ),
+            patch(
+                f"{service}.McpConnectionService.webhook_access_token",
+                AsyncMock(return_value=token),
+            ),
+        ):
+            yield
+
+
+async def _account(db: AsyncSession, org: Organization, *, refuses: bool = False):
+    connection = McpConnection(
+        id=uuid.uuid4(),
+        scope="org",
+        organization_id=org.id,
+        name=f"github-{uuid.uuid4().hex[:8]}",
+        url="https://api.githubcopilot.com/mcp/",
+        secret_key_version=1,
+    )
+    db.add(connection)
+    await db.flush()
+    return _GithubAccount(connection, refuses=refuses)
+
+
+class TestGithub:
+    async def test_without_an_account_the_secret_is_shown_once_to_paste(self, db, tenant):
+        owner, org, workflow = tenant
+        graph = _graph("trigger.github", GITHUB)
+        with patch(
+            "app.services.workflow_exposure.mcp_connection_repo.get_org_scoped_by_catalog_key",
+            AsyncMock(return_value=None),
+        ):
+            first = await _publish(db, _ctx(owner, org), workflow, graph)
+            again = await _publish(db, _ctx(owner, org), workflow, graph)
+
+        assert first.exposure is not None and first.webhook_secret is not None
+        assert first.exposure.webhook_url == (
+            f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/workflow-github/{first.exposure.id}"
+        )
+        assert first.exposure.registered_on_provider is False
+        assert again.webhook_secret is None and again.exposure.id == first.exposure.id
+
+    async def test_a_delivery_it_names_starts_a_run_once(self, db, tenant):
+        owner, org, workflow = tenant
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.github", {**GITHUB, "register_with_account": False}),
+        )
+        service = WorkflowExposureService(db)
+        body, headers = _github_delivery(published.webhook_secret)
+
+        first = await service.receive_github(published.exposure.id, body=body, headers=headers)
+        again = await service.receive_github(published.exposure.id, body=body, headers=headers)
+
+        assert (first.duplicate, again.duplicate, again.run_id) == (False, True, first.run_id)
+        (run,) = await _runs(db)
+        assert run.triggered_by == WorkflowRunTrigger.GITHUB.value
+        assert run.input["event"] == "issues" and run.input["action"] == "opened"
+        assert (run.input["repository"], run.input["sender"]) == ("acme/api", "ada")
+        assert run.input["payload"]["repository"] == {"full_name": "acme/api"}
+
+    @pytest.mark.parametrize(
+        "delivery",
+        [
+            {"event": "ping", "action": None},
+            {"event": "push", "action": None},
+            {"action": "closed"},
+            {"repository": "acme/other"},
+            {"repository": None},
+            {"event": ""},
+        ],
+        ids=[
+            "ping",
+            "another-event",
+            "another-action",
+            "another-repository",
+            "no-repository",
+            "no-event",
+        ],
+    )
+    async def test_a_delivery_it_does_not_name_is_skipped(self, db, tenant, delivery):
+        owner, org, workflow = tenant
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.github", {**GITHUB, "register_with_account": False}),
+        )
+        body, headers = _github_delivery(published.webhook_secret, **delivery)
+
+        skipped = await WorkflowExposureService(db).receive_github(
+            published.exposure.id, body=body, headers=headers
+        )
+
+        assert isinstance(skipped, WebhookSkipped) and await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_delivery_it_cannot_trust_or_name_is_refused(self, db, tenant):
+        owner, org, workflow = tenant
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.github", {**GITHUB, "register_with_account": False}),
+        )
+        service = WorkflowExposureService(db)
+        forged, forged_headers = _github_delivery("wrong")
+        unnamed, unnamed_headers = _github_delivery(published.webhook_secret, delivery=None)
+
+        with pytest.raises(AuthorizationError):
+            await service.receive_github(published.exposure.id, body=forged, headers=forged_headers)
+        with pytest.raises(BadRequestError):
+            await service.receive_github(
+                published.exposure.id, body=unnamed, headers=unnamed_headers
+            )
+        with pytest.raises(NotFoundError):
+            await service.receive_github(uuid.uuid4(), body=forged, headers=forged_headers)
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+        body, headers = _github_delivery(published.webhook_secret)
+        with pytest.raises(AuthorizationError):
+            await service.receive_github(published.exposure.id, body=body, headers=headers)
+        assert await _runs(db) == []
+
+    async def test_the_account_registers_the_hook_and_every_publish_registers_it_again(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        account = await _account(db, org)
+        with account.connected():
+            first = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB))
+            again = await _publish(
+                db,
+                _ctx(owner, org),
+                workflow,
+                _graph("trigger.github", {**GITHUB, "repository": "acme/web"}),
+            )
+
+        assert first.webhook_secret is None and first.exposure.registered_on_provider
+        assert again.exposure.provider_target == "acme/web"
+        assert [one["target"] for one in account.registered] == ["acme/api", "acme/web"]
+        assert account.registered[0]["events"] == ("issues", "pull_request")
+        assert account.registered[0]["webhook_url"] == first.exposure.webhook_url
+        assert account.deleted == ["hook-1"]
+
+    async def test_a_hook_the_account_no_longer_registers_is_handed_over_to_paste(self, db, tenant):
+        owner, org, workflow = tenant
+        graph = _graph("trigger.github", GITHUB)
+        with (await _account(db, org)).connected():
+            await _publish(db, _ctx(owner, org), workflow, graph)
+        refusing = await _account(db, org, refuses=True)
+        with refusing.connected():
+            again = await _publish(db, _ctx(owner, org), workflow, graph)
+
+        assert again.webhook_secret is not None
+        assert again.exposure.registered_on_provider is False
+
+    async def test_a_new_secret_registers_the_hook_again(self, db, tenant):
+        owner, org, workflow = tenant
+        account = await _account(db, org)
+        with account.connected():
+            published = await _publish(
+                db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB)
+            )
+            rotated = await WorkflowExposureService(db).rotate_secret(
+                _ctx(owner, org), workflow.id, published.exposure.id
+            )
+
+        assert account.registered[-1]["secret"] == rotated.reveal_secret
+        assert account.deleted == ["hook-1"]
+
+    async def test_a_publish_that_starts_another_way_takes_the_hook_down(self, db, tenant):
+        owner, org, workflow = tenant
+        account = await _account(db, org)
+        with account.connected():
+            await _publish(db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB))
+            await _publish(db, _ctx(owner, org), workflow, _graph())
+
+        assert account.deleted == ["hook-1"]
+        assert (await db.execute(select(WorkflowExposure))).scalars().all() == []
+
+    async def test_a_hook_it_cannot_take_down_does_not_stop_the_publish(self, db, tenant):
+        owner, org, workflow = tenant
+        account = await _account(db, org)
+        with account.connected():
+            await _publish(db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB))
+        account.delete_webhook = AsyncMock(side_effect=RuntimeError("GitHub is down"))
+        with account.connected():
+            published = await _publish(db, _ctx(owner, org), workflow, _graph())
+        assert published.exposure is None
+
+    async def test_an_account_without_webhook_permission_leaves_it_to_paste(self, db, tenant):
+        owner, org, workflow = tenant
+        with (await _account(db, org)).connected(token=None):
+            published = await _publish(
+                db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB)
+            )
+        assert published.webhook_secret is not None
+
+    async def test_github_delivered_over_http(self, http):
+        client, workflow_id, factory = http
+        graph = _graph("trigger.github", {**GITHUB, "register_with_account": False})
+        published = await _publish_over_http(client, workflow_id, graph)
+        body, headers = _github_delivery(published["webhook_secret"])
+        ping, ping_headers = _github_delivery(published["webhook_secret"], event="ping")
+        url = f"{settings.API_V1_STR}/workflow-github/{published['exposure']['id']}"
+
+        admitted = await client.post(url, content=body, headers=headers)
+        skipped = await client.post(url, content=ping, headers=ping_headers)
+
+        assert admitted.status_code == 202 and admitted.json()["duplicate"] is False
+        assert skipped.status_code == 202 and "ping" in skipped.json()["skipped"]

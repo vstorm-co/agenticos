@@ -1,5 +1,5 @@
 ---
-source_sha: "13ff14d038c4"
+source_sha: "4ec6ec10b865"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -118,6 +118,17 @@ pole - te same pola co **Manual** - a zgłoszenie, które do nich pasuje, urucha
 jako członek, który go opublikował. `triggered_by` to `form`.
 
 ::: app.workflows.nodes.trigger_form._handler.FormTriggerConfig
+
+### trigger.github { #trigger-github }
+
+**GitHub.** Startuje od dostawy podpisanej przez GitHub dla repozytorium, jednego ze
+zdarzeń i - jeśli węzeł je wymienia - jednej z akcji, które wskazuje węzeł. Publikacja
+rejestruje hook przez podłączone konto GitHub organizacji, gdy może, albo raz pokazuje
+sekret do wklejenia. `triggered_by` to `github`.
+
+::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
+
+::: app.workflows.nodes._triggers.GithubTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 

@@ -77,6 +77,11 @@ describe("triggers", () => {
       sampleRunInput(graph("trigger.table_record", { table: { table_id: "tbl" } })),
     ).toMatchObject({ table_id: "tbl", values: {}, fields: {} });
     expect(sampleRunInput(graph("trigger.table_record")).table_id).toMatch(/^0{8}-/);
+    expect(sampleRunInput(graph("trigger.github", { repository: "acme/api" }))).toMatchObject({
+      event: "issues",
+      repository: "acme/api",
+    });
+    expect(sampleRunInput(graph("trigger.github")).repository).toBe("owner/repository");
     expect(sampleRunInput(graph("trigger.channel_message", { bot_id: "bot-1" }))).toMatchObject({
       bot_id: "bot-1",
       text: "Hello",

@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
+**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -479,7 +479,7 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
+**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
@@ -593,6 +593,25 @@ pausing the trigger closes the page. Answers that do not fit are named on the pa
 and start nothing, a hidden box catches scripts, and each form takes at most
 `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute. See
 [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### From GitHub { #from-github }
+
+A **GitHub** trigger starts the workflow when something happens in one repository:
+an issue, a comment, a pull request or its review, a push, a release or an Actions
+run - whichever **Starts on** names, and only the **actions** listed, such as
+`opened`, when any are. Publishing gives it its own address and signing secret. With
+**Set up the webhook for me** on and the organization's GitHub account connected
+with permission to manage webhooks, the publish registers the hook on the repository
+and registers it again on every later publish; otherwise it shows the secret once,
+to paste with the address from **Trigger** into the repository's **Settings >
+Webhooks**.
+
+Each delivery GitHub signs for that repository, event and action starts a run as
+the member who published the workflow, with the `event`, `action`, `repository`,
+`sender` and the whole `payload`. A redelivery answers with its first run, and
+anything else - GitHub's `ping` included - is skipped. **New secret** replaces the
+secret and registers the hook again where the account set it up. See
+[trigger.github](reference/workflow-nodes.md#trigger-github).
 
 ### From a channel message { #from-a-channel-message }
 
