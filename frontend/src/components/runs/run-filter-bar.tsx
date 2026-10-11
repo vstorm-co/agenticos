@@ -82,7 +82,7 @@ export function RunFilterBar({
         value={filters.status}
         onValueChange={(value) => set({ status: value as RunFilters["status"] })}
       >
-        <SelectTrigger className="h-8 w-[170px]" aria-label={t("statusFilter")}>
+        <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("statusFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -96,7 +96,7 @@ export function RunFilterBar({
         </SelectContent>
       </Select>
       <Select value={filters.surface} onValueChange={(value) => set({ surface: value })}>
-        <SelectTrigger className="h-8 w-[150px]" aria-label={t("surfaceFilter")}>
+        <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("surfaceFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -118,7 +118,7 @@ export function RunFilterBar({
         value={filters.rated}
         onValueChange={(value) => set({ rated: value as RunFilters["rated"] })}
       >
-        <SelectTrigger className="h-8 w-[150px]" aria-label={t("ratingFilter")}>
+        <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("ratingFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -133,7 +133,7 @@ export function RunFilterBar({
         value={filters.test}
         onValueChange={(value) => set({ test: value as RunFilters["test"] })}
       >
-        <SelectTrigger className="h-8 w-[150px]" aria-label={t("testFilter")}>
+        <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("testFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -196,7 +196,7 @@ function ModelSelect({
 
   return (
     <Select value={model} onValueChange={onModelChange}>
-      <SelectTrigger className="h-8 w-[190px]" aria-label={t("modelFilter")}>
+      <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("modelFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -226,7 +226,7 @@ function AgentSelect({
       value={agentId ?? "all"}
       onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
     >
-      <SelectTrigger className="h-8 w-[180px]" aria-label={t("agentFilter")}>
+      <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("agentFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -270,7 +270,7 @@ function PersonSelect({
 
   return (
     <Select value={userId} onValueChange={onUserChange}>
-      <SelectTrigger className="h-8 w-[180px]" aria-label={t("personFilter")}>
+      <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("personFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -311,7 +311,7 @@ function VersionSelect({
 
   return (
     <Select value={versionId} onValueChange={onVersionChange}>
-      <SelectTrigger className="h-8 w-[140px]" aria-label={t("versionFilter")}>
+      <SelectTrigger className="h-8 w-auto gap-2" aria-label={t("versionFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
