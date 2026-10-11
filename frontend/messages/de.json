@@ -4615,7 +4615,8 @@
         "agent": "Ein Agent",
         "form": "Ein Formular",
         "channel_message": "Eine Kanalnachricht",
-        "github": "GitHub"
+        "github": "GitHub",
+        "gmail": "Gmail"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",
@@ -4761,6 +4762,10 @@
         "github": {
           "name": "GitHub",
           "description": "Ein Issue, ein Pull Request, ein Push oder ein Release in einem Repository startet einen Lauf."
+        },
+        "gmail": {
+          "name": "Gmail",
+          "description": "Eine neue E-Mail im verbundenen Postfach der Organisation startet einen Lauf."
         }
       },
       "startRunOptional": "optional",
@@ -4911,7 +4916,8 @@
       "triggerChannelLive": "Jede Nachricht an den Bot, die sein Agent beantwortet hätte und die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Nachrichten, die nicht passen, erreichen weiterhin den Agenten des Bots. Pausieren Sie ihn, um alle Nachrichten zurückzugeben.",
       "triggerGithubLive": "Jede von GitHub signierte Zustellung für das Repository, die Ereignisse und die Aktionen, die der Trigger nennt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Alles andere, einschließlich des Pings von GitHub, wird übersprungen.",
       "githubRegistered": "Über das GitHub-Konto der Organisation in {repository} registriert und bei jeder Veröffentlichung neu registriert.",
-      "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues."
+      "githubPasteIt": "Fügen Sie diese Adresse in den Einstellungen des Repositorys unter Settings > Webhooks ein, mit dem Inhaltstyp application/json und dem Geheimnis, das beim Veröffentlichen gezeigt wurde. New secret zeigt ein neues.",
+      "triggerGmailLive": "Das Gmail-Postfach der Organisation wird jede Minute gelesen, und jede neue Nachricht, die zum Trigger passt, startet einen Lauf als das Mitglied, das ihn veröffentlicht hat. Eine Nachricht startet einmal, wie oft sie auch gelesen wird."
     }
   },
   "profile": {
@@ -5842,10 +5848,10 @@
     "reauthorizeAction": "Neu autorisieren",
     "redirecting": "Weiterleitung …",
     "advancedWebhook": "API-Trigger",
-    "ambiguousOAuthApp": "Es sind zwei organisationsweit sichtbare GitHub-OAuth-App-Secrets gespeichert, deshalb lässt sich beim Verbinden nicht erkennen, welches gemeint ist. Entfernen Sie eines im Vault.",
+    "ambiguousOAuthApp": "Es sind zwei organisationsweit sichtbare {portal}-OAuth-App-Secrets gespeichert, deshalb lässt sich beim Verbinden nicht erkennen, welches gemeint ist. Entfernen Sie eines im Vault.",
     "apiCategory": "Ihr eigener Code",
     "addCredentials": "Zugangsdaten hinzufügen",
-    "needsOAuthApp": "Zum Verbinden werden die GitHub-OAuth-App-Zugangsdaten Ihrer Organisation gebraucht. Fügen Sie sie hier oder im Vault hinzu.",
+    "needsOAuthApp": "Zum Verbinden werden die {portal}-OAuth-App-Zugangsdaten Ihrer Organisation gebraucht. Fügen Sie sie hier oder im Vault hinzu.",
     "oauthUnavailable": "Ein Postfach zu verbinden braucht den eigenen Google-Client dieses Deployments, und es ist keiner konfiguriert. Ein Betreiber setzt GOOGLE_CLIENT_ID und GOOGLE_CLIENT_SECRET; im Vault lässt sich das nicht beheben.",
     "openVault": "Vault öffnen",
     "apiDescription": "Lösen Sie einen Agent mit einem signierten POST aus allem aus, was JSON senden kann.",
@@ -6492,6 +6498,26 @@
         "label": "Nach dem Senden",
         "placeholder": "Vielen Dank - Ihre Antworten wurden gesendet."
       }
+    },
+    "portalAccount": {
+      "connect": "Verbinden",
+      "reconnect": "Neu verbinden",
+      "gmail": {
+        "ready": "Das Postfach der Organisation ist verbunden und wird jede Minute gelesen.",
+        "connect": "Noch ist kein Postfach verbunden. Die Veröffentlichung wartet darauf.",
+        "reauthorize": "Das Postfach muss neu verbunden werden, bevor es gelesen werden kann."
+      },
+      "github": {
+        "ready": "Mit der Berechtigung verbunden, Webhooks zu verwalten: Die Veröffentlichung registriert den Hook für Sie.",
+        "connect": "Kein GitHub-Konto ist verbunden. Die Veröffentlichung zeigt stattdessen eine Adresse und ein Geheimnis zum Einfügen.",
+        "reauthorize": "Das Konto kann noch keine Webhooks verwalten. Verbinden Sie es neu oder fügen Sie Adresse und Geheimnis von Hand ein."
+      },
+      "blocked": {
+        "oauth_app_secret": "Zum Verbinden werden die {portal}-OAuth-App-Zugangsdaten der Organisation im Vault gebraucht.",
+        "ambiguous_oauth_app_secret": "Es sind zwei {portal}-OAuth-App-Secrets gespeichert, deshalb ist unklar, welches gilt. Entfernen Sie eines im Vault.",
+        "oauth_unavailable": "Dieses Deployment kann {portal} nicht verbinden."
+      },
+      "openVault": "Vault öffnen"
     }
   },
   "artifacts": {

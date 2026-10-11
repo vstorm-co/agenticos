@@ -33,11 +33,7 @@ import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import {
-  startGithubOrgOAuth,
-  startMcpOAuth,
-  startPolledPortalOAuth,
-} from "@/lib/mcp-connections-api";
+import { portalConnectUrl } from "@/lib/portal-connect";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -140,20 +136,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   async function connect(item: PortalWithState) {
     setBusyKey(item.portal.key);
     try {
-      // Three flows, because three kinds of provider. GitHub cannot be discovered
-      // like a generic MCP server, so its consent URL is built from the
-      // organization's own OAuth App secret keyed by the portal. A *polled* portal
-      // registers nothing and only needs a refreshable token, on the deployment's
-      // own client. Everything else follows discovery-and-registration.
-      const { authorization_url } =
-        item.portal.delivery === "polling"
-          ? await startPolledPortalOAuth(item.portal.key)
-          : item.portal.event_source === "github"
-            ? await startGithubOrgOAuth(item.portal.key)
-            : await startMcpOAuth(
-                { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
-                "organization",
-              );
+      const authorization_url = await portalConnectUrl(item);
       window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotConnect")));
@@ -273,7 +256,9 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                       is: a Member who cannot fix it is not told to. */}
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
-                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"])}
+                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
+                        portal: item.portal.name,
+                      })}
                     </p>
                   )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">

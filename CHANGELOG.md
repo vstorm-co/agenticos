@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows started from an email.** A **Gmail** trigger starts a run for
+  each new message in the organization's connected Gmail mailbox that fits its
+  subject, sender and label filters, read by the poll that already fires
+  agents' Gmail triggers. A message read twice runs once, and one the
+  organization had no room for is read again a minute later. The step shows
+  whether a mailbox is connected and connects one; a GitHub step shows the
+  same for its account. Migration `0134_workflow_gmail_trigger`.
+
 - **Workflows started from GitHub.** A **GitHub** trigger starts a run for
   the issues, comments, pull requests, reviews, pushes, releases or Actions
   runs of one repository it names, optionally only for some actions. With the
@@ -451,6 +459,10 @@ Two things are versioned separately from this file and worth knowing about:
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
 
 ### Fixed
+
+- **A Gmail portal card asked for GitHub credentials.** The card a portal
+  shows when its OAuth app is missing or stored twice named GitHub whatever the
+  portal; it names the portal now.
 
 - **Workflow approvals reach the console.** The Approvals tab's "Workflow steps
   waiting on you" card read `/api/workflow-approvals`, which the console never

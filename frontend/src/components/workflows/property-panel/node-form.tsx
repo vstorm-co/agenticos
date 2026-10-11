@@ -67,6 +67,7 @@ import {
 } from "@/components/workflows/pickers/mcp-tool-picker";
 import { FormPageForm } from "./form-page-form";
 import { InputFieldsForm } from "./input-fields-form";
+import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
 import {
@@ -1115,8 +1116,10 @@ function NodeFields({
   const listsFirst = inputs.filter(({ entry }) => isList(entry.schema));
   const rest = inputs.filter(({ entry }) => !isList(entry.schema));
 
+  const account = ACCOUNT_TRIGGERS[definition.id];
   return (
     <div className="space-y-6">
+      {account !== undefined && <PortalAccount account={account} />}
       {definition.id === HTTP_REQUEST && (
         <CurlImport
           node={node}

@@ -19,6 +19,7 @@ import {
   CHANNEL_MESSAGE_TRIGGER,
   FORM_TRIGGER,
   GITHUB_TRIGGER,
+  GMAIL_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
@@ -165,10 +166,14 @@ function LiveTrigger({
       {trigger === GITHUB_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerGithubLive")}</p>
       )}
+      {trigger === GMAIL_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("triggerGmailLive")}</p>
+      )}
       {(trigger === WEBHOOK_TRIGGER ||
         trigger === GITHUB_TRIGGER ||
         trigger === SCHEDULE_TRIGGER ||
         trigger === FORM_TRIGGER ||
+        trigger === GMAIL_TRIGGER ||
         trigger === CHANNEL_MESSAGE_TRIGGER) && (
         <ExposureStatus workflow={workflow} canEdit={canEdit} />
       )}

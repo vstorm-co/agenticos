@@ -397,7 +397,7 @@ describe("PortalCatalog", () => {
 
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
-    expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
+    expect(card.getByText(/GitHub OAuth app credentials/)).toBeVisible();
     expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
     // And the toast that used to be the only way to learn this is not the path:
     // nothing was clicked to get here.

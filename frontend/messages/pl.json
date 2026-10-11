@@ -832,7 +832,8 @@
         "agent": "Agent",
         "form": "Formularz",
         "channel_message": "Wiadomość na kanale",
-        "github": "GitHub"
+        "github": "GitHub",
+        "gmail": "Gmail"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -978,6 +979,10 @@
         "github": {
           "name": "GitHub",
           "description": "Zgłoszenie, pull request, push albo wydanie w repozytorium uruchamia run."
+        },
+        "gmail": {
+          "name": "Gmail",
+          "description": "Nowy e-mail w podłączonej skrzynce organizacji uruchamia run."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -1128,7 +1133,8 @@
       "triggerChannelLive": "Każda wiadomość do bota, na którą odpowiedziałby jego agent i która pasuje do wyzwalacza, uruchamia run jako członek, który go opublikował. Wiadomości, które nie pasują, nadal trafiają do agenta bota. Wstrzymaj go, żeby oddać agentowi wszystkie wiadomości.",
       "triggerGithubLive": "Każda dostawa podpisana przez GitHub dla repozytorium, zdarzeń i akcji wskazanych w wyzwalaczu uruchamia run jako członek, który go opublikował. Wszystko inne, łącznie z pingiem GitHuba, jest pomijane.",
       "githubRegistered": "Zarejestrowany w {repository} przez konto GitHub organizacji i rejestrowany ponownie przy każdej publikacji.",
-      "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy."
+      "githubPasteIt": "Wklej ten adres w ustawieniach repozytorium, w Settings > Webhooks, z typem treści application/json i sekretem pokazanym przy publikacji. New secret pokaże nowy.",
+      "triggerGmailLive": "Skrzynka Gmail organizacji jest czytana co minutę, a każda nowa wiadomość pasująca do wyzwalacza uruchamia run jako członek, który go opublikował. Wiadomość uruchamia run raz, niezależnie od tego, ile razy zostanie przeczytana."
     }
   },
   "rag": {
@@ -4262,6 +4268,26 @@
         "label": "Po wysłaniu",
         "placeholder": "Dziękujemy - odpowiedzi zostały wysłane."
       }
+    },
+    "portalAccount": {
+      "connect": "Podłącz",
+      "reconnect": "Podłącz ponownie",
+      "gmail": {
+        "ready": "Skrzynka organizacji jest podłączona i czytana co minutę.",
+        "connect": "Żadna skrzynka nie jest jeszcze podłączona. Publikacja na nią poczeka.",
+        "reauthorize": "Skrzynkę trzeba podłączyć ponownie, zanim da się ją czytać."
+      },
+      "github": {
+        "ready": "Podłączone z uprawnieniem do zarządzania webhookami: publikacja zarejestruje hook za Ciebie.",
+        "connect": "Żadne konto GitHub nie jest podłączone. Publikacja pokaże zamiast tego adres i sekret do wklejenia.",
+        "reauthorize": "Konto nie może jeszcze zarządzać webhookami. Podłącz je ponownie albo wklej adres i sekret ręcznie."
+      },
+      "blocked": {
+        "oauth_app_secret": "Podłączenie wymaga danych aplikacji OAuth {portal} organizacji, zapisanych w vaulcie.",
+        "ambiguous_oauth_app_secret": "W vaulcie są dwa sekrety aplikacji OAuth {portal}, więc nie wiadomo, którego użyć. Usuń jeden z nich.",
+        "oauth_unavailable": "To wdrożenie nie ma sposobu, żeby podłączyć {portal}."
+      },
+      "openVault": "Otwórz vault"
     }
   },
   "artifacts": {

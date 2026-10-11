@@ -107,6 +107,7 @@ const BY_ID: Record<string, NodeIcon> = {
   "trigger.form": ClipboardList,
   "trigger.channel_message": MessagesSquare,
   "trigger.github": brandMark("github"),
+  "trigger.gmail": brandMark("gmail"),
   "logic.switch": Split,
   "flow.wait": Hourglass,
   "flow.resume_link": Link2,

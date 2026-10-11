@@ -1,5 +1,5 @@
 ---
-source_sha: "4ec6ec10b865"
+source_sha: "455c0a8c39fa"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -132,6 +132,16 @@ puede, o muestra el secreto una vez para pegarlo. `triggered_by` es `github`.
 ::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
 
 ::: app.workflows.nodes._triggers.GithubTriggerOutput
+
+### trigger.gmail { #trigger-gmail }
+
+**Gmail.** Se inicia con un mensaje nuevo en el buzón de Gmail conectado de la
+organización que encaja con todos los filtros puestos, leído una vez por minuto. La
+publicación se rechaza hasta que haya un buzón conectado. `triggered_by` es `gmail`.
+
+::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
+
+::: app.workflows.nodes._triggers.EmailTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 

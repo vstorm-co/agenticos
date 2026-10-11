@@ -62,11 +62,13 @@ from app.schemas.workflow_exposure import (
     WorkflowFormSubmission,
 )
 from app.services.channels.base import IncomingMessage
-from app.services.portals import RegisteredWebhook, WebhookRegistrationForbidden
+from app.services.portals import PolledEvent, RegisteredWebhook, WebhookRegistrationForbidden
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
     WorkflowRunInputInvalidError,
+    WorkflowRunInputTooLargeError,
     WorkflowTriggerMismatchError,
     WorkflowWebhookUnansweredError,
 )
@@ -1853,3 +1855,116 @@ class TestGithub:
 
         assert admitted.status_code == 202 and admitted.json()["duplicate"] is False
         assert skipped.status_code == 202 and "ping" in skipped.json()["skipped"]
+
+
+async def _mailbox(db: AsyncSession, org: Organization) -> McpConnection:
+    grant = McpConnection(
+        id=uuid.uuid4(),
+        scope="org",
+        organization_id=org.id,
+        name="gmail",
+        url="https://gmail.googleapis.com",
+        secret_key_version=1,
+        purpose="portal",
+        portal_key="google",
+    )
+    db.add(grant)
+    await db.flush()
+    return grant
+
+
+def _mail(message_id: str = "m1", **fields: object) -> PolledEvent:
+    payload = {
+        "subject": "Invoice 42 overdue",
+        "from": "Billing <billing@acme.com>",
+        "to": "ops@example.com",
+        "labels": ["INBOX", "IMPORTANT"],
+        "text": "Please pay invoice 42.",
+        "snippet": "Please pay",
+        "message_id": message_id,
+        **fields,
+    }
+    return PolledEvent(delivery_id=f"gmail:{message_id}", payload=payload)
+
+
+class TestGmail:
+    async def test_publishing_needs_a_connected_mailbox(self, db, tenant):
+        owner, org, workflow = tenant
+        with pytest.raises(BadRequestError, match="Gmail mailbox"):
+            await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+
+    async def test_a_message_that_fits_starts_one_run_however_often_it_is_read(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        published = await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.gmail", {"subject_contains": "INVOICE", "label": "IMPORTANT"}),
+        )
+        assert published.exposure is not None and published.exposure.webhook_url is None
+        service = WorkflowExposureService(db)
+        mail = [_mail("m1"), _mail("m2", subject="Lunch?"), _mail("m3", labels=["INBOX"])]
+
+        assert await service.receive_polled_email(organization_id=org.id, events=mail)
+        assert await service.receive_polled_email(organization_id=org.id, events=mail)
+
+        (run,) = await _runs(db)
+        assert run.triggered_by == WorkflowRunTrigger.GMAIL.value
+        assert run.execution_principal_user_id == owner.id
+        assert run.input == {
+            "message_id": "m1",
+            "sender": "Billing <billing@acme.com>",
+            "to": "ops@example.com",
+            "subject": "Invoice 42 overdue",
+            "text": "Please pay invoice 42.",
+            "snippet": "Please pay",
+            "labels": ["INBOX", "IMPORTANT"],
+        }
+
+    async def test_a_paused_one_or_one_whose_publisher_left_starts_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        published = await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=False),
+        )
+        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        await service.set_active(
+            _ctx(owner, org),
+            workflow.id,
+            published.exposure.id,
+            WorkflowExposureUpdate(is_active=True),
+        )
+        await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert await _runs(db) == []
+
+    async def test_a_message_with_no_room_is_left_for_the_next_poll(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        refused = WorkflowAdmissionQuotaError(
+            scope="organization", limit=1, outstanding=1, requested=1
+        )
+        with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=refused)):
+            assert not await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert (await db.execute(select(WorkflowWebhookDelivery))).scalars().all() == []
+
+        assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert len(await _runs(db)) == 1
+
+    async def test_a_message_too_large_to_run_is_not_read_again(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.gmail"))
+        service = WorkflowExposureService(db)
+        too_large = WorkflowRunInputTooLargeError(limit=1, size=2)
+        with patch.object(service.runs, "admit_pinned", AsyncMock(side_effect=too_large)):
+            assert await service.receive_polled_email(organization_id=org.id, events=[_mail()])
+        assert await _runs(db) == []

@@ -3,8 +3,8 @@
 A workflow starts from one trigger node, its entry. Publishing a version is
 what makes that trigger live, the way a builder expects from n8n or Zapier:
 
-* a webhook, a GitHub hook, a schedule, a form or a bot's messages get their
-  exposure (`WorkflowExposureService`),
+* a webhook, a GitHub hook, a schedule, a form, a bot's messages or a mailbox get
+  their exposure (`WorkflowExposureService`),
   and a table record its subscription (`TableTriggerService`), running the new
   version as the member who published it. The row a node already had is kept,
   so a webhook's address and signing secret, and a form's link, survive the
@@ -44,6 +44,7 @@ from app.workflows.triggers import (
     CHANNEL_MESSAGE,
     FORM,
     GITHUB,
+    GMAIL,
     SCHEDULE,
     TABLE_RECORD,
     WEBHOOK,
@@ -51,7 +52,7 @@ from app.workflows.triggers import (
 )
 
 # The triggers nobody is present for: each fire acts as the publisher.
-_UNATTENDED = frozenset({WEBHOOK, GITHUB, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE})
+_UNATTENDED = frozenset({WEBHOOK, GITHUB, SCHEDULE, TABLE_RECORD, FORM, CHANNEL_MESSAGE, GMAIL})
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class WorkflowTriggerSync:
             BadRequestError: A new-record trigger's filter no longer fits its table.
             AlreadyExistsError: Another workflow already starts from the channel
                 trigger's bot.
+            BadRequestError: A Gmail trigger, and no mailbox connected.
         """
         trigger = live_trigger(graph)
         if trigger in _UNATTENDED and not await resolve_access(
@@ -111,6 +113,8 @@ class WorkflowTriggerSync:
             exposure, secret = await self.exposures.switch_on_github(
                 ctx, workflow, version, node.id, GithubTriggerConfig.model_validate(node.config)
             )
+        elif trigger == GMAIL:
+            exposure = await self.exposures.switch_on_gmail(ctx, workflow, version, node.id)
         elif trigger == FORM:
             exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
         elif trigger == CHANNEL_MESSAGE:

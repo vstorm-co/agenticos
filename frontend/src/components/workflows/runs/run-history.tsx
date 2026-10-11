@@ -42,6 +42,7 @@ const TRIGGERS = [
   "form",
   "channel_message",
   "github",
+  "gmail",
 ] as const;
 const HOUR_MS = 3_600_000;
 /** How far back each "started within" choice reaches. */

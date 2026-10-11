@@ -180,6 +180,18 @@ class GithubTriggerOutput(_Frozen):
     )
 
 
+class EmailTriggerOutput(_Frozen):
+    """One message that arrived in the connected mailbox."""
+
+    message_id: str = Field(description="The mailbox's own id for the message")
+    sender: str = Field(default="", description="The From header, name and address")
+    to: str = Field(default="", description="The To header")
+    subject: str = ""
+    text: str = Field(default="", description="The plain-text body, as far as it was read")
+    snippet: str = Field(default="", description="The mailbox's short preview of it")
+    labels: list[str] = Field(default_factory=list, description="The mailbox's labels on it")
+
+
 class FailedRunError(_Frozen):
     """What the failed run ended with: the typed error its failing step recorded."""
 

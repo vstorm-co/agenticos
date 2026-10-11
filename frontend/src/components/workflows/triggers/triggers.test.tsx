@@ -63,6 +63,7 @@ const CATALOG = [
   definition("trigger.form", "Form"),
   definition("trigger.channel_message", "Channel message"),
   definition("trigger.github", "GitHub"),
+  definition("trigger.gmail", "Gmail"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 
@@ -330,6 +331,21 @@ describe("TriggerPanel", () => {
       expect(hook.rotate.mutate).toHaveBeenCalledWith("e1", expect.anything());
     },
   );
+
+  it("says a mailbox is read every minute, and pauses it", async () => {
+    hook.exposure = exposure({ adapter: "gmail", schedule_kind: null, next_fire_at: null });
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.gmail")}
+        draft={draftOf("trigger.gmail")}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.getByText(/Gmail mailbox is read every minute/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(hook.setActive.mutate).toHaveBeenCalledWith({ id: "e1", active: false });
+  });
 
   it("waits for the exposure, and shows nothing when the version has none", () => {
     hook.isLoading = true;

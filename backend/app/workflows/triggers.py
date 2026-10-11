@@ -19,6 +19,7 @@ WORKFLOW_CALL = "trigger.workflow_call"
 FORM = "trigger.form"
 CHANNEL_MESSAGE = "trigger.channel_message"
 GITHUB = "trigger.github"
+GMAIL = "trigger.gmail"
 
 BY_HAND = frozenset({API, MANUAL})
 """The triggers a person or a caller starts - from the editor, the runs page, the

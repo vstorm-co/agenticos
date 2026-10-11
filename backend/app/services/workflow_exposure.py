@@ -1,7 +1,7 @@
-"""`WorkflowExposureService` - a workflow's webhook, GitHub hook, schedule, form or bot.
+"""`WorkflowExposureService` - a workflow's webhook, GitHub hook, schedule, form, bot or mailbox.
 
-A workflow that starts from a webhook, a GitHub, a schedule, a form or a channel
-message trigger node gets its
+A workflow that starts from a webhook, a GitHub, a schedule, a form, a channel
+message or a Gmail trigger node gets its
 exposure when a version is published (`app.services.workflow_triggers`), and
 runs as the member who published it. That authority is read afresh on every
 fire - a member who has since lost the workflow, or left, stops the webhook
@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
@@ -80,6 +80,7 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.nodes._triggers import (
     ChannelMessageTriggerOutput,
     ChannelSender,
+    EmailTriggerOutput,
     GithubTriggerOutput,
     ScheduleTriggerConfig,
 )
@@ -87,6 +88,7 @@ from app.workflows.nodes.core_input._handler import input_problems
 from app.workflows.nodes.trigger_channel_message._handler import ChannelMessageTriggerConfig
 from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
 from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
+from app.workflows.nodes.trigger_gmail._handler import GmailTriggerConfig
 from app.workflows.triggers import answers_webhook
 
 logger = logging.getLogger(__name__)
@@ -97,6 +99,11 @@ _SIGNED_SOURCES = ("webhook", "github")
 
 # The portal whose connected account registers a GitHub trigger's hook.
 _GITHUB_PORTAL = "github"
+
+# The portal whose connected mailbox a Gmail trigger listens to, and the event
+# source its messages are matched as.
+_GMAIL_PORTAL = "google"
+_GMAIL_SOURCE = "gmail"
 
 # The run states a schedule waits behind rather than fire on top of.
 _TERMINAL = {"succeeded", "failed", "cancelled", "budget_exceeded"}
@@ -349,6 +356,48 @@ class WorkflowExposureService:
         registered = await self._register_github(ctx, exposure, config, secret)
         reveal = secret if not registered and (is_new or was_registered) else None
         return _read(exposure, version.version), reveal
+
+    async def switch_on_gmail(
+        self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
+    ) -> WorkflowExposureRead:
+        """The mailbox listener of a version just published, run as its publisher.
+
+        Raises:
+            BadRequestError: The organization has no Gmail mailbox connected, so
+                nothing would ever start the workflow.
+        """
+        grant = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=_GMAIL_PORTAL
+        )
+        if grant is None:
+            raise BadRequestError(
+                message="Connect the organization's Gmail mailbox first - from the Gmail "
+                "trigger step, or the Gmail portal",
+                details={"workflow_id": str(workflow.id)},
+            )
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.GMAIL)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+        }
+        if exposure is not None:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            return _read(exposure, version.version)
+        exposure = await workflow_exposure_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow.id,
+            node_instance_id=node_id,
+            adapter=ExposureAdapter.GMAIL.value,
+            run_input={},
+            **live,
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_created")
+        return _read(exposure, version.version)
 
     async def switch_on_schedule(
         self,
@@ -686,6 +735,102 @@ class WorkflowExposureService:
         from app.worker.tasks.workflow_tasks import trigger_dispatch
 
         trigger_dispatch(self.db, workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return True
+
+    async def receive_polled_email(
+        self, *, organization_id: UUID, events: Sequence[portals.PolledEvent]
+    ) -> bool:
+        """Start the runs one poll of the organization's mailbox starts, and say
+        whether every one that should start was admitted.
+
+        Called by the portal poll, in its transaction, beside the agent triggers'
+        fires: each new message is matched against every live Gmail trigger, and
+        each match starts one run - recorded against the message's id, so a message
+        a later poll reads again starts nothing twice. `False` when the
+        organization had too much work in flight to admit one: the poll then keeps
+        its place, and reads the same messages again a minute later.
+        """
+        exposures = await workflow_exposure_repo.list_active(
+            self.db, organization_id=organization_id, adapter=ExposureAdapter.GMAIL.value
+        )
+        admitted_all = True
+        for exposure in exposures:
+            fire = await self._fire_context(exposure)
+            if fire is None:
+                logger.warning(
+                    "workflow_gmail_trigger_cannot_run", extra={"exposure_id": str(exposure.id)}
+                )
+                continue
+            ctx, workflow, version = fire
+            node = WorkflowGraph.model_validate(version.graph).node_by_id[exposure.node_instance_id]
+            config = GmailTriggerConfig.model_validate(node.config)
+            for event in events:
+                if not trigger_events.event_matches(
+                    _GMAIL_SOURCE,
+                    headers={},
+                    payload=event.payload,
+                    config=config.model_dump(exclude_none=True),
+                ):
+                    continue
+                if not await self._admit_email(ctx, workflow, version, exposure, event):
+                    admitted_all = False
+        return admitted_all
+
+    async def _admit_email(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        exposure: WorkflowExposure,
+        event: portals.PolledEvent,
+    ) -> bool:
+        """Admit one message's run, unless it already has one; `False` when refused."""
+        await workflow_exposure_repo.lock_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=event.delivery_id
+        )
+        if await workflow_exposure_repo.get_delivery(
+            self.db, exposure_id=exposure.id, delivery_id=event.delivery_id
+        ):
+            return True
+        payload = event.payload
+        message = EmailTriggerOutput(
+            message_id=str(payload.get("message_id") or event.delivery_id),
+            sender=str(payload.get("from") or ""),
+            to=str(payload.get("to") or ""),
+            subject=str(payload.get("subject") or ""),
+            text=str(payload.get("text") or ""),
+            snippet=str(payload.get("snippet") or ""),
+            labels=[str(one) for one in payload.get("labels") or []],
+        )
+        try:
+            run, _entry = await self.runs.admit_pinned(
+                ctx,
+                workflow,
+                version,
+                triggered_by=WorkflowRunTrigger.GMAIL,
+                run_input=message.model_dump(mode="json"),
+                submitted=False,
+            )
+        except WorkflowAdmissionQuotaError:
+            return False
+        except WorkflowRunInputTooLargeError:
+            # Not a refusal a later poll would lift: the message stays too large.
+            logger.warning(
+                "workflow_gmail_message_too_large", extra={"exposure_id": str(exposure.id)}
+            )
+            return True
+        await workflow_exposure_repo.create_delivery(
+            self.db,
+            organization_id=exposure.organization_id,
+            exposure_id=exposure.id,
+            delivery_id=event.delivery_id,
+            workflow_run_id=run.id,
+        )
+        await workflow_exposure_repo.update(
+            self.db,
+            exposure=exposure,
+            update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
+        )
         return True
 
     async def receive_github(

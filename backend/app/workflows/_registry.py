@@ -164,6 +164,7 @@ def load_builtins() -> None:
         trigger_chat,
         trigger_form,
         trigger_github,
+        trigger_gmail,
         trigger_manual,
         trigger_schedule,
         trigger_table_record,

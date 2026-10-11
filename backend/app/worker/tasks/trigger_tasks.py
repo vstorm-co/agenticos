@@ -128,6 +128,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     """
     from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService
+    from app.services.workflow_exposure import WorkflowExposureService
 
     read = await McpConnectionService(db).poll_grant(grant)
     if read is None:
@@ -157,6 +158,13 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             )
         else:
             dispatched += 1
+    # The workflows listening to this mailbox, in the same transaction as the cursor:
+    # a run is admitted and its message recorded, or neither, and a run the
+    # organization had no room for keeps the cursor where it was.
+    if not await WorkflowExposureService(db).receive_polled_email(
+        organization_id=grant.organization_id, events=read.events
+    ):
+        every_fire_enqueued = False
     # Last, and only for a poll whose every fire was enqueued: in the other order
     # a crash between the two loses every message the poll read - and unlike a
     # webhook there is no provider to resend a polled message, so committing the

@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf0c9afaea3"
+source_sha: "d39b0ef5a65e"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
+plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
@@ -504,7 +504,7 @@ acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
+**Triggers**, arriba en el selector de pasos, los tiene todos: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
 **On failure of a workflow**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
@@ -645,6 +645,22 @@ ejecución como el miembro que publicó el workflow, con `event`, `action`,
 ejecución, y todo lo demás - incluido el `ping` de GitHub - se omite. **New secret**
 sustituye el secreto y vuelve a registrar el hook donde la cuenta lo creó. Ver
 [trigger.github](reference/workflow-nodes.md#trigger-github).
+
+### Desde un correo { #from-an-email }
+
+Un trigger **Gmail** inicia el workflow cuando llega un mensaje al buzón de Gmail de
+la organización - el conectado mediante el portal **Gmail**. El panel del paso dice
+si hay un buzón conectado y conecta uno, y la publicación se rechaza hasta que lo
+haya. El buzón se lee una vez por minuto, en la misma consulta que dispara los
+triggers de Gmail de los agentes, y cada mensaje nuevo que encaja con todos los
+filtros puestos - **Subject contains** y **Sender contains**, sin distinguir
+mayúsculas, y **Label**, exacto - inicia una ejecución como el miembro que publicó el
+workflow.
+
+La ejecución recibe `sender`, `to`, `subject`, `text`, `snippet`, `labels` y el
+`message_id` del buzón. Un mensaje leído dos veces inicia su ejecución una vez, y uno
+para el que la organización aún no tenía sitio se vuelve a leer un minuto después.
+Ver [trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
 
 ### Desde un mensaje en un canal { #from-a-channel-message }
 

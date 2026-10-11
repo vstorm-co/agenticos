@@ -618,7 +618,7 @@ export function isRunTerminal(status: WorkflowRunStatus): boolean {
 }
 
 /** The two ways a workflow runs with nobody pressing Start. */
-export type ExposureAdapter = "webhook" | "schedule" | "form" | "channel" | "github";
+export type ExposureAdapter = "webhook" | "schedule" | "form" | "channel" | "github" | "gmail";
 
 /** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
 export type ExposureScheduleKind = "interval" | "cron";

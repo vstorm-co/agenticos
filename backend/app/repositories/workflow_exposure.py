@@ -93,6 +93,20 @@ async def get_channel_listener(db: AsyncSession, bot_id: UUID) -> WorkflowExposu
     return result.scalar_one_or_none()
 
 
+async def list_active(
+    db: AsyncSession, *, organization_id: UUID, adapter: str
+) -> list[WorkflowExposure]:
+    """An organization's switched-on exposures of one kind - a polled mailbox's listeners."""
+    result = await db.execute(
+        select(WorkflowExposure).where(
+            WorkflowExposure.organization_id == organization_id,
+            WorkflowExposure.adapter == adapter,
+            WorkflowExposure.is_active.is_(True),
+        )
+    )
+    return list(result.scalars())
+
+
 async def update(
     db: AsyncSession, *, exposure: WorkflowExposure, update_data: dict[str, Any]
 ) -> WorkflowExposure:

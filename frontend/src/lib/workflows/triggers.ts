@@ -6,7 +6,7 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
  *
  * A workflow starts from one trigger, its entry: by hand or the API, a chat
  * message, a signed webhook, a GitHub repository's events, a schedule, a table
- * record, a public form or a message to a bot. Publishing a
+ * record, a public form, a message to a bot or an email. Publishing a
  * version is what switches its trigger on.
  */
 
@@ -29,6 +29,8 @@ export const FORM_TRIGGER = "trigger.form";
 export const CHANNEL_MESSAGE_TRIGGER = "trigger.channel_message";
 /** Something happening in a GitHub repository, delivered to its own signed address. */
 export const GITHUB_TRIGGER = "trigger.github";
+/** A message arriving in the organization's connected Gmail mailbox. */
+export const GMAIL_TRIGGER = "trigger.gmail";
 
 /** The triggers a person or a caller starts. */
 export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
@@ -78,6 +80,16 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
       return { prompt: "Hello", conversation_id: SAMPLE_ID, user_id: null };
     case WEBHOOK_TRIGGER:
       return { body: {}, delivery_id: "test" };
+    case GMAIL_TRIGGER:
+      return {
+        message_id: "sample",
+        sender: "Ada Lovelace <ada@example.com>", // i18n-exempt: sample run data, not console copy
+        to: "",
+        subject: "Hello", // i18n-exempt: sample run data, not console copy
+        text: "",
+        snippet: "",
+        labels: ["INBOX"],
+      };
     case GITHUB_TRIGGER: {
       const repository = entry.config["repository"];
       return {

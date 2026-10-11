@@ -4,7 +4,7 @@ A caller who is present - the HTTP API, a WebSocket, the console's chat - needs
 no row: whoever may run the workflow starts it as themselves, on its live
 version, and is checked at that moment. A door nobody stands at needs one. A
 signed webhook, a GitHub repository's events, a schedule, a public form and a
-channel bot's messages fire on their own, so each is a row here saying which published version it runs and as
+channel bot's messages and a mailbox fire on their own, so each is a row here saying which published version it runs and as
 whom.
 
 The graph says *that* a workflow starts from a webhook or a schedule - its
@@ -53,6 +53,7 @@ class ExposureAdapter(enum.StrEnum):
     FORM = "form"
     CHANNEL = "channel"
     GITHUB = "github"
+    GMAIL = "gmail"
 
 
 class ExposureScheduleKind(enum.StrEnum):
@@ -162,7 +163,7 @@ class WorkflowExposure(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
         CheckConstraint(
-            "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github')",
+            "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github', 'gmail')",
             name="ck_workflow_exposure_adapter",
         ),
         # One shape per adapter: a webhook has a sealed secret and none of the
@@ -185,10 +186,11 @@ class WorkflowExposure(Base, TimestampMixin):
             "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
             "AND schedule_kind IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL AND next_fire_at IS NULL) "
-            "OR (adapter = 'channel' AND form_token IS NULL "
+            "OR (adapter IN ('channel', 'gmail') AND form_token IS NULL "
             "AND secret_encrypted IS NULL AND secret_key_version IS NULL "
             "AND schedule_kind IS NULL AND interval_seconds IS NULL "
-            "AND cron_expression IS NULL AND next_fire_at IS NULL)",
+            "AND cron_expression IS NULL AND next_fire_at IS NULL "
+            "AND (adapter = 'channel' OR channel_bot_id IS NULL))",
             name="ck_workflow_exposure_shape",
         ),
         CheckConstraint(

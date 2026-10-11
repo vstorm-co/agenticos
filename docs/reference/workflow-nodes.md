@@ -122,6 +122,16 @@ secret once to paste. `triggered_by` is `github`.
 
 ::: app.workflows.nodes._triggers.GithubTriggerOutput
 
+### trigger.gmail { #trigger-gmail }
+
+**Gmail.** Started by a new message in the organization's connected Gmail mailbox that
+fits every filter set, read once a minute. Publishing is refused until a mailbox is
+connected. `triggered_by` is `gmail`.
+
+::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
+
+::: app.workflows.nodes._triggers.EmailTriggerOutput
+
 ### trigger.channel_message { #trigger-channel-message }
 
 **Channel message.** Started by a message to one of the organization's Slack,

@@ -30,6 +30,7 @@ from app.workflows.nodes.trigger_channel_message._handler import handle as chann
 from app.workflows.nodes.trigger_chat._handler import handle as chat
 from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
 from app.workflows.nodes.trigger_github._handler import handle as github
+from app.workflows.nodes.trigger_gmail._handler import handle as gmail
 from app.workflows.nodes.trigger_schedule._handler import handle as schedule
 from app.workflows.nodes.trigger_table_record._handler import check_resources
 from app.workflows.nodes.trigger_table_record._handler import handle as table_record
@@ -100,6 +101,19 @@ HANDED_ON = [
         },
     ),
     (
+        gmail,
+        {"message_id": "m1", "subject": "Invoice"},
+        {
+            "message_id": "m1",
+            "sender": "",
+            "to": "",
+            "subject": "Invoice",
+            "text": "",
+            "snippet": "",
+            "labels": [],
+        },
+    ),
+    (
         webhook,
         {"body": {"lead": 1}, "delivery_id": "d-1"},
         {"body": {"lead": 1}, "delivery_id": "d-1"},
@@ -136,7 +150,7 @@ HANDED_ON = [
 @pytest.mark.parametrize(
     ("handle", "run_input", "output"),
     HANDED_ON,
-    ids=["chat", "channel", "github", "webhook", "schedule", "table"],
+    ids=["chat", "channel", "github", "gmail", "webhook", "schedule", "table"],
 )
 async def test_a_trigger_hands_the_graph_what_its_surface_started_the_run_with(
     handle, run_input: dict[str, Any], output: dict[str, Any]
@@ -147,7 +161,9 @@ async def test_a_trigger_hands_the_graph_what_its_surface_started_the_run_with(
     assert result.output.model_dump() == output
 
 
-@pytest.mark.parametrize("handle", [chat, channel_message, github, webhook, schedule, table_record])
+@pytest.mark.parametrize(
+    "handle", [chat, channel_message, github, gmail, webhook, schedule, table_record]
+)
 async def test_a_test_run_started_with_the_wrong_shape_fails_the_trigger(handle):
     with context.dispatching_as(_dispatch({"anything": "else"})):
         result = await handle(None, None)

@@ -1,5 +1,5 @@
 ---
-source_sha: "4ec6ec10b865"
+source_sha: "455c0a8c39fa"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -129,6 +129,16 @@ sekret do wklejenia. `triggered_by` to `github`.
 ::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
 
 ::: app.workflows.nodes._triggers.GithubTriggerOutput
+
+### trigger.gmail { #trigger-gmail }
+
+**Gmail.** Startuje od nowej wiadomości w podłączonej skrzynce Gmail organizacji,
+pasującej do wszystkich ustawionych filtrów, czytanej raz na minutę. Publikacja jest
+odrzucana, dopóki skrzynka nie jest podłączona. `triggered_by` to `gmail`.
+
+::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
+
+::: app.workflows.nodes._triggers.EmailTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 

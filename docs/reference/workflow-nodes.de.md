@@ -1,5 +1,5 @@
 ---
-source_sha: "4ec6ec10b865"
+source_sha: "455c0a8c39fa"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -138,6 +138,17 @@ Organisation, wenn sie kann, oder zeigt das Geheimnis einmal zum Einfügen.
 ::: app.workflows.nodes.trigger_github._handler.GithubTriggerConfig
 
 ::: app.workflows.nodes._triggers.GithubTriggerOutput
+
+### trigger.gmail { #trigger-gmail }
+
+**Gmail.** Gestartet von einer neuen Nachricht im verbundenen Gmail-Postfach der
+Organisation, die zu allen gesetzten Filtern passt, einmal pro Minute gelesen. Die
+Veröffentlichung wird abgelehnt, bis ein Postfach verbunden ist. `triggered_by` ist
+`gmail`.
+
+::: app.workflows.nodes.trigger_gmail._handler.GmailTriggerConfig
+
+::: app.workflows.nodes._triggers.EmailTriggerOutput
 
 ### trigger.channel_message { #trigger-channel-message }
 
