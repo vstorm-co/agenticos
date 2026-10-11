@@ -715,10 +715,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         // shrink or the dot leaves the card.
                         className="min-w-0"
                         onClick={() => setManaging(row)}
-                        aria-label={t("manageConnectionsOn", { name: row.name })}
+                        aria-label={t("manageConnectionsOn", {
+                          name: row.name,
+                          count: connectionCount(row),
+                        })}
                       >
                         {/* A mark and the number, not "2 conn..." cut off by
-                            the dot: the button's label says it in words. */}
+                            the dot: the button's label says it, count and all. */}
                         <Cable className="h-3.5 w-3.5" aria-hidden />
                         <span className="tabular-nums">{connectionCount(row)}</span>
                         <ChevronRight className="h-3.5 w-3.5" aria-hidden />

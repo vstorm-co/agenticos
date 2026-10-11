@@ -339,7 +339,9 @@ async function expectModel(page: Page, label: string): Promise<void> {
  * arrives later as a chat that never answers.
  */
 async function publish(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Publish" }).click();
+  // Exact: a capability card whose description mentions publishing is a
+  // button too, and a substring match finds both.
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
   // Publish says what it moves before it does it (#519) - the dialog's own
   // Publish is the one that actually publishes.

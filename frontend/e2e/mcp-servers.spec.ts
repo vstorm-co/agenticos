@@ -76,10 +76,11 @@ test.describe("MCP servers", () => {
     // where there is room to say it - and that distinction is not decoration,
     // because only the organization's can be bound to an agent.
     const card = await findSeededServer(page);
-    const manage = card.getByRole("button", { name: /Manage connections on/ });
+    // The count is a number beside a mark; the button's name says it in words.
+    const manage = card.getByRole("button", { name: /^Manage \d+ connections? on/ });
 
     await expect(manage).toBeVisible();
-    await expect(manage).toContainText("connection");
+    await expect(manage).toContainText(/\d/);
 
     await manage.click();
     // By their headings: the dialog also says "Yours" in the caption under it,

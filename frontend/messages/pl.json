@@ -2547,7 +2547,7 @@
     "consentTabBlocked": "Przeglądarka zablokowała kartę logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
     "fromRegistry": "Rejestr",
     "fromRegistryHint": "Z publicznego rejestru MCP. Nikt tutaj go nie sprawdzał: opis pochodzi od wydawcy i nie ma wskazówek, jakiego poświadczenia wymaga.",
-    "manageConnectionsOn": "Zarządzaj połączeniami do {name}",
+    "manageConnectionsOn": "Zarządzaj {count, plural, one {1 połączeniem} few {# połączeniami} many {# połączeniami} other {# połączenia}} do {name}",
     "name": "Nazwa",
     "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",

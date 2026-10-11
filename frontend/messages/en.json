@@ -2778,7 +2778,7 @@
     "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
-    "manageConnectionsOn": "Manage connections on {name}",
+    "manageConnectionsOn": "Manage {count, plural, =1 {1 connection} other {# connections}} on {name}",
     "name": "Tool prefix",
     "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",

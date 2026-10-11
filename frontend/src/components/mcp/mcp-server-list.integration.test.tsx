@@ -146,7 +146,9 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
 
 /** Open the connections modal for GitHub, where every account is listed. */
 async function openConnections() {
-  await userEvent.click(within(githubRow()).getByRole("button", { name: /Manage connections on/ }));
+  await userEvent.click(
+    within(githubRow()).getByRole("button", { name: /^Manage \d+ connections? on/ }),
+  );
   return within(await screen.findByRole("dialog"));
 }
 
@@ -180,7 +182,7 @@ describe("McpServerList", () => {
     expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
     // Labelled for a screen reader, and counted for everybody else.
     // The count as a number beside a mark; the button's name says what it counts.
-    expect(row.getByRole("button", { name: "Manage connections on GitHub" })).toHaveTextContent(
+    expect(row.getByRole("button", { name: "Manage 1 connection on GitHub" })).toHaveTextContent(
       "1",
     );
   });
@@ -538,7 +540,7 @@ describe("several accounts on one server", () => {
     // One card, whatever it holds.
     expect(screen.getAllByRole("group", { name: "GitHub" })).toHaveLength(1);
     expect(
-      within(githubRow()).getByRole("button", { name: /Manage connections/ }),
+      within(githubRow()).getByRole("button", { name: "Manage 2 connections on GitHub" }),
     ).toHaveTextContent("2");
 
     const dialog = await openConnections();
