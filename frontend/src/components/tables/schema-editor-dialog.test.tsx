@@ -571,4 +571,74 @@ describe("SchemaEditorDialog", () => {
 
     expect(screen.getByDisplayValue("Edited")).toBeInTheDocument();
   });
+
+  it("edits a formula column's formula, and keeps a link's table and a lookup's reading", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const base = table().columns[0]!;
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({
+          columns: [
+            { ...base, id: "c-price", label: "Price", type: "number" },
+            { ...base, id: "c-items", label: "Items", type: "link", link_table_id: "t2" },
+            {
+              ...base,
+              id: "c-names",
+              label: "Names",
+              type: "lookup",
+              link_column_id: "c-items",
+              target_column_id: "p1",
+            },
+            { ...base, id: "c-total", label: "Total", type: "formula", formula: "{Price} * 2" },
+          ],
+        })}
+        onSave={onSave}
+        isSaving={false}
+        error={null}
+      />,
+    );
+
+    // A worked-out column has nothing to require of a record.
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    const formula = screen.getByLabelText("Formula");
+    await user.clear(formula);
+    await user.type(formula, "{{Price} * 3");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const saved = onSave.mock.calls[0]?.[0] as ColumnInput[];
+    expect(saved.find((column) => column.id === "c-total")?.formula).toBe("{Price} * 3");
+    expect(saved.find((column) => column.id === "c-items")).toMatchObject({
+      link_table_id: "t2",
+      formula: null,
+    });
+    expect(saved.find((column) => column.id === "c-names")).toMatchObject({
+      link_column_id: "c-items",
+      target_column_id: "p1",
+    });
+  });
+
+  it("offers a new row every type but those that read through a link", async () => {
+    const user = userEvent.setup();
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={null}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add column" }));
+    const types = screen.getAllByRole("combobox", { name: "Column type" });
+    await user.click(types[types.length - 1]!);
+
+    expect(screen.getByRole("option", { name: "Formula" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Lookup" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Link" })).toBeNull();
+  });
 });

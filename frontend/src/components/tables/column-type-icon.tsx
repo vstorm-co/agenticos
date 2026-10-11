@@ -13,6 +13,7 @@ import {
   Mail,
   Phone,
   SquareCheck,
+  SquareFunction,
   Star,
   Type,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const ICON: Record<ColumnTypeName, LucideIcon> = {
   link: Link2,
   lookup: ScanSearch,
   rollup: Sigma,
+  formula: SquareFunction,
 };
 
 /** What kind of values a column holds, at a glance: its type's icon beside its name. */

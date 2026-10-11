@@ -1,5 +1,5 @@
 ---
-source_sha: "11094feb134d"
+source_sha: "6bebdd6277d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -53,6 +53,7 @@ pusta.
 | `multi_select` | Lista id opcji | `contains` `is_null` |
 | `link` | Lista do 100 id rekordów tabeli, z którą łączy | `contains` (id rekordu) `is_null` |
 | `lookup`, `rollup` | Nic: wyliczane przy odczycie rekordu | brak |
+| `formula` | Nic: wyliczana z pozostałych kolumn rekordu przy odczycie | brak |
 
 Tekst jest zapisywany dokładnie tak, jak został wysłany. Spacje na początku i na
 końcu, podziały wierszy i wartości złożone z samych spacji to dane użytkownika, więc
@@ -90,6 +91,24 @@ Odczyt czyta kolumnę z wartościami, nie inne powiązanie ani odczyt, a
 archiwizacja kolumny powiązania jest odrzucana, dopóki czyta przez nią odczyt
 lub podsumowanie. Eksport zapisuje powiązanie nazwami jego rekordów, a odczyt
 tym, co przeczytał.
+
+## Formuły { #formulas }
+
+Kolumna `formula` wylicza wartość z pozostałych kolumn rekordu:
+`{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+`ROUND({Total} / {Count}, 2)`, `DAYS({Due}, TODAY())`. Kolumnę wskazuje się jej
+etykietą w nawiasach klamrowych, a zmiana nazwy przepisuje każdą formułę, która ją
+wskazuje. Formuła liczy przez `+ - * / %`, porównuje przez `= <> < <= > >=`, łączy
+warunki przez `and`, `or` i `not` oraz wywołuje `IF`, `ROUND`, `ABS`, `MIN`, `MAX`,
+`CONCAT`, `LEN`, `UPPER`, `LOWER`, `DAYS` i `TODAY`. Wybór czyta się jego etykietą.
+
+Może czytać każdą żywą kolumnę z wartościami, także wynik odczytu lub
+podsumowania, ale nie powiązanie ani inną formułę, a kolumny czytanej przez
+formułę nie można zarchiwizować. Zapis schematu sprawdza formułę i mówi, co jest
+w niej nie tak. Wartość, której nie da się wyliczyć - dzielenie przez zero, tekst
+w sumie, pusta komórka - zostawia komórkę tego rekordu pustą. Formuła jest
+wyliczana przy odczycie rekordu, jak odczyt z powiązania, i nigdy nie jest
+zapisywana, filtrowana ani sortowana.
 
 ## Zmiana schematu { #changing-a-schema }
 

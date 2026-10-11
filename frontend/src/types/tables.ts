@@ -21,6 +21,7 @@ export const COLUMN_TYPES = [
   "link",
   "lookup",
   "rollup",
+  "formula",
 ] as const;
 
 export type ColumnTypeName = (typeof COLUMN_TYPES)[number];
@@ -32,7 +33,7 @@ export const MAX_RATING = 5;
 export const REFERENCE_TYPES: ReadonlySet<ColumnTypeName> = new Set(["link", "lookup", "rollup"]);
 
 /** Types worked out when a record is read: never written, filtered or sorted by. */
-export const COMPUTED_TYPES: ReadonlySet<ColumnTypeName> = new Set(["lookup", "rollup"]);
+export const COMPUTED_TYPES: ReadonlySet<ColumnTypeName> = new Set(["lookup", "rollup", "formula"]);
 
 /** Types the service cannot sort by. */
 export const UNSORTABLE_TYPES: ReadonlySet<ColumnTypeName> = new Set([
@@ -40,6 +41,7 @@ export const UNSORTABLE_TYPES: ReadonlySet<ColumnTypeName> = new Set([
   "link",
   "lookup",
   "rollup",
+  "formula",
 ]);
 
 /** What a rollup column makes of the values it reads; `Aggregate` in the service. */
@@ -80,6 +82,7 @@ export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[
   link: [],
   lookup: [],
   rollup: [],
+  formula: [],
 };
 
 export type FilterOp =
@@ -116,6 +119,8 @@ export interface ColumnDef {
   target_column_id?: string | null;
   /** A rollup: what it makes of the values it reads. */
   aggregate?: Aggregate | null;
+  /** A formula column: an expression over the record's columns, each `{Label}`. */
+  formula?: string | null;
 }
 
 /** A column as the client submits it on a schema change - no id for a new one. */
@@ -135,6 +140,8 @@ export interface ColumnInput {
   target_column_id?: string | null;
   /** A rollup: what it makes of the values it reads. */
   aggregate?: Aggregate | null;
+  /** A formula column: an expression over the record's columns, each `{Label}`. */
+  formula?: string | null;
 }
 
 export interface TableSummary {

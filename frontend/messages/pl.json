@@ -4318,7 +4318,7 @@
         "text": "Tekst",
         "long_text": "Długi tekst",
         "email": "E-mail",
-        "url": "Link",
+        "url": "Adres URL",
         "phone": "Telefon",
         "number": "Liczba",
         "integer": "Liczba całkowita",
@@ -4328,9 +4328,10 @@
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
         "multi_select": "Wybór wielokrotny",
-        "link": "Powiązanie z rekordami",
+        "link": "Powiązanie",
         "lookup": "Odczyt z powiązania",
-        "rollup": "Podsumowanie powiązań"
+        "rollup": "Podsumowanie powiązań",
+        "formula": "Formuła"
       },
       "fromCsv": "Zacznij od pliku CSV",
       "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",
@@ -4359,7 +4360,7 @@
         "text": "Tekst",
         "long_text": "Długi tekst",
         "email": "E-mail",
-        "url": "Link",
+        "url": "Adres URL",
         "phone": "Telefon",
         "number": "Liczba",
         "integer": "Liczba całkowita",
@@ -4369,9 +4370,10 @@
         "datetime": "Data i godzina",
         "single_select": "Wybór pojedynczy",
         "multi_select": "Wybór wielokrotny",
-        "link": "Powiązanie z rekordami",
+        "link": "Powiązanie",
         "lookup": "Odczyt z powiązania",
-        "rollup": "Podsumowanie powiązań"
+        "rollup": "Podsumowanie powiązań",
+        "formula": "Formuła"
       },
       "required": "Wymagana",
       "archiveColumn": "Zarchiwizuj {column}",
@@ -4541,6 +4543,12 @@
         "trigger": "Wyzwalacz w",
         "other": "Inne"
       }
+    },
+    "formula": {
+      "label": "Formuła",
+      "placeholder": "'{Price}' * '{Quantity}'",
+      "columns": "Kolumny do użycia",
+      "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     }
   },
   "groups": {

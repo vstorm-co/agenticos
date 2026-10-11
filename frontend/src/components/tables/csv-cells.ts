@@ -128,6 +128,7 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
     }
     case "lookup":
     case "rollup":
+    case "formula":
       return { problem: "computed" };
   }
 }

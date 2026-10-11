@@ -1,4 +1,4 @@
-"""What a record does not store: whom its links name, and the columns read through them.
+"""What a record does not store: whom its links name, and the columns worked out from others.
 
 A link column stores the ids of another table's records. A record is read with
 each link's records named (`RecordRead.links`), and with every lookup and rollup
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,7 @@ from app.core.permissions import AuthContext, Perm
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead
 from app.services.access import TABLE, resolve_access
+from app.services.virtual_tables.formula import work_out
 from app.services.virtual_tables.types import READ_THROUGH_LINK
 
 _NAMED_BY = ("text", "email", "url", "phone", "long_text")
@@ -119,7 +121,39 @@ def _work_out(
     return min(dates) if column.aggregate == "min" else max(dates)
 
 
-async def with_links(
+async def read_through(
+    db: AsyncSession, ctx: AuthContext, columns: Sequence[ColumnDef], records: list[RecordRead]
+) -> list[RecordRead]:
+    """`records` with each link's records named, and every lookup, rollup and formula
+    worked out - formulas last, since one may read what a rollup worked out."""
+    records = await _with_links(db, ctx, columns, records)
+    formulas = [
+        column
+        for column in columns
+        if column.type == "formula" and not column.archived and column.formula is not None
+    ]
+    if not formulas:
+        return records
+    return [
+        record.model_copy(update={"values": _with_formulas(record.values, formulas, columns)})
+        for record in records
+    ]
+
+
+def _with_formulas(
+    values: dict[str, Any], formulas: Sequence[ColumnDef], columns: Sequence[ColumnDef]
+) -> dict[str, Any]:
+    worked_out = dict(values)
+    for column in formulas:
+        result = work_out(column.formula or "", columns, values)
+        if result is None:
+            worked_out.pop(str(column.id), None)
+        else:
+            worked_out[str(column.id)] = result
+    return worked_out
+
+
+async def _with_links(
     db: AsyncSession, ctx: AuthContext, columns: Sequence[ColumnDef], records: list[RecordRead]
 ) -> list[RecordRead]:
     """`records` with each link's records named and every lookup and rollup worked out."""

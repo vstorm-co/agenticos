@@ -61,7 +61,7 @@ from app.schemas.virtual_table import (
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
-from app.services.virtual_tables.computed import with_links
+from app.services.virtual_tables.computed import read_through
 from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
     InvalidQueryError,
@@ -389,7 +389,7 @@ class RecordOperations(Operations):
             limit=query.limit + 1,
         )
         return RecordList(
-            items=await with_links(
+            items=await read_through(
                 self.db,
                 ctx,
                 columns,
@@ -523,7 +523,7 @@ class RecordOperations(Operations):
                     skip=skip,
                     limit=EXPORT_BATCH,
                 )
-                read = await with_links(
+                read = await read_through(
                     self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
                 )
                 for record in read:
@@ -852,7 +852,7 @@ class RecordOperations(Operations):
         self, ctx: AuthContext, table: VirtualTable, record: RecordRead
     ) -> RecordRead:
         """One record with its links named and its lookups and rollups worked out."""
-        return (await with_links(self.db, ctx, await self._columns(table), [record]))[0]
+        return (await read_through(self.db, ctx, await self._columns(table), [record]))[0]
 
     async def _check_links(
         self, ctx: AuthContext, columns: list[ColumnDef], submitted: dict[str, CellValue]

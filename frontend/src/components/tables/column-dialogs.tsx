@@ -23,6 +23,8 @@ import {
 import { useChanged } from "@/hooks/use-changed";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { useTable, useTables } from "@/hooks";
+
+import { FormulaField } from "./formula-field";
 import { AGGREGATES, COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { Aggregate, ColumnDef, ColumnInput, ColumnTypeName } from "@/types/tables";
 
@@ -42,6 +44,7 @@ export function currentColumns(columns: ColumnDef[]): ColumnInput[] {
     link_column_id: column.link_column_id ?? null,
     target_column_id: column.target_column_id ?? null,
     aggregate: column.aggregate ?? null,
+    formula: column.formula ?? null,
   }));
 }
 
@@ -305,9 +308,13 @@ export function AddColumnDialog({
   const [options, setOptions] = useState("");
   const labels = [...new Set(options.split("\n").map((line) => line.trim()))].filter(Boolean);
   const [reference, setReference] = useState<Reference>(NO_REFERENCE);
+  const [formula, setFormula] = useState("");
   const needsOptions = SELECTS.has(type);
   const ready =
-    label.trim() !== "" && (!needsOptions || labels.length > 0) && referenceReady(type, reference);
+    label.trim() !== "" &&
+    (!needsOptions || labels.length > 0) &&
+    referenceReady(type, reference) &&
+    (type !== "formula" || formula.trim() !== "");
 
   // Cleared as the dialog closes, however it closes - a column added closes it
   // from the caller - during render rather than in an effect.
@@ -316,6 +323,7 @@ export function AddColumnDialog({
     setType("text");
     setOptions("");
     setReference(NO_REFERENCE);
+    setFormula("");
   }
 
   return (
@@ -336,6 +344,7 @@ export function AddColumnDialog({
               nullable: true,
               options: needsOptions ? labels.map((option) => ({ label: option })) : [],
               ...referenceInput(type, reference),
+              ...(type === "formula" ? { formula: formula.trim() } : {}),
             });
           }}
         >
@@ -369,6 +378,14 @@ export function AddColumnDialog({
               columns={columns}
               value={reference}
               onChange={setReference}
+            />
+          )}
+          {type === "formula" && (
+            <FormulaField
+              id="new-column-formula"
+              value={formula}
+              columns={columns}
+              onChange={setFormula}
             />
           )}
           {needsOptions && (

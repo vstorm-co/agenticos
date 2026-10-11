@@ -1,5 +1,5 @@
 ---
-source_sha: "11094feb134d"
+source_sha: "6bebdd6277d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -53,6 +53,7 @@ columna rellena solo las celdas que omites; una celda que envías como `null` qu
 | `multi_select` | Una lista de ids de opciones | `contains` `is_null` |
 | `link` | Una lista de hasta 100 ids de registros de la tabla que enlaza | `contains` (un id de registro) `is_null` |
 | `lookup`, `rollup` | Nada: se calcula al leer un registro | ninguno |
+| `formula` | Nada: se calcula al leer el registro a partir de sus otras columnas | ninguno |
 
 El texto se guarda exactamente como se envía. Los espacios al principio y al final, los
 saltos de línea y los valores formados solo por espacios son datos del usuario, así que
@@ -92,6 +93,23 @@ Una búsqueda lee una columna con valores, no otro enlace ni otra búsqueda, y
 archivar una columna de enlace se rechaza mientras algo lea a través de ella. Una
 exportación escribe un enlace con los nombres de sus registros y una búsqueda con
 lo que leyó.
+
+## Fórmulas { #formulas }
+
+Una columna `formula` calcula un valor a partir de las otras columnas del
+registro: `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+`ROUND({Total} / {Count}, 2)`, `DAYS({Due}, TODAY())`. Una columna se nombra por su
+etiqueta entre llaves, y renombrarla reescribe cada fórmula que la nombra. Una
+fórmula calcula con `+ - * / %`, compara con `= <> < <= > >=`, une condiciones con
+`and`, `or` y `not`, y llama a `IF`, `ROUND`, `ABS`, `MIN`, `MAX`, `CONCAT`, `LEN`,
+`UPPER`, `LOWER`, `DAYS` y `TODAY`. Una elección se lee por su etiqueta.
+
+Puede leer cualquier columna viva con valores, incluido el resultado de una
+búsqueda o un resumen, pero no un enlace ni otra fórmula, y una columna que lee
+una fórmula no se puede archivar. Guardar el esquema comprueba la fórmula y dice
+qué le pasa. Un valor que no puede calcular - una división por cero, texto en una
+suma, una celda vacía - deja vacía la celda de ese registro. Una fórmula se
+calcula al leer el registro y nunca se guarda, escribe, filtra ni ordena.
 
 ## Cambiar un esquema { #changing-a-schema }
 

@@ -39,6 +39,7 @@ ColumnTypeName = Literal[
     "link",
     "lookup",
     "rollup",
+    "formula",
 ]
 Aggregate = Literal["count", "sum", "avg", "min", "max"]
 """What a rollup column makes of the values it reads from the linked records."""
@@ -156,6 +157,12 @@ class ColumnDef(_Schema):
     aggregate: Aggregate | None = Field(
         default=None, description="A rollup column: what it makes of the values it reads."
     )
+    formula: str | None = Field(
+        default=None,
+        max_length=1_000,
+        description="A formula column: an expression over the record's other columns, "
+        "each named by its label in braces, such as {Price} * {Quantity}.",
+    )
 
 
 class ColumnInput(_Request):
@@ -188,6 +195,12 @@ class ColumnInput(_Request):
     )
     aggregate: Aggregate | None = Field(
         default=None, description="A rollup column: what it makes of the values it reads."
+    )
+    formula: str | None = Field(
+        default=None,
+        max_length=1_000,
+        description="A formula column: an expression over the record's other columns, "
+        "each named by its label in braces, such as {Price} * {Quantity}.",
     )
 
 

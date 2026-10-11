@@ -48,6 +48,7 @@ you leave out; a cell you send as `null` stays empty.
 | `multi_select` | A list of option ids | `contains` `is_null` |
 | `link` | A list of up to 100 record ids of the table it links to | `contains` (a record id) `is_null` |
 | `lookup`, `rollup` | Nothing: worked out when a record is read | none |
+| `formula` | Nothing: worked out from the record's other columns when it is read | none |
 
 Text is stored exactly as sent. Leading and trailing spaces, line breaks and
 whitespace-only values are the user's data, so they are not trimmed. Only a length
@@ -84,6 +85,23 @@ them empty. A link keeps its table for life. A lookup reads a column holding
 values, not another link or lookup, and archiving a link column is refused
 while a lookup or rollup still reads through it. An export writes a link by the
 names of its records, and a lookup by what it read.
+
+## Formulas { #formulas }
+
+A `formula` column works a value out from the record's other columns:
+`{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+`ROUND({Total} / {Count}, 2)`, `DAYS({Due}, TODAY())`. A column is named by its
+label in braces, and renaming it rewrites every formula that names it. A formula
+calculates with `+ - * / %`, compares with `= <> < <= > >=`, joins conditions with
+`and`, `or` and `not`, and calls `IF`, `ROUND`, `ABS`, `MIN`, `MAX`, `CONCAT`,
+`LEN`, `UPPER`, `LOWER`, `DAYS` and `TODAY`. A choice reads as its label.
+
+It may read any live column holding values, a lookup's or rollup's result
+included, but not a link or another formula, and a column a formula reads cannot
+be archived. Saving the schema checks the formula and says what is wrong with
+it. A value it cannot work out - a division by zero, text in a sum, an empty
+cell - leaves that record's cell empty. A formula is worked out when the record
+is read, like a lookup, and is never stored, written, filtered or sorted by.
 
 ## Changing a schema { #changing-a-schema }
 

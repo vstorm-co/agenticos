@@ -46,6 +46,7 @@ def test_every_declared_type_is_registered():
         "link",
         "lookup",
         "rollup",
+        "formula",
     }
 
 
@@ -269,7 +270,7 @@ def test_a_link_holds_distinct_record_ids_and_is_filtered_by_one():
         validate_filter(link, "contains", "not-an-id")
 
 
-@pytest.mark.parametrize("type_", ["lookup", "rollup"])
+@pytest.mark.parametrize("type_", ["lookup", "rollup", "formula"])
 def test_a_worked_out_column_is_never_written_or_filtered(type_):
     with pytest.raises(CellProblem, match="worked out"):
         validate_cell(_column(type_), 3)

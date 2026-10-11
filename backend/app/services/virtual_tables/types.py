@@ -275,6 +275,7 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
         ColumnType("link", SqlKind.ARRAY, frozenset({"contains", "is_null"}), False, _link),
         ColumnType("lookup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
         ColumnType("rollup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
+        ColumnType("formula", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
     )
 }
 

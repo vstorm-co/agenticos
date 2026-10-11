@@ -28,6 +28,7 @@ from app.schemas.virtual_table import (
 )
 from app.services.virtual_tables.conversions import CONVERSIONS, convertible
 from app.services.virtual_tables.exceptions import InvalidSchemaError
+from app.services.virtual_tables.formula import FormulaProblem, check_formula, rename_references
 from app.services.virtual_tables.types import (
     COMPUTED_TYPES,
     OPTION_TYPES,
@@ -122,6 +123,7 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         link_column_id=submitted.link_column_id,
         target_column_id=submitted.target_column_id,
         aggregate=submitted.aggregate,
+        formula=submitted.formula,
     )
     try:
         # Stored in its normalized form, exactly as a cell would be: a default of
@@ -182,6 +184,34 @@ def _check_reference(where: str, submitted: ColumnInput, previous: ColumnDef | N
         )
     if kind == "link" and submitted.default is not None:
         raise InvalidSchemaError(f"{where}.default", "A link column has no default")
+    if (submitted.formula is not None) != (kind == "formula"):
+        raise InvalidSchemaError(
+            f"{where}.formula", "A formula column holds a formula, and only a formula column does"
+        )
+
+
+def _check_formulas(columns: list[ColumnDef], previous: Sequence[ColumnDef]) -> list[ColumnDef]:
+    """`columns` with every formula reading renamed columns by their new labels, each
+    checked: it parses, and names live columns of the table that hold values."""
+    old = {column.id: column.label for column in previous}
+    renamed = {
+        old[column.id]: column.label
+        for column in columns
+        if column.id in old and old[column.id] != column.label
+    }
+    checked: list[ColumnDef] = []
+    for index, column in enumerate(columns):
+        if column.type == "formula" and column.formula is not None:
+            column = column.model_copy(
+                update={"formula": rename_references(column.formula, renamed)}
+            )
+            if not column.archived:
+                try:
+                    check_formula(column.formula or "", column, columns)
+                except FormulaProblem as problem:
+                    raise InvalidSchemaError(f"columns.{index}.formula", str(problem)) from None
+        checked.append(column)
+    return checked
 
 
 def _check_links(columns: Sequence[ColumnDef]) -> None:
@@ -228,7 +258,7 @@ def build_columns(
     if len(set(labels)) != len(labels):
         raise InvalidSchemaError("columns", "Two live columns have the same label")
     _check_links(columns)
-    return columns
+    return _check_formulas(columns, previous)
 
 
 def _becomes_required(old: ColumnDef, new: ColumnDef) -> bool:

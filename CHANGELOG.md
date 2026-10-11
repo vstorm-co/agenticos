@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Formula columns.** A table column can work a value out from the record's
+  other columns - `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+  `DAYS({Due}, TODAY())` - with arithmetic, comparisons and a dozen functions,
+  including what a rollup worked out. Renaming a column rewrites the formulas
+  that read it, and saving one checks it and says what is wrong. Formulas run in
+  a closed interpreter of their own: nothing in one is evaluated as Python.
+
 - **Links, lookups and rollups between tables.** A `link` column holds records of
   another table, picked by searching that table, and a record reads them back
   named. A `lookup` shows one column of the linked records and a `rollup` counts

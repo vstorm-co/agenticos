@@ -6690,7 +6690,7 @@
         "text": "Text",
         "long_text": "Long text",
         "email": "Email",
-        "url": "Link",
+        "url": "URL",
         "phone": "Phone",
         "number": "Number",
         "integer": "Integer",
@@ -6700,9 +6700,10 @@
         "datetime": "Date & time",
         "single_select": "Single select",
         "multi_select": "Multi select",
-        "link": "Link to records",
+        "link": "Link",
         "lookup": "Lookup",
-        "rollup": "Rollup"
+        "rollup": "Rollup",
+        "formula": "Formula"
       },
       "fromCsv": "Start from a CSV file",
       "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",
@@ -6731,7 +6732,7 @@
         "text": "Text",
         "long_text": "Long text",
         "email": "Email",
-        "url": "Link",
+        "url": "URL",
         "phone": "Phone",
         "number": "Number",
         "integer": "Integer",
@@ -6741,9 +6742,10 @@
         "datetime": "Date & time",
         "single_select": "Single select",
         "multi_select": "Multi select",
-        "link": "Link to records",
+        "link": "Link",
         "lookup": "Lookup",
-        "rollup": "Rollup"
+        "rollup": "Rollup",
+        "formula": "Formula"
       },
       "required": "Required",
       "archiveColumn": "Archive {column}",
@@ -6913,6 +6915,12 @@
         "trigger": "Trigger in",
         "other": "Other"
       }
+    },
+    "formula": {
+      "label": "Formula",
+      "placeholder": "'{Price}' * '{Quantity}'",
+      "columns": "Columns to use",
+      "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     }
   },
   "groups": {

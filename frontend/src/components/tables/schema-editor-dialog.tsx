@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { ColumnTypeIcon } from "./column-type-icon";
+import { FormulaField } from "./formula-field";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
@@ -66,6 +67,7 @@ function toRows(table: TableRead): Row[] {
     link_column_id: column.link_column_id ?? null,
     target_column_id: column.target_column_id ?? null,
     aggregate: column.aggregate ?? null,
+    formula: column.formula ?? null,
   }));
 }
 
@@ -214,6 +216,7 @@ export function SchemaEditorDialog({
           // are not text's, and text becoming a choice takes its own values.
           default: retyped ? null : column.default,
           options: OPTION_TYPES.has(column.type) ? column.options : [],
+          formula: column.type === "formula" ? (column.formula ?? "") : null,
         };
       }),
     );
@@ -255,20 +258,17 @@ export function SchemaEditorDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 text-xs whitespace-nowrap",
-                      // Worked out from a link: nothing to require of a record.
-                      COMPUTED_TYPES.has(row.type) && "invisible",
-                    )}
-                  >
-                    <Switch
-                      id={`${row.key}-required`}
-                      checked={!row.nullable}
-                      onCheckedChange={(on) => updateRow(row.key, { nullable: !on })}
-                    />
-                    <label htmlFor={`${row.key}-required`}>{t("required")}</label>
-                  </div>
+                  {/* Worked out from others: nothing to require of a record. */}
+                  {!COMPUTED_TYPES.has(row.type) && (
+                    <div className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                      <Switch
+                        id={`${row.key}-required`}
+                        checked={!row.nullable}
+                        onCheckedChange={(on) => updateRow(row.key, { nullable: !on })}
+                      />
+                      <label htmlFor={`${row.key}-required`}>{t("required")}</label>
+                    </div>
+                  )}
                   {row.id ? (
                     <Button
                       type="button"
@@ -318,6 +318,15 @@ export function SchemaEditorDialog({
                 )}
                 {problemFor(index, "nullable") && (
                   <p className="text-destructive text-xs">{problemFor(index, "nullable")}</p>
+                )}
+                {row.type === "formula" && (
+                  <FormulaField
+                    id={`${row.key}-formula`}
+                    value={row.formula ?? ""}
+                    columns={table.columns.filter((column) => column.id !== row.id)}
+                    onChange={(formula) => updateRow(row.key, { formula })}
+                    error={problemFor(index, "formula")}
+                  />
                 )}
                 {(row.type === "single_select" || row.type === "multi_select") && (
                   <div className="space-y-1.5 pl-1">

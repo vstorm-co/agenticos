@@ -1,5 +1,5 @@
 ---
-source_sha: "11094feb134d"
+source_sha: "6bebdd6277d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -54,6 +54,7 @@ die Sie als `null` senden, bleibt leer.
 | `multi_select` | Eine Liste von Options-ids | `contains` `is_null` |
 | `link` | Eine Liste von bis zu 100 Datensatz-ids der verknüpften Tabelle | `contains` (eine Datensatz-id) `is_null` |
 | `lookup`, `rollup` | Nichts: beim Lesen eines Datensatzes ermittelt | keine |
+| `formula` | Nichts: beim Lesen aus den übrigen Spalten des Datensatzes ermittelt | keine |
 
 Text wird genau so gespeichert, wie er gesendet wurde. Führende und nachgestellte
 Leerzeichen, Zeilenumbrüche und Werte, die nur aus Leerzeichen bestehen, sind Daten des
@@ -96,6 +97,26 @@ mit Werten, keine andere Verknüpfung und kein Nachschlagen, und das Archivieren
 einer Verknüpfungsspalte wird abgelehnt, solange etwas über sie liest. Ein
 Export schreibt eine Verknüpfung mit den Namen ihrer Datensätze und ein
 Nachschlagen mit dem Gelesenen.
+
+## Formeln { #formulas }
+
+Eine `formula`-Spalte ermittelt einen Wert aus den übrigen Spalten des
+Datensatzes: `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
+`ROUND({Total} / {Count}, 2)`, `DAYS({Due}, TODAY())`. Eine Spalte wird mit ihrem
+Label in geschweiften Klammern genannt, und eine Umbenennung schreibt jede Formel
+um, die sie nennt. Eine Formel rechnet mit `+ - * / %`, vergleicht mit
+`= <> < <= > >=`, verbindet Bedingungen mit `and`, `or` und `not` und ruft `IF`,
+`ROUND`, `ABS`, `MIN`, `MAX`, `CONCAT`, `LEN`, `UPPER`, `LOWER`, `DAYS` und `TODAY`
+auf. Eine Auswahl liest sich als ihr Label.
+
+Sie darf jede lebende Spalte mit Werten lesen, auch das Ergebnis eines
+Nachschlagens oder einer Zusammenfassung, aber keine Verknüpfung und keine andere
+Formel, und eine Spalte, die eine Formel liest, kann nicht archiviert werden.
+Beim Speichern des Schemas wird die Formel geprüft und gesagt, was nicht stimmt.
+Ein Wert, der sich nicht ermitteln lässt - eine Division durch null, Text in einer
+Summe, eine leere Zelle - lässt die Zelle dieses Datensatzes leer. Eine Formel
+wird beim Lesen ermittelt und nie gespeichert, geschrieben, gefiltert oder
+sortiert.
 
 ## Ein Schema ändern { #changing-a-schema }
 

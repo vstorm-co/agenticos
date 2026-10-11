@@ -380,3 +380,20 @@ class TestWhatAReferenceNames:
                 [ColumnInput(id=text.id, label="Ref", type="link", link_table_id=self.TABLE)],
                 [text],
             )
+
+
+@pytest.mark.parametrize("submitted", [{"type": "formula"}, {"type": "number", "formula": "1 + 1"}])
+def test_a_formula_belongs_to_a_formula_column_and_only_there(submitted):
+    with pytest.raises(InvalidSchemaError) as refused:
+        build_columns([ColumnInput(label="F", **submitted)], [])
+
+    assert refused.value.details["fields"][0]["field"] == "columns.0.formula"
+
+
+def test_an_archived_formula_is_kept_without_being_checked_again():
+    price = _existing("Price")
+    total = ColumnDef(id=uuid.uuid4(), label="Total", type="formula", formula="{Price} * 2")
+
+    built = build_columns([ColumnInput(id=price.id, label="Price", type="text")], [price, total])
+
+    assert built[1].archived and built[1].formula == "{Price} * 2"

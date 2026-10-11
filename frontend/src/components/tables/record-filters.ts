@@ -39,6 +39,7 @@ const CHOICES: Record<ColumnTypeName, FilterChoice[]> = {
   link: ["empty", "not_empty"],
   lookup: [],
   rollup: [],
+  formula: [],
 };
 
 /** Whether a column can be filtered on at all: a worked-out one cannot. */

@@ -54,6 +54,7 @@ CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
     "link": frozenset(),
     "lookup": frozenset(),
     "rollup": frozenset(),
+    "formula": frozenset(),
 }
 """What each type may become. Anything else - a date to a number, a yes/no to a
 date - has no reading a person would agree with, and is refused."""

@@ -6548,7 +6548,7 @@
         "text": "Text",
         "long_text": "Langer Text",
         "email": "E-Mail",
-        "url": "Link",
+        "url": "URL",
         "phone": "Telefon",
         "number": "Zahl",
         "integer": "Ganzzahl",
@@ -6558,9 +6558,10 @@
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
         "multi_select": "Mehrfachauswahl",
-        "link": "Verknüpfung zu Datensätzen",
+        "link": "Verknüpfung",
         "lookup": "Nachschlagen",
-        "rollup": "Zusammenfassung"
+        "rollup": "Zusammenfassung",
+        "formula": "Formel"
       },
       "fromCsv": "Mit einer CSV-Datei beginnen",
       "fromCsvHint": "Ihre Kopfzeile wird zu den Spalten, jede mit dem Typ ihrer Werte, und ihre Zeilen werden importiert, sobald die Tabelle existiert.",
@@ -6589,7 +6590,7 @@
         "text": "Text",
         "long_text": "Langer Text",
         "email": "E-Mail",
-        "url": "Link",
+        "url": "URL",
         "phone": "Telefon",
         "number": "Zahl",
         "integer": "Ganzzahl",
@@ -6599,9 +6600,10 @@
         "datetime": "Datum & Uhrzeit",
         "single_select": "Einzelauswahl",
         "multi_select": "Mehrfachauswahl",
-        "link": "Verknüpfung zu Datensätzen",
+        "link": "Verknüpfung",
         "lookup": "Nachschlagen",
-        "rollup": "Zusammenfassung"
+        "rollup": "Zusammenfassung",
+        "formula": "Formel"
       },
       "required": "Erforderlich",
       "archiveColumn": "{column} archivieren",
@@ -6771,6 +6773,12 @@
         "trigger": "Trigger in",
         "other": "Sonstiges"
       }
+    },
+    "formula": {
+      "label": "Formel",
+      "placeholder": "'{Price}' * '{Quantity}'",
+      "columns": "Verwendbare Spalten",
+      "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     }
   },
   "groups": {

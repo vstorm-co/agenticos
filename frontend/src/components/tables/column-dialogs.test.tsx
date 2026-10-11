@@ -44,6 +44,7 @@ describe("currentColumns", () => {
         link_column_id: null,
         target_column_id: null,
         aggregate: null,
+        formula: null,
       },
       expect.objectContaining({ id: "c2", archived: true }),
     ]);
@@ -210,7 +211,7 @@ describe("AddColumnDialog", () => {
 
     await user.type(screen.getByLabelText("Name"), "Items");
     await user.click(screen.getByRole("combobox", { name: "Type" }));
-    await user.click(screen.getByRole("option", { name: "Link to records" }));
+    await user.click(screen.getByRole("option", { name: "Link" }));
     const add = screen.getByRole("button", { name: "Add column" });
     expect(add).toBeDisabled();
     await user.click(screen.getByRole("combobox", { name: "Links to" }));
@@ -361,5 +362,32 @@ describe("AddColumnDialog", () => {
 
     expect(screen.getByRole("option", { name: "Due" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Name" })).toBeNull();
+  });
+
+  it("adds a formula column with the formula written", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    render(
+      <AddColumnDialog
+        open
+        columns={[{ ...tier, id: "c-price", label: "Price", type: "number", options: [] }]}
+        onOpenChange={vi.fn()}
+        onAdd={onAdd}
+        isSaving={false}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Name"), "Gross");
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(screen.getByRole("option", { name: "Formula" }));
+    const add = screen.getByRole("button", { name: "Add column" });
+    expect(add).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Price" }));
+    await user.type(screen.getByLabelText("Formula"), " * 1.23");
+    await user.click(add);
+
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "formula", formula: "{Price} * 1.23" }),
+    );
   });
 });
