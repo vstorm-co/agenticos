@@ -4302,7 +4302,7 @@
       "findRecord": "Znajdź rekord",
       "finding": "Szukam…",
       "noRecordsFound": "Żaden rekord nie pasuje.",
-      "workedOut": "Wyliczane z powiązania"
+      "workedOut": "Wyliczane z innych kolumn"
     },
     "create": {
       "title": "Nowa tabela",

@@ -121,6 +121,14 @@ describe("formatCellValue", () => {
   });
 });
 
+describe("a formula's answer", () => {
+  it("reads a yes or no through the caller's labels, anything else as itself", () => {
+    const col = column({ type: "formula" });
+    expect(formatCellValue(col, false, boolLabel)).toBe("False");
+    expect(formatCellValue(col, 12.5, boolLabel)).toBe("12.5");
+  });
+});
+
 describe("recordCellText", () => {
   const record = {
     values: { c1: ["r1", "r2"], c2: 4 },

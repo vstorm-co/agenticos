@@ -930,7 +930,9 @@ describe("the table detail page", () => {
     const panel = screen.getByTestId("triggers-panel");
     expect(panel).toHaveAttribute("data-table", "t1");
     expect(panel).toHaveAttribute("data-can-edit", "true");
-    expect(screen.getByRole("heading", { name: "When a record is added" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "When a record is added, changed or deleted" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /close/i }));
     expect(screen.queryByTestId("triggers-panel")).not.toBeInTheDocument();
   });

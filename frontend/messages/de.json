@@ -6532,7 +6532,7 @@
       "findRecord": "Datensatz finden",
       "finding": "Suche…",
       "noRecordsFound": "Keine Datensätze passen.",
-      "workedOut": "Aus der Verknüpfung ermittelt"
+      "workedOut": "Aus anderen Spalten ermittelt"
     },
     "create": {
       "title": "Neue Tabelle",

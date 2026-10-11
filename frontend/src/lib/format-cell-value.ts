@@ -39,6 +39,9 @@ export function formatCellValue(
         .filter((label): label is string => !!label)
         .join(", ");
     }
+    case "formula":
+      // A formula answers with whatever it works out - a yes or no reads as one.
+      return typeof value === "boolean" ? boolLabel(value) : String(value);
     case "lookup":
       return Array.isArray(value) ? value.map(String).join(", ") : String(value);
     case "link":

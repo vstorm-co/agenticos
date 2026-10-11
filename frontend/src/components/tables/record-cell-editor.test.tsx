@@ -429,6 +429,11 @@ describe("RecordCellEditor", () => {
     rerender(
       <RecordCellEditor column={column({ type: "lookup" })} value={null} onChange={vi.fn()} />,
     );
-    expect(screen.getByText("Worked out from its link")).toBeVisible();
+    expect(screen.getByText("Worked out from other columns")).toBeVisible();
+
+    rerender(
+      <RecordCellEditor column={column({ type: "formula" })} value={true} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText("True")).toBeVisible();
   });
 });

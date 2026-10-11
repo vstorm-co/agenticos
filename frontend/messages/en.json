@@ -6674,7 +6674,7 @@
       "findRecord": "Find a record",
       "finding": "Looking…",
       "noRecordsFound": "No records match.",
-      "workedOut": "Worked out from its link"
+      "workedOut": "Worked out from other columns"
     },
     "create": {
       "title": "New table",

@@ -403,7 +403,7 @@ export function RecordCellEditor({
       )}
 
       {COMPUTED_TYPES.has(column.type) && (
-        // Worked out from the linked records; there is nothing here to edit.
+        // Worked out from other columns or linked records; there is nothing to edit.
         <p id={id} className="text-muted-foreground min-h-9 py-2 text-sm">
           {formatCellValue(column, value, (on) => t(on ? "true" : "false")) || t("workedOut")}
         </p>

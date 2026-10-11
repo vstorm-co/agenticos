@@ -190,6 +190,7 @@ describe("the tables catalog page", () => {
     expect(await screen.findByText("1 record added.")).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenLastCalledWith("/tables/t-new/records/batch", {
       records: [{ external_id: null, values: { "c-company": "Acme" } }],
+      update_existing: false,
     });
 
     // The footer's Close and the corner X both close it.
