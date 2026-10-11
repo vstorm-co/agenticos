@@ -879,6 +879,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onClick={handlePublish}
                   disabled={publish.isPending}
                   data-tour="agent-publish"
+                  // First in the row a phone scrolls, rather than past its edge.
+                  className="max-md:order-first"
                 >
                   <Upload className="h-4 w-4" />
                   {t("publish")}

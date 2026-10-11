@@ -85,11 +85,14 @@ describe("PromptVariablesPanel", () => {
     expect(screen.getByRole("button", { name: /Add variable/ })).toBeDisabled();
   });
 
-  it("tells the time in the deployment's zone, each person's, or a chosen one", () => {
+  it("tells the time in the deployment's zone, each person's, or a chosen one", async () => {
     const props = mount();
 
-    fireEvent.change(screen.getByLabelText("Time is told in"), { target: { value: "user" } });
-    fireEvent.change(screen.getByLabelText("Time is told in"), { target: { value: "chosen" } });
+    // The console's select, not a native one, so it is opened and an option picked.
+    await userEvent.click(screen.getByLabelText("Time is told in"));
+    await userEvent.click(screen.getByRole("option", { name: "Each person's own time zone" }));
+    await userEvent.click(screen.getByLabelText("Time is told in"));
+    await userEvent.click(screen.getByRole("option", { name: "A time zone I choose" }));
 
     expect(props.onTimeZoneChange).toHaveBeenNthCalledWith(1, "user");
     expect(props.onTimeZoneChange).toHaveBeenNthCalledWith(2, "UTC");

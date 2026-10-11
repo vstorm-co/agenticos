@@ -4,7 +4,16 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Input, Label } from "@/components/ui";
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import type { PromptVariableSpec, SystemPromptVariable } from "@/types/agents";
 
 const NAME = /^[a-z][a-z0-9_]{0,39}$/;
@@ -154,19 +163,20 @@ export function PromptVariablesPanel({
         <Label htmlFor="variables-time-zone" className="text-xs">
           {t("timeZoneLabel")}
         </Label>
-        <select
-          id="variables-time-zone"
+        <Select
           value={zoneMode}
           disabled={disabled}
-          onChange={(event) =>
-            onTimeZoneChange(event.target.value === "chosen" ? "UTC" : event.target.value)
-          }
-          className="border-input h-8 rounded-md border bg-transparent px-2 text-base sm:text-sm"
+          onValueChange={(value) => onTimeZoneChange(value === "chosen" ? "UTC" : value)}
         >
-          <option value="system">{t("timeZoneSystem")}</option>
-          <option value="user">{t("timeZoneUser")}</option>
-          <option value="chosen">{t("timeZoneChosen")}</option>
-        </select>
+          <SelectTrigger id="variables-time-zone" className="h-8 w-auto min-w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="system">{t("timeZoneSystem")}</SelectItem>
+            <SelectItem value="user">{t("timeZoneUser")}</SelectItem>
+            <SelectItem value="chosen">{t("timeZoneChosen")}</SelectItem>
+          </SelectContent>
+        </Select>
         {zoneMode === "chosen" && (
           <>
             <Input
