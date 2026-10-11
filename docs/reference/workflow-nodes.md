@@ -246,6 +246,41 @@ collections than the graph names.
 
 ::: app.workflows.contracts.io.SourceRef
 
+## knowledge.add { #knowledge-add }
+
+Adds a bound text with a `title`, or a run file, to one to five knowledge
+collections, through the same upload a collection's page uses: its own parsing
+and chunking settings, the organization's budget check, and ingestion queued
+rather than waited for. A text is stored as `<title>.md`, and a document of the
+same name is replaced rather than duplicated, so a retry updates it. A
+collection the principal may not add to fails the step with
+`KNOWLEDGE_ADD_REFUSED`.
+
+::: app.workflows.nodes.knowledge_add._handler.KnowledgeAddConfig
+
+## Model steps { #model-steps }
+
+Four steps ask one of the organization's models one thing, with no tools. Each
+runs as the step's own agent - created on its first run, republished when its
+settings change - through the same runner as `agent.run`, so the step's
+`max_cost_usd`, the workflow's budget and the organization's limit are checked
+before the request, its cost is booked on the run, and it shows in Activity.
+Publishing checks that the author may use the model.
+
+| Step | Does | Hands on |
+|---|---|---|
+| `ai.prompt` | Answers a bound `prompt` under the step's `instructions` | `text`, and `structured` when `structured_output_schema` asks for an object |
+| `ai.classify` | Puts a bound `text` in one of the step's `categories`, or `other` | Leaves by the category's port, with the `category`, a one-sentence `reason` and the `text` |
+| `ai.extract` | Pulls the fields `output_schema` names out of a bound `text`, leaving out what it does not say | `data`, an object of that shape |
+| `ai.rewrite` | Summarizes (`short`, `medium`, `long`), translates into `language`, or rewrites a bound `text` in a `style` | `text` |
+
+A classifier's categories are its ports, in order, and the model can only
+answer with one of their names or `other`. An answer that is not the object a
+step asked for fails it with `STRUCTURED_OUTPUT_MISMATCH`; a spent limit fails
+it with `AGENT_BUDGET_EXCEEDED`.
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
+
 ## Decisions { #decisions }
 
 Three steps ask TypeSafe's Jev a typed question about a bound `text`, with a

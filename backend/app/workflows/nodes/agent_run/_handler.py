@@ -69,6 +69,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.nodes._model_step import outcome
 
 logger = logging.getLogger(__name__)
 
@@ -239,35 +240,12 @@ def _settled(
     node_input: AgentRunInput,
 ) -> NodeResult:
     """What the agent run's final status means for this node."""
-    status = RunStatus(run.status)
-    if status is RunStatus.AWAITING_APPROVAL:
+    if RunStatus(run.status) is RunStatus.AWAITING_APPROVAL:
         context.report_waiting_agent_run(run.id)
         return Waiting(reason="approval", resume_token=str(context.current().node_run_id))
-    if status is RunStatus.BUDGET_EXCEEDED:
-        return Failed(
-            error=WorkflowError(
-                code="AGENT_BUDGET_EXCEEDED",
-                message=run.error or "The agent's budget is spent",
-                details={"agent_run_id": str(run.id)},
-                bypassable=False,
-            )
-        )
-    if status is RunStatus.GUARDRAIL_BLOCKED:
-        return Failed(
-            error=WorkflowError(
-                code="AGENT_GUARDRAIL_BLOCKED",
-                message=run.error or "A guardrail stopped the agent",
-                details={"agent_run_id": str(run.id)},
-            )
-        )
-    if status is not RunStatus.COMPLETED:
-        return Failed(
-            error=WorkflowError(
-                code="AGENT_RUN_FAILED",
-                message="The agent did not finish",
-                details={"agent_run_id": str(run.id), "status": status.value},
-            )
-        )
+    failed = outcome(run)
+    if failed is not None:
+        return failed
     structured = answer
     if config.structured_output_schema is not None:
         checked = _structured(answer, config.structured_output_schema)

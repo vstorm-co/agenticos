@@ -32,7 +32,8 @@ import {
   TableColumnPicker,
   type AgentVersionRef,
 } from "@/components/workflows/pickers";
-import { useKnowledgeBases, useMembers } from "@/hooks";
+import { useKnowledgeBases, useMembers, useModelProviders } from "@/hooks";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useOrgStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import {
@@ -93,6 +94,16 @@ const TRIGGER_HINTS: Record<string, string> = {
 const AGENT_RUN = "agent.run";
 const HTTP_REQUEST = "http.request";
 const STRUCTURED_OUTPUT = "structured_output_schema";
+/**
+ * The fields that hold an answer's JSON Schema, edited as the Builder edits an
+ * agent's answer format: the step, the field, and what no schema means there -
+ * the agent's own format, prose, or (for extraction) not a choice at all.
+ */
+const ANSWER_SHAPES: Record<string, { field: string; mode: "keepsOwn" | "text" | "fieldsOnly" }> = {
+  [AGENT_RUN]: { field: STRUCTURED_OUTPUT, mode: "keepsOwn" },
+  "ai.prompt": { field: STRUCTURED_OUTPUT, mode: "text" },
+  "ai.extract": { field: "output_schema", mode: "fieldsOnly" },
+};
 /** `agent.run`'s agent: `agent` (a catalog pin) or `inline` (configured here), one field. */
 const AGENT_SOURCE = "agent";
 const AGENT_INLINE = "inline";
@@ -189,6 +200,28 @@ function CollectionPin({
       collections={kbs}
       selectedIds={selected}
       onToggle={(id) => onChange(toggled(selected, id))}
+      disabled={disabled}
+    />
+  );
+}
+
+/** One of the organization's models, for a step that asks one directly. */
+function ModelProfilePin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const { profiles, profilesStatus } = useModelProviders();
+  return (
+    <ModelProfilePicker
+      profiles={profiles}
+      profilesStatus={profilesStatus}
+      value={strOrNull(value)}
+      onChange={(id) => onChange(id ?? undefined)}
       disabled={disabled}
     />
   );
@@ -304,8 +337,9 @@ function ResourcePin({
       />
     );
   }
-  if (kind === "collection" || kind === "member") {
-    const Pin = kind === "collection" ? CollectionPin : MemberPin;
+  if (kind === "collection" || kind === "member" || kind === "model_profile") {
+    const Pin =
+      kind === "collection" ? CollectionPin : kind === "member" ? MemberPin : ModelProfilePin;
     return (
       <div className="space-y-1.5">
         <Pin value={value} disabled={disabled} onChange={onChange} />
@@ -344,7 +378,8 @@ function ConfigLeaf({
     // Only the collection and member pins leave their label to the form: the
     // other pickers label their own controls, the secret, bot and host ones
     // with the field's name.
-    const labelled = resource !== "collection" && resource !== "member";
+    const labelled =
+      resource !== "collection" && resource !== "member" && resource !== "model_profile";
     return (
       <div className="space-y-1.5">
         {!labelled && <Label>{label}</Label>}
@@ -1040,14 +1075,15 @@ export function NodeForm({
                   disabled={disabled}
                   onChange={(next) => updateNodeConfig(node.id, next)}
                 />
-              ) : agentStep && entry.name === STRUCTURED_OUTPUT ? (
+              ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
                 <AnswerFormatForm
                   value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
                   onChange={(next) =>
                     updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
                   }
                   disabled={disabled}
-                  keepsOwn
+                  keepsOwn={ANSWER_SHAPES[definition.id]?.mode === "keepsOwn"}
+                  fieldsOnly={ANSWER_SHAPES[definition.id]?.mode === "fieldsOnly"}
                 />
               ) : (
                 <ConfigNode

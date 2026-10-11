@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Model steps and a knowledge write.** **Ask a model** answers a prompt under
+  the step's instructions, as text or an object; **Classify** puts a text in one
+  of the step's categories and branches on it; **Extract data** pulls the fields
+  a schema names out of a text; **Summarize or translate** summarizes, translates
+  or rewrites one. Each runs as the step's own agent, so the step's cost cap, the
+  workflow's budget and the organization's limit apply and the run is in
+  Activity. **Add to knowledge** puts a text or a run file into collections
+  through the same upload a collection's page uses.
+
 - **Configure an agent inside a workflow step.** An Agent step pins a catalog
   agent or, with **Configure here**, defines its own - model, instructions,
   capabilities with their knowledge, and MCP servers - in the Builder's own

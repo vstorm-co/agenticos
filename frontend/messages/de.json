@@ -6040,7 +6040,8 @@
       "slack": "Slack",
       "mattermost": "Mattermost",
       "telegram": "Telegram",
-      "transform": "Umformen"
+      "transform": "Umformen",
+      "model": "Modelle"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -6128,7 +6129,7 @@
       "triggers": "Wie ein Run startet",
       "agent": "Einen deiner Agenten ausführen",
       "decide": "Jev von TypeSafe eine typisierte Frage stellen",
-      "knowledge": "Eine Wissensbasis durchsuchen",
+      "knowledge": "Eine Wissensbasis durchsuchen oder etwas hinzufügen",
       "logic": "Einen Weg wählen oder Wege zusammenführen",
       "control": "Über Elemente schleifen, warten oder einen anderen Workflow ausführen",
       "error": "Einen Fehler abfangen oder auslösen",
@@ -6143,7 +6144,8 @@
       "telegram": "An einen Telegram-Chat senden",
       "http": "Eine API aufrufen, herunter- oder hochladen",
       "notification": "Mitglieder deiner Organisation benachrichtigen",
-      "transform": "Listen sortieren, begrenzen und umformen"
+      "transform": "Listen sortieren, begrenzen und umformen",
+      "model": "Ein Modell fragen, klassifizieren, extrahieren oder zusammenfassen"
     },
     "pickerSection": {
       "start": "Start",

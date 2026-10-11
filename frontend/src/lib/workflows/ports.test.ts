@@ -9,6 +9,7 @@ import {
   errorBranches,
   instancePorts,
   switchRules,
+  classifyCategories,
   routesErrors,
 } from "./ports";
 import type { NodeInstance } from "./types";
@@ -72,6 +73,24 @@ describe("instancePorts", () => {
       "otherwise",
       "germany",
     ]);
+  });
+
+  it("gives a classifier one output per category, in order, before other", () => {
+    const OUT = { type: "object", title: "AiClassifyOutput" };
+    const CLASSIFY = makeDefinition({
+      id: "ai.classify",
+      ports: [port("in", "input", null), port("other", "output", OUT)],
+    });
+    const configured = instance({
+      definition_id: "ai.classify",
+      config: { categories: [{ name: "sales" }, { name: "support" }, { description: "nameless" }] },
+    });
+
+    const ports = instancePorts(configured, CLASSIFY);
+
+    expect(ports.map((p) => p.id)).toEqual(["in", "sales", "support", "other"]);
+    expect(ports[1]?.schema).toBe(OUT);
+    expect(classifyCategories({})).toEqual([]);
   });
 
   it("gives a step that routes its errors an error port carrying the WorkflowError", () => {

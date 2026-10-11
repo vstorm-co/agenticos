@@ -37,6 +37,11 @@ interface AnswerFormatFormProps {
    * rather than prose: the first choice is named that way instead.
    */
   keepsOwn?: boolean;
+  /**
+   * For a step whose whole job is an object - extracting fields - where an
+   * answer in prose is not a choice: the fields are shown from the start.
+   */
+  fieldsOnly?: boolean;
 }
 
 /**
@@ -48,7 +53,13 @@ interface AnswerFormatFormProps {
  * cannot say (nested objects, enums), and a schema that already says more than
  * the list can is opened that way, so nothing it holds is dropped.
  */
-export function AnswerFormatForm({ value, onChange, disabled, keepsOwn }: AnswerFormatFormProps) {
+export function AnswerFormatForm({
+  value,
+  onChange,
+  disabled,
+  keepsOwn,
+  fieldsOnly,
+}: AnswerFormatFormProps) {
   const t = useTranslations("answerFormat");
   // The rows, kept here rather than read back off the schema: a row with no
   // name yet is not in the schema, and would vanish as it was added.
@@ -58,6 +69,7 @@ export function AnswerFormatForm({ value, onChange, disabled, keepsOwn }: Answer
   const [asJson, setAsJson] = useState(value !== null && fieldsOf(value) === null);
   const [text, setText] = useState(() => JSON.stringify(value ?? schemaOf([FIRST_FIELD]), null, 2));
   const parsed = parseSchema(text);
+  const structured = fieldsOnly === true || value !== null;
   const readable = typeof parsed === "string" ? null : fieldsOf(parsed);
 
   const setFields = (next: AnswerField[]) => {
@@ -78,34 +90,36 @@ export function AnswerFormatForm({ value, onChange, disabled, keepsOwn }: Answer
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="answer-format">{t("label")}</Label>
-        <Select
-          value={value === null ? "text" : "structured"}
-          disabled={disabled}
-          onValueChange={(mode) => {
-            if (mode === "text") {
-              onChange(null);
-              setAsJson(false);
-            } else {
-              setFields([FIRST_FIELD]);
-            }
-          }}
-        >
-          <SelectTrigger id="answer-format">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="text">{keepsOwn ? t("agentsOwn") : t("text")}</SelectItem>
-            <SelectItem value="structured">{t("structured")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">
-          {value !== null ? t("structuredHint") : keepsOwn ? t("agentsOwnHint") : t("textHint")}
-        </p>
-      </div>
+      {!fieldsOnly && (
+        <div className="space-y-1.5">
+          <Label htmlFor="answer-format">{t("label")}</Label>
+          <Select
+            value={value === null ? "text" : "structured"}
+            disabled={disabled}
+            onValueChange={(mode) => {
+              if (mode === "text") {
+                onChange(null);
+                setAsJson(false);
+              } else {
+                setFields([FIRST_FIELD]);
+              }
+            }}
+          >
+            <SelectTrigger id="answer-format">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">{keepsOwn ? t("agentsOwn") : t("text")}</SelectItem>
+              <SelectItem value="structured">{t("structured")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {value !== null ? t("structuredHint") : keepsOwn ? t("agentsOwnHint") : t("textHint")}
+          </p>
+        </div>
+      )}
 
-      {value !== null && asJson && (
+      {structured && asJson && (
         <div className="space-y-1.5">
           <Label>{t("schema")}</Label>
           <CodeArea
@@ -135,7 +149,7 @@ export function AnswerFormatForm({ value, onChange, disabled, keepsOwn }: Answer
         </div>
       )}
 
-      {value !== null && !asJson && (
+      {structured && !asJson && (
         <div className="space-y-3">
           {fields.map((field, index) => (
             <div key={index} className="space-y-2 rounded-lg border p-3">

@@ -6188,7 +6188,8 @@
       "slack": "Slack",
       "mattermost": "Mattermost",
       "telegram": "Telegram",
-      "transform": "Transform"
+      "transform": "Transform",
+      "model": "Models"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -6270,7 +6271,7 @@
       "triggers": "How a run starts",
       "agent": "Run one of your agents",
       "decide": "Ask TypeSafe's Jev a typed question",
-      "knowledge": "Search a knowledge base",
+      "knowledge": "Search a knowledge base, or add to one",
       "logic": "Choose a path, or join them again",
       "control": "Loop over items, wait, or run another workflow",
       "error": "Catch a failure, or raise one",
@@ -6285,7 +6286,8 @@
       "telegram": "Send to a Telegram chat",
       "http": "Call an API, download or upload",
       "notification": "Tell members of your organization",
-      "transform": "Sort, limit and reshape lists"
+      "transform": "Sort, limit and reshape lists",
+      "model": "Ask a model, classify, extract or summarize"
     },
     "pickerSection": {
       "start": "Start",

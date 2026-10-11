@@ -1,5 +1,5 @@
 ---
-source_sha: "728fe1cd837f"
+source_sha: "9dc95beb06d1"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -256,6 +256,43 @@ busca en menos colecciones de las que nombra el grafo.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## knowledge.add { #knowledge-add }
+
+Añade un texto enlazado con `title`, o un archivo del run, a entre una y cinco
+colecciones de conocimiento, con la misma subida que usa la página de una
+colección: sus propios ajustes de parsing y troceado, la comprobación del
+presupuesto de la organización y una ingesta encolada en lugar de esperada. Un
+texto se guarda como `<title>.md`, y un documento con el mismo nombre se
+reemplaza en lugar de duplicarse, así que un reintento lo actualiza. Una
+colección a la que el principal no puede añadir hace fallar el paso con
+`KNOWLEDGE_ADD_REFUSED`.
+
+::: app.workflows.nodes.knowledge_add._handler.KnowledgeAddConfig
+
+## Pasos de modelo { #model-steps }
+
+Cuatro pasos preguntan una cosa a uno de los modelos de la organización, sin
+herramientas. Cada uno se ejecuta como el agent propio del paso - creado en su
+primer run y publicado de nuevo cuando cambian sus ajustes - con el mismo runner
+que `agent.run`, así que el `max_cost_usd` del paso, el presupuesto del workflow
+y el límite de la organización se comprueban antes de la petición, su coste se
+carga al run y aparece en Activity. Publicar comprueba que el autor puede usar
+el modelo.
+
+| Paso | Hace | Pasa |
+|---|---|---|
+| `ai.prompt` | Responde a un `prompt` enlazado según las `instructions` del paso | `text`, y `structured` cuando `structured_output_schema` pide un objeto |
+| `ai.classify` | Pone un `text` enlazado en una de las `categories` del paso, o en `other` | Sale por el puerto de la categoría, con la `category`, un `reason` de una frase y el `text` |
+| `ai.extract` | Saca de un `text` enlazado los campos que nombra `output_schema`, omitiendo lo que no dice | `data`, un objeto con esa forma |
+| `ai.rewrite` | Resume (`short`, `medium`, `long`), traduce a `language` o reescribe un `text` enlazado con un `style` | `text` |
+
+Las categorías de un clasificador son sus puertos, en orden, y el modelo solo
+puede responder con uno de sus nombres o `other`. Una respuesta que no es el
+objeto que pidió el paso lo hace fallar con `STRUCTURED_OUTPUT_MISMATCH`; un
+límite agotado, con `AGENT_BUDGET_EXCEEDED`.
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 
 ## Decisiones { #decisions }
 

@@ -100,6 +100,10 @@ def load_builtins() -> None:
 
     from app.workflows.nodes import (  # noqa: F401 - imported for side effects
         agent_run,
+        ai_classify,
+        ai_extract,
+        ai_prompt,
+        ai_rewrite,
         channel_find,
         channel_members,
         channel_read,
@@ -133,6 +137,7 @@ def load_builtins() -> None:
         http_upload,
         human_approval,
         image_transform,
+        knowledge_add,
         knowledge_search,
         logic_if,
         logic_merge,

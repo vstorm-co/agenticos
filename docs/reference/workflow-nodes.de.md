@@ -1,5 +1,5 @@
 ---
-source_sha: "728fe1cd837f"
+source_sha: "9dc95beb06d1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -266,6 +266,44 @@ Collections, als der Graph nennt.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## knowledge.add { #knowledge-add }
+
+Fügt einen gebundenen Text mit `title` oder eine Run-Datei einer bis fünf
+Wissenssammlungen hinzu, über denselben Upload wie die Seite einer Sammlung: mit
+ihren eigenen Einstellungen für Parsing und Chunking, der Budgetprüfung der
+Organisation und einer Ingestion, die eingereiht statt abgewartet wird. Ein Text
+wird als `<title>.md` gespeichert, und ein Dokument gleichen Namens wird ersetzt
+statt doppelt angelegt, sodass eine Wiederholung es aktualisiert. Eine Sammlung,
+der der Principal nichts hinzufügen darf, lässt den Schritt mit
+`KNOWLEDGE_ADD_REFUSED` fehlschlagen.
+
+::: app.workflows.nodes.knowledge_add._handler.KnowledgeAddConfig
+
+## Modellschritte { #model-steps }
+
+Vier Schritte fragen eines der Modelle der Organisation nach einer Sache, ohne
+Werkzeuge. Jeder läuft als eigener Agent des Schritts - beim ersten Run
+angelegt, neu veröffentlicht, wenn sich seine Einstellungen ändern - über
+denselben Runner wie `agent.run`, sodass `max_cost_usd` des Schritts, das Budget
+des Workflows und das Limit der Organisation vor der Anfrage geprüft werden, die
+Kosten auf den Run gebucht werden und er in Activity erscheint. Das
+Veröffentlichen prüft, ob der Autor das Modell verwenden darf.
+
+| Schritt | Tut | Gibt weiter |
+|---|---|---|
+| `ai.prompt` | Beantwortet einen gebundenen `prompt` nach den `instructions` des Schritts | `text`, und `structured`, wenn `structured_output_schema` ein Objekt verlangt |
+| `ai.classify` | Ordnet einen gebundenen `text` einer der `categories` des Schritts zu, oder `other` | Verlässt den Schritt über den Port der Kategorie, mit `category`, einem einsätzigen `reason` und dem `text` |
+| `ai.extract` | Zieht die in `output_schema` genannten Felder aus einem gebundenen `text` und lässt weg, was er nicht sagt | `data`, ein Objekt dieser Form |
+| `ai.rewrite` | Fasst zusammen (`short`, `medium`, `long`), übersetzt in `language` oder schreibt einen gebundenen `text` in einem `style` um | `text` |
+
+Die Kategorien eines Klassifikators sind seine Ports, in Reihenfolge, und das
+Modell kann nur mit einem ihrer Namen oder `other` antworten. Eine Antwort, die
+nicht das verlangte Objekt ist, lässt den Schritt mit
+`STRUCTURED_OUTPUT_MISMATCH` fehlschlagen; ein ausgeschöpftes Limit mit
+`AGENT_BUDGET_EXCEEDED`.
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 
 ## Entscheidungen { #decisions }
 

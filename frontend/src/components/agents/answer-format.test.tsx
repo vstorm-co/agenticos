@@ -71,6 +71,17 @@ describe("AnswerFormatForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
+  it("shows the fields from the start where an object is the whole point", () => {
+    // An extraction step: there is no prose answer to pick, so no choice is offered
+    // and the first field is there to name, writing the schema as it is named.
+    const onChange = vi.fn();
+    render(<AnswerFormatForm value={null} onChange={onChange} fieldsOnly />);
+
+    expect(screen.queryByRole("combobox", { name: "It answers" })).toBeNull();
+    fireEvent.change(screen.getAllByLabelText("Field")[0]!, { target: { value: "total" } });
+    expect(fieldsOf(onChange.mock.lastCall![0])![0]!.name).toBe("total");
+  });
+
   it("edits, adds and removes fields", async () => {
     const onChange = vi.fn();
     render(<AnswerFormatForm value={SCORE_SCHEMA} onChange={onChange} />);

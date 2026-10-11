@@ -6,8 +6,9 @@ import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
  * The ports one node instance actually has, which its config and policy decide
  * as well as its definition - the client mirror of the backend's `instance_ports`.
  *
- * `error.handle` has one output per configured branch beside `default`, and
- * `logic.switch` one per rule before `otherwise`; a
+ * `error.handle` has one output per configured branch beside `default`,
+ * `logic.switch` one per rule before `otherwise`, and `ai.classify` one per
+ * category before `other`; a
  * Manual or API trigger's `out` carries a `payload` typed by the fields it
  * declares, and any node whose policy routes its errors has an `error` output
  * carrying the `WorkflowError`. Everything that reads ports - the node's handles, the edge
@@ -47,6 +48,34 @@ export function switchRules(config: Record<string, unknown>): string[] {
   return namedEntries(config.rules);
 }
 
+/** The category names an `ai.classify` config declares, in order - bad entries skipped. */
+export function classifyCategories(config: Record<string, unknown>): string[] {
+  return namedEntries(config.categories);
+}
+
+/**
+ * `ports` with one output per `names`, in order, before the `last` way out -
+ * the shape of a switch's rules before `otherwise` and a classifier's categories
+ * before `other`.
+ */
+function namedOutputsBefore(ports: Port[], names: string[], last: string): Port[] {
+  const fallback = ports.find((port) => port.id === last);
+  const seen = new Set(ports.map((port) => port.id));
+  const named = names
+    .filter((name) => !seen.has(name))
+    .map<Port>((name) => ({
+      id: name,
+      label: name,
+      kind: "output",
+      schema: fallback?.schema ?? null,
+    }));
+  return [
+    ...ports.filter((port) => port.id !== last),
+    ...named,
+    ...(fallback === undefined ? [] : [fallback]),
+  ];
+}
+
 function namedEntries(entries: unknown): string[] {
   if (!Array.isArray(entries)) return [];
   return entries
@@ -73,22 +102,11 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
     ports = [...ports, ...branches];
   }
   if (definition.id === "logic.switch") {
-    const otherwise = ports.find((port) => port.id === "otherwise");
-    const seen = new Set(ports.map((port) => port.id));
-    const rules = switchRules(instance.config)
-      .filter((name) => !seen.has(name))
-      .map<Port>((name) => ({
-        id: name,
-        label: name,
-        kind: "output",
-        schema: otherwise?.schema ?? null,
-      }));
     // Rules first, in their order, then the way out when none holds.
-    ports = [
-      ...ports.filter((port) => port.id !== "otherwise"),
-      ...rules,
-      ...(otherwise === undefined ? [] : [otherwise]),
-    ];
+    ports = namedOutputsBefore(ports, switchRules(instance.config), "otherwise");
+  }
+  if (definition.id === "ai.classify") {
+    ports = namedOutputsBefore(ports, classifyCategories(instance.config), "other");
   }
   if (FIELD_TRIGGERS.has(definition.id)) {
     const fields = inputFieldsOf(instance.config);

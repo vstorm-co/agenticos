@@ -168,6 +168,26 @@ vi.mock("@/components/orgs/member-picker", () => ({
 vi.mock("@/hooks", () => ({
   useKnowledgeBases: () => ({ kbs: [] }),
   useMembers: () => ({ members: [] }),
+  useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({
+    value,
+    onChange,
+  }: {
+    value: string | null;
+    onChange: (id: string | null) => void;
+  }) => (
+    <div>
+      <span>{`model:${value}`}</span>
+      <button type="button" onClick={() => onChange("m1")}>
+        pick-model
+      </button>
+      <button type="button" onClick={() => onChange(null)}>
+        clear-model
+      </button>
+    </div>
+  ),
 }));
 
 const CONFIG_SCHEMA: Schema = {
@@ -378,6 +398,59 @@ describe("NodeForm sections", () => {
     expect(screen.getByRole("button", { name: "1 more option" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "go-inline" }));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { inline: { name: "x" } });
+  });
+
+  it("picks a model step's model from the organization's models", async () => {
+    const prompt = makeDefinition({
+      id: "ai.prompt",
+      config_schema: {
+        type: "object",
+        properties: {
+          model_profile_id: { "x-resource": "model_profile", title: "Model" },
+        },
+        required: ["model_profile_id"],
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({
+      definition: prompt,
+      config: { model_profile_id: "m0" },
+    });
+
+    expect(screen.getByText("Model")).toBeVisible();
+    expect(screen.getByText("model:m0")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "pick-model" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { model_profile_id: "m1" });
+    await userEvent.click(screen.getByRole("button", { name: "clear-model" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("asks an extraction step for its fields, with no answer in prose to choose", () => {
+    const extract = makeDefinition({
+      id: "ai.extract",
+      config_schema: {
+        type: "object",
+        properties: { output_schema: { type: "object", title: "Fields to extract" } },
+        required: ["output_schema"],
+      } as Schema,
+    });
+    renderForm({ definition: extract });
+
+    expect(screen.queryByText("As the agent answers")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "It answers" })).toBeNull();
+  });
+
+  it("offers a prompt step an answer in prose by default", () => {
+    const prompt = makeDefinition({
+      id: "ai.prompt",
+      config_schema: {
+        type: "object",
+        properties: { structured_output_schema: { type: "object" } },
+      } as Schema,
+    });
+    renderForm({ definition: prompt });
+
+    expect(screen.queryByText("As the agent answers")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "It answers" })).toHaveTextContent("In text");
   });
 
   it("opens an agent step with no override on the agent's own format", () => {

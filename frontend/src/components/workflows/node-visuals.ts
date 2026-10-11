@@ -60,6 +60,11 @@ import {
   Webhook,
   Workflow,
   Zap,
+  BookPlus,
+  Languages,
+  ScanSearch,
+  Sparkles,
+  Tags,
 } from "lucide-react";
 
 /**
@@ -132,6 +137,11 @@ const BY_ID: Record<string, NodeIcon> = {
   "code.python.simple": Code2,
   "code.python.sandbox": Terminal,
   "code.javascript.sandbox": FileCode2,
+  "ai.prompt": MessageSquareText,
+  "ai.classify": Tags,
+  "ai.extract": ScanSearch,
+  "ai.rewrite": Languages,
+  "knowledge.add": BookPlus,
   "decide.yes_no": Scale,
   "decide.choose": ListChecks,
   "decide.score": Gauge,
@@ -143,6 +153,7 @@ const BY_CATEGORY: Record<string, NodeIcon> = {
   triggers: Zap,
   core: Flag,
   agent: Bot,
+  model: Sparkles,
   decide: Scale,
   knowledge: Library,
   data: Braces,
@@ -193,7 +204,7 @@ const DANGER_CATEGORIES: ReadonlySet<string> = new Set(["error"]);
  */
 export const PICKER_SECTIONS = [
   { id: "start", groups: ["triggers"] },
-  { id: "ai", groups: ["agent", "decide", "knowledge"] },
+  { id: "ai", groups: ["agent", "model", "decide", "knowledge"] },
   { id: "flow", groups: ["logic", "control", "error", "people", "core"] },
   { id: "data", groups: ["tables", "data", "transform", "files", "code"] },
   { id: "apps", groups: ["slack", "mattermost", "telegram", "http", "notification"] },

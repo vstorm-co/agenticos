@@ -1,5 +1,5 @@
 ---
-source_sha: "728fe1cd837f"
+source_sha: "9dc95beb06d1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -253,6 +253,41 @@ niż wskazuje graf.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## knowledge.add { #knowledge-add }
+
+Dodaje zbindowany tekst z `title` albo plik runu do jednej do pięciu kolekcji
+wiedzy, tym samym uploadem co strona kolekcji: z jej własnymi ustawieniami
+parsowania i dzielenia na fragmenty, sprawdzeniem budżetu organizacji i ingestią
+kolejkowaną, a nie oczekiwaną. Tekst jest zapisywany jako `<title>.md`, a
+dokument o tej samej nazwie jest zastępowany, a nie dublowany, więc ponowienie go
+aktualizuje. Kolekcja, do której principal nie może dodawać, kończy krok błędem
+`KNOWLEDGE_ADD_REFUSED`.
+
+::: app.workflows.nodes.knowledge_add._handler.KnowledgeAddConfig
+
+## Kroki modelu { #model-steps }
+
+Cztery kroki pytają jeden z modeli organizacji o jedną rzecz, bez narzędzi.
+Każdy działa jako własny agent kroku - tworzony przy pierwszym runie,
+publikowany ponownie, gdy zmienią się jego ustawienia - przez ten sam runner co
+`agent.run`, więc `max_cost_usd` kroku, budżet workflow i limit organizacji są
+sprawdzane przed zapytaniem, koszt trafia do runu, a run widać w Activity.
+Publikacja sprawdza, czy autor może używać modelu.
+
+| Krok | Robi | Przekazuje dalej |
+|---|---|---|
+| `ai.prompt` | Odpowiada na zbindowany `prompt` według `instructions` kroku | `text`, a `structured`, gdy `structured_output_schema` prosi o obiekt |
+| `ai.classify` | Przypisuje zbindowany `text` do jednej z `categories` kroku albo do `other` | Wychodzi portem kategorii, z `category`, jednozdaniowym `reason` i `text` |
+| `ai.extract` | Wyciąga ze zbindowanego `text` pola nazwane w `output_schema`, pomijając to, czego tekst nie mówi | `data`, obiekt tego kształtu |
+| `ai.rewrite` | Streszcza (`short`, `medium`, `long`), tłumaczy na `language` albo przepisuje zbindowany `text` w danym `style` | `text` |
+
+Kategorie klasyfikatora są jego portami, w kolejności, a model może odpowiedzieć
+tylko nazwą jednej z nich albo `other`. Odpowiedź, która nie jest obiektem, o
+który prosił krok, kończy go błędem `STRUCTURED_OUTPUT_MISMATCH`; wyczerpany
+limit - błędem `AGENT_BUDGET_EXCEEDED`.
+
+::: app.workflows.nodes.ai_classify._handler.AiClassifyConfig
 
 ## Decyzje { #decisions }
 
