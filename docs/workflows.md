@@ -259,6 +259,25 @@ picker has none. A table whose schema changed since it was bound says so and off
 **Rebind to the current schema**, so a stale column set is a visible prompt
 rather than a silent break.
 
+### An agent configured in the step { #an-agent-configured-in-the-step }
+
+An **Agent** step either pins an agent from the catalog or, with **Configure
+here**, defines its own: a name, a model, instructions, capabilities with the
+knowledge, skills and context files they read, and MCP servers - the same editors
+the Builder uses. Delegation is the one capability it is not offered, because the
+workflow is already where work is handed from step to step.
+
+That agent belongs to the workflow. It is versioned with the graph and never
+appears in the catalog. Its first run creates it, and a run after its
+configuration changed publishes a new version of it first, checked as publishing
+any agent is. Its runs show in Activity with its budget, approvals and history
+like any other agent's, and its page there sends you back to the workflow.
+
+**Copy its configuration into this step** starts from a catalog agent to adjust
+it, and **Save as an agent** puts the step's agent in the catalog as a draft for
+other workflows and people. **Max cost (USD)** caps what one execution of the step may
+spend, beside the agent's, the workflow's and the organization's limits.
+
 ### When a step is slow or fails { #when-a-step-is-slow-or-fails }
 
 Under a step's **Settings**, **When it is slow or fails** sets its policy. **Handle

@@ -10,10 +10,17 @@ choose again. Pinned test data goes too: it is a real run's output.
 What counts as a resource is what the step's own config schema marks with
 `x-resource`, the same keyword the editor draws a picker for, so a new picker
 is covered here without a second list.
+
+An agent configured in a step (`x-agent-spec`) travels, since its instructions
+and capabilities are the point of exporting it - but every id in it is this
+deployment's: its model, its collections, skills and context files, a delegate,
+an MCP server, a secret in a capability's settings. Those go, each listed, and
+the rest of the spec stays.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -24,6 +31,7 @@ from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 
 _MISSING = object()
+_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +74,8 @@ def _strip(
     if isinstance(kind, str):
         found.append((path, kind))
         return _MISSING
+    if resolved.get("x-agent-spec") is True and isinstance(value, dict):
+        return _without_ids(value, path, found)
     if isinstance(value, dict):
         properties = resolved.get("properties", {})
         kept: dict[str, Any] = {}
@@ -83,6 +93,41 @@ def _strip(
             for index, item in enumerate(value)
             if (stripped := _strip(item, items, defs, f"{path}.{index}", found)) is not _MISSING
         ]
+    return value
+
+
+def _names_a_row(value: Any) -> bool:
+    return isinstance(value, str) and _UUID.fullmatch(value) is not None
+
+
+def _without_ids(value: Any, path: str, found: list[tuple[str, str]]) -> Any:
+    """An agent spec's value with every id of this deployment taken out.
+
+    By value rather than by schema, because a capability's settings are a free
+    dictionary its own schema describes, and a secret's id is in there. An id
+    goes, and so does the object that would be nothing without it - a list entry
+    naming a server or a delegate - rather than leave a reference half made.
+    """
+    if _names_a_row(value):
+        found.append((path, "agent_spec"))
+        return _MISSING
+    if isinstance(value, dict):
+        kept: dict[str, Any] = {}
+        for key, item in value.items():
+            stripped = _without_ids(item, f"{path}.{key}", found)
+            if stripped is not _MISSING:
+                kept[key] = stripped
+        return kept
+    if isinstance(value, list):
+        kept_items = []
+        for index, item in enumerate(value):
+            if isinstance(item, dict) and any(_names_a_row(field) for field in item.values()):
+                found.append((f"{path}.{index}", "agent_spec"))
+                continue
+            stripped = _without_ids(item, f"{path}.{index}", found)
+            if stripped is not _MISSING:
+                kept_items.append(stripped)
+        return kept_items
     return value
 
 

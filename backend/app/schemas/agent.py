@@ -123,6 +123,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    workflow_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The workflow whose step configures this agent, when one does. Such an "
+            "agent is changed in that step, never here, and is not in the catalog."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(

@@ -5,6 +5,20 @@ step pins an agent **and** one of its published versions, and it runs that
 version whatever is published later. There is no "latest" option, so a workflow
 reviewed against version 4 keeps running version 4 until someone edits the step.
 
+## An agent configured in the step
+
+`inline` holds a whole agent spec in place of `agent`, and exactly one of the two
+is set. The agent it describes is the workflow's: `app/services/workflow_agents.py`
+creates it on the step's first run (`agents.workflow_id`, `workflow_node_id`),
+reuses the newest version while the spec is unchanged, and publishes a new one -
+after `validate_spec`, for the run's principal - when it changed. It is kept out of
+the catalog and the agent ceiling, and `AgentRegistryService.get` reaches it
+through the workflow: viewing and running map to `workflows:view` and
+`workflows:run`, and any change is refused, because the step owns the spec.
+
+`max_cost_usd` is a ceiling on one execution, a `BudgetScope.RUN` limit metered on
+the run's own ledger and carried across an approval park.
+
 ## Ports
 
 | Port | Kind | Schema | What it carries |

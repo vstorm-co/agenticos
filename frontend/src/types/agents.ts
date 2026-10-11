@@ -327,6 +327,11 @@ export interface Agent {
   visibility: Visibility;
   owner_user_id: string | null;
   current_version_id: string | null;
+  /**
+   * The workflow whose step configures this agent, when one does. Such an agent
+   * is changed in that step - versioned with the workflow - never here.
+   */
+  workflow_id?: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */

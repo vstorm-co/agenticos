@@ -57,6 +57,7 @@ import {
 
 import { BindingField } from "./binding-field";
 import { type ConditionRoot, ConditionField, useConditionFields } from "./condition-field";
+import { AgentSourceField } from "@/components/workflows/agent-step/agent-source-field";
 import { InputFieldsForm } from "./input-fields-form";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
@@ -92,6 +93,9 @@ const TRIGGER_HINTS: Record<string, string> = {
 const AGENT_RUN = "agent.run";
 const HTTP_REQUEST = "http.request";
 const STRUCTURED_OUTPUT = "structured_output_schema";
+/** `agent.run`'s agent: `agent` (a catalog pin) or `inline` (configured here), one field. */
+const AGENT_SOURCE = "agent";
+const AGENT_INLINE = "inline";
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
@@ -980,12 +984,22 @@ export function NodeForm({
         binding.target_node_id === node.id &&
         (binding.target_field === name || binding.target_field.startsWith(`${name}.`)),
     );
+  const agentStep = definition.id === AGENT_RUN;
   const configShown = configFields.filter(
     (entry) =>
-      allShown || entry.required || node.config[entry.name] !== undefined || bound(entry.name),
+      // `inline` is drawn by the `agent` field, which an agent step always shows:
+      // neither half is required alone, but one of the two always is.
+      !(agentStep && entry.name === AGENT_INLINE) &&
+      ((agentStep && entry.name === AGENT_SOURCE) ||
+        allShown ||
+        entry.required ||
+        node.config[entry.name] !== undefined ||
+        bound(entry.name)),
   );
   const inputShown = inputFields.filter((entry) => allShown || entry.required || bound(entry.name));
-  const folded = configFields.length + inputFields.length - configShown.length - inputShown.length;
+  // `inline` is drawn by the `agent` field, so it is neither shown nor folded.
+  const foldable = configFields.filter((entry) => !(agentStep && entry.name === AGENT_INLINE));
+  const folded = foldable.length + inputFields.length - configShown.length - inputShown.length;
   // One list, as a builder reads it: the list a step works on first - Filter's
   // items before its condition - then what it is set to do, then what else it reads.
   const inputs = inputShown.map((entry) => ({ entry, input: true }));
@@ -1018,7 +1032,15 @@ export function NodeForm({
           ) : (
             // Named for the dialog, which says a missing value once its field was left.
             <div key={`config:${entry.name}`} data-field={entry.name}>
-              {definition.id === AGENT_RUN && entry.name === STRUCTURED_OUTPUT ? (
+              {agentStep && entry.name === AGENT_SOURCE ? (
+                <AgentSourceField
+                  config={node.config}
+                  stepName={node.label || definition.name}
+                  error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
+                  disabled={disabled}
+                  onChange={(next) => updateNodeConfig(node.id, next)}
+                />
+              ) : agentStep && entry.name === STRUCTURED_OUTPUT ? (
                 <AnswerFormatForm
                   value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
                   onChange={(next) =>

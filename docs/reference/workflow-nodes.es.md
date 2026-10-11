@@ -1,5 +1,5 @@
 ---
-source_sha: "c43c27daa5da"
+source_sha: "728fe1cd837f"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -331,6 +331,15 @@ guardrails y el historial de runs del agent. El run se registra con la superfici
 `workflow`. Las `sources` enlazadas se añaden al prompt como contexto numerado.
 Una llamada a una herramienta que requiere aprobación detiene el paso, y la
 decisión reanuda el mismo run del agent.
+
+`inline` configura el agent en el paso en lugar de `agent`, y solo uno de los dos
+está fijado. La spec es del paso y se versiona con el grafo: el primer run crea un
+agent propiedad del workflow, fuera del catálogo y alcanzable mediante el acceso al
+workflow, y un run cuya spec difiere de la versión más reciente de ese agent
+publica primero una nueva, comprobada como cualquier publicación de un agent.
+Publicar el workflow comprueba la spec con el acceso de su autor. `max_cost_usd`
+limita una ejecución: el agent se detiene antes de una petición al modelo que lo
+supere, y el paso falla con `AGENT_BUDGET_EXCEEDED`.
 
 Un agent con un formato de respuesta propio pasa su objeto como `structured`.
 `structured_output_schema` pide otra forma en su lugar: el agent se ejecuta con

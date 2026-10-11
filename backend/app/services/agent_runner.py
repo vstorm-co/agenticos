@@ -628,6 +628,14 @@ class PausedRunState(BaseModel):
             "is the same run rather than a default-mode one wearing its id"
         ),
     )
+    run_limit_usd: Decimal | None = Field(
+        default=None,
+        description=(
+            "The most this run may spend, when its caller set a ceiling of its own - "
+            "an `agent.run` step's `max_cost_usd`. Restored on resume, so a run "
+            "continued after an approval stays under it"
+        ),
+    )
     output_schema: dict[str, Any] | None = Field(
         default=None,
         description=(
@@ -1164,6 +1172,9 @@ class PreparedRun:
     delegating `PlanStore`: `write_plan` goes through `set_items`, which the
     library emits no event for.
     """
+
+    run_limit_usd: Decimal | None = None
+    """The ceiling the caller set on this one run, if any - kept for a park to record."""
 
     output_schema: dict[str, Any] | None = None
     """The answer shape the caller asked for in place of the agent's own, if any.
@@ -2006,6 +2017,7 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         output_schema: dict[str, Any] | None = None,
         request_connection: ConnectionCallback | None = None,
+        run_limit_usd: Decimal | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2102,8 +2114,10 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            run_limit_usd=run_limit_usd,
         )
         prepared.output_schema = output_schema
+        prepared.run_limit_usd = run_limit_usd
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
             # property of the *surface*, not of the run, and `_assemble` already
@@ -2190,6 +2204,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        run_limit_usd: Decimal | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2545,6 +2560,7 @@ class AgentRunnerService:
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
+            run_limit_usd=run_limit_usd,
             request_approval=channel,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
@@ -3603,6 +3619,7 @@ class AgentRunnerService:
                 # would be the surface that forgot (#1326, #1343).
                 "admitted_as": prepared.admitted_as,
                 "output_schema": prepared.output_schema,
+                "run_limit_usd": prepared.run_limit_usd,
                 "delegated_approvals": {
                     str(parked.approval_id): parked.task_id
                     for parked in prepared.approvals.requested
@@ -3699,6 +3716,7 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         output_schema: dict[str, Any] | None = None,
         structured: list[dict[str, Any]] | None = None,
+        run_limit_usd: Decimal | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3734,6 +3752,9 @@ class AgentRunnerService:
         afterwards, and every other caller of this method would have to unpack a
         tuple it has no use for.
 
+        `run_limit_usd` is a ceiling on this one run, beside the agent's and the
+        organization's monthly ones - a workflow step's `max_cost_usd`.
+
         `output_schema` asks for an answer of that shape in place of the
         version's own, and `structured` is filled with the answer as an object
         when it is one - a list for the reason `outbound` is. The returned text
@@ -3756,6 +3777,7 @@ class AgentRunnerService:
             version_id=version_id,
             on_compaction=on_compaction,
             output_schema=output_schema,
+            run_limit_usd=run_limit_usd,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -3973,8 +3995,10 @@ class AgentRunnerService:
             # the plan over. `plan` here is the delegation resume plan; this is the
             # planning capability's, off `PausedRunState.plan`.
             plan_items=state.plan,
+            run_limit_usd=state.run_limit_usd,
         )
         prepared.output_schema = state.output_schema
+        prepared.run_limit_usd = state.run_limit_usd
         prepared.built.ledger.book(_spend_already_booked(run))
 
         # Out of the queue once the build has succeeded, and before anything is

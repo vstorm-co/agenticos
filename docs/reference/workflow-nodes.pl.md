@@ -1,5 +1,5 @@
 ---
-source_sha: "c43c27daa5da"
+source_sha: "728fe1cd837f"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -326,6 +326,15 @@ runner co chat i API, z budżetem, zatwierdzeniami, guardrailami i historią run
 agenta. Run jest zapisywany z powierzchnią `workflow`. Zbindowane `sources` są
 dopisywane do promptu jako numerowany kontekst. Wywołanie narzędzia wymagające
 zatwierdzenia zatrzymuje krok, a decyzja wznawia ten sam run agenta.
+
+`inline` konfiguruje agenta w kroku zamiast `agent` i ustawione jest dokładnie jedno
+z nich. Spec należy do kroku i jest wersjonowany razem z grafem: pierwszy run
+tworzy agenta należącego do workflow, ukrytego w katalogu i osiągalnego przez
+dostęp do workflow, a run, którego spec różni się od najnowszej wersji tego
+agenta, najpierw publikuje nową, sprawdzaną tak jak publikacja agenta. Publikacja
+workflow sprawdza spec względem dostępu autora. `max_cost_usd` ogranicza jedno
+wykonanie: agent zatrzymuje się przed zapytaniem do modelu, które by je przekroczyło,
+a krok kończy się błędem `AGENT_BUDGET_EXCEEDED`.
 
 Agent z własnym formatem odpowiedzi przekazuje swój obiekt jako `structured`.
 `structured_output_schema` prosi w zamian o inny kształt: agent jest uruchamiany

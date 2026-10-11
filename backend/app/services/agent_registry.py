@@ -82,6 +82,7 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
+from app.repositories import workflow as workflow_repo
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
@@ -103,6 +104,7 @@ from app.services.access import (
     CONTEXT,
     SECRET,
     SKILL,
+    WORKFLOW,
     accessible_ids,
     resolve_access,
     visible_resource_ids,
@@ -719,6 +721,14 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
         raise refused_field("yaml", str(exc)) from exc
 
 
+_WORKFLOW_PERMS: dict[Perm, Perm] = {
+    Perm.AGENTS_VIEW: Perm.WORKFLOWS_VIEW,
+    Perm.AGENTS_RUN: Perm.WORKFLOWS_RUN,
+}
+"""What reaching a workflow step's own agent asks of its workflow; any other
+permission is a change, which only the step makes."""
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -736,10 +746,37 @@ class AgentRegistryService:
         agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
         if agent is None:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
-        allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
+        if agent.workflow_id is not None:
+            allowed = await self._workflow_allows(ctx, agent, agent.workflow_id, perm)
+        else:
+            allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
+
+    async def _workflow_allows(
+        self, ctx: AuthContext, agent: Agent, workflow_id: UUID, perm: Perm
+    ) -> bool:
+        """Whether the caller may do `perm` to an agent a workflow step configures.
+
+        The workflow owns it, so the workflow's access decides: seeing the agent
+        is seeing the workflow, and running it is running the workflow. Changing
+        it is refused here whoever asks - its spec is the step's, edited in the
+        workflow and versioned with it, and an edit made anywhere else would be
+        overwritten by the next run of the step.
+        """
+        workflow_perm = _WORKFLOW_PERMS.get(perm)
+        if workflow_perm is None:
+            raise BadRequestError(
+                message="This agent is configured in its workflow step",
+                details={"agent_id": str(agent.id), "workflow_id": str(agent.workflow_id)},
+            )
+        workflow = await workflow_repo.get(
+            self.db, workflow_id, organization_id=ctx.organization_id
+        )
+        return workflow is not None and await resolve_access(
+            self.db, ctx, workflow, workflow_perm, resource_type=WORKFLOW
+        )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may run this agent - the floor to create a trigger on it.

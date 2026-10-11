@@ -3630,7 +3630,9 @@
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
-      "skills": "Skills"
+      "skills": "Skills",
+      "ownedByWorkflow": "Dieser Agent ist in einem Workflow-Schritt konfiguriert und wird mit diesem Workflow versioniert. Ändern Sie ihn dort.",
+      "openWorkflow": "Workflow öffnen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -6387,7 +6389,26 @@
     "nodeSummaryAnd": " und ",
     "nodeSummaryOr": " oder ",
     "cardAgentVersion": "{name} · v{version}",
-    "pickerVersionLive": "Live"
+    "pickerVersionLive": "Live",
+    "agentSourceCatalog": "Agent aus dem Katalog",
+    "agentSourceInline": "Hier konfigurieren",
+    "agentSourceCopyIn": "Seine Konfiguration in diesen Schritt kopieren",
+    "agentSourceSaveAsAgent": "Als Agent speichern",
+    "agentSourceSaved": "{name} ist ein Entwurf unter Agents. Veröffentlichen Sie ihn, um ihn in einem Schritt zu wählen.",
+    "agentSourceOpenSaved": "Öffnen",
+    "inlineAgentTitle": "Der Agent dieses Schritts",
+    "inlineAgentDescription": "Hier konfiguriert und mit dem Workflow versioniert. Er läuft mit denselben Budgets, Freigaben und Run-Verläufen wie jeder Agent und erscheint nicht im Katalog.",
+    "inlineAgentTabBasics": "Modell und Anweisungen",
+    "inlineAgentTabTools": "Capabilities und Wissen",
+    "inlineAgentTabMcp": "MCP-Server",
+    "inlineAgentName": "Name",
+    "inlineAgentModel": "Modell",
+    "inlineAgentInstructions": "Anweisungen",
+    "inlineAgentInstructionsPlaceholder": "Was dieser Agent in diesem Schritt tut und wie er antworten soll.",
+    "inlineAgentApply": "Diese Konfiguration verwenden",
+    "inlineAgentNoModel": "Kein Modell gewählt",
+    "inlineAgentConfigure": "Konfigurieren",
+    "inlineAgentReach": "{capabilities, plural, =0 {keine Capabilities} =1 {1 Capability} other {# Capabilities}}, {servers, plural, =0 {keine MCP-Server} =1 {1 MCP-Server} other {# MCP-Server}}"
   },
   "artifacts": {
     "title": "Artefakte",

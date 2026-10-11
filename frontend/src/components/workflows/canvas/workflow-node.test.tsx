@@ -18,6 +18,7 @@ import { nodeSummary } from "./workflow-node";
 vi.mock("./node-resource", async (original) => ({
   ...(await original<typeof import("./node-resource")>()),
   AgentTile: ({ agentId }: { agentId: string }) => <span>face of {agentId}</span>,
+  InlineAgentTile: ({ name }: { name: string }) => <span>own face of {name}</span>,
   ResourceLine: ({ pin }: { pin: { id: string } }) => <>uses {pin.id}</>,
 }));
 
@@ -117,10 +118,12 @@ describe("a node card", () => {
     seed([
       instance("a", "data.map", { config: { agent: { agent_id: "a1", version_id: "v1" } } }),
       instance("t", "data.map", { config: { table: { table_id: "t1" } } }),
+      instance("o", "data.map", { config: { inline: { name: "Lead scorer" } } }),
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
 
     expect(screen.getByText("face of a1")).toBeInTheDocument();
+    expect(screen.getByText("own face of Lead scorer")).toBeInTheDocument();
     expect(screen.getByText("uses a1")).toBeInTheDocument();
     expect(screen.getByText("uses t1")).toBeInTheDocument();
   });

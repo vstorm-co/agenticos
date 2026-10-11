@@ -4,12 +4,15 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import { useAgents, useAllAgentVersions, useWorkflowTables, useWorkflows } from "@/hooks";
 import type { NodeInstance } from "@/lib/workflows/types";
 
 /** The agent, table or workflow a step is set to work with, by the id its config pins. */
 export type ResourcePin =
   | { kind: "agent"; id: string; versionId: string | null }
+  /** An agent configured in the step itself, known by the name it was given there. */
+  | { kind: "inline_agent"; name: string }
   | { kind: "table"; id: string }
   | { kind: "workflow"; id: string };
 
@@ -22,6 +25,8 @@ function stringAt(value: unknown, key: string): string | null {
 /** What `instance` pins, or null for a step that names no resource or none yet. */
 export function resourcePin(instance: NodeInstance): ResourcePin | null {
   const { config } = instance;
+  const inlineName = stringAt(config.inline, "name");
+  if (inlineName !== null) return { kind: "inline_agent", name: inlineName };
   const agentId = stringAt(config.agent, "agent_id");
   if (agentId !== null) {
     return { kind: "agent", id: agentId, versionId: stringAt(config.agent, "version_id") };
@@ -62,6 +67,21 @@ export function AgentTile({
   );
 }
 
+/** An agent configured in a step, as the face its name draws - nothing to fetch. */
+export function InlineAgentTile({
+  name,
+  className = "size-8",
+}: {
+  name: string;
+  className?: string;
+}) {
+  return (
+    <span className={`${className} shrink-0`} aria-hidden>
+      <AvatarFace seed={name} />
+    </span>
+  );
+}
+
 type Fallback = { fallback: string | null };
 
 function AgentLine({ pin, fallback }: { pin: Extract<ResourcePin, { kind: "agent" }> } & Fallback) {
@@ -92,6 +112,7 @@ function WorkflowLine({ id, fallback }: { id: string } & Fallback) {
  * caller cannot see, `fallback`: what kind of step it is.
  */
 export function ResourceLine({ pin, fallback }: { pin: ResourcePin } & Fallback) {
+  if (pin.kind === "inline_agent") return pin.name;
   if (pin.kind === "agent") return <AgentLine pin={pin} fallback={fallback} />;
   if (pin.kind === "table") return <TableLine id={pin.id} fallback={fallback} />;
   return <WorkflowLine id={pin.id} fallback={fallback} />;

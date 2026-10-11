@@ -4136,7 +4136,9 @@
       "skills": "Skills",
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
-      "labelCount": "{used} of {max}"
+      "labelCount": "{used} of {max}",
+      "ownedByWorkflow": "This agent is configured in a workflow step and versioned with that workflow. Change it there.",
+      "openWorkflow": "Open the workflow"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -6529,7 +6531,26 @@
     "nodeSummaryAnd": " and ",
     "nodeSummaryOr": " or ",
     "cardAgentVersion": "{name} · v{version}",
-    "pickerVersionLive": "Live"
+    "pickerVersionLive": "Live",
+    "agentSourceCatalog": "Agent from the catalog",
+    "agentSourceInline": "Configure here",
+    "agentSourceCopyIn": "Copy its configuration into this step",
+    "agentSourceSaveAsAgent": "Save as an agent",
+    "agentSourceSaved": "{name} is a draft in Agents. Publish it to pick it in a step.",
+    "agentSourceOpenSaved": "Open",
+    "inlineAgentTitle": "The step's agent",
+    "inlineAgentDescription": "Configured here and versioned with the workflow. It runs with the same budgets, approvals and run history as any agent, and does not appear in the catalog.",
+    "inlineAgentTabBasics": "Model and instructions",
+    "inlineAgentTabTools": "Capabilities and knowledge",
+    "inlineAgentTabMcp": "MCP servers",
+    "inlineAgentName": "Name",
+    "inlineAgentModel": "Model",
+    "inlineAgentInstructions": "Instructions",
+    "inlineAgentInstructionsPlaceholder": "What this agent does in this step, and how it should answer.",
+    "inlineAgentApply": "Use this configuration",
+    "inlineAgentNoModel": "No model chosen",
+    "inlineAgentConfigure": "Configure",
+    "inlineAgentReach": "{capabilities, plural, =0 {no capabilities} =1 {1 capability} other {# capabilities}}, {servers, plural, =0 {no MCP servers} =1 {1 MCP server} other {# MCP servers}}"
   },
   "artifacts": {
     "title": "Artifacts",

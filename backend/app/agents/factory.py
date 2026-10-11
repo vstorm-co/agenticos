@@ -193,6 +193,7 @@ def build_agent(
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
+    run_limit_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
     shared_budget: BudgetGuard | None = None,
@@ -351,6 +352,7 @@ def build_agent(
                 agent_period_spend=agent_period_spend,
                 org_period_spend=org_period_spend,
                 org_monthly_budget_usd=org_monthly_budget_usd,
+                run_limit_usd=run_limit_usd,
             ),
         )
     )
@@ -484,6 +486,7 @@ def _spend_limits(
     agent_period_spend: PeriodSpendLookup | None,
     org_period_spend: PeriodSpendLookup | None,
     org_monthly_budget_usd: Decimal | None,
+    run_limit_usd: Decimal | None = None,
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
 
@@ -511,6 +514,10 @@ def _spend_limits(
     themselves.
     """
     limits: list[SpendLimit] = []
+    # This run's own ceiling, the narrowest of all: no lookup, so it meters
+    # only what this run has spent.
+    if run_limit_usd is not None:
+        limits.append(SpendLimit(scope=BudgetScope.RUN, limit_usd=run_limit_usd))
     if spec.budget is not None and spec.budget.monthly_usd is not None:
         limits.append(
             SpendLimit(

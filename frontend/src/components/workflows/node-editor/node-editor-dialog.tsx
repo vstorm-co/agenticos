@@ -25,7 +25,11 @@ import {
   nodeLevelProblems,
   nodeNames,
 } from "@/components/workflows/property-panel/problems";
-import { AgentTile, resourcePin } from "@/components/workflows/canvas/node-resource";
+import {
+  AgentTile,
+  InlineAgentTile,
+  resourcePin,
+} from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
 import { cn } from "@/lib/utils";
@@ -185,6 +189,8 @@ export function NodeEditorDialog({
         <header className="border-border flex items-start gap-3 border-b px-6 pt-6 pr-14 pb-4">
           {pin?.kind === "agent" ? (
             <AgentTile agentId={pin.id} fallback={tile} className="size-10" />
+          ) : pin?.kind === "inline_agent" ? (
+            <InlineAgentTile name={pin.name} className="size-10" />
           ) : (
             tile
           )}

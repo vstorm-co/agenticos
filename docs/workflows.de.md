@@ -1,5 +1,5 @@
 ---
-source_sha: "87813099990a"
+source_sha: "5969e59fec72"
 ---
 
 # Workflows { #workflows }
@@ -291,6 +291,27 @@ eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
 hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
 Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
+
+### Ein im Schritt konfigurierter Agent { #an-agent-configured-in-the-step }
+
+Ein **Agent**-Schritt legt entweder einen Agent aus dem Katalog fest oder
+definiert mit **Hier konfigurieren** einen eigenen: einen Namen, ein Modell,
+Anweisungen, Capabilities mit dem Wissen, den Skills und Kontextdateien, die sie
+lesen, und MCP-Server - in denselben Editoren wie der Builder. Delegation ist die
+eine Capability, die er nicht erhält, denn der Workflow reicht die Arbeit bereits
+von Schritt zu Schritt weiter.
+
+Dieser Agent gehört dem Workflow. Er wird mit dem Graphen versioniert und erscheint
+nie im Katalog. Sein erster Run legt ihn an, und ein Run nach einer Änderung seiner
+Konfiguration veröffentlicht zuerst eine neue Version, geprüft wie jede
+Veröffentlichung eines Agents. Seine Runs stehen in Activity mit Budget, Freigaben
+und Verlauf wie bei jedem Agent, und seine Seite dort führt zurück zum Workflow.
+
+**Seine Konfiguration in diesen Schritt kopieren** beginnt mit einem Agent aus dem
+Katalog, um ihn anzupassen, und **Als Agent speichern** legt den Agent des Schritts
+als Entwurf in den Katalog, für andere Workflows und Personen. **Max cost (USD)** begrenzt,
+was eine Ausführung des Schritts ausgeben darf, neben den Limits des Agents, des
+Workflows und der Organisation.
 
 ### Wenn ein Schritt langsam ist oder fehlschlägt { #when-a-step-is-slow-or-fails }
 

@@ -1662,6 +1662,20 @@ class TestRunAccounting:
         assert prepare.await_args.kwargs["output_schema"] == schema
 
     @pytest.mark.anyio
+    async def test_a_ceiling_on_one_run_reaches_prepare(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="ok"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "go", run_limit_usd=Decimal("0.5"))
+
+        assert prepare.await_args.kwargs["run_limit_usd"] == Decimal("0.5")
+
+    @pytest.mark.anyio
     async def test_a_text_answer_leaves_the_structured_list_empty(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
@@ -2192,6 +2206,7 @@ class TestParking:
             "dynamic_specialists": [],
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
+            "run_limit_usd": None,
             "output_schema": None,
             "plan": [],
             # What the request asked for, so the continuation is the same run rather
@@ -2584,6 +2599,16 @@ class TestResume:
         )
 
         assert build.call_args.args[0].output_schema == schema
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_stays_under_the_ceiling_its_caller_set(self):
+        """A step's `max_cost_usd` travels on the park like its answer shape: the
+        continuation after an approval is held to it, not given the month."""
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}, "run_limit_usd": "0.75"}
+        )
+
+        assert build.call_args.kwargs["run_limit_usd"] == Decimal("0.75")
 
     @pytest.mark.anyio
     async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):

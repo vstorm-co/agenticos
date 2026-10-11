@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { NodeInstance } from "@/lib/workflows/types";
 
-import { AgentTile, ResourceLine, resourcePin } from "./node-resource";
+import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-resource";
 
 vi.mock("@/hooks", () => ({
   useAgents: () => ({
@@ -28,6 +28,10 @@ describe("resourcePin", () => {
     expect(resourcePin(step({ agent: { agent_id: "a1" } }))).toMatchObject({ versionId: null });
     expect(resourcePin(step({ table: { table_id: "t1" } }))).toEqual({ kind: "table", id: "t1" });
     expect(resourcePin(step({ workflow_id: "w1" }))).toEqual({ kind: "workflow", id: "w1" });
+    expect(resourcePin(step({ inline: { name: "Lead scorer" } }))).toEqual({
+      kind: "inline_agent",
+      name: "Lead scorer",
+    });
   });
 
   it("finds nothing in a step that names no resource yet", () => {
@@ -57,6 +61,15 @@ describe("ResourceLine", () => {
     expect(screen.getByText("Tables")).toBeInTheDocument();
     rerender(<ResourceLine pin={{ kind: "agent", id: "gone", versionId: null }} fallback="A" />);
     expect(screen.getByText("A")).toBeInTheDocument();
+    rerender(<ResourceLine pin={{ kind: "inline_agent", name: "Lead scorer" }} fallback="A" />);
+    expect(screen.getByText("Lead scorer")).toBeInTheDocument();
+  });
+});
+
+describe("InlineAgentTile", () => {
+  it("draws the face the agent's name gives it", () => {
+    const { container } = render(<InlineAgentTile name="Lead scorer" />);
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 });
 

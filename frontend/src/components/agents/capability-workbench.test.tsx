@@ -217,6 +217,20 @@ describe("the capability workbench", () => {
     expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
   });
 
+  it("offers no clear for a spec no agent holds yet", async () => {
+    // A workflow step's agent before its first run: there are no notes to clear,
+    // and no agent to clear them on.
+    renderWorkbench({
+      agentId: null,
+      catalog: [MEMORY_FILES],
+      selected: [binding("memory_files")],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
   it("offers no clear until memory is actually granted", async () => {
     // Reading a capability is not granting it, and an inert panel must not carry
     // a live destructive button.

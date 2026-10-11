@@ -1,5 +1,5 @@
 ---
-source_sha: "87813099990a"
+source_sha: "5969e59fec72"
 ---
 
 # Workflows { #workflows }
@@ -273,6 +273,26 @@ ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la li
 está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
 ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
 un aviso visible y no una ruptura silenciosa.
+
+### Un agent configurado en el paso { #an-agent-configured-in-the-step }
+
+Un paso **Agent** fija un agent del catálogo o, con **Configurar aquí**, define el
+suyo: un nombre, un modelo, instrucciones, capabilities con el conocimiento, los
+skills y los archivos de contexto que leen, y servidores MCP, con los mismos
+editores que el Builder. La delegación es la única capability que no se le ofrece,
+porque el workflow ya es donde el trabajo pasa de un paso a otro.
+
+Ese agent pertenece al workflow. Se versiona con el grafo y nunca aparece en el
+catálogo. Su primer run lo crea, y un run tras cambiar su configuración publica
+primero una nueva versión, comprobada como cualquier publicación de un agent. Sus
+runs aparecen en Activity con su presupuesto, aprobaciones e historial como los de
+cualquier agent, y su página allí te devuelve al workflow.
+
+**Copiar su configuración a este paso** parte de un agent del catálogo para
+ajustarlo, y **Guardar como agent** pone el agent del paso en el catálogo como
+borrador para otros workflows y personas. **Max cost (USD)** limita lo que puede gastar
+una ejecución del paso, junto a los límites del agent, del workflow y de la
+organización.
 
 ### Cuando un paso es lento o falla { #when-a-step-is-slow-or-fails }
 

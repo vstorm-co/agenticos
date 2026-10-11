@@ -1,5 +1,5 @@
 ---
-source_sha: "c43c27daa5da"
+source_sha: "728fe1cd837f"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -343,6 +343,16 @@ Guardrails und Run-Historie des Agents. Der Run wird mit der Oberfläche
 `workflow` festgehalten. Gebundene `sources` werden als nummerierter Kontext an
 den Prompt angehängt. Ein freigabepflichtiger Tool-Aufruf hält den Schritt an,
 und die Entscheidung setzt denselben Agent-Run fort.
+
+`inline` konfiguriert den Agent im Schritt statt `agent`, und genau eines von beiden
+ist gesetzt. Die Spec gehört dem Schritt und wird mit dem Graphen versioniert: Der
+erste Run legt einen Agent an, der dem Workflow gehört, nicht im Katalog erscheint
+und über den Zugriff auf den Workflow erreicht wird, und ein Run, dessen Spec von
+der neuesten Version dieses Agents abweicht, veröffentlicht zuerst eine neue -
+geprüft wie jede Veröffentlichung eines Agents. Das Veröffentlichen des Workflows
+prüft die Spec gegen den Zugriff seines Autors. `max_cost_usd` begrenzt eine
+Ausführung: Der Agent hält vor einer Modellanfrage darüber an, und der Schritt
+schlägt mit `AGENT_BUDGET_EXCEEDED` fehl.
 
 Ein Agent mit eigenem Antwortformat gibt sein Objekt als `structured` weiter.
 `structured_output_schema` verlangt stattdessen eine andere Form: Der Agent läuft

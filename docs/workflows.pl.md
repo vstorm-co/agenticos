@@ -1,5 +1,5 @@
 ---
-source_sha: "87813099990a"
+source_sha: "5969e59fec72"
 ---
 
 # Workflows { #workflows }
@@ -265,6 +265,25 @@ utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole 
 **Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
 **Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
 zachętą, a nie cichym pęknięciem.
+
+### Agent skonfigurowany w kroku { #an-agent-configured-in-the-step }
+
+Krok **Agent** albo przypina agenta z katalogu, albo - po wybraniu **Skonfiguruj
+tutaj** - definiuje własnego: nazwę, model, instrukcje, capabilities razem z
+wiedzą, skillami i plikami kontekstu, z których korzystają, oraz serwery MCP, w
+tych samych edytorach co Builder. Jedyną capability, której nie dostaje, jest
+delegowanie, bo to workflow przekazuje pracę z kroku do kroku.
+
+Taki agent należy do workflow. Jest wersjonowany razem z grafem i nie pojawia się
+w katalogu. Tworzy go pierwszy run, a run po zmianie konfiguracji najpierw
+publikuje jego nową wersję, sprawdzaną tak jak publikacja każdego agenta. Jego
+runy widać w Activity z budżetem, zatwierdzeniami i historią jak u każdego agenta,
+a jego strona odsyła z powrotem do workflow.
+
+**Skopiuj jego konfigurację do tego kroku** zaczyna od agenta z katalogu, żeby go
+dopasować, a **Zapisz jako agenta** umieszcza agenta kroku w katalogu jako szkic
+dla innych workflow i osób. **Max cost (USD)** ogranicza, ile może wydać jedno wykonanie
+kroku, obok limitów agenta, workflow i organizacji.
 
 ### Gdy krok jest wolny albo zawodzi { #when-a-step-is-slow-or-fails }
 

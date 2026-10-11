@@ -38,8 +38,10 @@ interface CapabilityWorkbenchProps {
    * Only one panel needs it - memory, whose notes are cleared from inside the
    * capability that keeps them, because there is no browsing surface for them
    * anywhere else (#1470). Everything else here edits a spec and needs no id.
+   * Null for a spec no agent row holds yet - a workflow step's, before its first
+   * run - which has no notes to clear.
    */
-  agentId: string;
+  agentId: string | null;
   catalog: CapabilityCatalogEntry[];
   selected: CapabilityBindingSpec[];
   onToggle: (capabilityId: string) => void;
@@ -322,7 +324,7 @@ export function CapabilityWorkbench({
                 // them, because nothing anywhere else in the console reads or
                 // writes them.
                 settingsFooter={
-                  focused.id === MEMORY_FILES_ID && isOn ? (
+                  focused.id === MEMORY_FILES_ID && isOn && agentId !== null ? (
                     <ClearAgentMemory
                       agentId={agentId}
                       usesMem0={selected.some(

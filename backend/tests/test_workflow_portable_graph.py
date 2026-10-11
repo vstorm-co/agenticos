@@ -107,3 +107,44 @@ def test_a_step_this_deployment_does_not_have_is_named():
     with pytest.raises(GraphValidationError) as refused:
         portable(WorkflowGraph(entry_node_id=unknown.id, nodes=(unknown,)))
     assert f"nodes.{unknown.id}" in str(refused.value.details)
+
+
+def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
+    """Its instructions and capabilities are the point of exporting it; its model,
+    knowledge, servers, delegates and a capability's secret are this deployment's."""
+    spec = {
+        "name": "Lead scorer",
+        "instructions": "Score the lead.",
+        "model_profile_id": str(uuid.uuid4()),
+        "collection_ids": [str(uuid.uuid4())],
+        "capabilities": [
+            {"id": "web_research", "config": {"secret_id": str(uuid.uuid4()), "max_results": 3}},
+            {"id": "clock"},
+        ],
+        "mcp_servers": [{"connection_id": str(uuid.uuid4())}],
+    }
+    step = _node("agent.run", {"inline": spec, "max_cost_usd": 0.5})
+
+    graph, unresolved = portable(
+        WorkflowGraph(entry_node_id=step.id, nodes=(step,), edges=(), bindings=())
+    )
+
+    kept = graph.nodes[0].config
+    assert kept["max_cost_usd"] == 0.5
+    assert kept["inline"] == {
+        "name": "Lead scorer",
+        "instructions": "Score the lead.",
+        "collection_ids": [],
+        "capabilities": [
+            {"id": "web_research", "config": {"max_results": 3}},
+            {"id": "clock"},
+        ],
+        "mcp_servers": [],
+    }
+    assert sorted(entry.field for entry in unresolved) == [
+        "inline.capabilities.0.config.secret_id",
+        "inline.collection_ids.0",
+        "inline.mcp_servers.0",
+        "inline.model_profile_id",
+    ]
+    assert {entry.kind for entry in unresolved} == {"agent_spec"}

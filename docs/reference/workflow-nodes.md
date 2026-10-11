@@ -318,6 +318,15 @@ run history. The run is recorded with the surface `workflow`. Bound `sources`
 are appended to the prompt as numbered context. An approval-gated tool call
 parks the step, and the decision resumes the same agent run.
 
+`inline` configures the agent in the step instead of `agent`, and exactly one of
+the two is set. The spec is the step's, versioned with the graph: the first run
+creates an agent owned by the workflow, kept out of the catalog and reached
+through the workflow's access, and a run whose spec differs from that agent's
+newest version publishes one first, checked as publishing an agent is. Publishing
+the workflow checks the spec against its author's access. `max_cost_usd` caps one
+execution: the agent stops before a model request past it, and the step fails
+with `AGENT_BUDGET_EXCEEDED`.
+
 An agent with an answer format of its own hands its object on as `structured`.
 `structured_output_schema` asks for another shape in its place: the agent is run
 with that schema, and an answer that breaks it is sent back to the model to be

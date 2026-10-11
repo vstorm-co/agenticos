@@ -62,6 +62,10 @@ class LockScope(IntEnum):
     #: inserts, which two creates can do at once and both pass at limit - 1, so
     #: creates into one table take turns for the length of the check (#1823).
     VIRTUAL_TABLE_RECORD_COUNT = 9
+    #: The agent one workflow step configures in place. Its first run creates it and
+    #: a changed spec publishes a version, each read-then-write: two runs of the step
+    #: at once would otherwise create it twice or publish the same spec twice.
+    WORKFLOW_STEP_AGENT = 10
 
 
 def _key(subject: UUID) -> int:

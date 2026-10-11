@@ -16,6 +16,29 @@ import type { Schema } from "./schema-model";
 // The resource pickers are covered in their own suite; here they stand in as
 // simple controls so the form's wiring — which picker, and what it writes — is
 // what is under test.
+vi.mock("@/components/workflows/agent-step/agent-source-field", () => ({
+  AgentSourceField: ({
+    config,
+    stepName,
+    error,
+    onChange,
+  }: {
+    config: Record<string, unknown>;
+    stepName: string;
+    error?: string;
+    onChange: (next: Record<string, unknown>) => void;
+  }) => (
+    <div>
+      <span>{`agent-source:${stepName}:${JSON.stringify(config)}:${error ?? ""}`}</span>
+      <button
+        type="button"
+        aria-label="go-inline"
+        onClick={() => onChange({ inline: { name: "x" } })}
+      />
+    </div>
+  ),
+}));
+
 vi.mock("@/components/workflows/pickers", () => ({
   ChannelBotPicker: ({
     value,
@@ -326,6 +349,35 @@ describe("NodeForm sections", () => {
     await userEvent.click(screen.getByRole("option", { name: "As the agent answers" }));
     // Back to the agent's own: the override leaves the config altogether.
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("draws an agent step's agent as one field, whichever half is set", async () => {
+    const agentRun = makeDefinition({
+      id: "agent.run",
+      name: "Agent",
+      config_schema: {
+        type: "object",
+        properties: {
+          agent: { "x-resource": "agent" },
+          inline: { "x-agent-spec": true },
+          max_cost_usd: { type: "number" },
+        },
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({
+      definition: agentRun,
+      config: { inline: { name: "Scorer" } },
+      errors: new Map([["inline", "No model selected"]]),
+      folded: true,
+    });
+
+    expect(
+      screen.getByText('agent-source:Agent:{"inline":{"name":"Scorer"}}:No model selected'),
+    ).toBeVisible();
+    // `inline` is the same field, never a second control or a folded option.
+    expect(screen.getByRole("button", { name: "1 more option" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "go-inline" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { inline: { name: "x" } });
   });
 
   it("opens an agent step with no override on the agent's own format", () => {

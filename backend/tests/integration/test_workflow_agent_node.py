@@ -27,17 +27,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.agents.spec import AgentSpec
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus
+from app.repositories import agent_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.rag.models import SearchResult
+from app.services.workflow_agents import WorkflowAgentService
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
@@ -634,3 +639,132 @@ async def test_an_image_the_run_was_not_given_is_not_shown(engine: AsyncEngine, 
 
     assert run.status == WorkflowRunStatus.FAILED.value
     assert run.error is not None and run.error["code"] == "FILE_NOT_FOUND"
+
+
+async def _inline_setup(engine: AsyncEngine, instructions: str) -> SeededRun:
+    """A run of a graph whose `agent.run` step configures its agent in place."""
+    member = await _tenant(engine)
+    profile_id = await _profile(engine, member[1])
+    spec = {
+        "name": "Lead scorer",
+        "instructions": instructions,
+        "model_profile_id": str(profile_id),
+    }
+
+    def graph_for(_agent: uuid.UUID, _version: uuid.UUID) -> WorkflowGraph:
+        graph = _graph(_agent, _version)
+        ask = graph.nodes[1]
+        inline = ask.model_copy(update={"config": {"inline": spec}})
+        return graph.model_copy(update={"nodes": (graph.nodes[0], inline, graph.nodes[2])})
+
+    return await seed_run(
+        engine,
+        graph_for(uuid.uuid4(), uuid.uuid4()),
+        run_input={"q": "Score this lead"},
+        member=member,
+    )
+
+
+async def test_an_agent_configured_in_the_step_answers_and_stays_out_of_the_catalog(
+    engine: AsyncEngine, model
+):
+    recorder = model("Warm lead.")
+    seeded = await _inline_setup(engine, "Score leads for the sales team.")
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert any("Score leads for the sales team." in text for text in recorder.instructions)
+    async with seeded.factory() as db:
+        (agent,) = (
+            await db.execute(select(Agent).where(Agent.workflow_id == seeded.run.workflow_id))
+        ).scalars()
+        (agent_run,) = (await db.execute(select(AgentRun))).scalars()
+        listed, total = await AgentRegistryService(db).list_agents(seeded.ctx)
+        counted = await agent_repo.count_for_organization(db, organization_id=seeded.org.id)
+    assert agent.workflow_node_id == seeded.graph.nodes[1].id
+    assert agent.status == "published" and agent.name == "Lead scorer"
+    assert agent_run.agent_id == agent.id and agent_run.surface == RunSurface.WORKFLOW.value
+    assert agent.id not in {row.id for row in listed} and total == 0
+    assert counted == 0
+
+
+async def test_an_unchanged_spec_reuses_its_version_and_a_changed_one_publishes(
+    engine: AsyncEngine,
+):
+    seeded = await _inline_setup(engine, "First instructions.")
+    node = seeded.graph.nodes[1]
+    spec = AgentSpec.model_validate(node.config["inline"])
+    workflow_id = seeded.run.workflow_id
+
+    async with seeded.factory() as db:
+        service = WorkflowAgentService(db)
+        first = await service.version_for(
+            seeded.ctx, workflow_id=workflow_id, node_id=node.id, spec=spec
+        )
+        again = await service.version_for(
+            seeded.ctx, workflow_id=workflow_id, node_id=node.id, spec=spec
+        )
+        changed = await service.version_for(
+            seeded.ctx,
+            workflow_id=workflow_id,
+            node_id=node.id,
+            spec=spec.model_copy(update={"instructions": "Second instructions."}),
+        )
+        versions = await agent_repo.count_versions(
+            db, agent_id=first[0], organization_id=seeded.org.id
+        )
+        await db.commit()
+
+    assert again == first
+    assert changed[0] == first[0] and changed[1] != first[1]
+    assert versions == 2
+
+
+async def test_a_spec_the_caller_cannot_publish_is_refused_before_a_version(engine: AsyncEngine):
+    seeded = await _inline_setup(engine, "Whatever.")
+    node = seeded.graph.nodes[1]
+    no_model = AgentSpec(name="No model", instructions="x")
+
+    async with seeded.factory() as db:
+        service = WorkflowAgentService(db)
+        assert await service.problems(seeded.ctx, no_model) == [
+            "No model selected - pick one before publishing"
+        ]
+        assert (
+            await service.problems(seeded.ctx, AgentSpec.model_validate(node.config["inline"]))
+            == []
+        )
+        with pytest.raises(BadRequestError):
+            await service.version_for(
+                seeded.ctx, workflow_id=seeded.run.workflow_id, node_id=node.id, spec=no_model
+            )
+
+
+@pytest.mark.security
+async def test_the_steps_agent_is_reached_through_its_workflow_and_changed_only_there(
+    engine: AsyncEngine, model
+):
+    model("ok")
+    seeded = await _inline_setup(engine, "Answer.")
+    await drive(seeded)
+    async with seeded.factory() as db:
+        (agent,) = (
+            await db.execute(select(Agent).where(Agent.workflow_id == seeded.run.workflow_id))
+        ).scalars()
+        outsider, _org = await seed_member(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=seeded.org.id, user_id=outsider.id, role="member"
+            )
+        )
+        await db.flush()
+        registry = AgentRegistryService(db)
+
+        assert (await registry.get(seeded.ctx, agent.id)).id == agent.id
+        assert (await registry.get(seeded.ctx, agent.id, perm=Perm.AGENTS_RUN)).id == agent.id
+        with pytest.raises(BadRequestError, match="configured in its workflow step"):
+            await registry.get(seeded.ctx, agent.id, perm=Perm.AGENTS_EDIT)
+        stranger = AuthContext(user_id=outsider.id, organization_id=seeded.org.id, role="member")
+        with pytest.raises(NotFoundError):
+            await registry.get(stranger, agent.id)

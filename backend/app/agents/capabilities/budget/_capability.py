@@ -64,11 +64,21 @@ class BudgetScope(StrEnum):
 
     AGENT = "agent"
     ORGANIZATION = "organization"
+    RUN = "run"
+    """One run's own ceiling, set by whoever started it - a workflow step's
+    `max_cost_usd`. Metered against this run's ledger, never a period."""
 
     @property
     def label(self) -> str:
         """How the refusal names it to the person reading it."""
-        return "Agent monthly" if self is BudgetScope.AGENT else "Organization monthly"
+        return _SCOPE_LABELS[self]
+
+
+_SCOPE_LABELS = {
+    BudgetScope.AGENT: "Agent monthly",
+    BudgetScope.ORGANIZATION: "Organization monthly",
+    BudgetScope.RUN: "This run's",
+}
 
 
 class BudgetExceeded(Exception):

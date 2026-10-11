@@ -19,7 +19,10 @@ register(
         version=1,
         name="Run an agent",
         category="agent",
-        description="Ask a published agent, at a pinned version, and use its answer.",
+        description=(
+            "Ask an agent - one from the catalog at a pinned version, or one configured "
+            "in this step - and use its answer."
+        ),
         kind="action",
         config_schema=AgentRunConfig,
         input_schema=AgentRunInput,

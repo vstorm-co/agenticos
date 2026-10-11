@@ -20,6 +20,7 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/components/workflows/canvas/node-resource", async (original) => ({
   ...(await original<typeof import("@/components/workflows/canvas/node-resource")>()),
   AgentTile: ({ agentId }: { agentId: string }) => <span>face of {agentId}</span>,
+  InlineAgentTile: ({ name }: { name: string }) => <span>own face of {name}</span>,
 }));
 
 const store = useWorkflowEditorStore;
@@ -68,6 +69,14 @@ describe("NodeEditorDialog", () => {
     render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
 
     expect(screen.getByText("face of a1")).toBeInTheDocument();
+  });
+
+  it("heads a step that configures its own agent with that agent's face", () => {
+    seed(node("a", "debug.echo", { inline: { name: "Lead scorer" } }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+
+    expect(screen.getByText("own face of Lead scorer")).toBeInTheDocument();
   });
 
   it("deletes the step it shows", async () => {

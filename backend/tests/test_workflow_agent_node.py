@@ -7,6 +7,7 @@ real model would need an approval-gated tool or a spent budget to reach.
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -224,3 +225,87 @@ async def test_an_object_that_breaks_the_steps_schema_fails_before_the_next_step
     assert isinstance(result, Failed) and result.error.code == "STRUCTURED_OUTPUT_MISMATCH"
     # Where and which rule, never the value: the value is the agent's answer.
     assert result.error.details == {"path": "score", "rule": "type"}
+
+
+_SPEC = {"name": "Lead scorer", "instructions": "Score the lead from 0 to 10."}
+
+
+def test_a_step_names_one_agent_never_none_or_both():
+    with pytest.raises(ValidationError, match="configure one in this step"):
+        AgentRunConfig.model_validate({})
+    with pytest.raises(ValidationError, match="configure one in this step"):
+        AgentRunConfig.model_validate({"agent": _AGENT, "inline": _SPEC})
+    assert AgentRunConfig.model_validate({"inline": _SPEC}).inline is not None
+
+
+async def test_an_agent_configured_here_runs_the_version_of_its_spec(runner, monkeypatch):
+    """The step's own agent: its spec is published (or reused) by the service, and
+    the run is the runner's like any other, with the step's ceiling on it."""
+    agent_id, version_id = uuid.uuid4(), uuid.uuid4()
+    service = MagicMock(version_for=AsyncMock(return_value=(agent_id, version_id)))
+    monkeypatch.setattr(agent_node, "WorkflowAgentService", lambda _db: service)
+    runner.execute.return_value = ("8", _run(RunStatus.COMPLETED))
+    dispatch = dataclasses.replace(_dispatch(), workflow_id=uuid.uuid4())
+
+    with context.dispatching_as(dispatch):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"inline": _SPEC, "max_cost_usd": 0.25}),
+            AgentRunInput(prompt="Score this lead"),
+        )
+
+    assert isinstance(result, Completed)
+    kwargs = service.version_for.await_args.kwargs
+    assert (kwargs["workflow_id"], kwargs["node_id"]) == (
+        dispatch.workflow_id,
+        dispatch.node_instance_id,
+    )
+    assert kwargs["spec"].name == "Lead scorer"
+    assert runner.execute.await_args.args[1] == agent_id
+    assert runner.execute.await_args.kwargs["version_id"] == version_id
+    assert runner.execute.await_args.kwargs["run_limit_usd"] == Decimal("0.25")
+
+
+async def test_a_catalog_agent_carries_no_ceiling_unless_the_step_sets_one(runner):
+    runner.execute.return_value = ("ok", _run(RunStatus.COMPLETED))
+
+    await _call()
+
+    assert runner.execute.await_args.kwargs["run_limit_usd"] is None
+
+
+async def test_an_agent_configured_here_runs_only_inside_its_workflow(runner):
+    with context.dispatching_as(_dispatch()):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"inline": _SPEC}), AgentRunInput(prompt="x")
+        )
+
+    assert isinstance(result, Failed)
+    assert result.error.code == "AGENT_NOT_CONFIGURED"
+    runner.execute.assert_not_awaited()
+
+
+async def test_a_spec_the_principal_cannot_publish_fails_the_step(runner, monkeypatch):
+    from app.core.exceptions import BadRequestError
+
+    refusal = BadRequestError(message="This agent cannot be published yet", details={})
+    service = MagicMock(version_for=AsyncMock(side_effect=refusal))
+    monkeypatch.setattr(agent_node, "WorkflowAgentService", lambda _db: service)
+    dispatch = dataclasses.replace(_dispatch(), workflow_id=uuid.uuid4())
+
+    with context.dispatching_as(dispatch):
+        result = await agent_node.handle(
+            AgentRunConfig.model_validate({"inline": _SPEC}), AgentRunInput(prompt="x")
+        )
+
+    assert isinstance(result, Failed)
+    runner.execute.assert_not_awaited()
+
+
+async def test_publishing_checks_a_spec_configured_here_as_an_agent_publish_would(monkeypatch):
+    service = MagicMock(problems=AsyncMock(return_value=["No model selected"]))
+    monkeypatch.setattr(agent_node, "WorkflowAgentService", lambda _db: service)
+    config = AgentRunConfig.model_validate({"inline": _SPEC})
+
+    problems = await agent_node.check_resources(MagicMock(), _dispatch().auth, config)
+
+    assert problems == [("inline", "No model selected")]

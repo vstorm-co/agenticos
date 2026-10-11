@@ -26,7 +26,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { NodeRunStatusLabel } from "@/components/workflows/runs/run-status";
 
 import { useCanvasInteraction } from "./canvas-context";
-import { AgentTile, ResourceLine, resourcePin } from "./node-resource";
+import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-resource";
 import { useIsRunView, useNodeRunSummary } from "./run-overlay";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
 import { QuickAdd } from "./quick-add";
@@ -363,7 +363,13 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       ))}
 
       <div className="flex items-start gap-2.5 p-3">
-        {pin?.kind === "agent" ? <AgentTile agentId={pin.id} fallback={tile} /> : tile}
+        {pin?.kind === "agent" ? (
+          <AgentTile agentId={pin.id} fallback={tile} />
+        ) : pin?.kind === "inline_agent" ? (
+          <InlineAgentTile name={pin.name} />
+        ) : (
+          tile
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-sm leading-5 font-medium">{name}</span>

@@ -1,11 +1,21 @@
-"""`agent.run`: ask a published agent, at the exact version the step pins.
+"""`agent.run`: ask an agent - one from the catalog, or one configured in the step.
 
-The step names an agent *and* one of its published versions, and there is no
-way to say "whatever is published now": a workflow that was reviewed against
-version 4 keeps running version 4 until someone edits the step. The run goes
-through `AgentRunnerService` like every other surface's, so the agent's budget,
-approvals, guardrails and run history are the ones it always has; the run is
-stamped `surface=workflow` and acts as the workflow run's principal.
+**A catalog agent is pinned.** The step names an agent *and* one of its
+published versions, and there is no way to say "whatever is published now": a
+workflow that was reviewed against version 4 keeps running version 4 until
+someone edits the step.
+
+**An agent configured here is the workflow's own.** Its spec - model,
+instructions, capabilities, knowledge, MCP servers - is the step's `inline`
+configuration, versioned with the graph. The step's first run creates it and a
+changed spec publishes a version first, checked as publishing an agent is (see
+`app/services/workflow_agents.py`); it never appears in the catalog.
+
+Either way the run goes through `AgentRunnerService` like every other surface's,
+so the agent's budget, approvals, guardrails and run history are the ones it
+always has; the run is stamped `surface=workflow` and acts as the workflow
+run's principal. `max_cost_usd` is a ceiling on one execution of the step,
+checked before every model request beside the agent's and the organization's.
 
 **An approval parks the node, and the wake resumes the same agent run.** When
 the agent stops on an approval-gated tool, the handler reports the agent run it
@@ -35,11 +45,11 @@ from uuid import UUID
 
 from jsonschema import exceptions as jsonschema_errors
 from jsonschema import validators
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import checked_output_schema
+from app.agents.spec import AgentSpec, checked_output_schema
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -47,6 +57,7 @@ from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
+from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import context
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
@@ -83,13 +94,32 @@ class AgentVersionPin(BaseModel):
 
 
 class AgentRunConfig(BaseModel):
-    """Which agent version answers, and the shape its answer must have, if any."""
+    """Which agent answers - pinned from the catalog or configured here - and how."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    agent: AgentVersionPin = Field(
+    agent: AgentVersionPin | None = Field(
+        default=None,
         json_schema_extra={"x-resource": "agent"},
-        description="The agent and the published version this step runs.",
+        description="An agent from the catalog, and the published version this step runs.",
+    )
+    inline: AgentSpec | None = Field(
+        default=None,
+        json_schema_extra={"x-agent-spec": True},
+        description=(
+            "An agent configured in this step - model, instructions, capabilities, "
+            "knowledge and MCP servers - versioned with the workflow."
+        ),
+    )
+    max_cost_usd: float | None = Field(
+        default=None,
+        title="Max cost (USD)",
+        gt=0,
+        le=1000,
+        description=(
+            "The most one execution of this step may spend on model requests, in USD. "
+            "Empty leaves only the agent's, the workflow's and the organization's limits."
+        ),
     )
     structured_output_schema: dict[str, Any] | None = Field(
         default=None,
@@ -100,6 +130,12 @@ class AgentRunConfig(BaseModel):
     )
 
     _a_schema = field_validator("structured_output_schema")(checked_output_schema)
+
+    @model_validator(mode="after")
+    def _one_agent(self) -> AgentRunConfig:
+        if (self.agent is None) == (self.inline is None):
+            raise ValueError("Pick an agent from the catalog or configure one in this step")
+        return self
 
 
 class AgentRunInput(BaseModel):
@@ -131,8 +167,14 @@ class AgentRunOutput(BaseModel):
 async def check_resources(
     db: AsyncSession, ctx: AuthContext, config: BaseModel
 ) -> list[tuple[str, str]]:
-    """Refuse an agent version the graph's author cannot run."""
+    """Refuse an agent version the graph's author cannot run, or a spec they could
+    not publish."""
     if not isinstance(config, AgentRunConfig):
+        return []
+    if config.inline is not None:
+        problems = await WorkflowAgentService(db).problems(ctx, config.inline)
+        return [("inline", problem) for problem in problems]
+    if config.agent is None:  # pragma: no cover - `_one_agent` holds one of the two
         return []
     try:
         await AgentRegistryService(db).get_pinned_spec(
@@ -261,6 +303,29 @@ async def _images(refs: tuple[FileRef, ...]) -> list[BinaryContent] | Failed:
     return images
 
 
+async def _pinned(db: AsyncSession, config: AgentRunConfig) -> tuple[UUID, UUID] | Failed:
+    """The agent and version this step runs: the catalog pin, or the version of the
+    agent configured here that matches its spec, published first if it changed."""
+    if config.inline is None:
+        if config.agent is None:  # pragma: no cover - `_one_agent` holds one of the two
+            raise AssertionError("an agent.run config with no agent")
+        return config.agent.agent_id, config.agent.version_id
+    current = context.current()
+    if current.workflow_id is None:
+        return Failed(
+            error=WorkflowError(
+                code="AGENT_NOT_CONFIGURED",
+                message="An agent configured in a step runs only as part of its workflow",
+            )
+        )
+    return await WorkflowAgentService(db).version_for(
+        current.auth,
+        workflow_id=current.workflow_id,
+        node_id=current.node_instance_id,
+        spec=config.inline,
+    )
+
+
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Run the pinned agent version, or continue the run it parked on."""
     if not isinstance(config, AgentRunConfig) or not isinstance(node_input, AgentRunInput):
@@ -284,17 +349,24 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 images = await _images(node_input.attachments)
                 if isinstance(images, Failed):
                     return images
+                pinned = await _pinned(db, config)
+                if isinstance(pinned, Failed):
+                    return pinned
+                agent_id, version_id = pinned
                 answers: list[dict[str, Any]] = []
                 text, run = await runner.execute(
                     current.auth,
-                    config.agent.agent_id,
+                    agent_id,
                     _prompt(node_input),
                     said=node_input.prompt,
                     surface=RunSurface.WORKFLOW,
-                    version_id=config.agent.version_id,
+                    version_id=version_id,
                     content=images,
                     output_schema=config.structured_output_schema,
                     structured=answers,
+                    run_limit_usd=(
+                        None if config.max_cost_usd is None else Decimal(str(config.max_cost_usd))
+                    ),
                 )
                 answer = answers[0] if answers else None
     except AppException as exc:
@@ -302,7 +374,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     except Exception:
         # A model provider's own text can carry a request URL with a key in it.
         logger.exception(
-            "workflow_agent_run_failed", extra={"agent_id": str(config.agent.agent_id)}
+            "workflow_agent_run_failed", extra={"node_run_id": str(current.node_run_id)}
         )
         return Failed(
             error=WorkflowError(

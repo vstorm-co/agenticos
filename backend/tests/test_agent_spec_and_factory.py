@@ -546,6 +546,25 @@ class TestBudgetComposition:
     def _lookups(built) -> dict[BudgetScope, object]:
         return {limit.scope: limit.period_spend for limit in built.budget.limits}
 
+    def test_a_run_s_own_ceiling_is_the_narrowest_and_meters_only_the_run(self):
+        """A workflow step's `max_cost_usd`: first, so a run under several spent
+        ceilings names its own, and with no period lookup - this run's ledger only."""
+        built = build_agent(
+            AgentSpec(name="x", budget={"monthly_usd": 10}),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            org_monthly_budget_usd=Decimal("40"),
+            run_limit_usd=Decimal("0.5"),
+        )
+
+        assert self._limits(built) == [
+            (BudgetScope.RUN, Decimal("0.5")),
+            (BudgetScope.AGENT, Decimal("10")),
+            (BudgetScope.ORGANIZATION, Decimal("40")),
+        ]
+        assert self._lookups(built)[BudgetScope.RUN] is None
+        assert BudgetScope.RUN.label == "This run's"
+
     def test_org_limit_applies_when_the_agent_sets_none(self):
         built = build_agent(
             AgentSpec(name="x"),

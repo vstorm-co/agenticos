@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Configure an agent inside a workflow step.** An Agent step pins a catalog
+  agent or, with **Configure here**, defines its own - model, instructions,
+  capabilities with their knowledge, and MCP servers - in the Builder's own
+  editors. The agent is the workflow's: versioned with the graph, created on the
+  step's first run, republished when its spec changes, kept out of the catalog and
+  reached through the workflow's access. **Copy its configuration into this step**
+  and **Save as an agent** move between the two. `max_cost_usd` caps one execution
+  of the step. Migration `0128_workflow_agents`.
+
 - **A workflow note can be tinted** grey, yellow, green, blue, purple or red
   from the swatches a selected note shows; the graph keeps the colour.
 - **A table column's type can change** to one its values read as: anything to
