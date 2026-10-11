@@ -15,6 +15,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -339,7 +340,17 @@ class TestWhatAPageGained:
         with (
             patch(
                 f"{PATH}.artifact_repo.publishing_agents",
-                new=AsyncMock(return_value=[(agent_id, "Reporter")]),
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            id=agent_id,
+                            slug="reporter",
+                            has_avatar=False,
+                            avatar_color=None,
+                            name="Reporter",
+                        )
+                    ]
+                ),
             ),
             patch(
                 f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
@@ -350,7 +361,17 @@ class TestWhatAPageGained:
                 agents = await http.get(_url("/agents"))
                 filtered = await http.get(_url(f"?agent_id={agent_id}"))
         assert agents.status_code == 200
-        assert agents.json() == {"items": [{"id": str(agent_id), "name": "Reporter"}]}
+        assert agents.json() == {
+            "items": [
+                {
+                    "id": str(agent_id),
+                    "name": "Reporter",
+                    "slug": "reporter",
+                    "has_avatar": False,
+                    "avatar_color": None,
+                }
+            ]
+        }
         assert filtered.status_code == 200
         assert listing.await_args.kwargs["agent_id"] == agent_id
 

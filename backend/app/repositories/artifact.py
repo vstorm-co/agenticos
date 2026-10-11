@@ -185,7 +185,7 @@ async def publishing_agents(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
-) -> list[tuple[UUID, str]]:
+) -> list[Agent]:
     """The agents behind the artifacts one member may see, by name - an agent filter's options.
 
     Named through the artifacts rather than the agents the member may open: a page
@@ -200,13 +200,13 @@ async def publishing_agents(
         shared_with_me=False,
     )
     result = await db.execute(
-        select(Agent.id, Agent.name)
+        select(Agent)
         .join(Artifact, Artifact.agent_id == Agent.id)
         .where(*where)
         .distinct()
         .order_by(Agent.name.asc(), Agent.id.asc())
     )
-    return [(row[0], row[1]) for row in result.all()]
+    return list(result.scalars().all())
 
 
 async def create(

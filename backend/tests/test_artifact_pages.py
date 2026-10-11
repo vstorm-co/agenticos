@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -854,11 +855,24 @@ class TestAgentFilter:
             patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=shared)),
             patch(
                 f"{PATH}.artifact_repo.publishing_agents",
-                new=AsyncMock(return_value=[(agent_id, "Reporter")]),
+                new=AsyncMock(
+                    return_value=[
+                        SimpleNamespace(
+                            id=agent_id,
+                            slug="reporter",
+                            has_avatar=True,
+                            avatar_color=3,
+                            name="Reporter",
+                        )
+                    ]
+                ),
             ) as agents,
         ):
             result = await _service().publishing_agents(ctx)
-        assert [(item.id, item.name) for item in result.items] == [(agent_id, "Reporter")]
+        assert [
+            (item.id, item.name, item.slug, item.has_avatar, item.avatar_color)
+            for item in result.items
+        ] == [(agent_id, "Reporter", "reporter", True, 3)]
         assert agents.await_args.kwargs["see_all"] is False
         assert agents.await_args.kwargs["shared_ids"] == shared
 

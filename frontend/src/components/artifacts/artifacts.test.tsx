@@ -354,8 +354,8 @@ describe("the version picker", () => {
 
 describe("the agent filter", () => {
   const agents = [
-    { id: "ag1", name: "Reporter" },
-    { id: "ag2", name: "Analyst" },
+    { id: "ag1", name: "Reporter", slug: "reporter", has_avatar: false, avatar_color: null },
+    { id: "ag2", name: "Analyst", slug: "analyst", has_avatar: true, avatar_color: 4 },
   ];
 
   it("is not drawn with one publisher and no filter on", () => {

@@ -243,6 +243,7 @@ function AgentSelect({
                   agentId={agent.id}
                   slug={agent.slug}
                   hasAvatar={agent.has_avatar ?? false}
+                  colorSlot={agent.avatar_color}
                   size="sm"
                   className="h-5 w-5"
                 />

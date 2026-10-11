@@ -1114,7 +1114,16 @@ class ArtifactService:
             shared_ids=grant_ids,
         )
         return ArtifactAgentList(
-            items=[ArtifactAgent(id=agent_id, name=name) for agent_id, name in agents]
+            items=[
+                ArtifactAgent(
+                    id=agent.id,
+                    name=agent.name,
+                    slug=agent.slug,
+                    has_avatar=agent.has_avatar,
+                    avatar_color=agent.avatar_color,
+                )
+                for agent in agents
+            ]
         )
 
     async def versions(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactVersionList:

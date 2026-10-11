@@ -79,6 +79,9 @@ export interface ArtifactPublicLinkUpdate {
 export interface ArtifactAgent {
   id: string;
   name: string;
+  slug: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface ArtifactList {
