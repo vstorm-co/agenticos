@@ -100,7 +100,9 @@ export function AgentCard({
     // `animation` on its wrapper while lit. Sharing one element, the beam would
     // displace the entrance and hand it back at opacity 0 when it went out - the
     // card blinking away under the cursor. The plain div keeps the two apart.
-    <div>
+    // Full height of its grid row, so cards side by side end on one line
+    // whatever their tags make of them.
+    <div className="h-full">
       {/* The beam is mounted for every card and runs on the one under the cursor.
         Mounting it on hover instead would rebuild the card the mouse is over. */}
       <Beam
@@ -108,11 +110,11 @@ export function AgentCard({
         borderRadius={12}
         active={hovered}
         onHoverChange={setHovered}
-        className="rounded-xl"
+        className="h-full rounded-xl"
       >
         <div
           className={cn(
-            "border-border bg-card relative rounded-xl border p-4 transition-colors",
+            "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
             "hover:border-foreground/25",
             archived && "opacity-70",
             busy && "pointer-events-none opacity-50",
@@ -124,7 +126,7 @@ export function AgentCard({
             aria-label={tc("openNamed", { name: agent.name })}
           />
 
-          <div className="pointer-events-none relative flex items-start gap-3">
+          <div className="pointer-events-none relative mb-3 flex items-start gap-3">
             <AgentAvatar
               agentId={agent.id}
               slug={agent.slug}
@@ -176,7 +178,7 @@ export function AgentCard({
             </div>
           </div>
 
-          <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
+          <div className="relative mt-auto flex items-center justify-between gap-2 border-t pt-3">
             <span className="text-muted-foreground pointer-events-none text-xs">
               {agent.updated_at
                 ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })

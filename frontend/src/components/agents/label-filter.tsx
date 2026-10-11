@@ -56,7 +56,13 @@ export function LabelFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" aria-label={ariaLabel}>
+        {/* Drawn like the select beside it - a filter in a row of filters, not
+            a pill among inputs. */}
+        <Button
+          variant="outline"
+          aria-label={ariaLabel}
+          className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
+        >
           <ListFilter className="h-4 w-4" />
           {selected.length === 0
             ? allLabel

@@ -45,7 +45,7 @@ export function ListCard({
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
-      <CardHeader className="flex-col gap-3 space-y-0 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
           <CardDescription className="text-xs">
@@ -54,7 +54,9 @@ export function ListCard({
         </div>
         {controls}
       </CardHeader>
-      <CardContent className={cn("p-5", contentClassName)}>{children}</CardContent>
+      {/* Tighter on a phone, where a card of cards spent a third of the width
+          on two paddings. */}
+      <CardContent className={cn("p-3 sm:p-5", contentClassName)}>{children}</CardContent>
     </Card>
   );
 }

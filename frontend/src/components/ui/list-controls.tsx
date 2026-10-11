@@ -99,7 +99,9 @@ export function SearchInput({
   autoFocus?: boolean;
 }) {
   return (
-    <div className={cn("relative w-full sm:w-64", className)}>
+    // First in its row on a phone, whatever order the filters were written in:
+    // it is the control people reach for, and the one that takes a whole row.
+    <div className={cn("relative w-full max-sm:order-first sm:w-64", className)}>
       <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
       <Input
         value={value}

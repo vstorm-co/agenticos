@@ -143,39 +143,43 @@ export default function AgentsPage() {
   // container's own controls slot, like every list card's.
   const galleryControls = (
     <div data-tour="agents-filters" className="flex flex-wrap items-center gap-2">
-      <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-        <SelectTrigger className="w-40" aria-label={t("filterByStatus")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {FILTERS.map((entry) => (
-            <SelectItem key={entry.value} value={entry.value}>
-              {entry.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
-      <LabelFilter
-        options={categoryOptions}
-        selected={categories}
-        onChange={setCategories}
-        ariaLabel={t("filterByCategory")}
-        allLabel={t("allCategories")}
-        countLabel={(count) => t("categoryCount", { count })}
-        clearLabel={t("clearFilter")}
-        max={MAX_AGENT_CATEGORIES}
-      />
-      <LabelFilter
-        options={tagOptions}
-        selected={tags}
-        onChange={setTags}
-        ariaLabel={t("filterByTag")}
-        allLabel={t("allTags")}
-        countLabel={(count) => t("tagCount", { count })}
-        clearLabel={t("clearFilter")}
-        max={MAX_AGENT_TAGS}
-      />
+      {/* One row under the search on a phone, swiped sideways, rather than
+          three filters wrapping into two more rows. */}
+      <div className="flex scrollbar-none items-center gap-2 max-sm:-mx-4 max-sm:max-w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:px-4 [&>*]:shrink-0">
+        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+          <SelectTrigger className="w-32 sm:w-40" aria-label={t("filterByStatus")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FILTERS.map((entry) => (
+              <SelectItem key={entry.value} value={entry.value}>
+                {entry.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <LabelFilter
+          options={categoryOptions}
+          selected={categories}
+          onChange={setCategories}
+          ariaLabel={t("filterByCategory")}
+          allLabel={t("allCategories")}
+          countLabel={(count) => t("categoryCount", { count })}
+          clearLabel={t("clearFilter")}
+          max={MAX_AGENT_CATEGORIES}
+        />
+        <LabelFilter
+          options={tagOptions}
+          selected={tags}
+          onChange={setTags}
+          ariaLabel={t("filterByTag")}
+          allLabel={t("allTags")}
+          countLabel={(count) => t("tagCount", { count })}
+          clearLabel={t("clearFilter")}
+          max={MAX_AGENT_TAGS}
+        />
+      </div>
     </div>
   );
 
