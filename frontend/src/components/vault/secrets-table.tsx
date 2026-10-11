@@ -107,11 +107,13 @@ export function SecretsTable({
       {
         key: "key",
         header: t("key"),
-        className: "pl-5",
+        // The column that gives way: it takes what the others leave and cuts a
+        // long name short, rather than pushing the actions off a phone.
+        className: "w-full max-w-0 pl-5",
         sortable: true,
         sortValue: (secret) => secret.name,
         cell: (secret) => (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {/* The service's own mark. A vault is scanned, not read:
                 fifty rows of identical text is a list nobody finds
                 anything in, and the logo is what the eye lands on. */}
@@ -129,7 +131,9 @@ export function SecretsTable({
         ),
       },
       {
+        // Not on a phone, where they pushed the actions off the screen: the mark already says what a key is for, and the key's dialog has the rest.
         key: "for",
+        hideBelow: "sm",
         header: t("for"),
         cell: (secret) => (
           <span className="text-muted-foreground text-sm">
@@ -139,6 +143,7 @@ export function SecretsTable({
       },
       {
         key: "access",
+        hideBelow: "sm",
         header: t("access"),
         cell: (secret) => {
           const access = reach(secret, t);
@@ -157,6 +162,7 @@ export function SecretsTable({
       },
       {
         key: "addedBy",
+        hideBelow: "sm",
         header: t("addedBy"),
         sortable: true,
         sortValue: (secret) => secret.created_by_email ?? null,
@@ -184,6 +190,7 @@ export function SecretsTable({
         key: "usedBy",
         header: t("usedBy"),
         className: canManage ? undefined : "pr-5",
+        hideBelow: "sm",
         cell: (secret) => {
           const used = secret.used_by ?? [];
           return (
