@@ -1667,6 +1667,7 @@ async def _account(db: AsyncSession, org: Organization, *, refuses: bool = False
 
 
 class TestGithub:
+    @pytest.mark.security
     async def test_without_an_account_the_secret_is_shown_once_to_paste(self, db, tenant):
         owner, org, workflow = tenant
         graph = _graph("trigger.github", GITHUB)
@@ -1800,6 +1801,7 @@ class TestGithub:
         assert again.webhook_secret is not None
         assert again.exposure.registered_on_provider is False
 
+    @pytest.mark.security
     async def test_a_new_secret_registers_the_hook_again(self, db, tenant):
         owner, org, workflow = tenant
         account = await _account(db, org)
@@ -1834,6 +1836,7 @@ class TestGithub:
             published = await _publish(db, _ctx(owner, org), workflow, _graph())
         assert published.exposure is None
 
+    @pytest.mark.security
     async def test_an_account_without_webhook_permission_leaves_it_to_paste(self, db, tenant):
         owner, org, workflow = tenant
         with (await _account(db, org)).connected(token=None):
@@ -1841,6 +1844,27 @@ class TestGithub:
                 db, _ctx(owner, org), workflow, _graph("trigger.github", GITHUB)
             )
         assert published.webhook_secret is not None
+
+    @pytest.mark.security
+    async def test_a_hook_whose_account_is_gone_or_lost_permission_is_left_behind(self, db, tenant):
+        owner, org, workflow = tenant
+        account = await _account(db, org)
+        graph = _graph("trigger.github", GITHUB)
+        with account.connected():
+            first = await _publish(db, _ctx(owner, org), workflow, graph)
+        with account.connected(token=None):
+            await _publish(db, _ctx(owner, org), workflow, graph)
+        stored = await db.get(WorkflowExposure, first.exposure.id)
+        assert stored is not None and stored.provider_webhook_id is None
+        assert account.deleted == []
+
+        with account.connected():
+            await _publish(db, _ctx(owner, org), workflow, graph)
+        stored.connection_id = None
+        await db.flush()
+        with account.connected():
+            await _publish(db, _ctx(owner, org), workflow, _graph())
+        assert account.deleted == []
 
     async def test_github_delivered_over_http(self, http):
         client, workflow_id, factory = http
@@ -1921,6 +1945,14 @@ class TestGmail:
             "snippet": "Please pay",
             "labels": ["INBOX", "IMPORTANT"],
         }
+
+    async def test_a_new_version_keeps_listening_on_the_same_row(self, db, tenant):
+        owner, org, workflow = tenant
+        await _mailbox(db, org)
+        graph = _graph("trigger.gmail")
+        first = await _publish(db, _ctx(owner, org), workflow, graph)
+        again = await _publish(db, _ctx(owner, org), workflow, graph)
+        assert again.exposure.id == first.exposure.id and again.exposure.version_number == 2
 
     async def test_a_paused_one_or_one_whose_publisher_left_starts_nothing(self, db, tenant):
         owner, org, workflow = tenant

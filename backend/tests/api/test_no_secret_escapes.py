@@ -102,6 +102,11 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "that first switches it on so its publisher can sign deliveries; "
         "WorkflowExposureRead (every read) has no such field, so it is never re-exposed"
     ),
+    "form_token": (
+        "a workflow form's public link - the page exists to be handed to strangers, "
+        "it is read only by who may view the workflow, and New link replaces it; "
+        "it opens a form that starts runs as its publisher, never anything else"
+    ),
     "test_token": (
         "a draft webhook's test URL, returned once to the editor who opened it and "
         "open for one call for two minutes; reading what it caught takes the token "
