@@ -109,7 +109,7 @@ time you open the page.
 
 ## The assistant
 
-Every page has the **AI Architect** in its bottom-right corner: an agent every
+Every page has the **Architect** in its bottom-right corner: an agent every
 organization gets without installing anything, shared with everyone who may run
 agents (`agents:run`). It is bound to the
 [platform's own MCP server](mcp.md#agenticos-as-an-mcp-server). Ask it which

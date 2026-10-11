@@ -795,7 +795,7 @@ wymaga żadnej rejestracji. Gdy organizacja bez domyślnego połączenia pierwsz
 otwiera listę sandboksów albo uruchamia agenta, który go potrzebuje, platforma sama
 rejestruje *This deployment's sandbox* jako domyślne połączenie, w imieniu
 właściciela organizacji, z tokenem w jego sejfie i wpisem w dzienniku audytu jak
-każde inne połączenie. Tak samo AI Architect dostaje pliki i kod, gdy jest
+każde inne połączenie. Tak samo Architekt dostaje pliki i kod, gdy jest
 instalowany na takim wdrożeniu.
 
 **`backend` to infrastruktura; `session_scope` to polityka współdzielenia danych.**

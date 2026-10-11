@@ -811,7 +811,7 @@ organización sin conexión predeterminada lista sus sandboxes o ejecuta un agen
 que necesita una, la plataforma registra *This deployment's sandbox* como
 predeterminada, en nombre del propietario de la organización, con el token en su
 bóveda y una entrada de auditoría como cualquier otra conexión. Del mismo modo,
-el AI Architect recibe archivos y código cuando se instala en un despliegue así.
+el Architect recibe archivos y código cuando se instala en un despliegue así.
 
 **`backend` es infraestructura; `session_scope` es una política de compartición de
 datos.** Equivocarse en lo primero cuesta una funcionalidad. Equivocarse en lo

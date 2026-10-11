@@ -10,7 +10,13 @@ import { useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
-import { AssistantFace, AssistantLauncher, WINDOW_CLASSES, WidgetRoot } from "./assistant-launcher";
+import {
+  architectName,
+  AssistantFace,
+  AssistantLauncher,
+  WINDOW_CLASSES,
+  WidgetRoot,
+} from "./assistant-launcher";
 
 /** How long the assistant "types" each message of the walkthrough. */
 export const TYPING_MS = 900;
@@ -52,7 +58,9 @@ export function AssistantSetup({
         >
           <header className="border-border flex items-center gap-2 border-b px-3 py-2">
             <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">{assistant.name}</p>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+              {architectName(assistant, t("defaultName"))}
+            </p>
             <button
               type="button"
               aria-label={t("close")}
@@ -64,7 +72,7 @@ export function AssistantSetup({
             </button>
           </header>
           <Walkthrough
-            name={assistant.name}
+            name={architectName(assistant, t("defaultName"))}
             steps={steps}
             action={
               assistant.can_configure ? (

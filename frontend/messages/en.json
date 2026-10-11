@@ -3474,7 +3474,7 @@
         "body": "Apps you signed in to with this account, like Claude Code. Each acts as you within what you allowed - disconnect one to end its access at once."
       },
       "assistant-widget": {
-        "title": "Your AI Architect",
+        "title": "Your Architect",
         "body": "Ask it anything about the platform - it builds agents with you, explains errors and finds settings. Its speech bubbles suggest what to do on each page; turn them off in Settings → Assistant."
       },
       "settings-assistant": {
@@ -6125,7 +6125,8 @@
       }
     },
     "screenshot": "Show it this page",
-    "screenshotFailed": "The screenshot could not be taken. Paste one into the conversation instead."
+    "screenshotFailed": "The screenshot could not be taken. Paste one into the conversation instead.",
+    "defaultName": "Architect"
   },
   "assistantSettings": {
     "notForYou": "Your role doesn't include running agents, so the assistant isn't available to you. An administrator can change that.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "ee9dcf4d5cd6"
+source_sha: "c5d33aea3c6f"
 ---
 
 # Słownik { #glossary }
@@ -25,7 +25,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
-| AI Architect | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
 
 ## Gdzie to działa { #where-it-runs }
 

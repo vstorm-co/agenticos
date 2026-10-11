@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
@@ -11,7 +12,7 @@ import { ASK, ATTACH, CONTEXT, NAVIGATE, NEW, readToFrame } from "@/lib/assistan
 import { useAgentSelectionStore } from "@/stores";
 
 import { AssistantHistory } from "./assistant-history";
-import { AssistantFace } from "./assistant-launcher";
+import { architectName, AssistantFace } from "./assistant-launcher";
 import { AssistantWelcome, type PageContext } from "./assistant-welcome";
 
 /**
@@ -23,6 +24,7 @@ import { AssistantWelcome, type PageContext } from "./assistant-welcome";
  * a bubble asked, the page the reader is on, a new conversation, the history.
  */
 export function AssistantFrame({ agentId }: { agentId: string }) {
+  const t = useTranslations("assistantWidget");
   const { assistant } = useAssistant();
   const select = useAgentSelectionStore((state) => state.select);
   const { startNewChat } = useConversations({ agentId });
@@ -86,7 +88,7 @@ export function AssistantFrame({ agentId }: { agentId: string }) {
             assistant && (
               <AssistantWelcome
                 greeting={assistant.greeting}
-                name={assistant.name}
+                name={architectName(assistant, t("defaultName"))}
                 mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
                 page={page}
                 onPick={onPick}

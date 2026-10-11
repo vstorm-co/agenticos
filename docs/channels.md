@@ -818,7 +818,7 @@ app rather than a bot:
 - **The assistant pane.** A new thread in Slack's AI split view is offered three
   suggested prompts, and the thread says *is thinking…* while the agent works.
 - **App Home.** The bot's own tab names its agent, says how many of the person's
-  runs wait for an approval, and links to the console and the AI Architect.
+  runs wait for an approval, and links to the console and the Architect.
 - **`/agent <question>`** asks the agent where it was typed, and the message
   shortcut **Ask the agent about this** asks about a message in its own thread.
   Both run exactly as a mention does: the same link check, limits and audit.

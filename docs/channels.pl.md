@@ -1,5 +1,5 @@
 ---
-source_sha: "4652a40eba33"
+source_sha: "d03283d41114"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -843,7 +843,7 @@ aplikację:
 - **Panel asystenta.** Nowy wątek w widoku AI Slacka dostaje trzy podpowiedzi, a
   wątek pokazuje *is thinking…*, gdy agent pracuje.
 - **App Home.** Własna zakładka bota podaje jego agenta, mówi, ile runów tej osoby
-  czeka na akceptację, i linkuje do konsoli oraz AI Architekta.
+  czeka na akceptację, i linkuje do konsoli oraz Architekta.
 - **`/agent <pytanie>`** pyta agenta tam, gdzie to wpisano, a skrót wiadomości
   **Ask the agent about this** pyta o wiadomość w jej własnym wątku. Oba działają
   dokładnie jak wzmianka: to samo sprawdzenie powiązania, limity i audyt.

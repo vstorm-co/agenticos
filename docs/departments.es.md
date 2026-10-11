@@ -1,5 +1,5 @@
 ---
-source_sha: "9491e80913e7"
+source_sha: "b1d46e98afc0"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -51,7 +51,7 @@ como un chip hasta que la quitas.
 Los miembros de un grupo encuentran lo que se le ha compartido, lo usan y lo
 vinculan a sus propios agents. Quien está fuera del grupo no lo ve en las listas,
 en la búsqueda, en los selectores del Builder, a través de la API ni a través del
-AI Architect, que actúa con los permisos de quien pregunta. Los miembros cuyo rol
+Architect, que actúa con los permisos de quien pregunta. Los miembros cuyo rol
 alcanza todos los recursos - por defecto owner, admin y builder - siguen viéndolo
 todo; consulta [Permisos](permissions.md).
 

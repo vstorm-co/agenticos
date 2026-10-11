@@ -1,5 +1,5 @@
 ---
-source_sha: "9491e80913e7"
+source_sha: "b1d46e98afc0"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -47,7 +47,7 @@ usuniesz.
 
 Członkowie grupy znajdują to, co jej udostępniono, korzystają z tego i podpinają
 do własnych agentów. Osoby spoza grupy nie widzą tego na listach, w wyszukiwaniu,
-w wyborach Buildera, przez API ani przez AI Architekta, który działa z
+w wyborach Buildera, przez API ani przez Architekta, który działa z
 uprawnieniami pytającej osoby. Członkowie, których rola sięga do każdego zasobu -
 domyślnie właściciel, administrator i builder - nadal widzą wszystko; zobacz
 [Uprawnienia](permissions.md).

@@ -1,5 +1,5 @@
 ---
-source_sha: "699b2eccc53b"
+source_sha: "2a4c8514c96f"
 ---
 
 # Die Konsole { #the-console }
@@ -127,7 +127,7 @@ Seite.
 
 ## Der Assistent { #the-assistant }
 
-Unten rechts auf jeder Seite sitzt der **AI Architect**: ein Agent, den jede
+Unten rechts auf jeder Seite sitzt der **Architekt**: ein Agent, den jede
 Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agents
 ausführen dürfen (`agents:run`). Er ist an
 [den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.

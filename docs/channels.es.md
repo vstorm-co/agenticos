@@ -1,5 +1,5 @@
 ---
-source_sha: "4652a40eba33"
+source_sha: "d03283d41114"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -848,7 +848,7 @@ del bot una app:
 - **El panel del asistente.** Un hilo nuevo en la vista de IA de Slack recibe tres
   prompts sugeridos, y el hilo muestra *is thinking…* mientras el agent trabaja.
 - **App Home.** La pestaña propia del bot nombra su agent, dice cuántos runs de la
-  persona esperan una aprobación y enlaza a la consola y al AI Architect.
+  persona esperan una aprobación y enlaza a la consola y al Architect.
 - **`/agent <pregunta>`** pregunta al agent donde se escribió, y el atajo de
   mensaje **Ask the agent about this** pregunta por un mensaje en su propio hilo.
   Ambos se ejecutan exactamente como una mención: la misma comprobación de enlace,

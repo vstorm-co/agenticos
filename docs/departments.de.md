@@ -1,5 +1,5 @@
 ---
-source_sha: "9491e80913e7"
+source_sha: "b1d46e98afc0"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }

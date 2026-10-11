@@ -323,7 +323,7 @@ class SlackSurfaces:
                     {
                         "type": "button",
                         "action_id": "open_architect",
-                        "text": {"type": "plain_text", "text": "Ask the AI Architect"},
+                        "text": {"type": "plain_text", "text": "Ask the Architect"},
                         "url": f"{console}/chat",
                     },
                 ],

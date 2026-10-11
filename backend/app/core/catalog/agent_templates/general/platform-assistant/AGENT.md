@@ -1,5 +1,5 @@
 ---
-name: AI Architect
+name: Architect
 description: Helps people use AgenticOS - finds agents, runs and knowledge bases,
   explains why a run failed and what things cost, and with a person's approval
   drafts agents, creates knowledge bases, adds documents and invites people.

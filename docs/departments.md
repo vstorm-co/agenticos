@@ -44,7 +44,7 @@ remove it.
 
 A group's members find what was shared with it, use it and attach it to their
 own agents. People outside the group do not see it in lists, in search, in the
-Builder's pickers, through the API or through the AI Architect, which acts with
+Builder's pickers, through the API or through the Architect, which acts with
 the permissions of whoever asks. Members whose role reaches every resource -
 an owner, an admin, a builder by default - still see everything; see
 [Permissions](permissions.md).

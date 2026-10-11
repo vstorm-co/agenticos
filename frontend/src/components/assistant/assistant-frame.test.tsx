@@ -69,7 +69,7 @@ function send(data: unknown, origin = window.location.origin) {
 }
 
 beforeEach(() => {
-  state.assistant = { name: "AI Architect", greeting: null };
+  state.assistant = { name: "Architect", named_by_default: true, greeting: null };
   state.conversations = [];
   state.person = null;
   for (const fn of [
@@ -163,12 +163,12 @@ describe("the assistant's welcome", () => {
   it("greets the reader by first name, or without one", () => {
     state.person = "Kacper Włodarczyk";
     const { unmount } = render(<AssistantFrame agentId="a1" />);
-    expect(screen.getByText("Hi Kacper, I'm AI Architect. What shall we do?")).toBeInTheDocument();
+    expect(screen.getByText("Hi Kacper, I'm Architect. What shall we do?")).toBeInTheDocument();
     unmount();
 
     state.person = null;
     render(<AssistantFrame agentId="a1" />);
-    expect(screen.getByText("Hi, I'm AI Architect. What shall we do?")).toBeInTheDocument();
+    expect(screen.getByText("Hi, I'm Architect. What shall we do?")).toBeInTheDocument();
   });
 
   it("says the organization's own greeting when it has one", () => {

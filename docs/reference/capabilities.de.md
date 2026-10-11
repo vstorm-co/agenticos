@@ -844,7 +844,7 @@ Standardverbindung zum ersten Mal ihre Sandboxes auflistet oder einen Agenten
 ausführt, der eine braucht, registriert die Plattform *This deployment's sandbox*
 als Standard, im Namen des Eigentümers der Organisation, mit dem Token in dessen
 Tresor und einem Audit-Eintrag wie bei jeder anderen Verbindung. Auf dieselbe
-Weise bekommt der AI Architect Dateien und Code, wenn er auf einem solchen
+Weise bekommt der Architekt Dateien und Code, wenn er auf einem solchen
 Deployment installiert wird.
 
 **`backend` ist Infrastruktur; `session_scope` ist eine Richtlinie zur

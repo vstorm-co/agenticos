@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { ArchitectMark } from "./architect-mark";
 import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
@@ -32,7 +33,9 @@ export function AssistantLauncher({
   return (
     <button
       type="button"
-      aria-label={open ? t("close") : t("open", { name: assistant.name })}
+      aria-label={
+        open ? t("close") : t("open", { name: architectName(assistant, t("defaultName")) })
+      }
       aria-expanded={open}
       onClick={onToggle}
       // Over a full-screen window on a phone it would cover the conversation, and
@@ -58,6 +61,8 @@ export function AssistantFace({
   agentId: string;
   size: "sm" | "lg";
 }) {
+  // The Architect wears its own mark until an organization gives it a picture.
+  if (assistant.avatar_url === null) return <ArchitectMark size={size} />;
   return (
     <AgentAvatar
       agentId={agentId}
@@ -67,6 +72,17 @@ export function AssistantFace({
       size={size}
     />
   );
+}
+
+/**
+ * What the console calls the assistant: "Architect" in the reader's language,
+ * until an administrator names it something else - then that name, as written.
+ */
+export function architectName(
+  assistant: Pick<AssistantState, "name" | "named_by_default">,
+  defaultName: string,
+): string {
+  return assistant.named_by_default ? defaultName : assistant.name;
 }
 
 /** Where the assistant's window sits: full screen on a phone, a panel above the button otherwise. */

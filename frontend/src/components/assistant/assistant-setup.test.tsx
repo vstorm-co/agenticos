@@ -14,7 +14,8 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     status: "needs_model",
     agent_id: "a1",
     slug: "ai-architect",
-    name: "AI Architect",
+    name: "Architect",
+    named_by_default: true,
     greeting: null,
     avatar_url: null,
     avatar_color: null,
@@ -48,7 +49,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("the AI Architect with no model", () => {
+describe("the Architect with no model", () => {
   it("offers to explain before anybody opens it", () => {
     mount();
 
@@ -60,10 +61,10 @@ describe("the AI Architect with no model", () => {
 
   it("types the walkthrough one message at a time", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
-    expect(screen.getByText(/Hi, I'm AI Architect/)).toBeInTheDocument();
-    expect(screen.getByText("AI Architect is typing…")).toBeInTheDocument();
+    expect(screen.getByText(/Hi, I'm Architect/)).toBeInTheDocument();
+    expect(screen.getByText("Architect is typing…")).toBeInTheDocument();
     expect(screen.queryByText(/Step 1: get an API key/)).toBeNull();
 
     act(() => {
@@ -77,7 +78,7 @@ describe("the AI Architect with no model", () => {
   it("follows the conversation down as each message arrives", () => {
     const follow = vi.spyOn(Element.prototype, "scrollIntoView");
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     const before = follow.mock.calls.length;
 
     act(() => {
@@ -90,7 +91,7 @@ describe("the AI Architect with no model", () => {
 
   it("walks an administrator to the settings that connect the model", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     typeEverything();
 
     expect(screen.getByText(/Step 2: open Settings → Assistant/)).toBeInTheDocument();
@@ -104,7 +105,7 @@ describe("the AI Architect with no model", () => {
 
   it("tells anybody else who can do it, and offers no button they could not use", () => {
     mount({ can_configure: false });
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     typeEverything();
 
     expect(screen.getByText(/only an administrator of your organization/)).toBeInTheDocument();
@@ -114,14 +115,14 @@ describe("the AI Architect with no model", () => {
 
   it("closes from its header and its button alike, keeping the conversation", () => {
     mount();
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     // Hidden rather than unmounted, so the walkthrough is not typed out again.
     const dialog = screen.getByRole("dialog");
     fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
     expect(dialog).toHaveClass("hidden");
 
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     expect(dialog).not.toHaveClass("hidden");
     fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
     expect(dialog).toHaveClass("hidden");

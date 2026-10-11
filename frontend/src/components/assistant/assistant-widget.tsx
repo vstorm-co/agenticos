@@ -36,7 +36,13 @@ import { defaultLocale } from "@/i18n";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
-import { AssistantFace, AssistantLauncher, WINDOW_CLASSES, WidgetRoot } from "./assistant-launcher";
+import {
+  architectName,
+  AssistantFace,
+  AssistantLauncher,
+  WINDOW_CLASSES,
+  WidgetRoot,
+} from "./assistant-launcher";
 import { AssistantSetup } from "./assistant-setup";
 
 /** How long a page is looked at before the bubble speaks. */
@@ -191,12 +197,14 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         <div
           role="dialog"
           data-assistant-window
-          aria-label={assistant.name}
+          aria-label={architectName(assistant, t("defaultName"))}
           className={cn(WINDOW_CLASSES, !open && "hidden")}
         >
           <header className="border-border flex items-center gap-2 border-b px-3 py-2">
             <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">{assistant.name}</p>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+              {architectName(assistant, t("defaultName"))}
+            </p>
             <HeaderButton label={t("screenshot")} onClick={() => void screenshot()}>
               <Camera className="h-4 w-4" />
             </HeaderButton>
@@ -222,7 +230,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
           </header>
           <iframe
             ref={frame}
-            title={assistant.name}
+            title={architectName(assistant, t("defaultName"))}
             src={`${prefix}${ASSISTANT_FRAME_PATH}?agent=${agentId}`}
             className="min-h-0 w-full flex-1 border-0"
           />
@@ -243,7 +251,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             heard();
             setSetAside(pathname);
           }}
-          name={assistant.name}
+          name={architectName(assistant, t("defaultName"))}
           path={pathname}
         />
       )}

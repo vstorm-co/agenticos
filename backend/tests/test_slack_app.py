@@ -182,7 +182,7 @@ class TestSurfaces:
         assert view["type"] == "home"
         assert "*Refunds*\\nAnswers refund questions" in text
         assert "*2* of your runs wait for an approval" in text
-        assert "Ask the AI Architect" in text
+        assert "Ask the Architect" in text
 
     async def test_app_home_links_the_person_s_recent_conversations(self):
         sessions = [

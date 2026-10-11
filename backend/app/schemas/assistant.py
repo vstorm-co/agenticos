@@ -23,6 +23,14 @@ class AssistantRead(BaseSchema):
         default=None, description="Its handle, which its default face is drawn from"
     )
     name: str
+    named_by_default: bool = Field(
+        default=True,
+        description=(
+            "Whether it still has the name it was installed with, so the console "
+            "shows its own name for it in the reader's language; false once an "
+            "administrator renamed it"
+        ),
+    )
     greeting: str | None
     avatar_url: str | None = None
     avatar_color: int | None = None

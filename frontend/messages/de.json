@@ -3356,7 +3356,7 @@
         "body": "Anwendungen, in denen Sie sich mit diesem Konto angemeldet haben, etwa Claude Code. Jede handelt in Ihrem Namen im erlaubten Rahmen - trennen Sie eine, um ihren Zugriff sofort zu beenden."
       },
       "assistant-widget": {
-        "title": "Ihr AI Architect",
+        "title": "Ihr Architekt",
         "body": "Fragen Sie ihn alles zur Plattform – er baut mit Ihnen Agents, erklärt Fehler und findet Einstellungen. Seine Sprechblasen schlagen auf jeder Seite etwas vor; abschalten können Sie sie unter Einstellungen → Assistent."
       },
       "settings-assistant": {
@@ -6008,7 +6008,8 @@
       }
     },
     "screenshot": "Diese Seite zeigen",
-    "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein."
+    "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein.",
+    "defaultName": "Architekt"
   },
   "assistantSettings": {
     "notForYou": "Ihre Rolle umfasst nicht das Ausführen von Agents, daher steht Ihnen der Assistent nicht zur Verfügung. Ein Administrator kann das ändern.",

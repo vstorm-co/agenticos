@@ -1,5 +1,5 @@
 ---
-source_sha: "4652a40eba33"
+source_sha: "d03283d41114"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -897,7 +897,7 @@ ein, was aus dem Bot eine App macht:
   vorgeschlagene Prompts, und der Thread zeigt *is thinking…*, während der Agent
   arbeitet.
 - **App Home.** Der eigene Reiter des Bots nennt seinen Agent, sagt, wie viele
-  Runs der Person auf eine Freigabe warten, und verlinkt Konsole und AI Architect.
+  Runs der Person auf eine Freigabe warten, und verlinkt Konsole und Architekt.
 - **`/agent <Frage>`** fragt den Agent dort, wo es getippt wurde, und die
   Nachrichten-Abkürzung **Ask the agent about this** fragt zu einer Nachricht in
   ihrem eigenen Thread. Beide laufen genau wie eine Erwähnung: dieselbe

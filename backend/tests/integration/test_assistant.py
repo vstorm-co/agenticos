@@ -83,7 +83,10 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
 
     waiting = await service.state(viewer)
     assert waiting.status == "needs_model"
-    assert waiting.name == "AI Architect"
+    assert waiting.name == "Architect"
+    assert waiting.named_by_default
+    # It wears its mark from the start, as a picture any agent surface can draw.
+    assert waiting.avatar_url is not None
     assert not waiting.can_configure
 
     profile = await _model(db, organization)
@@ -117,11 +120,13 @@ async def test_one_organization_gets_one_assistant(db: AsyncSession) -> None:
 async def test_an_agent_already_called_that_does_not_stop_it_existing(db: AsyncSession) -> None:
     organization, owner = await _organization(db)
     ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
-    await AgentRegistryService(db).create(ctx, AgentSpec(name="AI Architect"))
+    await AgentRegistryService(db).create(ctx, AgentSpec(name="Architect"))
 
     state = await AssistantService(db).state(ctx)
 
-    assert state.name == "AI Architect (AgenticOS)"
+    # The handle had to differ; the console still calls it the Architect.
+    assert state.name == "Architect (AgenticOS)"
+    assert state.named_by_default
 
 
 @pytest.mark.security
@@ -163,6 +168,8 @@ async def test_an_administrator_configures_it_and_can_switch_it_off(db: AsyncSes
         "Cześć!",
         second.id,
     )
+    # Renamed, it is called what the administrator chose, in every language.
+    assert not changed.named_by_default
 
     off = await service.update(admin, AssistantUpdate(enabled=False))
     assert off.status == "disabled"

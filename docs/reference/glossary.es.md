@@ -1,12 +1,12 @@
 ---
-source_sha: "ee9dcf4d5cd6"
+source_sha: "c5d33aea3c6f"
 ---
 
 # Glosario { #glossary }
 
 Las palabras que usa la consola, qué significa cada una y cómo se llama lo mismo
 en la API, en el spec y en el YAML que exporta un agent. La consola, el recorrido,
-el AI Architect y estas páginas usan estos nombres; la API y el spec conservan los
+el Architect y estas páginas usan estos nombres; la API y el spec conservan los
 suyos, para que un script escrito contra ellos no se rompa con un cambio de nombre.
 La consola no tiene versión en español, así que sus nombres aparecen aquí en inglés,
 tal como se ven en pantalla.
@@ -27,7 +27,7 @@ tal como se ven en pantalla.
 | Context file | Conocimiento fijo que un agent siempre tiene, como un glosario o una política | `context` |
 | Knowledge base | Documentos que un agent busca y cita | `collection` |
 | App | Una página que publica un agent, como un informe o un pequeño panel | `artifact` |
-| AI Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
+| Architect | El asistente en la esquina de cada página, que puede construir agents contigo | `platform-assistant` |
 
 ## Dónde se ejecuta { #where-it-runs }
 

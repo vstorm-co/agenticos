@@ -50,7 +50,8 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     status: "ready",
     agent_id: "a1",
     slug: "ai-architect",
-    name: "AI Architect",
+    name: "Architect",
+    named_by_default: true,
     greeting: null,
     avatar_url: null,
     avatar_color: null,
@@ -104,7 +105,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe("the AI Architect widget", () => {
+describe("the Architect widget", () => {
   it.each([
     ["there is no assistant", null],
     ["the person may not run agents", { can_use: false }],
@@ -115,6 +116,26 @@ describe("the AI Architect widget", () => {
     const { container } = render(<AssistantWidget />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("is the Architect in the reader's language until it is renamed, and wears its mark", () => {
+    // Installed beside an agent that took its handle: the name had to differ,
+    // the console still calls it the Architect.
+    state.assistant = assistant({ name: "Architect (AgenticOS)" });
+    const { unmount } = render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toBeInTheDocument();
+    expect(document.querySelector('svg path[d^="M12 6.4"]')).not.toBeNull();
+    unmount();
+
+    state.assistant = assistant({
+      name: "Ola z IT",
+      named_by_default: false,
+      avatar_url: "/api/agents/a1/avatar",
+    });
+    render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open Ola z IT" })).toBeInTheDocument();
+    // Given a picture, it wears the picture.
+    expect(document.querySelector('svg path[d^="M12 6.4"]')).toBeNull();
   });
 
   it("walks through connecting a model when it has none", () => {
@@ -133,7 +154,7 @@ describe("the AI Architect widget", () => {
     expect(screen.getByText("on this page")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Describe it" }));
 
-    const dialog = screen.getByRole("dialog", { name: "AI Architect" });
+    const dialog = screen.getByRole("dialog", { name: "Architect" });
     expect(dialog).not.toHaveClass("hidden");
     expect(document.querySelector("iframe")).toHaveAttribute("src", "/assistant-frame?agent=a1");
     const { sent } = loadedFrame();
@@ -149,14 +170,14 @@ describe("the AI Architect widget", () => {
     state.defaultLocale = "pl";
     render(<AssistantWidget />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     expect(document.querySelector("iframe")).toHaveAttribute("src", "/en/assistant-frame?agent=a1");
   });
 
   it("sends history and a new conversation straight to a loaded frame", () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     const { sent } = loadedFrame();
     sent.mockClear();
 
@@ -232,7 +253,7 @@ describe("the AI Architect widget", () => {
 
   it("opens a page the Architect linked to and points at the control it named", () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     frameSays({ type: NAVIGATE, href: "/agents?highlight=agents-new" });
 
@@ -244,7 +265,7 @@ describe("the AI Architect widget", () => {
   it("steps the window aside on a phone so the linked page is seen", () => {
     state.phone = true;
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     frameSays({ type: NAVIGATE, href: "/runs" });
 
@@ -255,7 +276,7 @@ describe("the AI Architect widget", () => {
 
   it("ignores a link to anywhere but the console, and a message from anything but its frame", () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     frameSays({ type: NAVIGATE, href: "https://evil.example" });
     act(() => {
@@ -278,7 +299,7 @@ describe("the AI Architect widget", () => {
       return file;
     });
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     const { sent } = loadedFrame();
 
     await act(async () => {
@@ -292,7 +313,7 @@ describe("the AI Architect widget", () => {
 
   it("sends nothing when the person declines to share the page, and says so when it breaks", async () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     const { sent } = loadedFrame();
     sent.mockClear();
 
@@ -314,7 +335,7 @@ describe("the AI Architect widget", () => {
     document.addEventListener("pointerdown", outside);
     render(<AssistantWidget />);
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Open Architect" }));
 
     expect(outside).not.toHaveBeenCalled();
     document.removeEventListener("pointerdown", outside);
@@ -331,7 +352,7 @@ describe("the AI Architect widget", () => {
 
   it("turns the bubbles off and on from its header", () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Turn tips off" }));
     expect(screen.getByRole("button", { name: "Turn tips back on" })).toHaveAttribute(
@@ -342,14 +363,14 @@ describe("the AI Architect widget", () => {
     lookAtThePage();
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     fireEvent.click(screen.getByRole("button", { name: "Turn tips back on" }));
     expect(screen.getByRole("button", { name: "Turn tips off" })).toBeInTheDocument();
   });
 
   it("steps its button aside on a phone while the window is open", () => {
     render(<AssistantWidget />);
-    const launcher = screen.getByRole("button", { name: "Open AI Architect" });
+    const launcher = screen.getByRole("button", { name: "Open Architect" });
 
     fireEvent.click(launcher);
 
@@ -360,19 +381,17 @@ describe("the AI Architect widget", () => {
     // The corner it sits in is the composer's send controls there (#2075).
     state.pathname = "/pl/chat";
     const { unmount } = render(<AssistantWidget />);
-    expect(screen.getByRole("button", { name: "Open AI Architect" })).toHaveClass("max-md:hidden");
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("max-md:hidden");
     unmount();
 
     state.pathname = "/agents";
     render(<AssistantWidget />);
-    expect(screen.getByRole("button", { name: "Open AI Architect" })).not.toHaveClass(
-      "max-md:hidden",
-    );
+    expect(screen.getByRole("button", { name: "Open Architect" })).not.toHaveClass("max-md:hidden");
   });
 
   it("hides the window from its header without losing the conversation", () => {
     render(<AssistantWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Architect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     const dialog = screen.getByRole("dialog");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);

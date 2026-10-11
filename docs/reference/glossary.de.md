@@ -1,12 +1,12 @@
 ---
-source_sha: "ee9dcf4d5cd6"
+source_sha: "c5d33aea3c6f"
 ---
 
 # Glossar { #glossary }
 
 Die Wörter, die die Konsole verwendet, was jedes bedeutet und wie dieselbe Sache
 in der API, im Spec und im YAML heißt, das ein Agent exportiert. Konsole, Rundgang,
-AI Architect und diese Seiten verwenden diese Namen; API und Spec behalten ihre
+Architekt und diese Seiten verwenden diese Namen; API und Spec behalten ihre
 eigenen, damit ein Skript, das dagegen geschrieben ist, bei einer Umbenennung
 nicht bricht.
 
@@ -26,7 +26,7 @@ nicht bricht.
 | Kontext | Dauerhaftes Wissen, das ein Agent immer hat, etwa ein Glossar oder eine Richtlinie | `context` |
 | Wissensdatenbank | Dokumente, die ein Agent durchsucht und zitiert | `collection` |
 | App | Eine Seite, die ein Agent veröffentlicht, etwa ein Bericht oder ein kleines Dashboard | `artifact` |
-| AI Architect | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
+| Architekt | Der Assistent in der Ecke jeder Seite, der mit dir Agents bauen kann | `platform-assistant` |
 
 ## Wo es läuft { #where-it-runs }
 

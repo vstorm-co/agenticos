@@ -1,5 +1,5 @@
 ---
-source_sha: "699b2eccc53b"
+source_sha: "2a4c8514c96f"
 ---
 
 # La consola { #the-console }
@@ -115,7 +115,7 @@ un puñado de las más recientes, la próxima vez que abras la página.
 
 ## El asistente { #the-assistant }
 
-Cada página tiene al **AI Architect** en su esquina inferior derecha: un agent que
+Cada página tiene al **Architect** en su esquina inferior derecha: un agent que
 toda organización recibe sin instalar nada, compartido con todos los que pueden
 ejecutar agents (`agents:run`). Está vinculado al
 [servidor MCP de la propia plataforma](mcp.md#agenticos-as-an-mcp-server).

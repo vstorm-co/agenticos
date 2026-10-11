@@ -3244,7 +3244,7 @@
         "body": "Aplikacje, w których zalogowano się tym kontem, np. Claude Code. Każda działa w twoim imieniu w granicach tego, na co pozwolono — odłącz ją, żeby od razu zakończyć jej dostęp."
       },
       "assistant-widget": {
-        "title": "Twój AI Architekt",
+        "title": "Twój Architekt",
         "body": "Zapytaj go o cokolwiek na platformie - zbuduje z tobą agenta, wyjaśni błąd i znajdzie ustawienie. Jego dymki podpowiadają, co zrobić na każdej stronie; wyłączysz je w Ustawienia → Asystent."
       },
       "settings-assistant": {
@@ -5899,7 +5899,8 @@
       }
     },
     "screenshot": "Pokaż mu tę stronę",
-    "screenshotFailed": "Nie udało się zrobić zrzutu ekranu. Wklej go do rozmowy samodzielnie."
+    "screenshotFailed": "Nie udało się zrobić zrzutu ekranu. Wklej go do rozmowy samodzielnie.",
+    "defaultName": "Architekt"
   },
   "assistantSettings": {
     "notForYou": "Twoja rola nie obejmuje uruchamiania agentów, więc asystent nie jest dla Ciebie dostępny. Administrator może to zmienić.",

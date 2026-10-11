@@ -2,7 +2,7 @@
 
 Nobody has to install it. The first time anybody in an organization opens the
 console, the widget asks for the assistant and it is installed: an ordinary agent
-from the *AI Architect* template, shared with the whole organization, bound to
+from the *Architect* template, shared with the whole organization, bound to
 the platform's own MCP server, and published on the organization's first model.
 An organization with no model yet gets it as a draft, and the widget says so - an
 administrator connects a model, and the next look publishes it.
@@ -41,6 +41,9 @@ from app.services.sandbox_connection import SandboxConnectionService
 logger = logging.getLogger(__name__)
 
 TEMPLATE_KEY = "general/platform-assistant"
+# Its mark, worn as an ordinary agent picture so every place an agent's face is
+# drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
+AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
 """The shipped template every organization's assistant is installed from."""
 
 
@@ -122,7 +125,7 @@ class AssistantService:
         if await agent_repo.get_by_slug(self.db, slugify(name), organization_id=organization_id):
             # Somebody already has an agent by that name; the assistant takes the
             # next free one rather than failing to exist.
-            name = f"{template.name} (AgenticOS)"
+            name = _fallback_name(template)
         # Its skills - this platform's good practice for building agents (#2069) -
         # installed from the gallery the way a template install installs them.
         skills = await self.registry.template_skills(installer, template)
@@ -145,7 +148,10 @@ class AssistantService:
                 else None
             ),
         )
-        return await self.registry.create(installer, spec, visibility=Visibility.ORG)
+        agent = await self.registry.create(installer, spec, visibility=Visibility.ORG)
+        return await self.registry.set_avatar(
+            installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
+        )
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first model, once it has one."""
@@ -186,6 +192,7 @@ class AssistantService:
             agent_id=agent.id,
             slug=agent.slug,
             name=agent.name,
+            named_by_default=agent.name in (_template().name, _fallback_name(_template())),
             greeting=row.greeting,
             avatar_url=agent.avatar_url,
             avatar_color=agent.avatar_color,
@@ -194,6 +201,11 @@ class AssistantService:
             can_use=can_use,
             can_configure=can_configure,
         )
+
+
+def _fallback_name(template: agent_templates.AgentTemplate) -> str:
+    """The name it installs under where an agent already took the template's handle."""
+    return f"{template.name} (AgenticOS)"
 
 
 def _template() -> agent_templates.AgentTemplate:

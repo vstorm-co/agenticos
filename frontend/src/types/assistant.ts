@@ -8,6 +8,8 @@ export interface AssistantState {
   /** Its handle, which its default face is drawn from. */
   slug: string | null;
   name: string;
+  /** Still the name it was installed with - shown as the console's own, translated. */
+  named_by_default: boolean;
   greeting: string | null;
   avatar_url: string | null;
   avatar_color: number | null;

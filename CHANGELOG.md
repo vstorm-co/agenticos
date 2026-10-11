@@ -21,14 +21,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
   languages, names each thing as the console does, says what it is and gives its
-  name in the API and the spec; the AI Architect uses the same names, and a test
+  name in the API and the spec; the Architect uses the same names, and a test
   holds the capability names to the console's (#2075).
-- **The AI Architect's agent draft is approved as a draft.** The approval card
+- **The Architect's agent draft is approved as a draft.** The approval card
   shows where it is created, its name, what it may do in the capabilities' plain
   names and its instructions, instead of the tool call's JSON (#1799).
 - **An MCP account goes to an agent from where it lives.** Each usable
   organization account on a server offers **Add to an agent**, and connecting one
   with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **The Architect, by that name, with a mark of its own.** The corner assistant
+  is called the Architect - "Architekt" in Polish and German - until an
+  administrator renames it, and wears a drafting-compass mark until it is given
+  a picture. `GET /assistant` says `named_by_default` (#2075).
 - **How well each department's people are answered.** The group page shows,
   beside the budget, the helpful share of its people's ratings over 30 days, the
   agents they ran most and their latest not-helpful answers with comment and
@@ -102,9 +106,9 @@ Two things are versioned separately from this file and worth knowing about:
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
   **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
-- **The AI Architect.** Every organization has one, without installing
+- **The Architect.** Every organization has one, without installing
   anything: the first time anybody opens the console it is installed from the
-  *AI Architect* template as the organization's owner, shared with everyone, and
+  *Architect* template as the organization's owner, shared with everyone, and
   published on the organization's first model (migration
   `0110_organization_assistants`). It lives in the corner of every page as the
   agent's avatar, with a speech bubble that speaks to what is waiting - approvals,
@@ -136,7 +140,7 @@ Two things are versioned separately from this file and worth knowing about:
   (#1798, #2063).
 - **The console keeps up with changes made elsewhere.** A successful write
   through the public API — from a script's key, Claude Code over MCP, the
-  AI Architect or another person's console — is announced over Redis to
+  Architect or another person's console — is announced over Redis to
   the organization's open consoles on the new `/api/v1/ws/events` socket, and
   each page with nothing unsaved refetches in place. The Builder stops autosaving
   when the agent it holds changes elsewhere: it takes the new draft when nothing
@@ -155,7 +159,7 @@ Two things are versioned separately from this file and worth knowing about:
   with what it becomes, and the time is told in the deployment's zone, each
   person's own or one chosen. Publishing refuses an unknown name. A visitor's
   name is never the publisher's (#2065).
-- **The AI Architect researches and knows how to build agents.** It searches
+- **The Architect researches and knows how to build agents.** It searches
   the web and reads pages (DuckDuckGo, no key), and is installed with seven
   gallery skills - writing instructions, designing an agent, setting up a
   knowledge base, choosing a model, budgets, testing, and importing an agent
@@ -187,7 +191,7 @@ Two things are versioned separately from this file and worth knowing about:
   are named. The listings carry `used_by`. Page descriptions for agents,
   context, knowledge bases and sandboxes are rewritten in plain words, and
   Workspaces is **Agent files** in the navigation (#2075).
-- **The phone chat is no longer covered by the AI Architect's button**, which
+- **The phone chat is no longer covered by the Architect's button**, which
   sat on the composer's send controls; on a phone it steps out of the chat page,
   where the agent picker reaches the assistant. The chat's opening suggestions
   are everyday tasks rather than developer ones, and the phone tab bar says
@@ -215,7 +219,7 @@ Two things are versioned separately from this file and worth knowing about:
 - **The chat on a phone works like a messaging app.** The console's shell
   follows the visual viewport, so the composer stays above an iOS or Android
   keyboard and the conversation stays on its last message while it opens; the tab
-  bar and the AI Architect's button step aside while somebody types; every form
+  bar and the Architect's button step aside while somebody types; every form
   field is 16px on a phone, so iOS no longer zooms into it; Enter starts a new line
   on a touch keyboard; attaching and dictating sit behind one **+** sheet; and the
   composer, the sheet and the widget respect the notch and home indicator. A
@@ -295,7 +299,7 @@ Two things are versioned separately from this file and worth knowing about:
   with knowledge, departments, a teammate and a chat app - each ticked from what
   exists. Creating a skill, a context file or a knowledge base offers **Add to an
   agent** from its toast; empty agent, routine and group pages offer the way to
-  their first item; and the AI Architect links to an agent's test panel with
+  their first item; and the Architect links to an agent's test panel with
   `?test=open` (#2072, #2074).
 
 - **The console in Polish and German, whole.** Every screen but the legal pages

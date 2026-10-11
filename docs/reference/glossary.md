@@ -2,7 +2,7 @@
 
 The words the console uses, what each one means, and the name the same thing
 has in the API, the spec and the YAML an agent exports. The console, the
-onboarding tour, the AI Architect and these pages use these names; the API and
+onboarding tour, the Architect and these pages use these names; the API and
 the spec keep their own, so a script written against them never breaks over a
 rename.
 
@@ -22,7 +22,7 @@ rename.
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
 | App | A page an agent publishes, such as a report or a small dashboard | `artifact` |
-| AI Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
+| Architect | The assistant in the corner of every page, which can build agents with you | `platform-assistant` |
 
 ## Where it runs
 
