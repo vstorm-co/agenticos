@@ -997,7 +997,6 @@
       "greeting": "How can I help, {name}?",
       "greetingAnonymous": "How can I help today?",
       "lead": "Ask anything - get streaming answers with tool calls and citations from your knowledge.",
-      "poweredBy": "Powered by {agent}",
       "slashCommands": "slash commands",
       "emailTitle": "Draft an email",
       "emailPrompt": "Draft a short, friendly email asking a client to confirm next week's meeting.",
@@ -1067,7 +1066,7 @@
       "runModel": "Run on this model",
       "thisChat": "Just this chat"
     },
-    "newChat": "New Chat",
+    "newChat": "New chat",
     "newConversation": "New conversation",
     "noConversations": "No conversations yet",
     "notHelpful": "Not helpful",
@@ -1128,7 +1127,7 @@
       "collapse": "Collapse conversations sidebar",
       "counted": "{count, plural, =1 {1 conversation} other {# conversations}}",
       "expand": "Expand conversations sidebar",
-      "newChat": "New Chat",
+      "newChat": "New chat",
       "newChatLabel": "New chat",
       "noArchived": "No archived conversations",
       "noMatches": "Nothing matches",
@@ -1529,7 +1528,8 @@
         },
         "headline": "of the {cap} monthly cap - {left} left",
         "title": "Budget headroom",
-        "description": "How much of the monthly budget is left, for the organization and for any agent carrying its own cap. The donut's budget_exceeded is the symptom; this is the cause."
+        "description": "How much of the monthly budget is left, for the organization and for any agent carrying its own cap. The donut's budget_exceeded is the symptom; this is the cause.",
+        "moreCapped": "{count, plural, =1 {1 more agent with a cap} other {# more agents with a cap}}"
       },
       "conversations": {
         "continue": "Continue",
@@ -2114,6 +2114,8 @@
     "startChecklist": {
       "title": "Get started",
       "progress": "{done} of {total} done",
+      "next": "Next step",
+      "doneLabel": "Done",
       "dismiss": "Hide the checklist",
       "steps": {
         "agent": "Create an agent",

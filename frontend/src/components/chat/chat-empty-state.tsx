@@ -18,10 +18,9 @@ const PROMPTS = [
 
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
-  agentLabel?: string;
 }
 
-export function ChatEmptyState({ onPick, agentLabel = "pydantic_ai" }: ChatEmptyStateProps) {
+export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
   const t = useTranslations("chat.empty");
   const { user } = useAuth();
   const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
@@ -47,8 +46,6 @@ export function ChatEmptyState({ onPick, agentLabel = "pydantic_ai" }: ChatEmpty
           <span className="text-border">·</span>
           <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
           <span>{t("slashCommands")}</span>
-          <span className="text-border">·</span>
-          <span className="text-muted-foreground">{t("poweredBy", { agent: agentLabel })}</span>
         </>
       }
     />

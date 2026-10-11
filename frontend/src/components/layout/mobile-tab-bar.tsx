@@ -66,7 +66,7 @@ export function MobileTabBar() {
       {items.map((item) => {
         const active = isActive(item);
         const className = cn(
-          "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium tracking-wider uppercase transition-colors",
+          "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",
           active ? "text-brand" : "text-muted-foreground hover:text-foreground",
         );
         const inner = (
@@ -74,7 +74,7 @@ export function MobileTabBar() {
             <item.icon
               className={cn("h-5 w-5 transition-transform", active && "text-brand scale-110")}
             />
-            <span className="font-mono">{item.label}</span>
+            <span>{item.label}</span>
             {active && (
               <span aria-hidden className="bg-brand absolute top-0 h-0.5 w-8 rounded-full" />
             )}

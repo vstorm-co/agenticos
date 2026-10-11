@@ -103,7 +103,13 @@ function ConversationItem({
           className="bg-foreground absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r-full"
         />
       )}
-      <MessageSquare className={cn("h-4 w-4 shrink-0", isActive && "text-foreground")} />
+      {/* Which agent the thread is with leads the row - the face people pick a
+          thread by - and a thread with no agent keeps the plain mark. */}
+      {conversation.agents && conversation.agents.length > 0 ? (
+        <ConversationAgents agents={conversation.agents} showName={false} className="shrink-0" />
+      ) : (
+        <MessageSquare className={cn("h-4 w-4 shrink-0", isActive && "text-foreground")} />
+      )}
       {isEditing ? (
         <input
           type="text"
@@ -135,13 +141,6 @@ function ConversationItem({
                 being the useful part - `timeAgo` in `lib/utils`, the same
                 reading the notification rows use. */}
             {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
-            {/* Which agent this was with, as a face and nothing more. The name
-                was repeating what the picture already says, in a row that also
-                has to fit a title and a date - and it is on the hover title for
-                the times somebody cannot tell two avatars apart. A thread that
-                changed agents mid-way shows every face rather than naming only
-                the latest. */}
-            <ConversationAgents agents={conversation.agents} showName={false} />
           </span>
         </div>
       )}

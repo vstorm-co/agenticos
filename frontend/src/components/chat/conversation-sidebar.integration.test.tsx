@@ -327,7 +327,7 @@ describe("the New Chat split button", () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New Chat" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "New chat" }));
 
     // No dialog and no menu: the wide half of the split button is exactly the
     // button it always was.

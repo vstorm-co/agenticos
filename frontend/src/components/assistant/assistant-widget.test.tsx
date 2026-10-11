@@ -378,16 +378,16 @@ describe("the Architect widget", () => {
     expect(launcher).not.toHaveClass("md:block");
   });
 
-  it("steps out of a phone's chat composer, and stays on every other page", () => {
+  it("steps out of the chat's composer on any screen, and stays on every other page", () => {
     // The corner it sits in is the composer's send controls there (#2075).
     state.pathname = "/pl/chat";
     const { unmount } = render(<AssistantWidget />);
-    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("max-md:hidden");
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("hidden");
     unmount();
 
     state.pathname = "/agents";
     render(<AssistantWidget />);
-    expect(screen.getByRole("button", { name: "Open Architect" })).not.toHaveClass("max-md:hidden");
+    expect(screen.getByRole("button", { name: "Open Architect" })).not.toHaveClass("hidden");
   });
 
   it("hides the window from its header without losing the conversation", () => {

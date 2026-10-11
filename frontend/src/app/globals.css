@@ -615,6 +615,15 @@
    35% of the foreground reads as a scrollbar somebody drew on purpose, in a place
    nothing else is that dark. */
 @layer utilities {
+  /* A row of chips or buttons that scrolls sideways on a phone: swiped, not
+     dragged, so no bar - the half-visible last item says there is more. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     /* Firefox: thumb + track. Colors are derived from the foreground so the

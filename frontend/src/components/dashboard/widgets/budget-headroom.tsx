@@ -25,6 +25,9 @@ import type { DashboardWidgetProps } from "./types";
  * carries the organization's id. Raising the cap is still somewhere else -
  * this is navigation, not a budget-request flow.
  */
+/** As many capped agents as a two-row card holds under the organization's bar. */
+const SHOWN_AGENTS = 2;
+
 export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -43,9 +46,14 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
   for (const row of spend?.by_agent ?? []) {
     perAgentUsed.set(row.agent_id, (perAgentUsed.get(row.agent_id) ?? 0) + Number(row.cost_usd));
   }
-  const capped = agents.filter(
-    (agent) => agent.budget_monthly_usd !== null && agent.budget_monthly_usd !== undefined,
-  );
+  const share = (agent: (typeof agents)[number]) =>
+    (perAgentUsed.get(agent.id) ?? 0) / (agent.budget_monthly_usd || 1);
+  // Closest to its cap first, and only as many as the card holds: a list of
+  // every capped agent ran out of the card and was cut off at its edge.
+  const capped = agents
+    .filter((agent) => agent.budget_monthly_usd !== null && agent.budget_monthly_usd !== undefined)
+    .sort((a, b) => share(b) - share(a));
+  const shown = capped.slice(0, SHOWN_AGENTS);
 
   return (
     <WidgetFrame
@@ -72,9 +80,9 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
             />
             <HeadroomBar used={used} cap={cap} className="mt-3" />
           </div>
-          {capped.length > 0 ? (
+          {shown.length > 0 ? (
             <div className="space-y-2">
-              {capped.map((agent) => {
+              {shown.map((agent) => {
                 const agentCap = agent.budget_monthly_usd ?? 0;
                 const agentUsed = perAgentUsed.get(agent.id) ?? 0;
                 return (
@@ -89,6 +97,11 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
                   </div>
                 );
               })}
+              {capped.length > shown.length && (
+                <p className="text-muted-foreground text-xs">
+                  {t("moreCapped", { count: capped.length - shown.length })}
+                </p>
+              )}
             </div>
           ) : null}
         </div>

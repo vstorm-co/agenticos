@@ -14,9 +14,9 @@ interface AssistantLauncherProps {
   open: boolean;
   onToggle: () => void;
   /**
-   * Whether the page has a composer along the bottom. On a phone the corner the
-   * button sits in is that composer's send controls, so it steps out there; the
-   * chat's own agent picker reaches the assistant.
+   * Whether the page has a composer along the bottom. The corner the button
+   * sits in is that composer's send controls on any screen, so it steps out
+   * there; the chat's own agent picker reaches the assistant.
    */
   overComposer?: boolean;
 }
@@ -43,7 +43,7 @@ export function AssistantLauncher({
       className={cn(
         "bg-background border-border fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
         open && "hidden",
-        overComposer && "max-md:hidden",
+        overComposer && "hidden",
       )}
     >
       <AssistantFace assistant={assistant} agentId={agentId} size="lg" />

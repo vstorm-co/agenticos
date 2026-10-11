@@ -79,9 +79,14 @@ export function PageHeader({
         <div className="min-w-0 flex-1 basis-80">
           <div className="flex items-center gap-3">
             <PageIcon />
-            <h1 className="text-foreground min-w-0 text-2xl leading-tight font-semibold tracking-tight text-balance">
+            <h1 className="text-foreground min-w-0 flex-1 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
               {title}
             </h1>
+            {/* On a phone the help sits with the title it explains, rather than
+                alone on a row under the wrapped actions. */}
+            <span className="md:hidden">
+              <RestartTourButton />
+            </span>
           </div>
           {/* Status belongs to the thing named, so it sits under the name - it
               used to float above the action buttons, reading as a caption for
@@ -96,14 +101,20 @@ export function PageHeader({
             </div>
           )}
           {description && (
-            <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed text-pretty">
+            // Two lines on a phone: a paragraph above the content pushed the
+            // page's first card below the fold before anything could be read.
+            <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty md:line-clamp-none">
               {description}
             </p>
           )}
         </div>
-        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+        {/* One row on a phone, scrolled sideways if it must, never three rows of
+            buttons stacked above the page. */}
+        <div className="-mx-4 flex max-w-[calc(100%+2rem)] min-w-0 scrollbar-none items-center gap-2 overflow-x-auto px-4 md:mx-0 md:max-w-full md:flex-wrap md:justify-end md:overflow-visible md:px-0 [&>*]:shrink-0">
           {actions}
-          <RestartTourButton />
+          <span className="hidden md:inline-flex">
+            <RestartTourButton />
+          </span>
         </div>
       </div>
     </div>

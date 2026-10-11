@@ -51,7 +51,11 @@ export function FilterRow({
     // Wrapped as groups they stack as two legible rows rather than spilling one
     // button at a time, and each row still starts where the eye already is.
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-      <div data-tour="dashboard-filters" className="flex flex-wrap items-center gap-2">
+      {/* On a phone each group is one row swiped sideways, not three wrapped rows. */}
+      <div
+        data-tour="dashboard-filters"
+        className="flex scrollbar-none flex-wrap items-center gap-2 max-md:-mx-4 max-md:max-w-[calc(100%+2rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-4 [&>*]:shrink-0"
+      >
         <PeriodControl period={period} onChange={onPeriodChange} />
 
         {filterable.length > 1 ? (
@@ -97,7 +101,10 @@ export function FilterRow({
           four decisions asked at once, so the page's one primary action - go
           and talk to an agent - sits in the header where every other page in
           the product puts its primary, and what is left here is quiet. */}
-      <div data-tour="dashboard-actions" className="flex flex-wrap items-center gap-1">
+      <div
+        data-tour="dashboard-actions"
+        className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-4 max-md:max-w-[calc(100%+2rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-4 [&>*]:shrink-0"
+      >
         {can(Perm.agentsEdit) ? (
           <Button asChild variant="ghost" size="sm" className="gap-1.5">
             <Link href={ROUTES.AGENTS}>

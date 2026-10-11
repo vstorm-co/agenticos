@@ -49,7 +49,7 @@ export function ChatWelcome({
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   return (
-    <div className={cn("mx-auto w-full", compact ? "px-4 py-6" : "max-w-2xl px-4 py-12 md:py-16")}>
+    <div className={cn("mx-auto w-full", compact ? "px-4 py-6" : "max-w-2xl px-4 py-6 md:py-16")}>
       <div className="text-center">
         <div className="mx-auto mb-5 flex justify-center">{mark}</div>
         <h2
@@ -73,7 +73,7 @@ export function ChatWelcome({
               onClick={() => onPick(suggestion.prompt)}
               className={cn(
                 "group border-border bg-card hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-xl border text-left transition-colors",
-                compact ? "p-3" : "p-4",
+                compact ? "p-3" : "p-3 md:p-4",
               )}
             >
               <span className="bg-muted text-muted-foreground group-hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors">
@@ -88,7 +88,7 @@ export function ChatWelcome({
                     "text-muted-foreground mt-0.5 block text-xs leading-relaxed",
                     // A narrow window shows four cards and a composer at once only
                     // when each says its prompt in a line.
-                    compact ? "line-clamp-1" : "line-clamp-2",
+                    compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",
                   )}
                 >
                   {suggestion.description ?? suggestion.prompt}
@@ -116,7 +116,9 @@ export function ChatWelcome({
       </div>
 
       {footer && (
-        <div className="text-muted-foreground mt-8 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs">
+        // Keyboard hints, so not on a phone - where they also ran into the
+        // caption under the composer.
+        <div className="text-muted-foreground mt-8 hidden flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs md:flex">
           {footer}
         </div>
       )}

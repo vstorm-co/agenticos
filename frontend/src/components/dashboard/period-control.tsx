@@ -29,7 +29,11 @@ export function PeriodControl({
   const t = useTranslations("dashboard");
 
   return (
-    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("period.label")}>
+    <div
+      className="flex shrink-0 items-center gap-1 md:flex-wrap"
+      role="group"
+      aria-label={t("period.label")}
+    >
       {PERIOD_PRESETS.map((preset: PeriodPreset) => (
         <button
           key={preset}

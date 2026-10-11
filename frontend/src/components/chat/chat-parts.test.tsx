@@ -305,12 +305,6 @@ describe("the empty chat", () => {
 
     expect(onPick).toHaveBeenCalledWith("Summarize the key points from my latest documents.");
   });
-
-  it("names the agent that will answer", () => {
-    render(<ChatEmptyState onPick={vi.fn()} agentLabel="@support" />);
-
-    expect(screen.getByText(/Powered by @support/)).toBeInTheDocument();
-  });
 });
 
 describe("recognising a chart", () => {

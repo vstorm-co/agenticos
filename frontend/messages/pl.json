@@ -997,7 +997,6 @@
       "greeting": "W czym mogę pomóc, {name}?",
       "greetingAnonymous": "W czym mogę dziś pomóc?",
       "lead": "Pytaj o cokolwiek - odpowiedzi strumieniują się z wywołaniami narzędzi i cytatami z Twojej wiedzy.",
-      "poweredBy": "Działa na {agent}",
       "slashCommands": "komendy slash",
       "emailTitle": "Napisz e-mail",
       "emailPrompt": "Napisz krótki, uprzejmy e-mail z prośbą do klienta o potwierdzenie spotkania w przyszłym tygodniu.",
@@ -1529,7 +1528,8 @@
         },
         "headline": "miesięcznego limitu {cap} - zostało {left}",
         "title": "Zapas budżetu",
-        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna."
+        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna.",
+        "moreCapped": "{count, plural, other {Z limitem: jeszcze #}}"
       },
       "conversations": {
         "continue": "Kontynuuj",
@@ -2114,6 +2114,8 @@
     "startChecklist": {
       "title": "Pierwsze kroki",
       "progress": "{done} z {total} gotowe",
+      "next": "Następny krok",
+      "doneLabel": "Zrobione",
       "dismiss": "Ukryj listę",
       "steps": {
         "agent": "Utwórz agenta",
