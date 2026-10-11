@@ -274,7 +274,10 @@
       "recordsCreating": "Dodaję rekord",
       "recordsUpserting": "Zapisuję rekord",
       "recordsUpdating": "Zmieniam rekord",
-      "recordsDeleting": "Usuwam rekord"
+      "recordsDeleting": "Usuwam rekord",
+      "workflowsListing": "Sprawdza, które workflow może uruchomić",
+      "workflowRunning": "Uruchamia workflow",
+      "workflowRunReading": "Sprawdza przebieg workflow"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -825,7 +828,8 @@
         "table_updated": "Zmieniony rekord",
         "table_deleted": "Usunięty rekord",
         "workflow_call": "Inny workflow",
-        "workflow_failed": "Nieudany przebieg"
+        "workflow_failed": "Nieudany przebieg",
+        "agent": "Agent"
       },
       "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
@@ -3599,7 +3603,16 @@
     "tablesOperationUpdate": "Zmiana",
     "tablesOperationDelete": "Usuwanie",
     "tablesGrantOrphaned": "Przyznana tabela zniknęła albo nie jest już Ci udostępniona:",
-    "tablesManage": "Zarządzaj tabelami"
+    "tablesManage": "Zarządzaj tabelami",
+    "workflowsGrantsLabel": "Workflow, które może uruchomić",
+    "workflowsGrantsDetail": "Każdy staje się czymś, co agent może uruchomić - z wejściem, które deklaruje, jako osoba, w imieniu której działa agent, i z czekaniem na odpowiedź.",
+    "workflowsNeedsPermission": "Wybór workflow wymaga uprawnienia workflows:view.",
+    "workflowsNone": "Nie ma jeszcze żadnego workflow. Zbuduj go i opublikuj do uruchamiania ręcznie, przez API albo wywołaniem.",
+    "workflowsGrantToggle": "Pozwól agentowi uruchamiać {name}",
+    "workflowsNotPublished": "Jeszcze nieopublikowany",
+    "workflowsStartsElsewhere": "Startuje od własnego wyzwalacza. Agent uruchamia tylko workflow startowane ręcznie, przez API albo wywołaniem.",
+    "workflowsOrphaned": "Workflow przypisanego temu agentowi już nie ma:",
+    "workflowsManage": "Zarządzaj workflow"
   },
   "steps": {
     "skills-gallery": {

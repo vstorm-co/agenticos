@@ -666,7 +666,16 @@
     "tablesOperationUpdate": "Ändern",
     "tablesOperationDelete": "Löschen",
     "tablesGrantOrphaned": "Eine freigegebene Tabelle gibt es nicht mehr oder sie ist nicht mehr mit Ihnen geteilt:",
-    "tablesManage": "Tabellen verwalten"
+    "tablesManage": "Tabellen verwalten",
+    "workflowsGrantsLabel": "Workflows, die er starten darf",
+    "workflowsGrantsDetail": "Jeder wird zu etwas, das der Agent ausführen kann - mit der Eingabe, die er deklariert, als das Mitglied, für das der Agent handelt, und mit Warten auf seine Antwort.",
+    "workflowsNeedsPermission": "Die Auswahl von Workflows erfordert workflows:view.",
+    "workflowsNone": "Noch kein Workflow. Bauen Sie einen und veröffentlichen Sie ihn zum Start von Hand, per API oder per Aufruf.",
+    "workflowsGrantToggle": "Den Agenten {name} starten lassen",
+    "workflowsNotPublished": "Noch nicht veröffentlicht",
+    "workflowsStartsElsewhere": "Startet über einen eigenen Auslöser. Ein Agent startet nur Workflows, die von Hand, per API oder per Aufruf beginnen.",
+    "workflowsOrphaned": "Ein Workflow, den dieser Agent hatte, ist weg:",
+    "workflowsManage": "Workflows verwalten"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1232,7 +1241,10 @@
       "recordsCreating": "Fügt einen Datensatz hinzu",
       "recordsUpserting": "Speichert einen Datensatz",
       "recordsUpdating": "Aktualisiert einen Datensatz",
-      "recordsDeleting": "Löscht einen Datensatz"
+      "recordsDeleting": "Löscht einen Datensatz",
+      "workflowsListing": "Prüft, welche Workflows er starten kann",
+      "workflowRunning": "Startet einen Workflow",
+      "workflowRunReading": "Prüft einen Workflow-Lauf"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -4599,7 +4611,8 @@
         "table_updated": "Datensatz geändert",
         "table_deleted": "Datensatz gelöscht",
         "workflow_call": "Anderer Workflow",
-        "workflow_failed": "Fehlgeschlagener Lauf"
+        "workflow_failed": "Fehlgeschlagener Lauf",
+        "agent": "Ein Agent"
       },
       "runsCount": "{count, plural, one {# Run} other {# Runs}}",
       "runsEmpty": "Noch keine Runs",

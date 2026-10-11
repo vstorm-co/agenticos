@@ -1,5 +1,5 @@
 ---
-source_sha: "f89a37721b8a"
+source_sha: "49394aac76fd"
 ---
 
 # Workflows { #workflows }
@@ -624,6 +624,17 @@ en las páginas de ejecuciones como cualquier otra. Una ejecución iniciada por 
 workflow de errores dice qué ejecución fallida la inició.
 Una llamada de vuelta a un workflow que ya se ejecuta en la cadena, o con más de cinco
 niveles, se rechaza.
+
+### Desde un agente { #from-an-agent }
+
+Un agente con la capability [Workflows](reference/capabilities.md#workflows) inicia
+como herramientas los workflows que nombra su spec cuando una conversación pide lo que
+uno hace. Lee los campos de entrada de cada uno, inicia una ejecución con ellos como el
+miembro por quien actúa y espera la respuesta hasta el límite del binding. La ejecución
+se comprueba, se factura y se audita como una iniciada desde **Start a run**, y la
+página de ejecuciones dice que la inició **An agent**. A un agente solo se le puede dar
+un workflow publicado que empiece con **Manual**, **API request** o **Called by a
+workflow**.
 
 ### Cuando otro workflow falla { #when-another-workflow-fails }
 

@@ -670,7 +670,16 @@
     "tablesOperationUpdate": "Update",
     "tablesOperationDelete": "Delete",
     "tablesGrantOrphaned": "A granted table is gone or no longer shared with you:",
-    "tablesManage": "Manage tables"
+    "tablesManage": "Manage tables",
+    "workflowsGrantsLabel": "Workflows it may start",
+    "workflowsGrantsDetail": "Each becomes something the agent can run - with the input it declares, as the member the agent acts for, and waiting for its answer.",
+    "workflowsNeedsPermission": "Choosing workflows needs workflows:view.",
+    "workflowsNone": "No workflow yet. Build one and publish it to start by hand, by the API or by a call.",
+    "workflowsGrantToggle": "Let the agent start {name}",
+    "workflowsNotPublished": "Not published yet",
+    "workflowsStartsElsewhere": "Starts on its own trigger. An agent starts only workflows begun by hand, by the API or by a call.",
+    "workflowsOrphaned": "A workflow this agent was given is gone:",
+    "workflowsManage": "Manage workflows"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1237,7 +1246,10 @@
       "recordsCreating": "Adding a record",
       "recordsUpserting": "Saving a record",
       "recordsUpdating": "Updating a record",
-      "recordsDeleting": "Deleting a record"
+      "recordsDeleting": "Deleting a record",
+      "workflowsListing": "Checking which workflows it can start",
+      "workflowRunning": "Running a workflow",
+      "workflowRunReading": "Checking on a workflow run"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -3572,7 +3584,8 @@
         "table_updated": "Record changed",
         "table_deleted": "Record deleted",
         "workflow_call": "Another workflow",
-        "workflow_failed": "A failed run"
+        "workflow_failed": "A failed run",
+        "agent": "An agent"
       },
       "runsCount": "{count, plural, one {# run} other {# runs}}",
       "runsEmpty": "No runs yet",

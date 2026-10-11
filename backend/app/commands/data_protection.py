@@ -149,6 +149,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "tool_search",
         # Records are rows in this deployment's own database.
         "virtual_tables",
+        # A run is one of this deployment's own workflows, carried out by its
+        # worker; whatever a step reaches is that workflow's, not this capability's.
+        "workflows",
     }
 )
 

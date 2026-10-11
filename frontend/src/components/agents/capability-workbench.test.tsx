@@ -29,6 +29,20 @@ vi.mock("@/hooks", () => ({
     tables: [{ id: "t-1", name: "Leads", description: null }],
     isLoading: false,
   }),
+  // The workflows panel lists the organization's workflows; `workflows-section` covers it.
+  useWorkflows: () => ({
+    workflows: [
+      {
+        id: "w-1",
+        name: "Refund",
+        description: null,
+        status: "published",
+        current_version_id: "v-1",
+        live_trigger: "trigger.manual",
+      },
+    ],
+    isLoading: false,
+  }),
   // The workspace section reads both: where sandboxes may run, and what the
   // chosen host allows. Neither is this file's subject - `workspace-section`
   // covers them - so both answer empty, which is a deployment that registered
@@ -795,5 +809,36 @@ describe("tables, whose grants are a table and its operations", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("virtual_tables");
+  });
+});
+
+describe("workflows, whose grants are the workflows it may start", () => {
+  const WORKFLOWS: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "workflows",
+    name: "Workflows",
+    category: "automation",
+    description: "Start published workflows as tools, and read what they answered.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], selected: [binding("workflows")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Workflows/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Let the agent start Refund" })).toBeVisible();
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], onToggle });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Workflows/ }));
+    await userEvent.click(screen.getByRole("switch", { name: "Workflows enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("workflows");
   });
 });

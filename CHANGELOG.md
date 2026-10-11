@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Agents start workflows.** The **Workflows** capability gives an agent the
+  published workflows its spec names as tools: it reads the input each one
+  asks for, starts a run as the member it acts for and waits for the answer,
+  up to a limit set in the Builder. Each start is the API's own, so access,
+  input checks, budgets and quotas hold, and the runs page says **An agent**
+  started it. An agent running as a workflow's own step starts none.
+  Migration `0130_workflow_run_from_agent`.
+
 - **Import a CSV file again to update a table.** With an external id column mapped,
   **Update records already here** changes the cells a row names on the record
   holding its external id instead of refusing it, and the import counts what it

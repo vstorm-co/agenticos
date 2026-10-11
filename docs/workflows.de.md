@@ -1,5 +1,5 @@
 ---
-source_sha: "f89a37721b8a"
+source_sha: "49394aac76fd"
 ---
 
 # Workflows { #workflows }
@@ -668,6 +668,17 @@ hat - und erscheint auf den Laufseiten wie jeder andere. Ein von einem Fehler-Wo
 gestarteter Lauf sagt, welcher fehlgeschlagene Lauf ihn gestartet hat. Ein Aufruf
 zurück in einen Workflow, der in der Kette schon läuft, oder tiefer als fünf Aufrufe,
 wird abgelehnt.
+
+### Von einem Agenten { #from-an-agent }
+
+Ein Agent mit der Capability [Workflows](reference/capabilities.md#workflows) startet
+die Workflows, die seine Spec nennt, als Werkzeuge, wenn ein Gespräch nach dem fragt,
+was einer tut. Er liest die Eingabefelder jedes Workflows, startet einen Lauf damit als
+das Mitglied, für das er handelt, und wartet bis zur Grenze des Bindings auf die
+Antwort. Der Lauf wird geprüft, abgerechnet und auditiert wie einer aus **Start a run**,
+und die Seite der Läufe sagt, dass **An agent** ihn gestartet hat. Einem Agenten lässt
+sich nur ein veröffentlichter Workflow geben, der mit **Manual**, **API request** oder
+**Called by a workflow** beginnt.
 
 ### Wenn ein anderer Workflow fehlschlägt { #when-another-workflow-fails }
 

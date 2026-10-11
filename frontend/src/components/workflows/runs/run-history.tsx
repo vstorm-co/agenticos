@@ -38,6 +38,7 @@ const TRIGGERS = [
   "table_deleted",
   "workflow_call",
   "workflow_failed",
+  "agent",
 ] as const;
 const HOUR_MS = 3_600_000;
 /** How far back each "started within" choice reaches. */

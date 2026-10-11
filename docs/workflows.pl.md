@@ -1,5 +1,5 @@
 ---
-source_sha: "f89a37721b8a"
+source_sha: "49394aac76fd"
 ---
 
 # Workflows { #workflows }
@@ -605,6 +605,16 @@ Wywołany przebieg jest powiązany z wywołującym w obie strony - jego strona m
 który krok uruchomił - i widać go na stronach przebiegów jak każdy inny. Przebieg
 uruchomiony przez workflow błędów mówi, niepowodzenie którego przebiegu go uruchomiło. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
 niż pięć wywołań, zostaje odrzucone.
+
+### Z agenta { #from-an-agent }
+
+Agent z capability [Workflowy](reference/capabilities.md#workflows) uruchamia workflowy
+wskazane w jego specyfikacji jako narzędzia, gdy rozmowa prosi o to, co któryś robi.
+Czyta pola wejścia każdego z nich, uruchamia run z tymi polami jako członek, w którego
+imieniu działa, i czeka na odpowiedź do limitu bindingu. Run jest sprawdzany, rozliczany
+i audytowany jak uruchomiony przez **Start a run**, a strona runów podaje, że uruchomił
+go **An agent**. Agentowi można dać tylko opublikowany workflow startujący od
+**Manual**, **API request** albo **Called by a workflow**.
 
 ### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
 

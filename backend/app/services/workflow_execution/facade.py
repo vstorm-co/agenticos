@@ -71,7 +71,7 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.step import step_subgraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
-from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS
+from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS, WORKFLOW_CALL
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +167,9 @@ _DOOR_TRIGGERS: dict[WorkflowRunTrigger, frozenset[str | None]] = {
     WorkflowRunTrigger.API: frozenset({None, *BY_HAND}),
     WorkflowRunTrigger.WEBSOCKET: frozenset({None, *BY_HAND}),
     WorkflowRunTrigger.CHAT: frozenset({CHAT}),
+    # An agent's `run_workflow` tool: what a member may start by hand, and what is
+    # published to be called, since an agent's call is the same request.
+    WorkflowRunTrigger.AGENT: frozenset({None, *BY_HAND, WORKFLOW_CALL}),
 }
 
 

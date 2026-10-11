@@ -591,6 +591,16 @@ the caller's page opens the run it started - and shows on the runs pages like an
 other. A run an error workflow started says which run's failure started it. A call back into a workflow
 already running in the chain, or more than five calls deep, is refused.
 
+### From an agent { #from-an-agent }
+
+An agent with the [Workflows](reference/capabilities.md#workflows) capability
+starts the workflows its spec names as tools, when a conversation asks for what one
+does. It reads each one's input fields, starts a run with them as the member it
+acts for, and waits for the answer, up to the binding's limit. The run is checked,
+billed and audited like one started from **Start a run**, and the runs page says it
+was started by **An agent**. Only a published workflow starting from **Manual**,
+**API request** or **Called by a workflow** can be given to an agent.
+
 ### When another workflow fails { #when-another-workflow-fails }
 
 An **On failure of a workflow** trigger makes an error workflow. Picked as another

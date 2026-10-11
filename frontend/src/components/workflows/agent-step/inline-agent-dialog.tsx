@@ -32,6 +32,9 @@ import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 const toggled = (list: string[], value: string) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
+/** The capabilities an agent configured in a workflow step is not offered. */
+const NOT_IN_A_STEP: ReadonlySet<string> = new Set(["subagents", "workflows"]);
+
 /**
  * An agent configured inside a workflow step, edited where the Builder would
  * edit it - the same model picker, capability workbench and MCP editor - and
@@ -39,8 +42,8 @@ const toggled = (list: string[], value: string) =>
  * on every keystroke.
  *
  * What it does not offer is what makes no sense for an agent that only ever runs
- * as a step: delegation, a monthly budget (the step has its own ceiling), and
- * the surfaces an agent is published to.
+ * as a step: delegation and starting workflows, a monthly budget (the step has
+ * its own ceiling), and the surfaces an agent is published to.
  */
 export function InlineAgentDialog({
   open,
@@ -90,9 +93,10 @@ function InlineAgentForm({
   const { skills, total: skillTotal } = useSkills({ limit: 100 });
   const { files: contextFiles, total: contextTotal } = useContextFiles({ limit: 100 });
   const { kbs: collections } = useKnowledgeBases();
-  // Delegation is the one capability a step's agent is not given: a step is
-  // already a place in a graph of steps, and the graph is where work is handed on.
-  const grantable = capabilities.filter((entry) => entry.id !== "subagents");
+  // Delegating and starting workflows are what a step's agent is not given: a
+  // step is already a place in a graph of steps, and the graph - a workflow.run
+  // step, with its loop and depth limits - is where work is handed on.
+  const grantable = capabilities.filter((entry) => !NOT_IN_A_STEP.has(entry.id));
 
   return (
     <>

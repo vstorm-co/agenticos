@@ -28,10 +28,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities._members import acting_member
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
-from app.repositories import member as member_repo
-from app.repositories import user as user_repo
 from app.schemas.virtual_table import TableRead
 from app.services.virtual_tables.presentation import UnknownColumnError, column_keyed
 
@@ -65,19 +64,14 @@ async def acting_as(
     if organization_id is None or user_id is None:
         raise Refused("Tables can only be used by a run acting for a member of an organization.")
     try:
-        member_id = UUID(user_id)
+        UUID(user_id)
     except ValueError:
+        # An embed visitor, say: somebody, but not a member the organization knows.
         raise Refused("Tables can only be used by a run acting for a member.") from None
-    member = await member_repo.get_active(db, organization_id=organization_id, user_id=member_id)
-    user = await user_repo.get_by_id(db, member_id) if member is not None else None
-    if member is None or user is None:
+    auth = await acting_member(db, organization_id, user_id)
+    if auth is None:
         raise Refused("The member this agent acts for is no longer in the organization.")
-    return AuthContext(
-        user_id=member_id,
-        organization_id=organization_id,
-        role=member.role,
-        is_app_admin=user.is_app_admin,
-    )
+    return auth
 
 
 def require(

@@ -673,6 +673,7 @@ def load_builtins() -> None:
         virtual_tables,
         web_fetch,
         web_research,
+        workflows,
     )
 
     _builtins_loaded = True

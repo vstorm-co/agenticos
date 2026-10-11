@@ -17,7 +17,7 @@ const seen = vi.hoisted(() => ({ catalog: [] as string[], agentId: undefined as 
 
 vi.mock("@/hooks", () => ({
   useCapabilityCatalog: () => ({
-    capabilities: [{ id: "clock" }, { id: "subagents" }, { id: "knowledge" }],
+    capabilities: [{ id: "clock" }, { id: "subagents" }, { id: "knowledge" }, { id: "workflows" }],
   }),
   useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
   useSkills: () => ({ skills: [], total: 0 }),
@@ -134,7 +134,7 @@ describe("InlineAgentDialog", () => {
     expect(saved.mcp_servers).toHaveLength(1);
   });
 
-  it("offers every capability but delegation, and no notes to clear", async () => {
+  it("offers every capability but delegating and starting workflows, and no notes to clear", async () => {
     renderDialog();
 
     await userEvent.click(screen.getByRole("tab", { name: "Capabilities and knowledge" }));

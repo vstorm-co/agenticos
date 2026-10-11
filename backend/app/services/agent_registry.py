@@ -153,6 +153,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "agents:delegate",
         "tables:read",
         "tables:write",
+        "workflows:run",
     }
 )
 

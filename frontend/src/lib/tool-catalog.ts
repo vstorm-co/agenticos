@@ -295,6 +295,11 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   update_record: { kind: "edit", render: "generic", captionKey: "recordsUpdating" },
   delete_record: { kind: "edit", render: "generic", captionKey: "recordsDeleting" },
 
+  // workflows - starting one is a write: it sets a process going.
+  list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
+  run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
+  get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
+
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
