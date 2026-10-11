@@ -85,7 +85,9 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
+      // Clear of the close button in the corner, which a long title ran under.
+      // One unprefixed class, so a caller's own padding replaces it whole.
+      className={cn("flex flex-col space-y-1.5 pr-6 text-center sm:text-left", className)}
       {...props}
     />
   );

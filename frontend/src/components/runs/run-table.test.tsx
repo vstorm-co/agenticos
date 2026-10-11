@@ -273,7 +273,8 @@ describe("who ran it, and which agent", () => {
       />,
     );
 
-    expect(within(row()).getByText("Support agent")).toBeVisible();
+    // Twice: its own column, and folded under the status for a phone.
+    expect(within(row()).getAllByText("Support agent")).toHaveLength(2);
     expect(within(row()).getByText("Kim")).toBeVisible();
   });
 
