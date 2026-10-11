@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
+import { Cable, ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -717,10 +717,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         onClick={() => setManaging(row)}
                         aria-label={t("manageConnectionsOn", { name: row.name })}
                       >
-                        <span className="truncate">
-                          {t("connectionCount", { count: connectionCount(row) })}
-                        </span>
-                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                        {/* A mark and the number, not "2 conn..." cut off by
+                            the dot: the button's label says it in words. */}
+                        <Cable className="h-3.5 w-3.5" aria-hidden />
+                        <span className="tabular-nums">{connectionCount(row)}</span>
+                        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                       </Button>
                     )}
                     <StateDot row={row} />

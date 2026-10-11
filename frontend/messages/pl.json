@@ -2519,7 +2519,6 @@
     "connected": "Podłączony",
     "connectedForOrg": "{name} jest teraz dostępny dla agentów tej organizacji.",
     "connectedForYou": "{name} jest podłączony dla Twojego asystenta.",
-    "connectionCount": "{count, plural, one {1 połączenie} few {# połączenia} many {# połączeń} other {# połączeń}}",
     "connectionState": "Stan połączenia",
     "couldNotDisconnect": "Nie udało się odłączyć",
     "couldNotSaveServer": "Nie udało się zapisać serwera",
@@ -3655,7 +3654,6 @@
     "channels": {
       "addChannel": "Dodaj kanał",
       "addChannelDescription": "Zarejestruj bota Slack, Telegram lub Mattermost dla organizacji. Każde poświadczenie jest tu szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
-      "addFirstChannel": "Zarejestruj kanał",
       "addOneBecomesBindable": "Zarejestruj go, a agentów będzie można na nim udostępnić z zakładki Dostępność.",
       "appLevelToken": "Token aplikacji",
       "appLevelTokenHint": "Token xapp-, dla Socket Mode w trakcie developmentu. Opcjonalny.",

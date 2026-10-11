@@ -230,7 +230,7 @@ describe("the channels page", () => {
     vi.mocked(apiClient.post).mockResolvedValue(bot());
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
     await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
     await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
@@ -256,7 +256,7 @@ describe("the channels page", () => {
     serve([]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
     await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
 
@@ -267,7 +267,7 @@ describe("the channels page", () => {
     serve([]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.click(screen.getByRole("button", { name: "Slack" }));
 
     expect(screen.getByLabelText(/Signing secret/)).toBeVisible();
@@ -281,7 +281,7 @@ describe("the channels page", () => {
     vi.mocked(apiClient.post).mockResolvedValue(bot());
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
     await userEvent.click(screen.getByRole("button", { name: "Slack" }));
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Slack");
@@ -509,7 +509,7 @@ describe("the channels page", () => {
     serve([]);
     vi.mocked(apiClient.post).mockResolvedValue(bot());
     await mount();
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.click(screen.getByRole("button", { name: "Slack" }));
     await userEvent.click(screen.getByRole("radio", { name: /AgenticOS connects to Slack/ }));
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Slack");

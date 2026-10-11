@@ -126,7 +126,7 @@ export default function ChannelsPage() {
               label: (
                 <>
                   <Plus className="h-3.5 w-3.5" />
-                  {t("addFirstChannel")}
+                  {t("addChannel")}
                 </>
               ),
               onClick: () => setAdding(true),

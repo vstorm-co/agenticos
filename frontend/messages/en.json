@@ -2750,7 +2750,6 @@
     "connected": "Connected",
     "connectedForOrg": "{name} is now available to this organization's agents.",
     "connectedForYou": "{name} is connected for your assistant.",
-    "connectionCount": "{count, plural, =1 {1 connection} other {# connections}}",
     "connectionState": "Connection state",
     "couldNotDisconnect": "Could not disconnect",
     "couldNotSaveServer": "Could not save the server",
@@ -3885,7 +3884,6 @@
     "channels": {
       "addChannel": "Add channel",
       "addChannelDescription": "Register a Slack, Telegram or Mattermost bot for the organization. Every credential here is sealed at rest and never read back.",
-      "addFirstChannel": "Register a channel",
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",

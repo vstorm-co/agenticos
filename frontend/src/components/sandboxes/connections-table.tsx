@@ -112,11 +112,16 @@ export function ConnectionsTable({
       {
         key: "defaultRuntime",
         header: t("defaultRuntime"),
-        cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs">
-            {connection.default_runtime ?? t("serviceSOwn")}
-          </span>
-        ),
+        cell: (connection) =>
+          // A runtime's name is an identifier and reads as one; "the service's
+          // own" is a phrase and does not.
+          connection.default_runtime ? (
+            <span className="text-muted-foreground font-mono text-xs">
+              {connection.default_runtime}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-xs">{t("serviceSOwn")}</span>
+          ),
       },
       {
         key: "actions",

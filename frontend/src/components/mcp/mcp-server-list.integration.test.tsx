@@ -179,8 +179,9 @@ describe("McpServerList", () => {
     const row = within(githubRow());
     expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
     // Labelled for a screen reader, and counted for everybody else.
+    // The count as a number beside a mark; the button's name says what it counts.
     expect(row.getByRole("button", { name: "Manage connections on GitHub" })).toHaveTextContent(
-      "1 connection",
+      "1",
     );
   });
 
@@ -538,7 +539,7 @@ describe("several accounts on one server", () => {
     expect(screen.getAllByRole("group", { name: "GitHub" })).toHaveLength(1);
     expect(
       within(githubRow()).getByRole("button", { name: /Manage connections/ }),
-    ).toHaveTextContent("2 connections");
+    ).toHaveTextContent("2");
 
     const dialog = await openConnections();
     expect(dialog.getByText("gh-readonly")).toBeInTheDocument();

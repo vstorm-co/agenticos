@@ -2632,7 +2632,6 @@
     "connected": "Verbunden",
     "connectedForOrg": "{name} steht den Agents dieser Organisation jetzt zur Verfügung.",
     "connectedForYou": "{name} ist für Ihren Assistenten verbunden.",
-    "connectionCount": "{count, plural, =1 {1 Verbindung} other {# Verbindungen}}",
     "connectionState": "Verbindungszustand",
     "couldNotDisconnect": "Verbindung konnte nicht getrennt werden",
     "couldNotSaveServer": "Der Server konnte nicht gespeichert werden",
@@ -3767,7 +3766,6 @@
     "channels": {
       "addChannel": "Kanal hinzufügen",
       "addChannelDescription": "Registrieren Sie einen Slack-, Telegram- oder Mattermost-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
-      "addFirstChannel": "Einen Kanal registrieren",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
       "appLevelToken": "App-Level-Token",
       "appLevelTokenHint": "Das xapp--Token, für den Socket Mode in der Entwicklung. Optional.",
