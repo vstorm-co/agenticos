@@ -312,6 +312,19 @@ class TestSurfaces:
                 {"event": {"type": "app_home_opened", "tab": "home", "user": "U1"}}, _bot()
             )
 
+    async def test_an_event_type_cannot_forge_a_log_line(self, caplog: pytest.LogCaptureFixture):
+        """The type is Slack's to send; a line break in it stays inside one line."""
+        with patch(
+            "app.services.channels.slack_app.unseal_bot_token", side_effect=RuntimeError("boom")
+        ):
+            await SlackSurfaces(MagicMock()).handle(
+                {"event": {"type": "app_home_opened\nERROR forged"}}, _bot()
+            )
+
+        [record] = [r for r in caplog.records if "failed" in r.getMessage()]
+        assert "\n" not in record.getMessage()
+        assert "app_home_openedERROR forged" in record.getMessage()
+
 
 class TestParsing:
     def test_a_button_press_carries_who_where_and_what(self):

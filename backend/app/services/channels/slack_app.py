@@ -214,7 +214,10 @@ class SlackSurfaces:
                         unfurls=unfurls,
                     )
         except Exception:
-            logger.exception("Slack %s for bot %s failed", kind, bot.id)
+            # The event type is Slack's to send, so a line break in it could
+            # forge a log line of its own.
+            safe_kind = str(kind).replace("\r", "").replace("\n", "")
+            logger.exception("Slack %s for bot %s failed", safe_kind, bot.id)
 
     async def _recent(
         self, bot: ChannelBot, identity_id: UUID, client: Any
