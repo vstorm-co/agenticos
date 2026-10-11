@@ -15,7 +15,10 @@ const TabsList = React.forwardRef<
     className={cn(
       // The underline strip is the console's one tab dialect - the rag page's
       // look, promoted to the primitive so every tab strip reads the same.
-      "border-border text-muted-foreground flex gap-6 border-b bg-transparent",
+      // A strip wider than a phone scrolls itself rather than widening the
+      // page: it pushed the main column sideways, and focusing a tab scrolled
+      // the whole page out from under the reader.
+      "border-border text-muted-foreground flex max-w-full scrollbar-none gap-6 overflow-x-auto overflow-y-hidden border-b bg-transparent [&>*]:shrink-0",
       className,
     )}
     {...props}

@@ -1,4 +1,8 @@
+"use client";
+
 import * as React from "react";
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils";
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -34,10 +38,47 @@ const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
 );
 CardTitle.displayName = "CardTitle";
 
+/**
+ * The line under a card's title, folded to two lines when it runs longer.
+ *
+ * Several of the console's cards explain themselves at length, and stacked
+ * under one another they turned a settings page into a wall of text before the
+ * first control. The first two lines say what the card is for; "More" opens the
+ * rest. A short description draws exactly as before - the toggle appears only
+ * when the text is cut.
+ */
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("text-muted-foreground text-sm", className)} {...props} />
-  ),
+  ({ className, children, ...props }, ref) => {
+    const t = useTranslations("common");
+    const text = React.useRef<HTMLDivElement>(null);
+    const [open, setOpen] = React.useState(false);
+    const [cut, setCut] = React.useState(false);
+    React.useLayoutEffect(() => {
+      const element = text.current;
+      if (element === null) return;
+      const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+      measure();
+      const observer = new ResizeObserver(measure);
+      observer.observe(element);
+      return () => observer.disconnect();
+    }, [children]);
+    return (
+      <div ref={ref} className={cn("text-muted-foreground text-sm", className)} {...props}>
+        <div ref={text} className={cn(!open && "line-clamp-2")}>
+          {children}
+        </div>
+        {(cut || open) && (
+          <button
+            type="button"
+            onClick={() => setOpen((shown) => !shown)}
+            className="text-foreground/70 hover:text-foreground mt-0.5 text-xs underline-offset-2 hover:underline"
+          >
+            {open ? t("showLess") : t("showMore")}
+          </button>
+        )}
+      </div>
+    );
+  },
 );
 CardDescription.displayName = "CardDescription";
 

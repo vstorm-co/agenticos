@@ -679,8 +679,8 @@
     "capabilityNever": "Nie",
     "showAdvancedCapabilities": "{count, plural, =1 {1 erweiterte Capability zeigen} other {# erweiterte Capabilities zeigen}}",
     "hideAdvancedCapabilities": "Erweiterte Capabilities ausblenden",
-    "workspaceFilesAndShell": "Dateien und eine Shell",
-    "workspaceFilesOnly": "Dateien, keine Shell",
+    "workspaceFilesAndShell": "Dateien und eine Shell.",
+    "workspaceFilesOnly": "Nur Dateien, keine Shell.",
     "addToAgent": "Zu einem Agenten hinzufügen",
     "addToAgentHint": "Wählen Sie den Agenten. Sein Entwurf ändert sich; veröffentlichen Sie ihn im Builder, damit es wirkt.",
     "loadingAgents": "Agenten werden geladen…",
@@ -1398,7 +1398,9 @@
     "submit": "Absenden",
     "success": "Erfolg",
     "yes": "Ja",
-    "dismiss": "Ausblenden"
+    "dismiss": "Ausblenden",
+    "showMore": "Mehr",
+    "showLess": "Weniger"
   },
   "dashboard": {
     "actions": {

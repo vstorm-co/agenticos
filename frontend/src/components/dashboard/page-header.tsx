@@ -110,7 +110,7 @@ export function PageHeader({
         </div>
         {/* One row on a phone, scrolled sideways if it must, never three rows of
             buttons stacked above the page. */}
-        <div className="-mx-4 flex max-w-[calc(100%+2rem)] min-w-0 scrollbar-none items-center gap-2 overflow-x-auto px-4 md:mx-0 md:max-w-full md:flex-wrap md:justify-end md:overflow-visible md:px-0 [&>*]:shrink-0">
+        <div className="-mx-3 flex max-w-[calc(100%+1.5rem)] min-w-0 scrollbar-none items-center gap-2 overflow-x-auto px-3 md:mx-0 md:max-w-full md:flex-wrap md:justify-end md:overflow-visible md:px-0 [&>*]:shrink-0">
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

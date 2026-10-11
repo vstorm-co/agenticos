@@ -679,8 +679,8 @@
     "capabilityNever": "Never",
     "showAdvancedCapabilities": "{count, plural, =1 {Show 1 advanced capability} other {Show # advanced capabilities}}",
     "hideAdvancedCapabilities": "Hide advanced capabilities",
-    "workspaceFilesAndShell": "files and a shell",
-    "workspaceFilesOnly": "files, no shell",
+    "workspaceFilesAndShell": "Files and a shell.",
+    "workspaceFilesOnly": "Files only, no shell.",
     "addToAgent": "Add to an agent",
     "addToAgentHint": "Pick the agent. Its draft changes; publish it in the Builder to make it live.",
     "loadingAgents": "Loading agents…",
@@ -1398,7 +1398,9 @@
     "submit": "Submit",
     "success": "Success",
     "yes": "Yes",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "showMore": "More",
+    "showLess": "Less"
   },
   "dashboard": {
     "actions": {

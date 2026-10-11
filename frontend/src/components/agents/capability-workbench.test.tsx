@@ -569,7 +569,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     // the connection rather than the spec, so the row does not claim to know.
     renderSandbox([binding("sandbox", { config: { backend: "service" } })]);
 
-    expect(await screen.findByText("files and a shell")).toBeInTheDocument();
+    expect(await screen.findByText("Files and a shell.")).toBeInTheDocument();
   });
 
   it("says what it is for while the agent has no workspace at all", async () => {
@@ -580,9 +580,9 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
   });
 
   it.each([
-    [{ backend: "state" }, "files, no shell"],
-    [{ backend: "service" }, "files and a shell"],
-    [{}, "files, no shell"],
+    [{ backend: "state" }, "Files only, no shell."],
+    [{ backend: "service" }, "Files and a shell."],
+    [{}, "Files only, no shell."],
   ])("names the backend in the row (%o)", async (config, expected) => {
     renderSandbox([binding("sandbox", { config })]);
 

@@ -679,8 +679,8 @@
     "capabilityNever": "Nigdy",
     "showAdvancedCapabilities": "{count, plural, one {Pokaż 1 zaawansowaną capability} few {Pokaż # zaawansowane capability} many {Pokaż # zaawansowanych capability} other {Pokaż # zaawansowanych capability}}",
     "hideAdvancedCapabilities": "Ukryj zaawansowane capability",
-    "workspaceFilesAndShell": "pliki i shell",
-    "workspaceFilesOnly": "pliki, bez shella",
+    "workspaceFilesAndShell": "Pliki i shell.",
+    "workspaceFilesOnly": "Tylko pliki, bez shella.",
     "addToAgent": "Dodaj do agenta",
     "addToAgentHint": "Wybierz agenta. Zmienia się jego szkic; opublikuj go w Builderze, żeby zmiana zaczęła działać.",
     "loadingAgents": "Wczytywanie agentów…",
@@ -1398,7 +1398,9 @@
     "submit": "Wyślij",
     "success": "Sukces",
     "yes": "Tak",
-    "dismiss": "Odrzuć"
+    "dismiss": "Odrzuć",
+    "showMore": "Więcej",
+    "showLess": "Mniej"
   },
   "dashboard": {
     "actions": {
