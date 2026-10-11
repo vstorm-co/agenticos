@@ -38,11 +38,11 @@ export function AssistantLauncher({
       }
       aria-expanded={open}
       onClick={onToggle}
-      // Over a full-screen window on a phone it would cover the conversation, and
-      // the window's own × closes it there.
+      // Gone while the window is open, on every screen: the window takes its
+      // corner, and the window's own × closes it.
       className={cn(
         "bg-background border-border fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
-        open && "hidden md:block",
+        open && "hidden",
         overComposer && "max-md:hidden",
       )}
     >
@@ -87,7 +87,7 @@ export function architectName(
 
 /** Where the assistant's window sits: full screen on a phone, a panel above the button otherwise. */
 export const WINDOW_CLASSES =
-  "bg-background border-border fixed z-50 flex flex-col overflow-hidden shadow-2xl inset-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:inset-auto md:pt-0 md:pb-0 md:right-6 md:bottom-24 md:h-[min(640px,80vh)] md:w-[400px] md:rounded-2xl md:border";
+  "bg-background border-border fixed z-50 flex flex-col overflow-hidden shadow-2xl inset-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:inset-auto md:pt-0 md:pb-0 md:right-6 md:bottom-6 md:h-[min(600px,calc(100vh-3rem))] md:w-[440px] md:rounded-2xl md:border";
 
 /**
  * The widget's root: usable above an open dialog, without closing it.

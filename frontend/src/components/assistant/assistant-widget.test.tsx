@@ -368,13 +368,14 @@ describe("the Architect widget", () => {
     expect(screen.getByRole("button", { name: "Turn tips off" })).toBeInTheDocument();
   });
 
-  it("steps its button aside on a phone while the window is open", () => {
+  it("steps its button aside while the window is open, which takes its corner", () => {
     render(<AssistantWidget />);
     const launcher = screen.getByRole("button", { name: "Open Architect" });
 
     fireEvent.click(launcher);
 
-    expect(launcher).toHaveClass("hidden", "md:block");
+    expect(launcher).toHaveClass("hidden");
+    expect(launcher).not.toHaveClass("md:block");
   });
 
   it("steps out of a phone's chat composer, and stays on every other page", () => {
