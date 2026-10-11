@@ -62,6 +62,7 @@ class SubagentsConfig(BaseModel):
     """
 
     inline: list[SpecialistSpec] = Field(
+        title="Inline specialists",
         default_factory=list,
         description=(
             "Specialists defined inside this agent, for work that does not justify "
@@ -70,6 +71,7 @@ class SubagentsConfig(BaseModel):
         ),
     )
     mode: DelegationMode = Field(
+        title="Delegation mode",
         default="sync",
         description=(
             "Whether a delegation blocks this agent until it answers (sync), runs "
@@ -85,6 +87,7 @@ class SubagentsConfig(BaseModel):
         ),
     )
     allow_questions: bool = Field(
+        title="Let delegates ask questions",
         default=False,
         description=(
             "Whether a delegate may ask the person waiting on this agent a question "
@@ -104,6 +107,7 @@ class SubagentsConfig(BaseModel):
         ),
     )
     allow_dynamic: bool = Field(
+        title="Let the agent create specialists",
         default=False,
         description=(
             "Whether this agent may invent specialists at run time rather than only "
@@ -123,6 +127,7 @@ class SubagentsConfig(BaseModel):
         ),
     )
     max_depth: int = Field(
+        title="Delegation depth",
         default=1,
         ge=1,
         le=3,
@@ -141,6 +146,7 @@ class SubagentsConfig(BaseModel):
         ),
     )
     max_fanout: int = Field(
+        title="Delegations at once",
         default=3,
         ge=1,
         le=10,
@@ -153,6 +159,7 @@ class SubagentsConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     max_result_chars: int = Field(
+        title="Answer length shown per delegate",
         default=2000,
         ge=200,
         le=20_000,
@@ -165,6 +172,7 @@ class SubagentsConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     share_with_delegates: list[str] = Field(
+        title="Capabilities delegates inherit",
         default_factory=list,
         description=(
             "Capability ids bound on this agent that its delegates and inline "

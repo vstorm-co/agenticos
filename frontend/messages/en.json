@@ -6353,5 +6353,425 @@
     "typeForPeople": "Type a name or an email address to find a person.",
     "chipPrivate": "Private",
     "chipGroupsMore": "{names} +{count}"
+  },
+  "capabilityConfig": {
+    "browser_choice": {
+      "cdp_url": {
+        "title": "DevTools endpoint",
+        "description": "Chromium DevTools endpoint to drive - a browser service the operator runs, not a process in the API container."
+      },
+      "allowed_domains": {
+        "title": "Allowed domains",
+        "description": "Hosts the browser may be on; empty means no restriction. Globs like *.example.com are allowed. Checked on every step, not only the first."
+      },
+      "decision_model": {
+        "title": "Decision model",
+        "description": "The model that picks the operation and the element each step."
+      },
+      "decision_base_url": {
+        "title": "Decision model endpoint",
+        "description": "Where that model runs. Empty is the vendor's own public endpoint (https://api.typesafe.ai), which is where page content goes unless this says otherwise - so a deployment that may not send page content to a third party fills this in with an endpoint of its own."
+      },
+      "max_steps": {
+        "title": "Steps per call at most",
+        "description": "Hard cap on steps per call; each step is one decision request."
+      },
+      "candidate_cap": {
+        "title": "Elements offered per step",
+        "description": "How many of the page's elements may be offered as choices in one step. Lower is cheaper and blinder; the loop's answer to a page too dense for the cap is to scroll."
+      },
+      "min_confidence": {
+        "title": "Minimum confidence",
+        "description": "Refuse to act on a pick the decision model scored below this, ending the browse as blocked. 0 acts on every pick and reports the score."
+      },
+      "preview": {
+        "title": "Show a live preview",
+        "description": "Send the viewport to the chat while the browse runs, so a person can watch it. Costs one JPEG per step on the socket."
+      },
+      "preview_width": {
+        "title": "Viewport width (pixels)",
+        "description": "The browser's viewport width in pixels, which is also how wide the frames are. It decides what the agent can see without scrolling."
+      }
+    },
+    "browser_use": {
+      "mode": {
+        "title": "Browser",
+        "description": "playwright: launch a headless browser locally. remote: attach to a browser running elsewhere via its CDP endpoint."
+      },
+      "cdp_url": {
+        "title": "DevTools endpoint",
+        "description": "Chromium DevTools endpoint to attach to; required by (and only valid in) remote mode."
+      },
+      "allowed_domains": {
+        "title": "Allowed domains",
+        "description": "Domains the agent may navigate to; empty means no restriction. Globs like *.example.com are allowed."
+      },
+      "max_steps": {
+        "title": "Steps per call at most",
+        "description": "Hard cap on the browser agent's steps per call; each step is one model request."
+      },
+      "use_vision": {
+        "title": "Send screenshots to the model",
+        "description": "Send page screenshots to the browser agent's model; better on visual layouts, more tokens."
+      },
+      "headless": {
+        "title": "Hide the browser window",
+        "description": "Run a locally launched browser without a visible window (playwright mode only)."
+      }
+    },
+    "channel_tools": {
+      "tools": {
+        "title": "Allowed lookups",
+        "description": "Which channel lookups this binding allows, by tool id. Empty means none, which is what a binding starts as."
+      },
+      "default_limit": {
+        "title": "Results when no number is asked for",
+        "description": "Members, search results or messages returned when the model does not ask for a number"
+      }
+    },
+    "clock": {
+      "timezone": {
+        "title": "Time zone",
+        "description": "IANA timezone the agent thinks in, e.g. Europe/Warsaw"
+      }
+    },
+    "code_execution": {
+      "timeout_secs": {
+        "title": "Time limit per call (seconds)",
+        "description": "Wall-clock budget for one call, in seconds"
+      },
+      "max_memory_mb": {
+        "title": "Memory limit per call (MB)",
+        "description": "Memory cap for one call, in megabytes"
+      }
+    },
+    "compaction": {
+      "strategy": {
+        "title": "Strategy",
+        "description": "Which strategy to apply when the history approaches the window"
+      },
+      "max_fraction": {
+        "title": "Start at this share of the window",
+        "description": "Fraction of the model's context window at which compaction starts"
+      },
+      "keep_messages": {
+        "title": "Recent messages kept",
+        "description": "How many recent messages survive a summary or a sliding window"
+      },
+      "keep_tool_pairs": {
+        "title": "Recent tool results kept",
+        "description": "How many recent tool calls keep their results when results are cleared"
+      },
+      "summary_prompt": {
+        "title": "Summary prompt",
+        "description": "What the summarising model is told. `{messages}` is where the conversation being replaced is inserted, and it is required - a prompt without it summarises nothing. Edit it to keep what your agent's work depends on: the default keeps intent, decisions and open threads, which is not the same as what a support transcript or a code review needs"
+      },
+      "context_window": {
+        "title": "Context window override",
+        "description": "Override the window this triggers against. Also what the chat's context gauge divides by, so the two describe one ceiling. Set it when the resolved number is wrong for your deployment - a beta or a tier can be given less than the provider publishes - or to make an agent compact earlier than its model would require"
+      },
+      "fallback_context_window": {
+        "title": "Fallback context window",
+        "description": "Window to assume when the model's own cannot be resolved"
+      }
+    },
+    "context": {
+      "expose_read_tool": {
+        "title": "Let the agent open linked files",
+        "description": "Whether link-mode files are reachable through a read tool. Off means only injected files reach the model, and nothing is read on demand."
+      }
+    },
+    "conversation_search": {
+      "max_results": {
+        "title": "Conversations per search",
+        "description": "How many conversations one search returns at most. Each brings back a short passage, so a high number costs context on every search."
+      }
+    },
+    "guardrails": {
+      "redact_secrets_in": {
+        "title": "Hide secrets in the question",
+        "description": "Redact API keys and tokens from the user's prompt"
+      },
+      "redact_pii_in": {
+        "title": "Hide personal data in the question",
+        "description": "Redact emails, phone numbers, IBANs, cards and SSNs from the prompt"
+      },
+      "blocked_keywords_in": {
+        "title": "Blocked words in the question",
+        "description": "Block the run if the prompt contains any of these terms (comma or newline separated)"
+      },
+      "redact_secrets_out": {
+        "title": "Hide secrets in the answer",
+        "description": "Redact API keys and tokens from the agent's answer"
+      },
+      "redact_pii_out": {
+        "title": "Hide personal data in the answer",
+        "description": "Redact emails, phone numbers, IBANs, cards and SSNs from the answer"
+      },
+      "blocked_keywords_out": {
+        "title": "Blocked words in the answer",
+        "description": "Block the run if the answer contains any of these terms (comma or newline separated)"
+      },
+      "redact_secrets_tool": {
+        "title": "Hide secrets in tool results",
+        "description": "Redact API keys and tokens from tool results before the model reads them"
+      },
+      "redact_pii_tool": {
+        "title": "Hide personal data in tool results",
+        "description": "Redact emails, phone numbers, IBANs, cards and SSNs from tool results"
+      },
+      "blocked_keywords_tool": {
+        "title": "Blocked words in tool results",
+        "description": "Block the run if a tool result contains any of these terms (comma or newline separated)"
+      },
+      "redact_secrets_args": {
+        "title": "Hide secrets in tool arguments",
+        "description": "Redact API keys and tokens from the arguments the agent passes a tool"
+      },
+      "redact_pii_args": {
+        "title": "Hide personal data in tool arguments",
+        "description": "Redact emails, phone numbers, IBANs, cards and SSNs from tool arguments"
+      },
+      "blocked_keywords_args": {
+        "title": "Blocked words in tool arguments",
+        "description": "Block the run if a tool's arguments contain any of these terms (comma or newline separated)"
+      },
+      "phone_regions": {
+        "title": "Phone number countries",
+        "description": "Countries whose national phone formats PII redaction reads, as two-letter codes (comma or newline separated), at most 16 regions and 256 characters. A number written with + is redacted whatever is listed"
+      }
+    },
+    "image_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Whose model draws. Only providers whose model class honours the image tool are accepted - three today - and which those are is asked of the SDK rather than listed here."
+      },
+      "model": {
+        "title": "Image model",
+        "description": "Which of that provider's image models draws, by the ids in `app/core/catalog/image_models.json`. A model outside the catalog is refused: the tool answers a model that cannot draw with an error its author only sees mid-run."
+      },
+      "quality": {
+        "title": "Quality",
+        "description": "Rendering quality; higher is slower and dearer."
+      },
+      "size": {
+        "title": "Size",
+        "description": "Output size. OpenAI uses the pixel values, Google the K values."
+      },
+      "background": {
+        "title": "Background",
+        "description": "Background type; transparent needs a png or webp output."
+      },
+      "output_format": {
+        "title": "File format",
+        "description": "Image file format."
+      },
+      "aspect_ratio": {
+        "title": "Aspect ratio",
+        "description": "Aspect ratio, e.g. 16:9 or 1:1."
+      }
+    },
+    "knowledge": {
+      "default_top_k": {
+        "title": "Passages per search",
+        "description": "Passages returned when the model does not ask for a number"
+      },
+      "self_query_enabled": {
+        "title": "Infer filters from the question",
+        "description": "Infer FA-039 business filters (source, document type, organizational unit, date range) from the natural-language query with an LLM when the model searches without naming any filter itself. Off by default. Each such search makes one extra model request, billed to the run. It can only narrow within the agent's tenant and collections, never widen."
+      },
+      "query_analysis_mode": {
+        "title": "Query expansion",
+        "description": "Optionally analyse and expand the query before retrieval to improve recall on short or fuzzy questions. Off by default. `multi_query` and `hyde` each make one extra model call"
+      },
+      "query_analysis_max_variants": {
+        "title": "Rephrasings at most",
+        "description": "How many rephrasings `multi_query` may add, bounding its fan-out and cost. Ignored by the other modes"
+      },
+      "parent_context": {
+        "title": "Include the surrounding text",
+        "description": "Small-to-big retrieval: return each matched chunk with the text around it. Matching and ranking always run on the small chunks, the matched chunk is never shortened, and the added context is bounded."
+      }
+    },
+    "media": {
+      "threshold_bytes": {
+        "title": "Store parts larger than (bytes)",
+        "description": "Binary or text parts at least this large are written to storage and replaced with a reference in the stored history."
+      }
+    },
+    "memory_files": {
+      "allow_personal": {
+        "title": "Keep private notes per person",
+        "description": "Whether the agent keeps private notes for each person it talks to, readable only when it is alone with them. Off drops that store entirely, for compliance or privacy; the notes it keeps in group chats stay."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "Self-hosted mem0 URL",
+        "description": "Base URL of a self-hosted mem0; omit for mem0's managed cloud."
+      },
+      "allow_personal": {
+        "title": "Keep private memories per person",
+        "description": "Whether the agent keeps private memories for each person it talks to, readable only when it is alone with them. Off drops that store, for compliance or privacy; group-chat memory stays."
+      }
+    },
+    "planning": {
+      "enable_subtasks": {
+        "title": "Subtasks and dependencies",
+        "description": "Add dependency-aware planning: three more tools (`add_subtask`, `set_dependency`, `get_available_tasks`) and a `blocked` status. A step with an unresolved prerequisite is held `blocked` until the prerequisite completes or is cancelled, and the agent asks which steps are free to start. Off by default: a flat checklist is the smaller prompt, and most work does not need a dependency graph to track it."
+      },
+      "cache_ttl": {
+        "title": "Prompt cache lifetime",
+        "description": "How long the provider may cache the prompt prefix that sits before the plan reminder. The reminder changes every turn and is deliberately kept behind this breakpoint so the stable prefix stays cacheable; a longer TTL suits a conversation that stays open, the shorter one a burst of turns."
+      }
+    },
+    "sandbox": {
+      "backend": {
+        "title": "Where files live",
+        "description": "state: files only, no shell, stored by the platform - works on every deployment with no extra services. service: a container or cloud sandbox, on one of the connections this organization has registered."
+      },
+      "connection_id": {
+        "title": "Sandbox connection",
+        "description": "Which registered sandbox connection to run on; empty takes the organization's default. An id, never an address or a token - a spec is exported to a client's git repository, so the only thing it may carry is a reference. The connection decides whether that is a container on a host you run or a sandbox in Daytona's cloud."
+      },
+      "session_scope": {
+        "title": "Who shares the workspace",
+        "description": "Who shares the workspace, by default on every surface - a binding on one of the agent's exposures may say otherwise. run: nobody, a fresh one every turn. conversation: everyone in that chat - and on Slack a thread is a chat, so this is per thread there. channel: everyone in a Slack channel or group chat, threads included; a direct message still has its own. user: one person across their chats with this agent, and across surfaces once they have linked their account. agent: everyone who talks to this agent - files are shared between people in the organization."
+      },
+      "runtime": {
+        "title": "Runtime",
+        "description": "Which environment a container-backed workspace runs, named from the list the connection's service allows. Empty takes the connection's default. An alias, never an image."
+      },
+      "include_execute": {
+        "title": "Allow shell commands",
+        "description": "Whether the agent may run shell commands. Turning it off leaves the file tools and removes the shell entirely, rather than gating it."
+      }
+    },
+    "subagents": {
+      "inline": {
+        "title": "Inline specialists",
+        "description": "Specialists defined inside this agent, for work that does not justify publishing an agent of its own. Not versioned: editing this agent changes them, and nothing else can reference them."
+      },
+      "mode": {
+        "title": "Delegation mode",
+        "description": "Whether a delegation blocks this agent until it answers (sync), runs in the background and is collected later (async), or is decided per task from what the model says about it (auto). The author's choice, not the model's: the delegation tool's own mode argument defaults to sync, so a model that says nothing and a model that chose sync are the same call - auto is how you hand the decision to the model. One thing a background delegation cannot do is wait for a person: a specialist's tool that needs approval is refused rather than queued, because the delegation has already handed back a task id and there is nobody left holding the run. Keep that work on sync."
+      },
+      "allow_questions": {
+        "title": "Let delegates ask questions",
+        "description": "Whether a delegate may ask the person waiting on this agent a question instead of guessing - 'which currency?' rather than an assumption buried in the answer. Off by default: a specialist works autonomously and says so when it could not, and one that stops to ask holds this agent's turn open on a person. The author's decision, not the model's - the question wears a name the parent published, so whether it may be asked at all is the author's to make. It reaches the same channel this agent's own run uses to ask, and it is not the approval gate: a question is not an authorisation and cannot grant one. Takes effect only for a delegation that blocks (sync) - a background one has already handed back a task id with nobody left to answer, and auto may become one, so both still work autonomously however this is set. It governs the specialists this agent was given, pinned or inline; a specialist the model invents always works autonomously, whatever this says."
+      },
+      "allow_dynamic": {
+        "title": "Let the agent create specialists",
+        "description": "Whether this agent may invent specialists at run time rather than only using the ones it was given. Off by default for the same reason this product exists: an agent whose instructions nobody wrote is an agent nobody can review. Switched on, it adds two tools - one for a specialist used once, one kept for as long as the reply lasts - and a specialist is instructions plus a model and nothing else: it picks its model from this organization's own models, spends against this run's budget like every other delegation, gets no knowledge, tools or delegates of its own, and is gone when the reply it was made for is. Keeping one means publishing an agent, which is a person's decision. Creating one needs approval by default, because nobody has reviewed instructions a model wrote a moment ago - turn that off per tool if this agent is meant to run unattended."
+      },
+      "max_depth": {
+        "title": "Delegation depth",
+        "description": "How many levels of delegation are allowed, counting this agent's own. 1 - the default - lets this agent delegate and its delegates not; 2 allows one nested level, so a delegate may hand work on once; 3 two. At the bound a delegate is built without the delegation capability rather than with one that can only refuse. It is a ceiling in both directions: when this agent is itself somebody's delegate, what it gets is the lower of this and what the caller's tree has left, so a caller can never buy this agent more nesting than its own author allowed. Bounded low on purpose: each level multiplies the requests one turn can make. To turn delegation off, disable this binding - that is the one off switch, and it keeps the configuration."
+      },
+      "max_fanout": {
+        "title": "Delegations at once",
+        "description": "How many delegations may run at once. Reached, the next one is refused with a message the model can act on rather than an error. This is the ceiling on a background delegation launching a background delegation until a dozen agents are running against one budget."
+      },
+      "max_result_chars": {
+        "title": "Answer length shown per delegate",
+        "description": "How much of a finished delegation's answer is shown when several are collected at once. A truncated one says so and points at the tool that returns it in full, so nothing is lost - this only decides how much of five specialists' work arrives in one turn's context."
+      },
+      "share_with_delegates": {
+        "title": "Capabilities delegates inherit",
+        "description": "Capability ids bound on this agent that its delegates and inline specialists inherit - a workspace being the case it exists for, so a researcher writes a file and a writer reads it. Named one by one rather than shared by default: a delegate that silently gained the parent's credentials would be the quiet route around what the parent was granted. Delegation itself is refused here, however the spec asks: a delegate that inherited it would read the parent's config as its own - the parent's specialists, and an allow_dynamic its author never set. Only a capability is shareable, so an MCP connection is not: those are named on the spec, not bound."
+      }
+    },
+    "system_reminders": {
+      "reminders": {
+        "title": "Fixed reminders",
+        "description": "Fixed lines re-stated on their own cadences"
+      },
+      "goal_reanchor": {
+        "title": "Restate the original request",
+        "description": "Re-state the original request on a cadence, at no token cost"
+      },
+      "llm_reminder": {
+        "title": "Model-written reminder",
+        "description": "A model-written reminder on a cadence. Costs one extra call each fire"
+      },
+      "cache_ttl": {
+        "title": "Prompt cache lifetime",
+        "description": "Cache lifetime of the breakpoint placed before the tail reminder"
+      }
+    },
+    "thinking": {
+      "effort": {
+        "title": "Reasoning effort",
+        "description": "How hard the model reasons before answering. Leave unset for the provider's own default effort; a level a provider does not have maps to its closest one."
+      }
+    },
+    "tool_output_limits": {
+      "action": {
+        "title": "When a result is too long",
+        "description": "What to do with a return once it is over the threshold"
+      },
+      "threshold": {
+        "title": "Size limit",
+        "description": "Size at or above which a return is reduced. Characters by default; estimated tokens when 'over tokens' is set, where it defaults to 15,000"
+      },
+      "over_tokens": {
+        "title": "Measure in tokens",
+        "description": "Measure the threshold in estimated tokens rather than characters"
+      },
+      "max_chars": {
+        "title": "Characters kept",
+        "description": "Characters kept when a return is truncated, or when a spill or summary falls back to truncation. Left unset, never more than the threshold"
+      },
+      "truncation_strategy": {
+        "title": "Which part to keep",
+        "description": "Which end(s) of an oversized text to keep when truncating"
+      },
+      "strip_ansi": {
+        "title": "Strip terminal colours",
+        "description": "Strip terminal colour codes from text returns before measuring and reducing"
+      },
+      "summary_prompt": {
+        "title": "Summary prompt",
+        "description": "What the summarising model is told, for the 'summarize' action. Must contain {output}, where the tool's full output is inserted; {tool_name} is available too, for the name of the tool that produced it"
+      }
+    },
+    "tool_search": {
+      "strategy": {
+        "title": "Search method",
+        "description": "auto: native tool search on a provider that supports it, local keyword matching elsewhere. keywords: always match locally, on any provider. bm25 / regex: force an Anthropic-native algorithm; errors on a provider that has no native tool search."
+      },
+      "max_results": {
+        "title": "Matches per search",
+        "description": "How many matches the local search returns; ignored for native search."
+      }
+    },
+    "web_fetch": {
+      "method": {
+        "title": "How pages are fetched",
+        "description": "local: we fetch the page, identically on every model. native: the model provider fetches it with its own egress and citations (only on models that support it). auto: native where the model has it, ours everywhere else."
+      },
+      "max_content_chars": {
+        "title": "Page length limit (characters)",
+        "description": "How much of a page one fetch returns before it is truncated; roughly four characters per token. Ignored under native fetch, which the provider bounds itself."
+      },
+      "allowed_domains": {
+        "title": "Allowed domains",
+        "description": "Bare hostnames the agent may fetch, e.g. docs.example.com; empty means any. Matched exactly - no wildcards, no subdomains."
+      },
+      "blocked_domains": {
+        "title": "Blocked domains",
+        "description": "Bare hostnames the agent may never fetch, matched exactly."
+      }
+    },
+    "web_research": {
+      "method": {
+        "title": "Search engine",
+        "description": "duckduckgo: free, no account, results rendered as clickable sources. native: the model provider searches with its own index and citations (only on models that support it). tavily: summarised for a model to read. brave: an index of its own. exa: search by meaning rather than keywords."
+      },
+      "max_results": {
+        "title": "Results per search",
+        "description": "How many results one search returns; ignored for native search."
+      }
+    }
   }
 }

@@ -35,6 +35,7 @@ class MediaConfig(BaseModel):
     """How large a part has to be before it is worth storing out of line."""
 
     threshold_bytes: int = Field(
+        title="Store parts larger than (bytes)",
         default=32_768,
         ge=1_024,
         le=10 * 1024 * 1024,

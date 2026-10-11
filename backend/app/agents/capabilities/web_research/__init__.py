@@ -35,6 +35,7 @@ class WebResearchConfig(BaseModel):
     """
 
     method: Literal["duckduckgo", "native", "tavily", "brave", "exa"] = Field(
+        title="Search engine",
         default="duckduckgo",
         description=(
             "duckduckgo: free, no account, results rendered as clickable sources. "
@@ -59,6 +60,7 @@ class WebResearchConfig(BaseModel):
         },
     )
     max_results: int = Field(
+        title="Results per search",
         default=5,
         ge=1,
         le=10,

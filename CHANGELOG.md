@@ -29,6 +29,11 @@ Two things are versioned separately from this file and worth knowing about:
 - **An MCP account goes to an agent from where it lives.** Each usable
   organization account on a server offers **Add to an agent**, and connecting one
   with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **A capability's settings are named for a person, in your language.** Each of
+  the 93 config fields has its own title - "Hide personal data in the question"
+  rather than "Redact Pii In" - and the Builder shows the title and description
+  in Polish and German too. A field added without a title or catalog entry fails
+  the registry test (#2098).
 - **A capability's tuning is folded under Advanced settings.** Limits, cache
   lifetimes, prompts and similar fields - thirty-two across seventeen
   capabilities - sit behind a fold that opens by itself where one was set (#2070).

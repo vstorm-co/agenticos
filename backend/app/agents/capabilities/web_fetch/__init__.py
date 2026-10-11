@@ -37,6 +37,7 @@ class WebFetchConfig(BaseModel):
     """
 
     method: FetchMethod = Field(
+        title="How pages are fetched",
         default="local",
         description=(
             "local: we fetch the page, identically on every model. "
@@ -53,6 +54,7 @@ class WebFetchConfig(BaseModel):
         },
     )
     max_content_chars: int = Field(
+        title="Page length limit (characters)",
         default=50_000,
         ge=1_000,
         le=200_000,
@@ -64,13 +66,15 @@ class WebFetchConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     allowed_domains: list[str] | None = Field(
+        title="Allowed domains",
         default=None,
         description=(
-            "Bare hostnames the agent may fetch, e.g. docs.example.com; null means "
+            "Bare hostnames the agent may fetch, e.g. docs.example.com; empty means "
             "any. Matched exactly - no wildcards, no subdomains."
         ),
     )
     blocked_domains: list[str] | None = Field(
+        title="Blocked domains",
         default=None,
         description="Bare hostnames the agent may never fetch, matched exactly.",
     )

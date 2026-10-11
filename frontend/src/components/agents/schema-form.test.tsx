@@ -73,6 +73,29 @@ describe("SchemaForm", () => {
     expect(screen.getByLabelText(/Default top k/)).toBeInTheDocument();
   });
 
+  it("says a field in the catalog's words where the caller has them", () => {
+    // A capability's settings carry their copy in each locale's catalog (#2098);
+    // a field it has none for keeps the schema's own English.
+    render(
+      <SchemaForm
+        schema={SCHEMA}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        copyFor={(field) =>
+          field === "tool_name"
+            ? { title: "Nazwa narzędzia", description: "Zmień nazwę narzędzia dla modelu" }
+            : null
+        }
+      />,
+    );
+
+    expect(screen.getByLabelText("Nazwa narzędzia")).toBeInTheDocument();
+    expect(screen.getByText("Zmień nazwę narzędzia dla modelu")).toBeInTheDocument();
+    expect(screen.queryByText("Rename the search tool for the model")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Default top k/)).toBeInTheDocument();
+  });
+
   it("marks required fields", () => {
     renderForm();
     expect(screen.getByLabelText(/Default top k \*/)).toBeInTheDocument();

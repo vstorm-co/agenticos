@@ -514,7 +514,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
     properties: {
       default_top_k: {
         type: "integer",
-        title: "Default top k",
+        title: "Passages per search",
         description: "How many chunks a search returns.",
       },
     },
@@ -549,7 +549,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    const input = await screen.findByLabelText(/Default top k/);
+    const input = await screen.findByLabelText(/Passages per search/);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(
       expect.stringContaining("Input should be less than or equal to 50"),
@@ -569,7 +569,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -590,7 +590,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );

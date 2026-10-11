@@ -1,5 +1,5 @@
 ---
-source_sha: "35c351a5e658"
+source_sha: "8ebc9d30a06c"
 ---
 
 # Dodaj capability { #add-a-capability }
@@ -122,7 +122,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -155,7 +160,12 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   powinni czytać ten sam tekst, a nie dwie rozjeżdżające się parafrazy.
 - **`config_schema`** generuje formularz w Builderze i jest walidowany przy
   publikacji, więc zła wartość oblewa, kiedy ktoś patrzy na formularz, a nie w
-  środku runa.
+  środku runa. Każde pole dostaje `title` i `description` napisane dla osoby,
+  która je wypełnia, a te same dwa teksty trafiają pod
+  `capabilityConfig.<id>.<pole>` w `frontend/messages/en.json`, `pl.json` i
+  `de.json`. Bez tytułu formularz pokazuje nazwę pola, po angielsku, w każdym
+  języku; `tests/test_capability_registry.py` oblewa pole bez tytułu lub bez
+  wpisu w katalogu oraz wpis angielski, który różni się od schematu.
 - **`scopes`** są odmawiane na etapie budowania, gdy organizacja ich nie
   przyznała.
 - **`side_effecting=True`** przepuszcza narzędzia capability przez bramkę

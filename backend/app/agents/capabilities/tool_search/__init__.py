@@ -13,6 +13,7 @@ class ToolSearchConfig(BaseModel):
     """How the agent finds the tools it is not shown up front."""
 
     strategy: Strategy = Field(
+        title="Search method",
         default="auto",
         description=(
             "auto: native tool search on a provider that supports it, local "
@@ -23,6 +24,7 @@ class ToolSearchConfig(BaseModel):
         ),
     )
     max_results: int = Field(
+        title="Matches per search",
         default=10,
         ge=1,
         le=50,

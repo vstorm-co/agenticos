@@ -130,6 +130,7 @@ class ToolOutputLimitsConfig(BaseModel):
     """
 
     action: ActionName = Field(
+        title="When a result is too long",
         default="spill",
         description="What to do with a return once it is over the threshold",
         # What the Builder puts in the picker; spec values cannot say what they do.
@@ -142,6 +143,7 @@ class ToolOutputLimitsConfig(BaseModel):
         },
     )
     threshold: int = Field(
+        title="Size limit",
         default=DEFAULT_THRESHOLD,
         ge=500,
         description=(
@@ -151,11 +153,13 @@ class ToolOutputLimitsConfig(BaseModel):
         ),
     )
     over_tokens: bool = Field(
+        title="Measure in tokens",
         default=False,
         description="Measure the threshold in estimated tokens rather than characters",
         json_schema_extra={"x-advanced": True},
     )
     max_chars: int = Field(
+        title="Characters kept",
         default=DEFAULT_MAX_CHARS,
         ge=200,
         description=(
@@ -165,6 +169,7 @@ class ToolOutputLimitsConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     truncation_strategy: StrategyName = Field(
+        title="Which part to keep",
         default="head_tail",
         description="Which end(s) of an oversized text to keep when truncating",
         json_schema_extra={
@@ -177,11 +182,13 @@ class ToolOutputLimitsConfig(BaseModel):
         },
     )
     strip_ansi: bool = Field(
+        title="Strip terminal colours",
         default=False,
         description="Strip terminal colour codes from text returns before measuring and reducing",
         json_schema_extra={"x-advanced": True},
     )
     summary_prompt: str = Field(
+        title="Summary prompt",
         default=DEFAULT_SUMMARY_PROMPT,
         min_length=1,
         max_length=8_000,

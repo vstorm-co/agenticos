@@ -199,7 +199,7 @@ describe("CapabilitySettings", () => {
     // Typed onto a stored value: a field with a default is never empty, and
     // this component is controlled by a spy, so what is on screen does not move
     // between keystrokes.
-    await userEvent.type(screen.getByLabelText(/Default top k/), "9");
+    await userEvent.type(screen.getByLabelText(/Passages per search/), "9");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "knowledge", config: { default_top_k: 19 } }),
     );
@@ -315,7 +315,7 @@ describe("CapabilitySettings", () => {
         disabled
       />,
     );
-    await userEvent.type(screen.getByLabelText(/Default top k/), "9");
+    await userEvent.type(screen.getByLabelText(/Passages per search/), "9");
     expect(onChange).not.toHaveBeenCalled();
   });
 

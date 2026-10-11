@@ -62,17 +62,23 @@ vi.mock("@/hooks", () => ({
 const CONFIG_SCHEMA: JsonSchema = {
   type: "object",
   properties: {
-    inline: { type: "array", title: "Inline" },
-    mode: { enum: ["sync", "async", "auto"], default: "sync", title: "Mode" },
-    allow_dynamic: { type: "boolean", default: false, title: "Allow dynamic" },
-    max_depth: { type: "integer", default: 1, minimum: 1, maximum: 3, title: "Max depth" },
-    max_fanout: { type: "integer", default: 3, minimum: 1, maximum: 10, title: "Max fanout" },
+    inline: { type: "array", title: "Inline specialists" },
+    mode: { enum: ["sync", "async", "auto"], default: "sync", title: "Delegation mode" },
+    allow_dynamic: { type: "boolean", default: false, title: "Let the agent create specialists" },
+    max_depth: { type: "integer", default: 1, minimum: 1, maximum: 3, title: "Delegation depth" },
+    max_fanout: {
+      type: "integer",
+      default: 3,
+      minimum: 1,
+      maximum: 10,
+      title: "Delegations at once",
+    },
     max_result_chars: {
       type: "integer",
       default: 2000,
       minimum: 200,
       maximum: 20000,
-      title: "Max result chars",
+      title: "Answer length shown per delegate",
     },
     share_with_delegates: { type: "array", title: "Share with delegates" },
   },
@@ -213,7 +219,7 @@ describe("SubagentsSection", () => {
     // full would put the policy fields on screen twice.
     mount();
 
-    expect(screen.getAllByLabelText("Max depth")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Delegation depth")).toHaveLength(1);
   });
 });
 
@@ -263,11 +269,11 @@ describe("the policy", () => {
     // file, which is the whole reason the backend publishes a schema.
     mount();
 
-    expect(screen.getByLabelText("Max depth")).toBeVisible();
-    expect(screen.getByLabelText("Max fanout")).toBeVisible();
-    expect(screen.getByLabelText("Max result chars")).toBeVisible();
-    expect(screen.getByLabelText("Allow dynamic")).toBeVisible();
-    expect(screen.getByLabelText("Mode")).toBeVisible();
+    expect(screen.getByLabelText("Delegation depth")).toBeVisible();
+    expect(screen.getByLabelText("Delegations at once")).toBeVisible();
+    expect(screen.getByLabelText("Answer length shown per delegate")).toBeVisible();
+    expect(screen.getByLabelText("Let the agent create specialists")).toBeVisible();
+    expect(screen.getByLabelText("Delegation mode")).toBeVisible();
   });
 
   it("does not offer a text box for the two fields it draws itself", () => {
@@ -276,7 +282,7 @@ describe("the policy", () => {
     // control whose every answer the server refuses.
     mount();
 
-    expect(screen.queryByLabelText("Inline")).toBeNull();
+    expect(screen.queryByLabelText("Inline specialists")).toBeNull();
     expect(screen.queryByLabelText("Share with delegates")).toBeNull();
   });
 
@@ -286,7 +292,7 @@ describe("the policy", () => {
     // between keystrokes.
     const { onChange } = mount({ bound: binding({ config: { max_fanout: 1 } }) });
 
-    await userEvent.type(screen.getByLabelText("Max fanout"), "5");
+    await userEvent.type(screen.getByLabelText("Delegations at once"), "5");
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ config: expect.objectContaining({ max_fanout: 15 }) }),
@@ -300,7 +306,7 @@ describe("the policy", () => {
     mount({ definition: { ...DELEGATION, config_schema: { type: "object" } } });
 
     expect(screen.getByText("Policy")).toBeVisible();
-    expect(screen.queryByLabelText("Max depth")).toBeNull();
+    expect(screen.queryByLabelText("Delegation depth")).toBeNull();
   });
 
   it("says so rather than showing an empty policy when no schema is published", () => {

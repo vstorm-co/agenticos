@@ -6236,5 +6236,425 @@
     "typeForPeople": "Geben Sie einen Namen oder eine E-Mail-Adresse ein, um eine Person zu finden.",
     "chipPrivate": "Privat",
     "chipGroupsMore": "{names} +{count}"
+  },
+  "capabilityConfig": {
+    "browser_choice": {
+      "cdp_url": {
+        "title": "DevTools-Endpoint",
+        "description": "Chromium-DevTools-Endpoint, der gesteuert wird - ein Browser-Dienst, den der Betreiber betreibt, kein Prozess im API-Container."
+      },
+      "allowed_domains": {
+        "title": "Erlaubte Domains",
+        "description": "Hosts, auf denen der Browser sein darf; leer bedeutet keine Einschränkung. Muster wie *.example.com sind erlaubt. Bei jedem Schritt geprüft, nicht nur beim ersten."
+      },
+      "decision_model": {
+        "title": "Entscheidungsmodell",
+        "description": "Das Modell, das in jedem Schritt die Operation und das Element wählt."
+      },
+      "decision_base_url": {
+        "title": "Endpoint des Entscheidungsmodells",
+        "description": "Wo dieses Modell läuft. Leer ist der öffentliche Endpoint des Anbieters (https://api.typesafe.ai), an den Seiteninhalte gehen, sofern hier nichts anderes steht - eine Installation, die Seiteninhalte nicht an Dritte senden darf, trägt hier einen eigenen Endpoint ein."
+      },
+      "max_steps": {
+        "title": "Höchstens Schritte pro Aufruf",
+        "description": "Harte Grenze für Schritte pro Aufruf; jeder Schritt ist eine Entscheidungsanfrage."
+      },
+      "candidate_cap": {
+        "title": "Angebotene Elemente pro Schritt",
+        "description": "Wie viele Elemente der Seite in einem Schritt zur Wahl stehen. Weniger ist günstiger und blinder; auf eine Seite, die für die Grenze zu dicht ist, antwortet die Schleife mit Scrollen."
+      },
+      "min_confidence": {
+        "title": "Mindestsicherheit",
+        "description": "Keine Wahl ausführen, die das Entscheidungsmodell niedriger bewertet hat - das Browsen endet dann als blockiert. 0 führt jede Wahl aus und meldet die Bewertung."
+      },
+      "preview": {
+        "title": "Live-Vorschau",
+        "description": "Den Viewport während des Browsens an den Chat senden, damit jemand zusehen kann. Kostet ein JPEG pro Schritt auf dem Socket."
+      },
+      "preview_width": {
+        "title": "Viewport-Breite (Pixel)",
+        "description": "Die Breite des Browserfensters in Pixeln, zugleich die Breite der Frames. Sie bestimmt, was der Agent ohne Scrollen sieht."
+      }
+    },
+    "browser_use": {
+      "mode": {
+        "title": "Browser",
+        "description": "playwright: lokal einen Browser ohne Fenster starten. remote: über seinen CDP-Endpoint an einen anderswo laufenden Browser anbinden."
+      },
+      "cdp_url": {
+        "title": "DevTools-Endpoint",
+        "description": "Chromium-DevTools-Endpoint zum Anbinden; im Modus remote erforderlich und nur dort gültig."
+      },
+      "allowed_domains": {
+        "title": "Erlaubte Domains",
+        "description": "Domains, die der Agent aufrufen darf; leer bedeutet keine Einschränkung. Muster wie *.example.com sind erlaubt."
+      },
+      "max_steps": {
+        "title": "Höchstens Schritte pro Aufruf",
+        "description": "Harte Grenze für die Schritte des Browser-Agents pro Aufruf; jeder Schritt ist eine Modellanfrage."
+      },
+      "use_vision": {
+        "title": "Screenshots an das Modell senden",
+        "description": "Seiten-Screenshots an das Modell des Browser-Agents senden; besser bei visuellen Layouts, mehr Tokens."
+      },
+      "headless": {
+        "title": "Browserfenster ausblenden",
+        "description": "Einen lokal gestarteten Browser ohne sichtbares Fenster ausführen (nur im Modus playwright)."
+      }
+    },
+    "channel_tools": {
+      "tools": {
+        "title": "Erlaubte Abfragen",
+        "description": "Welche Kanal-Abfragen diese Bindung erlaubt, nach Tool-ID. Leer bedeutet keine - so beginnt jede Bindung."
+      },
+      "default_limit": {
+        "title": "Ergebnisse ohne angegebene Anzahl",
+        "description": "Mitglieder, Suchergebnisse oder Nachrichten, die zurückkommen, wenn das Modell keine Anzahl nennt"
+      }
+    },
+    "clock": {
+      "timezone": {
+        "title": "Zeitzone",
+        "description": "IANA-Zeitzone, in der der Agent denkt, z. B. Europe/Warsaw"
+      }
+    },
+    "code_execution": {
+      "timeout_secs": {
+        "title": "Zeitlimit pro Aufruf (Sekunden)",
+        "description": "Echtzeit-Budget für einen Aufruf, in Sekunden"
+      },
+      "max_memory_mb": {
+        "title": "Speicherlimit pro Aufruf (MB)",
+        "description": "Speichergrenze für einen Aufruf, in Megabyte"
+      }
+    },
+    "compaction": {
+      "strategy": {
+        "title": "Strategie",
+        "description": "Welche Strategie gilt, wenn sich der Verlauf dem Fenster nähert"
+      },
+      "max_fraction": {
+        "title": "Ab diesem Anteil des Fensters beginnen",
+        "description": "Anteil des Kontextfensters des Modells, ab dem die Komprimierung beginnt"
+      },
+      "keep_messages": {
+        "title": "Behaltene letzte Nachrichten",
+        "description": "Wie viele letzte Nachrichten eine Zusammenfassung oder ein gleitendes Fenster überstehen"
+      },
+      "keep_tool_pairs": {
+        "title": "Behaltene letzte Tool-Ergebnisse",
+        "description": "Wie viele letzte Tool-Aufrufe ihre Ergebnisse behalten, wenn Ergebnisse geleert werden"
+      },
+      "summary_prompt": {
+        "title": "Zusammenfassungs-Prompt",
+        "description": "Was das zusammenfassende Modell erhält. `{messages}` ist die Stelle, an der das ersetzte Gespräch eingefügt wird, und ist Pflicht - ein Prompt ohne fasst nichts zusammen. Passe ihn an, damit erhalten bleibt, worauf die Arbeit deines Agents beruht: Der Standard behält Absichten, Entscheidungen und offene Fäden, und das ist nicht dasselbe, was ein Support-Verlauf oder ein Code-Review braucht"
+      },
+      "context_window": {
+        "title": "Kontextfenster überschreiben",
+        "description": "Das Fenster überschreiben, gegen das dies auslöst. Zugleich der Nenner der Kontextanzeige im Chat, sodass beide eine Obergrenze beschreiben. Setze es, wenn die ermittelte Zahl für deine Installation falsch ist - eine Beta oder ein Tarif kann weniger bekommen, als der Provider veröffentlicht - oder damit ein Agent früher komprimiert, als sein Modell verlangt"
+      },
+      "fallback_context_window": {
+        "title": "Ersatz-Kontextfenster",
+        "description": "Angenommenes Fenster, wenn das des Modells nicht ermittelt werden kann"
+      }
+    },
+    "context": {
+      "expose_read_tool": {
+        "title": "Verlinkte Dateien öffnen lassen",
+        "description": "Ob Dateien im Link-Modus über ein Lese-Tool erreichbar sind. Aus bedeutet, dass nur eingefügte Dateien das Modell erreichen und nichts bei Bedarf gelesen wird."
+      }
+    },
+    "conversation_search": {
+      "max_results": {
+        "title": "Gespräche pro Suche",
+        "description": "Wie viele Gespräche eine Suche höchstens liefert. Jedes bringt einen kurzen Ausschnitt mit, eine hohe Zahl kostet also bei jeder Suche Kontext."
+      }
+    },
+    "guardrails": {
+      "redact_secrets_in": {
+        "title": "Geheimnisse in der Frage verbergen",
+        "description": "API-Schlüssel und Tokens aus dem Prompt des Nutzers entfernen"
+      },
+      "redact_pii_in": {
+        "title": "Personendaten in der Frage verbergen",
+        "description": "E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und SSNs aus dem Prompt entfernen"
+      },
+      "blocked_keywords_in": {
+        "title": "Gesperrte Wörter in der Frage",
+        "description": "Den Run blockieren, wenn der Prompt einen dieser Begriffe enthält (durch Komma oder Zeilenumbruch getrennt)"
+      },
+      "redact_secrets_out": {
+        "title": "Geheimnisse in der Antwort verbergen",
+        "description": "API-Schlüssel und Tokens aus der Antwort des Agents entfernen"
+      },
+      "redact_pii_out": {
+        "title": "Personendaten in der Antwort verbergen",
+        "description": "E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und SSNs aus der Antwort entfernen"
+      },
+      "blocked_keywords_out": {
+        "title": "Gesperrte Wörter in der Antwort",
+        "description": "Den Run blockieren, wenn die Antwort einen dieser Begriffe enthält (durch Komma oder Zeilenumbruch getrennt)"
+      },
+      "redact_secrets_tool": {
+        "title": "Geheimnisse in Tool-Ergebnissen verbergen",
+        "description": "API-Schlüssel und Tokens aus Tool-Ergebnissen entfernen, bevor das Modell sie liest"
+      },
+      "redact_pii_tool": {
+        "title": "Personendaten in Tool-Ergebnissen verbergen",
+        "description": "E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und SSNs aus Tool-Ergebnissen entfernen"
+      },
+      "blocked_keywords_tool": {
+        "title": "Gesperrte Wörter in Tool-Ergebnissen",
+        "description": "Den Run blockieren, wenn ein Tool-Ergebnis einen dieser Begriffe enthält (durch Komma oder Zeilenumbruch getrennt)"
+      },
+      "redact_secrets_args": {
+        "title": "Geheimnisse in Tool-Argumenten verbergen",
+        "description": "API-Schlüssel und Tokens aus den Argumenten entfernen, die der Agent an ein Tool übergibt"
+      },
+      "redact_pii_args": {
+        "title": "Personendaten in Tool-Argumenten verbergen",
+        "description": "E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und SSNs aus Tool-Argumenten entfernen"
+      },
+      "blocked_keywords_args": {
+        "title": "Gesperrte Wörter in Tool-Argumenten",
+        "description": "Den Run blockieren, wenn die Argumente eines Tools einen dieser Begriffe enthalten (durch Komma oder Zeilenumbruch getrennt)"
+      },
+      "phone_regions": {
+        "title": "Länder der Telefonnummern",
+        "description": "Länder, deren nationale Telefonformate das Verbergen von Personendaten erkennt, als zweistellige Codes (durch Komma oder Zeilenumbruch getrennt), höchstens 16 Regionen und 256 Zeichen. Eine mit + geschriebene Nummer wird unabhängig von der Liste verborgen"
+      }
+    },
+    "image_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Wessen Modell zeichnet. Angenommen werden nur Provider, deren Modellklasse das Bild-Tool unterstützt - heute drei - und welche das sind, wird das SDK gefragt, statt sie hier aufzulisten."
+      },
+      "model": {
+        "title": "Bildmodell",
+        "description": "Welches Bildmodell dieses Providers zeichnet, nach den IDs in `app/core/catalog/image_models.json`. Ein Modell außerhalb des Katalogs wird abgelehnt: Das Tool würde auf ein Modell, das nicht zeichnen kann, mit einem Fehler antworten, den sein Autor erst mitten im Run sieht."
+      },
+      "quality": {
+        "title": "Qualität",
+        "description": "Renderqualität; höher ist langsamer und teurer."
+      },
+      "size": {
+        "title": "Größe",
+        "description": "Ausgabegröße. OpenAI nutzt die Pixelwerte, Google die K-Werte."
+      },
+      "background": {
+        "title": "Hintergrund",
+        "description": "Art des Hintergrunds; transparent erfordert png oder webp."
+      },
+      "output_format": {
+        "title": "Dateiformat",
+        "description": "Dateiformat des Bildes."
+      },
+      "aspect_ratio": {
+        "title": "Seitenverhältnis",
+        "description": "Seitenverhältnis, z. B. 16:9 oder 1:1."
+      }
+    },
+    "knowledge": {
+      "default_top_k": {
+        "title": "Passagen pro Suche",
+        "description": "Zurückgegebene Passagen, wenn das Modell keine Anzahl nennt"
+      },
+      "self_query_enabled": {
+        "title": "Filter aus der Frage ableiten",
+        "description": "Geschäftsfilter nach FA-039 (Quelle, Dokumenttyp, Organisationseinheit, Zeitraum) per LLM aus der natürlichsprachigen Frage ableiten, wenn das Modell ohne eigene Filter sucht. Standardmäßig aus. Jede solche Suche ist eine zusätzliche Modellanfrage, die dem Run berechnet wird. Sie kann innerhalb der Organisation und der Collections des Agents nur einengen, nie erweitern."
+      },
+      "query_analysis_mode": {
+        "title": "Anfrageerweiterung",
+        "description": "Die Anfrage vor der Suche optional analysieren und erweitern, um bei kurzen oder unscharfen Fragen besser zu treffen. Standardmäßig aus. `multi_query` und `hyde` machen je einen zusätzlichen Modellaufruf"
+      },
+      "query_analysis_max_variants": {
+        "title": "Höchstens Umformulierungen",
+        "description": "Wie viele Umformulierungen `multi_query` hinzufügen darf - begrenzt Verzweigung und Kosten. Von den anderen Modi ignoriert"
+      },
+      "parent_context": {
+        "title": "Umgebenden Text einbeziehen",
+        "description": "Small-to-big-Suche: Jeden gefundenen Abschnitt mit dem Text um ihn herum zurückgeben. Abgleich und Ranking laufen immer auf den kleinen Abschnitten, der gefundene Abschnitt wird nie gekürzt, und der zusätzliche Kontext ist begrenzt."
+      }
+    },
+    "media": {
+      "threshold_bytes": {
+        "title": "Teile speichern ab (Bytes)",
+        "description": "Binär- oder Textteile mindestens dieser Größe werden in den Speicher geschrieben und im gespeicherten Verlauf durch einen Verweis ersetzt."
+      }
+    },
+    "memory_files": {
+      "allow_personal": {
+        "title": "Private Notizen pro Person",
+        "description": "Ob der Agent private Notizen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher vollständig, aus Compliance- oder Datenschutzgründen; Notizen aus Gruppenchats bleiben."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "URL eines eigenen mem0",
+        "description": "Basis-URL eines selbst gehosteten mem0; für die mem0-Cloud weglassen."
+      },
+      "allow_personal": {
+        "title": "Private Erinnerungen pro Person",
+        "description": "Ob der Agent private Erinnerungen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher, aus Compliance- oder Datenschutzgründen; das Gedächtnis aus Gruppenchats bleibt."
+      }
+    },
+    "planning": {
+      "enable_subtasks": {
+        "title": "Unteraufgaben und Abhängigkeiten",
+        "description": "Planung mit Abhängigkeiten hinzufügen: drei weitere Tools (`add_subtask`, `set_dependency`, `get_available_tasks`) und einen Status `blocked`. Ein Schritt mit offener Voraussetzung bleibt `blocked`, bis die Voraussetzung erledigt oder abgebrochen ist, und der Agent fragt, welche Schritte beginnen können. Standardmäßig aus: Eine flache Liste ist der kleinere Prompt, und die meiste Arbeit braucht keinen Abhängigkeitsgraphen."
+      },
+      "cache_ttl": {
+        "title": "Lebensdauer des Prompt-Caches",
+        "description": "Wie lange der Provider das Prompt-Präfix vor der Planerinnerung cachen darf. Die Erinnerung ändert sich in jeder Runde und steht bewusst hinter diesem Punkt, damit das stabile Präfix cachebar bleibt; eine längere TTL passt zu einem Gespräch, das offen bleibt, die kürzere zu einer schnellen Folge von Runden."
+      }
+    },
+    "sandbox": {
+      "backend": {
+        "title": "Wo die Dateien liegen",
+        "description": "state: nur Dateien, keine Shell, von der Plattform gespeichert - funktioniert auf jeder Installation ohne zusätzliche Dienste. service: ein Container oder eine Cloud-Sandbox, über eine der Verbindungen, die diese Organisation registriert hat."
+      },
+      "connection_id": {
+        "title": "Sandbox-Verbindung",
+        "description": "Auf welcher registrierten Sandbox-Verbindung ausgeführt wird; leer nimmt die Standardverbindung der Organisation. Eine ID, nie eine Adresse oder ein Token - eine Spec wird in das Git-Repository eines Kunden exportiert und darf daher nur einen Verweis enthalten. Die Verbindung entscheidet, ob das ein Container auf deinem Host oder eine Sandbox in der Daytona-Cloud ist."
+      },
+      "session_scope": {
+        "title": "Wer den Workspace teilt",
+        "description": "Wer den Workspace teilt, standardmäßig auf jeder Oberfläche - eine Bindung an einer Freigabe des Agents kann es anders festlegen. run: niemand, in jeder Runde ein neuer. conversation: alle in diesem Chat - in Slack ist ein Thread ein Chat, dort also pro Thread. channel: alle in einem Slack-Kanal oder Gruppenchat, Threads eingeschlossen; eine Direktnachricht hat weiterhin ihren eigenen. user: eine Person über alle ihre Chats mit diesem Agent und, sobald ihr Konto verknüpft ist, über alle Oberflächen. agent: alle, die mit diesem Agent sprechen - Dateien werden zwischen Personen der Organisation geteilt."
+      },
+      "runtime": {
+        "title": "Laufzeitumgebung",
+        "description": "Welche Umgebung ein containerbasierter Workspace ausführt, aus der Liste, die der Dienst der Verbindung erlaubt. Leer nimmt die Standardumgebung der Verbindung. Ein Alias, nie ein Image."
+      },
+      "include_execute": {
+        "title": "Shell-Befehle erlauben",
+        "description": "Ob der Agent Shell-Befehle ausführen darf. Ausschalten lässt die Datei-Tools bestehen und entfernt die Shell vollständig, statt sie zu sperren."
+      }
+    },
+    "subagents": {
+      "inline": {
+        "title": "Eingebettete Spezialisten",
+        "description": "Innerhalb dieses Agents definierte Spezialisten, für Arbeit, die keinen eigenen veröffentlichten Agent rechtfertigt. Nicht versioniert: Eine Änderung dieses Agents ändert sie, und nichts anderes kann auf sie verweisen."
+      },
+      "mode": {
+        "title": "Delegationsmodus",
+        "description": "Ob eine Delegation diesen Agent blockiert, bis sie antwortet (sync), im Hintergrund läuft und später abgeholt wird (async), oder pro Aufgabe danach entschieden wird, was das Modell über sie sagt (auto). Die Wahl des Autors, nicht des Modells: Das Modus-Argument des Delegations-Tools ist standardmäßig sync, ein Modell, das nichts sagt, und eines, das sync wählt, sind also derselbe Aufruf - auto gibt die Entscheidung an das Modell ab. Eines kann eine Hintergrund-Delegation nicht: auf einen Menschen warten. Ein Tool eines Spezialisten, das eine Freigabe braucht, wird abgelehnt statt eingereiht, weil die Delegation bereits eine Task-ID zurückgegeben hat und niemand den Run mehr hält. Solche Arbeit bleibt bei sync."
+      },
+      "allow_questions": {
+        "title": "Delegierte dürfen Fragen stellen",
+        "description": "Ob ein Delegierter der Person, die auf diesen Agent wartet, eine Frage stellen darf, statt zu raten - „welche Währung?“ statt einer in der Antwort versteckten Annahme. Standardmäßig aus: Ein Spezialist arbeitet selbstständig und sagt, wenn er nicht weiterkam, und einer, der anhält, um zu fragen, hält die Runde dieses Agents für einen Menschen offen. Die Entscheidung des Autors, nicht des Modells - die Frage trägt einen Namen, den der Eltern-Agent veröffentlicht hat, also entscheidet der Autor, ob sie überhaupt gestellt werden darf. Sie erreicht denselben Kanal, über den der Run dieses Agents fragt, und ist nicht die Freigabeschranke: Eine Frage ist keine Autorisierung und kann keine erteilen. Wirkt nur bei einer blockierenden Delegation (sync) - eine Hintergrund-Delegation hat bereits eine Task-ID zurückgegeben und niemand ist zum Antworten da, und auto kann zu einer werden, also arbeiten beide unabhängig von dieser Einstellung selbstständig. Gilt für die Spezialisten, die dieser Agent erhalten hat, angeheftet oder eingebettet; ein vom Modell erfundener Spezialist arbeitet immer selbstständig."
+      },
+      "allow_dynamic": {
+        "title": "Agent darf Spezialisten erstellen",
+        "description": "Ob dieser Agent zur Laufzeit Spezialisten erfinden darf, statt nur die ihm gegebenen zu nutzen. Standardmäßig aus, aus demselben Grund, aus dem es dieses Produkt gibt: Einen Agent, dessen Anweisungen niemand geschrieben hat, kann niemand prüfen. Eingeschaltet kommen zwei Tools hinzu - eines für einen einmal genutzten Spezialisten, eines für einen, der bis zum Ende der Antwort bleibt - und ein Spezialist ist Anweisungen plus ein Modell, sonst nichts: Er wählt sein Modell aus den Modellen dieser Organisation, verbraucht das Budget dieses Runs wie jede Delegation, bekommt kein Wissen, keine Tools und keine eigenen Delegierten und ist weg, wenn die Antwort, für die er entstand, fertig ist. Einen zu behalten heißt, einen Agent zu veröffentlichen, und das entscheidet ein Mensch. Das Erstellen braucht standardmäßig eine Freigabe, weil niemand Anweisungen geprüft hat, die ein Modell gerade geschrieben hat - schalte das pro Tool ab, wenn der Agent unbeaufsichtigt laufen soll."
+      },
+      "max_depth": {
+        "title": "Delegationstiefe",
+        "description": "Wie viele Delegationsebenen erlaubt sind, die dieses Agents mitgezählt. 1 - der Standard - lässt diesen Agent delegieren und seine Delegierten nicht; 2 erlaubt eine verschachtelte Ebene, ein Delegierter darf also einmal weitergeben; 3 zwei. An der Grenze wird ein Delegierter ohne die Delegations-Capability gebaut, statt mit einer, die nur ablehnen kann. Eine Obergrenze in beide Richtungen: Ist dieser Agent selbst Delegierter, bekommt er das Kleinere aus diesem Wert und dem, was im Baum des Aufrufers übrig ist, sodass ein Aufrufer diesem Agent nie mehr Verschachtelung verschafft, als sein Autor erlaubt hat. Bewusst niedrig: Jede Ebene vervielfacht die Anfragen einer Runde. Um Delegation abzuschalten, deaktiviere diese Bindung - das ist der eine Ausschalter, und er behält die Konfiguration."
+      },
+      "max_fanout": {
+        "title": "Gleichzeitige Delegationen",
+        "description": "Wie viele Delegationen gleichzeitig laufen dürfen. Ist die Grenze erreicht, wird die nächste mit einer Meldung abgelehnt, auf die das Modell reagieren kann, statt mit einem Fehler. Das ist die Obergrenze dafür, dass eine Hintergrund-Delegation weitere startet, bis ein Dutzend Agents gegen ein Budget läuft."
+      },
+      "max_result_chars": {
+        "title": "Angezeigte Antwortlänge pro Delegiertem",
+        "description": "Wie viel der Antwort einer fertigen Delegation gezeigt wird, wenn mehrere auf einmal abgeholt werden. Eine gekürzte sagt das und verweist auf das Tool, das sie vollständig liefert, sodass nichts verloren geht - dies entscheidet nur, wie viel der Arbeit von fünf Spezialisten im Kontext einer Runde ankommt."
+      },
+      "share_with_delegates": {
+        "title": "Von Delegierten geerbte Capabilities",
+        "description": "IDs der an diesen Agent gebundenen Capabilities, die seine Delegierten und eingebetteten Spezialisten erben - ein Workspace ist der Fall, für den es das gibt: Ein Researcher schreibt eine Datei und ein Autor liest sie. Einzeln benannt statt standardmäßig geteilt: Ein Delegierter, der still die Berechtigungen des Eltern-Agents bekäme, wäre der leise Weg um das herum, was dem Eltern-Agent gewährt wurde. Delegation selbst wird hier abgelehnt, egal was die Spec verlangt: Ein Delegierter, der sie erbte, läse die Konfiguration des Eltern-Agents als seine eigene - dessen Spezialisten und ein allow_dynamic, das sein Autor nie gesetzt hat. Teilbar ist nur eine Capability, eine MCP-Verbindung also nicht: Die werden in der Spec benannt, nicht gebunden."
+      }
+    },
+    "system_reminders": {
+      "reminders": {
+        "title": "Feste Erinnerungen",
+        "description": "Feste Zeilen, jede in ihrem eigenen Rhythmus wiederholt"
+      },
+      "goal_reanchor": {
+        "title": "Ursprüngliche Anfrage wiederholen",
+        "description": "Die ursprüngliche Anfrage in einem Rhythmus wiederholen, ohne Token-Kosten"
+      },
+      "llm_reminder": {
+        "title": "Vom Modell geschriebene Erinnerung",
+        "description": "Eine vom Modell geschriebene Erinnerung in einem Rhythmus. Kostet bei jedem Auslösen einen zusätzlichen Aufruf"
+      },
+      "cache_ttl": {
+        "title": "Lebensdauer des Prompt-Caches",
+        "description": "Cache-Lebensdauer des Punkts vor der abschließenden Erinnerung"
+      }
+    },
+    "thinking": {
+      "effort": {
+        "title": "Denkaufwand",
+        "description": "Wie gründlich das Modell vor der Antwort nachdenkt. Leer lassen für den Standardaufwand des Providers; eine Stufe, die ein Provider nicht hat, wird auf die nächstliegende abgebildet."
+      }
+    },
+    "tool_output_limits": {
+      "action": {
+        "title": "Wenn ein Ergebnis zu lang ist",
+        "description": "Was mit einem Ergebnis über dem Schwellenwert geschieht"
+      },
+      "threshold": {
+        "title": "Größengrenze",
+        "description": "Größe, ab der ein Ergebnis reduziert wird. Standardmäßig in Zeichen; in geschätzten Tokens, wenn „in Tokens messen“ gesetzt ist, dann standardmäßig 15.000"
+      },
+      "over_tokens": {
+        "title": "In Tokens messen",
+        "description": "Den Schwellenwert in geschätzten Tokens statt in Zeichen messen"
+      },
+      "max_chars": {
+        "title": "Behaltene Zeichen",
+        "description": "Behaltene Zeichen, wenn ein Ergebnis gekürzt wird oder eine Auslagerung oder Zusammenfassung auf Kürzen zurückfällt. Ohne Angabe nie mehr als der Schwellenwert"
+      },
+      "truncation_strategy": {
+        "title": "Welcher Teil bleibt",
+        "description": "Welches Ende (oder beide) eines zu langen Textes beim Kürzen erhalten bleibt"
+      },
+      "strip_ansi": {
+        "title": "Terminalfarben entfernen",
+        "description": "Terminal-Farbcodes vor dem Messen und Reduzieren aus Textergebnissen entfernen"
+      },
+      "summary_prompt": {
+        "title": "Zusammenfassungs-Prompt",
+        "description": "Was das zusammenfassende Modell bei der Aktion 'summarize' erhält. Muss {output} enthalten, wo die vollständige Ausgabe des Tools eingefügt wird; {tool_name} steht ebenfalls zur Verfügung, für den Namen des Tools, das sie erzeugt hat"
+      }
+    },
+    "tool_search": {
+      "strategy": {
+        "title": "Suchmethode",
+        "description": "auto: native Tool-Suche bei einem Provider, der sie hat, sonst lokaler Stichwortabgleich. keywords: immer lokal, bei jedem Provider. bm25 / regex: einen nativen Anthropic-Algorithmus erzwingen; Fehler bei einem Provider ohne native Tool-Suche."
+      },
+      "max_results": {
+        "title": "Treffer pro Suche",
+        "description": "Wie viele Treffer die lokale Suche liefert; bei nativer Suche ignoriert."
+      }
+    },
+    "web_fetch": {
+      "method": {
+        "title": "Wie Seiten abgerufen werden",
+        "description": "local: Wir rufen die Seite ab, auf jedem Modell gleich. native: Der Provider des Modells ruft sie ab, mit eigenem Netzwerkzugang und eigenen Zitaten (nur auf Modellen, die das unterstützen). auto: nativ, wo das Modell es hat, sonst unseres."
+      },
+      "max_content_chars": {
+        "title": "Längengrenze pro Seite (Zeichen)",
+        "description": "Wie viel einer Seite ein Abruf liefert, bevor gekürzt wird; etwa vier Zeichen pro Token. Bei nativem Abruf ignoriert, den der Provider selbst begrenzt."
+      },
+      "allowed_domains": {
+        "title": "Erlaubte Domains",
+        "description": "Reine Hostnamen, die der Agent abrufen darf, z. B. docs.example.com; leer bedeutet alle. Exakter Abgleich - keine Muster, keine Subdomains."
+      },
+      "blocked_domains": {
+        "title": "Gesperrte Domains",
+        "description": "Reine Hostnamen, die der Agent nie abrufen darf, exakter Abgleich."
+      }
+    },
+    "web_research": {
+      "method": {
+        "title": "Suchmaschine",
+        "description": "duckduckgo: kostenlos, ohne Konto, Ergebnisse als anklickbare Quellen. native: Der Provider des Modells sucht mit eigenem Index und Zitaten (nur auf Modellen, die das unterstützen). tavily: für ein Modell zusammengefasst. brave: ein eigener Index. exa: Suche nach Bedeutung statt nach Stichwörtern."
+      },
+      "max_results": {
+        "title": "Ergebnisse pro Suche",
+        "description": "Wie viele Ergebnisse eine Suche liefert; bei nativer Suche ignoriert."
+      }
+    }
   }
 }

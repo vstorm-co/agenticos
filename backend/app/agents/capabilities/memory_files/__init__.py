@@ -34,6 +34,7 @@ class MemoryFilesConfig(BaseModel):
     """
 
     allow_personal: bool = Field(
+        title="Keep private notes per person",
         default=True,
         description=(
             "Whether the agent keeps private notes for each person it talks to, "

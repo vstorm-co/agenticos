@@ -70,6 +70,7 @@ class SandboxConfig(BaseModel):
     """
 
     backend: Literal["state", "service"] = Field(
+        title="Where files live",
         default="state",
         description=(
             "state: files only, no shell, stored by the platform - works on every "
@@ -79,9 +80,10 @@ class SandboxConfig(BaseModel):
         ),
     )
     connection_id: UUID | None = Field(
+        title="Sandbox connection",
         default=None,
         description=(
-            "Which registered sandbox connection to run on; null takes the "
+            "Which registered sandbox connection to run on; empty takes the "
             "organization's default. An id, never an address or a token - a spec is "
             "exported to a client's git repository, so the only thing it may carry "
             "is a reference. The connection decides whether that is a container on "
@@ -89,6 +91,7 @@ class SandboxConfig(BaseModel):
         ),
     )
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] = Field(
+        title="Who shares the workspace",
         default="conversation",
         description=(
             "Who shares the workspace, by default on every surface - a binding on "
@@ -106,15 +109,17 @@ class SandboxConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     runtime: str | None = Field(
+        title="Runtime",
         default=None,
         max_length=64,
         description=(
             "Which environment a container-backed workspace runs, named from the "
-            "list the connection's service allows. Null takes the connection's "
+            "list the connection's service allows. Empty takes the connection's "
             "default. An alias, never an image."
         ),
     )
     include_execute: bool = Field(
+        title="Allow shell commands",
         default=True,
         description=(
             "Whether the agent may run shell commands. Turning it off leaves the "

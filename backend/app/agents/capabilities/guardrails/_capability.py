@@ -150,52 +150,67 @@ class GuardrailsConfig(BaseModel):
     """
 
     redact_secrets_in: bool = Field(
-        default=False, description="Redact API keys and tokens from the user's prompt"
+        title="Hide secrets in the question",
+        default=False,
+        description="Redact API keys and tokens from the user's prompt",
     )
     redact_pii_in: bool = Field(
+        title="Hide personal data in the question",
         default=False,
         description="Redact emails, phone numbers, IBANs, cards and SSNs from the prompt",
     )
     blocked_keywords_in: str = Field(
+        title="Blocked words in the question",
         default="",
         description="Block the run if the prompt contains any of these terms (comma or newline separated)",
     )
     redact_secrets_out: bool = Field(
-        default=False, description="Redact API keys and tokens from the agent's answer"
+        title="Hide secrets in the answer",
+        default=False,
+        description="Redact API keys and tokens from the agent's answer",
     )
     redact_pii_out: bool = Field(
+        title="Hide personal data in the answer",
         default=False,
         description="Redact emails, phone numbers, IBANs, cards and SSNs from the answer",
     )
     blocked_keywords_out: str = Field(
+        title="Blocked words in the answer",
         default="",
         description="Block the run if the answer contains any of these terms (comma or newline separated)",
     )
     redact_secrets_tool: bool = Field(
+        title="Hide secrets in tool results",
         default=False,
         description="Redact API keys and tokens from tool results before the model reads them",
     )
     redact_pii_tool: bool = Field(
+        title="Hide personal data in tool results",
         default=False,
         description="Redact emails, phone numbers, IBANs, cards and SSNs from tool results",
     )
     blocked_keywords_tool: str = Field(
+        title="Blocked words in tool results",
         default="",
         description="Block the run if a tool result contains any of these terms (comma or newline separated)",
     )
     redact_secrets_args: bool = Field(
+        title="Hide secrets in tool arguments",
         default=False,
         description="Redact API keys and tokens from the arguments the agent passes a tool",
     )
     redact_pii_args: bool = Field(
+        title="Hide personal data in tool arguments",
         default=False,
         description="Redact emails, phone numbers, IBANs, cards and SSNs from tool arguments",
     )
     blocked_keywords_args: str = Field(
+        title="Blocked words in tool arguments",
         default="",
         description="Block the run if a tool's arguments contain any of these terms (comma or newline separated)",
     )
     phone_regions: str = Field(
+        title="Phone number countries",
         default=DEFAULT_PHONE_REGIONS,
         description=(
             "Countries whose national phone formats PII redaction reads, as two-letter codes "

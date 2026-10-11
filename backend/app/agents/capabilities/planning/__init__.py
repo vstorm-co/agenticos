@@ -55,6 +55,7 @@ class PlanningConfig(BaseModel):
     """
 
     enable_subtasks: bool = Field(
+        title="Subtasks and dependencies",
         default=False,
         description=(
             "Add dependency-aware planning: three more tools (`add_subtask`, "
@@ -66,6 +67,7 @@ class PlanningConfig(BaseModel):
         ),
     )
     cache_ttl: Literal["5m", "1h"] = Field(
+        title="Prompt cache lifetime",
         default="5m",
         description=(
             "How long the provider may cache the prompt prefix that sits before the "

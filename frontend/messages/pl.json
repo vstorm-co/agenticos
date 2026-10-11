@@ -6137,5 +6137,425 @@
       "title": "Zacznij od szablonu",
       "body": "Dwadzieścia osiem gotowych agentów według branży. Instalacja tworzy draft z już podpiętymi skillami."
     }
+  },
+  "capabilityConfig": {
+    "browser_choice": {
+      "cdp_url": {
+        "title": "Endpoint DevTools",
+        "description": "Endpoint Chromium DevTools, którym sterujemy - usługa przeglądarki uruchomiona przez operatora, nie proces w kontenerze API."
+      },
+      "allowed_domains": {
+        "title": "Dozwolone domeny",
+        "description": "Hosty, na których może być przeglądarka; puste oznacza brak ograniczeń. Dozwolone wzorce typu *.example.com. Sprawdzane na każdym kroku, nie tylko na pierwszym."
+      },
+      "decision_model": {
+        "title": "Model decyzyjny",
+        "description": "Model, który w każdym kroku wybiera operację i element."
+      },
+      "decision_base_url": {
+        "title": "Endpoint modelu decyzyjnego",
+        "description": "Gdzie działa ten model. Puste to publiczny endpoint dostawcy (https://api.typesafe.ai), dokąd trafia treść stron, jeśli nie wskażesz innego - wdrożenie, które nie może wysyłać treści stron stronom trzecim, wpisuje tu własny endpoint."
+      },
+      "max_steps": {
+        "title": "Maksymalnie kroków na wywołanie",
+        "description": "Twardy limit kroków na wywołanie; każdy krok to jedno zapytanie decyzyjne."
+      },
+      "candidate_cap": {
+        "title": "Elementy do wyboru w kroku",
+        "description": "Ile elementów strony można zaproponować jako opcje w jednym kroku. Mniej to taniej, ale model widzi mniej; na stronę zbyt gęstą dla limitu pętla odpowiada przewinięciem."
+      },
+      "min_confidence": {
+        "title": "Minimalna pewność",
+        "description": "Nie wykonuj wyboru, który model decyzyjny ocenił poniżej tej wartości - przeglądanie kończy się wtedy jako zablokowane. 0 wykonuje każdy wybór i podaje jego ocenę."
+      },
+      "preview": {
+        "title": "Podgląd na żywo",
+        "description": "Wysyłaj widok przeglądarki do czatu w trakcie przeglądania, żeby można było je obserwować. Kosztuje jeden JPEG na krok w gnieździe."
+      },
+      "preview_width": {
+        "title": "Szerokość widoku (piksele)",
+        "description": "Szerokość okna przeglądarki w pikselach, a zarazem szerokość klatek. Decyduje, co agent widzi bez przewijania."
+      }
+    },
+    "browser_use": {
+      "mode": {
+        "title": "Przeglądarka",
+        "description": "playwright: uruchom lokalnie przeglądarkę bez okna. remote: podłącz się do przeglądarki działającej gdzie indziej przez jej endpoint CDP."
+      },
+      "cdp_url": {
+        "title": "Endpoint DevTools",
+        "description": "Endpoint Chromium DevTools, do którego się podłączamy; wymagany w trybie remote i tylko w nim dozwolony."
+      },
+      "allowed_domains": {
+        "title": "Dozwolone domeny",
+        "description": "Domeny, na które agent może przejść; puste oznacza brak ograniczeń. Dozwolone wzorce typu *.example.com."
+      },
+      "max_steps": {
+        "title": "Maksymalnie kroków na wywołanie",
+        "description": "Twardy limit kroków agenta przeglądarki na wywołanie; każdy krok to jedno zapytanie do modelu."
+      },
+      "use_vision": {
+        "title": "Wysyłaj zrzuty ekranu do modelu",
+        "description": "Wysyłaj zrzuty strony do modelu agenta przeglądarki; lepiej na układach wizualnych, więcej tokenów."
+      },
+      "headless": {
+        "title": "Ukryj okno przeglądarki",
+        "description": "Uruchamiaj lokalną przeglądarkę bez widocznego okna (tylko w trybie playwright)."
+      }
+    },
+    "channel_tools": {
+      "tools": {
+        "title": "Dozwolone wyszukiwania",
+        "description": "Które wyszukiwania w kanale ta konfiguracja dopuszcza, po id narzędzia. Puste oznacza żadne - tak zaczyna każda konfiguracja."
+      },
+      "default_limit": {
+        "title": "Wyników, gdy nie podano liczby",
+        "description": "Ilu członków, wyników wyszukiwania lub wiadomości zwrócić, gdy model nie poda liczby"
+      }
+    },
+    "clock": {
+      "timezone": {
+        "title": "Strefa czasowa",
+        "description": "Strefa czasowa IANA, w której myśli agent, np. Europe/Warsaw"
+      }
+    },
+    "code_execution": {
+      "timeout_secs": {
+        "title": "Limit czasu na wywołanie (sekundy)",
+        "description": "Czas rzeczywisty na jedno wywołanie, w sekundach"
+      },
+      "max_memory_mb": {
+        "title": "Limit pamięci na wywołanie (MB)",
+        "description": "Limit pamięci na jedno wywołanie, w megabajtach"
+      }
+    },
+    "compaction": {
+      "strategy": {
+        "title": "Strategia",
+        "description": "Którą strategię zastosować, gdy historia zbliża się do okna"
+      },
+      "max_fraction": {
+        "title": "Zacznij przy tej części okna",
+        "description": "Część okna kontekstu modelu, przy której zaczyna się kompaktowanie"
+      },
+      "keep_messages": {
+        "title": "Zachowane ostatnie wiadomości",
+        "description": "Ile ostatnich wiadomości przetrwa podsumowanie lub przesuwane okno"
+      },
+      "keep_tool_pairs": {
+        "title": "Zachowane ostatnie wyniki narzędzi",
+        "description": "Ile ostatnich wywołań narzędzi zachowa wyniki, gdy wyniki są czyszczone"
+      },
+      "summary_prompt": {
+        "title": "Prompt podsumowania",
+        "description": "Co dostaje model podsumowujący. `{messages}` to miejsce, w które wstawiana jest zastępowana rozmowa, i jest wymagane - prompt bez niego niczego nie podsumuje. Zmień go, żeby zachować to, od czego zależy praca agenta: domyślny zachowuje intencje, decyzje i otwarte wątki, a to nie to samo, czego potrzebuje rozmowa z supportem albo code review"
+      },
+      "context_window": {
+        "title": "Nadpisanie okna kontekstu",
+        "description": "Nadpisz okno, względem którego to się uruchamia. To także mianownik wskaźnika kontekstu w czacie, więc oba opisują jeden sufit. Ustaw, gdy rozpoznana liczba jest zła dla twojego wdrożenia - wersja beta lub plan mogą dostać mniej, niż publikuje provider - albo żeby agent kompaktował wcześniej, niż wymaga model"
+      },
+      "fallback_context_window": {
+        "title": "Zapasowe okno kontekstu",
+        "description": "Okno przyjmowane, gdy nie da się ustalić okna modelu"
+      }
+    },
+    "context": {
+      "expose_read_tool": {
+        "title": "Pozwól agentowi otwierać podlinkowane pliki",
+        "description": "Czy pliki w trybie linku są dostępne przez narzędzie do odczytu. Wyłączone oznacza, że do modelu trafiają tylko wstrzyknięte pliki i nic nie jest czytane na żądanie."
+      }
+    },
+    "conversation_search": {
+      "max_results": {
+        "title": "Rozmów na wyszukiwanie",
+        "description": "Ile rozmów zwraca co najwyżej jedno wyszukiwanie. Każda przynosi krótki fragment, więc duża liczba kosztuje kontekst przy każdym wyszukiwaniu."
+      }
+    },
+    "guardrails": {
+      "redact_secrets_in": {
+        "title": "Ukryj sekrety w pytaniu",
+        "description": "Usuń klucze API i tokeny z promptu użytkownika"
+      },
+      "redact_pii_in": {
+        "title": "Ukryj dane osobowe w pytaniu",
+        "description": "Usuń adresy e-mail, numery telefonów, IBAN-y, numery kart i SSN z promptu"
+      },
+      "blocked_keywords_in": {
+        "title": "Zablokowane słowa w pytaniu",
+        "description": "Zablokuj run, jeśli prompt zawiera którekolwiek z tych słów (oddzielone przecinkiem lub nową linią)"
+      },
+      "redact_secrets_out": {
+        "title": "Ukryj sekrety w odpowiedzi",
+        "description": "Usuń klucze API i tokeny z odpowiedzi agenta"
+      },
+      "redact_pii_out": {
+        "title": "Ukryj dane osobowe w odpowiedzi",
+        "description": "Usuń adresy e-mail, numery telefonów, IBAN-y, numery kart i SSN z odpowiedzi"
+      },
+      "blocked_keywords_out": {
+        "title": "Zablokowane słowa w odpowiedzi",
+        "description": "Zablokuj run, jeśli odpowiedź zawiera którekolwiek z tych słów (oddzielone przecinkiem lub nową linią)"
+      },
+      "redact_secrets_tool": {
+        "title": "Ukryj sekrety w wynikach narzędzi",
+        "description": "Usuń klucze API i tokeny z wyników narzędzi, zanim przeczyta je model"
+      },
+      "redact_pii_tool": {
+        "title": "Ukryj dane osobowe w wynikach narzędzi",
+        "description": "Usuń adresy e-mail, numery telefonów, IBAN-y, numery kart i SSN z wyników narzędzi"
+      },
+      "blocked_keywords_tool": {
+        "title": "Zablokowane słowa w wynikach narzędzi",
+        "description": "Zablokuj run, jeśli wynik narzędzia zawiera którekolwiek z tych słów (oddzielone przecinkiem lub nową linią)"
+      },
+      "redact_secrets_args": {
+        "title": "Ukryj sekrety w argumentach narzędzi",
+        "description": "Usuń klucze API i tokeny z argumentów, które agent przekazuje narzędziu"
+      },
+      "redact_pii_args": {
+        "title": "Ukryj dane osobowe w argumentach narzędzi",
+        "description": "Usuń adresy e-mail, numery telefonów, IBAN-y, numery kart i SSN z argumentów narzędzi"
+      },
+      "blocked_keywords_args": {
+        "title": "Zablokowane słowa w argumentach narzędzi",
+        "description": "Zablokuj run, jeśli argumenty narzędzia zawierają którekolwiek z tych słów (oddzielone przecinkiem lub nową linią)"
+      },
+      "phone_regions": {
+        "title": "Kraje numerów telefonów",
+        "description": "Kraje, których krajowe formaty numerów rozpoznaje ukrywanie danych osobowych, jako dwuliterowe kody (oddzielone przecinkiem lub nową linią), najwyżej 16 regionów i 256 znaków. Numer zapisany z + jest ukrywany niezależnie od listy"
+      }
+    },
+    "image_generation": {
+      "provider": {
+        "title": "Provider",
+        "description": "Czyj model rysuje. Przyjmowani są tylko providerzy, których klasa modelu obsługuje narzędzie obrazów - dziś trzech - a o to, którzy to są, pytamy SDK, zamiast wypisywać ich tutaj."
+      },
+      "model": {
+        "title": "Model obrazów",
+        "description": "Który z modeli obrazów tego providera rysuje, według id w `app/core/catalog/image_models.json`. Model spoza katalogu jest odrzucany: narzędzie odpowiedziałoby na model, który nie umie rysować, błędem widocznym dla autora dopiero w trakcie runu."
+      },
+      "quality": {
+        "title": "Jakość",
+        "description": "Jakość renderowania; wyższa jest wolniejsza i droższa."
+      },
+      "size": {
+        "title": "Rozmiar",
+        "description": "Rozmiar wyniku. OpenAI używa wartości w pikselach, Google wartości K."
+      },
+      "background": {
+        "title": "Tło",
+        "description": "Rodzaj tła; przezroczyste wymaga formatu png lub webp."
+      },
+      "output_format": {
+        "title": "Format pliku",
+        "description": "Format pliku obrazu."
+      },
+      "aspect_ratio": {
+        "title": "Proporcje",
+        "description": "Proporcje obrazu, np. 16:9 lub 1:1."
+      }
+    },
+    "knowledge": {
+      "default_top_k": {
+        "title": "Fragmentów na wyszukiwanie",
+        "description": "Ile fragmentów zwrócić, gdy model nie poda liczby"
+      },
+      "self_query_enabled": {
+        "title": "Wyznaczaj filtry z pytania",
+        "description": "Wyznacz filtry biznesowe FA-039 (źródło, typ dokumentu, jednostka organizacyjna, zakres dat) z pytania w języku naturalnym za pomocą LLM, gdy model szuka bez podania filtrów. Domyślnie wyłączone. Każde takie wyszukiwanie to jedno dodatkowe zapytanie do modelu, wliczane do runu. Może tylko zawężać w obrębie organizacji i kolekcji agenta, nigdy poszerzać."
+      },
+      "query_analysis_mode": {
+        "title": "Rozszerzanie zapytania",
+        "description": "Opcjonalnie przeanalizuj i rozszerz zapytanie przed wyszukiwaniem, żeby lepiej trafiać przy krótkich lub nieprecyzyjnych pytaniach. Domyślnie wyłączone. `multi_query` i `hyde` robią po jednym dodatkowym wywołaniu modelu"
+      },
+      "query_analysis_max_variants": {
+        "title": "Maksymalnie przeformułowań",
+        "description": "Ile przeformułowań może dodać `multi_query` - ogranicza rozgałęzienie i koszt. Pozostałe tryby to ignorują"
+      },
+      "parent_context": {
+        "title": "Dołącz otaczający tekst",
+        "description": "Wyszukiwanie small-to-big: zwracaj każdy dopasowany fragment z tekstem wokół niego. Dopasowanie i ranking zawsze działają na małych fragmentach, dopasowany fragment nigdy nie jest skracany, a dodany kontekst jest ograniczony."
+      }
+    },
+    "media": {
+      "threshold_bytes": {
+        "title": "Zapisuj części większe niż (bajty)",
+        "description": "Części binarne lub tekstowe co najmniej tej wielkości trafiają do magazynu i są zastępowane odnośnikiem w zapisanej historii."
+      }
+    },
+    "memory_files": {
+      "allow_personal": {
+        "title": "Prywatne notatki dla każdej osoby",
+        "description": "Czy agent prowadzi prywatne notatki o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn całkowicie, ze względów zgodności lub prywatności; notatki z czatów grupowych zostają."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "URL własnego mem0",
+        "description": "Bazowy URL samodzielnie hostowanego mem0; pomiń dla chmury mem0."
+      },
+      "allow_personal": {
+        "title": "Prywatna pamięć dla każdej osoby",
+        "description": "Czy agent zapamiętuje prywatnie rzeczy o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn, ze względów zgodności lub prywatności; pamięć czatów grupowych zostaje."
+      }
+    },
+    "planning": {
+      "enable_subtasks": {
+        "title": "Podzadania i zależności",
+        "description": "Dodaj planowanie z zależnościami: trzy dodatkowe narzędzia (`add_subtask`, `set_dependency`, `get_available_tasks`) i status `blocked`. Krok z niespełnionym warunkiem pozostaje `blocked`, dopóki warunek nie zostanie ukończony lub anulowany, a agent pyta, które kroki może zacząć. Domyślnie wyłączone: płaska lista to mniejszy prompt, a większość pracy nie potrzebuje grafu zależności."
+      },
+      "cache_ttl": {
+        "title": "Czas życia cache promptu",
+        "description": "Jak długo provider może trzymać w cache prefiks promptu przed przypomnieniem o planie. Przypomnienie zmienia się co turę i celowo stoi za tym punktem, żeby stały prefiks dało się cache'ować; dłuższy TTL pasuje do rozmowy, która zostaje otwarta, krótszy do serii szybkich tur."
+      }
+    },
+    "sandbox": {
+      "backend": {
+        "title": "Gdzie są pliki",
+        "description": "state: tylko pliki, bez powłoki, przechowywane przez platformę - działa na każdym wdrożeniu bez dodatkowych usług. service: kontener lub sandbox w chmurze, na jednym z połączeń zarejestrowanych przez organizację."
+      },
+      "connection_id": {
+        "title": "Połączenie sandbox",
+        "description": "Na którym zarejestrowanym połączeniu sandbox działać; puste bierze domyślne połączenie organizacji. Id, nigdy adres ani token - spec jest eksportowany do repozytorium git klienta, więc może zawierać tylko odnośnik. Połączenie decyduje, czy to kontener na twoim hoście, czy sandbox w chmurze Daytona."
+      },
+      "session_scope": {
+        "title": "Kto dzieli workspace",
+        "description": "Kto dzieli workspace, domyślnie na każdej powierzchni - konfiguracja jednego z udostępnień agenta może to zmienić. run: nikt, nowy w każdej turze. conversation: wszyscy w danym czacie - na Slacku wątek jest czatem, więc tam to jeden workspace na wątek. channel: wszyscy na kanale Slacka lub czacie grupowym, razem z wątkami; wiadomość prywatna nadal ma własny. user: jedna osoba we wszystkich jej czatach z tym agentem, a po połączeniu konta także na wszystkich powierzchniach. agent: wszyscy, którzy rozmawiają z tym agentem - pliki są wspólne dla osób w organizacji."
+      },
+      "runtime": {
+        "title": "Środowisko",
+        "description": "Które środowisko uruchamia workspace w kontenerze, z listy dopuszczonej przez usługę połączenia. Puste bierze domyślne środowisko połączenia. Alias, nigdy obraz."
+      },
+      "include_execute": {
+        "title": "Pozwól na polecenia powłoki",
+        "description": "Czy agent może uruchamiać polecenia powłoki. Wyłączenie zostawia narzędzia plikowe i całkowicie usuwa powłokę, zamiast ją blokować."
+      }
+    },
+    "subagents": {
+      "inline": {
+        "title": "Specjaliści wbudowani",
+        "description": "Specjaliści zdefiniowani wewnątrz tego agenta, do pracy, która nie uzasadnia publikowania osobnego agenta. Bez wersji: edycja tego agenta je zmienia i nic innego nie może się do nich odwołać."
+      },
+      "mode": {
+        "title": "Tryb delegowania",
+        "description": "Czy delegowanie blokuje tego agenta do czasu odpowiedzi (sync), działa w tle i jest odbierane później (async), czy jest rozstrzygane dla każdego zadania na podstawie tego, co mówi o nim model (auto). To wybór autora, nie modelu: argument trybu w narzędziu delegowania domyślnie ma wartość sync, więc model, który nic nie mówi, i model, który wybrał sync, to to samo wywołanie - auto przekazuje decyzję modelowi. Jednego delegowanie w tle nie potrafi: czekać na człowieka. Narzędzie specjalisty wymagające akceptacji jest odrzucane, a nie kolejkowane, bo delegowanie oddało już id zadania i nikt nie trzyma runu. Taką pracę zostaw w sync."
+      },
+      "allow_questions": {
+        "title": "Pozwól delegatom zadawać pytania",
+        "description": "Czy delegat może zadać pytanie osobie czekającej na tego agenta, zamiast zgadywać - „w jakiej walucie?” zamiast założenia ukrytego w odpowiedzi. Domyślnie wyłączone: specjalista pracuje samodzielnie i mówi, gdy nie dał rady, a taki, który zatrzymuje się, by zapytać, trzyma turę tego agenta otwartą na człowieka. To decyzja autora, nie modelu - pytanie pada pod nazwą opublikowaną przez rodzica, więc czy w ogóle może paść, decyduje autor. Trafia tym samym kanałem, którym pyta run tego agenta, i nie jest bramką akceptacji: pytanie nie jest autoryzacją i nie może jej udzielić. Działa tylko dla delegowania, które blokuje (sync) - delegowanie w tle oddało już id zadania i nie ma kto odpowiedzieć, a auto może się nim stać, więc oba nadal pracują samodzielnie niezależnie od tego ustawienia. Dotyczy specjalistów, których agent dostał, przypiętych lub wbudowanych; specjalista wymyślony przez model zawsze pracuje samodzielnie."
+      },
+      "allow_dynamic": {
+        "title": "Pozwól agentowi tworzyć specjalistów",
+        "description": "Czy ten agent może wymyślać specjalistów w trakcie działania, zamiast korzystać tylko z tych, które dostał. Domyślnie wyłączone z tego samego powodu, dla którego istnieje ten produkt: agenta, którego instrukcji nikt nie napisał, nikt nie może przejrzeć. Włączone dodaje dwa narzędzia - jedno dla specjalisty użytego raz, drugie dla zachowanego do końca odpowiedzi - a specjalista to instrukcje i model, nic więcej: wybiera model spośród modeli tej organizacji, wydaje z budgetu tego runu jak każde delegowanie, nie dostaje wiedzy, narzędzi ani własnych delegatów i znika, gdy skończy się odpowiedź, dla której powstał. Zachowanie go oznacza opublikowanie agenta, a to decyzja człowieka. Utworzenie wymaga domyślnie akceptacji, bo nikt nie przejrzał instrukcji, które model napisał przed chwilą - wyłącz to dla narzędzia, jeśli agent ma działać bez nadzoru."
+      },
+      "max_depth": {
+        "title": "Głębokość delegowania",
+        "description": "Ile poziomów delegowania jest dozwolonych, licząc poziom tego agenta. 1 - domyślnie - pozwala delegować temu agentowi, ale nie jego delegatom; 2 dopuszcza jeden poziom zagnieżdżenia, więc delegat może raz przekazać pracę dalej; 3 dwa. Na granicy delegat powstaje bez capability delegowania, a nie z taką, która tylko odmawia. To sufit w obie strony: gdy ten agent sam jest czyimś delegatem, dostaje mniejszą z tej wartości i tego, co zostało w drzewie wywołującego, więc wywołujący nigdy nie kupi temu agentowi więcej zagnieżdżenia, niż pozwolił autor. Celowo nisko: każdy poziom mnoży liczbę zapytań w jednej turze. Żeby wyłączyć delegowanie, wyłącz tę konfigurację - to jedyny wyłącznik i zachowuje ustawienia."
+      },
+      "max_fanout": {
+        "title": "Delegowań naraz",
+        "description": "Ile delegowań może działać jednocześnie. Po osiągnięciu limitu kolejne jest odrzucane komunikatem, na który model może zareagować, a nie błędem. To sufit dla delegowania w tle, które uruchamia kolejne w tle, aż na jednym budgecie działa tuzin agentów."
+      },
+      "max_result_chars": {
+        "title": "Długość odpowiedzi delegata",
+        "description": "Ile z odpowiedzi zakończonego delegowania pokazać, gdy odbiera się kilka naraz. Przycięta odpowiedź mówi o tym i wskazuje narzędzie, które zwraca ją w całości, więc nic nie ginie - to decyduje tylko, ile pracy pięciu specjalistów trafi do kontekstu jednej tury."
+      },
+      "share_with_delegates": {
+        "title": "Capabilities dziedziczone przez delegatów",
+        "description": "Id capabilities podpiętych do tego agenta, które dziedziczą jego delegaci i specjaliści wbudowani - workspace to przypadek, dla którego to istnieje: researcher zapisuje plik, a autor tekstu go czyta. Wymieniane po kolei, a nie współdzielone domyślnie: delegat, który po cichu dostałby uprawnienia rodzica, byłby cichą drogą obejścia tego, co rodzicowi przyznano. Samo delegowanie jest tu odrzucane, cokolwiek mówi spec: delegat, który by je odziedziczył, czytałby konfigurację rodzica jak własną - specjalistów rodzica i allow_dynamic, którego jego autor nie ustawił. Dzielić można tylko capability, więc połączenie MCP nie: te są wskazywane w spec, nie podpinane."
+      }
+    },
+    "system_reminders": {
+      "reminders": {
+        "title": "Stałe przypomnienia",
+        "description": "Stałe zdania przypominane każde we własnym rytmie"
+      },
+      "goal_reanchor": {
+        "title": "Przypominaj pierwotną prośbę",
+        "description": "Przypominaj pierwotną prośbę w stałym rytmie, bez kosztu w tokenach"
+      },
+      "llm_reminder": {
+        "title": "Przypomnienie pisane przez model",
+        "description": "Przypomnienie pisane przez model w stałym rytmie. Każde kosztuje jedno dodatkowe wywołanie"
+      },
+      "cache_ttl": {
+        "title": "Czas życia cache promptu",
+        "description": "Czas życia cache punktu umieszczonego przed końcowym przypomnieniem"
+      }
+    },
+    "thinking": {
+      "effort": {
+        "title": "Wysiłek rozumowania",
+        "description": "Jak intensywnie model rozumuje przed odpowiedzią. Zostaw puste dla domyślnego poziomu providera; poziom, którego provider nie ma, przechodzi na najbliższy."
+      }
+    },
+    "tool_output_limits": {
+      "action": {
+        "title": "Gdy wynik jest za długi",
+        "description": "Co zrobić z wynikiem, który przekracza próg"
+      },
+      "threshold": {
+        "title": "Limit rozmiaru",
+        "description": "Rozmiar, od którego wynik jest skracany. Domyślnie w znakach; w szacowanych tokenach, gdy włączone jest „mierz w tokenach” - wtedy domyślnie 15 000"
+      },
+      "over_tokens": {
+        "title": "Mierz w tokenach",
+        "description": "Mierz próg w szacowanych tokenach zamiast w znakach"
+      },
+      "max_chars": {
+        "title": "Zachowane znaki",
+        "description": "Ile znaków zachować przy przycięciu wyniku lub gdy zapis do pliku albo podsumowanie wraca do przycięcia. Bez ustawienia nigdy więcej niż próg"
+      },
+      "truncation_strategy": {
+        "title": "Którą część zachować",
+        "description": "Który koniec (lub oba) zbyt długiego tekstu zachować przy przycinaniu"
+      },
+      "strip_ansi": {
+        "title": "Usuń kolory terminala",
+        "description": "Usuń kody kolorów terminala z wyników tekstowych przed mierzeniem i skracaniem"
+      },
+      "summary_prompt": {
+        "title": "Prompt podsumowania",
+        "description": "Co dostaje model podsumowujący przy akcji 'summarize'. Musi zawierać {output}, gdzie wstawiany jest pełny wynik narzędzia; dostępne jest też {tool_name} z nazwą narzędzia, które go zwróciło"
+      }
+    },
+    "tool_search": {
+      "strategy": {
+        "title": "Metoda wyszukiwania",
+        "description": "auto: natywne wyszukiwanie narzędzi u providera, który je ma, a gdzie indziej lokalne dopasowanie słów. keywords: zawsze lokalnie, u każdego providera. bm25 / regex: wymuś natywny algorytm Anthropic; błąd u providera bez natywnego wyszukiwania narzędzi."
+      },
+      "max_results": {
+        "title": "Dopasowań na wyszukiwanie",
+        "description": "Ile dopasowań zwraca lokalne wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
+      }
+    },
+    "web_fetch": {
+      "method": {
+        "title": "Jak pobierać strony",
+        "description": "local: pobieramy stronę sami, tak samo na każdym modelu. native: stronę pobiera provider modelu, własnym ruchem i z własnymi cytatami (tylko na modelach, które to obsługują). auto: natywnie, gdzie model to ma, a wszędzie indziej nasze."
+      },
+      "max_content_chars": {
+        "title": "Limit długości strony (znaki)",
+        "description": "Ile strony zwraca jedno pobranie, zanim zostanie przycięte; mniej więcej cztery znaki na token. Ignorowane przy pobieraniu natywnym, które provider ogranicza sam."
+      },
+      "allowed_domains": {
+        "title": "Dozwolone domeny",
+        "description": "Same nazwy hostów, które agent może pobierać, np. docs.example.com; puste oznacza dowolne. Dopasowanie dokładne - bez wzorców i bez subdomen."
+      },
+      "blocked_domains": {
+        "title": "Zablokowane domeny",
+        "description": "Same nazwy hostów, których agent nigdy nie może pobierać, dopasowanie dokładne."
+      }
+    },
+    "web_research": {
+      "method": {
+        "title": "Wyszukiwarka",
+        "description": "duckduckgo: za darmo, bez konta, wyniki jako klikalne źródła. native: szuka provider modelu, własnym indeksem i z cytatami (tylko na modelach, które to obsługują). tavily: streszczone do czytania przez model. brave: własny indeks. exa: szukanie po znaczeniu zamiast po słowach."
+      },
+      "max_results": {
+        "title": "Wyników na wyszukiwanie",
+        "description": "Ile wyników zwraca jedno wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
+      }
+    }
   }
 }

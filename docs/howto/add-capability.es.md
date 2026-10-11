@@ -1,5 +1,5 @@
 ---
-source_sha: "35c351a5e658"
+source_sha: "8ebc9d30a06c"
 ---
 
 # Añade una capability { #add-a-capability }
@@ -125,7 +125,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -159,7 +164,12 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   que se separan.
 - **`config_schema`** genera el formulario del Builder y se valida al publicar,
   así que un valor malo falla mientras alguien mira un formulario y no a mitad de
-  un run.
+  un run. Cada campo lleva un `title` y una `description` escritos para quien lo
+  rellena, y esos mismos dos textos bajo `capabilityConfig.<id>.<campo>` en
+  `frontend/messages/en.json`, `pl.json` y `de.json`. Sin título el formulario
+  muestra el nombre del campo, en inglés, en todos los idiomas;
+  `tests/test_capability_registry.py` falla con un campo sin título o sin entrada
+  en el catálogo, y con una entrada en inglés que difiere del esquema.
 - **`scopes`** se rechazan en el momento de construir cuando la organización no
   los ha concedido.
 - **`side_effecting=True`** encamina las herramientas de la capability por la

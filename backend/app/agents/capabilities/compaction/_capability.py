@@ -129,6 +129,7 @@ class CompactionConfig(BaseModel):
     """
 
     strategy: StrategyName = Field(
+        title="Strategy",
         default="summarize",
         description="Which strategy to apply when the history approaches the window",
         # What the Builder puts in the picker. The values are spec format and
@@ -145,18 +146,21 @@ class CompactionConfig(BaseModel):
         },
     )
     max_fraction: float = Field(
+        title="Start at this share of the window",
         default=0.9,
         ge=0.05,
         le=0.95,
         description="Fraction of the model's context window at which compaction starts",
     )
     keep_messages: int = Field(
+        title="Recent messages kept",
         default=20,
         ge=1,
         le=500,
         description="How many recent messages survive a summary or a sliding window",
     )
     keep_tool_pairs: int = Field(
+        title="Recent tool results kept",
         default=3,
         ge=0,
         le=50,
@@ -164,6 +168,7 @@ class CompactionConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     summary_prompt: str = Field(
+        title="Summary prompt",
         default=DEFAULT_SUMMARY_PROMPT,
         min_length=1,
         max_length=8_000,
@@ -180,6 +185,7 @@ class CompactionConfig(BaseModel):
         json_schema_extra={"x-advanced": True, "x-multiline": True},
     )
     context_window: int | None = Field(
+        title="Context window override",
         default=None,
         ge=1_000,
         description=(
@@ -192,6 +198,7 @@ class CompactionConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     fallback_context_window: int = Field(
+        title="Fallback context window",
         default=DEFAULT_CONTEXT_WINDOW,
         ge=1_000,
         description="Window to assume when the model's own cannot be resolved",

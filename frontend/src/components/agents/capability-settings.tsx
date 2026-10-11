@@ -7,6 +7,7 @@ import { ChevronRight, ShieldAlert } from "lucide-react";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Badge,
@@ -294,6 +295,7 @@ export function CapabilityDetail({
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
+  const copyFor = useCapabilityFieldCopy(binding.id);
   const settings = (
     <>
       {settingsExtra}
@@ -305,6 +307,7 @@ export function CapabilityDetail({
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
+          copyFor={copyFor}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}

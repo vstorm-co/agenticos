@@ -33,6 +33,7 @@ class BrowserUseConfig(BaseModel):
     """
 
     mode: Literal["playwright", "remote"] = Field(
+        title="Browser",
         default="playwright",
         description=(
             "playwright: launch a headless browser locally. "
@@ -40,14 +41,17 @@ class BrowserUseConfig(BaseModel):
         ),
     )
     cdp_url: str | None = Field(
+        title="DevTools endpoint",
         default=None,
         description="Chromium DevTools endpoint to attach to; required by (and only valid in) remote mode.",
     )
     allowed_domains: list[str] | None = Field(
+        title="Allowed domains",
         default=None,
-        description="Domains the agent may navigate to; null means no restriction. Globs like *.example.com are allowed.",
+        description="Domains the agent may navigate to; empty means no restriction. Globs like *.example.com are allowed.",
     )
     max_steps: int = Field(
+        title="Steps per call at most",
         default=25,
         ge=1,
         le=100,
@@ -55,11 +59,13 @@ class BrowserUseConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     use_vision: bool = Field(
+        title="Send screenshots to the model",
         default=True,
         description="Send page screenshots to the browser agent's model; better on visual layouts, more tokens.",
         json_schema_extra={"x-advanced": True},
     )
     headless: bool = Field(
+        title="Hide the browser window",
         default=True,
         description="Run a locally launched browser without a visible window (playwright mode only).",
         json_schema_extra={"x-advanced": True},

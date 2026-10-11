@@ -948,6 +948,63 @@ class TestFrontendToolCatalog:
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
 
 
+class TestCapabilitySettingsCopy:
+    """Every capability setting is named for a person, in every language (#2098).
+
+    The Builder generates a capability's settings form from its config schema, and
+    with no `title` Pydantic writes one from the field name - "Redact Pii In",
+    "Max Result Chars" - in English under every locale. So each field carries a
+    title of its own, and `capabilityConfig.<capability>.<field>` in each catalog
+    carries its title and description. The English entry is the schema's own words,
+    kept equal here, so changing one without the other fails rather than drifting.
+    """
+
+    @staticmethod
+    def _schema_copy() -> dict[str, dict[str, dict[str, str]]]:
+        copy: dict[str, dict[str, dict[str, str]]] = {}
+        for definition in all_capabilities():
+            schema = definition.config_json_schema()
+            if schema is None:
+                continue
+            copy[definition.id] = {
+                field: {"title": prop["title"], "description": prop["description"]}
+                for field, prop in schema["properties"].items()
+            }
+        return copy
+
+    @staticmethod
+    def _catalog(locale: str) -> dict[str, dict[str, dict[str, str]]]:
+        catalog = json.loads((MESSAGES_PATH / f"{locale}.json").read_text(encoding="utf-8"))
+        return catalog["capabilityConfig"]
+
+    def test_every_setting_has_a_title_written_for_it(self):
+        untitled = [
+            f"{definition.id}.{field}"
+            for definition in all_capabilities()
+            if definition.config_schema is not None
+            for field, info in definition.config_schema.model_fields.items()
+            if info.title is None
+        ]
+
+        assert untitled == [], "give each a Field(title=...) a person can read"
+
+    def test_the_english_catalog_says_what_the_schema_says(self):
+        assert self._catalog("en") == self._schema_copy()
+
+    def test_every_language_covers_every_setting_and_nothing_else(self):
+        expected = {
+            cap_id: {field: {"title", "description"} for field in fields}
+            for cap_id, fields in self._schema_copy().items()
+        }
+        for locale in ("pl", "de"):
+            catalog = self._catalog(locale)
+            covered = {
+                cap_id: {field: set(entry) for field, entry in fields.items()}
+                for cap_id, fields in catalog.items()
+            }
+            assert covered == expected, locale
+
+
 class TestConsoleCapabilityGuide:
     """The console explains every capability, under the registry's own name (#2070).
 

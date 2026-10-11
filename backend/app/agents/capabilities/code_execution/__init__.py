@@ -26,6 +26,7 @@ class CodeExecutionConfig(BaseModel):
     """
 
     timeout_secs: float = Field(
+        title="Time limit per call (seconds)",
         default=DEFAULT_TIMEOUT_SECS,
         gt=0,
         le=120,
@@ -33,6 +34,7 @@ class CodeExecutionConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     max_memory_mb: int = Field(
+        title="Memory limit per call (MB)",
         default=DEFAULT_MAX_MEMORY_MB,
         ge=16,
         le=4096,

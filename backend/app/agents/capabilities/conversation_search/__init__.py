@@ -31,6 +31,7 @@ class ConversationSearchConfig(BaseModel):
     """
 
     max_results: int = Field(
+        title="Conversations per search",
         default=10,
         ge=1,
         le=25,

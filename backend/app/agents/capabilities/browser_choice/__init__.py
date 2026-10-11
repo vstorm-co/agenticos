@@ -76,6 +76,7 @@ class BrowserChoiceConfig(BaseModel):
     """
 
     cdp_url: str = Field(
+        title="DevTools endpoint",
         default="",
         json_schema_extra=_cdp_url_form,
         description=(
@@ -94,13 +95,15 @@ class BrowserChoiceConfig(BaseModel):
     its first call.
     """
     allowed_domains: list[str] | None = Field(
+        title="Allowed domains",
         default=None,
         description=(
-            "Hosts the browser may be on; null means no restriction. Globs like "
+            "Hosts the browser may be on; empty means no restriction. Globs like "
             "*.example.com are allowed. Checked on every step, not only the first."
         ),
     )
     decision_model: str = Field(
+        title="Decision model",
         default=DEFAULT_DECISION_MODEL,
         json_schema_extra=decision_model_schema(),
         description="The model that picks the operation and the element each step.",
@@ -115,6 +118,7 @@ class BrowserChoiceConfig(BaseModel):
     platform to use a release of that one.
     """
     decision_base_url: str | None = Field(
+        title="Decision model endpoint",
         default=None,
         json_schema_extra={"x-advanced": True, "x-placeholder": VENDOR_DECISION_ENDPOINT},
         description=(
@@ -125,12 +129,14 @@ class BrowserChoiceConfig(BaseModel):
         ),
     )
     max_steps: int = Field(
+        title="Steps per call at most",
         default=25,
         ge=1,
         le=100,
         description="Hard cap on steps per call; each step is one decision request.",
     )
     candidate_cap: int = Field(
+        title="Elements offered per step",
         default=60,
         ge=2,
         le=HARD_CANDIDATE_CAP,
@@ -142,6 +148,7 @@ class BrowserChoiceConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     min_confidence: float = Field(
+        title="Minimum confidence",
         default=0.0,
         ge=0.0,
         le=1.0,
@@ -152,6 +159,7 @@ class BrowserChoiceConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     preview: bool = Field(
+        title="Show a live preview",
         default=True,
         description=(
             "Send the viewport to the chat while the browse runs, so a person can "
@@ -159,6 +167,7 @@ class BrowserChoiceConfig(BaseModel):
         ),
     )
     preview_width: int = Field(
+        title="Viewport width (pixels)",
         default=1024,
         ge=320,
         le=1920,

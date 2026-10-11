@@ -18,6 +18,7 @@ import {
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
+import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -47,6 +48,12 @@ interface SchemaFormProps {
    * be acted on and then takes it away.
    */
   errors?: Readonly<Record<string, string>>;
+  /**
+   * Each field's title and description in the reader's language, where a
+   * catalog holds them - a capability's settings do (#2098). Without it, or for
+   * a field it has no copy for, the schema's own English is shown.
+   */
+  copyFor?: FieldCopyFor;
 }
 
 /**
@@ -75,6 +82,7 @@ export function SchemaForm({
   disabled,
   idPrefix,
   errors,
+  copyFor,
 }: SchemaFormProps) {
   const properties = Object.entries(schema.properties ?? {}).filter(
     // A field with exactly one legal value is not a question. Rendering it
@@ -95,6 +103,7 @@ export function SchemaForm({
       required={schema.required?.includes(key) ?? false}
       disabled={disabled}
       error={errors?.[key]}
+      copy={copyFor?.(key) ?? null}
       onChange={(fieldValue) => set(key, fieldValue)}
     />
   );
@@ -146,6 +155,7 @@ interface SchemaFieldProps {
   required: boolean;
   disabled?: boolean;
   error?: string;
+  copy: FieldCopy | null;
   onChange: (value: unknown) => void;
 }
 
@@ -157,10 +167,12 @@ function SchemaField({
   required,
   disabled,
   error,
+  copy,
   onChange,
 }: SchemaFieldProps) {
   const t = useTranslations("agents");
-  const label = property.title ?? humanise(name);
+  const label = copy?.title ?? property.title ?? humanise(name);
+  const description = copy?.description ?? property.description;
   const choices = enumChoices(property);
   const kind = resolveKind(property);
   const masked = isSecret(property);
@@ -424,9 +436,7 @@ function SchemaField({
         </div>
       )}
 
-      {property.description && (
-        <p className="text-muted-foreground text-xs">{property.description}</p>
-      )}
+      {description && <p className="text-muted-foreground text-xs">{description}</p>}
 
       {error !== undefined && (
         <p id={errorId} className="text-destructive text-xs">

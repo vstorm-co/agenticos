@@ -44,6 +44,7 @@ class ChannelToolsConfig(BaseModel):
     """
 
     tools: list[str] = Field(
+        title="Allowed lookups",
         default_factory=list,
         description=(
             "Which channel lookups this binding allows, by tool id. Empty means "
@@ -51,6 +52,7 @@ class ChannelToolsConfig(BaseModel):
         ),
     )
     default_limit: int = Field(
+        title="Results when no number is asked for",
         default=20,
         ge=1,
         le=200,
