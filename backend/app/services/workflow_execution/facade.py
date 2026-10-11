@@ -688,7 +688,7 @@ class WorkflowExecutionService:
         for attempt in attempts:
             by_run.setdefault(attempt.node_run_id, []).append(attempt)
         return WorkflowNodeRunList(
-            items=[_node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
+            items=[node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
         )
 
     async def run_files(self, ctx: AuthContext, run_id: UUID) -> WorkflowFileList:
@@ -852,10 +852,10 @@ class WorkflowExecutionService:
         trigger_dispatch(self.db, workflow_run_id=workflow_run_id, node_run_id=node_run_id)
 
 
-__all__ = ["Causation", "WorkflowExecutionService"]
+__all__ = ["Causation", "WorkflowExecutionService", "node_run_read"]
 
 
-def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunRead:
+def node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunRead:
     """One node run as the API shows it: its latest failure, and what its tries cost."""
     # An attempt with no retry guarantee is the dispatcher's own record - a loop
     # item's element, a loop's collected results - not a try at the step; nor is

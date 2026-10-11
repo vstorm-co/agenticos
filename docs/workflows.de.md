@@ -1,5 +1,5 @@
 ---
-source_sha: "021ead0aebf0"
+source_sha: "15d4c56edd5d"
 ---
 
 # Workflows { #workflows }
@@ -292,6 +292,26 @@ eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
 hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
 Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
+
+### Evals für einen Modellschritt { #evals-for-a-model-step }
+
+Ein Schritt, den ein Modell beantwortet - ein Agent, **Ask a model**, **Classify**,
+**Extract data**, **Summarize or translate** oder eine Entscheidung -, hat einen Tab
+**Evals**: die Fälle, die er bewältigen soll, und was seine Antwort dann sagen soll.
+**Add a case** nimmt die Eingabe, mit der der Schritt zuletzt getestet wurde - die
+Eingabe des Laufs und was die Schritte davor übergaben -, also testen Sie den Schritt
+zuerst einmal, benennen dann den Fall und sagen, wo in der Antwort zu schauen ist
+(`text`, `category`, ein Pfad wie `structured.amount` oder nichts für die ganze
+Ausgabe) und ob sie einen Wert **enthalten**, **nicht enthalten** oder ihm **gleichen**
+soll, ohne Groß- und Kleinschreibung und Leerzeichen darum.
+
+**Try** startet für jeden Fall einen Testlauf des Schritts, geprüft und abgerechnet
+wie jeder andere, und jeder Fall wird als bestanden oder nicht markiert, sobald sein
+Lauf endet, mit dem, was die Antwort sagte, oder warum sie keine gab. Ein Fall, dessen
+Lauf nicht starten kann - zu viel Arbeit in Bearbeitung, das Monatsbudget aufgebraucht
+-, wird mit dem Grund als nicht bestanden markiert. Führen Sie die Fälle nach einer
+Änderung von Prompt, Modell oder Anweisungen aus. Ein Schritt hält bis zu 50 Fälle,
+und sie auszuführen braucht `workflows:edit`, wie das Testen des Drafts.
 
 ### Ein im Schritt konfigurierter Agent { #an-agent-configured-in-the-step }
 

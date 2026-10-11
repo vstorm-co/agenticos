@@ -260,6 +260,24 @@ picker has none. A table whose schema changed since it was bound says so and off
 **Rebind to the current schema**, so a stale column set is a visible prompt
 rather than a silent break.
 
+### Evals for a model step { #evals-for-a-model-step }
+
+A step a model answers - an agent, **Ask a model**, **Classify**, **Extract data**,
+**Summarize or translate**, or a decision - has an **Evals** tab: the cases it should
+handle, and what its answer should then say. **Add a case** takes the input the step
+was last tested with - the run's input and what the steps before it handed on - so
+test the step once first, then name the case and say where in the answer to look
+(`text`, `category`, a path such as `structured.amount`, or nothing for the whole
+output) and whether it should **contain**, **not contain** or **equal** a value,
+ignoring case and the space around it.
+
+**Try** starts a test run of the step for each case, checked and billed like any
+other, and each case is marked passed or failed as its run ends, with what the
+answer said or why it gave none. A case whose run cannot start - too much work in
+flight, the monthly budget spent - is marked failed with the reason. Try the cases
+after changing the prompt, the model or the instructions. A step holds up to 50
+cases, and trying them needs `workflows:edit`, like testing the draft.
+
 ### An agent configured in the step { #an-agent-configured-in-the-step }
 
 An **Agent** step either pins an agent from the catalog or, with **Configure

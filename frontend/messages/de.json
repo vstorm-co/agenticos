@@ -6551,6 +6551,39 @@
         "oauth_unavailable": "Dieses Deployment kann {portal} nicht verbinden."
       },
       "openVault": "Vault öffnen"
+    },
+    "stepTabEvals": "Evals",
+    "evals": {
+      "intro": "Fälle, die dieser Schritt bewältigen soll, und was seine Antwort dann sagen soll. Führen Sie sie nach einer Änderung von Prompt, Modell oder Anweisungen aus: Jeder ist ein Testlauf dieses Schritts, abgerechnet wie jeder andere.",
+      "summary": "{passed} von {total} bestanden",
+      "pending": "{count, plural, one {# läuft noch} other {# laufen noch}}",
+      "none": "Noch kein Fall. Testen Sie den Schritt und fügen Sie dann einen Fall aus dem hinzu, was er bekam.",
+      "add": "Fall hinzufügen",
+      "run": "{count, plural, =0 {Fälle ausführen} one {# Fall ausführen} other {# Fälle ausführen}}",
+      "testFirst": "Ein Fall entsteht aus der Eingabe, mit der dieser Schritt zuletzt getestet wurde - testen Sie ihn zuerst einmal.",
+      "verdictPending": "Läuft noch",
+      "verdictPassed": "Bestanden",
+      "verdictFailed": "Nicht bestanden",
+      "expects": "{field} {kind} „{value}“",
+      "wholeOutput": "Die ganze Ausgabe",
+      "kind": {
+        "contains": "enthält",
+        "not_contains": "enthält nicht",
+        "equals": "ist gleich"
+      },
+      "kindLabel": "Soll",
+      "said": "Antwort: {actual}",
+      "nothing": "nichts",
+      "openRun": "Lauf öffnen",
+      "remove": "{name} entfernen",
+      "fromLastTest": "Der Fall nimmt die Eingabe, mit der dieser Schritt zuletzt getestet wurde.",
+      "name": "Name",
+      "namePlaceholder": "Eine Erstattungsanfrage",
+      "field": "Wo in der Antwort",
+      "value": "Wert",
+      "valuePlaceholder": "billing",
+      "cancel": "Abbrechen",
+      "save": "Fall hinzufügen"
     }
   },
   "artifacts": {

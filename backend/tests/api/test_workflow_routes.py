@@ -28,6 +28,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.main import app
 from app.schemas.workflow import WorkflowDetail
+from app.schemas.workflow_eval import EvalCaseList, EvalCaseRead, EvalRunRead
 from app.schemas.workflow_stats import WorkflowStats
 from app.services.workflow_registry import WorkflowRegistryService
 from app.services.workflow_triggers import SwitchedOn
@@ -652,3 +653,48 @@ async def test_the_figures_route_reads_the_window_asked_and_refuses_one_out_of_r
     assert answered.status_code == 200 and answered.json()["days"] == 7
     assert figures.await_args.kwargs == {"days": 7}
     assert refused.status_code == 422
+
+
+async def test_the_eval_routes_reach_the_service_with_the_step_and_the_case(
+    owner_client: OpenClient,
+):
+    workflow_id, node_id, eval_id, eval_run_id = (uuid.uuid4() for _ in range(4))
+    tried = EvalRunRead(
+        id=eval_run_id,
+        node_instance_id=node_id,
+        results=[],
+        passed=0,
+        failed=0,
+        pending=0,
+        cost_usd=0,
+    )
+    case = {
+        "name": "Refund",
+        "run_input": {},
+        "outputs": {},
+        "expectation": {"kind": "equals", "field": "category", "value": "billing"},
+    }
+    service = "app.services.workflow_evals.WorkflowEvalService"
+    with (
+        patch(f"{service}.list_cases", new=AsyncMock(return_value=EvalCaseList(items=[]))),
+        patch(
+            f"{service}.create_case",
+            new=AsyncMock(return_value=EvalCaseRead(**case, id=eval_id, node_instance_id=node_id)),
+        ) as create,
+        patch(f"{service}.delete_case", new=AsyncMock()) as delete,
+        patch(f"{service}.try_cases", new=AsyncMock(return_value=tried)),
+        patch(f"{service}.get_try", new=AsyncMock(return_value=tried)) as get_try,
+    ):
+        async with owner_client() as http:
+            step = _url(f"/{workflow_id}/steps/{node_id}")
+            listed = await http.get(f"{step}/evals")
+            created = await http.post(f"{step}/evals", json=case)
+            deleted = await http.delete(_url(f"/{workflow_id}/evals/{eval_id}"))
+            started = await http.post(f"{step}/eval-runs")
+            read = await http.get(_url(f"/{workflow_id}/eval-runs/{eval_run_id}"))
+
+    assert (listed.status_code, created.status_code, deleted.status_code) == (200, 201, 204)
+    assert (started.status_code, read.status_code) == (201, 200)
+    assert create.await_args.args[1:3] == (workflow_id, node_id)
+    assert delete.await_args.args[1:] == (workflow_id, eval_id)
+    assert get_try.await_args.args[1:] == (workflow_id, eval_run_id)

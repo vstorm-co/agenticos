@@ -30,7 +30,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
-from app.services.workflow_execution.facade import WorkflowExecutionService, _node_run_read
+from app.services.workflow_execution.facade import WorkflowExecutionService, node_run_read
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -756,7 +756,7 @@ class TestNodeRunRead:
                 cost=Decimal(cost),
             )
 
-        read = _node_run_read(
+        read = node_run_read(
             row,
             [
                 attempt(1, "failed", "FIRST", "0.10"),
@@ -768,7 +768,7 @@ class TestNodeRunRead:
 
         assert read.attempts == 2 and read.cost == pytest.approx(0.15)
         assert read.error == {"code": "LAST", "message": "m"}
-        assert _node_run_read(row, []).error is None
+        assert node_run_read(row, []).error is None
 
         # A step that parked and was woken tried once: the wake carries the same try on.
         parked = NodeAttempt(
@@ -787,4 +787,4 @@ class TestNodeRunRead:
             result={"status": "completed", "output": {"run_id": "r"}},
             cost=Decimal(0),
         )
-        assert _node_run_read(row, [parked, woken]).attempts == 1
+        assert node_run_read(row, [parked, woken]).attempts == 1

@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Evals for a model step.** A step a model answers has an **Evals** tab:
+  cases written from the input it was last tested with, each saying where in
+  the answer to look and whether it should contain, not contain or equal a
+  value. **Try** starts a test run of the step per case and marks each passed
+  or failed as its run ends, with what the answer said and what it cost.
+  Migration `0135_workflow_step_evals`.
+
 - **Limits and figures for a workflow's runs.** A workflow's settings take how
   many real runs may be under way at once (a start past it is refused with
   `429`), the most one run may spend (the tighter of it and the version's

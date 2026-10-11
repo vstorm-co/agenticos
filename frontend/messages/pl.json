@@ -4321,6 +4321,39 @@
         "oauth_unavailable": "To wdrożenie nie ma sposobu, żeby podłączyć {portal}."
       },
       "openVault": "Otwórz vault"
+    },
+    "stepTabEvals": "Ewaluacje",
+    "evals": {
+      "intro": "Przypadki, które ten krok powinien obsłużyć, i co powinna wtedy mówić jego odpowiedź. Uruchamiaj je po zmianie promptu, modelu lub instrukcji: każdy to run testowy tego kroku, rozliczany jak każdy inny.",
+      "summary": "{passed} z {total} przeszło",
+      "pending": "{count, plural, one {# nadal trwa} few {# nadal trwają} many {# nadal trwa} other {# nadal trwa}}",
+      "none": "Nie ma jeszcze przypadków. Przetestuj krok, a potem dodaj przypadek z tego, co dostał.",
+      "add": "Dodaj przypadek",
+      "run": "{count, plural, =0 {Uruchom przypadki} one {Uruchom # przypadek} few {Uruchom # przypadki} many {Uruchom # przypadków} other {Uruchom # przypadków}}",
+      "testFirst": "Przypadek powstaje z wejścia, z którym ten krok był ostatnio testowany - najpierw przetestuj go raz.",
+      "verdictPending": "Nadal trwa",
+      "verdictPassed": "Przeszedł",
+      "verdictFailed": "Nie przeszedł",
+      "expects": "{field} {kind} „{value}”",
+      "wholeOutput": "Całe wyjście",
+      "kind": {
+        "contains": "zawiera",
+        "not_contains": "nie zawiera",
+        "equals": "równa się"
+      },
+      "kindLabel": "Powinno",
+      "said": "Odpowiedź: {actual}",
+      "nothing": "nic",
+      "openRun": "Otwórz run",
+      "remove": "Usuń {name}",
+      "fromLastTest": "Przypadek bierze wejście, z którym ten krok był ostatnio testowany.",
+      "name": "Nazwa",
+      "namePlaceholder": "Prośba o zwrot",
+      "field": "Gdzie w odpowiedzi",
+      "value": "Wartość",
+      "valuePlaceholder": "billing",
+      "cancel": "Anuluj",
+      "save": "Dodaj przypadek"
     }
   },
   "artifacts": {

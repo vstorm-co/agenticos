@@ -16,6 +16,10 @@ vi.mock("@/hooks", () => ({
   useWorkflowRuns: () => ({ start: { mutate: vi.fn() } }),
   useWorkflowTable: () => ({ table: null }),
 }));
+vi.mock("./step-evals", async (original) => ({
+  ...(await original<typeof import("./step-evals")>()),
+  StepEvals: () => <p>the step&apos;s evals</p>,
+}));
 
 vi.mock("@/components/workflows/canvas/node-resource", async (original) => ({
   ...(await original<typeof import("@/components/workflows/canvas/node-resource")>()),
@@ -43,6 +47,22 @@ function seed(...nodes: NodeInstance[]) {
 afterEach(() => store.getState().teardown());
 
 describe("NodeEditorDialog", () => {
+  it("offers a model step's evals to an editor, and no other step's", async () => {
+    const classify = { ...DEBUG_ECHO, id: "ai.classify", name: "Classify" };
+    seed(node("a", "ai.classify"), node("b"));
+    store.getState().editNode("a");
+    const { unmount } = render(
+      <NodeEditorDialog workflowId="wf" catalog={[classify, DEBUG_ECHO]} />,
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Evals" }));
+    expect(screen.getByText("the step's evals")).toBeTruthy();
+    unmount();
+
+    store.getState().editNode("b");
+    render(<NodeEditorDialog workflowId="wf" catalog={[classify, DEBUG_ECHO]} />);
+    expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
+  });
+
   it("opens nothing until a step is being edited", () => {
     seed(node("a"));
     const { container } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);

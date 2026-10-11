@@ -39,6 +39,7 @@ from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import virtual_tables
 from app.api.routes.v1 import (
     workflow_approvals,
+    workflow_evals,
     workflow_exposures,
     workflow_run_socket,
     workflow_runs,
@@ -108,6 +109,7 @@ v1_router.include_router(
 v1_router.include_router(
     workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
 )
+v1_router.include_router(workflow_evals.router, prefix="/workflows", tags=["workflows:evals"])
 v1_router.include_router(
     workflow_exposures.router, prefix="/workflows", tags=["workflows:exposures"]
 )

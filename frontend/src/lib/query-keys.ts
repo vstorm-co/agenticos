@@ -84,6 +84,7 @@ export const qk = {
     detail: (id: string) => ["workflows", id] as const,
     versions: (id: string) => ["workflows", id, "versions"] as const,
     stats: (id: string, days: number) => ["workflows", id, "stats", days] as const,
+    evals: (id: string, nodeId: string) => ["workflows", id, "evals", nodeId] as const,
     version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,
     // Every registered node type, for the editor's palette. Changes on redeploy,
     // not while someone edits - so its own key, cached like the capability catalog.

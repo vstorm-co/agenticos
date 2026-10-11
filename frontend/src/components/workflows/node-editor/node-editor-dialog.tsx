@@ -35,6 +35,7 @@ import { validateGraph } from "@/components/workflows/validation";
 import { cn } from "@/lib/utils";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
+import { MODEL_STEPS, StepEvals } from "./step-evals";
 
 interface NodeEditorDialogProps {
   /** The workflow being edited: with it, the step's Input and Output show beside its settings. */
@@ -98,6 +99,8 @@ export function NodeEditorDialog({
         ) ?? null);
 
   if (graph === null || node === null) return null;
+  // A model step's evals run the draft, so they are an editor's, as testing is.
+  const evaluable = workflowId !== undefined && !readOnly && MODEL_STEPS.has(node.definition_id);
   const visual = nodeVisual(node.definition_id, definition?.category ?? "");
   const Icon = visual.icon;
   const pin = resourcePin(node);
@@ -280,6 +283,7 @@ export function NodeEditorDialog({
                         />
                       )}
                     </TabsTrigger>
+                    {evaluable && <TabsTrigger value="evals">{t("stepTabEvals")}</TabsTrigger>}
                   </TabsList>
                   <TabsContent value="parameters" className="mt-5">
                     {form}
@@ -287,6 +291,11 @@ export function NodeEditorDialog({
                   <TabsContent value="settings" className="mt-5">
                     {stepSettings}
                   </TabsContent>
+                  {evaluable && workflowId !== undefined && (
+                    <TabsContent value="evals" className="mt-5">
+                      <StepEvals workflowId={workflowId} graph={graph} node={node} />
+                    </TabsContent>
+                  )}
                 </Tabs>
               ))}
           </div>

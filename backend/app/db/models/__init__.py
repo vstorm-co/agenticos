@@ -89,6 +89,7 @@ from app.db.models.workflow_exposure import (
     WorkflowWebhookDelivery,
 )
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
+from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.virtual_table_trigger import (
     AdmissionReason,
@@ -209,6 +210,8 @@ __all__ = [
     "WorkflowExposure",
     "WorkflowWebhookDelivery",
     "WorkflowApproval",
+    "WorkflowEvalRun",
+    "WorkflowStepEval",
     "WorkflowApprovalStatus",
     "WorkflowFile",
     "AdmissionReason",

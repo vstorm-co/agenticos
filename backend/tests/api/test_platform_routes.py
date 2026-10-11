@@ -911,6 +911,9 @@ RESOURCE_AWARE_SERVICES = (
     # A workflow's figures are read for whoever may view that workflow, resolved
     # against its grants inside the service, exactly as the workflow itself is.
     deps.get_workflow_stats_service,
+    # A step's evals are its workflow's: writing and trying them is
+    # `workflows:edit` on that workflow, resolved against its grants.
+    deps.get_workflow_eval_service,
     # Exporting a workflow reads it through the same registry, so the file is
     # `workflows:view` on that workflow, resolved against its grants (#1953).
     deps.get_workflow_portable_service,

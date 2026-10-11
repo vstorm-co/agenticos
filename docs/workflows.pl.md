@@ -1,5 +1,5 @@
 ---
-source_sha: "021ead0aebf0"
+source_sha: "15d4c56edd5d"
 ---
 
 # Workflows { #workflows }
@@ -266,6 +266,25 @@ utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole 
 **Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
 **Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
 zachętą, a nie cichym pęknięciem.
+
+### Ewaluacje kroku z modelem { #evals-for-a-model-step }
+
+Krok, na który odpowiada model - agent, **Ask a model**, **Classify**, **Extract
+data**, **Summarize or translate** albo decyzja - ma zakładkę **Evals**: przypadki,
+które powinien obsłużyć, i co powinna wtedy mówić jego odpowiedź. **Add a case**
+bierze wejście, z którym krok był ostatnio testowany - wejście runu i to, co
+przekazały kroki przed nim - więc najpierw przetestuj krok raz, a potem nazwij
+przypadek i wskaż, gdzie w odpowiedzi patrzeć (`text`, `category`, ścieżka taka jak
+`structured.amount` albo nic dla całego wyjścia), i czy ma **zawierać**, **nie
+zawierać** czy **równać się** wartości, bez względu na wielkość liter i spacje wokół.
+
+**Try** uruchamia run testowy kroku dla każdego przypadku, sprawdzany i rozliczany jak
+każdy inny, a każdy przypadek jest oznaczany jako zaliczony lub nie, gdy jego run się
+skończy, z tym, co powiedziała odpowiedź, albo powodem, dla którego jej nie było.
+Przypadek, którego run nie może wystartować - za dużo pracy w toku, wyczerpany budżet
+miesięczny - jest oznaczany jako niezaliczony z powodem. Uruchamiaj przypadki po zmianie
+promptu, modelu lub instrukcji. Krok mieści do 50 przypadków, a ich uruchomienie wymaga
+`workflows:edit`, jak testowanie szkicu.
 
 ### Agent skonfigurowany w kroku { #an-agent-configured-in-the-step }
 

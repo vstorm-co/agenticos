@@ -720,6 +720,16 @@ def get_workflow_stats_service(db: DBSession) -> WorkflowStatsService:
 
 WorkflowStatsSvc = Annotated[WorkflowStatsService, Depends(get_workflow_stats_service)]
 
+from app.services.workflow_evals import WorkflowEvalService
+
+
+def get_workflow_eval_service(db: DBSession) -> WorkflowEvalService:
+    """Create WorkflowEvalService instance with database session."""
+    return WorkflowEvalService(db)
+
+
+WorkflowEvalSvc = Annotated[WorkflowEvalService, Depends(get_workflow_eval_service)]
+
 from app.services.workflow_portable import WorkflowPortableService
 
 

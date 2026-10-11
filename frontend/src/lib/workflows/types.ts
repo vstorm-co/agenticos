@@ -767,3 +767,57 @@ export interface WorkflowStats {
   by_day: WorkflowStatsDay[];
   steps: WorkflowStatsStep[];
 }
+
+/** What a model step's answer should say. Mirrors `EvalExpectation`. */
+export interface EvalExpectation {
+  kind: "contains" | "not_contains" | "equals";
+  /** A path into the step's output, such as `text` or `category`; the whole output when null. */
+  field: string | null;
+  value: string;
+}
+
+/** A case a model step is tried on. Mirrors `EvalCaseCreate`. */
+export interface EvalCaseCreate {
+  name: string;
+  run_input: Record<string, unknown>;
+  outputs: Record<Uuid, Record<string, unknown>>;
+  expectation: EvalExpectation;
+}
+
+/** Mirrors `EvalCaseRead`. */
+export interface EvalCase extends EvalCaseCreate {
+  id: Uuid;
+  node_instance_id: Uuid;
+  created_at: string | null;
+}
+
+/** How one case fared in a try. Mirrors `EvalResult`. */
+export interface EvalResult {
+  eval_id: Uuid;
+  name: string;
+  workflow_run_id: Uuid | null;
+  status: string;
+  /** Null while its run is still going. */
+  passed: boolean | null;
+  actual: string | null;
+  reason: string | null;
+  cost_usd: number;
+}
+
+/** One try of a step's cases. Mirrors `EvalRunRead`. */
+export interface EvalRun {
+  id: Uuid;
+  node_instance_id: Uuid;
+  created_at: string | null;
+  results: EvalResult[];
+  passed: number;
+  failed: number;
+  pending: number;
+  cost_usd: number;
+}
+
+/** A step's cases and its latest try. Mirrors `EvalCaseList`. */
+export interface EvalCaseList {
+  items: EvalCase[];
+  latest: EvalRun | null;
+}

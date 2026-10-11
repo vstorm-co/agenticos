@@ -1,5 +1,5 @@
 ---
-source_sha: "021ead0aebf0"
+source_sha: "15d4c56edd5d"
 ---
 
 # Workflows { #workflows }
@@ -274,6 +274,26 @@ ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la li
 está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
 ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
 un aviso visible y no una ruptura silenciosa.
+
+### Evals de un paso con modelo { #evals-for-a-model-step }
+
+Un paso que responde un modelo - un agente, **Ask a model**, **Classify**, **Extract
+data**, **Summarize or translate** o una decisión - tiene una pestaña **Evals**: los
+casos que debe resolver y lo que su respuesta debe decir entonces. **Add a case** toma
+la entrada con la que se probó el paso por última vez - la entrada de la ejecución y lo
+que entregaron los pasos anteriores -, así que prueba el paso una vez primero.
+
+Luego nombra el caso e indica dónde mirar en la respuesta (`text`, `category`, una ruta como
+`structured.amount` o nada para toda la salida) y si debe **contener**, **no contener**
+o **ser igual** a un valor, sin distinguir mayúsculas ni los espacios alrededor.
+
+**Try** inicia una ejecución de prueba del paso para cada caso, comprobada y facturada
+como cualquier otra, y cada caso se marca como superado o no cuando termina su
+ejecución, con lo que dijo la respuesta o por qué no la dio. Un caso cuya ejecución no
+puede iniciarse - demasiado trabajo en curso, el presupuesto mensual agotado - se marca
+como no superado con el motivo. Prueba los casos tras cambiar el prompt, el modelo o
+las instrucciones. Un paso admite hasta 50 casos, y probarlos requiere
+`workflows:edit`, como probar el borrador.
 
 ### Un agent configurado en el paso { #an-agent-configured-in-the-step }
 

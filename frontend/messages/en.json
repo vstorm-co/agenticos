@@ -6693,6 +6693,39 @@
         "oauth_unavailable": "This deployment has no way to connect {portal}."
       },
       "openVault": "Open the vault"
+    },
+    "stepTabEvals": "Evals",
+    "evals": {
+      "intro": "Cases this step should handle, and what its answer should then say. Try them after changing the prompt, the model or the instructions: each is a test run of this step, billed like any other.",
+      "summary": "{passed} of {total} passed",
+      "pending": "{count, plural, =1 {1 still running} other {# still running}}",
+      "none": "No case yet. Test the step, then add a case from what it was given.",
+      "add": "Add a case",
+      "run": "{count, plural, =0 {Try the cases} =1 {Try 1 case} other {Try # cases}}",
+      "testFirst": "A case is written from the input this step was last tested with - test it once first.",
+      "verdictPending": "Still running",
+      "verdictPassed": "Passed",
+      "verdictFailed": "Failed",
+      "expects": "{field} {kind} “{value}”",
+      "wholeOutput": "The whole output",
+      "kind": {
+        "contains": "contains",
+        "not_contains": "does not contain",
+        "equals": "equals"
+      },
+      "kindLabel": "Should",
+      "said": "Said: {actual}",
+      "nothing": "nothing",
+      "openRun": "Open the run",
+      "remove": "Remove {name}",
+      "fromLastTest": "The case takes the input this step was last tested with.",
+      "name": "Name",
+      "namePlaceholder": "A refund request",
+      "field": "Where in the answer",
+      "value": "Value",
+      "valuePlaceholder": "billing",
+      "cancel": "Cancel",
+      "save": "Add the case"
     }
   },
   "artifacts": {
