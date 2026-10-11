@@ -70,79 +70,55 @@ class SubagentsConfig(BaseModel):
             "changes them, and nothing else can reference them."
         ),
     )
+    # The author's choice, not the model's: the tool's own mode argument defaults to
+    # sync, so auto is the way to hand the decision over. A background delegation has
+    # already returned a task id, so a gated call inside it is refused, not queued.
     mode: DelegationMode = Field(
         title="Delegation mode",
         default="sync",
         description=(
-            "Whether a delegation blocks this agent until it answers (sync), runs "
-            "in the background and is collected later (async), or is decided per "
-            "task from what the model says about it (auto). The author's choice, "
-            "not the model's: the delegation tool's own mode argument defaults to "
-            "sync, so a model that says nothing and a model that chose sync are "
-            "the same call - auto is how you hand the decision to the model. One "
-            "thing a background delegation cannot do is wait for a person: a "
-            "specialist's tool that needs approval is refused rather than queued, "
-            "because the delegation has already handed back a task id and there is "
-            "nobody left holding the run. Keep that work on sync."
+            "Sync waits for the delegate's answer, async collects it later, auto lets the "
+            "model choose per task. A background delegation cannot wait for an approval, "
+            "so keep work that needs one on sync."
         ),
     )
+    # The question carries a name the parent published, so whether it may be asked is
+    # the author's decision. A background delegation has nobody left to answer, and a
+    # specialist the model invents always works autonomously.
     allow_questions: bool = Field(
         title="Let delegates ask questions",
         default=False,
         description=(
-            "Whether a delegate may ask the person waiting on this agent a question "
-            "instead of guessing - 'which currency?' rather than an assumption "
-            "buried in the answer. Off by default: a specialist works autonomously "
-            "and says so when it could not, and one that stops to ask holds this "
-            "agent's turn open on a person. The author's decision, not the model's - "
-            "the question wears a name the parent published, so whether it may be "
-            "asked at all is the author's to make. It reaches the same channel this "
-            "agent's own run uses to ask, and it is not the approval gate: a "
-            "question is not an authorisation and cannot grant one. Takes effect "
-            "only for a delegation that blocks (sync) - a background one has already "
-            "handed back a task id with nobody left to answer, and auto may become "
-            "one, so both still work autonomously however this is set. It governs "
-            "the specialists this agent was given, pinned or inline; a specialist "
-            "the model invents always works autonomously, whatever this says."
+            "Lets a delegate ask the person waiting a question instead of guessing. Works "
+            "only for a sync delegation, and only for the specialists this agent was "
+            "given. A question is not an approval and cannot grant one."
         ),
     )
+    # Off by default: instructions nobody wrote are instructions nobody reviewed.
+    # Keeping a specialist means publishing an agent, which stays a person's decision.
     allow_dynamic: bool = Field(
         title="Let the agent create specialists",
         default=False,
         description=(
-            "Whether this agent may invent specialists at run time rather than only "
-            "using the ones it was given. Off by default for the same reason this "
-            "product exists: an agent whose instructions nobody wrote is an agent "
-            "nobody can review. Switched on, it adds two tools - one for a "
-            "specialist used once, one kept for as long as the reply lasts - and a "
-            "specialist is instructions plus a model and nothing else: it picks its "
-            "model from this organization's own models, spends against this run's "
-            "budget like every other delegation, gets no knowledge, tools or "
-            "delegates of its own, and is gone when the reply it was made for is. "
-            "Keeping one means "
-            "publishing an agent, which is a person's decision. Creating one needs "
-            "approval by default, because nobody has reviewed instructions a model "
-            "wrote a moment ago - turn that off per tool if this agent is meant to "
-            "run unattended."
+            "Lets this agent write its own specialists while it runs. Each is "
+            "instructions and one of your models, with no tools or knowledge, spends from "
+            "this run's budget and is gone after the reply. Creating one needs approval "
+            "by default."
         ),
     )
+    # A ceiling in both directions: as somebody's delegate this agent gets the lower of
+    # this and what the caller's tree has left. At the bound a delegate is built
+    # without the capability rather than with one that can only refuse; disabling the
+    # binding is the one off switch.
     max_depth: int = Field(
         title="Delegation depth",
         default=1,
         ge=1,
         le=3,
         description=(
-            "How many levels of delegation are allowed, counting this agent's own. "
-            "1 - the default - lets this agent delegate and its delegates not; 2 "
-            "allows one nested level, so a delegate may hand work on once; 3 two. "
-            "At the bound a delegate is built without the delegation capability "
-            "rather than with one that can only refuse. It is a ceiling in both "
-            "directions: when this agent is itself somebody's delegate, what it "
-            "gets is the lower of this and what the caller's tree has left, so a "
-            "caller can never buy this agent more nesting than its own author "
-            "allowed. Bounded low on purpose: each level multiplies the requests "
-            "one turn can make. To turn delegation off, disable this binding - "
-            "that is the one off switch, and it keeps the configuration."
+            "How many levels of delegation are allowed, counting this agent. 1 lets it "
+            "delegate but not its delegates; 2 allows one nested level. Each level "
+            "multiplies the requests one turn can make."
         ),
     )
     max_fanout: int = Field(
@@ -171,20 +147,17 @@ class SubagentsConfig(BaseModel):
         ),
         json_schema_extra={"x-advanced": True},
     )
+    # Named one by one: a delegate silently gaining the parent's credentials would be
+    # the quiet route around its grants. Delegation is refused here - an heir would
+    # read the parent's specialists and allow_dynamic as its own - and an MCP
+    # connection is named on the spec, not bound, so it cannot be shared.
     share_with_delegates: list[str] = Field(
         title="Capabilities delegates inherit",
         default_factory=list,
         description=(
-            "Capability ids bound on this agent that its delegates and inline "
-            "specialists inherit - a workspace being the case it exists for, so a "
-            "researcher writes a file and a writer reads it. Named one by one "
-            "rather than shared by default: a delegate that silently gained the "
-            "parent's credentials would be the quiet route around what the parent "
-            "was granted. Delegation itself is refused here, however the spec asks: "
-            "a delegate that inherited it would read the parent's config as its "
-            "own - the parent's specialists, and an allow_dynamic its author never "
-            "set. Only a capability is shareable, so an MCP connection is not: "
-            "those are named on the spec, not bound."
+            "Capabilities this agent passes on to its delegates, such as a shared "
+            "workspace so one writes a file and another reads it. Nothing is shared "
+            "unless named here, and delegation itself never is."
         ),
     )
 

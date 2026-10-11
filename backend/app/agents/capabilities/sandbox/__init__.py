@@ -90,21 +90,16 @@ class SandboxConfig(BaseModel):
             "a host you run or a sandbox in Daytona's cloud."
         ),
     )
+    # The default on every surface; a binding on one exposure may say otherwise. A
+    # Slack thread is a conversation, a direct message keeps its own workspace, and a
+    # user's scope crosses surfaces once they link their account.
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] = Field(
         title="Who shares the workspace",
         default="conversation",
         description=(
-            "Who shares the workspace, by default on every surface - a binding on "
-            "one of the agent's exposures may say otherwise. "
-            "run: nobody, a fresh one every turn. "
-            "conversation: everyone in that chat - and on Slack a thread is a chat, "
-            "so this is per thread there. "
-            "channel: everyone in a Slack channel or group chat, threads included; "
-            "a direct message still has its own. "
-            "user: one person across their chats with this agent, and across "
-            "surfaces once they have linked their account. "
-            "agent: everyone who talks to this agent - files are shared between "
-            "people in the organization."
+            "Who shares one workspace: run (a fresh one every turn), conversation "
+            "(everyone in the chat or Slack thread), channel (a whole Slack channel), "
+            "user (one person across chats) or agent (everyone who talks to it)."
         ),
         json_schema_extra={"x-advanced": True},
     )

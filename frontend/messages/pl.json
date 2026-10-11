@@ -6432,7 +6432,7 @@
     "planning": {
       "enable_subtasks": {
         "title": "Podzadania i zależności",
-        "description": "Dodaj planowanie z zależnościami: trzy dodatkowe narzędzia (`add_subtask`, `set_dependency`, `get_available_tasks`) i status `blocked`. Krok z niespełnionym warunkiem pozostaje `blocked`, dopóki warunek nie zostanie ukończony lub anulowany, a agent pyta, które kroki może zacząć. Domyślnie wyłączone: płaska lista to mniejszy prompt, a większość pracy nie potrzebuje grafu zależności."
+        "description": "Dodaje podzadania i zależności: krok czeka jako zablokowany, aż skończą się kroki przed nim. Domyślnie wyłączone, bo do większości pracy wystarczy płaska lista."
       },
       "cache_ttl": {
         "title": "Czas życia cache promptu",
@@ -6450,7 +6450,7 @@
       },
       "session_scope": {
         "title": "Kto dzieli workspace",
-        "description": "Kto dzieli workspace, domyślnie na każdej powierzchni - konfiguracja jednego z udostępnień agenta może to zmienić. run: nikt, nowy w każdej turze. conversation: wszyscy w danym czacie - na Slacku wątek jest czatem, więc tam to jeden workspace na wątek. channel: wszyscy na kanale Slacka lub czacie grupowym, razem z wątkami; wiadomość prywatna nadal ma własny. user: jedna osoba we wszystkich jej czatach z tym agentem, a po połączeniu konta także na wszystkich powierzchniach. agent: wszyscy, którzy rozmawiają z tym agentem - pliki są wspólne dla osób w organizacji."
+        "description": "Kto dzieli jeden workspace: run (nowy co turę), conversation (wszyscy w czacie lub wątku Slacka), channel (cały kanał Slacka), user (jedna osoba we wszystkich czatach) albo agent (każdy, kto z nim rozmawia)."
       },
       "runtime": {
         "title": "Środowisko",
@@ -6468,19 +6468,19 @@
       },
       "mode": {
         "title": "Tryb delegowania",
-        "description": "Czy delegowanie blokuje tego agenta do czasu odpowiedzi (sync), działa w tle i jest odbierane później (async), czy jest rozstrzygane dla każdego zadania na podstawie tego, co mówi o nim model (auto). To wybór autora, nie modelu: argument trybu w narzędziu delegowania domyślnie ma wartość sync, więc model, który nic nie mówi, i model, który wybrał sync, to to samo wywołanie - auto przekazuje decyzję modelowi. Jednego delegowanie w tle nie potrafi: czekać na człowieka. Narzędzie specjalisty wymagające akceptacji jest odrzucane, a nie kolejkowane, bo delegowanie oddało już id zadania i nikt nie trzyma runu. Taką pracę zostaw w sync."
+        "description": "Sync czeka na odpowiedź delegata, async odbiera ją później, auto pozwala modelowi wybrać dla każdego zadania. Delegowanie w tle nie może czekać na zatwierdzenie, więc taką pracę zostaw na sync."
       },
       "allow_questions": {
         "title": "Pozwól delegatom zadawać pytania",
-        "description": "Czy delegat może zadać pytanie osobie czekającej na tego agenta, zamiast zgadywać - „w jakiej walucie?” zamiast założenia ukrytego w odpowiedzi. Domyślnie wyłączone: specjalista pracuje samodzielnie i mówi, gdy nie dał rady, a taki, który zatrzymuje się, by zapytać, trzyma turę tego agenta otwartą na człowieka. To decyzja autora, nie modelu - pytanie pada pod nazwą opublikowaną przez rodzica, więc czy w ogóle może paść, decyduje autor. Trafia tym samym kanałem, którym pyta run tego agenta, i nie jest bramką akceptacji: pytanie nie jest autoryzacją i nie może jej udzielić. Działa tylko dla delegowania, które blokuje (sync) - delegowanie w tle oddało już id zadania i nie ma kto odpowiedzieć, a auto może się nim stać, więc oba nadal pracują samodzielnie niezależnie od tego ustawienia. Dotyczy specjalistów, których agent dostał, przypiętych lub wbudowanych; specjalista wymyślony przez model zawsze pracuje samodzielnie."
+        "description": "Pozwala delegatowi zadać pytanie osobie, która czeka, zamiast zgadywać. Działa tylko przy delegowaniu sync i tylko dla specjalistów nadanych temu agentowi. Pytanie nie jest zatwierdzeniem i go nie zastępuje."
       },
       "allow_dynamic": {
         "title": "Pozwól agentowi tworzyć specjalistów",
-        "description": "Czy ten agent może wymyślać specjalistów w trakcie działania, zamiast korzystać tylko z tych, które dostał. Domyślnie wyłączone z tego samego powodu, dla którego istnieje ten produkt: agenta, którego instrukcji nikt nie napisał, nikt nie może przejrzeć. Włączone dodaje dwa narzędzia - jedno dla specjalisty użytego raz, drugie dla zachowanego do końca odpowiedzi - a specjalista to instrukcje i model, nic więcej: wybiera model spośród modeli tej organizacji, wydaje z budgetu tego runu jak każde delegowanie, nie dostaje wiedzy, narzędzi ani własnych delegatów i znika, gdy skończy się odpowiedź, dla której powstał. Zachowanie go oznacza opublikowanie agenta, a to decyzja człowieka. Utworzenie wymaga domyślnie akceptacji, bo nikt nie przejrzał instrukcji, które model napisał przed chwilą - wyłącz to dla narzędzia, jeśli agent ma działać bez nadzoru."
+        "description": "Pozwala temu agentowi tworzyć własnych specjalistów w trakcie runu. Każdy to instrukcje i jeden z waszych modeli, bez narzędzi i wiedzy, wydaje z budżetu tego runu i znika po odpowiedzi. Utworzenie domyślnie wymaga zatwierdzenia."
       },
       "max_depth": {
         "title": "Głębokość delegowania",
-        "description": "Ile poziomów delegowania jest dozwolonych, licząc poziom tego agenta. 1 - domyślnie - pozwala delegować temu agentowi, ale nie jego delegatom; 2 dopuszcza jeden poziom zagnieżdżenia, więc delegat może raz przekazać pracę dalej; 3 dwa. Na granicy delegat powstaje bez capability delegowania, a nie z taką, która tylko odmawia. To sufit w obie strony: gdy ten agent sam jest czyimś delegatem, dostaje mniejszą z tej wartości i tego, co zostało w drzewie wywołującego, więc wywołujący nigdy nie kupi temu agentowi więcej zagnieżdżenia, niż pozwolił autor. Celowo nisko: każdy poziom mnoży liczbę zapytań w jednej turze. Żeby wyłączyć delegowanie, wyłącz tę konfigurację - to jedyny wyłącznik i zachowuje ustawienia."
+        "description": "Ile poziomów delegowania jest dozwolonych, licząc tego agenta. 1 pozwala mu delegować, ale nie jego delegatom; 2 dopuszcza jeden poziom zagnieżdżenia. Każdy poziom mnoży liczbę zapytań w jednej turze."
       },
       "max_fanout": {
         "title": "Delegowań naraz",
@@ -6492,7 +6492,7 @@
       },
       "share_with_delegates": {
         "title": "Capabilities dziedziczone przez delegatów",
-        "description": "Id capabilities podpiętych do tego agenta, które dziedziczą jego delegaci i specjaliści wbudowani - workspace to przypadek, dla którego to istnieje: researcher zapisuje plik, a autor tekstu go czyta. Wymieniane po kolei, a nie współdzielone domyślnie: delegat, który po cichu dostałby uprawnienia rodzica, byłby cichą drogą obejścia tego, co rodzicowi przyznano. Samo delegowanie jest tu odrzucane, cokolwiek mówi spec: delegat, który by je odziedziczył, czytałby konfigurację rodzica jak własną - specjalistów rodzica i allow_dynamic, którego jego autor nie ustawił. Dzielić można tylko capability, więc połączenie MCP nie: te są wskazywane w spec, nie podpinane."
+        "description": "Capabilities, które ten agent przekazuje delegatom, np. wspólny workspace, żeby jeden zapisał plik, a drugi go odczytał. Nic nie jest współdzielone, jeśli nie jest tu wymienione, a samo delegowanie nigdy."
       }
     },
     "system_reminders": {

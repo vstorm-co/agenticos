@@ -6531,7 +6531,7 @@
     "planning": {
       "enable_subtasks": {
         "title": "Unteraufgaben und Abhängigkeiten",
-        "description": "Planung mit Abhängigkeiten hinzufügen: drei weitere Tools (`add_subtask`, `set_dependency`, `get_available_tasks`) und einen Status `blocked`. Ein Schritt mit offener Voraussetzung bleibt `blocked`, bis die Voraussetzung erledigt oder abgebrochen ist, und der Agent fragt, welche Schritte beginnen können. Standardmäßig aus: Eine flache Liste ist der kleinere Prompt, und die meiste Arbeit braucht keinen Abhängigkeitsgraphen."
+        "description": "Fügt Teilaufgaben und Abhängigkeiten hinzu: Ein Schritt wartet als blockiert, bis die Schritte davor fertig sind. Standardmäßig aus, weil für die meiste Arbeit eine flache Checkliste genügt."
       },
       "cache_ttl": {
         "title": "Lebensdauer des Prompt-Caches",
@@ -6549,7 +6549,7 @@
       },
       "session_scope": {
         "title": "Wer den Workspace teilt",
-        "description": "Wer den Workspace teilt, standardmäßig auf jeder Oberfläche - eine Bindung an einer Freigabe des Agents kann es anders festlegen. run: niemand, in jeder Runde ein neuer. conversation: alle in diesem Chat - in Slack ist ein Thread ein Chat, dort also pro Thread. channel: alle in einem Slack-Kanal oder Gruppenchat, Threads eingeschlossen; eine Direktnachricht hat weiterhin ihren eigenen. user: eine Person über alle ihre Chats mit diesem Agent und, sobald ihr Konto verknüpft ist, über alle Oberflächen. agent: alle, die mit diesem Agent sprechen - Dateien werden zwischen Personen der Organisation geteilt."
+        "description": "Wer sich einen Workspace teilt: run (jede Runde ein neuer), conversation (alle im Chat oder Slack-Thread), channel (ein ganzer Slack-Kanal), user (eine Person über ihre Chats) oder agent (alle, die mit ihm sprechen)."
       },
       "runtime": {
         "title": "Laufzeitumgebung",
@@ -6567,19 +6567,19 @@
       },
       "mode": {
         "title": "Delegationsmodus",
-        "description": "Ob eine Delegation diesen Agent blockiert, bis sie antwortet (sync), im Hintergrund läuft und später abgeholt wird (async), oder pro Aufgabe danach entschieden wird, was das Modell über sie sagt (auto). Die Wahl des Autors, nicht des Modells: Das Modus-Argument des Delegations-Tools ist standardmäßig sync, ein Modell, das nichts sagt, und eines, das sync wählt, sind also derselbe Aufruf - auto gibt die Entscheidung an das Modell ab. Eines kann eine Hintergrund-Delegation nicht: auf einen Menschen warten. Ein Tool eines Spezialisten, das eine Freigabe braucht, wird abgelehnt statt eingereiht, weil die Delegation bereits eine Task-ID zurückgegeben hat und niemand den Run mehr hält. Solche Arbeit bleibt bei sync."
+        "description": "Sync wartet auf die Antwort des Delegierten, async holt sie später ab, auto lässt das Modell je Aufgabe wählen. Eine Delegation im Hintergrund kann nicht auf eine Freigabe warten, also bleibt solche Arbeit auf sync."
       },
       "allow_questions": {
         "title": "Delegierte dürfen Fragen stellen",
-        "description": "Ob ein Delegierter der Person, die auf diesen Agent wartet, eine Frage stellen darf, statt zu raten - „welche Währung?“ statt einer in der Antwort versteckten Annahme. Standardmäßig aus: Ein Spezialist arbeitet selbstständig und sagt, wenn er nicht weiterkam, und einer, der anhält, um zu fragen, hält die Runde dieses Agents für einen Menschen offen. Die Entscheidung des Autors, nicht des Modells - die Frage trägt einen Namen, den der Eltern-Agent veröffentlicht hat, also entscheidet der Autor, ob sie überhaupt gestellt werden darf. Sie erreicht denselben Kanal, über den der Run dieses Agents fragt, und ist nicht die Freigabeschranke: Eine Frage ist keine Autorisierung und kann keine erteilen. Wirkt nur bei einer blockierenden Delegation (sync) - eine Hintergrund-Delegation hat bereits eine Task-ID zurückgegeben und niemand ist zum Antworten da, und auto kann zu einer werden, also arbeiten beide unabhängig von dieser Einstellung selbstständig. Gilt für die Spezialisten, die dieser Agent erhalten hat, angeheftet oder eingebettet; ein vom Modell erfundener Spezialist arbeitet immer selbstständig."
+        "description": "Erlaubt einem Delegierten, der wartenden Person eine Frage zu stellen, statt zu raten. Gilt nur für eine sync-Delegation und nur für die Spezialisten, die dieser Agent bekommen hat. Eine Frage ist keine Freigabe und ersetzt keine."
       },
       "allow_dynamic": {
         "title": "Agent darf Spezialisten erstellen",
-        "description": "Ob dieser Agent zur Laufzeit Spezialisten erfinden darf, statt nur die ihm gegebenen zu nutzen. Standardmäßig aus, aus demselben Grund, aus dem es dieses Produkt gibt: Einen Agent, dessen Anweisungen niemand geschrieben hat, kann niemand prüfen. Eingeschaltet kommen zwei Tools hinzu - eines für einen einmal genutzten Spezialisten, eines für einen, der bis zum Ende der Antwort bleibt - und ein Spezialist ist Anweisungen plus ein Modell, sonst nichts: Er wählt sein Modell aus den Modellen dieser Organisation, verbraucht das Budget dieses Runs wie jede Delegation, bekommt kein Wissen, keine Tools und keine eigenen Delegierten und ist weg, wenn die Antwort, für die er entstand, fertig ist. Einen zu behalten heißt, einen Agent zu veröffentlichen, und das entscheidet ein Mensch. Das Erstellen braucht standardmäßig eine Freigabe, weil niemand Anweisungen geprüft hat, die ein Modell gerade geschrieben hat - schalte das pro Tool ab, wenn der Agent unbeaufsichtigt laufen soll."
+        "description": "Erlaubt diesem Agent, während des Runs eigene Spezialisten zu schreiben. Jeder besteht aus Anweisungen und einem Ihrer Modelle, ohne Werkzeuge oder Wissen, verbraucht das Budget dieses Runs und ist nach der Antwort weg. Das Erstellen braucht standardmäßig eine Freigabe."
       },
       "max_depth": {
         "title": "Delegationstiefe",
-        "description": "Wie viele Delegationsebenen erlaubt sind, die dieses Agents mitgezählt. 1 - der Standard - lässt diesen Agent delegieren und seine Delegierten nicht; 2 erlaubt eine verschachtelte Ebene, ein Delegierter darf also einmal weitergeben; 3 zwei. An der Grenze wird ein Delegierter ohne die Delegations-Capability gebaut, statt mit einer, die nur ablehnen kann. Eine Obergrenze in beide Richtungen: Ist dieser Agent selbst Delegierter, bekommt er das Kleinere aus diesem Wert und dem, was im Baum des Aufrufers übrig ist, sodass ein Aufrufer diesem Agent nie mehr Verschachtelung verschafft, als sein Autor erlaubt hat. Bewusst niedrig: Jede Ebene vervielfacht die Anfragen einer Runde. Um Delegation abzuschalten, deaktiviere diese Bindung - das ist der eine Ausschalter, und er behält die Konfiguration."
+        "description": "Wie viele Ebenen der Delegation erlaubt sind, diesen Agent mitgezählt. 1 erlaubt ihm zu delegieren, seinen Delegierten nicht; 2 erlaubt eine verschachtelte Ebene. Jede Ebene vervielfacht die Anfragen einer Runde."
       },
       "max_fanout": {
         "title": "Gleichzeitige Delegationen",
@@ -6591,7 +6591,7 @@
       },
       "share_with_delegates": {
         "title": "Von Delegierten geerbte Capabilities",
-        "description": "IDs der an diesen Agent gebundenen Capabilities, die seine Delegierten und eingebetteten Spezialisten erben - ein Workspace ist der Fall, für den es das gibt: Ein Researcher schreibt eine Datei und ein Autor liest sie. Einzeln benannt statt standardmäßig geteilt: Ein Delegierter, der still die Berechtigungen des Eltern-Agents bekäme, wäre der leise Weg um das herum, was dem Eltern-Agent gewährt wurde. Delegation selbst wird hier abgelehnt, egal was die Spec verlangt: Ein Delegierter, der sie erbte, läse die Konfiguration des Eltern-Agents als seine eigene - dessen Spezialisten und ein allow_dynamic, das sein Autor nie gesetzt hat. Teilbar ist nur eine Capability, eine MCP-Verbindung also nicht: Die werden in der Spec benannt, nicht gebunden."
+        "description": "Capabilities, die dieser Agent an seine Delegierten weitergibt, etwa einen gemeinsamen Workspace, damit einer eine Datei schreibt und ein anderer sie liest. Geteilt wird nur, was hier steht, die Delegation selbst nie."
       }
     },
     "system_reminders": {

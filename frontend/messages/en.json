@@ -6648,7 +6648,7 @@
     "planning": {
       "enable_subtasks": {
         "title": "Subtasks and dependencies",
-        "description": "Add dependency-aware planning: three more tools (`add_subtask`, `set_dependency`, `get_available_tasks`) and a `blocked` status. A step with an unresolved prerequisite is held `blocked` until the prerequisite completes or is cancelled, and the agent asks which steps are free to start. Off by default: a flat checklist is the smaller prompt, and most work does not need a dependency graph to track it."
+        "description": "Adds subtasks and dependencies: a step waits as blocked until the steps before it finish. Off by default, because a flat checklist is enough for most work."
       },
       "cache_ttl": {
         "title": "Prompt cache lifetime",
@@ -6666,7 +6666,7 @@
       },
       "session_scope": {
         "title": "Who shares the workspace",
-        "description": "Who shares the workspace, by default on every surface - a binding on one of the agent's exposures may say otherwise. run: nobody, a fresh one every turn. conversation: everyone in that chat - and on Slack a thread is a chat, so this is per thread there. channel: everyone in a Slack channel or group chat, threads included; a direct message still has its own. user: one person across their chats with this agent, and across surfaces once they have linked their account. agent: everyone who talks to this agent - files are shared between people in the organization."
+        "description": "Who shares one workspace: run (a fresh one every turn), conversation (everyone in the chat or Slack thread), channel (a whole Slack channel), user (one person across chats) or agent (everyone who talks to it)."
       },
       "runtime": {
         "title": "Runtime",
@@ -6684,19 +6684,19 @@
       },
       "mode": {
         "title": "Delegation mode",
-        "description": "Whether a delegation blocks this agent until it answers (sync), runs in the background and is collected later (async), or is decided per task from what the model says about it (auto). The author's choice, not the model's: the delegation tool's own mode argument defaults to sync, so a model that says nothing and a model that chose sync are the same call - auto is how you hand the decision to the model. One thing a background delegation cannot do is wait for a person: a specialist's tool that needs approval is refused rather than queued, because the delegation has already handed back a task id and there is nobody left holding the run. Keep that work on sync."
+        "description": "Sync waits for the delegate's answer, async collects it later, auto lets the model choose per task. A background delegation cannot wait for an approval, so keep work that needs one on sync."
       },
       "allow_questions": {
         "title": "Let delegates ask questions",
-        "description": "Whether a delegate may ask the person waiting on this agent a question instead of guessing - 'which currency?' rather than an assumption buried in the answer. Off by default: a specialist works autonomously and says so when it could not, and one that stops to ask holds this agent's turn open on a person. The author's decision, not the model's - the question wears a name the parent published, so whether it may be asked at all is the author's to make. It reaches the same channel this agent's own run uses to ask, and it is not the approval gate: a question is not an authorisation and cannot grant one. Takes effect only for a delegation that blocks (sync) - a background one has already handed back a task id with nobody left to answer, and auto may become one, so both still work autonomously however this is set. It governs the specialists this agent was given, pinned or inline; a specialist the model invents always works autonomously, whatever this says."
+        "description": "Lets a delegate ask the person waiting a question instead of guessing. Works only for a sync delegation, and only for the specialists this agent was given. A question is not an approval and cannot grant one."
       },
       "allow_dynamic": {
         "title": "Let the agent create specialists",
-        "description": "Whether this agent may invent specialists at run time rather than only using the ones it was given. Off by default for the same reason this product exists: an agent whose instructions nobody wrote is an agent nobody can review. Switched on, it adds two tools - one for a specialist used once, one kept for as long as the reply lasts - and a specialist is instructions plus a model and nothing else: it picks its model from this organization's own models, spends against this run's budget like every other delegation, gets no knowledge, tools or delegates of its own, and is gone when the reply it was made for is. Keeping one means publishing an agent, which is a person's decision. Creating one needs approval by default, because nobody has reviewed instructions a model wrote a moment ago - turn that off per tool if this agent is meant to run unattended."
+        "description": "Lets this agent write its own specialists while it runs. Each is instructions and one of your models, with no tools or knowledge, spends from this run's budget and is gone after the reply. Creating one needs approval by default."
       },
       "max_depth": {
         "title": "Delegation depth",
-        "description": "How many levels of delegation are allowed, counting this agent's own. 1 - the default - lets this agent delegate and its delegates not; 2 allows one nested level, so a delegate may hand work on once; 3 two. At the bound a delegate is built without the delegation capability rather than with one that can only refuse. It is a ceiling in both directions: when this agent is itself somebody's delegate, what it gets is the lower of this and what the caller's tree has left, so a caller can never buy this agent more nesting than its own author allowed. Bounded low on purpose: each level multiplies the requests one turn can make. To turn delegation off, disable this binding - that is the one off switch, and it keeps the configuration."
+        "description": "How many levels of delegation are allowed, counting this agent. 1 lets it delegate but not its delegates; 2 allows one nested level. Each level multiplies the requests one turn can make."
       },
       "max_fanout": {
         "title": "Delegations at once",
@@ -6708,7 +6708,7 @@
       },
       "share_with_delegates": {
         "title": "Capabilities delegates inherit",
-        "description": "Capability ids bound on this agent that its delegates and inline specialists inherit - a workspace being the case it exists for, so a researcher writes a file and a writer reads it. Named one by one rather than shared by default: a delegate that silently gained the parent's credentials would be the quiet route around what the parent was granted. Delegation itself is refused here, however the spec asks: a delegate that inherited it would read the parent's config as its own - the parent's specialists, and an allow_dynamic its author never set. Only a capability is shareable, so an MCP connection is not: those are named on the spec, not bound."
+        "description": "Capabilities this agent passes on to its delegates, such as a shared workspace so one writes a file and another reads it. Nothing is shared unless named here, and delegation itself never is."
       }
     },
     "system_reminders": {
