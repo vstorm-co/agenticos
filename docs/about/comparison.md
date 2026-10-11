@@ -82,7 +82,7 @@ A comparison that hides its own gaps is an advertisement. Check these against yo
 - There is no evaluation harness and no trace dashboard. Ratings and run history exist. See [where it is not finished](index.md#where-this-one-is-not-finished).
 - There is no Microsoft Teams, WhatsApp, voice or email conversation channel.
 - There is no visual workflow canvas. Multi-step work uses delegation, planning and triggers.
-- Approval settings reach capability tools. MCP tools are gated per conversation, not per tool. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
+- An MCP server's tools wait for approval by the server's own read-only marks, so a tool it mislabels as read-only runs unasked. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
 - Deployment is Docker Compose on one host. There are no Kubernetes manifests.
 - You operate it, or you agree the operation with Vstorm or another partner.
 

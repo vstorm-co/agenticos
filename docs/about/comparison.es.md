@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "a76d173b0c67"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -83,7 +83,7 @@ Una comparación que oculta sus propias carencias es un anuncio. Contrasta estos
 - No hay un entorno de evaluación ni un panel de trazas. Existen las valoraciones y el historial de runs. Consulta [dónde no está terminado](index.md#where-this-one-is-not-finished).
 - No hay canal de conversación para Microsoft Teams, WhatsApp, voz ni correo electrónico.
 - No hay un lienzo visual de workflows. El trabajo de varios pasos usa delegación, planificación y disparadores.
-- La configuración de aprobaciones alcanza a las herramientas de las capabilities. Las herramientas MCP se controlan por conversación, no por herramienta. Consulta [lo que MCP no te da](../mcp.md#what-mcp-does-not-get-you).
+- Las herramientas de un servidor MCP esperan aprobación según las marcas de solo lectura del propio servidor, así que una herramienta que marca mal como de solo lectura se ejecuta sin preguntar. Consulta [lo que MCP no te da](../mcp.md#what-mcp-does-not-get-you).
 - El despliegue es Docker Compose en un único host. No hay manifiestos de Kubernetes.
 - Lo operas tú, o acuerdas la operación con Vstorm u otro partner.
 

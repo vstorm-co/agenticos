@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "a76d173b0c67"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -83,7 +83,7 @@ Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty wzgl
 - Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
 - Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, głos ani e-mail.
 - Nie ma wizualnego canvasu workflow. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
-- Ustawienia zatwierdzeń obejmują narzędzia capabilities. Narzędzia MCP są bramkowane per rozmowa, nie per narzędzie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
+- Narzędzia serwera MCP czekają na zatwierdzenie według oznaczeń „tylko do odczytu” nadanych przez sam serwer, więc narzędzie błędnie oznaczone jako tylko do odczytu działa bez pytania. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
 - Wdrożenie to Docker Compose na jednym hoście. Nie ma manifestów Kubernetes.
 - Utrzymujesz go sam albo uzgadniasz utrzymanie z Vstorm lub innym partnerem.
 

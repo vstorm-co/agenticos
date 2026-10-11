@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "a76d173b0c67"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -83,7 +83,7 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.
 - Es gibt keine visuelle Workflow-Arbeitsfläche. Mehrstufige Arbeit nutzt Delegation, Planung und Trigger.
-- Freigabeeinstellungen erreichen die Werkzeuge von Capabilities. MCP-Werkzeuge werden pro Konversation freigegeben, nicht pro Werkzeug. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
+- Die Werkzeuge eines MCP-Servers warten nach den Nur-Lesen-Markierungen des Servers selbst auf Freigabe, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
 - Die Bereitstellung erfolgt mit Docker Compose auf einem Host. Es gibt keine Kubernetes-Manifeste.
 - Sie betreiben es selbst, oder Sie vereinbaren den Betrieb mit Vstorm oder einem anderen Partner.
 
