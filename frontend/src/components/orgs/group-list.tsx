@@ -68,6 +68,9 @@ export function GroupList({
     {
       key: "members",
       header: t("members"),
+      // Not on a phone, where it pushed the row's actions past the edge; the
+      // group's own page lists who is in it.
+      className: "max-sm:hidden",
       cell: (group) => (
         <Button
           variant="ghost"

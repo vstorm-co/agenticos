@@ -86,12 +86,14 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   }
 
   return (
-    <div className="hover:border-foreground/20 flex items-center gap-3 rounded-xl border p-3 transition-colors">
+    // On a phone the actions take a line of their own under the routine: four
+    // icons beside it squeezed its name and schedule down to "Getti... Ever...".
+    <div className="hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
       <button
         type="button"
         onClick={openRuns}
         aria-label={t("viewRuns")}
-        className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left transition-colors"
+        className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 basis-full items-center gap-3 rounded-lg p-1 text-left transition-colors sm:basis-auto"
       >
         {/* The kind of routine in a tile, with the agent that runs it tucked into
             its corner - one mark to scan down the list rather than two loose icons. */}
@@ -130,7 +132,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       </button>
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
       {trigger.can_manage && (
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
           <Button
             variant="ghost"
             size="icon"
