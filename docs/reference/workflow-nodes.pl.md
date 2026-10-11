@@ -1,5 +1,5 @@
 ---
-source_sha: "455c0a8c39fa"
+source_sha: "0e318662a0c3"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -148,6 +148,8 @@ która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, a wiadomo�
 jednego bota uruchamiają najwyżej jeden workflow. `triggered_by` to `channel_message`.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+    options:
+      show_bases: false
 
 ::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 

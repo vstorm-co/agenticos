@@ -140,6 +140,8 @@ that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
 messages start one workflow at most. `triggered_by` is `channel_message`.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+    options:
+      show_bases: false
 
 ::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 

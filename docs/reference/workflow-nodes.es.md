@@ -1,5 +1,5 @@
 ---
-source_sha: "455c0a8c39fa"
+source_sha: "0e318662a0c3"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -152,6 +152,8 @@ los mensajes de un bot inician como mucho un workflow. `triggered_by` es
 `channel_message`.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+    options:
+      show_bases: false
 
 ::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 

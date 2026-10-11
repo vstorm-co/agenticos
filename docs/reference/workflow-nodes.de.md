@@ -1,5 +1,5 @@
 ---
-source_sha: "455c0a8c39fa"
+source_sha: "0e318662a0c3"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -159,6 +159,8 @@ beantwortet hätte und die zum Filter des Knotens passt. Das Veröffentlichen br
 `triggered_by` ist `channel_message`.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
+    options:
+      show_bases: false
 
 ::: app.workflows.nodes._triggers.ChannelMessageTriggerOutput
 
