@@ -373,6 +373,19 @@ class TestTheChatsDoor:
             assert (await db.execute(select(Message))).scalars().all() == []
 
 
+class TestAuthority:
+    async def test_an_active_member_acts_with_their_current_role(self, factory):
+        """Read straight off `_context` rather than through a streamed frame,
+        whose background drive the coverage tracer does not always follow."""
+        owner, org, _workflow = await _tenant(factory)
+
+        with _signed_in(owner):
+            ctx = await _session(_Socket(), org)._context()
+
+        assert ctx is not None
+        assert (ctx.user_id, ctx.organization_id) == (owner.id, org.id)
+
+
 class TestRefusals:
     async def test_a_frame_it_does_not_know_is_ignored_without_a_query(self, factory):
         _owner, org, _workflow = await _tenant(factory)
