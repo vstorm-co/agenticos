@@ -1,5 +1,5 @@
 ---
-source_sha: "04d344a0f5a0"
+source_sha: "8f92579bb015"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -9,10 +9,7 @@ Zusatz für alle, die es im Dock haben wollen: die Konsole in einem eigenen
 Fenster, dazu ein Haustier und ein Screenshot-Kürzel. Nichts an der Plattform
 braucht sie.
 
-<figure markdown>
-  ![Amigo, das Desktop-Haustier, sagt: No more caramba.](assets/desktop_no_more_caramba_pet.png){ width="270" }
-  <figcaption>Amigo, eines von fünf Haustieren. No more caramba in your AI.</figcaption>
-</figure>
+> **Screenshot ausstehend — aktuelle Desktop-App und Maskottchen.**
 
 Die Anwendung im Fenster ist dieselbe Next.js-Konsole, die der Server ohnehin
 ausliefert, vom Server geladen, also trägt sie dieselbe Anmeldung, dieselben

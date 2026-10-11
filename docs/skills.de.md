@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "82ec723c8c80"
 ---
 
 # Skills { #skills }
@@ -199,14 +199,16 @@ mehr Arbeit bekommen statt mehr Information.
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert drei als
+**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und jede Organisation startet mit ihnen. Das Anlegen einer Organisation kopiert
+und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
+[Artifacts](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
+ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.
 
 Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese drei werden nicht gewählt — sie
+Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
 kommen an, einmal, beim Anlegen.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
@@ -233,11 +235,24 @@ Der Seed-Befehl tut dasselbe vom Terminal aus, für skriptgesteuerte Installatio
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Er ist über den Namen idempotent — ein Skill, den die Organisation bereits hat,
-bleibt genau so, wie er ist, sodass eine bearbeitete Rückerstattungsregel ein
-erneutes Seeding überlebt.
+Er installiert, was fehlt, und **aktualisiert, was niemand bearbeitet hat**. Jede
+Kopie hält fest, aus welcher mitgelieferten Version sie geschrieben wurde;
+verbessert ein Release einen mitgelieferten Skill, wird die unberührte Kopie einer
+Organisation durch die neue ersetzt — samt Dateien, mit erhöhter Version und einem
+Audit-Eintrag `skill.refreshed`.
+
+Eine hier bearbeitete Kopie bleibt genau so, wie sie ist, sodass eine bearbeitete
+Rückerstattungsregel ein erneutes Seeding überlebt; `--replace` ist der einzige
+Weg, die mitgelieferte Version über solche Bearbeitungen zu legen, und der
+Audit-Eintrag hält fest, dass es geschah. Eine Kopie von vor der
+Versionserfassung, die von der mitgelieferten abweicht, wird ebenfalls gemeldet
+und in Ruhe gelassen, denn nichts kann sagen, ob sie bearbeitet wurde.
+
+Der Befehl gibt für jeden Skill aus, was er getan hat, und `--dry-run` gibt
+denselben Plan aus, ohne zu schreiben.
 
 `e2e/seed.setup.ts` legt ebenfalls einen über die UI an, und genau dagegen prüft
 die E2E-Suite.
@@ -255,7 +270,7 @@ und bearbeitet, genau wie ein mitgelieferter.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten drei liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.

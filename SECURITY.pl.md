@@ -25,7 +25,7 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 Model zagrożeń, opis przepływu danych (co opuszcza wdrożenie i do kogo), co jest
 gdzie szyfrowane oraz macierz kontroli — każda kontrola zmapowana na mechanizm,
 który ją realizuje, i na test, który trzyma ją w mocy — żyją w jednej kopii na
-stronie [Bezpieczeństwo](https://vstorm-co.github.io/agenticos/security/)
+stronie [Bezpieczeństwo](https://vstorm-co.github.io/agenticos/pl/security/)
 (`docs/security.md`). Ten plik zostawia tylko dwie rzeczy, po które sięga się do
 `SECURITY.md` w repozytorium: jak zgłosić podatność, powyżej, i produkcyjną listę
 kontrolną hardeningu, poniżej. Gdzie leżą dane osobowe i co obejmuje usunięcie,

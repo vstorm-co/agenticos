@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Activity, Boxes, Cpu, Database, Zap } from "lucide-react";
+import { Activity, Boxes, CalendarClock, Cpu, Database, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
@@ -15,7 +15,7 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /**
- * The four probes the backend runs, each with the icon that says which
+ * The five probes the backend runs, each with the icon that says which
  * subsystem it is (`app/services/health.py`). A key this table does not know is
  * a probe added since - it takes the generic mark and its own name, rather than
  * being dropped from a card whose whole job is to be complete.
@@ -25,9 +25,10 @@ const ICON: Record<string, LucideIcon> = {
   redis: Zap,
   vector_store: Boxes,
   model_access: Cpu,
+  scheduler: CalendarClock,
 };
 
-/** The same four, as copy. Anything else prints its key, humanised. */
+/** The same five, as copy. Anything else prints its key, humanised. */
 const NAMED = new Set(Object.keys(ICON));
 
 const TILE: Record<CheckStatus, string> = {

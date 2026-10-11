@@ -1,5 +1,5 @@
 ---
-source_sha: "d71f6e6871d2"
+source_sha: "341bfa712481"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -51,7 +51,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
 | `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact` | — | — |
+| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -278,6 +278,12 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   con alguien no se lee en voz alta donde lo ve un canal entero.
 - En un widget público o en un embed no hay a quién atribuir nada, así que no hay
   almacén, y las herramientas lo dicen en vez de guardar en algún sitio.
+- En una programación o en un trigger de evento tampoco hay almacén, aunque el
+  run se ejecuta como el creador del trigger. El creador presta al run su
+  autoridad, no su identidad, así que nadie escucha y las herramientas se
+  niegan. Pon un dato que necesite un run programado en el prompt del trigger o
+  en un archivo de contexto vinculado. Consulta
+  [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 No hay un almacén para toda la organización. Existió uno y se retiró: era un
 segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
@@ -419,6 +425,10 @@ a partir de él en un canal leería las conversaciones privadas de una persona a
 todos los de la sala. Es la línea que traza el índice de memoria, una capa más
 afuera.
 
+Una programación o un trigger de evento no responde a nadie, así que ambas
+herramientas se niegan también ahí, por la misma razón que los
+[archivos de memoria](#whose-notes-and-who-may-hear-them).
+
 ### Cómo busca { #how-it-matches }
 
 Búsqueda de texto completo de PostgreSQL: un `tsvector` que la base de datos
@@ -502,6 +512,22 @@ scope aparte.
 
 La descarga en sí es el `web_fetch_tool` de Pydantic AI sobre su `safe_download`
 protegido contra SSRF, y esa es la razón de que no sea código nuestro.
+
+En qué se convierte una respuesta se decide aquí:
+
+- Una página (HTML, Markdown, JSON, texto plano) vuelve como Markdown.
+- Una imagen vuelve como imagen, para un modelo que lee imágenes.
+- Un PDF o un documento de oficina vuelve como su **texto extraído**, leído por el mismo
+  parser por el que pasa un adjunto del chat y recortado en `max_content_chars` como una
+  página. La biblioteca devolvería los bytes en bruto para que el modelo los leyera de
+  forma nativa. Un modelo servido tras un endpoint compatible con OpenAI que no puede
+  hacerlo rechaza la petición entera (`Unsupported chat content part type: 'file'`), y
+  el agent vuelve a descargar el mismo documento. Solo se extrae el texto hasta
+  `max_content_chars`, y un PDF se lee como máximo hasta 2.000 páginas: uno más largo
+  termina con una nota que nombra la página en la que se detuvo, y cuando las páginas
+  leídas no tenían texto, solo vuelve esa nota.
+- Un binario sin texto legible (un PDF escaneado, un archivo comprimido) llega al modelo
+  como un error reintentable que nombra lo que llegó.
 
 La URL viene del **modelo** y se resuelve desde dentro del contenedor, así que
 validarla de antemano — como hace `app.core.sanitize.validate_webhook_url` con un
@@ -712,7 +738,9 @@ ejecuta con el modelo del run anfitrión — aquel cuya credencial se resolvió 
 vault — y cada uno de sus pasos es una petición al modelo, anotada contra el budget
 del run a través del mismo libro de uso ambiental que usa un resumen de compactación.
 No es el modelo alojado propio de browser-use, y no es gasto que el guardián del
-budget no pueda ver.
+budget no pueda ver. Cada paso consulta el budget antes de enviarse, así que, agotado
+el budget del run, el siguiente paso del agente de navegador se rechaza en lugar de
+pagarse.
 
 **`browser-use` es un extra opcional.** Arrastra un árbol pesado (Chromium vía
 Playwright) y fija dependencias una versión menor por debajo del resto de la
@@ -992,24 +1020,37 @@ no tiene dónde construir con ellas.
 
 `publish_artifact` — *Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable.*
+`read_artifact` — *Lee la versión actual de una página que publicó este agent, tal
+como se escribió.*
 
 Publica un único documento HTML o Markdown autocontenido como
 [artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
 grants, que se abre en el navegador bajo un enlace que no se mueve. Sin
 configuración.
 
-**El nombre es la identidad.** `(organization, agent, name)` elige el artefacto,
-así que el siguiente run del mismo agent que publique `weekly-report` — desde un
-chat, una programación o la API — añade una versión al mismo en lugar de crear un
-segundo enlace. Unos bytes idénticos no añaden versión y responden `unchanged`.
+**El nombre es la identidad.** `(organization, agent, environment, name)` elige el
+artefacto, así que el siguiente run del mismo agent que publique `weekly-report` —
+desde un chat, una programación o la API — añade una versión al mismo en lugar de
+crear un segundo enlace. El entorno sale del run, así que un run en `staging`
+publica una página propia. Unos bytes idénticos no añaden versión y responden
+`unchanged`.
 
 **De dónde sale la página.** `path` lee un archivo del workspace del run a través
 de su propio backend, así que funciona allí donde funciona la capability `sandbox`;
-`content` recibe la página en línea para un agent sin workspace. Exactamente uno de
-los dos. Una llamada incorrecta — ambos o ninguno, un nombre fuera de
+`content` recibe la página en línea para un agent sin workspace; `edits` son
+reemplazos exactos aplicados a la versión que devolvió `read_artifact`, y una
+publicación entre medias los rechaza en lugar de sobrescribirla. Exactamente uno de
+los tres. Una llamada incorrecta — más de uno, ninguno, un nombre fuera de
 `^[a-z0-9][a-z0-9-]{0,63}$`, una extensión desconocida, una página vacía o
-demasiado grande — es un reintento que nombra qué cambiar. Una lectura que las
-reglas de permisos del workspace rechazan es un resultado, no un reintento.
+demasiado grande, un reemplazo que no coincide con ningún sitio o con varios — es un
+reintento que nombra qué cambiar. Una lectura que las reglas de permisos del
+workspace rechazan, y una página que la persona del run no puede abrir, son
+resultados, no reintentos.
+
+**Leer de vuelta.** `read_artifact` devuelve una línea de cabecera (versión,
+formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que la
+cabecera dice. Solo abre lo que la persona del run puede abrir en la consola, y nada en un widget público, un embed, una programación o un trigger de eventos,
+donde no escucha ninguna persona identificada.
 
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la
@@ -1018,8 +1059,10 @@ Un autor que quiera aprobar cada nueva publicación de una página compartida fi
 `tool_approval` en `publish_artifact`.
 
 **La página no tiene red.** Se sirve en un origen opaco bajo una política `sandbox`
-con `connect-src 'none'`, y el texto de la herramienta le dice al modelo que lo
-incruste todo. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
+con `connect-src 'none'`, y el texto de la herramienta le dice al modelo que
+incruste sus propios datos y cargue los gráficos desde el
+[conjunto de bibliotecas](../artifacts.md#the-library-set) del despliegue en lugar
+de un CDN. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegación { #delegation }
 
@@ -1663,9 +1706,9 @@ reducción en sí es el `ToolOutputLimits` de
 | Configuración | Valor por defecto | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | tamaño a partir del cual se reduce un retorno |
+| `threshold` | 60000 | tamaño a partir del cual se reduce un retorno; 15000 cuando `over_tokens` está activado |
 | `over_tokens` | `false` | mide el umbral en tokens estimados, no en caracteres |
-| `max_chars` | 4000 | caracteres que se conservan cuando se trunca un retorno, o cuando un volcado recae en un truncado |
+| `max_chars` | 20000 | caracteres que se conservan cuando se trunca un retorno, o cuando un volcado recae en un truncado; sin fijar, nunca más que el umbral |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail`: qué extremo o extremos conservar |
 | `strip_ansi` | `false` | quita los códigos de color del terminal antes de medir y reducir |
 | `summary_prompt` | el propio de la biblioteca | qué se le dice al modelo que resume; tiene que contener `{tool_name}` y `{output}` |
@@ -1767,9 +1810,9 @@ que llamara él mismo a un modelo o a un embedding — deliberadamente no se exp
 
 Sin herramientas. Inspecciona el texto que circula por un run en tres bordes y o bien
 **censura** una coincidencia o bien **bloquea** el run. Las comprobaciones son
-detectores ya hechos de `pydantic-ai-harness`; un agent son datos, así que la
-configuración los selecciona y los parametriza en lugar de llevar una guarda en
-Python.
+detectores ya hechos de `pydantic-ai-harness`, más un detector de números de
+teléfono que el harness no incluye; un agent son datos, así que la configuración
+los selecciona y los parametriza en lugar de llevar una guarda en Python.
 
 | Borde | Lee | Censura | Bloqueo |
 |---|---|---|---|
@@ -1780,11 +1823,32 @@ Python.
 | Configuración | Valor por defecto | |
 |---|---|---|
 | `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT y bloques PEM |
-| `redact_pii_*` | `false` | limpia correos, IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
+| `redact_pii_*` | `false` | limpia correos, números de teléfono (válidos en su plan de numeración), IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
 | `blocked_keywords_*` | `""` | términos separados por comas o saltos de línea; una coincidencia termina el run |
+| `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII, como mucho 16 |
 
-Todos los campos vienen apagados por defecto, y una capability activada sin ningún
-borde configurado no adjunta nada: un agent que no la usa no paga nada.
+Todos los campos de borde vienen apagados por defecto, y una capability activada
+sin ningún borde configurado no adjunta nada: un agent que no la usa no paga nada.
+
+**Un número de teléfono solo se censura cuando es un número real.** El detector es
+el de libphonenumber, con su nivel `STRICT_GROUPING`: un candidato se acepta solo
+cuando encaja en el plan de numeración de su país y sus separadores caen donde ese
+país agrupa los dígitos, así que una fecha, un importe o un número de pedido que
+una regla por cantidad de dígitos tomaría pasan sin cambios. Un número escrito con `+` indica su propio país y se censura sea cual sea
+el contenido de `phone_regions`. Un número nacional, como `415-555-0132`, se lee
+frente a cada país de la lista, y cada país añadido amplía lo que puede ser una
+simple secuencia de dígitos: `123456789` es un fijo polaco válido, así que con `PL`
+en la lista también se censura un número de pedido de nueve dígitos. La agrupación
+funciona en ambos sentidos: un código postal ZIP+4 de EE. UU. que empieza por `0`,
+como `02134-1234`, está agrupado como un prefijo alemán con su número, así que con
+`DE` en la lista se censura. Incluye los
+países a los que atiende el agent. Un código desconocido (lo habitual es `UK` en
+lugar de `GB`), o una lista de más de 16, se rechaza al publicar. Con hasta cuatro
+países, un texto de más de 200.000 caracteres o con más de 10.000 dígitos no se lee.
+Cada país por encima de cuatro es otra pasada sobre el texto, así que ambos límites
+bajan en proporción, a 50.000 caracteres y 2.500 dígitos con dieciséis. Un texto por
+encima del límite termina el run con `guardrail_blocked`, porque pasarlo sin leer
+pasaría también cada número que contiene.
 
 **La censura reescribe; un bloqueo es un desenlace del run.** Un censor limpia la
 coincidencia y el run termina: una respuesta que devolvía una clave citada ha hecho el
@@ -1793,6 +1857,37 @@ trabajo igualmente. Un bloqueo por palabra clave, en cambio, termina el run con 
 es la plataforma funcionando y un operador que filtre buscando problemas debería poder
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
+
+**Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
+las superficies transmiten en streaming: el chat web y el widget incrustado envían la
+respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
+texto. Cuando hay configurada cualquier comprobación de salida, cada fragmento de
+texto y de razonamiento se retiene hasta que está completo, se comprueba con los
+mismos detectores y solo entonces se envía. Una clave partida en dos trozos se detecta igualmente. Una
+partida en dos partes, como el texto antes de una llamada a herramienta y el texto
+después, o el razonamiento y luego la respuesta, termina el run antes de enviar su
+segunda mitad, porque la primera ya está en pantalla. También el texto que el modelo escribe antes de llamar a una herramienta,
+que no forma parte de la respuesta final pero aun así se muestra y se guarda. El coste
+es que la respuesta de un agent así llega paso a paso en lugar de palabra a palabra.
+Un agent sin comprobación de salida transmite como antes. Un bloqueo por palabra clave
+en la respuesta termina el run antes de que se muestre o se guarde nada del texto
+bloqueado. El razonamiento no es la respuesta, así que una palabra clave bloqueada
+en él no termina el run: ese paso de razonamiento muestra
+`[reasoning withheld by the output guardrail]` en su lugar.
+
+**Lo que el filtro del stream aún no cubre.** Dos rutas transmitidas no se filtran:
+los argumentos de una llamada a herramienta mientras se transmiten y la respuesta
+transmitida de un delegado en el panel de delegación ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). El filtro del
+stream hereda los límites de tamaño del detector de teléfonos, así que una parte de
+la respuesta demasiado larga para él termina el run igual que lo haría la respuesta
+final. Como el filtro se engancha al flujo de eventos del run, las peticiones al
+modelo de un agent con guardrail se transmiten en streaming incluso a través de la
+API HTTP, así que su modelo debe admitir streaming.
+
+**El borde de entrada cambia lo que lee el modelo, no la transcripción.** Un prompt
+censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
+escribió la persona, datos personales incluidos. Quien pueda leer la conversación
+puede leer ese mensaje.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

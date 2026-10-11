@@ -117,22 +117,22 @@ describe("what the header says about a file", () => {
  * a table hides which delimiter a CSV used, so that counts too.
  */
 describe("the views a file offers", () => {
-  it("opens on the characters, for a file whose preview transforms them", async () => {
-    // Source first, where there is one: a console shows a file to answer a
-    // question about its contents, and the rendered view is what hides it.
+  it("opens on the rendered file, with the characters a tab away", async () => {
+    // What an agent made is usually for looking at; opening on its markup read
+    // as the file being broken.
     open({ name: "report.md" });
-
-    expect(await screen.findByText("# Report")).toBeInTheDocument();
-    expect(screen.queryByTestId("markdown")).toBeNull();
-  });
-
-  it("renders it once the preview is asked for", async () => {
-    open({ name: "report.md" });
-    await screen.findByText("# Report");
-
-    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
 
     expect(await screen.findByTestId("markdown")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the characters once the source is asked for", async () => {
+    open({ name: "report.md" });
+    await screen.findByTestId("markdown");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Source" }));
+
+    expect(await screen.findByText("# Report")).toBeInTheDocument();
   });
 
   it("still opens on the preview where there is no source to open on", () => {

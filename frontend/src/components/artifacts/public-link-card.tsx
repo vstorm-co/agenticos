@@ -1,7 +1,7 @@
 "use client";
 
 import { Globe, RefreshCw } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import {
@@ -13,14 +13,38 @@ import {
   CardTitle,
   Input,
 } from "@/components/ui";
+import type { ArtifactPublicLink } from "@/types/artifact";
 
 interface PublicLinkCardProps {
   publicUrl: string | null;
+  /** The link's settings and its counter. */
+  link: ArtifactPublicLink;
   /** Whether the caller may turn the link on, rotate it or turn it off. */
   canManage: boolean;
   busy: boolean;
   onEnable: () => void;
   onDisable: () => void;
+  /** The link's settings, under its address. */
+  children?: React.ReactNode;
+}
+
+/** How often the link was opened, and when last - no visitor is named. */
+function ViewCount({ link }: { link: ArtifactPublicLink }) {
+  const t = useTranslations("artifacts");
+  const format = useFormatter();
+  return (
+    <p className="text-muted-foreground text-xs">
+      {link.last_viewed_at === null
+        ? t("linkViews", { count: link.view_count })
+        : t("linkViewsLast", {
+            count: link.view_count,
+            when: format.dateTime(new Date(link.last_viewed_at), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+          })}
+    </p>
+  );
 }
 
 /**
@@ -31,10 +55,12 @@ interface PublicLinkCardProps {
  */
 export function PublicLinkCard({
   publicUrl,
+  link,
   canManage,
   busy,
   onEnable,
   onDisable,
+  children,
 }: PublicLinkCardProps) {
   const t = useTranslations("artifacts");
   return (
@@ -59,6 +85,7 @@ export function PublicLinkCard({
             <CopyButton text={publicUrl} className="h-8 w-8 opacity-100" />
           </div>
         )}
+        {publicUrl !== null && <ViewCount link={link} />}
         {canManage &&
           (publicUrl === null ? (
             <Button size="sm" onClick={onEnable} disabled={busy}>
@@ -75,6 +102,7 @@ export function PublicLinkCard({
               </Button>
             </div>
           ))}
+        {children}
       </CardContent>
     </Card>
   );

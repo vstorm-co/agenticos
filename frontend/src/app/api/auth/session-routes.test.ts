@@ -279,6 +279,19 @@ describe("refreshing the token", () => {
     expect(cookie(response, "access_token")).toBeUndefined();
   });
 
+  it("keeps the session when the backend answered with a failure of its own", async () => {
+    // A 502 while the API redeploys says nothing about the token - and the
+    // rotation may have gone through with the answer lost, which the backend's
+    // reuse grace forgives only while the browser still holds the cookie.
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
+
+    const response = await refresh(request({ refresh_token: "rt" }));
+
+    expect(response.status).toBe(502);
+    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
   it("refuses to mint the administrator's token under an impersonation cookie", async () => {
     // The refresh cookie is the administrator's own; the access cookie says the
     // browser was acting as somebody else. Refreshing here would answer a request
@@ -389,6 +402,62 @@ describe("reading the session", () => {
 
     expect(response.status).toBe(401);
     expect(backendFetch).not.toHaveBeenCalled();
+  });
+
+  it("stores the rotated cookies even when the read after the refresh fails", async () => {
+    // The backend has already spent the old refresh token. Dropping the new one
+    // here left the browser holding the spent one, and signed it out next time.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
+      .mockRejectedValueOnce(new BackendApiError(503, "Unavailable", null));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ code: "FAILED_TO_GET_USER" });
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+  });
+
+  it("stores the rotated cookies when the read after the refresh never answered", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh" })
+      .mockRejectedValueOnce(new Error("ECONNRESET"));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(500);
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it("stores the rotated cookies when the read after the refresh is rate-limited", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
+      .mockRejectedValueOnce(new BackendApiError(429, "Too Many Requests", null));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(429);
+    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+  });
+
+  it("keeps the cookies when the refresh failed for a reason that is not the token", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
+
+    const response = await get({ refresh_token: "rt" });
+
+    expect(response.status).toBe(502);
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it("keeps the cookies when the refresh could not reach the backend", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNRESET"));
+
+    const response = await get({ refresh_token: "rt" });
+
+    expect(response.status).toBe(500);
+    expect(cookie(response, "refresh_token")).toBeUndefined();
   });
 
   it("clears the cookies when the refresh fails, because the session is over", async () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "44dae3302f97"
+source_sha: "217a295cc0a5"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -162,6 +162,16 @@ listan por nombre, no se extraen. Un TIFF de varias páginas muestra al modelo h
 `CHAT_TIFF_MAX_INLINE_PAGES` páginas; un agent con workspace abre el resto desde el
 original en disco. El texto extraído se limita a `CHAT_PARSED_TEXT_MAX_CHARS`, y los
 presupuestos por archivo y por turno acotan lo que se pega a un agent sin workspace.
+
+**El límite es un presupuesto que gastan los parsers, no un corte después del
+análisis.** Un PDF se carga página a página y se detiene en la página que supera el
+límite, o tras 2.000 páginas. Un `.xlsx` lee sus filas en streaming, se detiene en
+la fila y lee como máximo un millón de celdas, así que una hoja que declara un rango vacío enorme no cuesta nada más, y un libro
+detenido por ese límite termina con una nota que lo indica. DOCX, PPTX, ODT y ODP dejan de extraer texto en el
+párrafo o la diapositiva, pero sus bibliotecas descomprimen y analizan primero el
+archivo entero, dentro de los límites de tamaño del archivo comprimido. El texto
+plano, `.msg` y `.doc` se leen enteros. El texto que supera el límite termina con
+una marca que indica que el resto del documento se omitió.
 
 **Una escritura rechazada se dice una vez, sobre el workspace.** Un run cuyo
 workspace no admite un archivo es un run cuyo shell y herramientas de archivo

@@ -103,12 +103,10 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
   const locale = useLocale();
   const kind = resolveFileKind(file.name, file.mimeType);
   const { download, error } = useFileActions(access);
-  // Source first, where there is one. Somebody opening a file in a console is
-  // usually there to read what it *says* - the markup, the front matter, the
-  // row that will not parse - and a rendered view hides exactly that. A kind
-  // with no source tab (an image, a PDF) has nothing to fall back from, so it
-  // still opens on its preview rather than on a tab that does not exist.
-  const [view, setView] = useState(() => (hasSourceView(kind) ? "source" : "preview"));
+  // Preview first, for every kind. Most files opened here are what an agent
+  // made for somebody to look at - a page, a report, a chart - and opening on
+  // its markup read as the file being broken. The source is one tab away.
+  const [view, setView] = useState("preview");
   const strip = navigation !== undefined && navigation.names.length > 1 ? navigation : null;
 
   /**

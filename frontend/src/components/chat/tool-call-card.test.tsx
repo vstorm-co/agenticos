@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ToolCallCard } from "./tool-call-card";
 import type { ToolCall } from "@/types";
 
+// A live preview fetches a signed address; what is under test is the card around it.
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: () => null,
+}));
+
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => (
     <div data-testid="markdown">{content}</div>
@@ -72,6 +77,20 @@ describe("a tool call in the transcript", () => {
     card({ status: "pending", result: undefined });
 
     expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("says how much of the arguments has arrived while the model is still writing them", () => {
+    // A report handed to `write_file` streams for minutes; the size is what moves.
+    card({ name: "write_file", status: "pending", result: undefined, argsChars: 43_008 });
+
+    expect(screen.getByText("42.0 KB so far")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("says nothing about size once the call is running", () => {
+    card({ name: "write_file", status: "running", result: undefined, argsChars: 43_008 });
+
+    expect(screen.queryByText(/so far/)).toBeNull();
   });
 
   it("says what happened once the call has finished, rather than narrating it", () => {
@@ -305,6 +324,40 @@ describe("a tool call in the transcript", () => {
     );
 
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("keeps the agent's bookkeeping folded even as the turn's last step", () => {
+    // A note the agent wrote itself for next time opened over the answer it came
+    // after. The same generic step that is not bookkeeping opens as before.
+    const props = { mcpServers: servers.list, startOpen: true, conversationId: "c-1" };
+    const memory = render(
+      <ToolCallCard
+        {...props}
+        toolCall={{
+          id: "tc-1",
+          name: "write_memory",
+          args: { path: "preferences.md" },
+          status: "completed",
+          result: "Saved the note about preferences",
+        }}
+      />,
+    );
+    expect(screen.queryByText("Saved the note about preferences")).toBeNull();
+    memory.unmount();
+
+    render(
+      <ToolCallCard
+        {...props}
+        toolCall={{
+          id: "tc-2",
+          name: "read_artifact",
+          args: { name: "report" },
+          status: "completed",
+          result: "Read the page called report",
+        }}
+      />,
+    );
+    expect(screen.getByText(/Read the page called report/)).toBeInTheDocument();
   });
 
   it("leaves an older call read back from history folded", () => {

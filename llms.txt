@@ -52,7 +52,8 @@ This test is written to be applied to other products in the category, and to thi
 - [Concepts](https://vstorm-co.github.io/agenticos/concepts/): spec, version, exposure, trigger, run — the five nouns everything is built from.
 - [The console](https://vstorm-co.github.io/agenticos/console/): a map of every screen, the dashboard widgets, chat and slash commands.
 - [Features](https://vstorm-co.github.io/agenticos/features/): everything the platform does, on one page.
-- [Presentation](https://vstorm-co.github.io/agenticos/presentation/): twenty slides for somebody deciding whether to run it — the problem, what a spec holds, the eight surfaces, and what the platform refuses.
+- [Introduction deck](https://vstorm-co.github.io/agenticos/presentation/): fourteen slides — the problem, the idea, the product on real screens, what the platform refuses, where it stops today, and how to start.
+- [Product tour](https://vstorm-co.github.io/agenticos/presentation/tour/): forty-four slides over the real product screens, from what AgenticOS is to how a first project starts.
 
 ## Building agents
 

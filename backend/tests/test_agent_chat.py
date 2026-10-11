@@ -248,6 +248,7 @@ async def _run(
     attachments: Any = None,
     subagent_events: Any = None,
     on_personal_gaps: Any = None,
+    request_connection: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -263,6 +264,7 @@ async def _run(
         stream=stream,
         subagent_events=subagent_events,
         on_personal_gaps=on_personal_gaps,
+        request_connection=request_connection,
     )
 
 
@@ -933,6 +935,8 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         will look for it."""
         from pydantic_ai_backends import StateBackend
 
+        from tests.workspaces import document_workspace
+
         attachment = SimpleNamespace(
             id=uuid.uuid4(),
             filename="raport.csv",
@@ -942,11 +946,13 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
             file_type="text",
             parsed_content="month,total",
         )
-        backend = StateBackend()
+        document = StateBackend()
         prepared = _prepared()
         # `parses_documents` is what says the runtime can read a PDF itself; a
         # stored workspace cannot, and so keeps the extracted text beside the file.
-        prepared.workspace = SimpleNamespace(backend=backend, briefing=None, parses_documents=False)
+        prepared.workspace = SimpleNamespace(
+            workspace=document_workspace(document), briefing=None, parses_documents=False
+        )
 
         with (
             _runner(prepared),
@@ -957,7 +963,7 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         ):
             await _run(_db(), attachments=[attachment])
 
-        assert any(path.startswith("/uploads/") for path in backend.files)
+        assert any(path.startswith("/uploads/") for path in document.files)
 
     async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
         """A caller passing the richer shape would otherwise have its
@@ -1071,3 +1077,13 @@ class TestTellingTheChatWhatThePersonCannotReach:
             await _run(_db(), on_personal_gaps=sink)
 
         sink.assert_not_awaited()
+
+    async def test_the_way_to_ask_for_a_connection_reaches_the_build(self):
+        """It decides what is built - a tool instead of a briefing - so it has to
+        arrive at `prepare`, not be set on the deps afterwards like the sinks."""
+        ask = AsyncMock()
+
+        with _runner(_prepared()) as runner:
+            await _run(_db(), request_connection=ask)
+
+        assert runner.prepare.await_args.kwargs["request_connection"] is ask

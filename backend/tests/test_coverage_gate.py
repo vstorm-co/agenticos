@@ -74,6 +74,7 @@ PLATFORM_MODULES = (
     "app/core/blocking.py",
     "app/core/office_convert.py",
     "app/core/field_errors.py",
+    "app/core/phone.py",
     "app/db/vector_tables.py",
     "app/services/access.py",
     "app/services/agent_chat.py",

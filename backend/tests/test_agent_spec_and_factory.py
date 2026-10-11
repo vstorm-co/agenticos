@@ -7,6 +7,7 @@ it never carries a secret.
 """
 
 import uuid
+from dataclasses import replace
 from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
@@ -29,6 +30,7 @@ from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import (
     _AUDIENCE_AWARE,
     DEFAULT_MAX_STEPS,
@@ -280,6 +282,37 @@ class TestFactory:
         assert settings["temperature"] == 0.9
         assert settings["max_tokens"] == 100
 
+    @pytest.mark.parametrize(
+        ("provider", "setting"),
+        [("anthropic", "anthropic_cache_messages"), ("openrouter", "openrouter_cache_messages")],
+    )
+    def test_a_provider_that_caches_prompts_is_asked_to_by_default(
+        self, provider: str, setting: str
+    ):
+        """A long history re-sent uncached on every request is what drained an
+        OpenRouter account mid-run; a profile can still switch it off."""
+        on = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec(), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+        off = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec({setting: False}), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert on.agent.model_settings is not None
+        assert on.agent.model_settings.get(setting) is True
+        assert off.agent.model_settings is not None
+        assert off.agent.model_settings.get(setting) is False
+
+    def test_a_provider_without_prompt_caching_is_sent_none_of_it(self):
+        built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
+
+        assert built.agent.model_settings is not None
+        assert not [key for key in built.agent.model_settings if "cache" in key]
+
     def test_ungranted_scope_stops_the_build(self):
         spec = AgentSpec(name="x", capabilities=[{"id": "knowledge"}])
         with pytest.raises(BadRequestError):
@@ -402,6 +435,86 @@ class TestToolSearchDefersMcp:
         offered = await self._tools_the_model_sees(built)
 
         assert offered == ["search_tools"]
+
+    @pytest.mark.anyio
+    async def test_a_surfaces_own_capability_stays_in_view_when_bound(self):
+        """`connect_account` is how a service the person has not connected gets
+        connected; hidden behind search it is a tool the model never knows to
+        look for, so an extra capability's tools are not deferred."""
+
+        async def unused() -> str:
+            return "unreachable"
+
+        on_use = ConnectOnUse(
+            services=[
+                PendingService(
+                    request=ConnectionRequest(
+                        catalog_key="notion", name="Notion", gap="not_connected"
+                    ),
+                    resolve=unused,
+                )
+            ],
+            request_connection=AsyncMock(return_value=False),
+        )
+        built = build_agent(
+            AgentSpec(
+                name="x", capabilities=[{"id": "tool_search", "config": {"strategy": "keywords"}}]
+            ),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[self._mcp_toolset()],
+            extra_capabilities=[on_use],
+        )
+
+        offered = await self._tools_the_model_sees(built)
+
+        assert sorted(offered) == ["connect_account", "search_tools"]
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_connecting(self):
+        """`connect_account` is itself the question; under `ASK_ALL` it reaches
+        the person without first being put to them for approval."""
+        asked: list[str] = []
+
+        async def request_connection(request: ConnectionRequest) -> bool:
+            asked.append(request.catalog_key)
+            return False
+
+        async def unused() -> str:
+            return "unreachable"
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[
+                ConnectOnUse(
+                    services=[
+                        PendingService(
+                            request=ConnectionRequest(
+                                catalog_key="notion", name="Notion", gap="not_connected"
+                            ),
+                            resolve=unused,
+                        )
+                    ],
+                    request_connection=request_connection,
+                )
+            ],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(parts=[ToolCallPart("connect_account", {"service": "notion"})])
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["notion"]
+        approval.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):

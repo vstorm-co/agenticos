@@ -2,7 +2,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
 import { AgentStep } from "./agent-step";
@@ -109,9 +109,10 @@ export function ToolCallCard({
   // transcript they came back to for something else. Opening those on mount made every
   // past turn a wall, which is what a replayed conversation looked like. A chart is the
   // other way round: only the last step of a turn is handed `startOpen`, so three
-  // charts arrived as two headers and one picture.
+  // charts arrived as two headers and one picture. And bookkeeping never opens on
+  // its own - see `staysClosed`.
   const [expanded, setExpanded] = useState(
-    toolCall.status === "completed" && (startOpen || opensOnSight),
+    toolCall.status === "completed" && entry?.staysClosed !== true && (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 
@@ -167,10 +168,17 @@ export function ToolCallCard({
     }
   }
 
+  // While the model is still writing the arguments, how far it has got is the only
+  // sign the step is moving - a report handed to `write_file` streams for minutes.
+  const streamed =
+    toolCall.status === "pending" && toolCall.argsChars
+      ? t("argumentsStreamed", { size: formatBytes(toolCall.argsChars) })
+      : null;
+
   return (
     <AgentStep
       label={step.label}
-      detail={isRunning ? null : step.detail}
+      detail={isRunning ? streamed : step.detail}
       kind={step.kind}
       logoDomain={step.logoDomain}
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}

@@ -13,7 +13,7 @@ import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, isTimeout } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { registerHref } from "@/lib/invitation-links";
 import { EMAIL_RE } from "@/lib/utils";
@@ -52,7 +52,11 @@ export function LoginForm() {
       toast.success(t("loginSuccess"));
     } catch (err) {
       const message =
-        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("loginFailedPleaseTry");
+        err instanceof ApiError
+          ? getErrorMessage(err, tErrors)
+          : isTimeout(err)
+            ? t("loginTimedOut")
+            : t("loginFailedPleaseTry");
       setError(message);
       toast.error(message);
       setIsLoading(false);

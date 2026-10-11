@@ -84,7 +84,7 @@ Open Activity for each run and check the tool calls, not only the reply: a `writ
 
 ## What a schedule cannot read
 
-A scheduled or event-triggered fire runs with the creator's own permissions and budget, but it is nobody's conversation for memory: `list_memory` on a **Run now** of a morning-brief schedule answered "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read" — the same refusal an anonymous widget visitor gets, even though the schedule's creator is a real, known member. If a scheduled brief needs a preference, state it in the schedule's own prompt, the way [a scheduled report](scheduled-report.md) states its data in the message rather than depending on memory or a file nobody re-supplies.
+A scheduled or event-triggered fire runs with the creator's own role and grants, but it is nobody's conversation for memory: `list_memory` on a **Run now** of a morning-brief schedule answered "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read" — the same refusal an anonymous widget visitor gets, even though the schedule's creator is a real, known member. If a scheduled brief needs a preference, state it in the schedule's own prompt, the way [a scheduled report](scheduled-report.md) states its data in the message rather than depending on memory or a file nobody re-supplies.
 
 ## Who can read this
 

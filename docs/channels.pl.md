@@ -1,5 +1,5 @@
 ---
-source_sha: "789bc9fe4b45"
+source_sha: "c0858ab0af15"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -281,7 +281,7 @@ Każda ramka niesie `{ "type": …, "data": { … } }`.
 | `ready` | `visitor` | Połączono. `visitor: true`, gdy token zidentyfikował osobę. |
 | `history` | `messages` | Co zostało powiedziane w wątku, który ten odwiedzający wznawia — **hostowana strona z anonimowym odwiedzającym**, bo tylko takie połączenie niesie klucz ciągłości: rozmowa widżetu trwa tyle, co jego socket, a odwiedzającego `jwt` nazywa już jego token. Każdy wpis to `role`, `text` i `at`, więc odtworzona tura zachowuje pod sobą swój czas. |
 | `model_request_start` | — | Agent poszedł do modelu. Pokaż wskaźnik. |
-| `part_start` | `index`, `part_type` | Zaczyna się blok odpowiedzi. Wysyłane tylko dla bloku, który ta powierzchnia faktycznie poniesie — strona niepokazująca rozumowania nie zapowiada `ThinkingPart`, bo sama zapowiedź mówi, że agent rozumował. |
+| `part_start` | `index`, `part_type`; `tool_name`, `tool_call_id` dla `ToolCallPart` | Zaczyna się blok odpowiedzi. Wywołanie narzędzia przedstawia się już tutaj, żeby klient mógł je pokazać, zanim spłyną jego argumenty. Wysyłane tylko dla bloku, który ta powierzchnia faktycznie poniesie — strona niepokazująca rozumowania nie zapowiada `ThinkingPart`, bo sama zapowiedź mówi, że agent rozumował. |
 | `text_delta` | `index`, `content` | Słowa odpowiedzi. Doklejaj je. |
 | `thinking_delta` | `index`, `content` | Rozumowanie modelu. **Tylko jeśli operator to włączył.** |
 | `call_tools_start` | — | Agent zaraz użyje narzędzi. |
@@ -1322,7 +1322,10 @@ może się między nimi rozjechać.
   narzędzia nie produkuje tekstu, kiedy trwa. Edytowana mniej więcej raz na
   sekundę: po tokenie byłyby to setki zapisów na sekundę do serwera, który często
   jest czyjś własny. Platforma, która nie potrafi edytować wysłanej wiadomości,
-  po prostu dostaje gotową odpowiedź, jak wcześniej.
+  po prostu dostaje gotową odpowiedź, jak wcześniej. Odpowiedź agenta z
+  [guardrailem na wyjściu](reference/capabilities.md#guardrails) jest za to
+  przepisywana krok po kroku, a każdy krok trafia na kanał dopiero po
+  sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
   instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten
   klient faktycznie renderuje: Slack nie rysuje Markdowna i zapisuje link jako

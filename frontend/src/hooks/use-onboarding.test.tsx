@@ -63,7 +63,7 @@ describe("useOnboardingTour", () => {
     vi.clearAllMocks();
     nav.pathname = "/dashboard";
     useOnboardingStore.setState({ isOpen: false, index: 0 });
-    useAuthStore.setState({ user: user(), isAuthenticated: true });
+    useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
     servePermissions();
   });
 
@@ -85,6 +85,21 @@ describe("useOnboardingTour", () => {
     nav.pathname = "/agents";
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
     await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
+    expect(result.current.isOpen).toBe(false);
+  });
+
+  it("waits for this load's session check before deciding", async () => {
+    // The stored user is whoever signed in, as they were then. A person who has
+    // finished onboarding since was greeted by the first-run tour until the
+    // check answered - which is what turned the e2e dashboard specs red.
+    useAuthStore.setState({ isLoading: true });
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
+    expect(result.current.isOpen).toBe(false);
+
+    act(() =>
+      useAuthStore.getState().setUser(user({ onboarding_completed_at: "2020-01-01T00:00:00Z" })),
+    );
     expect(result.current.isOpen).toBe(false);
   });
 

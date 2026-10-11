@@ -10,7 +10,8 @@ the listing with no explanation.
 
 So this asks, in the order the answers depend on each other: can I reach the
 database, is its schema current, can it hold embeddings, is Redis there, is the
-vault able to unseal, and is there a model an agent could actually run on.
+vault able to unseal, is there a model an agent could actually run on, and is
+scheduled work actually running.
 
 It reuses the same probes the health endpoint publishes rather than asking the
 same questions differently - two implementations of "is this healthy" is how a
@@ -28,7 +29,12 @@ from sqlalchemy import text
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.services.health import probe_database, probe_model_access, probe_vector_store
+from app.services.health import (
+    probe_database,
+    probe_model_access,
+    probe_scheduler,
+    probe_vector_store,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -349,6 +355,9 @@ async def _run(profile: str | None = None) -> int:
 
     status, detail = _file_storage()
     failures += _report("file storage", status, detail)
+
+    scheduler = await probe_scheduler()
+    failures += _report("scheduler", scheduler.status, scheduler.detail)
 
     # A session of its own, after the vault check rather than beside the database
     # ones above: unsealing a connection's credential is meaningless while the

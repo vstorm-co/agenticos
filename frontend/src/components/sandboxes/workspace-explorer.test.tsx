@@ -244,6 +244,17 @@ describe("the workspace explorer", () => {
     expect(screen.queryByRole("button", { name: /Source|Preview/ })).toBeNull();
   });
 
+  it("opens the next file on its preview, whatever the last one showed", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "chart.png" }));
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+
+    expect(screen.getByRole("button", { name: "Source" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("moves between two files in one click", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));

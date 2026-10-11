@@ -20,16 +20,11 @@ class Artifacts(AbstractCapability[AgentDepsT]):
     identity, and why the page is served in a sandbox with no network.
     """
 
-    # The run's workspace backend when one is open, so a page the agent built on
-    # disk can be published as the file it is. `None` for an agent without the
-    # sandbox capability, which publishes content it passes inline instead.
-    workspace_backend: Any | None = field(default=None, repr=False, compare=False)
-
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
 
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:
-            self._toolset = build_artifacts_toolset(workspace_backend=self.workspace_backend)
+            self._toolset = build_artifacts_toolset()
         return self._toolset

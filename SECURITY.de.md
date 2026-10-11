@@ -27,7 +27,7 @@ Das Bedrohungsmodell, die Datenfluss-Erklärung (was das Deployment verlässt un
 an wen), was wo verschlüsselt ist, und die Kontrollmatrix — jede Kontrolle auf den
 Mechanismus abgebildet, der sie erfüllt, und auf den Test, der sie hält — stehen
 in einer einzigen Kopie auf der Seite
-[Sicherheit](https://vstorm-co.github.io/agenticos/security/) (`docs/security.md`).
+[Sicherheit](https://vstorm-co.github.io/agenticos/de/security/) (`docs/security.md`).
 Diese Datei behält nur die zwei Dinge, für die man die `SECURITY.md` eines
 Repositorys liest: wie man eine Schwachstelle meldet, oben, und die
 Härtungs-Checkliste für die Produktion, unten. Wo personenbezogene Daten liegen

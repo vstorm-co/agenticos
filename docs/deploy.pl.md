@@ -1,5 +1,5 @@
 ---
-source_sha: "4204964a3eae"
+source_sha: "0ceb552b4aa0"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -455,7 +455,7 @@ Liczy się jeden wolumen i nie jest oczywiste który:
 |---|---|---|
 | `postgres_data` | wszystko — agentów, konwersacje, zapieczętowane poświadczenia | **tak** |
 | `media_data` | wgrane pliki, przed ingestią | tak |
-| `prefect_data` | historia uruchomień flow | nie |
+| `prefect_data` | baza Prefecta: deploymenty, historia uruchomień, runy w kolejce | nie |
 
 Cache nie ma już żadnego wolumenu. Kubełki limitów, znaczniki deduplikacji
 kanałów i odpowiedzi o członkostwie mają TTL i odtwarzają się same, więc Valkey

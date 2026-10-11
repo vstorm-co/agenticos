@@ -55,9 +55,11 @@ new model, without touching a single agent.
 
 !!! tip "Or start from a template"
 
-    **Agents → Agent templates** ships twenty-eight ready-made agents grouped by
-    industry, each with its instructions written, its capabilities switched on
-    and the skills it needs installed alongside it.
+    **Agents → Agent templates** ships twenty-nine ready-made agents: twenty-eight
+    grouped by industry, and **Claude Code like** under *General purpose* - an
+    agent for any task that works in a workspace, plans, delegates to specialists
+    and researches the web. Each arrives with its instructions written, its
+    capabilities switched on and the skills it needs installed alongside it.
 
     One arrives as a **draft** rather than published, and deliberately: a
     template cannot choose your model, and it has never seen your knowledge

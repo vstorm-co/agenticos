@@ -12,14 +12,27 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import ModelHTTPError, UserError
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
+from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
 from app.agents.audience import RunAudience
@@ -35,7 +48,16 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec, OrgMcpServerRef
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
+from app.agents.capabilities.sandbox._capability import build_workspace
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    ObservabilitySpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+)
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -49,6 +71,7 @@ from app.services.agent_runner import (
     PreparedRun,
     RecordedDelegation,
     RunSegment,
+    _connect_on_use,
     _with_personal_service_gaps,
     month_start,
     run_failure_summary,
@@ -60,6 +83,7 @@ from app.services.mcp_connection import (
     UnavailablePrefixCollision,
 )
 from app.services.transcript import RecordedToolCall
+from tests.workspaces import document_workspace
 
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
@@ -1125,6 +1149,118 @@ class TestWhatAParkedCallRecords:
         assert channel.requested == []
 
 
+def _writes_a_note(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    """A model that writes `notes.txt` on every turn, then answers."""
+    last = messages[-1]
+    if isinstance(last, ModelRequest) and any(isinstance(p, UserPromptPart) for p in last.parts):
+        return ModelResponse(
+            parts=[ToolCallPart("write_file", {"path": "notes.txt", "content": "kept"})]
+        )
+    return ModelResponse(parts=[TextPart("done")])
+
+
+class TestTheRunWorksInTheWorkspaceItOpened:
+    """`execute` and `iterate` hand the run the workspace `prepare` opened.
+
+    Left to the capability, a run continuing a history that names another
+    workspace - the last turn's on a host the agent has since moved off, a
+    conversation restored from another environment - is refused outright by
+    Pydantic AI, and a run without one works in the capability's in-memory
+    fallback while the stored document goes untouched.
+    """
+
+    async def _a_history_from_elsewhere(
+        self, agent: Agent[None, str], root: Path
+    ) -> list[ModelMessage]:
+        earlier = await agent.run("first", workspace=Workspace(LocalWorkspaceBackend(root)))
+        return earlier.all_messages()
+
+    def _prepared_with(self, agent: Agent[None, str], document: StateBackend) -> PreparedRun:
+        prepared = _prepared()
+        prepared.built.agent = agent
+        prepared.built.deps = None
+        prepared.built.usage_limits = None
+        prepared.workspace = MagicMock(workspace=document_workspace(document))
+        return prepared
+
+    @pytest.mark.anyio
+    async def test_execute_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        await self._prepared_with(agent, document).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    async def test_iterate_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        async with self._prepared_with(agent, document).iterate(
+            "next", message_history=history
+        ) as run:
+            async for _ in run:
+                pass
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("elsewhere", ["another-organization", "another-connection"])
+    async def test_a_history_naming_someone_else_s_workspace_never_reaches_it(
+        self, tmp_path, elsewhere
+    ):
+        """A transcript can carry any ref - copied, restored, or written while the
+        agent ran on another host - and the run must still work only where the
+        runner opened it: another organization's document and another
+        connection's session are left exactly as they were."""
+        theirs = StateBackend()
+        if elsewhere == "another-organization":
+            foreign: Workspace = document_workspace(theirs, key="dc-another-organization")
+        else:
+
+            class _OtherHost(LocalWorkspaceBackend):
+                @property
+                def ref(self) -> WorkspaceRef:
+                    return WorkspaceRef(provider=f"sandboxd:{uuid.uuid4()}", id="xc-theirs")
+
+            foreign = Workspace(_OtherHost(tmp_path))
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = (await agent.run("first", workspace=foreign)).all_messages()
+        before = (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir()))
+        ours = StateBackend()
+
+        await self._prepared_with(agent, ours).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert ours.read_bytes("/notes.txt") == b"kept"
+        assert (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir())) == before
+
+    @pytest.mark.anyio
+    async def test_without_one_the_history_is_refused_rather_than_silently_rehomed(self, tmp_path):
+        """What the explicit workspace prevents, pinned so a library change that
+        made it unnecessary - or made it silent - is noticed."""
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+
+        with pytest.raises(UserError, match="none of the agent's workspace capabilities"):
+            await agent.run("next", message_history=history)
+
+
 class TestFilesAcrossOneTurn:
     """What arrived with the message, and what the turn produced.
 
@@ -1150,9 +1286,9 @@ class TestFilesAcrossOneTurn:
                 MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
             )
 
-        # The backend, not the conversation: the router writes the file where the
-        # agent can read it, and only `prepare` knows whether there is one.
-        assert router.call_args.args[0] is prepared.workspace.backend
+        # The workspace, not the conversation: the router writes the file where
+        # the agent can read it, and only `prepare` knows whether there is one.
+        assert router.call_args.args[0] is prepared.workspace.workspace
         assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
 
     @pytest.mark.anyio
@@ -1602,6 +1738,26 @@ class TestWhatAFailedRunIsAllowedToSay:
             "The run did not finish (RuntimeError) - retry it, and check the agent's "
             "model profile if it keeps failing. The server log has the full error."
         )
+
+    def test_a_run_at_its_step_limit_is_told_where_the_limit_is(self):
+        from pydantic_ai.exceptions import UsageLimitExceeded
+
+        summary = run_failure_summary(UsageLimitExceeded("The next request would exceed 50"))
+
+        assert "max_steps" in summary
+        assert "retry it" not in summary
+
+    def test_a_provider_out_of_credit_is_not_told_to_retry(self):
+        """A 402 is refused again until somebody adds credit; the body, which
+        names the account, stays in the log."""
+        summary = run_failure_summary(
+            ModelHTTPError(402, "anthropic/claude-sonnet-5.5", body={"user_id": "org_31x"})
+        )
+
+        assert "HTTP 402" in summary
+        assert "Add credit to the provider account" in summary
+        assert "retry it" not in summary
+        assert "org_31x" not in summary
 
     def test_a_provider_status_survives_because_it_is_what_a_person_acts_on(self):
         """404 is a model the profile names and the provider does not have, 401 a
@@ -2174,6 +2330,29 @@ class TestParking:
             await service.execute(_ctx(), uuid.uuid4(), "email the customer")
 
         assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("status", "kept"),
+        [(RunStatus.AWAITING_APPROVAL, True), (RunStatus.COMPLETED, False)],
+    )
+    async def test_only_a_parked_run_keeps_its_spills(self, status: RunStatus, kept: bool):
+        """The history a parked run resumes from names its spilled returns, so
+        they stay for it; a run that ended has nobody left to read them."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+
+        with (
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.workspaces, "close", new=AsyncMock()) as close,
+        ):
+            await service.finish(
+                prepared,
+                status=status,
+                paused_state=PausedRunState(messages=[], tool_call_ids={}) if kept else None,
+            )
+
+        close.assert_awaited_once_with(prepared.workspace, keep_spills=kept)
 
     @pytest.mark.anyio
     async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
@@ -3124,6 +3303,7 @@ class TestResume:
         # makes `run.status` the recorded truth by the time `resume` reads it.
         async def record_terminal_status(*args: Any, **kwargs: Any) -> Any:
             run.status = kwargs["status"]
+            run.error = kwargs["error"]
             return run
 
         with (
@@ -3156,6 +3336,12 @@ class TestResume:
         # The run was recorded terminal, and the caller is told which status.
         assert run.status == RunStatus.FAILED.value
         assert raised.value.details == {"run_id": str(run.id), "status": RunStatus.FAILED.value}
+        # And why, in the sentence the run recorded - never the exception's own text.
+        assert raised.value.message == (
+            "The run failed while continuing after approval: The run did not finish "
+            "(RuntimeError) - retry it, and check the agent's model profile if it keeps "
+            "failing. The server log has the full error."
+        )
         # The failure is conveyed, not hidden: the original exception is chained.
         assert raised.value.__cause__ is blew_up
 
@@ -3642,13 +3828,13 @@ class TestTheWorkspaceReachesTheAgent:
         return prepared, build.call_args
 
     @pytest.mark.anyio
-    async def test_a_workspace_backend_is_handed_to_the_capability(self):
+    async def test_the_opened_workspace_is_handed_to_the_capabilities(self):
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
 
         prepared, built = await self._prepare(spec)
 
         assert prepared.workspace is not None
-        assert built.kwargs["resources"]["workspace_backend"] is prepared.workspace.backend
+        assert built.kwargs["resources"][WORKSPACE_RESOURCE] is prepared.workspace.workspace
 
     @pytest.mark.anyio
     async def test_an_agent_without_one_is_handed_nothing(self):
@@ -3657,7 +3843,7 @@ class TestTheWorkspaceReachesTheAgent:
         prepared, built = await self._prepare(AgentSpec(name="Plain"))
 
         assert prepared.workspace is None
-        assert "workspace_backend" not in built.kwargs["resources"]
+        assert WORKSPACE_RESOURCE not in built.kwargs["resources"]
 
 
 class TestTheModelIsToldWhereTheSkillFilesWent:
@@ -4131,6 +4317,59 @@ class TestTellingTheAgentWhatItCannotReach:
         assert "notion server is not available" not in spec.instructions
 
 
+class TestWhichGapsAreAskedForOnUse:
+    """`_connect_on_use`: a gap the person talking could put right, on a surface
+    that can wait for them, is offered as `connect_account`; the rest are briefed."""
+
+    _NOTION = PersonalMcpServerRef(account="personal", catalog_key="notion")
+
+    def test_a_surface_that_cannot_wait_briefs_every_gap(self):
+        gaps = [UnavailablePersonalService("notion", "not_connected")]
+
+        on_use, briefed = _connect_on_use(
+            gaps, refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=None
+        )
+
+        assert on_use is None
+        assert briefed == gaps
+
+    def test_nobody_to_speak_as_is_briefed_even_where_the_surface_could_wait(self):
+        gaps = [UnavailablePersonalService("notion", "nobody_to_speak_as")]
+
+        on_use, briefed = _connect_on_use(
+            gaps, refs=[self._NOTION], user_id=None, request_connection=AsyncMock()
+        )
+
+        assert on_use is None
+        assert briefed == gaps
+
+    def test_a_run_with_no_gaps_to_offer_adds_no_tool(self):
+        on_use, briefed = _connect_on_use(
+            [], refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=AsyncMock()
+        )
+
+        assert on_use is None
+        assert briefed == []
+
+    @pytest.mark.anyio
+    async def test_the_service_is_read_again_as_the_person_talking(self):
+        person = uuid.uuid4()
+        with patch(
+            "app.services.agent_runner.connect_personal_toolset",
+            new=AsyncMock(return_value="unreachable"),
+        ) as reread:
+            on_use, _briefed = _connect_on_use(
+                [UnavailablePersonalService("notion", "unauthorized")],
+                refs=[self._NOTION],
+                user_id=person,
+                request_connection=AsyncMock(),
+            )
+            assert on_use is not None
+            assert await on_use.services[0].resolve() == "unreachable"
+
+        reread.assert_awaited_once_with(self._NOTION, user_id=person)
+
+
 class TestWhatAPreparedRunSaysThePersonCannotReach:
     """The same gaps the model is briefed with, carried to the surface so a chat
     can draw the button that connects the account beside the agent's sentence."""
@@ -4176,6 +4415,70 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
             PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected"),
             PersonalServiceGap(catalog_key="linear", name="Linear", gap="undecided"),
         ]
+
+    @pytest.mark.anyio
+    async def test_a_surface_that_can_wait_is_asked_on_use_instead(self):
+        """Given a way to hold the run while somebody connects, the services they
+        could connect become `connect_account` - not a card before the answer,
+        nor a sentence telling the model they are missing. A collision is still
+        the author's to fix, so it is still briefed."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(
+            name="Support",
+            mcp_servers=[
+                PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                PersonalMcpServerRef(account="personal", catalog_key="linear"),
+            ],
+        )
+        collision = UnavailablePrefixCollision(
+            server="gh", prefix="gh", kept="gh", server_binding="a", kept_binding="b"
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(
+                    return_value=ResolvedMcpToolsets(
+                        [],
+                        [
+                            UnavailablePersonalService("notion", "not_connected"),
+                            UnavailablePersonalService("linear", "undecided"),
+                            collision,
+                        ],
+                    )
+                ),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(
+                ctx, agent.id, acts_for_sender=True, request_connection=AsyncMock()
+            )
+
+        assert prepared.personal_service_gaps == []
+        (on_use,) = build.call_args.kwargs["extra_capabilities"]
+        assert isinstance(on_use, ConnectOnUse)
+        assert [pending.request for pending in on_use.services] == [
+            ConnectionRequest(catalog_key="notion", name="Notion", gap="not_connected"),
+            ConnectionRequest(catalog_key="linear", name="Linear", gap="undecided"),
+        ]
+        briefed = build.call_args.args[0].instructions
+        assert "has not connected their own Notion" not in briefed
+        assert "both called gh" in briefed
 
     @pytest.mark.anyio
     async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):

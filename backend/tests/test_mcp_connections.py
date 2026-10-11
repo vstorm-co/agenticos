@@ -280,6 +280,15 @@ class TestMakeToolset:
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
 
+    def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
+        """A retry spends the tool's single attempt, and the error after it ends
+        the run with `UnexpectedModelBehavior` - how most failed runs ended: a
+        Notion query the server refused twice. `failed` hands the model the
+        refusal as the call's result instead."""
+        spec = McpServerSpec(name="notion", url="https://example.com/mcp")
+
+        assert _make_toolset(spec).wrapped.tool_error_behavior == "failed"
+
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
 
@@ -974,6 +983,105 @@ class TestEachPersonsOwnAccount:
         assert [spec.name for spec in seen[0]] == ["linear"]
         assert resolved.toolsets == ["linear"]
         assert resolved.unavailable == [UnavailablePersonalService("notion", "nobody_to_speak_as")]
+
+
+class TestConnectingOneMidRun:
+    """`connect_personal_toolset`: the person's own connection, read again once
+    they said they made it, for `connect_account` to attach to the run waiting.
+
+    In a session of its own - the run's is busy with the run, and the row was
+    committed by another request after this run's transaction began.
+    """
+
+    @staticmethod
+    def _session(monkeypatch) -> MagicMock:
+        db = MagicMock()
+        context = MagicMock()
+        context.return_value.__aenter__ = AsyncMock(return_value=db)
+        context.return_value.__aexit__ = AsyncMock(return_value=False)
+        monkeypatch.setattr(mcp_connection_service, "get_db_context", context)
+        return db
+
+    @staticmethod
+    def _owns(monkeypatch, connections) -> AsyncMock:
+        lookup = AsyncMock(return_value=connections)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "list_user_scoped_by_catalog_key",
+            lookup,
+        )
+        return lookup
+
+    @staticmethod
+    def _probe(monkeypatch, answers: bool) -> list[McpServerSpec]:
+        seen: list[McpServerSpec] = []
+
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str | None]]:
+            seen.extend(specs)
+            return [(spec, spec.name if answers else None) for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
+        return seen
+
+    @pytest.mark.anyio
+    async def test_the_connection_just_made_comes_back_as_its_toolset(self, monkeypatch):
+        db = self._session(monkeypatch)
+        lookup = self._owns(
+            monkeypatch, [_connection(url="https://mine.example.com/mcp", catalog_key="notion")]
+        )
+        seen = self._probe(monkeypatch, answers=True)
+        person = uuid4()
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"), user_id=person
+        )
+
+        assert outcome == "notion"
+        assert [(spec.name, spec.url) for spec in seen] == [
+            ("notion", "https://mine.example.com/mcp")
+        ]
+        lookup.assert_awaited_once_with(db, user_id=person, catalog_key="notion")
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("connections", "gap"),
+        [
+            ([], "not_connected"),
+            (
+                [_connection(catalog_key="notion"), _connection(catalog_key="notion")],
+                "undecided",
+            ),
+            (
+                [_connection(catalog_key="notion", auth_token="enc:not-valid-ciphertext")],
+                "unauthorized",
+            ),
+        ],
+    )
+    async def test_a_gap_that_still_stands_is_named_and_nothing_is_probed(
+        self, monkeypatch, connections, gap
+    ):
+        self._session(monkeypatch)
+        self._owns(monkeypatch, connections)
+        seen = self._probe(monkeypatch, answers=True)
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"), user_id=uuid4()
+        )
+
+        assert outcome == gap
+        assert seen == []
+
+    @pytest.mark.anyio
+    async def test_a_server_that_does_not_answer_is_unreachable(self, monkeypatch):
+        self._session(monkeypatch)
+        self._owns(monkeypatch, [_connection(catalog_key="notion")])
+        self._probe(monkeypatch, answers=False)
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"), user_id=uuid4()
+        )
+
+        assert outcome == "unreachable"
 
 
 class TestAuthHeaders:

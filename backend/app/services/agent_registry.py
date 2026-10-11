@@ -988,7 +988,8 @@ class AgentRegistryService:
         missing either would produce answers from nowhere, confidently.
 
         The skills it expects are installed first, from the gallery, and skipped
-        where the organization already has them. Its MCP suggestions are returned
+        where the organization already has them. A bundled skill is bound where
+        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
         rather than bound: a connection needs somebody to authorise it.
 
         Raises:
@@ -1001,17 +1002,32 @@ class AgentRegistryService:
         if template is None:
             raise NotFoundError(message="No such agent template", details={"key": key})
 
-        skill_service = SkillService(self.db)
-        if template.skills:
-            await skill_service.install_gallery(ctx, list(template.skills))
+        # A bundled skill is seeded into every organization when it is created,
+        # so there is nothing to install - only a row to find by its name.
+        # Everything else is a gallery key and is installed first.
+        bundled = {
+            key: entry.name
+            for key in template.skills
+            if (entry := skill_library.get(key)) is not None
+        }
+        gallery_keys = [key for key in template.skills if key not in bundled]
+        if gallery_keys:
+            await SkillService(self.db).install_gallery(ctx, gallery_keys)
 
         wanted = sorted(
             {
-                entry.name
-                for gallery_key in template.skills
-                if (entry := skill_library.gallery_get(gallery_key)) is not None
+                *bundled.values(),
+                *(
+                    entry.name
+                    for gallery_key in gallery_keys
+                    if (entry := skill_library.gallery_get(gallery_key)) is not None
+                ),
             }
         )
+        # Only rows the installer may read: a copy its owner made private since
+        # it was seeded would otherwise be bound, reported as installed, and then
+        # refused at publish as a skill that does not exist - the check publish
+        # makes, made here first.
         rows = [
             row
             for name in wanted
@@ -1021,6 +1037,7 @@ class AgentRegistryService:
                 )
             )
             is not None
+            and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
         spec = AgentSpec(
@@ -1962,8 +1979,11 @@ class AgentRegistryService:
 
         The **first** publish is different, and has to be: an agent with no
         environment has nowhere to run at all, so it gets its `production`
-        default here, pinned to the version that just appeared. Every publish
-        after that leaves it where it is until somebody promotes.
+        default here, on the version that just appeared - and **following
+        publishes**. With one environment there is nothing to promote between,
+        and pinning it made every change a publish and then a promotion before it
+        could be tried. Somebody who adds a `dev` or a `staging` pins
+        `production`, and from then on a publish leaves it where it is.
 
         `Agent.current_version_id` mirrors the default environment, which is what
         a surface naming no environment resolves through - so it moves when that
@@ -1978,6 +1998,7 @@ class AgentRegistryService:
                 name="production",
                 version_id=version.id,
                 is_default=True,
+                tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
         else:

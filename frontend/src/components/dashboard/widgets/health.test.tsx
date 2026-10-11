@@ -51,12 +51,13 @@ const tileFor = (name: string): HTMLElement => screen.getByText(name).closest("l
 beforeEach(() => useSystemHealthMock.mockReset());
 
 describe("the service health widget", () => {
-  it("names the four probes the backend runs, rather than printing their keys", () => {
+  it("names the five probes the backend runs, rather than printing their keys", () => {
     withChecks([
       check("database", "healthy"),
       check("redis", "healthy"),
       check("vector_store", "healthy"),
       check("model_access", "healthy"),
+      check("scheduler", "healthy"),
     ]);
     renderWidget();
 

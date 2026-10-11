@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac3f20dae4f"
+source_sha: "54d365e1b9c3"
 title: "Einen persönlichen Assistenten bauen, der sich an Sie erinnert"
 description: "Geben Sie einem Agent ein Gedächtnis für Ihre Vorlieben, prüfen Sie, dass eine spätere Konversation sie anwendet, und bestätigen Sie dann, dass er eine auf Wunsch vergessen kann."
 ---
@@ -85,7 +85,7 @@ Ein Zeitplan kann die Instruktionen dieses Agents lesen, aber nicht die Notizen 
 
 ## Was ein Zeitplan nicht lesen kann { #what-a-schedule-cannot-read }
 
-Eine Auslösung durch einen Zeitplan oder einen Ereignis-Trigger läuft mit den Berechtigungen und dem Budget des Erstellers, ist für das Gedächtnis aber niemandes Konversation: `list_memory` bei einem **Run now** eines Morgen-Briefing-Zeitplans antwortete "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read". Das ist dieselbe Ablehnung, die ein anonymer Widget-Besucher bekommt, obwohl der Ersteller des Zeitplans ein echtes, bekanntes Mitglied ist.
+Eine Auslösung durch einen Zeitplan oder einen Ereignis-Trigger läuft mit der Rolle und den Grants des Erstellers, ist für das Gedächtnis aber niemandes Konversation: `list_memory` bei einem **Run now** eines Morgen-Briefing-Zeitplans antwortete "This conversation has no memory. It has no identified person and is not a group chat, so a note would have to land somewhere other people read". Das ist dieselbe Ablehnung, die ein anonymer Widget-Besucher bekommt, obwohl der Ersteller des Zeitplans ein echtes, bekanntes Mitglied ist.
 
 Braucht ein geplantes Briefing eine Vorliebe, nennen Sie sie im Prompt des Zeitplans selbst, so wie [ein geplanter Bericht](scheduled-report.md) seine Daten in der Nachricht angibt, statt sich auf das Gedächtnis oder eine Datei zu verlassen, die niemand erneut liefert.
 

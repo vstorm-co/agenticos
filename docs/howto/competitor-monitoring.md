@@ -28,8 +28,7 @@ The obvious capability for "remember what I saw last time" is
 [memory files](../reference/capabilities.md#memory-files). It does not work
 here, and the reason is worth knowing before you reach for it on a schedule.
 
-A trigger fire runs as its creator for budgets, approvals and the audit trail,
-but not for memory: the run's *audience* - who will hear the answer - is
+A trigger fire runs with its creator's role and grants, but not as them for memory: the run's *audience* - who will hear the answer - is
 deliberately empty on the `schedule` surface, so an unattended run cannot read
 or write the creator's personal notes. `write_memory` and `read_memory` both
 answer:

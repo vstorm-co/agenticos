@@ -1,5 +1,5 @@
 ---
-source_sha: "d4f249f20433"
+source_sha: "0b5ae075ae8b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -66,11 +66,49 @@ Pro Profile, und pro Agent über die `model_settings` des Specs überschreibbar:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Siehe
 [die Spec-Referenz](reference/spec.md#model-settings).
 
+**Prompt-Caching ist standardmäßig an** für Anthropic- und OpenRouter-Profile.
+Jeder Request eines Runs schickt die Anweisungen, die Tool-Schemas und den ganzen
+Verlauf erneut, also markiert jeder Request die Anweisungen, die Tools und seine
+letzte Nachricht als Cache-Breakpoints und liest den vorigen Request aus dem Cache.
+Ein Profile schaltet jeden davon ab, indem es ihn auf `false` setzt -
+`anthropic_cache_messages`, `openrouter_cache_instructions` und so weiter.
+
 Der Reasoning-Aufwand steht **nicht** hier. Er ist die
 [`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
 gründlicher" ist eine Entscheidung darüber, wofür der Agent *da ist*, und kein
 Regler an einer Verbindung — und weil ein Spec, der das als Model Setting setzt,
 über einen Modellwechsel hinweg aufhört, portabel zu sein.
+
+### Responses oder Chat Completions { #responses-or-chat-completions }
+
+OpenAI veröffentlicht zwei APIs für dieselben Modelle, und ein Profile auf `openai`
+oder `azure` speichert, an welche davon seine Requests gehen: `responses` oder
+`chat`. Jeder andere Provider bedient eine API und speichert hier nichts.
+
+Keine ist überall richtig. Die neuesten Modelle von OpenAI gibt es nur über
+Responses, und auf Chat Completions antworten sie mit einem 400, während die
+meisten OpenAI-kompatiblen Server - vLLM, LM Studio, ein LiteLLM-Proxy - nur Chat
+Completions implementieren. Deshalb ist die Wahl ein Feld des Profiles, unter
+**Agents → add a model → API**, und das Formular beginnt beim Standard:
+
+| Profile | Standard |
+|---|---|
+| `openai`, ohne Endpunkt (die eigene API von OpenAI) | `responses` |
+| `openai` mit Endpunkt | `chat` |
+| `azure` | `chat`, weil die Responses-API eine aktuelle `api_version` braucht und das Secret eine ältere festlegen kann |
+
+Der Standard ist nur, wo das Formular beginnt. Ein regionaler OpenAI-Endpunkt wie
+`https://eu.api.openai.com/v1` ist ein Endpunkt, der Responses bedient, also
+wählen Sie es dort. Eine weggelassene Wahl wird als ihr Standard gespeichert, ein
+späterer Wechsel des Standards verschiebt also kein bestehendes Profile.
+
+**Ein Responses-Profile hinterlässt keine Conversations bei OpenAI.** Die
+Responses-API speichert jede Antwort auf der Seite von OpenAI, sofern man es ihr
+nicht untersagt, während Chat Completions standardmäßig nichts speichert - ein
+Responses-Modell sendet daher `store: false`. Reasoning wird zwischen den Zügen als
+verschlüsselter Inhalt weitergegeben und nicht über eine gespeicherte Response-Id,
+also braucht nichts die gespeicherte Kopie. Ein Profile, das sie will, setzt
+`openai_store` in seinen Settings auf `true`.
 
 ## Provider { #providers }
 
@@ -144,8 +182,9 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
 !!! note "Der Endpunkt ist es, was ein Profile als selbst gehostet kennzeichnet, nicht `keyless`"
 
     `keyless` trifft auch auf `openai` zu. OpenAI-kompatible Server (vLLM, LM Studio,
-    ein LiteLLM-Proxy) sprechen dessen Chat-Completions-API, und deshalb wird ein
-    `openai`-Profile als `openai-chat` gebaut.
+    ein LiteLLM-Proxy) sprechen dessen Chat-Completions-API, und deshalb nutzt ein
+    `openai`-Profile mit Endpunkt sie standardmäßig - siehe
+    [Responses oder Chat Completions](#responses-or-chat-completions).
 
     "Kein Key" allein unterscheidet also ein bewusst lokales Modell nicht von einem
     Profile, dessen Key gelöscht wurde — und der Fremdschlüssel auf das Secret ist
@@ -168,9 +207,11 @@ scheitert. Siehe [Secret-Arten](secrets.md#kinds).
 
 !!! note "Zwei Ids werden auf dem Weg zum SDK umgeschrieben"
 
-    Ein `openai`-Profile wird als `openai-chat` gebaut, weil schlichtes `openai` auf
-    die Responses-API schließen lässt und OpenAI-kompatible Server — vLLM, LM Studio,
-    ein LiteLLM-Proxy — diese nicht implementieren.
+    Ein `openai`-Profile wird je nach gespeicherter API als `openai-chat` oder
+    `openai-responses` gebaut, ein `azure`-Profile als `azure` oder
+    `azure-responses`, statt die Responses-API zu übernehmen, auf die schlichtes
+    `openai` schließen lässt. Siehe
+    [Responses oder Chat Completions](#responses-or-chat-completions).
 
     `google_cloud` wird als `google-cloud` gebaut. Keines von beidem ändert, was Sie
     speichern.
@@ -375,6 +416,10 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
   der eines enthält, wird als *teilweise bepreist* erfasst und nicht als
   kostenlos. Ein Budget, das ein unbekanntes Modell stillschweigend als gratis
   behandelte, wäre ein Budget mit einem Loch darin.
+- Ein `vendor/model` eines Aggregators, das der Snapshot nicht kennt, wird wie das
+  eigene Modell des Anbieters bepreist, eine Version mit Punkt wird auch mit
+  Bindestrichen versucht: OpenRouters `anthropic/claude-sonnet-5.5` kostet, was
+  Anthropics `claude-sonnet-5-5` kostet.
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
 !!! warning "Ein Provider ohne Key erfasst keine Ausgaben"

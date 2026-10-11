@@ -100,6 +100,7 @@ with no such limit of its own.
 | `SECRET_KEY` | (insecure default) | JWT signing key. **Must** be changed in production. Generate with: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Refresh token lifetime (7 days) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | How long after a rotation the spent refresh token is still answered, with the same successor token each time, so a lost response or a burst of refreshes does not end the session; `0` turns it off |
 | `ALGORITHM` | `HS256` | JWT signing algorithm |
 
 Production validation: `SECRET_KEY` must be at least 32 characters and cannot
@@ -706,9 +707,9 @@ file storage above; these bound them and say where they are served from. See
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
-| `ARTIFACT_ORIGIN` | (empty) | Where content is served from. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+| `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
 
 **`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
 content addresses on it, and the frontend adds it to the console's `frame-src`.

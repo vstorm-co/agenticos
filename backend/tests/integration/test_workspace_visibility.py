@@ -235,7 +235,7 @@ class TestWhatAListingCarries:
         member = await _user(db)
         agent = await _agent(db, organization, member)
         stored = StateBackend()
-        stored.write("/report.md", "# findings")
+        stored.write_bytes("/report.md", b"# findings")
         workspace = await _workspace(db, organization, agent, files=dict(stored.files))
 
         await db.refresh(workspace)

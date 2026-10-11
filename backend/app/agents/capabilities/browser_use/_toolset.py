@@ -8,10 +8,10 @@ it. The engine is reached through `BrowserDelegateFactory`, which is also what a
 test substitutes with a fake so the tool body runs without a browser.
 
 The browser sub-agent runs on the host run's model (`ctx.model`), wrapped in
-:class:`~app.agents.capabilities._metered.MeteredModel` so each of its steps books
-against the run's ledger - the `browser-use` loop makes one model request per
-step, and without this they would be spend the budget guard cannot see
-(agenticos#802). The wrapper is shared with `browser_choice`, which has the same
+:class:`~app.agents.capabilities._metered.MeteredModel` so each of its steps is
+checked against the run's budget and booked to its ledger - the `browser-use` loop
+makes one model request per step, and without this they would be spend the budget
+guard cannot see (agenticos#802, agenticos#1808). The wrapper is shared with `browser_choice`, which has the same
 problem one loop further out.
 """
 

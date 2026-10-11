@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
+    CheckConstraint,
     ForeignKey,
     Integer,
     String,
@@ -66,6 +67,13 @@ class ModelProfile(Base, TimestampMixin):
     # (`ProviderSpec.base_url_param`); the service refuses one for the rest
     # rather than accepting a value it would silently drop.
     base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Which API the requests go to, for a provider that serves both of
+    # OpenAI's: `chat` or `responses` (`ProviderSpec.apis`). Stored rather than
+    # derived from `base_url` because the endpoint does not decide it - a
+    # regional OpenAI endpoint serves Responses, a vLLM serves Chat - and
+    # because a stored choice cannot move under a profile when the default does.
+    # Null for every provider that serves one API.
+    api: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # How many tokens this model accepts, as the provider's own listing said when
     # the profile was created. Recorded rather than resolved at run time because
     # the request path may not call a provider, and the alternative source is
@@ -87,6 +95,7 @@ class ModelProfile(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
+        CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
     )
 
     def __repr__(self) -> str:

@@ -158,6 +158,12 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   // on rendering a file that has been overwritten since.
   const [selected, setSelected] = useState<string | null>(null);
   const [asSource, setAsSource] = useState(false);
+  // Every file opens on its preview. Held across a selection, having looked at
+  // one page's markup opened every file after it as markup too.
+  const choose = (path: string) => {
+    setSelected(path);
+    setAsSource(false);
+  };
   // Above the search, not inside the tree: searching replaces the tree with a
   // flat list, so folds kept in the tree would be discarded and reset every time
   // the box was cleared. `null` until the reader touches a folder, so the first
@@ -265,7 +271,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                 source={source}
                 files={matches}
                 selected={selected}
-                onSelect={setSelected}
+                onSelect={choose}
                 showFullPath
               />
             )
@@ -283,7 +289,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
               nodes={tree}
               label={t("folders")}
               selectedPath={selected}
-              onSelect={(node) => setSelected(node.path)}
+              onSelect={(node) => choose(node.path)}
               openPaths={opened}
               onToggleFolder={(path) =>
                 setOpen(() => {

@@ -343,6 +343,28 @@ describe("ConnectOwnServerDialog", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("says the tab was blocked rather than leave a tab it was told to keep", async () => {
+    // A chat run paused until this connection is made is held by this tab's
+    // socket; navigating away would answer it as a skip.
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+    render(<ConnectOwnServerDialog entry={OAUTH_ENTRY} onClose={vi.fn()} keepThisTab />, {
+      wrapper,
+    });
+
+    await submit();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
+      ),
+    );
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
 });
 
 describe("ConnectOwnServerDialog with somewhere to return to", () => {

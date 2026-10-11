@@ -57,6 +57,10 @@ Off is the default deliberately: publishing mints a version, and deciding where
 that version runs is a separate act. Coupling them means an unfinished edit
 reaches a customer because somebody clicked Publish to save their work.
 
+The one exception is the `production` a first publish creates. While it is the
+agent's only environment there is nothing to promote from, so it follows
+publishes; pin it once a `dev` or a `staging` sits beside it.
+
 ## Binding a surface to one
 
 An [exposure](concepts.md#exposure) — a Slack bot, a widget, a hosted page, an
@@ -65,6 +69,13 @@ API audience — can name the environment it serves. Omitted, it gets the defaul
 That is what makes the split useful: a dev bot bound to `dev` serves whatever
 `dev` pins, while the widget on your website stays on `production` until you
 move it. One agent, two audiences, two versions, one set of books.
+
+A page the agent publishes follows the same split. A run in a named environment
+publishes an [artifact](artifacts.md#one-name-one-link) of its own, so trying
+`dev` on the weekly report never republishes the page production readers open.
+An environment with a run still working, or waiting for an approval, cannot be
+removed until the run ends: deleting it would hand that run to the default, and
+its pages to production's.
 
 ## Tracing per environment
 
@@ -97,7 +108,8 @@ released.
 
 - An environment is a **name pinned to a version**; every agent has a default.
 - Publishing mints a version. **Putting it somewhere is a separate decision** —
-  that is why `tracks_latest` is off by default.
+  that is why `tracks_latest` is off for an environment you add; the `production`
+  a first publish creates follows until you pin it.
 - A **surface can name its environment**, so a dev bot and a public widget can
   serve different versions of one agent.
 - **Rolling back is repointing**, because old versions stay readable and

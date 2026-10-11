@@ -1,5 +1,5 @@
 ---
-source_sha: "cb5cd8136482"
+source_sha: "3e2e382e5f58"
 ---
 
 # Architektura { #architecture }
@@ -395,7 +395,7 @@ Dwa wpisy w tym słowniku są szwami do innych podsystemów, a nie zwykłymi dan
 
 | Zasób | Zostawiony przez runner | Czytany przez |
 |---|---|---|
-| `WORKSPACE_BACKEND_RESOURCE` | otwarta sesja sandboksa | capability `sandbox` |
+| `WORKSPACE_RESOURCE` | otwarty workspace, który run dostaje też jako `ctx.workspace` | `tool_output_limits` oraz delegat, który współdzieli `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | rozwiązane drzewo delegacji | capability `subagents` |
 
 Delegacja jest najostrzejszym przypadkiem tej zasady. Delegat jest wierszem; tak

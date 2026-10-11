@@ -191,6 +191,19 @@ async def test_a_scan_answers_with_the_counts_and_the_redacted_text(
     assert body["redacted_text"] == "write to [redacted:email]"
 
 
+async def test_a_scan_can_ask_for_phone_numbers(client: AsyncClient) -> None:
+    with patch("app.services.ml.facade.ml_service_call_repo.record", new=AsyncMock()):
+        response = await client.post(
+            f"{_V1}/ml/privacy/pii",
+            json={"text": "call 415-555-0132", "categories": ["phone"]},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["counts"] == [{"category": "phone", "count": 1}]
+    assert body["redacted_text"] == "call [redacted:phone]"
+
+
 async def test_a_refused_scan_answers_in_this_apis_own_error_envelope(
     client: AsyncClient,
 ) -> None:

@@ -24,11 +24,14 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage
-from pydantic_ai_backends import StateBackend
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import ConsoleCapability, StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
 from app.agents.capabilities.budget import (
+    BudgetExceeded,
     BudgetGuard,
     BudgetScope,
     SpendLedger,
@@ -54,6 +57,7 @@ from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
 from app.services.rag.models import ParentContextMode
 from app.services.rag.query_analysis import QueryExpansionFailed
+from tests.workspaces import document_workspace
 
 
 def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
@@ -306,6 +310,35 @@ class TestQueryAnalysisWiring:
         assert ("my salary review" in recorded) is include_content
 
     @pytest.mark.anyio
+    async def test_the_expansion_runs_under_the_runs_model_settings(self):
+        """`ctx.model` carries the model but not the settings the factory merged onto
+        the host agent, so an expansion built on it alone ran on the provider's
+        defaults: past the agent's `timeout`, beyond its `max_tokens` (agenticos#1810).
+        The settings have to reach the request itself, not just the agent."""
+        seen: list[dict[str, Any] | None] = []
+
+        def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(dict(info.model_settings) if info.model_settings else None)
+            return ModelResponse(
+                parts=[TextPart("a variant")],
+                usage=RequestUsage(input_tokens=10, output_tokens=3),
+            )
+
+        settings = ModelSettings(timeout=12.5, max_tokens=64, temperature=0.1)
+        ctx = RunContext(
+            deps=None,
+            model=FunctionModel(respond),
+            usage=RunUsage(),
+            model_settings=settings,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        assert await generate("rephrase") == "a variant"
+        assert seen == [dict(settings)]
+
+    @pytest.mark.anyio
     async def test_parallel_expansions_book_exactly_what_each_spent(self):
         """Two searches the model issued in one turn expand at once. Each books
         its own response, so the ledger holds the real total - not a snapshot
@@ -394,6 +427,35 @@ class TestQueryAnalysisWiring:
         with pytest.raises(QueryExpansionFailed) as failure:
             await generate("prompt")
         assert isinstance(failure.value.__cause__, ModelHTTPError)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_retry_after_the_first_request_reached_the_cap_is_refused(self):
+        """The first request is affordable but takes the run to its cap and answers
+        nothing, which the nested run retries. The retry is refused before it is
+        sent, and the refusal is an expected failure so the plain query is searched
+        (agenticos#1808)."""
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        model_calls: list[str] = []
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            model_calls.append("called")
+            # What this request cost: $2.00 of input on gpt-4.1, over the $1.00 cap.
+            guard.ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+            return ModelResponse(parts=[])
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(respond), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with guarded_by(guard), pytest.raises(QueryExpansionFailed) as failure:
+            await generate("prompt")
+        assert isinstance(failure.value.__cause__, BudgetExceeded)
+        assert model_calls == ["called"]
 
     @pytest.mark.anyio
     async def test_a_bug_in_the_expansion_call_is_not_reported_as_expected(self):
@@ -665,19 +727,26 @@ class TestTheWorkspaceRefusesAnOffLimitsPath:
     pytestmark = pytest.mark.anyio
 
     @staticmethod
-    def _workspace() -> StateBackend:
-        backend = StateBackend()
-        backend.write("/notes.txt", "ordinary work")
-        backend.write("/chart.png", "not really a png")
-        backend.write("/.env", "OPENAI_API_KEY=sk-live-secret")
-        backend.write("/sub/.env", "NESTED=sk-live-secret")
-        backend.write("/credentials.txt", "PASSWORD=hunter2")
-        backend.write("/etc/passwd", "root:x:0:0")
-        return backend
+    def _workspace() -> Workspace:
+        document = StateBackend()
+        for path, text in {
+            "/notes.txt": "ordinary work",
+            "/chart.png": "not really a png",
+            "/.env": "OPENAI_API_KEY=sk-live-secret",
+            "/sub/.env": "NESTED=sk-live-secret",
+            "/credentials.txt": "PASSWORD=hunter2",
+            "/etc/passwd": "root:x:0:0",
+        }.items():
+            document.write_bytes(path, text.encode())
+        return document_workspace(document)
 
     async def _call(self, name: str, **kwargs: Any) -> Any:
-        capability = build_workspace(backend=self._workspace(), include_execute=False)
-        result = capability._toolset.tools[name].function(MagicMock(), **kwargs)
+        capability = build_workspace(include_execute=False)
+        console = next(c for c in capability.capabilities if isinstance(c, ConsoleCapability))
+        ctx = RunContext(
+            deps=None, model=TestModel(), usage=RunUsage(), workspace=self._workspace()
+        )
+        result = console._toolset.tools[name].function(ctx, **kwargs)
         return await result if asyncio.iscoroutine(result) else result
 
     @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])

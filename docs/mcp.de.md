@@ -1,5 +1,5 @@
 ---
-source_sha: "97da4b30471c"
+source_sha: "0f382acc604e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -183,9 +183,14 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
     spricht. Bis zur Wahl fordert der Agent dazu auf — still den älteren Workspace
     zu raten wäre schlechter.
 
-    Im Dashboard-Chat kommt derselbe Sachverhalt als Karte an, bevor das Modell
-    antwortet, mit einer Schaltfläche zum Verbinden; und die Bedienelemente des
-    Chats listen die persönlichen Dienste des Agents mit ihrem Status, sodass ein
+    Der Dashboard-Chat fragt, wenn der Agent den Dienst braucht, nicht vorher.
+    Ein Dienst, den die Person nicht verbunden hat, zu dem sie mehrere
+    Connections hält oder den sie erneut autorisieren muss, wird dem Modell
+    stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
+    der Run an einer Karte mit der Schaltfläche zum Verbinden an, und sobald das
+    Konto verbunden ist, arbeitet derselbe Run mit den Notion-Tools weiter.
+    Übersprungen, arbeitet er ohne sie weiter. Die Bedienelemente des Chats listen
+    außerdem die persönlichen Dienste des Agents mit ihrem Status, sodass ein
     neues Mitglied sieht, was zu verbinden ist, bevor es fragt. Siehe
     [die Konsolen-Seite](console.md#chat).
 
@@ -763,14 +768,37 @@ Katalog erspart jemandem das Nachschlagen einer URL; er ist kein Tor.
 Um einen Eintrag zur Liste hinzuzufügen, siehe
 [Einen Server zum MCP-Katalog hinzufügen](howto/add-mcp-server.md).
 
+<a id="outlook-setup"></a>
+
+### Outlook-E-Mail und -Kalender { #outlook-email-and-calendar }
+
+Outlook ist über MCP-Dienste von Drittanbietern verfügbar, nicht über einen
+eingebauten Postfach-Connector. Die mitgelieferte Registry enthält MintMCP-Einträge
+für E-Mail und Kalender:
+
+| Registry-Eintrag | Server-URL |
+|---|---|
+| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
+
+Suchen Sie den Eintrag im MCP-Katalog oder fügen Sie seine URL als eigenen Server
+hinzu. Folgen Sie der [Anleitung des Anbieters](https://www.mintmcp.com/servers),
+richten Sie Konto und Autorisierung ein, testen Sie die Verbindung und wählen Sie
+die Werkzeuge des Agenten. Verfügbarkeit, Berechtigungen und etwaige Gebühren
+hängen vom Anbieter ab. Ein Registry-Eintrag ist kein durchgängiger Integrationstest
+mit AgenticOS. Prüfen Sie vor dem Aktivieren schreibender Werkzeuge die unten
+beschriebenen Freigabemodi.
+
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 
 - **Eine Abdeckungsgarantie.** Katalogeinträge sind Metadaten. Die Tools gehören
   dem Anbieter, und sie können sich unter Ihnen von einem Zug zum nächsten ändern.
-- **Freigabe-Tore.** Freigabe je Tool wird von Capabilities im Code deklariert.
-  Die Tools eines MCP-Servers werden zur Laufzeit entdeckt, es gibt also nichts,
-  was sie deklariert hätte; halten Sie wirklich gefährliche Server aus den
-  Connections einer Organisation heraus, statt ein Tor anzunehmen.
+- **Automatische Freigabeabdeckung.** Freigabeeinstellungen einer Capability
+  decken MCP-Tools nicht ab. Im Webchat erfasst **Ask about everything**
+  (`ask_all`) auch MCP-Aufrufe, die der Runner ausführt; der Standardmodus
+  **Follow the agent** ergänzt dieses Gate nicht. Beschränken Sie die
+  verfügbaren Tools und prüfen Sie den Ausführungsmodus vor dem Aktivieren
+  einer Verbindung. Siehe [Freigabemodi](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Kostenzuordnung.** Was ein Server auf seiner eigenen Seite tut, steht nicht im
   [Budget](governance.md#budgets) dieser Plattform. Nur die Modell-Token stehen
   darin.

@@ -70,7 +70,7 @@ from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
 from app.schemas.agent_trigger import TriggerUpdate
-from app.schemas.artifact import ArtifactUpdate
+from app.schemas.artifact import ArtifactPublicLinkUpdate, ArtifactUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
@@ -112,6 +112,7 @@ from app.schemas.workflow_exposure import WorkflowExposureUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    ArtifactPublicLinkUpdate: Artifact,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,

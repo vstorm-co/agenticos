@@ -1,0 +1,107 @@
+{
+  "status": "README illustration; no live integration tests",
+  "additional_connection_evidence": {
+    "figma": [
+      {
+        "key": "figma",
+        "name": "Figma",
+        "description": "Generate diagrams and code from Figma context.",
+        "category": "design",
+        "auth": "oauth",
+        "url": "https://mcp.figma.com/mcp",
+        "docs_url": "",
+        "token_hint": "",
+        "icon": "figma"
+      }
+    ],
+    "airtable": [
+      {
+        "key": "ai.waystation/airtable",
+        "name": "ai.waystation/airtable",
+        "description": "Access and manage your Airtable bases, tables, and records seamlessly",
+        "url": "https://waystation.ai/airtable/mcp"
+      }
+    ],
+    "dropbox": [
+      {
+        "key": "ai.smithery/cindyloo-dropbox-mcp-server",
+        "name": "ai.smithery/cindyloo-dropbox-mcp-server",
+        "description": "Search, browse, and read your Dropbox files. Find documents by name or content, list folders, and\u2026",
+        "url": "https://server.smithery.ai/@cindyloo/dropbox-mcp-server/mcp"
+      }
+    ],
+    "hubspot": [
+      {
+        "key": "hubspot",
+        "name": "HubSpot",
+        "description": "Read and update contacts, companies, deals and tickets.",
+        "category": "sales",
+        "auth": "oauth",
+        "url": "",
+        "docs_url": "",
+        "token_hint": "",
+        "icon": "hubspot"
+      },
+      {
+        "documentation": "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server",
+        "url": "https://mcp.hubspot.com",
+        "note": "Custom setup required; bundled curated entry has an empty URL. Not live tested."
+      }
+    ],
+    "stripe": [
+      {
+        "key": "stripe",
+        "name": "Stripe",
+        "description": "Look up customers, subscriptions, invoices and payments.",
+        "category": "finance",
+        "auth": "token",
+        "url": "https://mcp.stripe.com",
+        "docs_url": "https://docs.stripe.com/mcp",
+        "token_hint": "A restricted API key. Give it read scopes only unless an agent is meant to move money - this server can act, and the approval gate does not cover MCP tools.",
+        "icon": "stripe"
+      }
+    ],
+    "shopify": [
+      {
+        "key": "ai.gossiper/shopify-admin-mcp",
+        "name": "Gossiper Shopify Admin MCP Server",
+        "description": "Control Shopify Admin tasks with agents or via prompt. Ultra slim integration, fast and secure.",
+        "url": "https://mcp.gossiper.io/mcp"
+      },
+      {
+        "key": "app.bestappify/shopify-app-store",
+        "name": "BestAppify \u2014 Shopify App Store Intelligence",
+        "description": "Shopify App Store intelligence: keyword ranks, competitors, reviews, revenue. Free tier.",
+        "url": "https://bestappify.app/api/mcp"
+      },
+      {
+        "key": "com.moltlinestudio/shopify",
+        "name": "Moltline Shopify Prep",
+        "description": "Check a product CSV, handles, variant matrices and metafield keys. 4 of 6 free.",
+        "url": "https://mcp.moltlinestudio.com/shopify"
+      }
+    ],
+    "supabase": [
+      {
+        "key": "supabase",
+        "name": "Supabase",
+        "description": "Query a project's tables and read its schema over the management API.",
+        "category": "data",
+        "auth": "token",
+        "url": "https://mcp.supabase.com/mcp",
+        "docs_url": "https://supabase.com/docs/guides/getting-started/mcp",
+        "token_hint": "A personal access token. Point it at a read-only project or a branch - the server can run SQL.",
+        "icon": "supabase"
+      }
+    ]
+  },
+  "brand_sources": "Existing repository brand glyphs (Simple Icons CC0) and attributed official SVG tiles; original paths retained.",
+  "composition": "Selected original dark glass collage; sixteen logos in four slightly rotated stacks",
+  "outputs": {
+    "apps-glass.svg": {
+      "sha256": "56fc20827ed379fb636638859989d78fbab68bb4fca0b80208155e0da309c8fe",
+      "width": 1140,
+      "height": 400
+    }
+  }
+}

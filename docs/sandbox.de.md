@@ -1,5 +1,5 @@
 ---
-source_sha: "32ecd84a00b7"
+source_sha: "28df8e05f4b0"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -83,6 +83,20 @@ Der **Scope** ist ein Feld des Specs des Agents — `run`, `conversation`, `chan
 `user` oder `agent`. `conversation`, die übliche Wahl, bedeutet also einen Container
 und ein Verzeichnis pro Chat; `agent` bedeutet, dass sich jeder Run dieses Agents
 einen teilt.
+
+Der Schlüssel ist auch der **Name** der Session auf dem Host — die Session-ID bei
+`sandboxd`, der Name einer Daytona-Sandbox —, also öffnet jeder Run eines Scopes
+sie über diesen Namen: Der erste legt sie an, die anderen hängen sich an,
+gleichzeitige eingeschlossen, und nichts muss erst die eigene ID eines Anbieters
+speichern, bevor der zweite Run sie finden kann.
+
+**Ist eine Session einmal geöffnet, hängt sich ein späterer Run nur noch an sie an.**
+Die Workspace-Zeile hält sie fest, wenn der Run endet, der sie geöffnet hat, und der
+nächste Run fragt den Host nach dieser Session statt nach dem Namen. Eine Session,
+deren Dateien gelöscht wurden — durch `SANDBOXD_WORKSPACE_TTL` entfernt, ein Host neu
+aufgesetzt —, wird dem Agenten dann als verloren gemeldet, statt stillschweigend durch
+eine leere ersetzt zu werden, in der er weiterarbeiten würde. Die Zeile vergisst sie am
+Ende dieses Runs, sodass der nächste Turn eine frische Session beginnt.
 
 Ebenfalls in den Schlüssel eingefaltet: welche **Backend-Art** und welcher **Host**
 den Workspace trägt. Ein `state`-Dokument und das Volume eines Containers sind nicht
@@ -370,13 +384,14 @@ Nichts außerhalb dieses Prozesses hat die Einträge je gesehen (#1061).
 Jeder Workspace-Aufruf geht ohnehin durch diese Anwendung — der Run ruft uns auf, wir
 rufen den Service auf — der Nachweis ist also unserer.
 
-`RecordingBackend` umhüllt das Backend, das die Tools der Capability erreichen,
-weshalb ein neuntes Tool hinzuzufügen das Aufzeichnen nicht vergessen kann. Der
-Wrapper zeichnet acht benannte Operationen auf (`write`, `edit`, `read`,
-`read_bytes`, `ls_info`, `glob_info`, `grep_raw`, `execute`) und reicht alles andere
-unangetastet weiter. `exists` und `is_alive` sind Fragen und keine Operationen, und
-ein Log voll davon würde die Schreibvorgänge begraben, wegen derer jemand gekommen
-ist.
+`RecordingWorkspace` umhüllt den Workspace, in dem der Run arbeitet, weshalb ein
+neuntes Tool hinzuzufügen das Aufzeichnen nicht vergessen kann. Aufgezeichnet wird,
+was die Sandbox erreicht hat — `read`, `write`, `ls_info`, `mkdir`, `remove` und
+`execute` —, sodass ein Tool, das aus mehreren Operationen besteht, als jede davon
+erscheint: ein `edit_file` ist ein `read` und ein `write`, ein `glob` oder `grep`
+das `execute` des `find` oder `grep`, das es ausgeführt hat. `exists` und `stat`
+sind Fragen und keine Operationen, und ein Log voll davon würde die
+Schreibvorgänge begraben, wegen derer jemand gekommen ist.
 
 Er trägt zwei Tatsachen, die der Service nie tragen konnte, und es sind die beiden,
 nach denen ein Audit tatsächlich fragt: **welcher Agent, und welcher Run**. Beide

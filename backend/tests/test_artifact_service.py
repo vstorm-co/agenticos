@@ -43,6 +43,8 @@ def _artifact(ctx: AuthContext, *, public_key: str | None = None) -> Artifact:
         name="weekly-report",
         title="Weekly report",
         public_key=public_key,
+        public_view_count=0,
+        embed_origins=[],
         published_at=datetime(2026, 9, 22, tzinfo=UTC),
         created_at=datetime(2026, 9, 1, tzinfo=UTC),
     )
@@ -172,6 +174,7 @@ class TestTheRaceForAFirstPublication:
                 db,
                 organization_id=ctx.organization_id,
                 agent_id=uuid.uuid4(),
+                environment_id=None,
                 owner_user_id=ctx.user_id,
                 name="r",
                 title="R",
@@ -198,6 +201,7 @@ class TestTheRaceForAFirstPublication:
                 db,
                 organization_id=uuid.uuid4(),
                 agent_id=uuid.uuid4(),
+                environment_id=None,
                 owner_user_id=None,
                 name="r",
                 title="R",
@@ -467,10 +471,13 @@ class TestPublicView:
                 f"{PATH}.artifact_repo.latest_version",
                 new=AsyncMock(return_value=_version(artifact)),
             ),
+            patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()) as counted,
         ):
             public = await _service().public_view("k")
         assert public.title == "Weekly report"
-        assert set(public.model_dump()) == {"title", "published_at", "view"}
+        assert public.password_required is False
+        assert set(public.model_dump()) == {"password_required", "title", "published_at", "view"}
+        assert counted.await_args.args[1] == artifact.id
 
 
 class TestContent:
@@ -487,8 +494,9 @@ class TestContent:
             ) as lookup,
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
-            document = await _service().content(token)
-        assert document == b"<h1>hi</h1>"
+            served = await _service().content(token)
+        assert served.document == artifacts.PLATFORM_SCRIPT.encode() + b"<h1>hi</h1>"
+        assert served.embed_origins == []
         assert lookup.await_args.args[1] == version.id
 
     @pytest.mark.security
@@ -509,6 +517,27 @@ class TestContent:
             await _service().content(token)
         lookup.assert_not_awaited()
 
+    async def test_an_address_whose_bytes_are_gone_is_not_found(self) -> None:
+        """A row whose bytes storage no longer has - a restored database beside an
+        older volume - answered 500, and a thumbnail showed a server error."""
+        artifact = _artifact(_ctx())
+        version = _version(artifact)
+        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        storage = MagicMock()
+        storage.load = AsyncMock(side_effect=FileNotFoundError(version.storage_path))
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+            patch(f"{PATH}.logger") as log,
+            pytest.raises(NotFoundError, match="Artifact not found"),
+        ):
+            await _service().content(token)
+        # Said out loud, because it is storage and the database disagreeing.
+        assert log.warning.call_args.args[0] == "artifact_bytes_missing"
+
     async def test_an_address_to_a_pruned_version_is_not_found(self) -> None:
         token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(minutes=5))
         with (
@@ -521,10 +550,13 @@ class TestContent:
 
 
 class TestRender:
-    def test_html_is_served_as_it_was_written(self) -> None:
+    def test_html_is_served_as_it_was_written_behind_the_platform_script(self) -> None:
         artifact = _artifact(_ctx())
         page = b"<script>draw()</script>"
-        assert artifacts.render(_version(artifact), page, title="t") == page
+        assert (
+            artifacts.render(_version(artifact), page, title="t")
+            == artifacts.PLATFORM_SCRIPT.encode() + page
+        )
 
     def test_markdown_is_rendered_into_a_page_with_its_raw_html_escaped(self) -> None:
         artifact = _artifact(_ctx())
@@ -536,7 +568,9 @@ class TestRender:
         ).decode()
         assert "<h1>Sales</h1>" in document
         assert "<table>" in document
-        assert "<script>" not in document
+        assert "<script>x()</script>" not in document
+        assert document.count("<script") == 1
+        assert 'data-agenticos="platform"' in document
         assert "<title>Q3 &lt;sales&gt;</title>" in document
 
 
@@ -556,10 +590,37 @@ class TestThePolicy:
         assert directives["connect-src"] == ["'none'"]
         assert directives["default-src"] == ["'none'"]
         assert directives["frame-ancestors"] == [artifacts.settings.FRONTEND_URL.rstrip("/")]
+        library = f"{artifacts.settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/artifact-content/lib/"
         for directive in ("script-src", "style-src", "img-src", "font-src"):
-            assert not any(
-                source.startswith(("http", "https:", "*")) for source in directives[directive]
-            )
+            remote = [
+                source
+                for source in directives[directive]
+                if source.startswith(("http", "https:", "*"))
+            ]
+            # The deployment's own library set, by its path, and nothing else.
+            assert remote in ([], [library])
+        assert directives["img-src"] == ["data:", "blob:"]
+
+    @pytest.mark.security
+    def test_an_embeddable_page_may_be_framed_by_its_sites_and_the_embed_document(self) -> None:
+        policy = artifacts.content_security_policy(embed_origins=["https://intranet.example.com"])
+        ancestors = next(
+            part for part in policy.split("; ") if part.startswith("frame-ancestors")
+        ).split()[1:]
+        assert ancestors == [
+            artifacts.settings.FRONTEND_URL.rstrip("/"),
+            artifacts.settings.PUBLIC_BASE_URL.rstrip("/"),
+            "https://intranet.example.com",
+        ]
+
+    @pytest.mark.security
+    def test_the_embed_document_runs_only_its_own_script_and_frames_only_content(self) -> None:
+        policy = artifacts.embed_security_policy(nonce="n0nce", embed_origins=[])
+        directives = {part.split()[0]: part.split()[1:] for part in policy.split("; ")}
+        assert directives["script-src"] == ["'nonce-n0nce'"]
+        assert directives["frame-src"] == [artifacts.settings.PUBLIC_BASE_URL.rstrip("/")]
+        assert directives["connect-src"] == ["'none'"]
+        assert directives["frame-ancestors"] == ["'none'"]
 
 
 class TestUnlinking:

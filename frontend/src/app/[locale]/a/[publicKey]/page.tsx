@@ -52,5 +52,5 @@ export default async function PublicArtifactPage({ params }: PublicArtifactPageP
   const { publicKey } = await params;
   const artifact = await fetchPublicArtifact(publicKey);
   if (artifact === null) notFound();
-  return <PublicArtifact artifact={artifact} />;
+  return <PublicArtifact artifact={artifact} publicKey={publicKey} />;
 }

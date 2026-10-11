@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import get_current_user, get_db_session, get_redis
 from app.core.config import settings
 from app.main import app
+from app.services import health
 
 pytestmark = pytest.mark.anyio
 
@@ -85,7 +86,14 @@ async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-async def test_every_check_says_what_it_verified(admin_client: AsyncClient) -> None:
+async def test_every_check_says_what_it_verified(
+    admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def heartbeat_just_now() -> datetime:
+        return datetime.now(UTC)
+
+    monkeypatch.setattr(health, "_last_heartbeat", heartbeat_just_now)
+
     response = await admin_client.get(f"{settings.API_V1_STR}/admin/system")
 
     assert response.status_code == 200
@@ -95,11 +103,13 @@ async def test_every_check_says_what_it_verified(admin_client: AsyncClient) -> N
         "redis",
         "vector_store",
         "model_access",
+        "scheduler",
     ]
     assert all(check["detail"] for check in checks)
     by_key = {check["key"]: check for check in checks}
     assert "pgvector 0.8.0" in by_key["vector_store"]["detail"]
     assert "3 model profile(s)" in by_key["model_access"]["detail"]
+    assert by_key["scheduler"]["status"] == "healthy"
 
 
 async def test_a_member_cannot_read_the_deployment_s_configuration(

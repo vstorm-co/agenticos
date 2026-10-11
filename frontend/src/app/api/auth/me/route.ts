@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   BackendApiError,
   backendFetch,
@@ -59,8 +59,9 @@ export async function GET(request: NextRequest) {
     return bffRefusal("NOT_AUTHENTICATED", 401);
   }
 
+  let refreshed: { access_token: string; refresh_token?: string };
   try {
-    const refreshed = await backendFetch<{ access_token: string; refresh_token?: string }>(
+    refreshed = await backendFetch<{ access_token: string; refresh_token?: string }>(
       "/api/v1/auth/refresh",
       {
         method: "POST",
@@ -68,21 +69,6 @@ export async function GET(request: NextRequest) {
         body: JSON.stringify({ refresh_token: refreshToken }),
       },
     );
-    const data = await fetchMe(refreshed.access_token, request);
-    const response = bffJson({ ...data, access_token: refreshed.access_token });
-    response.cookies.set(
-      "access_token",
-      refreshed.access_token,
-      cookieOpts(request, ACCESS_MAXAGE),
-    );
-    if (refreshed.refresh_token) {
-      response.cookies.set(
-        "refresh_token",
-        refreshed.refresh_token,
-        cookieOpts(request, REFRESH_MAXAGE),
-      );
-    }
-    return response;
   } catch (error) {
     // A rate limit is a wait, not an expired session. This is the refresh
     // nobody asked for - every page load makes it once the 15-minute access
@@ -91,10 +77,42 @@ export async function GET(request: NextRequest) {
     if (error instanceof BackendApiError && error.status === 429) {
       return forwardRateLimit(error);
     }
-    // Refresh failed → truly logged out. Clear cookies.
+    // Only a refusal of the token ends the session. An unreachable backend, or a
+    // 502 while it redeploys, may even have rotated the token before the answer
+    // was lost - the backend's reuse grace accepts the cookie still held here,
+    // so clearing it would be what signs the person out.
+    if (!(error instanceof BackendApiError) || error.status !== 401) {
+      const status = error instanceof BackendApiError ? error.status : 500;
+      return bffRefusal("FAILED_TO_GET_USER", status);
+    }
     const response = bffRefusal("NOT_AUTHENTICATED", 401);
     response.cookies.set("access_token", "", cookieOpts(request, 0));
     response.cookies.set("refresh_token", "", cookieOpts(request, 0));
     return response;
   }
+
+  // The refresh has rotated the token, so the new cookies go out whatever the
+  // read below answers: dropping them would leave the browser holding the one the
+  // backend just spent.
+  let response: NextResponse;
+  try {
+    const data = await fetchMe(refreshed.access_token, request);
+    response = bffJson({ ...data, access_token: refreshed.access_token });
+  } catch (error) {
+    if (error instanceof BackendApiError && error.status === 429) {
+      response = forwardRateLimit(error);
+    } else {
+      const status = error instanceof BackendApiError ? error.status : 500;
+      response = bffRefusal("FAILED_TO_GET_USER", status);
+    }
+  }
+  response.cookies.set("access_token", refreshed.access_token, cookieOpts(request, ACCESS_MAXAGE));
+  if (refreshed.refresh_token) {
+    response.cookies.set(
+      "refresh_token",
+      refreshed.refresh_token,
+      cookieOpts(request, REFRESH_MAXAGE),
+    );
+  }
+  return response;
 }

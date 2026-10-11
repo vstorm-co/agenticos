@@ -1,5 +1,5 @@
 ---
-source_sha: "74925aba0c7c"
+source_sha: "c27849d0d0ef"
 ---
 
 # Instalacja { #install }
@@ -223,7 +223,7 @@ docker compose exec app agenticos cmd doctor
 `doctor` zadaje pytania, które zadałaby pierwsza wiadomość. Czy baza danych jest
 osiągalna i na head? Czy vault się odszyfrowuje? Czy jest profil modelu z kluczem
 za nim? Czy każde zarejestrowane połączenie sandboksa odpowiada środowiskiem
-uruchomieniowym?
+uruchomieniowym? Czy zadania cykliczne naprawdę się wykonują?
 
 Każda linia nazywa brakującą część, zamiast informować cię, że coś zawiodło.
 

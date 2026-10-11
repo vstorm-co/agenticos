@@ -1,5 +1,5 @@
 ---
-source_sha: "d71f6e6871d2"
+source_sha: "341bfa712481"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -52,7 +52,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
 | `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact` | — | — |
+| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -279,6 +279,11 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+- W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
+  wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
+  nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
+  runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
+  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -414,6 +419,9 @@ narzędzia odmawiają i mówią dlaczego: korpus jest osobisty, więc odpowiadan
 niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. To
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
 
+Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
+
 ### Jak działa dopasowanie { #how-it-matches }
 
 Pełnotekstowe wyszukiwanie PostgreSQL — `tsvector` utrzymywany przez bazę nad
@@ -497,6 +505,22 @@ zakresem.
 
 Samo pobranie to `web_fetch_tool` z Pydantic AI, oparte na chronionym przed SSRF
 `safe_download`, i to jest powód, dla którego nie jest to nasz kod.
+
+To, czym staje się odpowiedź, rozstrzyga się tutaj:
+
+- Strona (HTML, Markdown, JSON, zwykły tekst) wraca jako Markdown.
+- Obraz wraca jako obraz, dla modelu, który czyta obrazy.
+- PDF lub dokument biurowy wraca jako jego **wyodrębniony tekst**, odczytany tym samym
+  parserem, przez który przechodzi załącznik czatu, i przycięty do `max_content_chars`
+  jak strona. Biblioteka oddałaby surowe bajty, aby model przeczytał je natywnie. Model
+  serwowany za endpointem zgodnym z OpenAI, który tego nie potrafi, odrzuca całe
+  żądanie (`Unsupported chat content part type: 'file'`), a agent pobiera wtedy ten sam
+  dokument ponownie. Wyodrębniany jest tylko tekst do `max_content_chars`, a PDF jest
+  czytany najwyżej przez 2000 stron: dłuższy kończy się notką, która nazywa stronę,
+  na której odczyt się zatrzymał, a gdy odczytane strony nie miały tekstu, wraca
+  tylko ta notka.
+- Plik binarny bez czytelnego tekstu (zeskanowany PDF, archiwum) dociera do modelu jako
+  błąd do ponowienia, który nazywa to, co przyszło.
 
 URL pochodzi od **modelu** i jest rozwiązywany z wnętrza kontenera, więc
 walidowanie go z góry — tak jak robi to `app.core.sanitize.validate_webhook_url`
@@ -701,7 +725,9 @@ runa nadrzędnego — tym, którego poświadczenie zostało rozwiązane z vaulta
 jego krok to jedno żądanie do modelu, księgowane w budżecie runa przez ten sam
 rejestr zużycia otoczkowego, z którego korzysta streszczenie kompaktujące. To nie
 jest własny hostowany model browser-use i nie są to wydatki niewidoczne dla
-strażnika budżetu.
+strażnika budżetu. Każdy krok sprawdza budżet przed wysłaniem, więc gdy budżet
+runa jest wyczerpany, kolejny krok agenta przeglądarkowego zostaje odrzucony, a nie
+opłacony.
 
 **`browser-use` jest dodatkiem opcjonalnym.** Ciągnie za sobą ciężkie drzewo
 zależności (Chromium przez Playwright) i przypina zależności o wersję niższą niż
@@ -978,24 +1004,35 @@ nie ma gdzie niczego z nich zbudować.
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem.*
+`read_artifact` — *Przeczytaj bieżącą wersję strony opublikowanej przez tego
+agenta, taką, jaką ją napisano.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
 [artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
 grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
 konfiguracji.
 
-**Nazwa jest tożsamością.** `(organization, agent, name)` wybiera artefakt, więc
-następny run tego samego agenta, który publikuje `weekly-report` — z czatu, z
-harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast tworzyć
-drugi link. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
+**Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
+artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
+czatu, z harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast
+tworzyć drugi link. Środowisko pochodzi z runa, więc run w `staging` publikuje
+własną stronę. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
 
 **Skąd pochodzi strona.** `path` czyta plik z workspace'u runa przez jego własny
 backend, więc działa wszędzie tam, gdzie działa capability `sandbox`; `content`
-przyjmuje stronę inline dla agenta bez workspace'u. Dokładnie jedno z nich.
-Błędne wywołanie — oba albo żadne, nazwa spoza `^[a-z0-9][a-z0-9-]{0,63}$`,
-nieznane rozszerzenie, pusta albo za duża strona — to retry mówiący, co zmienić.
-Odczyt, którego odmawiają reguły uprawnień workspace'u, jest wynikiem, a nie
-retry.
+przyjmuje stronę inline dla agenta bez workspace'u; `edits` to dokładne zamiany
+nakładane na wersję zwróconą przez `read_artifact`, a publikacja w międzyczasie je
+odrzuca, zamiast ją nadpisać. Dokładnie jedno z trzech. Błędne wywołanie — więcej
+niż jedno, żadne, nazwa spoza `^[a-z0-9][a-z0-9-]{0,63}$`, nieznane rozszerzenie,
+pusta albo za duża strona, edycja, która nie pasuje do żadnego miejsca albo pasuje
+do kilku — to retry mówiący, co zmienić. Odczyt, którego odmawiają reguły
+uprawnień workspace'u, i strona, której osoba runa nie może otworzyć, są wynikami,
+a nie retry.
+
+**Odczyt.** `read_artifact` zwraca wiersz nagłówka (wersja, format, rozmiar) i
+źródło, ucięte na 100 000 znaków, co nagłówek mówi. Otwiera tylko to, co osoba
+runa może otworzyć w konsoli, i nic na publicznym widgecie, w embedzie, w harmonogramie ani w triggerze
+zdarzeń, gdzie nie słucha żadna zidentyfikowana osoba.
 
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
@@ -1004,8 +1041,9 @@ chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
 `tool_approval` na `publish_artifact`.
 
 **Strona nie ma sieci.** Jest serwowana w nieprzezroczystym originie pod polityką
-`sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby wszystko
-wstawiał inline. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
+`sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby własne dane
+wstawiał inline, a wykresy ładował z [zestawu bibliotek](../artifacts.md#the-library-set)
+wdrożenia zamiast z CDN. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegowanie { #delegation }
 
@@ -1629,9 +1667,9 @@ redukcja to `ToolOutputLimits` z
 | Konfiguracja | Domyślnie | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | rozmiar, od którego zwrot jest redukowany |
+| `threshold` | 60000 | rozmiar, od którego zwrot jest redukowany; 15000, gdy ustawione jest `over_tokens` |
 | `over_tokens` | `false` | mierz próg w szacowanych tokenach, nie w znakach |
-| `max_chars` | 4000 | znaki zachowane przy przycięciu zwrotu albo gdy zrzut cofa się do przycięcia |
+| `max_chars` | 20000 | znaki zachowane przy przycięciu zwrotu albo gdy zrzut cofa się do przycięcia; nieustawione, nigdy więcej niż próg |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — który koniec (lub końce) zachować |
 | `strip_ansi` | `false` | usuń kody kolorów terminala przed mierzeniem i redukcją |
 | `summary_prompt` | własny biblioteki | co dostaje model streszczający; musi zawierać `{tool_name}` i `{output}` |
@@ -1731,8 +1769,9 @@ embeddingi — celowo nie jest wystawiony.
 
 Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
-`pydantic-ai-harness`; agent jest danymi, więc konfiguracja wybiera je i
-parametryzuje, zamiast nieść pythonowego strażnika.
+`pydantic-ai-harness` oraz detektor numerów telefonu, którego harness nie dostarcza;
+agent jest danymi, więc konfiguracja wybiera je i parametryzuje, zamiast nieść
+pythonowego strażnika.
 
 | Krawędź | Czyta | Redagowanie | Blokowanie |
 |---|---|---|---|
@@ -1743,11 +1782,33 @@ parametryzuje, zamiast nieść pythonowego strażnika.
 | Konfiguracja | Domyślnie | |
 |---|---|---|
 | `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT i bloki PEM |
-| `redact_pii_*` | `false` | wymaż e-mail, IBAN (mod-97), kartę (Luhn) i US SSN |
+| `redact_pii_*` | `false` | wymaż e-mail, numer telefonu (poprawny w swoim planie numeracji), IBAN (mod-97), kartę (Luhn) i US SSN |
 | `blocked_keywords_*` | `""` | terminy rozdzielone przecinkiem albo nową linią; trafienie kończy run |
+| `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII, najwyżej 16 |
 
-Każde pole jest domyślnie wyłączone, a capability włączona bez skonfigurowanej
-krawędzi nie dołącza niczego — agent, który jej nie używa, nie płaci nic.
+Każde pole krawędzi jest domyślnie wyłączone, a capability włączona bez
+skonfigurowanej krawędzi nie dołącza niczego — agent, który jej nie używa, nie
+płaci nic.
+
+**Numer telefonu jest redagowany tylko wtedy, gdy jest prawdziwym numerem.**
+Detektor pochodzi z libphonenumber i działa z poziomem `STRICT_GROUPING`: kandydat
+jest przyjmowany tylko wtedy, gdy pasuje do planu numeracji swojego kraju, a jego
+separatory stoją tam, gdzie ten kraj grupuje cyfry, więc data, kwota albo numer
+zamówienia, które wziąłaby reguła licząca cyfry, przechodzą bez zmian. Numer zapisany z `+` sam wskazuje kraj i jest redagowany
+niezależnie od tego, co zawiera `phone_regions`. Numer krajowy, taki jak
+`415-555-0132`, jest czytany względem każdego wymienionego kraju, a każdy dodany
+kraj poszerza to, czym może być goły ciąg cyfr: `123456789` to poprawny polski
+numer stacjonarny, więc z `PL` na liście redagowany jest też dziewięciocyfrowy
+numer zamówienia. Grupowanie działa w obie strony: amerykański kod pocztowy ZIP+4
+zaczynający się od `0`, np. `02134-1234`, jest pogrupowany jak niemiecki numer
+kierunkowy z numerem abonenta, więc z `DE` na liście jest redagowany. Wymień
+kraje, które agent obsługuje. Nieznany kod (najczęściej
+`UK` zamiast `GB`) albo lista dłuższa niż 16 kodów jest odrzucana przy publikacji.
+Przy najwyżej czterech krajach tekst dłuższy niż 200 000 znaków albo z więcej niż
+10 000 cyfr nie jest w ogóle czytany. Każdy kraj ponad cztery to kolejne przejście
+przez tekst, więc oba limity maleją proporcjonalnie, przy szesnastu do 50 000 znaków
+i 2500 cyfr. Tekst ponad limitem kończy run statusem `guardrail_blocked`, bo
+przekazanie go dalej bez czytania przekazałoby każdy numer, który zawiera.
 
 **Redagowanie przepisuje; blokada jest wynikiem runa.** Redaktor wymazuje trafienie
 i run kończy się normalnie — odpowiedź, która przytoczyła klucz z powrotem, mimo to
@@ -1756,6 +1817,36 @@ wykonała pracę. Blokada na słowie kluczowym zamiast tego kończy run ze statu
 platformą działającą poprawnie, a operator filtrujący problemy powinien móc ją
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
+
+**Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
+powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
+w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
+tekst. Gdy skonfigurowane jest jakiekolwiek sprawdzenie wyjścia, każdy fragment
+tekstu i rozumowania jest wstrzymywany, aż będzie kompletny, sprawdzany tymi samymi
+detektorami i dopiero wtedy wysyłany. Klucz rozdzielony na dwa kawałki nadal zostaje
+wychwycony. Klucz rozdzielony na dwie części, na przykład tekst przed wywołaniem
+narzędzia i po nim albo rozumowanie i odpowiedź, kończy run, zanim zostanie
+wysłana jego druga połowa, bo pierwsza jest już na ekranie. Tak samo tekst, który model pisze przed wywołaniem narzędzia — nie jest
+częścią końcowej odpowiedzi, ale i tak jest wyświetlany i zapisywany. Kosztem jest
+to, że odpowiedź takiego agenta przychodzi krok po kroku, a nie słowo po słowie.
+Agent bez sprawdzenia wyjścia streamuje jak wcześniej. Blokada na słowie kluczowym
+w odpowiedzi kończy run, zanim jakakolwiek część zablokowanego tekstu zostanie
+pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane słowo
+kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
+`[reasoning withheld by the output guardrail]`.
+
+**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
+sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
+streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
+dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
+długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
+podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
+streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+
+**Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
+dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
+osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
+wiadomość.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

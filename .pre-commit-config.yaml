@@ -14,11 +14,14 @@
 # What is deliberately NOT here: the test suites. `make check` runs those, and a
 # commit hook slow enough to be bypassed with `--no-verify` protects nothing.
 
-# Lockfiles and generated files are not source. Keep the whitespace and
-# end-of-file hooks from rewriting them, and the large-file hook from tripping.
+# Lockfiles, generated files and the libraries served to artifacts are not
+# source. Keep the whitespace and end-of-file hooks from rewriting them - a
+# vendored library stays byte for byte what its registry published - and the
+# large-file hook from tripping.
 exclude: |
   (?x)^(
     .*\.lock|
+    backend/app/core/catalog/artifact_lib/.*\.min\.js|
     frontend/src/lib/mcp-logos\.generated\.ts|
     site/.*|
     backend/media/.*

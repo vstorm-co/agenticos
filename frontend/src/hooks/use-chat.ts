@@ -19,6 +19,7 @@ import type {
   BrowserFrame,
   ChatMessageFile,
   Compaction,
+  ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
   Decision,
@@ -132,6 +133,11 @@ export function useChat(options: UseChatOptions = {}) {
     currentMessageIdRef.current = id;
   }, []);
   const currentGroupIdRef = useRef<string | null>(null);
+  // The tool calls whose arguments are still streaming, by the part index their
+  // `tool_call_delta` frames carry - which is all those frames carry. The count is
+  // kept here rather than read back from the store so a delta is one write, not a
+  // lookup and a write, on a stream that can be tens of thousands of frames long.
+  const streamingCallsRef = useRef<Map<number, { id: string; chars: number }>>(new Map());
   // Outbound queue: messages typed while agent is busy / socket offline. Held
   // here (not in the chat history) so the UI can surface them as cancellable
   // "pending" entries above the input. The ref is the source of truth for the
@@ -164,6 +170,12 @@ export function useChat(options: UseChatOptions = {}) {
   // effect reads as "a reloaded parked run".
   const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // A run paused until the person connects one of their own services, or `null`.
+  const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
+  // Whether a run on the server is still waiting on that card. Beside the state
+  // because leaving the conversation takes the card down, and a run nobody
+  // answers waits for as long as the socket stays open.
+  const awaitingConnectionRef = useRef(false);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
   //
@@ -276,6 +288,23 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [activeConversationId, setCurrentCost]);
 
+  // A call whose arguments were still streaming when the turn ended never became a
+  // call: the model was stopped or failed mid-way. `unfinished` rather than left
+  // `pending`, which animates under a turn that is over.
+  const abandonStreamingCalls = useCallback(
+    (messageId: string) => {
+      const message = useChatStore.getState().messages.find((m) => m.id === messageId);
+      for (const { id } of streamingCallsRef.current.values()) {
+        const call = message?.toolCalls?.find((c) => c.id === id);
+        if (call?.status === "pending") {
+          updateToolCallPart(messageId, id, { status: "unfinished", argsChars: undefined });
+        }
+      }
+      streamingCallsRef.current.clear();
+    },
+    [updateToolCallPart],
+  );
+
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
@@ -378,6 +407,51 @@ export function useChat(options: UseChatOptions = {}) {
           if (!currentMessageIdRef.current) {
             createNewMessage("");
           }
+          // Part indices restart with every model response.
+          streamingCallsRef.current.clear();
+          break;
+        }
+
+        case "part_start": {
+          // A tool call opening. Its arguments stream before `tool_call` exists, and
+          // a `write_file` carrying a whole report can take minutes to write them -
+          // time the chat used to spend showing nothing but a cursor. So the step is
+          // drawn now, as `pending`, and `tool_call` fills it in.
+          const { index, tool_name, tool_call_id } = wsEvent.data as {
+            index: number;
+            tool_name?: string;
+            tool_call_id?: string;
+          };
+          if (currentMessageIdRef.current && tool_name && tool_call_id) {
+            streamingCallsRef.current.set(index, { id: tool_call_id, chars: 0 });
+            addToolCallPart(currentMessageIdRef.current, {
+              id: tool_call_id,
+              name: tool_name,
+              args: {},
+              status: "pending",
+              argsChars: 0,
+            });
+          }
+          break;
+        }
+
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as {
+            index: number;
+            args_delta: string | Record<string, unknown> | null;
+          };
+          const streaming = streamingCallsRef.current.get(index);
+          if (currentMessageIdRef.current && streaming && args_delta) {
+            // The length and not the text: the arguments can run to megabytes, and
+            // `tool_call` delivers them parsed once they are complete.
+            streaming.chars +=
+              typeof args_delta === "string"
+                ? args_delta.length
+                : JSON.stringify(args_delta).length;
+            updateToolCallPart(currentMessageIdRef.current, streaming.id, {
+              argsChars: streaming.chars,
+            });
+          }
           break;
         }
 
@@ -417,7 +491,20 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
-            addToolCallPart(currentMessageIdRef.current, toolCall);
+            const drawn = useChatStore
+              .getState()
+              .messages.find((m) => m.id === currentMessageIdRef.current)
+              ?.toolCalls?.some((call) => call.id === tool_call_id);
+            // The step `part_start` drew while the arguments streamed, when there
+            // was one. Adding a second would draw the call twice.
+            if (drawn) {
+              updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+                ...toolCall,
+                argsChars: undefined,
+              });
+            } else {
+              addToolCallPart(currentMessageIdRef.current, toolCall);
+            }
           }
           break;
         }
@@ -516,6 +603,8 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "error": {
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const { message } = wsEvent.data as { message: string };
@@ -527,6 +616,7 @@ export function useChat(options: UseChatOptions = {}) {
               `\n\n${t("streamError", { message: message || t("unknownError") })}`,
             );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            abandonStreamingCalls(id);
           }
           setIsProcessing(false);
           // The turn is over and no `subagent_complete` is coming for whatever was
@@ -571,6 +661,14 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "connect_account": {
+          // The agent reached for a service this person has not connected, and
+          // the run is waiting on them - the only moment the card is worth its space.
+          setPendingConnection(wsEvent.data as ConnectionRequest);
+          awaitingConnectionRef.current = true;
+          break;
+        }
+
         case "ask_user": {
           const { questions } = wsEvent.data as {
             questions: { question: string; options: string[]; allow_custom: boolean }[];
@@ -587,6 +685,10 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "complete": {
           setIsProcessing(false);
+          // A turn that ended is waiting on nothing: a card left up would answer
+          // a run that is gone - a sibling tool failing or parking ends it too.
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
           // this handler parsed, and reading a field off it silently yields
           // `undefined` - which looked exactly like a turn nobody measured.
@@ -606,6 +708,7 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            if (currentMessageIdRef.current) abandonStreamingCalls(currentMessageIdRef.current);
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
             if (usage) {
@@ -650,6 +753,7 @@ export function useChat(options: UseChatOptions = {}) {
       appendThinkingDelta,
       addToolCallPart,
       updateToolCallPart,
+      abandonStreamingCalls,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -711,16 +815,21 @@ export function useChat(options: UseChatOptions = {}) {
     // auto-reconnect (and the token-gated connect effect) uses a fresh one.
     // The hook only calls this on genuine drops (not deliberate disconnects),
     // and the ref keeps concurrent reconnect attempts from stampeding /me.
+    // Through `apiClient`, whose /auth/me runs under the cross-tab auth lock:
+    // this read can spend the refresh cookie too, and several tabs' sockets
+    // dropping together would otherwise rotate it more than once.
     onClose: () => {
       if (refreshingRef.current) return;
       refreshingRef.current = true;
       void (async () => {
         try {
-          const res = await fetch("/api/auth/me");
-          if (res.ok) {
-            const data = (await res.json()) as { access_token?: string };
-            if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
-          }
+          // Through `apiClient`, not a bare fetch: `/auth/me` refreshes on the
+          // server when the access cookie has expired, and only `apiClient` sends
+          // it under the cross-tab auth lock. An expired access token closes this
+          // socket at the same moment the page's own requests start refreshing,
+          // and the unserialized refresh here was one of that burst.
+          const data = await apiClient.get<{ access_token?: string }>("/auth/me");
+          if (data?.access_token) useAuthStore.getState().setAccessToken(data.access_token);
         } catch {
           // ignore - backoff reconnect will retry
         } finally {
@@ -878,6 +987,7 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
     approvalOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
@@ -936,11 +1046,19 @@ export function useChat(options: UseChatOptions = {}) {
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
+    // The card goes with the conversation it was in, and the run waiting on it
+    // is told to carry on without - or it holds the turn open behind a card
+    // nobody can see any more.
+    if (awaitingConnectionRef.current) {
+      awaitingConnectionRef.current = false;
+      sendMessage({ type: "connect_account_response", connected: false });
+    }
     setCompacting(null);
     setCompactionImpossible(null);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
-  }, [activeConversationId, closeBrowserPanel]);
+  }, [activeConversationId, closeBrowserPanel, sendMessage]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
@@ -1233,6 +1351,17 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
+  /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
+  const sendConnectionResponse = useCallback(
+    (connected: boolean) => {
+      if (!isConnected) return;
+      setPendingConnection(null);
+      awaitingConnectionRef.current = false;
+      sendMessage({ type: "connect_account_response", connected });
+    },
+    [isConnected, sendMessage],
+  );
+
   /** Take the turn off screen without telling the server anything.
    *
    *  What `stopGeneration` does after it has sent its frame, and what a
@@ -1245,14 +1374,17 @@ export function useChat(options: UseChatOptions = {}) {
   const endTurnLocally = useCallback(() => {
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+      abandonStreamingCalls(currentMessageIdRef.current);
     }
     setCurrentMessageId(null);
     currentGroupIdRef.current = null;
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
+    awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
-  }, [updateMessage, setCurrentMessageId]);
+  }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
     sendMessage({ type: "stop" });
@@ -1412,5 +1544,8 @@ export function useChat(options: UseChatOptions = {}) {
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
+    pendingConnection,
+    sendConnectionResponse,
   };
 }

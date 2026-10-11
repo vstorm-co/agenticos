@@ -14,12 +14,19 @@ from __future__ import annotations
 
 import contextlib
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.workspaces import (
+    CommandResult,
+    FileEntry,
+    LocalWorkspaceBackend,
+    Workspace,
+    WrapperWorkspace,
+)
 from pydantic_ai_backends import StateBackend
 
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -37,6 +44,7 @@ from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
+from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -438,22 +446,30 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         adapter.download_attachment.assert_not_called()
 
 
+def _write(document: StateBackend, path: str, content: str | bytes) -> None:
+    document.write_bytes(path, content.encode() if isinstance(content, str) else content)
+
+
+class _ListingFails(WrapperWorkspace):
+    async def list_dir(self, path: str) -> Sequence[FileEntry]:
+        raise RuntimeError("the service is down")
+
+
 class TestChoosingWhatToSendBack:
     """What a reply carries, and what it declines to.
 
-    Both functions are awaited: a container-backed workspace answers a glob and a
-    read over a synchronous HTTP client, so calling them from a coroutine held the
-    event loop for a round trip per file. The backends below stay synchronous on
-    purpose - `ensure_async` wraps one, which is exactly the arrangement in
-    production for a `state` workspace.
+    Both functions are awaited and work in the run's workspace. Most tests below
+    use a stored document, which is a `state` agent's; the ones about a shell use
+    a real directory, which lists itself with `find` as a container does.
     """
 
     async def test_a_file_the_turn_wrote_is_sent(self):
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/report.csv", "month,total")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/report.csv", "month,total")
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert [a.filename for a in delivered.attachments] == ["report.csv"]
         assert delivered.attachments[0].content == b"month,total"
@@ -463,86 +479,95 @@ class TestChoosingWhatToSendBack:
         """A chart is the commonest thing an agent writes, and every file used to
         go out as `application/octet-stream` - so the picture somebody asked for
         arrived as a blob they had to download to identify."""
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/chart.png", b"\x89PNG\r\n")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/chart.png", b"\x89PNG\r\n")
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert delivered.attachments[0].mime_type == "image/png"
 
     async def test_a_name_with_no_recognisable_suffix_stays_opaque(self):
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/dump", "raw")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/dump", "raw")
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert delivered.attachments[0].mime_type == "application/octet-stream"
 
     async def test_a_dotfile_that_was_already_there_is_not_sent_again(self):
-        """`glob_info("**/*")` does not match a leading dot, so a `.env` written
+        """A dotfile is listed like any other, so a `.env` written
         before the turn was absent from the snapshot - and rewriting it during the
         turn read as new and would have been posted into the channel."""
-        backend = StateBackend()
-        backend.write("/.env", "A=1")
-        before = await workspace_snapshot(backend)
-        backend.write("/.env", "A=2")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        _write(document, "/.env", "A=1")
+        before = await workspace_snapshot(workspace)
+        _write(document, "/.env", "A=2")
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_a_file_that_was_already_there_is_not_sent_again(self):
         """Rewriting a script it is iterating on is ordinary work, and posting it
         every turn would fill the channel with the same attachment."""
-        backend = StateBackend()
-        backend.write("/run.py", "print(1)")
-        before = await workspace_snapshot(backend)
-        backend.write("/run.py", "print(2)")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        _write(document, "/run.py", "print(1)")
+        before = await workspace_snapshot(workspace)
+        _write(document, "/run.py", "print(2)")
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_the_users_own_upload_is_not_posted_back_at_them(self):
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/uploads/theirs.csv", "a,b")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/uploads/theirs.csv", "a,b")
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_a_materialised_skill_is_not_the_agents_work(self):
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/workspace/skills/refunds/SKILL.md", "---\nname: refunds\n---\n\nbody")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/workspace/skills/refunds/SKILL.md", "---\nname: refunds\n---\n\nbody")
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_a_container_listing_a_skill_relatively_is_not_the_agents_work(self):
         """A container lists its workspace relative to its own root, so the same
         file the `state` backend calls `/workspace/skills/...` arrives as
         `skills/...`. One filter has to catch both spellings, or a channel reply
         posts organizational know-how back as the agent's own work."""
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("skills/refunds/reconcile.py", "print('hi')")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "skills/refunds/reconcile.py", "print('hi')")
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_a_spilled_tool_return_is_not_the_agents_work(self):
         """A `tool_output_limits` spill is parked for the model to page through,
         not produced for the user - posting it would hand a channel the raw
         oversized return the reduction existed to keep out of sight (#803)."""
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/tool_output/run-1/call-1.0", "y" * 5_000)
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/tool_output/run-1/call-1.0", "y" * 5_000)
 
-        assert (await files_written(backend, before)).attachments == []
+        assert (await files_written(workspace, before)).attachments == []
 
     async def test_a_file_too_large_for_a_reply_is_named_rather_than_dropped(self):
         """An agent told its file was delivered will tell the user the same."""
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
-        backend.write("/huge.csv", "x" * (MAX_OUTBOUND_BYTES + 1))
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
+        _write(document, "/huge.csv", "x" * (MAX_OUTBOUND_BYTES + 1))
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert delivered.attachments == []
         assert delivered.refused == ["/huge.csv"]
@@ -550,61 +575,69 @@ class TestChoosingWhatToSendBack:
 
     async def test_past_the_per_reply_cap_the_rest_are_named(self):
         """A turn that writes twelve intermediate CSVs should not post twelve."""
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
         for index in range(MAX_OUTBOUND_FILES + 2):
-            backend.write(f"/out-{index}.csv", "a")
+            _write(document, f"/out-{index}.csv", "a")
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert len(delivered.attachments) == MAX_OUTBOUND_FILES
         assert len(delivered.refused) == 2
 
     async def test_nothing_written_is_nothing_said(self):
-        backend = StateBackend()
-        before = await workspace_snapshot(backend)
+        document = StateBackend()
+        workspace = document_workspace(document)
+        before = await workspace_snapshot(workspace)
 
-        delivered = await files_written(backend, before)
+        delivered = await files_written(workspace, before)
 
         assert delivered.attachments == []
         assert delivered.note() == ""
 
-    async def test_the_snapshot_is_taken_of_the_working_directory(self):
-        """Not of the machine, which is what omitting the root asked for.
+    async def test_a_workspace_with_a_shell_is_listed_from_its_working_directory(self, tmp_path):
+        """Not from `/`, which a shell reads as the machine: on a container a snapshot
+        rooted there was 2540 paths of `/proc` and `/usr`, taken twice per turn, and
+        "what did the agent write" came down to whether `/proc` had changed (#1039).
+        And a spill it lists as `./tool_output/...` is still the platform's."""
+        (tmp_path / "old.csv").write_text("kept")
+        workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+        before = await workspace_snapshot(workspace)
+        (tmp_path / "report.csv").write_text("a,b")
+        (tmp_path / "tool_output" / "run-1").mkdir(parents=True)
+        (tmp_path / "tool_output" / "run-1" / "call-1.0").write_text("y")
 
-        The client's default is `/`, which a virtual-path backend reads as the
-        top of its namespace and a shell reads as the filesystem root - so on a
-        container this snapshot was 2540 paths of `/proc` and `/usr`, taken twice
-        per turn, and "what did the agent write" came down to whether `/proc` had
-        changed (#1039).
-        """
-        asked: list[tuple[str, str]] = []
+        delivered = await files_written(workspace, before)
 
-        class _Backend:
-            def glob_info(self, pattern, path="/"):
-                asked.append((pattern, path))
-                return []
+        assert before == {"./old.csv"}
+        assert [a.filename for a in delivered.attachments] == ["report.csv"]
 
-        await files_written(_Backend(), set())
+    async def test_a_listing_command_that_fails_means_no_snapshot(self, tmp_path):
+        class _FindFails(WrapperWorkspace):
+            async def run(self, command, **kwargs):
+                return CommandResult(exit_code=1, stdout="", stderr="find: no")
 
-        assert {path for _, path in asked} == {"."}
+        workspace = _FindFails(Workspace(LocalWorkspaceBackend(tmp_path)))
+
+        assert await workspace_snapshot(workspace) is None
 
     async def test_a_file_that_cannot_be_read_is_skipped_rather_than_failing_the_reply(self):
-        class _Backend:
-            def glob_info(self, pattern, path="/"):
-                return [{"path": "/gone.csv", "is_dir": False}]
-
-            def read_bytes(self, path):
+        class _ReadFails(WrapperWorkspace):
+            async def read_bytes(self, path):
                 raise RuntimeError("vanished between the listing and the read")
 
-        assert (await files_written(_Backend(), set())).attachments == []
+        document = StateBackend()
+        _write(document, "/gone.csv", "a")
+
+        assert (
+            await files_written(_ReadFails(document_workspace(document)), set())
+        ).attachments == []
 
     async def test_a_workspace_that_cannot_be_listed_means_no_attachments_not_no_reply(self):
-        class _Broken:
-            def glob_info(self, pattern, path="/"):
-                raise RuntimeError("the service is down")
-
-        assert await files_written(_Broken(), set()) == DeliveredFiles(attachments=[], refused=[])
+        assert await files_written(_ListingFails(document_workspace()), set()) == DeliveredFiles(
+            attachments=[], refused=[]
+        )
 
     async def test_a_snapshot_of_an_unreadable_workspace_is_not_an_empty_one(self):
         """It used to answer `set()`, and that is the unsafe direction.
@@ -613,12 +646,7 @@ class TestChoosingWhatToSendBack:
         mean "nothing to compare against" - it means "the workspace was empty",
         and every file already in it reads as this turn's output.
         """
-
-        class _Broken:
-            def glob_info(self, pattern, path="/"):
-                raise RuntimeError("no")
-
-        assert await workspace_snapshot(_Broken()) is None
+        assert await workspace_snapshot(_ListingFails(document_workspace())) is None
 
     async def test_a_turn_whose_snapshot_failed_posts_nothing(self):
         """The refusal the return type exists for.
@@ -629,24 +657,19 @@ class TestChoosingWhatToSendBack:
         both calls read the same workspace, so a persistently broken listing fails
         both and posts nothing anyway.
         """
-        backend = StateBackend()
-        backend.write("/someone-elses.csv", "month,total")
-        backend.write("/another.txt", "private")
+        document = StateBackend()
+        workspace = document_workspace(document)
+        _write(document, "/someone-elses.csv", "month,total")
+        _write(document, "/another.txt", "private")
 
-        assert await files_written(backend, None) == DeliveredFiles(attachments=[], refused=[])
+        assert await files_written(workspace, None) == DeliveredFiles(attachments=[], refused=[])
 
     async def test_directories_are_not_files(self):
-        class _WithDirectories:
-            def glob_info(self, pattern, path="/"):
-                return [
-                    {"path": "/out", "is_dir": True},
-                    {"path": "/out/report.csv", "is_dir": False},
-                ]
+        document = StateBackend()
+        document.make_dir("/out/empty")
+        _write(document, "/out/report.csv", "a,b")
 
-            def read_bytes(self, path):
-                return b"a,b"
-
-        delivered = await files_written(_WithDirectories(), set())
+        delivered = await files_written(document_workspace(document), set())
 
         assert [a.filename for a in delivered.attachments] == ["report.csv"]
 

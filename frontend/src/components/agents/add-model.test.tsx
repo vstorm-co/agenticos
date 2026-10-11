@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  defaultApi,
   modelHint,
   modelIdIsWellFormed,
   modelPlaceholder,
@@ -150,5 +151,24 @@ describe("soleKeyedProvider", () => {
 
   it("survives a secret with no purpose on it", () => {
     expect(soleKeyedProvider(providers, [{ purpose: null }, { purpose: "openai" }])).toBe("openai");
+  });
+});
+
+describe("defaultApi", () => {
+  // The service's rule, so the select shows what an omitted choice would store.
+  const openai = { native_api: "responses" as const };
+
+  it("gives the provider's own endpoint its native API", () => {
+    expect(defaultApi(openai, "")).toBe("responses");
+    expect(defaultApi(openai, "   ")).toBe("responses");
+  });
+
+  it("gives an endpoint of somebody's own Chat Completions", () => {
+    expect(defaultApi(openai, "http://vllm:8000/v1")).toBe("chat");
+  });
+
+  it("has nothing to say for a provider that serves one API", () => {
+    expect(defaultApi({ native_api: null }, "")).toBeNull();
+    expect(defaultApi(null, "")).toBeNull();
   });
 });

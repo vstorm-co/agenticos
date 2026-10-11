@@ -43,6 +43,8 @@ const OPENAI: ProviderInfo = {
   secret_kind: "api_key",
   supports_base_url: true,
   keyless: true,
+  apis: ["responses", "chat"],
+  native_api: "responses",
 };
 
 const PURPOSE: SecretPurpose = {

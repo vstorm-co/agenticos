@@ -5,6 +5,7 @@ import { ArrowLeft, Building2, Globe, Lock, MoreHorizontal, Trash2, UserPlus } f
 import { useTranslations } from "next-intl";
 
 import {
+  Badge,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,15 @@ export function ArtifactViewerBar({
         {artifact !== null && (
           <>
             <h1 className="text-foreground truncate text-sm font-medium">{artifact.title}</h1>
+            {artifact.environment_name !== null && (
+              <Badge
+                variant="outline"
+                className="hidden shrink-0 md:inline-flex"
+                title={t("environmentBadge")}
+              >
+                {artifact.environment_name}
+              </Badge>
+            )}
             <AccessBadge artifact={artifact} />
           </>
         )}

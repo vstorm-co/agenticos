@@ -9,7 +9,7 @@ import { usePublicConfig } from "@/components/public-config/public-config-provid
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, isTimeout } from "@/lib/api-error";
 import { invitationFlowFrom } from "@/lib/invitation-links";
 
 const LABEL = "text-foreground text-sm font-medium";
@@ -44,7 +44,11 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
       toast.success(t("loginSuccess"));
     } catch (err) {
       const message =
-        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("loginFailedPleaseTry");
+        err instanceof ApiError
+          ? getErrorMessage(err, tErrors)
+          : isTimeout(err)
+            ? t("loginTimedOut")
+            : t("loginFailedPleaseTry");
       setError(message);
       toast.error(message);
       setIsLoading(false);

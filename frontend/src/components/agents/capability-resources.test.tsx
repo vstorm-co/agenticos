@@ -111,6 +111,32 @@ describe("what a capability reads of the organization's", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("offers the artifact-pages skill, and only it, where pages are published", async () => {
+    const pages = { ...SKILL, id: "s2", name: "artifact-pages", description: "Build pages." };
+    const resources = mount("artifacts", { skills: [SKILL, pages], skillTotal: 2 });
+
+    expect(resourceTabKey("artifacts")).toBe("artifactPagesHeading");
+    expect(screen.queryByText("refund-policy")).toBeNull();
+    await userEvent.click(screen.getByText("artifact-pages"));
+    expect(resources.onSkillToggle).toHaveBeenCalledWith("s2");
+  });
+
+  it("does not call the agent's other skills missing from the page-style tab", () => {
+    // The tab lists one skill; handed every bound id, the gallery read each of
+    // the others as a skill that no longer exists.
+    const pages = { ...SKILL, id: "s2", name: "artifact-pages", description: "Build pages." };
+    mount("artifacts", { skills: [SKILL, pages], skillTotal: 2, skillIds: ["s1", "s2"] });
+
+    expect(screen.queryByText(/no longer/i)).toBeNull();
+    expect(screen.queryByText("s1")).toBeNull();
+  });
+
+  it("says where the skill comes from when this organization has none", () => {
+    mount("artifacts");
+
+    expect(screen.getByText(/has no artifact-pages skill/)).toBeInTheDocument();
+  });
+
   it("reports a pick against the spec's own list, not the capability's config", async () => {
     // `collection_ids` is top level; a binding's config holds how the capability
     // behaves, never what it was given.

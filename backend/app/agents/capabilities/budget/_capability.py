@@ -126,15 +126,33 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
-    for provider_id in (provider, None) if provider else (None,):
+    for name, provider_id in _price_lookups(model_name, provider):
         try:
-            return calc_price(usage, model_name, provider_id=provider_id).total_price
+            return calc_price(usage, name, provider_id=provider_id).total_price
         except LookupError:
             continue
         except ValueError:
             logger.warning("Refused to price %s from usage %r", model_name, usage)
             return None
     return None
+
+
+def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str | None]]:
+    """Where to look for a price, most specific first.
+
+    The name as billed, under the profile's provider and then under any. Then,
+    for an aggregator's `vendor/model`, the vendor's own entry: OpenRouter
+    passes the vendor's price through, and the snapshot lists a model under its
+    vendor well before it lists every aggregator's spelling of it -
+    `anthropic/claude-sonnet-5.5` was unpriced, so every request through it was
+    booked at $0 and no budget could stop the run. The vendor spells a version
+    with dashes where the aggregator uses a dot, so both are tried.
+    """
+    lookups: list[tuple[str, str | None]] = [(model_name, provider), (model_name, None)]
+    vendor, slash, bare = model_name.partition("/")
+    if slash:
+        lookups += [(name, vendor) for name in dict.fromkeys((bare, bare.replace(".", "-")))]
+    return lookups if provider else lookups[1:]
 
 
 @dataclass

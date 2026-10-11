@@ -1,13 +1,13 @@
 ---
-source_sha: "eeabd2250add"
+source_sha: "f73b608eac37"
 title: "AgenticOS vergleichen"
-seo_title: "AgenticOS im Vergleich: selbst gehostete KI-Agent-Plattform"
-description: "Die selbst gehostete Open-Source-Plattform AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
+seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
+description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
 ---
 
 # AgenticOS vergleichen { #compare-agenticos }
 
-Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine Plattform für die Agents eines Unternehmens, die Sie selbst betreiben. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
+Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine souveräne Schicht für die Agents eines Unternehmens, die Sie selbst betreiben. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Basis: v0.0.504. Nächste Prüfung bis 25. Oktober 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
 
@@ -20,13 +20,13 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Einen selbst gehosteten Builder oder ein Automatisierungswerkzeug | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
 | Einen Teammate-Dienst in Slack oder Teams | Viktor | [Viktor](viktor.md) |
 | Eine gelieferte Enterprise-Plattform | Wonderful | [Wonderful](wonderful.md) |
-| Einen Coding-Agent oder eine Plattform für alle anderen | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
+| Einen Coding-Agent oder eine Schicht für alle anderen | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
 ## Das Feld im Überblick { #the-field-at-a-glance }
 
 | Produkt | Was es ist | Wo es läuft | Quellcode | Modelle |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Eine Plattform für Unternehmens-Agents, im Browser aufgebaut | Ihre Infrastruktur | Apache-2.0 | 27 Provider, darunter lokale |
+| **AgenticOS** | Eine souveräne Schicht für Unternehmens-Agents, im Browser aufgebaut | Ihre Infrastruktur | Apache-2.0 | 27 Provider, darunter lokale |
 | Claude Team / Enterprise | Der Assistenten-Workspace von Anthropic | Die Cloud von Anthropic | Proprietär | Nur Claude |
 | ChatGPT Business / Enterprise | Der Assistenten-Workspace von OpenAI, mit Workspace-Agents | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
 | Copilot Studio | Ein Low-Code-Agent-Builder auf der Power Platform | Die Cloud von Microsoft | Proprietär | Modelle von OpenAI und Anthropic, dazu Azure Foundry |
@@ -40,6 +40,26 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | OpenCode | Ein Open-Source-Coding-Agent | Entwicklerrechner | MIT | Über 75 Provider |
 
 Jede Zelle stammt von den eigenen Seiten des Anbieters; die Leitfäden verlinken sie. "Proprietär" beschreibt die Lizenz, nicht die Qualität.
+
+## Wie viel bei Ihnen bleibt { #how-much-stays-yours }
+
+Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt läuft, welche Modelle es nutzen darf, was die Lizenz Ihnen erlaubt und ob die Kontrollen, nach denen eine IT- und Sicherheitsprüfung fragt, ohne kostenpflichtigen Tarif verfügbar sind. Jede Zelle stammt aus den Leitfäden oben oder den Anbieterseiten, die sie verlinken.
+
+| Produkt | Wo es läuft | Welche Modelle Sie nutzen dürfen | Was die Lizenz erlaubt | Anmeldung, Audit und Kostenkontrolle |
+| --- | --- | --- | --- | --- |
+| **AgenticOS** | Ihre Infrastruktur; eine frische Installation sendet nichts nach außen | Jeder der 27 Provider oder ausschließlich lokale Modelle | Apache-2.0: lesen, ändern, unter eigener Marke anbieten und für andere betreiben; der Standard-PDF-Parser steht unter AGPL-3.0, sodass ein verändertes Image, das Sie anderen bereitstellen, ihnen seinen Quellcode schuldet ([Details](../licenses.md#the-agpl-component)) | Anmeldung: OIDC-SSO, LDAP und Kerberos · Audit: Log mit Manipulationsnachweis · Ausgaben: Budgets pro Agent und pro Organisation · alles in jedem Deployment |
+| Claude Team / Enterprise | Cloud von Anthropic | Nur Claude | Proprietär | Anmeldung: SSO in Team und Enterprise · Audit: Enterprise, 180 Tage Ereignisse · Ausgaben: Limits pro Organisation, Gruppe und Nutzer |
+| ChatGPT Business / Enterprise | Cloud von OpenAI; in Enterprise Speicherort in zehn Regionen wählbar | Nur OpenAI | Proprietär | Anmeldung: SSO in Business; SCIM und eigene Rollen in Enterprise · Audit: Compliance API in Enterprise und Edu · Ausgaben: Credit-Pools und Überziehungslimits |
+| Copilot Studio | Cloud von Microsoft, in Power-Platform-Umgebungen | Standardmäßig GPT-Modelle, Claude-Modelle, Azure-Foundry-Modelle separat abgerechnet | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: monatliche Limits pro Agent |
+| Gemini Enterprise | Google Cloud, in den Regionen global, US, EU und einigen nationalen | Gemini; andere Modelle nur in Custom Agents auf der Agent Platform | Proprietär | Anmeldung: Google Cloud IAM · Audit: Audit-Logs von Google Cloud · Ausgaben: monatliche Limits auf dem Rechnungskonto |
+| Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
+| n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
+| Viktor | Cloud von Viktor, auf AWS us-east-1 | Voreinstellungen für OpenAI, Anthropic, Google und Kimi oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO in Enterprise · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool, Limits nach Absprache in Enterprise |
+| Wonderful | Mandantenfähiges SaaS, Single-Tenant, Ihre Cloud oder netzwerkisoliert on-premises | Pro Aufgabe von der Plattform geroutet | Proprietär; Agents und Konfiguration lassen sich über UI oder API exportieren | Anmeldung: auf seinen Seiten nicht angegeben · Audit: Audit-Logs im AI Gateway · Ausgaben: Budgetgrenzen pro Team |
+
+Dify und n8n laufen ebenfalls auf Ihren eigenen Servern mit lokalen Modellen, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Unter den Produkten in dieser Tabelle ist AgenticOS das einzige, bei dem alle vier Antworten bei Ihnen bleiben.
+
+Wer AgenticOS selbst betreibt, macht damit nicht jedes Modell, jeden Parser und jedes Werkzeug lokal. Jeden externen Dienst fügen Sie selbst hinzu; siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
 
 ## Was AgenticOS in jeden Vergleich einbringt { #what-agenticos-brings-to-every-comparison }
 

@@ -43,6 +43,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import mcp_oauth
+from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
@@ -69,6 +70,7 @@ from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
+from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import mcp_connection_repo, mcp_registry_server_repo
 from app.schemas.mcp_connection import (
@@ -1746,7 +1748,7 @@ def _stored_label(label: str | None) -> str | None:
     return trimmed or None
 
 
-PersonalServiceGapKind = Literal["nobody_to_speak_as", "not_connected", "undecided", "unauthorized"]
+PersonalServiceGapKind = Literal["nobody_to_speak_as"] | OwnAccountGap
 
 
 @dataclass(frozen=True)
@@ -1929,7 +1931,17 @@ async def build_toolsets_for_agent(
 async def _personal_spec(
     db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
 ) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
-    """The sender's own connection to this service as a server spec, or why not.
+    """The sender's own connection to this service as a server spec, or why not."""
+    if sender_user_id is None:
+        return None, "nobody_to_speak_as"
+    own = await _own_spec(db, ref, user_id=sender_user_id)
+    return (own, None) if isinstance(own, McpServerSpec) else (None, own)
+
+
+async def _own_spec(
+    db: AsyncSession, ref: PersonalMcpServerRef, *, user_id: UUID
+) -> McpServerSpec | OwnAccountGap:
+    """One person's own connection to this service as a server spec, or why not.
 
     The tool prefix is the catalog key rather than the connection's name: the
     agent presents `notion_search` to everyone, whatever each person called
@@ -1938,30 +1950,42 @@ async def _personal_spec(
     administrator's side coming from the spec because there is no connection
     row of the organization's to read it from.
     """
-    if sender_user_id is None:
-        return None, "nobody_to_speak_as"
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
-        db, user_id=sender_user_id, catalog_key=ref.catalog_key
+        db, user_id=user_id, catalog_key=ref.catalog_key
     )
     connection = _nominated(owned)
     if connection is None:
-        return None, "undecided" if owned else "not_connected"
+        return "undecided" if owned else "not_connected"
     headers = await _resolve_auth_headers(db, connection)
     if headers is None:
         logger.info(
             "Skipping the sender's own %r connection for this run: no usable credentials",
             ref.catalog_key,
         )
-        return None, "unauthorized"
-    return (
-        McpServerSpec(
-            name=ref.catalog_key,
-            url=connection.url,
-            headers=headers,
-            allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
-        ),
-        None,
+        return "unauthorized"
+    return McpServerSpec(
+        name=ref.catalog_key,
+        url=connection.url,
+        headers=headers,
+        allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
     )
+
+
+async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
+    """A person's own connection to this service, read again once they say they made it.
+
+    What `connect_account` attaches mid-run (`app.agents.connect_on_use`). In a
+    session of its own rather than the run's: the call arrives in the middle of
+    a run whose session is busy with it, and the connection it looks for was
+    committed by another request after this run's transaction began. An OAuth
+    refresh spent on the way is committed with that session.
+    """
+    async with get_db_context() as db:
+        own = await _own_spec(db, ref, user_id=user_id)
+    if not isinstance(own, McpServerSpec):
+        return own
+    ((_, toolset),) = await probe_toolsets([own])
+    return "unreachable" if toolset is None else toolset
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:

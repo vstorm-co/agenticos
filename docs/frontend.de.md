@@ -1,5 +1,5 @@
 ---
-source_sha: "565baceaed60"
+source_sha: "22652979b979"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -145,7 +145,7 @@ Konfiguration, meldet rund 164 Geisterfehler und lässt ein verirrtes
 Cache-Verzeichnis zurück.
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx   # while writing
+bunx vitest run src/components/chat/usage-meter.test.tsx   # while writing
 ```
 
 Einmal, vor dem Push — aus dem Wurzelverzeichnis des Repositorys:

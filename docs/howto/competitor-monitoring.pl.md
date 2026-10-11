@@ -1,5 +1,5 @@
 ---
-source_sha: "a28e7805a24a"
+source_sha: "d510b0c748f8"
 title: "Obserwuj strony internetowe pod kątem zmian według harmonogramu"
 description: "Pobieraj dwie strony według harmonogramu, porównuj każdą z tym, co zapisano ostatnio, i zgłaszaj tylko to, co się zmieniło."
 ---
@@ -19,7 +19,7 @@ Dwa odpalenia dowodzą dwóch różnych rzeczy. **Run now** dowodzi, że logika 
 
 Oczywistą capability dla „zapamiętaj, co widziałem ostatnio” są [pliki pamięci](../reference/capabilities.md#memory-files). Tutaj to nie działa, a powód warto poznać, zanim sięgniesz po nie w harmonogramie.
 
-Odpalenie triggera działa jako jego twórca w kwestii budżetów, zatwierdzeń i śladu audytu, ale nie pamięci: *odbiorca* runa - kto usłyszy odpowiedź - jest celowo pusty na powierzchni `schedule`, więc nienadzorowany run nie może czytać ani zapisywać osobistych notatek twórcy. `write_memory` i `read_memory` odpowiadają tym samym:
+Odpalenie triggera działa z rolą i uprawnieniami swojego twórcy, ale nie jako on w kwestii pamięci: *odbiorca* runa - kto usłyszy odpowiedź - jest celowo pusty na powierzchni `schedule`, więc nienadzorowany run nie może czytać ani zapisywać osobistych notatek twórcy. `write_memory` i `read_memory` odpowiadają tym samym:
 
 ```text
 This conversation has no memory. It has no identified person and is not a

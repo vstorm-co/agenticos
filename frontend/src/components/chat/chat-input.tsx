@@ -99,21 +99,18 @@ interface ChatInputProps {
    */
   mic?: UseMicrophoneResult;
   /**
-   * What the caller wants on the left of the control row, after the attach
-   * button - the connection pill and the usage readings.
+   * Who answers - drawn on the control row after the attach button.
    *
-   * A slot rather than a second row of the caller's own. The composer used to
-   * be four stacked bands: a usage strip above the text, the text, a floating
-   * cluster of icons beside it, a rule, and a row of pickers under that. The
-   * cluster sat beside the textarea, so on a tall message the send button
-   * floated somewhere in the middle of the box with text above and below it.
-   * One row under the text is what every console this is measured against
-   * does, and it is one row because the send button has to stay inside this
-   * `<form>` to submit it.
+   * Slots rather than a row of the caller's own, because the send button has to
+   * stay inside this `<form>` to submit it.
    */
-  statusSlot?: ReactNode;
-  /** The right of the same row, before the microphone: who answers, and how. */
   controlsSlot?: ReactNode;
+  /**
+   * Icons drawn before the microphone: what the conversation is using, and the
+   * model it runs on. Icons, because a line of readings and a model's name took
+   * the width of the row and were read past on every message.
+   */
+  actionsSlot?: ReactNode;
 }
 
 export function ChatInput({
@@ -125,8 +122,8 @@ export function ChatInput({
   commands,
   attachmentSlot,
   mic,
-  statusSlot,
   controlsSlot,
+  actionsSlot,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -472,10 +469,12 @@ export function ChatInput({
           multiple
           className="hidden"
         />
-        {statusSlot ? <div className="flex min-w-0 items-center gap-2">{statusSlot}</div> : null}
+        {controlsSlot ? (
+          <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
+        ) : null}
 
-        <div className="ml-auto flex min-w-0 items-center gap-1.5">
-          {controlsSlot}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {actionsSlot}
           <Button
             type="button"
             variant="ghost"

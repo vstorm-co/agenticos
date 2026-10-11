@@ -47,7 +47,7 @@ tools listed.
 | `compaction` | Context management | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -258,6 +258,11 @@ there is nothing for the agent to get wrong.
   alone with somebody is not read back aloud where a whole channel sees it.
 - On a public widget or an embed there is nobody to attribute anything to, so
   there is no store, and the tools say so rather than saving somewhere.
+- On a schedule or an event trigger there is no store either, even though the
+  run executes as the trigger's creator. The creator lends the run their
+  authority, not their identity, so nobody is listening and the tools refuse.
+  Put a fact a scheduled run needs in the trigger's prompt or in a bound
+  context file. See [Trigger](../concepts.md#it-is-not-that-persons-conversation).
 
 There is no organisation-wide store. One existed and was removed: it was a second
 mechanism for what [context files](../context.md) already do — standing knowledge
@@ -388,6 +393,9 @@ refuse, saying why: the corpus is personal, so answering from it in a channel wo
 read one person's private conversations out to everyone in the room. It is the
 line the memory index draws, one layer further out.
 
+A schedule or an event trigger answers nobody, so both tools refuse there too,
+for the reason [memory files](#whose-notes-and-who-may-hear-them) do.
+
 ### How it matches
 
 PostgreSQL full-text search — a `tsvector` maintained by the database over every
@@ -467,6 +475,22 @@ scope.
 
 The fetch itself is Pydantic AI's `web_fetch_tool` over its SSRF-guarded
 `safe_download`, and that is the reason this is not code of ours.
+
+What a response turns into is decided here:
+
+- A page (HTML, Markdown, JSON, plain text) comes back as Markdown.
+- An image comes back as an image, for a model that reads pictures.
+- A PDF or an office document comes back as its **extracted text**, read by the same
+  parser a chat attachment goes through, and cut at `max_content_chars` like a page.
+  The library would hand back the raw bytes for the model to read natively. A model
+  served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
+  request (`Unsupported chat content part type: 'file'`), and the agent then fetches
+  the same document again. Only the text up to `max_content_chars` is extracted, and
+  a PDF is read for at most 2,000 pages: one longer than that ends with a note
+  naming the page it stopped at, and when the pages read held no text the note is
+  all that comes back.
+- A binary with no readable text (a scanned PDF, an archive) reaches the model as a
+  retryable error that names what came back.
 
 The URL comes from the **model** and is dereferenced from inside the container, so
 validating it up front — the way `app.core.sanitize.validate_webhook_url` does for a
@@ -670,7 +694,9 @@ event loop the run assembles on).
 model — the one whose credential was resolved from the vault — and each of its steps
 is one model request, booked against the run's budget through the same ambient-usage
 ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
-not spend the budget guard cannot see.
+not spend the budget guard cannot see. Each step asks the budget before it is sent, so
+once the run's budget is spent the browser agent's next step is refused rather than
+paid for.
 
 **`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
 Playwright) and pins dependencies a minor lower than the rest of the platform, so it
@@ -931,23 +957,34 @@ simply has nowhere to build with them.
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
 summary - under a stable link.*
+`read_artifact` — *Read the current version of a page this agent published, as it
+was written.*
 
 Publishes one self-contained HTML or Markdown document as an
 [artifact](../artifacts.md): a shared resource with an owner, a visibility and
 grants, opened in a browser under a link that stays put. No configuration.
 
-**The name is the identity.** `(organization, agent, name)` picks the artifact,
-so the next run of the same agent that publishes `weekly-report` - from a chat, a
-schedule or the API - adds a version to the same one instead of making a second
-link. Identical bytes add no version and answer `unchanged`.
+**The name is the identity.** `(organization, agent, environment, name)` picks the
+artifact, so the next run of the same agent that publishes `weekly-report` - from
+a chat, a schedule or the API - adds a version to the same one instead of making a
+second link. The environment comes from the run, so a run in `staging` publishes a
+page of its own. Identical bytes add no version and answer `unchanged`.
 
 **Where the page comes from.** `path` reads a file from the run's workspace
 through its own backend, so it works wherever the `sandbox` capability does;
-`content` takes the page inline for an agent with no workspace. Exactly one of the
-two. A wrong call - both or neither, a name outside
-`^[a-z0-9][a-z0-9-]{0,63}$`, an unknown extension, an empty or oversized page -
-is a retry naming what to change. A read the workspace's permission rules refuse
-is a result, not a retry.
+`content` takes the page inline for an agent with no workspace; `edits` are exact
+replacements applied to the version `read_artifact` returned, and a publish in
+between refuses them rather than overwrite it. Exactly one of the three. A wrong
+call - more than one, none, a name outside `^[a-z0-9][a-z0-9-]{0,63}$`, an unknown
+extension, an empty or oversized page, an edit that matches no place or several -
+is a retry naming what to change. A read the workspace's permission rules refuse,
+and a page the run's person may not open, are results, not retries.
+
+**Reading back.** `read_artifact` returns a header line (version, format, size)
+and the source, cut at 100,000 characters with the header saying so. It opens
+only what the run's person may open in the console, and nothing on a public
+widget, an embed, a schedule or an event trigger, where no identified person is
+listening.
 
 **Not side-effecting.** A first publication is private to the person the run was
 for, and only a person widens who reads it, so the approval gate would only
@@ -955,8 +992,9 @@ park the scheduled report this exists for. An author who wants each republish of
 a shared page approved sets `tool_approval` on `publish_artifact`.
 
 **The page has no network.** It is served in an opaque origin under a `sandbox`
-policy with `connect-src 'none'`, and the tool text tells the model to inline
-everything. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
+policy with `connect-src 'none'`, and the tool text tells the model to inline its
+own data and load charts from the deployment's [library set](../artifacts.md#the-library-set)
+rather than a CDN. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegation
 
@@ -1555,9 +1593,9 @@ produced, and lets the reduced form persist. The reduction itself is
 | Config | Default | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | size at or above which a return is reduced |
+| `threshold` | 60000 | size at or above which a return is reduced; 15000 when `over_tokens` is set |
 | `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
-| `max_chars` | 4000 | characters kept when a return is truncated, or a spill falls back to one |
+| `max_chars` | 20000 | characters kept when a return is truncated, or a spill falls back to one; left unset, never more than the threshold |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
 | `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
 | `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
@@ -1653,8 +1691,9 @@ deliberately not exposed.
 
 No tools. Inspects the text flowing through a run at three edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
-`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
-them rather than carrying a Python guard.
+`pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
+agent is data, so the config selects and parameterises them rather than carrying a
+Python guard.
 
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
@@ -1665,11 +1704,30 @@ them rather than carrying a Python guard.
 | Config | Default | |
 |---|---|---|
 | `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
-| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+| `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
 
-Every field defaults off, and a capability enabled with no edge configured attaches
+Every edge field defaults off, and a capability enabled with no edge configured attaches
 nothing — an agent that does not use it pays nothing.
+
+**A phone number is redacted only when it is a real number.** The detector is
+libphonenumber's, at its `STRICT_GROUPING` leniency: a candidate is accepted only
+when it fits the numbering plan of its country and its separators fall where that
+country groups digits, so a date, an amount or an order id that a digit-count rule
+would take comes through. A number written with `+` names its
+country and is redacted whatever `phone_regions` lists. A national number, such as
+`415-555-0132`, is read against each listed country, and each one added widens what
+a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
+listed a nine-digit order id is redacted too. Grouping cuts both ways: a US ZIP+4
+that starts with `0`, such as `02134-1234`, is grouped as a German area code and
+number, so with `DE` listed it is redacted. List the countries the agent serves.
+An unknown code (`UK` for `GB` is the common one), or a list of more than 16, is
+refused at publish. With up to four countries, a text longer than 200,000 characters
+or with more than 10,000 digits is not read at all. Each country past four is another
+pass over the text, so both limits shrink in proportion, to 50,000 characters and
+2,500 digits at sixteen. A text over the limit ends the run with
+`guardrail_blocked`, because passing it on unread would pass on every number in it.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
 the run finishes — an answer that quoted a key back has still done the work. A
@@ -1677,6 +1735,32 @@ keyword block instead ends the run with status `guardrail_blocked`, its own outc
 beside `budget_exceeded`, because a refusal is the platform working and an operator
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
+
+**An output check screens the answer before anyone sees it.** Every surface
+streams: the web chat and the embedded widget send the answer as it is written, and
+a channel bot edits its reply as the text arrives. When any output check is
+configured, each piece of text and reasoning is held back until it is complete,
+checked with the same detectors, and only then sent. A key split across two chunks is still caught. One split across two parts, such as
+text before a tool call and text after it, or reasoning and then the answer, ends
+the run before its second half is sent, because the first is already on screen. So is text the model writes before it calls a tool, which is not
+part of the final answer but is still shown and stored. The cost is that such an
+agent's answer arrives one step at a time rather than word by word. An agent with
+no output check streams as before. A keyword block in the
+answer ends the run before any of the blocked text is shown or stored. Reasoning is
+not the answer, so a blocked keyword there does not end the run: that reasoning step
+shows `[reasoning withheld by the output guardrail]` instead.
+
+**What the stream screen does not cover yet.** Two streamed paths are not screened:
+a tool call's arguments as they stream, and a delegate's own streamed answer in the
+delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
+size limits, so an answer part too long for it ends the run as the final answer
+would. Because the screen hooks the run's event stream, a guarded agent's model
+requests stream even through the HTTP API, so its model must support streaming.
+
+**The input edge changes what the model reads, not the transcript.** A redacted
+prompt reaches the model scrubbed, but the conversation stores the message as the
+person typed it, personal data included. Anyone who can read the conversation can
+read that message.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

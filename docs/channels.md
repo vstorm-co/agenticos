@@ -272,7 +272,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
 | `history` | `messages` | What was said in the thread this visitor is resuming — **a hosted page whose visitor is anonymous**, which is the only connection that carries a continuity key: a widget's conversation lasts as long as its socket, and a `jwt` visitor is named by their token. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
-| `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
+| `part_start` | `index`, `part_type`; `tool_name`, `tool_call_id` for a `ToolCallPart` | A block of the answer is starting. A tool call names itself here, so a client can show it while its arguments stream. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
 | `thinking_delta` | `index`, `content` | The model's reasoning. **Only if the operator turned it on.** |
 | `call_tools_start` | — | The agent is about to use tools. |
@@ -1283,7 +1283,10 @@ serves all three platforms, so the policy cannot drift between them.
   when the silence used to be longest, because a tool call produces no text
   while it runs. Edited about once a second: per token would be hundreds of
   writes a second against a server that is often somebody's own. A platform that
-  cannot edit a sent message simply gets the finished answer, as before.
+  cannot edit a sent message simply gets the finished answer, as before. An agent
+  with an [output guardrail](reference/capabilities.md#guardrails) has its reply
+  rewritten one step at a time instead, and each step is posted only after it
+  has been checked.
 - **Every binding carries its own extra instructions**, added to the agent's on
   that surface alone. A new one opens holding what that client actually renders:
   Slack draws no Markdown and writes a link as `<url|text>`, Mattermost renders

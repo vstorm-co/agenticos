@@ -24,12 +24,23 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.updates import cleared, writable
-from app.repositories import agent_environment_repo, agent_repo, organization_secret_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    agent_run_repo,
+    artifact_repo,
+    organization_secret_repo,
+)
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
 from app.services.agent_registry import AgentRegistryService
 
@@ -232,12 +243,20 @@ class AgentEnvironmentService:
 
         Exposures pointing at it fall back to the default (`environment_id`
         becomes NULL on delete), which is the least surprising failure: the
-        bot keeps answering, with what everyone else gets.
+        bot keeps answering, with what everyone else gets. Its artifacts do not
+        fall back: they stay readable and lose their publisher, the way an
+        agent's do when the agent is deleted, so the default environment's page
+        of the same name is never the one they collide with.
 
         Raises:
             NotFoundError: If the environment is not this agent's.
             BadRequestError: If it is the default - an agent without a default
                 is an agent plain surfaces cannot run.
+            ConcurrentChangeError: If a run of it is still running or parked on
+                an approval. Deleting the row sets that run's `environment_id` to
+                null, which reads as the default - so a staging run still working,
+                or resumed after a decision, would publish its pages over
+                production's. It is refused until the run ends.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
         if environment.is_default:
@@ -246,7 +265,23 @@ class AgentEnvironmentService:
                 "every surface that names no environment gets.",
                 details={"environment_id": str(environment.id)},
             )
+        # Locked first, so no run can start in it between the count and the
+        # delete: the count would miss it, and the delete would null its
+        # environment while it still runs.
+        await agent_environment_repo.lock(self.db, environment.id)
+        unfinished = await agent_run_repo.count_unfinished_in_environment(
+            self.db, environment_id=environment.id, organization_id=ctx.organization_id
+        )
+        if unfinished:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{unfinished} run(s) in {environment.name!r} are still running or "
+                    "waiting for an approval. Remove it once they finish, or stop them first."
+                ),
+                details={"environment_id": str(environment.id), "unfinished": unfinished},
+            )
         name = environment.name
+        await artifact_repo.detach_environment(self.db, environment_id=environment.id)
         await agent_environment_repo.delete(self.db, environment=environment)
         await record_audit(
             self.db,

@@ -1,5 +1,5 @@
 ---
-source_sha: "b76da60d30ae"
+source_sha: "0c5e08e96b12"
 ---
 
 # Testowanie { #testing }
@@ -324,7 +324,7 @@ konfiguracji, raportuje grubo ponad sto widmowych awarii i zostawia po sobie zb≈
 ```bash
 cd frontend
 
-bunx vitest run src/components/chat/usage-strip.test.tsx   # one spec, ~2s
+bunx vitest run src/components/chat/usage-meter.test.tsx   # one spec, ~2s
 bunx vitest run src/components/chat                        # one directory
 bun run test                                               # watch mode
 bun run test:coverage                                      # the suite plus the gate CI applies

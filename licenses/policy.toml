@@ -48,6 +48,10 @@ evidence = "The platform build of Next.js's compiler names no author and ships n
 holder = "Vercel, Inc."
 evidence = "As for @next/swc-linux-x64-gnu: the arm64 build from the same repository"
 
+[notices.python."obstore"]
+holder = "Development Seed"
+evidence = "obstore-0.11.1 ships no licence file and its metadata names no author or licence; it is the package from https://github.com/developmentseed/obstore, whose LICENSE is MIT, Copyright (c) 2024 Development Seed. Reached through the Daytona SDK (daytona -> obstore)"
+
 [notices.python."pydantic-monty"]
 holder = "Pydantic Services Inc."
 evidence = "The wheel names no author; its Project-URL is https://github.com/pydantic/monty, whose LICENSE is MIT, Copyright (c) Pydantic Services Inc. 2026 to present"
@@ -90,6 +94,12 @@ license = "Artistic-1.0-Perl OR GPL-2.0-or-later"
 status = "accepted"
 obligations = "Dual-licensed; taken under the Artistic License: keep the copyright notice and the licence text with the distribution, do not misrepresent the package."
 fulfilled_by = "Unmodified; the wheel's LICENSE.txt ships in the image; named with its source in THIRD_PARTY_NOTICES.md."
+
+[review.python."bidict"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "File-level copyleft on the library's own files; source availability for them. Reached through the Daytona SDK's Socket.IO client (daytona -> python-socketio -> bidict)."
+fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/jab/bidict."
 
 [review.python."certifi"]
 license = "MPL-2.0"

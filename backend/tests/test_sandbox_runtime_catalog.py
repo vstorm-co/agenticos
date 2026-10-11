@@ -23,6 +23,7 @@ from app.services.sandbox_runtimes import (
     runtime_briefing,
     runtime_parses_documents,
 )
+from tests.workspaces import document_workspace
 
 
 def _sandboxd_environment(name: str) -> dict[str, Any]:
@@ -448,7 +449,7 @@ class TestTheRunsInstructions:
         from app.services.sandbox_workspace import OpenWorkspace
 
         return OpenWorkspace(
-            backend=object(),
+            workspace=document_workspace(),
             kind="service",
             scope="conversation",
             scope_key="xc-1234",

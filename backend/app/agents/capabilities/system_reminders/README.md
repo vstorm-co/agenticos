@@ -27,9 +27,12 @@ never stored - only the counters are.
 ## Why injection is cache-safe
 
 A fired reminder is appended to the *tail* of the request as an ephemeral
-`UserPromptPart` behind a `CachePoint`, inside `wrap_model_request` - which runs
-after core has persisted the durable history. So the reminder reaches the model
-but never enters `message_history`: no stale reminders pile up across turns, and
+`UserPromptPart` behind a `CachePoint`, in `before_model_request`, by replacing the
+tail in a new list rather than appending to it - pydantic-ai writes a before hook's
+appends back to the history, and a replaced item it does not. The factory orders
+this capability after every other configured one, so a compaction strategy that
+rebuilds the request from the history runs first and cannot drop the reminder. So
+the reminder reaches the model but never enters `message_history`: no stale reminders pile up across turns, and
 the cached prefix (tools, system, the real conversation) stays byte-identical turn
 over turn while only the small reminder falls outside the cache. Injecting into
 the system prompt instead would bust the cached prefix on every fire *and* pile up

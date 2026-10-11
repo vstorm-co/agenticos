@@ -13,7 +13,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
@@ -465,18 +470,57 @@ class TestDelete:
             with pytest.raises(BadRequestError, match="default"):
                 await service.delete(_ctx(), agent.id, environment.id)
 
+    async def test_an_environment_with_a_run_still_working_is_not_removed(self):
+        """The run's environment would become null, which reads as the default, and
+        a staging run still working would then publish its pages over production's."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="staging")
+        service = _service(agent)
+        order: list[str] = []
+
+        with (
+            patch(_REPO) as environments,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
+                new=AsyncMock(side_effect=lambda *_a, **_k: order.append("count") or 2),
+            ),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.lock = AsyncMock(side_effect=lambda *_a, **_k: order.append("lock"))
+            environments.delete = AsyncMock()
+            with pytest.raises(ConcurrentChangeError, match="2 run"):
+                await service.delete(_ctx(), agent.id, environment.id)
+
+        environments.delete.assert_not_awaited()
+        # Locked before counting, so no run can start in it between the two.
+        assert order == ["lock", "count"]
+
     async def test_a_named_environment_is_removed_and_audited(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id, name="dev")
         service = _service(agent)
 
+        order: list[str] = []
         with (
             patch(_REPO) as environments,
             patch(_AUDIT, new=AsyncMock()) as audit,
+            patch(
+                "app.services.agent_environment.artifact_repo.detach_environment",
+                new=AsyncMock(side_effect=lambda *_a, **_k: order.append("detach")),
+            ) as detach,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
+                new=AsyncMock(return_value=0),
+            ),
         ):
             environments.get = AsyncMock(return_value=environment)
-            environments.delete = AsyncMock()
+            environments.lock = AsyncMock()
+            environments.delete = AsyncMock(side_effect=lambda *_a, **_k: order.append("delete"))
             await service.delete(_ctx(), agent.id, environment.id)
 
         environments.delete.assert_awaited_once()
+        # Its artifacts are detached first, or the foreign key would drop them into
+        # the default environment's slot of the same name.
+        assert detach.await_args.kwargs == {"environment_id": environment.id}
+        assert order == ["detach", "delete"]
         assert audit.call_args.kwargs["details"]["name"] == "dev"

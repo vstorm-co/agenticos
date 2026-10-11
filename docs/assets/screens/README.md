@@ -1,117 +1,122 @@
-# Console screenshots — what each one shows
+# README media and capture inventory
 
-Captured 2026-09-01 from a running deployment. Every screen is here twice, once
-per theme, under the same filename: `light/agents.png` and `dark/agents.png` are
-the same page. 27 pairs, plus the chat recording at the top level.
+## Current README captures
 
-Not a site page — this file is in `exclude_docs`, so `--strict` does not ask for
-it in the nav.
+Captured from the authenticated AgenticOS test deployment on 2 October 2026, with the artifact
+detail and library refreshed on 3 October 2026, using
+Chromium through Playwright. Every current README screenshot is a native **3200 × 2000
+PNG** from a **1600 × 1000 CSS-pixel viewport at device scale factor 2**. The application
+uses its light theme and expanded navigation. The organization-selection reminder is dismissed.
+The featured artifact is now Meridian, a light-theme sales dashboard with clearly labeled demo data.
 
-## The pairs
+The PNGs are lossless browser captures: no upscaling, recomposition, image-generation edits or text
+replacement. All fourteen files are below the repository's 1 MiB per-file limit. Open the linked
+images in the README to inspect them at full resolution. `readme-captures.json` records paths,
+dimensions, byte sizes, hashes and capture states.
 
-| File | What it shows |
+| File in `light/` | View and preparation |
 |---|---|
-| `dashboard.webp` | The arrangeable dashboard: deployment-wide counters, service health, top organizations, answer quality |
-| `agents.webp` | The agent catalog. Cards with draft/published state, owner and last edit |
-| `agents-templates-dialog.webp` | The template gallery over the catalog — agents by industry; installing one creates a draft |
-| `skills.webp` | The skill library — know-how written once and shared by every agent bound to it |
-| `skills-gallery-dialog.webp` | The skill gallery over it; installing copies a skill into the organization |
-| `skill-detail.webp` | One skill open for editing, with its category and the name the model refers to |
-| `context.webp` | Standing context files — a glossary, a policy, a brand voice |
-| `activity-runs.webp` | Activity → Runs. 262 runs over the last 30 days |
-| `activity-run-detail.webp` | Activity → Runs with a run open: tokens, cost, duration, the timeline of turns and tool calls |
-| `activity-approvals.webp` | Activity → Approvals — what is waiting on a person |
-| `activity-spend.webp` | Activity → Spend, `$22.08` on the tab |
-| `routines.webp` | Routines — what agents do on their own, on a schedule or on an event |
-| `routines-event-trigger-dialog.webp` | The new-event-trigger dialog over Routines |
-| `knowledge-bases.webp` | Collections list |
-| `knowledge-base-detail.webp` | The `company` collection open, with its documents |
-| `knowledge-base-upload-parsing-dialog.webp` | "Parse the next upload differently" — the per-upload parser override over the collection |
-| `organizations.webp` | Organization switcher and members |
-| `vault.webp` | Every key the organization has stored — replaceable, never readable again |
-| `mcp-servers.webp` | MCP connections, organization-wide and personal |
-| `channels.webp` | The chat platforms the organization is reachable on |
-| `sandboxes.webp` | Sandbox connections — where agents run shell commands and keep files |
-| `workspaces.webp` | The files agents are keeping, per conversation |
-| `admin-users.webp` | Workspace administration → Users |
-| `admin-organizations.webp` | Workspace administration → All organizations |
-| `admin-system.webp` | Workspace administration → System health |
-| `admin-deployment.webp` | Workspace administration → Deployment settings |
-| `chat-sandbox-commands.webp` | Chat, mid-run: the agent thinking, then the shell commands it ran in the sandbox |
+| `agent-builder.png` | Claude Code like agent, published v6, Build tab, instructions in Source and model selection visible |
+| `chat.png` | User-selected existing sales CSV conversation; regional revenue chart and analysis; conversation list collapsed |
+| `sandboxes.png` | Existing container-service connections and runtime selections; vault values are not exposed |
+| `agents.png` | Existing agent catalog with descriptions and version states |
+| `skills.png` | Design, Engineering, Finance and Research selected; six matching skills |
+| `context-detail.png` | Existing Glossary open in Preview, enabled, linked for on-demand reading |
+| `knowledge-collection.png` | User-selected vstorm collection, completed document with parser and chunk count |
+| `artifact-detail.png` | Meridian · Revenue overview v1; agent-generated light dashboard, H1 / All regions, private visibility |
+| `artifacts.png` | Refreshed library including Meridian, with previews, versions and visibility |
+| `dashboard.png` | Saved custom layout: blue Usage & cost section, compact summary, bars for run trends and wider outcomes widget |
+| `activity.png` | Existing last-30-days run history, statuses, tokens and recorded costs |
+| `groups.png` | New empty Engineering, Finance, Operations and Research groups, alongside the pre-existing test group |
+| `members.png` | Organization scrolled to its members and assigned roles |
+| `roles.png` | Existing permission matrix, including all six built-in roles |
 
-## The Builder — dark only
+The dashboard layout and four example groups were saved through the application UI at the
+user's request. Group descriptions explain departmental uses; no members or resource grants
+were added. The chat composer selects Claude Code like for the next message. No message was
+sent, agent run started, agent specification published or access policy changed for the 2 October
+capture batch. Dashboard and Activity figures are existing test-deployment records, not a benchmark.
 
-Eight more screens, added 2026-09-01 and in `dark/` alone. Every other screen on
-this page is a pair; these are not, so a light-theme reader gets a dark image
-until the light eight are captured.
+Directory mappings were inspected but not configured. That empty view is described in README
+text rather than added as another screenshot. It maps external directory groups to an organization
+role and optional local group at sign-in; it is not a department directory.
 
-| File | What it shows |
-|---|---|
-| `builder-build.webp` | Instructions, model, endpoint - and `Draft differs from v40` beside `published` |
-| `builder-toolbox.webp` | Capabilities as switches, with the per-tool approval gate |
-| `builder-mcp-servers.webp` | Which connections and which of their tools this agent may reach |
-| `builder-limits.webp` | The monthly cap and the step ceiling |
-| `builder-availability.webp` | Where it answers, and which bots it is bound to |
-| `builder-routines.webp` | Schedules and event triggers on the same tab |
-| `builder-history.webp` | Every version it has had |
-| `builder-visual-map.webp` | The agent as a graph; a dashed box is an unattached thing |
+Authentication state and temporary capture tooling stay outside the repository. No password,
+session token or browser storage is part of the media bundle.
 
-`chat-live-demo.mp4` — the chat recording, 20 s, 1280 wide, no audio, 968 KB,
-with `chat-live-demo-poster.webp` and an animated `chat-live-demo.webp` beside it
-for readers whose renderer will not play a video. The 8.9 MB 1912-wide master it
-was made from is deliberately **not** committed; regenerate a derivative with:
+## Meridian artifact refresh — 3 October 2026
 
-```bash
-ffmpeg -i <master>.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 27 \
-  -preset slow -pix_fmt yuv420p -movflags +faststart chat-live-demo.mp4
-```
+At the user's request, the Claude Code like agent built and published a new private artifact,
+`meridian-revenue-overview`, titled **Meridian · Revenue overview**, version 1. It replaces the
+OSS Launch Planner screenshot in the artifact section; the separate integration recording is unchanged.
 
-## Two gaps worth filling
+- Conversation: `6f32affd-1845-4610-ac46-cdedf63438c9`.
+- Artifact: `b2b4c685-8075-4011-b6d6-1266b69cc79f` in the user-selected Vstorm organization.
+- Source: a supplied design brief requesting a light executive sales dashboard, deterministic
+  illustrative data, three charts, four KPI cards and functioning period/region filters.
+- Data: Meridian is fictional. Figures are generated demonstration data, not customer results or
+  a claim about AgenticOS revenue, performance or adoption. The page labels them visibly.
+- Implementation: a self-contained page using the deployment's bundled Chart.js. The agent
+  reported calculation and DOM checks; its sandbox had no browser, so browser checks were performed
+  separately against the published artifact.
 
-- **No agent detail / Builder.** The single most important screen in the
-  product — Build, Toolbox, MCP servers, Limits, Availability, History — is not
-  in the set. Six tabs, so six pairs if all of them are wanted.
-- **No sign-in or onboarding.** Whatever a first-time visitor meets is
-  undocumented here.
+Verified all 12 period/region combinations in Chromium: trend and product-mix totals agree with
+corresponding regional totals, and Q1 + Q2 equals H1 for every region. Checked filter-driven KPI
+changes, Reset, a visible chart tooltip and mobile layout without horizontal page overflow.
+The final capture uses H1 / All regions at the same native PNG 2× settings as the other images.
+No image editing was used. Existing artifacts and their sharing settings were not changed.
 
-## Paths
+## Earlier captures
 
-The README references these with **relative** paths (`docs/assets/screens/...`),
-not `raw.githubusercontent.com/.../main/...`: a raw URL resolves against `main`,
-so every image on a feature branch is a 404 until the branch merges, which makes
-the one place you want to check the layout the one place it cannot be checked.
+Earlier captures mixed original 3502 × 2000 screenshots, 1751 × 1000 captures and a later
+1600 × 1000 refresh. Some browser-tool output was scaled JPEG before conversion to WebP;
+lossless WebP encoding cannot restore detail lost in that source. The current PNG captures
+replace the README references rather than enlarging those files.
 
-Relative `src` on an `<img>` is rewritten by GitHub and works. Relative `srcset`
-on a `<source>` inside `<picture>` is less certain — if GitHub does not rewrite
-it, a dark-mode reader simply gets the light image, which is a degradation
-rather than a break.
+Existing light/dark WebP assets remain historical media. The README uses the fourteen PNGs
+above in both GitHub themes. Dark alternates and additional earlier views were not recaptured
+in this revision. Documentation and presentation placeholders are outside this capture refresh.
 
-**A `<video>` with a relative `src` does not work at all**, and nesting an
-`<img>` inside it does not save the situation: fallback content is shown when a
-browser cannot handle the *element*, not when its source resolves to nothing. A
-real player needs a URL GitHub itself serves, so the README points at an
-attachment on GitHub's own CDN:
+## Recorded integration example
 
-    https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc
+- Original recording: https://github.com/user-attachments/assets/529c8a90-501e-45c7-81d1-0f8de7829953
+- Original upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5937226436
+- Current shortened recording: https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512
+- Current upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-5942800375
+- Static poster: `oss-launch-planner-poster.webp`, extracted at 24 seconds from the supplied edited demo.
 
-That URL answers a range request with `206`, which is what makes the timeline
-scrubbable rather than a play button. It was produced by dropping
-`chat-live-demo-master.mp4` — 9.3 MB, 1912 wide — into an issue comment; the
-upload happens on drop, so the comment itself never has to be posted. Replacing
-the clip means repeating that and swapping the URL.
+The recording shows a Notion brief becoming the OSS Launch Planner after GitHub research,
+then audience selection and sharing. It uses Vstorm projects as demonstration material; the
+repository metrics are a dated snapshot, not a live feed or customer outcome study.
 
-The master sits beside these files and is **deliberately untracked**: it is
-served from GitHub's CDN, not from here, so committing it would cost 9.3 MB of
-history for nothing. That also makes it the one file in this directory a
-`git add -A` would sweep in by accident, which is a reason to stage paths rather
-than everything.
+The shortened cut retains source 00:00–00:30 and 00:39–00:46.466667: 37.466667 seconds total.
+Audio has 30 ms fades around the cut. The local `oss-launch-planner-demo.mp4` derivative is
+960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The README embeds the uploaded shortened
+attachment with a `#t=1` start offset and keeps direct full-video and static-poster links. GitHub
+strips the `poster` attribute; the offset shows a decoded frame after the opening transition
+instead of a blank player. The recording file is unchanged. There is **no expandable GIF fallback**.
+Historical GIF files are not displayed by the README.
 
-`chat-live-demo.webp` stays nested inside the `<video>` as fallback content, for
-a renderer that strips the tag — npm, some PyPI mirrors, a few aggregators.
+Earlier validation covered full MP4 decoding, duration and sampled frames around the cut.
+Full-speed listening and physical mobile-device playback were not verified. This screenshot
+refresh does not alter or re-record the video.
 
-## How the split was made
+## Presentation and claims
 
-By mean luminance, not by hand: dark screens measure 17–31 and light ones
-139–245, and the gap is wide enough that even a page dimmed behind a modal
-classifies correctly — those land at ~140 rather than near 245, which is what
-made the four dialog pairs the only ones worth checking twice.
+Keep **Sovereign Agentic AI Layer** verbatim in all README heroes. Lead with the actual product:
+builder, a linked task overview, installation and the recorded example. Follow with concrete
+work in chat, knowledge, artifacts, operations and organization access. Keep the glass integration
+collage after that product tour. Main screenshots are linked at full width; supplementary views use expandable
+sections. Do not add decorative browser frames that reduce the readable interface area.
+
+The Claude Code/Codex comparison concerns file and command workflows, not feature parity.
+Command execution requires a configured execution-capable sandbox. Groups add resource access
+alongside roles and individual grants; they do not reduce the access a role already gives.
+Enterprise login requires deployment configuration. Self-hosting does not make external models
+or tools local.
+
+Describe the MCP figure as **server listings**, not tested integrations or unique apps. At
+revision `d76c6d597`, the registry snapshot contained 5,703 entries and the curated catalog
+contained 99 entries; do not add these as distinct services. Each connection still needs its own
+setup and access review. The selected integration graphic and logo sources live in
+`../integrations/`; the README does not repeat their attribution inventory.

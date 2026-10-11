@@ -1,0 +1,150 @@
+{
+  "checked_at": "2026-10-02",
+  "design": {
+    "width": 168,
+    "height": 96,
+    "icon_size": 32,
+    "font_size": 14,
+    "themes": [
+      "light",
+      "dark"
+    ]
+  },
+  "logos": {
+    "drive": {
+      "name": "Google Drive\u2122",
+      "source": "https://www.gstatic.com/images/branding/productlogos/drive_2026/v2/web/192px.svg",
+      "source_sha256": "60a6496d705d8bf010ce126469be89889db331622b14d8ae1645a38c2aaa23f5",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/drive.svg",
+          "sha256": "3be499f1052b7a76ca44602b35fa7712401a4c8ce854546fed15b124a757a2c8"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/drive-dark.svg",
+          "sha256": "dc83e9178d861c8f3d49beb6de5fa48c1d462dac2f6f723ae3d039e78ccec8e7"
+        }
+      }
+    },
+    "gmail": {
+      "name": "Gmail",
+      "source": "https://www.gstatic.com/images/branding/productlogos/gmail_2026/v2/web/192px.svg",
+      "source_sha256": "0a242131424b796a26247a8edd41d66fa294da6d177897526a19b7e81aedfdb8",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/gmail.svg",
+          "sha256": "e88ba102ca8253e5f6680715fa2d07ee611ed8fd661726a90feb698802846bd1"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/gmail-dark.svg",
+          "sha256": "4ac84a2d13b0635a98205b47d03b62db7cf6a46e89bc4f91cb3405b2b548e61f"
+        }
+      }
+    },
+    "outlook": {
+      "name": "Microsoft Outlook",
+      "source": "https://www.microsoft.com/content/dam/microsoft/bade/images/icons/en-us/m365-app-icons-fy26/Outlook-Icon-FY26.svg",
+      "source_sha256": "d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/outlook.svg",
+          "sha256": "ee39a706234f7259327fce3b042c9314adfe8728ee06f2bd9bee594ec0d187be"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/outlook-dark.svg",
+          "sha256": "0ae3d2823b755a16e2f00ee5ace6cd88dad94adac8eaa168ab5a0f43595c1984"
+        }
+      }
+    },
+    "notion": {
+      "name": "Notion",
+      "source": "frontend/src/lib/brand-glyphs.generated.ts#notion",
+      "source_sha256": "913abf7f748ba07d95dd8d5dbd9503ff6409e164b246e5b28de1c3e3f757e6c2",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/notion.svg",
+          "sha256": "8d515d94e961ba031e605946df73c3fddc538f097d598148331200554be904ce"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/notion-dark.svg",
+          "sha256": "ce78eea12baedc08ab710e08ea0a070cb159576103b4cb4c3a9e756d14601d17"
+        }
+      }
+    },
+    "github": {
+      "name": "GitHub",
+      "source": "frontend/src/lib/brand-glyphs.generated.ts#github",
+      "source_sha256": "28cc8abba4120d1b88101620e903ed68b3d8d9ba5e8ad3cde21aa2c0c4cd0979",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/github.svg",
+          "sha256": "67715cdfeb49f7d2691f229437001696096bcf8c31dba0369e57b4600f37b5c5"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/github-dark.svg",
+          "sha256": "8824dca2d7118759febcb61493cfd65ba09eacda9765e2be6d877e51f2728b60"
+        }
+      }
+    },
+    "linear": {
+      "name": "Linear",
+      "source": "frontend/src/lib/brand-glyphs.generated.ts#linear",
+      "source_sha256": "fc7b9eebd06595b9f3a9ee91c464a1e13ee8c6b1d5c7c93dbf8c17c039bb9d52",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/integrations/linear.svg",
+          "sha256": "a3b342e52436cc2e85a66b51e11ee9b8571e5420bb586d23a09d01ef8eec9686"
+        },
+        "dark": {
+          "path": "docs/assets/integrations/linear-dark.svg",
+          "sha256": "b67152dd3135b38cdee8d4d9f5e2287f25bb7da105d9a73fc6964565622bfed4"
+        }
+      }
+    },
+    "slack": {
+      "name": "Slack",
+      "source": "https://a.slack-edge.com/9cc0056/marketing/img/nav/logo.svg",
+      "source_sha256": "1f40066b694020057218c46eb2a11982b278d89b2dc8f96a21e4ea04e2b9db3b",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/channels/slack.svg",
+          "sha256": "50896748916543c89e0a4f812516dd8300aacc75045ea50c5491306cd6ca4685"
+        },
+        "dark": {
+          "path": "docs/assets/channels/slack-dark.svg",
+          "sha256": "ff1e9f86c0c7bdd321cdb60731465b8e9124922c5fa5d4160d975285f9ffcbd8"
+        }
+      }
+    },
+    "mattermost": {
+      "name": "Mattermost",
+      "source": "frontend/src/lib/brand-glyphs.generated.ts#mattermost",
+      "source_sha256": "8b12a7bf9c95baf042db14dede14e728d6a24f3d82c36dd31da0c1e03804d568",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/channels/mattermost.svg",
+          "sha256": "f113792ef7e68adc3649f41af0e9ccc0b59fb04e1c794543b42615149b974662"
+        },
+        "dark": {
+          "path": "docs/assets/channels/mattermost-dark.svg",
+          "sha256": "1119b6759730cac6384d585e520807d85e4e5c92f32dfb8dbb0a46c193cc0520"
+        }
+      }
+    },
+    "telegram": {
+      "name": "Telegram",
+      "source": "frontend/src/lib/brand-glyphs.generated.ts#telegram",
+      "source_sha256": "681de325de4cf3e265da48a1e3639825ed901dca38bc21d013ea3b9344724993",
+      "outputs": {
+        "light": {
+          "path": "docs/assets/channels/telegram.svg",
+          "sha256": "3a01b442e31bd61b0b2930891d63adedc9011e6712dca42fc56109a889cc0fa1"
+        },
+        "dark": {
+          "path": "docs/assets/channels/telegram-dark.svg",
+          "sha256": "9c51a763b2aa50aa8a16fb8807c823562c94b7da1b22d61efd7f9e452b94c998"
+        }
+      }
+    }
+  }
+}

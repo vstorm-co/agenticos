@@ -1,0 +1,11 @@
+Channel logo tiles
+
+Slack now uses the official full-color SVG linked from slack.com, replacing
+the previous monochrome Font Awesome glyph. Mattermost and Telegram retain
+their Simple Icons glyphs (CC0 1.0). Light and dark frames match the other
+application tiles used in the README.
+
+Full sources, attribution and connection scope:
+../integrations/ATTRIBUTION.txt
+Source and output hashes:
+../integrations/manifest.json

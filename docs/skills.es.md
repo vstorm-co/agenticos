@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "82ec723c8c80"
 ---
 
 # Skills { #skills }
@@ -193,14 +193,16 @@ dado más trabajo, no más información.
 
 **Escribe uno.** Skills → New, en la UI. Este es el camino normal.
 
-**Los incluidos ya están ahí.** El repositorio trae tres como ejemplos
-trabajados — `refund-policy`, `code-review` e `incident-report` — y toda
-organización empieza con ellos. Crear una organización copia dentro la biblioteca
+**Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
+trabajados — `refund-policy`, `code-review` e `incident-report` — y
+`artifact-pages`, que enseña a un agent a construir una página para la
+capability [Artifacts](artifacts.md#the-library-set). Toda organización empieza
+con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.
 
 La página de skills muestra una sola lista, con una insignia `built-in` sobre
-cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos tres no se
+cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
 eligen — llegan solos, una vez, al crear la organización.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
@@ -226,11 +228,23 @@ scripts:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Es idempotente por nombre — un skill que la organización ya tiene se deja
-exactamente como está, así que una política de reembolsos editada sobrevive a un
-reseed.
+Instala lo que falta y **actualiza lo que nadie ha editado**. Cada copia registra
+de qué versión incluida se escribió, así que cuando una versión mejora un skill
+incluido, la copia intacta de una organización se sustituye por la nueva — con sus
+archivos, con la versión incrementada y una entrada de auditoría
+`skill.refreshed`.
+
+Una copia editada aquí se deja exactamente como está, así que una política de
+reembolsos editada sobrevive a un reseed; `--replace` es la única forma de tomar
+la versión incluida por encima de esas ediciones, y la entrada de auditoría lo
+dice. Una copia hecha antes de que se registraran las versiones y distinta de la
+incluida también se informa y se deja, porque nada puede decir si se editó.
+
+El comando imprime qué hizo con cada skill, y `--dry-run` imprime el mismo plan
+sin escribir.
 
 `e2e/seed.setup.ts` también crea uno a través de la UI, que es contra lo que
 afirma la suite E2E.
@@ -248,7 +262,7 @@ incluido.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
-    Los tres incluidos viven en `app/core/catalog/skills/` y se copian
+    Los cuatro incluidos viven en `app/core/catalog/skills/` y se copian
     automáticamente en **todas** las organizaciones. La galería vive en
     `app/core/catalog/skill_gallery/` y no se copia en **ninguna** — la lee el
     mismo parser, desde un segundo directorio, y nunca se siembra.

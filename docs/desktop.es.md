@@ -1,5 +1,5 @@
 ---
-source_sha: "04d344a0f5a0"
+source_sha: "8f92579bb015"
 ---
 
 # La aplicación de escritorio { #the-desktop-app }
@@ -9,10 +9,7 @@ aplicación de escritorio es un añadido para quien la quiera en el dock: la con
 en una ventana propia, más una mascota y un atajo de captura de pantalla. Nada de
 la plataforma la necesita.
 
-<figure markdown>
-  ![Amigo, la mascota de escritorio, diciendo: No more caramba.](assets/desktop_no_more_caramba_pet.png){ width="270" }
-  <figcaption>Amigo, una de las cinco mascotas. No more caramba in your AI.</figcaption>
-</figure>
+> **Captura pendiente — aplicación de escritorio actual y mascota.**
 
 La aplicación que hay dentro de la ventana es la misma consola Next.js que el
 servidor ya sirve, cargada desde el servidor, así que lleva el mismo inicio de

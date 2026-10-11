@@ -12,6 +12,7 @@ import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
+import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
@@ -77,6 +78,33 @@ function preprocessCitations(content: string): string {
  * whose language nothing recognised - which is why the copy button, the single
  * most-used control on a code block, was missing from every highlighted one.
  */
+/** A header this short reads better on one line than wrapped to fit its column. */
+const SHORT_HEADER = 24;
+
+/**
+ * Whether a cell is a figure - `1 922`, `48 / 134 / 639`, `12.5%`, `$0.91`.
+ *
+ * A figure is kept on one line and in tabular digits: `148 420` broken after
+ * its thousands separator reads as two numbers, and a column of figures that
+ * do not line up is a column nobody can compare down.
+ */
+function isFigure(text: string): boolean {
+  return /\d/.test(text) && /^[\s\d.,:%/+\-\u2212\u2013$€£x×]+$/.test(text);
+}
+
+/**
+ * How a cell may be laid out. A figure never wraps; a word or two needs no rule;
+ * a longer text gets a floor, because with the figures beside it unable to give
+ * way it was the one column left to squeeze - down to a letter a line.
+ */
+function cellWidth(text: string): string | false {
+  if (isFigure(text)) return "whitespace-nowrap tabular-nums";
+  return text.length > SHORT_CELL && "min-w-[9rem]";
+}
+
+/** A cell this short is a word or two and fits whatever column it lands in. */
+const SHORT_CELL = 16;
+
 function textOf(node: React.ReactNode): string {
   if (typeof node === "string") return node;
   /* v8 ignore next -- react-markdown hands children through as strings */
@@ -144,7 +172,10 @@ export function MarkdownContent({
         if (isInline) {
           return (
             <code
-              className="bg-foreground/8 text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em]"
+              // `box-decoration-clone`: a span that wraps - a package name in a
+              // narrow table cell - keeps its padding and corners on every line
+              // instead of breaking into a pill with its ends cut off.
+              className="bg-foreground/8 text-foreground rounded box-decoration-clone px-1.5 py-0.5 font-mono text-[0.85em]"
               {...props}
             >
               {children}
@@ -287,25 +318,32 @@ export function MarkdownContent({
         );
       },
       table({ children, ...props }) {
-        return (
-          <div className="border-foreground/10 my-3 overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm" {...props}>
-              {children}
-            </table>
-          </div>
-        );
+        return <MarkdownTable {...props}>{children}</MarkdownTable>;
       },
       thead({ children, ...props }) {
         return (
-          <thead className="bg-foreground/[0.04]" {...props}>
+          <thead className="bg-foreground/[0.03]" {...props}>
             {children}
           </thead>
         );
       },
+      tr({ children, ...props }) {
+        return (
+          <tr className="[tbody_&]:hover:bg-foreground/[0.025] transition-colors" {...props}>
+            {children}
+          </tr>
+        );
+      },
+      // Sentence case, in the body font. Mono capitals made every header twice
+      // its width, so a short one broke over three lines and an emoji in it
+      // sat on a line of its own.
       th({ children, ...props }) {
         return (
           <th
-            className="border-foreground/10 border-b px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider uppercase"
+            className={cn(
+              "border-foreground/10 text-muted-foreground border-b px-3 py-2 text-left align-bottom text-xs font-medium",
+              textOf(children).length <= SHORT_HEADER ? "whitespace-nowrap" : "min-w-[9rem]",
+            )}
             {...props}
           >
             {children}
@@ -314,7 +352,16 @@ export function MarkdownContent({
       },
       td({ children, ...props }) {
         return (
-          <td className="border-foreground/8 border-b px-3 py-2 last:border-0" {...props}>
+          <td
+            className={cn(
+              // The rule under every row but the last, which the frame draws.
+              // `last:` on the cell removed it from the last *column* instead,
+              // and left a gap in the rule under every row.
+              "border-foreground/8 border-b px-3 py-2 align-top [tr:last-child>&]:border-b-0",
+              cellWidth(textOf(children)),
+            )}
+            {...props}
+          >
             {children}
           </td>
         );

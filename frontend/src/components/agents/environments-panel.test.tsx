@@ -123,14 +123,32 @@ describe("the environments panel", () => {
     expect(screen.queryByText(/behind/)).toBeNull();
   });
 
-  it("switches an environment between waiting and following", async () => {
+  it("shows a pinned environment's switch on, and unpinning makes it follow publishes", async () => {
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
-    await userEvent.click(screen.getByLabelText("production follows every publish"));
+    // "Pinned" is the switch, on for the safe default - a new production reads
+    // as held rather than as a switch somebody forgot to turn on.
+    const pinned = screen.getByRole("switch", { name: "production is pinned" });
+    expect(pinned).toBeChecked();
+    await userEvent.click(pinned);
 
     expect(state.setReleaseMode.mutate).toHaveBeenCalledWith({
       environmentId: "production-id",
       tracksLatest: true,
+    });
+  });
+
+  it("pins an environment that follows publishes", async () => {
+    state.environments = [environment("dev", 3, false, { tracks_latest: true, behind_by: 0 })];
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    const pinned = screen.getByRole("switch", { name: "dev is pinned" });
+    expect(pinned).not.toBeChecked();
+    await userEvent.click(pinned);
+
+    expect(state.setReleaseMode.mutate).toHaveBeenCalledWith({
+      environmentId: "dev-id",
+      tracksLatest: false,
     });
   });
 

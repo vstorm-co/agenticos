@@ -38,7 +38,7 @@ from pydantic_ai.native_tools import ImageGenerationTool
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai_backends import ensure_async
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import record_ambient_usage
@@ -119,13 +119,11 @@ def build_image_toolset(
     model_id: str,
     api_key: str | None,
     tool_settings: dict[str, Any],
-    workspace_backend: Any | None,
 ) -> FunctionToolset[Any]:
     """A `generate_image` tool bound to one image model and its key.
 
-    Everything the model must not choose is closed over: the model, the key, the
-    image settings and the workspace it may write into. The model chooses only the
-    prompt.
+    Everything the model must not choose is closed over: the model, the key and the
+    image settings. The model chooses only the prompt.
     """
 
     async def generate_image(ctx: RunContext[AgentDeps], prompt: str) -> str:
@@ -195,11 +193,21 @@ def build_image_toolset(
             )
             url = generated_image_url(filename)
 
+        # Into the run's workspace too, when it has one, for later steps to build
+        # with. An agent without the sandbox capability generates images all the
+        # same - it simply has nowhere to build with them.
         workspace_path: str | None = None
-        if workspace_backend is not None:
+        if ctx.workspace.attached:
             leaf = filename or f"image.{image_format}"
-            workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-            await ensure_async(workspace_backend).write(workspace_path, image.data)
+            try:
+                await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", image.data)
+                workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
+            except (OSError, WorkspaceError):
+                # A full workspace - a `state` document past its ceiling raises
+                # `OSError`, a container's shell `WorkspaceError` - the image is
+                # still stored and linked above, and naming a path that holds
+                # nothing would send the model to it.
+                logger.info("generated_image_not_written", extra={"leaf": leaf})
 
         return GeneratedImage(
             filename=filename,

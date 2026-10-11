@@ -1,5 +1,5 @@
 ---
-source_sha: "7e8688fd9cd6"
+source_sha: "f65f76a23f9a"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -114,7 +114,7 @@ cifra actual es la del propio archivo de avisos.
 | MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, MIT-0, MIT-CMU, Unlicense | unos 400 | Conservar el aviso de copyright y el texto de la licencia junto con las copias | El archivo de licencia de cada paquete viaja dentro de la imagen, al lado del código: el `*.dist-info/` de cada wheel en la imagen del backend, y el archivo de licencia de cada paquete bajo `/app/licenses/node_modules/<name>/` en la del frontend. Los avisos los indexan |
 | Apache-2.0 | unos 90 | El texto de la licencia, el aviso de los cambios y cualquier archivo `NOTICE` que lleve el paquete | Igual que arriba; no se modifica nada, así que no hay cambios de los que avisar |
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | unos pocos | Atribución o nada | Igual que arriba |
-| MPL-2.0 (`certifi`, `pathspec`, `tqdm`, parte de `orjson`) | 4 | Copyleft por archivo: los archivos cubiertos siguen bajo MPL y su código fuente está disponible | Se usan sin modificar; el texto de la licencia viaja con ellos; los avisos enlazan el código fuente |
+| MPL-2.0 (`bidict`, `certifi`, `pathspec`, `tqdm`, parte de `orjson`) | 5 | Copyleft por archivo: los archivos cubiertos siguen bajo MPL y su código fuente está disponible | Se usan sin modificar; el texto de la licencia viaja con ellos; los avisos enlazan el código fuente |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Texto de la licencia, disponibilidad del código fuente y la posibilidad de sustituir la biblioteca | Ambos son binarios instalados por separado y cargados dinámicamente, sin modificar, sustituibles reinstalándolos; el código fuente va enlazado en los avisos. Los paquetes de libvips no publican archivo de licencia, así que la imagen coloca el texto de la LGPL junto a ellos |
 | LGPL-3.0-only (`ldap3`) | 1 | Texto de la licencia, disponibilidad del código fuente y la posibilidad de sustituir la biblioteca | El cliente LDAP del inicio de sesión con el directorio, un wheel de Python puro importado sin modificar y sustituible reinstalándolo; sus archivos de licencia van en su dist-info y su código fuente va enlazado en los avisos |
 | Artistic-1.0-Perl o GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; se toma bajo la Artistic License: aviso y texto | El archivo de licencia del wheel viaja con él |

@@ -16,15 +16,12 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic_ai import RunContext
-from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities._tool_text import ToolText
-from app.services.capability_contracts import tool_contracts
+from app.services.capability_contracts import probe_context, tool_contracts
 
 pytestmark = pytest.mark.anyio
 
@@ -34,16 +31,12 @@ def _builtins_loaded() -> None:
     load_builtins()
 
 
-def _ctx() -> RunContext[None]:
-    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
-
-
 async def _described(capability_id: str, config: dict[str, object] | None = None) -> dict[str, str]:
     """Every tool one capability offers, and the text the model reads for it."""
     built = build([CapabilityBinding(capability_id=capability_id, config=config or {})])
     toolset = built[0].get_toolset()
     assert toolset is not None
-    tools = await toolset.get_tools(_ctx())
+    tools = await toolset.get_tools(probe_context(built[0]))
     return {name: tool.tool_def.description or "" for name, tool in tools.items()}
 
 

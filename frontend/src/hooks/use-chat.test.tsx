@@ -378,9 +378,86 @@ describe("useChat - the streamed answer", () => {
     expect(result.current.isProcessing).toBe(false);
   });
 
+  it("draws a tool call while its arguments are still streaming", () => {
+    // A `write_file` carrying a whole report streams its arguments for minutes
+    // before `tool_call` exists. Without this the chat showed only a cursor.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    expect(streaming()?.toolCalls).toEqual([
+      { id: "tc-1", name: "write_file", args: {}, status: "pending", argsChars: 0 },
+    ]);
+
+    receive("tool_call_delta", { index: 1, args_delta: '{"path": ' });
+    receive("tool_call_delta", { index: 1, args_delta: { content: "ab" } });
+    receive("tool_call_delta", { index: 1, args_delta: null });
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBe(
+      9 + JSON.stringify({ content: "ab" }).length,
+    );
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: { path: "a.md" } });
+    expect(streaming()?.toolCalls).toEqual([
+      {
+        id: "tc-1",
+        name: "write_file",
+        args: { path: "a.md" },
+        status: "running",
+        argsChars: undefined,
+      },
+    ]);
+    expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("ignores a delta for a part that is not a tool call it drew", () => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", { index: 0, part_type: "TextPart" });
+
+    receive("tool_call_delta", { index: 0, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls).toEqual([]);
+  });
+
+  it("does not draw a tool call with no message open", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("forgets the previous response's parts when the next request starts", () => {
+    // Part indices restart per model response, so index 1 is somebody else now.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: {} });
+
+    receive("model_request_start", {});
+    receive("tool_call_delta", { index: 1, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBeUndefined();
+  });
+
   it("ignores the narration frames the server sends around every turn", () => {
-    // The six frames `agent_session.py` sends that this hook deliberately does not
-    // read. They must pass through without opening a message, because a turn that
+    // The frames `agent_session.py` sends that this hook deliberately does not
+    // read, and the two it reads only for a tool call. They must pass through without opening a message, because a turn that
     // began with one of these would show an empty assistant bubble before the model
     // said anything.
     //
@@ -419,6 +496,52 @@ describe("useChat - failures and interruptions", () => {
     receive("error", { message: "" });
 
     expect(streaming()?.content).toContain("Unknown error");
+  });
+
+  it.each([
+    ["the turn failed", () => receive("error", { message: "Timed out" })],
+    ["the run was cancelled", () => receive("complete", { stopped: true })],
+  ])("marks a call still being written unfinished when %s", (_, end) => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "read_file",
+      tool_call_id: "tc-0",
+    });
+    receive("tool_call", { tool_call_id: "tc-0", tool_name: "read_file", args: {} });
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call_delta", { index: 1, args_delta: '{"content": "' });
+    const id = streaming()?.id as string;
+
+    end();
+
+    const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
+    expect(calls?.map((call) => [call.id, call.status, call.argsChars])).toEqual([
+      ["tc-0", "running", undefined],
+      ["tc-1", "unfinished", undefined],
+    ]);
+  });
+
+  it("marks a call still being written unfinished when the person presses stop", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("unfinished");
   });
 
   it("stops processing on an error with nothing open", () => {
@@ -2360,14 +2483,13 @@ describe("useChat - the socket it opens", () => {
     expect(socket.url).toContain("organization_id=org%207");
   });
 
-  it("refreshes the token when the socket drops, once", async () => {
+  it("refreshes the token when the socket drops, once, through the locked client", async () => {
     // A dropped socket is usually a stale token; one in-flight `/auth/me` is
-    // enough, and one per backoff attempt would stampede it.
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ access_token: "t-2" }) });
-    vi.stubGlobal("fetch", fetchMock);
+    // enough, and one per backoff attempt would stampede it. Through `apiClient`,
+    // because its /auth/me runs under the cross-tab lock and a bare fetch did not.
+    get.mockResolvedValue({ access_token: "t-2" });
     renderHook(() => useChat(), { wrapper });
+    get.mockClear();
 
     await act(async () => {
       socket.onClose?.();
@@ -2375,14 +2497,13 @@ describe("useChat - the socket it opens", () => {
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([path]) => path === "/auth/me")).toHaveLength(1);
     expect(useAuthStore.getState().accessToken).toBe("t-2");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token it has when the refresh is refused", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     renderHook(() => useChat(), { wrapper });
+    get.mockRejectedValue(new ApiError(401, "Not authenticated"));
 
     await act(async () => {
       socket.onClose?.();
@@ -2390,15 +2511,11 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token when the refresh answers without one", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
-    );
     renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue({});
 
     await act(async () => {
       socket.onClose?.();
@@ -2406,12 +2523,11 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
-  it("survives a refresh that could not be made at all", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  it("keeps the token when the refresh answers with nothing at all", async () => {
     renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue(null);
 
     await act(async () => {
       socket.onClose?.();
@@ -2419,7 +2535,6 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("closes the socket when the chat goes away", () => {
@@ -2465,6 +2580,82 @@ describe("what the person cannot reach", () => {
     act(() => result.current.sendMessage("try again"));
 
     expect(result.current.personalGaps).toEqual([]);
+  });
+});
+
+describe("a run waiting for a service to be connected", () => {
+  const REQUEST = { catalog_key: "notion", name: "Notion", gap: "not_connected" };
+
+  it("holds the request the paused run sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("connect_account", REQUEST);
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+  });
+
+  it("answers the run and takes the card down", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(true));
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: true });
+  });
+
+  it("keeps the card when the socket is offline", () => {
+    // The run is still waiting; a card taken down now leaves no way to release it.
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(false));
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("releases the run as a skip when another conversation is opened", () => {
+    // Taken down without an answer, the run would wait behind a card nobody can see.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: false });
+  });
+
+  it.each(["complete", "error"])("takes the card down when the turn ends (%s)", (type) => {
+    // The run it belonged to is gone; answering the card would reach nothing.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    receive(type, {});
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("does not answer twice for a card already answered", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+    act(() => result.current.sendConnectionResponse(true));
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(sent).toHaveBeenCalledTimes(1);
   });
 });
 

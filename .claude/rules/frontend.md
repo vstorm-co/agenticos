@@ -330,7 +330,7 @@ From `frontend/` — at the repository root vitest finds no config and reports p
 failures. While writing, run only what covers the change:
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx
+bunx vitest run src/components/chat/usage-meter.test.tsx
 ```
 
 Once, before the push — from the repository root, because CI's `test-frontend` job

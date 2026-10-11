@@ -10,6 +10,9 @@
 
 import type { SecretKind } from "./secrets";
 
+/** Which of OpenAI's two APIs a profile's requests go to. */
+export type ModelApi = "chat" | "responses";
+
 /** One selectable provider, as the credential form reads it. */
 export interface ProviderInfo {
   id: string;
@@ -25,6 +28,17 @@ export interface ProviderInfo {
    * to authenticate it.
    */
   keyless: boolean;
+  /**
+   * The APIs a profile on this provider chooses between: both of OpenAI's for
+   * `openai` and `azure`, none for every other provider.
+   */
+  apis: ModelApi[];
+  /**
+   * What a profile gets on the provider's own endpoint when it names no API.
+   * With a `base_url` the default is `chat`, which every OpenAI-compatible server
+   * implements. Null where `apis` is empty.
+   */
+  native_api: ModelApi | null;
 }
 
 export interface ProviderCatalog {
@@ -56,6 +70,8 @@ export interface ModelProfile {
    * production one as two profiles.
    */
   base_url?: string | null;
+  /** Which API the requests go to. Null on every provider that serves one. */
+  api?: ModelApi | null;
   params: Record<string, unknown>;
   fallback_profile_ids: string[];
   /**

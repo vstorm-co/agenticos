@@ -1,5 +1,5 @@
 ---
-source_sha: "a28e7805a24a"
+source_sha: "d510b0c748f8"
 title: "Webseiten nach Zeitplan auf Änderungen prüfen"
 description: "Rufen Sie zwei Seiten nach Zeitplan ab, vergleichen Sie jede mit dem zuletzt festgehaltenen Stand, und melden Sie nur, was sich geändert hat."
 ---
@@ -19,7 +19,7 @@ Zwei Auslösungen beweisen zwei verschiedene Dinge. **Run now** beweist, dass di
 
 Die naheliegende Capability für "merke dir, was ich zuletzt gesehen habe" sind [Memory-Dateien](../reference/capabilities.md#memory-files). Sie funktioniert hier nicht, und der Grund ist es wert, ihn zu kennen, bevor Sie bei einem Zeitplan danach greifen.
 
-Eine Trigger-Auslösung läuft für Budgets, Genehmigungen und den Audit-Trail als ihr Ersteller, aber nicht für das Gedächtnis: Das *Publikum* des Runs - wer die Antwort hören wird - ist auf der Oberfläche `schedule` absichtlich leer, sodass ein unbeaufsichtigter Run die persönlichen Notizen des Erstellers weder lesen noch schreiben kann. `write_memory` und `read_memory` antworten beide:
+Eine Trigger-Auslösung läuft mit der Rolle und den Grants ihres Erstellers, aber für das Gedächtnis nicht als er: Das *Publikum* des Runs - wer die Antwort hören wird - ist auf der Oberfläche `schedule` absichtlich leer, sodass ein unbeaufsichtigter Run die persönlichen Notizen des Erstellers weder lesen noch schreiben kann. `write_memory` und `read_memory` antworten beide:
 
 ```text
 This conversation has no memory. It has no identified person and is not a

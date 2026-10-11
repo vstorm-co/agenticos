@@ -7,7 +7,7 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.tool_output_limits._capability import (
     DEFAULT_MAX_CHARS,
     DEFAULT_SUMMARY_PROMPT,
@@ -22,8 +22,8 @@ from app.agents.capabilities.tool_output_limits._capability import (
 from app.agents.capabilities.tool_output_limits._store import (
     OVERFLOW_PREFIX,
     SPILL_LOG_RESOURCE,
-    BackendOverflowStore,
     OverflowWriteError,
+    WorkspaceOverflowStore,
 )
 
 __all__ = [
@@ -33,11 +33,11 @@ __all__ = [
     "OVERFLOW_PREFIX",
     "SPILL_LOG_RESOURCE",
     "ActionName",
-    "BackendOverflowStore",
     "MeteredToolOutputLimits",
     "OverflowWriteError",
     "StrategyName",
     "ToolOutputLimitsConfig",
+    "WorkspaceOverflowStore",
     "build_limits",
 ]
 
@@ -65,15 +65,16 @@ def _build(ctx: CapabilityBuildContext) -> MeteredToolOutputLimits[object]:
 
     Always returns something: binding the capability *is* the decision to reduce,
     the way binding `compaction` is the decision to compact. The spill store is the
-    run's own backend when it bound `sandbox`, and an ephemeral in-memory one when
+    run's own workspace when it bound `sandbox`, and an ephemeral in-memory one when
     it did not - resolved from `resources`, never fetched here.
     """
     config = (
         ctx.config if isinstance(ctx.config, ToolOutputLimitsConfig) else ToolOutputLimitsConfig()
     )
-    backend = ctx.resources.get(WORKSPACE_BACKEND_RESOURCE)
     return MeteredToolOutputLimits(
         wrapped=build_limits(
-            config, backend=backend, spill_log=ctx.resources.get(SPILL_LOG_RESOURCE)
+            config,
+            workspace=ctx.resources.get(WORKSPACE_RESOURCE),
+            spill_log=ctx.resources.get(SPILL_LOG_RESOURCE),
         )
     )

@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { PublicLinkCard } from "@/components/artifacts/public-link-card";
+import { EmbedSnippet, PublicLinkSettings } from "@/components/artifacts/public-link-settings";
 import { CopyButton } from "@/components/chat/copy-button";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -18,10 +19,12 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/stores";
-import type { ArtifactDetail } from "@/types/artifact";
+import type { ArtifactDetail, ArtifactPublicLinkUpdate, ArtifactVersion } from "@/types/artifact";
 
 interface ArtifactShareDialogProps {
   artifact: ArtifactDetail;
+  /** The kept versions, newest first - what the public link may be pinned to. */
+  versions: ArtifactVersion[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** A public-link request is in flight. */
@@ -29,6 +32,10 @@ interface ArtifactShareDialogProps {
   /** Turns the public link on, or replaces the one that is on. */
   onEnablePublicLink: () => void;
   onDisablePublicLink: () => void;
+  /** Changes the link's settings; rejects with the server's refusal. */
+  onUpdatePublicLink: (changes: ArtifactPublicLinkUpdate) => Promise<unknown>;
+  /** A settings change is in flight. */
+  saving: boolean;
 }
 
 /**
@@ -69,11 +76,14 @@ function PageLinkField({ artifactId }: { artifactId: string }) {
  */
 export function ArtifactShareDialog({
   artifact,
+  versions,
   open,
   onOpenChange,
   busy,
   onEnablePublicLink,
   onDisablePublicLink,
+  onUpdatePublicLink,
+  saving,
 }: ArtifactShareDialogProps) {
   const t = useTranslations("artifacts");
   return (
@@ -86,11 +96,24 @@ export function ArtifactShareDialog({
         <PageLinkField artifactId={artifact.id} />
         <PublicLinkCard
           publicUrl={artifact.public_url}
+          link={artifact.public_link}
           canManage={artifact.can_edit}
           busy={busy}
           onEnable={onEnablePublicLink}
           onDisable={onDisablePublicLink}
-        />
+        >
+          <EmbedSnippet link={artifact.public_link} />
+          {artifact.can_edit && (
+            <PublicLinkSettings
+              // A fresh form for fresh settings: its fields start from what the server holds.
+              key={JSON.stringify(artifact.public_link)}
+              link={artifact.public_link}
+              versions={versions}
+              saving={saving}
+              onSave={onUpdatePublicLink}
+            />
+          )}
+        </PublicLinkCard>
         <SharingPanel
           resourceType="artifact"
           resourceId={artifact.id}

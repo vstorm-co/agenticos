@@ -4,10 +4,7 @@ AgenticOS runs in a browser, and that is how most people use it. The desktop app
 an add-on for whoever wants it on the dock: the console in a window of its own, plus
 a pet and a screenshot shortcut. Nothing about the platform needs it.
 
-<figure markdown>
-  ![Amigo, the desktop pet, saying: No more caramba.](assets/desktop_no_more_caramba_pet.png){ width="270" }
-  <figcaption>Amigo, one of five pets. No more caramba in your AI.</figcaption>
-</figure>
+> **Screenshot pending — current desktop app and pet.**
 
 The application inside the window is the same Next.js console the server already
 serves, loaded from the server, so it carries the same sign-in, the same

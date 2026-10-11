@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "82ec723c8c80"
 ---
 
 # Skille { #skills }
@@ -189,14 +189,15 @@ a nie więcej informacji.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza trzy jako przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — i każda
-organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
+rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
+`artifact-pages`, który uczy agenta budować stronę dla capability
+[Artifacts](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 
 Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych trzech się nie wybiera — one po
+nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
 prostu przychodzą, raz, przy tworzeniu organizacji.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
@@ -221,10 +222,22 @@ Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-Jest idempotentna po nazwie — skill, który organizacja już ma, zostaje dokładnie
-taki, jaki jest, więc edytowana polityka zwrotów przeżywa ponowny seed.
+Instaluje to, czego brakuje, i **odświeża to, czego nikt nie edytował**. Każda
+kopia zapamiętuje, z której wersji dołączonego skilla została zapisana, więc gdy
+wydanie ulepsza dołączony skill, nieruszana kopia w organizacji jest zastępowana
+nową — razem z plikami, z podbitą wersją i wpisem audytu `skill.refreshed`.
+
+Kopia edytowana na miejscu zostaje dokładnie taka, jaka jest, więc edytowana
+polityka zwrotów przeżywa ponowny seed; `--replace` to jedyny sposób, żeby wziąć
+dołączoną wersję zamiast takich edycji, a wpis audytu to odnotowuje. Kopia
+zrobiona, zanim wersje były zapisywane, i różna od dołączonej też jest zgłaszana i
+zostawiana, bo nic nie powie, czy ktoś ją edytował.
+
+Komenda wypisuje, co zrobiła z każdym skillem, a `--dry-run` wypisuje ten sam plan
+bez zapisywania.
 
 `e2e/seed.setup.ts` tworzy jednego również przez UI i to na nim opiera swoje
 asercje zestaw E2E.
@@ -241,7 +254,7 @@ zwykły skill, który organizacja posiada i edytuje, dokładnie jak dołączony.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
-    Dołączona trójka mieszka w `app/core/catalog/skills/` i jest kopiowana
+    Dołączona czwórka mieszka w `app/core/catalog/skills/` i jest kopiowana
     automatycznie do **każdej** organizacji. Galeria mieszka w
     `app/core/catalog/skill_gallery/` i nie jest kopiowana do **żadnej** — czyta
     ją ten sam parser, z drugiego katalogu, i nigdy nie jest seedowana.

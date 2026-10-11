@@ -1470,6 +1470,24 @@ async def usage_by_user(
     return [(row[0], row[1], row[2], row[3], Decimal(row[4]), row[5]) for row in result.all()]
 
 
+async def count_unfinished_in_environment(
+    db: AsyncSession, *, environment_id: UUID, organization_id: UUID
+) -> int:
+    """How many runs this environment resolved are still running or parked on a decision.
+
+    Parked counts: a run waiting for approval resumes on the version it parked
+    with, and its gated tools - a publish among them - run after the decision.
+    """
+    result = await db.scalar(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.environment_id == environment_id,
+            AgentRun.status.in_([RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value]),
+        )
+    )
+    return int(result or 0)
+
+
 async def count_pending_approval_runs(
     db: AsyncSession,
     *,

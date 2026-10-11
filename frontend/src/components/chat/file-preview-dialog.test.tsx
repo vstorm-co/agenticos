@@ -74,24 +74,25 @@ describe("the chat's file dialog", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the file itself, and opens on its source", async () => {
-    // Source first, where a kind has one: somebody opening a file in a console
-    // is usually there to read what it says rather than how it renders.
+  it("shows the file itself, and opens on its preview", async () => {
+    // Most files opened here are what an agent made for somebody to look at;
+    // opening on the markup read as the file being broken.
     serve("# Notes");
     open({ filename: "notes.md", mime_type: "text/markdown" });
+
+    expect(await screen.findByTestId("markdown")).toHaveTextContent("# Notes");
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the characters once the source is asked for", async () => {
+    serve("# Notes");
+    open({ filename: "notes.md", mime_type: "text/markdown" });
+    await screen.findByTestId("markdown");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Source" }));
 
     expect(await screen.findByText("# Notes")).toBeInTheDocument();
     expect(screen.queryByTestId("markdown")).toBeNull();
-  });
-
-  it("renders it through the shared renderer once the preview is asked for", async () => {
-    serve("# Notes");
-    open({ filename: "notes.md", mime_type: "text/markdown" });
-    await screen.findByText("# Notes");
-
-    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
-
-    expect(await screen.findByTestId("markdown")).toHaveTextContent("# Notes");
   });
 
   it("sends the session cookie with the fetch, because the file is behind it", async () => {

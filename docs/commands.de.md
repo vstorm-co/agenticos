@@ -1,5 +1,5 @@
 ---
-source_sha: "cb93ec8bdf86"
+source_sha: "5e7cbb840c77"
 ---
 
 # Befehle { #commands }
@@ -335,7 +335,9 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token.
+# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
+# that has not completed for five intervals fails it, whatever Prefect's own
+# health endpoint says.
 uv run agenticos cmd doctor
 
 # Dasselbe plus ein zweites Blatt: eine Zeile je Kontrolle eines
@@ -390,9 +392,12 @@ uv run agenticos cmd data-protection-report --older-than 90
 uv run agenticos cmd vault-rotate --dry-run
 uv run agenticos cmd vault-rotate
 
-# Install the bundled skills (refund-policy, code-review, incident-report)
+# Install the bundled skills (refund-policy, code-review, incident-report, artifact-pages),
+# and refresh copies nobody edited to this release's version. An edited copy is left
+# alone unless --replace; --dry-run prints the plan for each skill.
 uv run agenticos cmd seed-skills
 uv run agenticos cmd seed-skills --org <org-id> --dry-run
+uv run agenticos cmd seed-skills --replace
 
 # Sample data for development
 uv run agenticos cmd seed --count 10 --clear

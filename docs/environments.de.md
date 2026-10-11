@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a41dd69a21"
+source_sha: "6377722666ce"
 ---
 
 # Umgebungen { #environments }
@@ -67,6 +67,11 @@ zu entscheiden, wo diese Version läuft, ist eine eigene Handlung. Beides zu
 koppeln heißt, dass eine unfertige Änderung einen Kunden erreicht, weil jemand
 auf Publish geklickt hat, um seine Arbeit zu sichern.
 
+Die eine Ausnahme ist das `production`, das die erste Veröffentlichung anlegt.
+Solange es die einzige Umgebung des Agents ist, gibt es nichts, von dem aus man
+heraufstufen könnte, also folgt es Veröffentlichungen; heften Sie es an, sobald ein
+`dev` oder ein `staging` daneben steht.
+
 ## Eine Oberfläche an eine binden { #binding-a-surface-to-one }
 
 Eine [Exposure](concepts.md#exposure) — ein Slack-Bot, ein Widget, eine gehostete
@@ -77,6 +82,14 @@ Das macht die Trennung nützlich: ein Dev-Bot, der an `dev` gebunden ist, dient
 dem, was `dev` heftet, während das Widget auf Ihrer Website auf `production`
 bleibt, bis Sie es bewegen. Ein Agent, zwei Zielgruppen, zwei Versionen, eine
 Buchführung.
+
+Eine Seite, die der Agent veröffentlicht, folgt derselben Trennung. Ein Run in
+einer benannten Umgebung veröffentlicht ein eigenes
+[Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
+Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
+Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
+sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
+Seiten denen von Produktion.
 
 ## Tracing pro Umgebung { #tracing-per-environment }
 
@@ -111,7 +124,9 @@ Kunde einer Version begegnet, die niemand ausgeliefert hat.
 - Eine Umgebung ist ein **Name, der an eine Version geheftet ist**; jeder Agent
   hat eine Standardumgebung.
 - Veröffentlichen prägt eine Version. **Sie irgendwohin zu stellen ist eine
-  eigene Entscheidung** — deshalb ist `tracks_latest` standardmäßig aus.
+  eigene Entscheidung** — deshalb ist `tracks_latest` bei einer Umgebung aus, die
+  Sie hinzufügen; das `production` der ersten Veröffentlichung folgt, bis Sie es
+  anheften.
 - Eine **Oberfläche kann ihre Umgebung nennen**, sodass ein Dev-Bot und ein
   öffentliches Widget verschiedene Versionen eines Agents ausliefern können.
 - **Ein Rollback ist ein Umhängen**, weil alte Versionen lesbar und ausführbar

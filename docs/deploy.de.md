@@ -1,5 +1,5 @@
 ---
-source_sha: "4204964a3eae"
+source_sha: "0ceb552b4aa0"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -478,7 +478,7 @@ Ein Volume zählt, und welches, ist nicht offensichtlich:
 |---|---|---|
 | `postgres_data` | alles — Agents, Unterhaltungen, versiegelte Zugangsdaten | **ja** |
 | `media_data` | hochgeladene Dateien, vor der Ingestion | ja |
-| `prefect_data` | die Historie der Flow-Runs | nein |
+| `prefect_data` | die Datenbank von Prefect: Deployments, Run-Historie, wartende Runs | nein |
 
 Der Cache hat überhaupt kein Volume mehr. Rate-Limit-Buckets, Dedupe-Claims der
 Kanäle und Mitgliedschaftsantworten tragen alle eine TTL und bauen sich selbst

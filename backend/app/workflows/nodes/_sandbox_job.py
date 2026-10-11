@@ -26,15 +26,17 @@ prefix of the step's own failure codes.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+import httpx
+from pydantic_ai.workspaces import FileEntry, Workspace, WorkspaceError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
@@ -45,6 +47,9 @@ from app.services.workflow_execution import context
 from app.workflows import files
 from app.workflows.contracts.io import FileRef
 from app.workflows.contracts.results import Failed, Waiting
+
+if TYPE_CHECKING:
+    from pydantic_ai_backends.workspaces import SandboxdWorkspaceBackend
 
 logger = logging.getLogger(__name__)
 
@@ -121,27 +126,63 @@ async def check_connection(
     return []
 
 
-def _open(resolved: ResolvedConnection, key: str, runtime: str | None, tenant: str) -> Any:
-    from pydantic_ai_backends.remote import RemoteSandbox
+class _Sandbox:
+    """The one `sandboxd` session a step's job lives in - only what the job needs.
 
-    return RemoteSandbox(
-        resolved.row.base_url or "",
+    Files and commands go through the workspace, and purging through its
+    backend: the session is named after the step, so purging is how a finished,
+    stopped or oversized job gives its sandbox back.
+    """
+
+    def __init__(self, backend: SandboxdWorkspaceBackend) -> None:
+        self._backend = backend
+        self._files = Workspace(backend)
+
+    async def exists(self, path: str) -> bool:
+        return await self._files.exists(path)
+
+    async def write(self, path: str, content: str | bytes) -> None:
+        await self._files.write_bytes(
+            path, content.encode() if isinstance(content, str) else content
+        )
+
+    async def read_bytes(self, path: str) -> bytes:
+        return await self._files.read_bytes(path)
+
+    async def list_dir(self, path: str) -> Sequence[FileEntry]:
+        return await self._files.list_dir(path)
+
+    async def shell(self, command: str) -> tuple[int, str]:
+        """Run one line of this module's own shell; its exit code and what it printed.
+
+        Every line is built here from constants and the language's interpreter -
+        the script itself is staged as a file, never interpolated.
+        """
+        result = await self._files.run(["sh", "-c", command])
+        return result.exit_code, result.stdout + result.stderr
+
+    async def purge(self) -> None:
+        await self._backend.purge()
+
+
+def _open(resolved: ResolvedConnection, key: str, runtime: str | None, tenant: str) -> _Sandbox:
+    from pydantic_ai_backends.workspaces import SandboxdWorkspace
+
+    sandbox = SandboxdWorkspace(
+        service_url=resolved.row.base_url or "",
         token=resolved.token,
-        session_id=key,
+        # One provider name per connection, as an agent's workspace uses, so a
+        # session on one host is never read as one on another.
+        provider=f"sandboxd:{resolved.row.id}",
         runtime=runtime or resolved.row.default_runtime,
         tenant=tenant,
-        reuse=True,
+        session_name=key,
     )
+    return _Sandbox(sandbox.backend())
 
 
-def _write(sandbox: Any, path: str, content: str | bytes) -> None:
-    written = sandbox.write(path, content)
-    if written.error:
-        raise RuntimeError(f"Could not stage {path}: {written.error}")
-
-
-def _launch(
-    sandbox: Any,
+async def _launch(
+    sandbox: _Sandbox,
     language: ScriptLanguage,
     code: str,
     args: dict[str, Any],
@@ -153,26 +194,26 @@ def _launch(
     saw no launch - a host answering nothing for a moment - stages again but
     never starts a second job beside the first.
     """
-    _write(sandbox, f"{ROOT}/args.json", json.dumps(args))
-    _write(sandbox, f"{ROOT}/{language.script}", code)
-    _write(sandbox, f"{ROOT}/{language.runner_name}", language.runner)
+    await sandbox.write(f"{ROOT}/args.json", json.dumps(args))
+    await sandbox.write(f"{ROOT}/{language.script}", code)
+    await sandbox.write(f"{ROOT}/{language.runner_name}", language.runner)
     for name, data in inputs:
-        _write(sandbox, f"{ROOT}/inputs/{name}", data)
-    _write(sandbox, f"{ROOT}/started_at", datetime.now(UTC).isoformat())
-    started = sandbox.execute(
+        await sandbox.write(f"{ROOT}/inputs/{name}", data)
+    await sandbox.write(f"{ROOT}/started_at", datetime.now(UTC).isoformat())
+    exit_code, output = await sandbox.shell(
         f"cd {ROOT} && mkdir -p outputs && "
         f"{{ [ -f job.pid ] || (nohup {language.interpreter} {language.runner_name} "
         "> log.txt 2>&1 & echo $! > job.pid); }"
     )
-    if started.exit_code != 0:
-        raise RuntimeError(f"Could not start the job: {started.output[:500]}")
+    if exit_code != 0:
+        raise RuntimeError(f"Could not start the job: {output[:500]}")
 
 
 class _TooLarge(Exception):
     """What the job left is over the bounds, measured before any of it was fetched."""
 
 
-def _measure(sandbox: Any) -> None:
+async def _measure(sandbox: _Sandbox) -> None:
     """Refuse a job's leftovers that are over the bounds before any of them is
     fetched into this worker's memory.
 
@@ -181,25 +222,28 @@ def _measure(sandbox: Any) -> None:
             too long a log.
         RuntimeError: The sandbox could not measure them.
     """
-    measured = sandbox.execute(_MEASURE)
+    _exit, output = await sandbox.shell(_MEASURE)
     try:
-        count, total, answer, log = (int(line) for line in measured.output.split())
+        count, total, answer, log = (int(line) for line in output.split())
     except ValueError:
-        raise RuntimeError(f"Could not measure the job's files: {measured.output[:200]}") from None
+        raise RuntimeError(f"Could not measure the job's files: {output[:200]}") from None
     if count > MAX_OUTPUT_FILES or total + answer > MAX_OUTPUT_BYTES or log > MAX_LOG_BYTES:
         raise _TooLarge
 
 
-def _collect(sandbox: Any) -> tuple[dict[str, Any], bytes, list[tuple[str, bytes]]]:
-    _measure(sandbox)
-    answer = json.loads(sandbox.read_bytes(f"{ROOT}/result.json"))
-    log = sandbox.read_bytes(f"{ROOT}/log.txt") if sandbox.exists(f"{ROOT}/log.txt") else b""
+async def _collect(sandbox: _Sandbox) -> tuple[dict[str, Any], bytes, list[tuple[str, bytes]]]:
+    await _measure(sandbox)
+    answer = json.loads(await sandbox.read_bytes(f"{ROOT}/result.json"))
+    log = (
+        await sandbox.read_bytes(f"{ROOT}/log.txt")
+        if await sandbox.exists(f"{ROOT}/log.txt")
+        else b""
+    )
     produced: list[tuple[str, bytes]] = []
-    for entry in sandbox.ls_info(f"{ROOT}/outputs"):
-        if entry["is_dir"]:
+    for entry in await sandbox.list_dir(f"{ROOT}/outputs"):
+        if entry.is_dir:
             continue
-        path = entry["path"]
-        produced.append((path.rsplit("/", 1)[-1], sandbox.read_bytes(path)))
+        produced.append((entry.path.rsplit("/", 1)[-1], await sandbox.read_bytes(entry.path)))
     return answer, log, produced
 
 
@@ -211,8 +255,8 @@ def _too_large(language: ScriptLanguage) -> Failed:
     )
 
 
-def _started(sandbox: Any) -> datetime:
-    return datetime.fromisoformat(sandbox.read_bytes(f"{ROOT}/started_at").decode().strip())
+async def _started(sandbox: _Sandbox) -> datetime:
+    return datetime.fromisoformat((await sandbox.read_bytes(f"{ROOT}/started_at")).decode().strip())
 
 
 async def _inputs(refs: tuple[FileRef, ...]) -> list[tuple[str, bytes]] | Failed:
@@ -256,29 +300,28 @@ async def run_job(
     waiting = Waiting(reason="retry_backoff", resume_token=str(current.node_run_id))
     try:
         sandbox = _open(resolved, key, runtime, str(current.organization_id))
-        launched = await asyncio.to_thread(sandbox.exists, f"{ROOT}/job.pid")
-        if not launched:
+        if not await sandbox.exists(f"{ROOT}/job.pid"):
             inputs = await _inputs(input_files)
             if isinstance(inputs, Failed):
                 return inputs
-            await asyncio.to_thread(_launch, sandbox, language, code, args, inputs)
+            await _launch(sandbox, language, code, args, inputs)
             return waiting
-        if not await asyncio.to_thread(sandbox.exists, f"{ROOT}/done"):
-            started = await asyncio.to_thread(_started, sandbox)
+        if not await sandbox.exists(f"{ROOT}/done"):
+            started = await _started(sandbox)
             if datetime.now(UTC) - started > timedelta(seconds=timeout_seconds):
-                await asyncio.to_thread(sandbox.stop, True)
+                await sandbox.purge()
                 return files.failed(
                     f"{language.code_prefix}_SANDBOX_TIMEOUT",
                     f"The script ran longer than {timeout_seconds:g} seconds and was stopped",
                 )
             return waiting
-        answer, log, produced = await asyncio.to_thread(_collect, sandbox)
+        answer, log, produced = await _collect(sandbox)
     except _TooLarge:
-        await asyncio.to_thread(sandbox.stop, True)
+        await sandbox.purge()
         return _too_large(language)
-    except (OSError, RuntimeError) as exc:
-        # The host went away mid-conversation: nothing about the job is known to
-        # have changed, and the next dispatch checks again.
+    except (OSError, RuntimeError, WorkspaceError, httpx.HTTPError) as exc:
+        # The host went away mid-conversation, or refused a write: nothing about
+        # the job is known to have changed, and the next dispatch checks again.
         logger.warning("A sandbox script step could not reach its host: %s", exc)
         return files.failed(
             "SANDBOX_UNREACHABLE", "The sandbox host could not be reached", retryable=True
@@ -291,14 +334,14 @@ async def run_job(
         or sum(len(data) for _n, data in produced) > MAX_OUTPUT_BYTES
         or len(log) > MAX_LOG_BYTES
     ):
-        await asyncio.to_thread(sandbox.stop, True)
+        await sandbox.purge()
         return _too_large(language)
     log_file = await files.save(log, content_type="text/plain", filename="log.txt")
     outputs = [
         await files.save(data, content_type=files.sniff(data), filename=name)
         for name, data in produced
     ]
-    await asyncio.to_thread(sandbox.stop, True)
+    await sandbox.purge()
     if not answer.get("ok"):
         if answer.get("not_json"):
             return files.failed(

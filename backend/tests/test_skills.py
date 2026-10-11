@@ -18,6 +18,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+from app.services import skill_library
 from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
@@ -846,6 +847,55 @@ class TestSkillLibrary:
         # not as a person who acted - the marker is what keeps the entry honest.
         assert audit.await_args_list[-1].kwargs["details"]["seeded"] is True
 
+    def test_a_fingerprint_changes_with_what_a_skill_says_and_not_with_file_order(self):
+        from app.services.skill_library import fingerprint
+
+        base = {"description": "d", "category": None, "content": "Body."}
+        files = [("a.md", "one", None), ("b.md", "two", None)]
+
+        assert fingerprint(**base, resources=files) == fingerprint(
+            **base, resources=reversed(files)
+        )
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **base, resources=[("a.md", "one", None), ("b.md", "changed", None)]
+        )
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **{**base, "category": "design"}, resources=files
+        )
+        # Saving through the API trims a final newline; that is not an edit.
+        assert fingerprint(**base, resources=files) == fingerprint(
+            **{**base, "content": "Body.\n"},
+            resources=[("a.md", "one\n", None), ("b.md", "two", "")],
+        )
+        # A description written on a copy's file is an edit; the shipped files have none.
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **base, resources=[("a.md", "one", "Ours"), ("b.md", "two", None)]
+        )
+
+    @pytest.mark.anyio
+    async def test_installing_stamps_the_copy_with_the_folder_it_came_from(self):
+        """So a later `seed-skills` can tell an untouched copy from an edited one."""
+        created = MagicMock(id=uuid.uuid4(), name="code-review")
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+            patch(f"{SKILLS_PATH}.skill_repo.create_resource", new=AsyncMock()),
+            patch(f"{SKILLS_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await SkillService(_db()).install_from_library(_ctx(), "code-review")
+
+        bundled = skill_library.get("code-review")
+        assert bundled is not None
+        assert create.call_args.kwargs["library_fingerprint"] == bundled.fingerprint
+
+    @pytest.mark.anyio
+    async def test_refreshing_something_that_does_not_ship_is_refused(self):
+        with pytest.raises(NotFoundError, match="No such bundled skill"):
+            await SkillService(_db()).refresh_from_library(_ctx(), "not-a-skill")
+
     @pytest.mark.anyio
     async def test_installing_something_that_does_not_ship_is_refused(self):
         with pytest.raises(NotFoundError, match="No such bundled skill"):
@@ -1489,7 +1539,7 @@ class TestTheGalleryOnDisk:
 
         names = [s.name for i in skill_library.gallery() for s in i.skills]
         names += [entry.name for entry in skill_library.library()]
-        assert len(names) == 73
+        assert len(names) == 74
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Sliders } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
@@ -82,10 +82,12 @@ export function ChatControls({
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("follow_agent");
 
   const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? null;
-  const triggerSummary = useMemo(
-    () => selectedProfile?.label ?? t("controls"),
-    [selectedProfile, t],
-  );
+  // The model that answers, whichever it is: an override when there is one,
+  // the agent's own otherwise. The trigger is an icon, so this is its tooltip.
+  const triggerTitle = useMemo(() => {
+    const model = selectedProfile?.label ?? agentModel?.label ?? null;
+    return model === null ? t("label") : t("modelTitle", { model });
+  }, [selectedProfile, agentModel, t]);
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
 
   return (
@@ -94,20 +96,26 @@ export function ChatControls({
         <button
           type="button"
           aria-label={t("label")}
+          title={triggerTitle}
           // The /settings slash command opens this popover by clicking the
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
+          // One icon beside the microphone: the model is a choice made once
+          // per conversation, and its name took the width of the row it sat in.
+          // The dot is what an override leaves visible once the popover closes.
           className={cn(
-            "border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-2.5 font-mono text-xs tracking-wider uppercase transition-colors",
-            hasOverride ? "text-foreground" : "text-foreground/65",
+            "hover:bg-foreground/[0.06] hover:text-foreground relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+            hasOverride ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          <Sliders className="h-3 w-3" />
-          <span className="max-w-[200px] truncate">{triggerSummary}</span>
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
           {hasOverride && (
-            <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
+            <span
+              data-testid="override-dot"
+              aria-hidden
+              className="bg-foreground absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full"
+            />
           )}
-          <ChevronDown className="text-muted-foreground h-3 w-3" />
         </button>
       </PopoverTrigger>
 

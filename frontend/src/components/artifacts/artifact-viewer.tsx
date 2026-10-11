@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileX } from "lucide-react";
+import { FileX, History } from "lucide-react";
 import { useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
@@ -11,7 +11,7 @@ import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialo
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
 import { VersionPicker } from "@/components/artifacts/version-picker";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { ConfirmDialog } from "@/components/ui";
+import { Button, ConfirmDialog } from "@/components/ui";
 import { useArtifact } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -53,6 +53,8 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
     refetch,
     enablePublicLink,
     disablePublicLink,
+    updatePublicLink,
+    restoreVersion,
     remove,
   } = useArtifact(artifactId);
 
@@ -91,12 +93,20 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         onShare={() => setSharing(true)}
         onDelete={() => setConfirming(true)}
       >
-        <VersionPicker
-          versions={versions}
-          value={versionId}
-          onChange={setVersionId}
-          className="w-32 sm:w-56"
-        />
+        <VersionPicker versions={versions} value={versionId} onChange={setVersionId} />
+        {artifact.can_edit && versionId !== null && versionId !== artifact.current_version?.id && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={restoreVersion.isPending}
+            onClick={() =>
+              restoreVersion.mutate(versionId, { onSuccess: () => setVersionId(null) })
+            }
+          >
+            <History className="h-3.5 w-3.5" />
+            <span className="sr-only sm:not-sr-only">{t("restoreVersion")}</span>
+          </Button>
+        )}
       </ArtifactViewerBar>
       <div className="flex min-h-0 flex-1 flex-col">
         <ArtifactFrame
@@ -110,9 +120,12 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         artifact={artifact}
         open={sharing}
         onOpenChange={setSharing}
+        versions={versions}
         busy={enablePublicLink.isPending || disablePublicLink.isPending}
         onEnablePublicLink={() => enablePublicLink.mutate()}
         onDisablePublicLink={() => disablePublicLink.mutate()}
+        onUpdatePublicLink={(changes) => updatePublicLink.mutateAsync(changes)}
+        saving={updatePublicLink.isPending}
       />
       <ConfirmDialog
         open={confirming}

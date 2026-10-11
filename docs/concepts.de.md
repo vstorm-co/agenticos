@@ -1,5 +1,5 @@
 ---
-source_sha: "552010905ca7"
+source_sha: "f7adaf5c100d"
 ---
 
 # Begriffe { #concepts }
@@ -106,16 +106,18 @@ Veröffentlichung es verschieben darf.
 
 Ein Environment wartet also entweder:
 
-- **darauf, dass etwas darauf promotet wird** — so verhält sich `production`, das
-  Default; oder
+- **darauf, dass etwas darauf promotet wird** — so sollte sich `production`
+  verhalten, sobald ein `dev` oder `staging` daneben steht; oder
 - **es folgt jeder Veröffentlichung** — was ein `dev`, in dem jemand iteriert,
-  meistens will.
+  meistens will, und was `production` tut, solange es das einzige Environment ist.
 
 Zwei Folgen sind erwähnenswert:
 
 1. Die **erste** Veröffentlichung legt `production` auf der eben geprägten
    Version an, denn ein Agent ohne Environment hat überhaupt keinen Ort zum
-   Laufen.
+   Laufen, und es folgt Veröffentlichungen, bis jemand es anheftet. Ein später
+   hinzugefügtes Environment wartet auf eine Promotion, sofern nichts anderes
+   eingestellt ist.
 2. Ein **Rollback landet auf demselben Weg** wie eine Veröffentlichung — es *ist*
    die Veröffentlichung eines älteren Specs. Eine alte Version wieder vor Menschen
    zu stellen, ist daher ein Klick auf ihrer Verlaufszeile (promote), keine
@@ -176,6 +178,52 @@ Wenn dieses Mitglied den Agent nicht mehr ausführen darf — es hat die
 Organisation verlassen, oder sein Grant darauf wurde entzogen —, **deaktiviert
 sich der Trigger selbst und hält fest, warum**, statt eine Ablehnung ewig zu
 wiederholen.
+
+### Es ist nicht die Unterhaltung dieser Person { #it-is-not-that-persons-conversation }
+
+Der Ersteller leiht einem Auslösen seine **Befugnisse**: seine Rolle und seine
+Grants. Seine **Identität** leiht er ihm nicht. Einem unbeaufsichtigten Run hört
+niemand zu, also antwortet er keiner identifizierten Person, genau wie ein
+Besucher eines eingebetteten Widgets. Diese pro Person geführten Speicher sind
+für ihn verschlossen:
+
+- [Gedächtnisdateien](reference/capabilities.md#memory-files) und
+  [mem0](reference/capabilities.md#memory-mem0): Jedes Tool antwortet, dass die
+  Unterhaltung kein Gedächtnis hat.
+- [Unterhaltungssuche](reference/capabilities.md#conversation-search): Beide
+  Tools verweigern.
+- Eine [persönliche MCP-Bindung](mcp.md#whose-account-a-binding-speaks-through):
+  Das eigene Notion oder Postfach des Erstellers fehlt, und der Agent erfährt,
+  warum.
+- [Artefakte](reference/capabilities.md#artifacts): `publish_artifact` veröffentlicht weiterhin, und die
+  Seite ist für den Ersteller privat, aber `read_artifact` lehnt ab, sodass eine
+  Auslösung eine ganze Seite neu veröffentlicht, statt eine zu bearbeiten.
+
+Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
+Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in
+ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas.
+
+!!! warning "Eine Sandbox mit Benutzer-Scope ist die Ausnahme"
+
+    Eine [Sandbox](sandbox.md) mit `session_scope: user` ist nicht verschlossen.
+    Ein Auslösen öffnet den eigenen Workspace des Erstellers für diesen Agent und
+    kann dort die Dateien des Erstellers lesen und schreiben. Ein Mitglied ohne
+    `agents:edit` kann einen Trigger, den ein anderes Mitglied angelegt hat,
+    weder bearbeiten noch auslösen, denn ein geänderter Prompt könnte diese
+    Dateien beim nächsten Auslösen hinauskopieren.
+
+Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
+läuft:
+
+| Ein unbeaufsichtigter Run braucht | Verwenden Sie |
+|---|---|
+| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers oder eine an den Agent gebundene [Context-Datei](context.md) |
+| Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an |
+| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, nicht mit dem jeder Person |
+
+[Webseiten auf Änderungen prüfen](howto/competitor-monitoring.md) und
+[ein persönlicher Assistent](howto/personal-assistant.md) treffen beide auf diese
+Regel und zeigen den Ausweg.
 
 ### Alles Weitere ist ein gewöhnlicher Run { #everything-else-is-an-ordinary-run }
 

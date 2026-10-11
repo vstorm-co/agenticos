@@ -1,5 +1,5 @@
 ---
-source_sha: "7e8688fd9cd6"
+source_sha: "f65f76a23f9a"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -116,7 +116,7 @@ Notices-Datei ist die aktuelle Zahl.
 | MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, MIT-0, MIT-CMU, Unlicense | rund 400 | Copyright-Hinweis und Lizenztext bei Kopien mitführen | Die eigene Lizenzdatei jedes Pakets wird im Image neben dem Code ausgeliefert: das `*.dist-info/` jedes Wheels im Backend-Image, die Lizenzdatei jedes Pakets unter `/app/licenses/node_modules/<name>/` im Frontend-Image. Die Notices indexieren sie |
 | Apache-2.0 | rund 90 | Der Lizenztext, ein Hinweis auf Änderungen, jede `NOTICE`-Datei, die das Paket mitführt | Wie oben; nichts wird verändert, es gibt also keine Änderungen, auf die hinzuweisen wäre |
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | ein paar | Namensnennung oder nichts | Wie oben |
-| MPL-2.0 (`certifi`, `pathspec`, `tqdm`, Teil von `orjson`) | 4 | Copyleft auf Dateiebene: Die erfassten Dateien bleiben unter der MPL, und ihr Quellcode ist verfügbar | Unverändert genutzt; der Lizenztext wird ausgeliefert; die Notices verlinken den Quellcode |
+| MPL-2.0 (`bidict`, `certifi`, `pathspec`, `tqdm`, Teil von `orjson`) | 5 | Copyleft auf Dateiebene: Die erfassten Dateien bleiben unter der MPL, und ihr Quellcode ist verfügbar | Unverändert genutzt; der Lizenztext wird ausgeliefert; die Notices verlinken den Quellcode |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Lizenztext, Verfügbarkeit des Quellcodes und die Möglichkeit, die Bibliothek zu ersetzen | Beide sind separat installierte Binaries, dynamisch geladen, unverändert, durch Neuinstallation ersetzbar; die Quellen sind in den Notices verlinkt. Die libvips-Pakete veröffentlichen keine Lizenzdatei, deshalb legt das Image den LGPL-Text daneben |
 | LGPL-3.0-only (`ldap3`) | 1 | Lizenztext, Verfügbarkeit des Quellcodes und die Möglichkeit, die Bibliothek zu ersetzen | Der LDAP-Client der Verzeichnisanmeldung, ein reines Python-Wheel, unverändert importiert und durch Neuinstallation ersetzbar; seine Lizenzdateien liegen in seiner dist-info, und sein Quellcode ist in den Notices verlinkt |
 | Artistic-1.0-Perl oder GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; unter der Artistic License genommen: Hinweis und Text | Die Lizenzdatei des Wheels wird ausgeliefert |

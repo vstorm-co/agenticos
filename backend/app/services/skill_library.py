@@ -21,7 +21,9 @@ directory would take that away.
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -75,6 +77,44 @@ class LibrarySkill:
     category: str | None
     content: str
     resources: tuple[LibraryResource, ...]
+
+    @property
+    def fingerprint(self) -> str:
+        """What this folder says, as one hash - see `fingerprint`."""
+        return fingerprint(
+            description=self.description,
+            category=self.category,
+            content=self.content,
+            resources=((resource.name, resource.content, None) for resource in self.resources),
+        )
+
+
+def fingerprint(
+    *,
+    description: str,
+    category: str | None,
+    content: str,
+    resources: Iterable[tuple[str, str, str | None]],
+) -> str:
+    """A hash of what a skill says - its description, category, body and files.
+
+    A file is its name, its body and its description: a folder's files carry no
+    description, so one an organization wrote on its copy is an edit like any other.
+
+    The same function over a library folder and over an organization's copy of it,
+    so the two can be compared: equal means the copy says what the folder says.
+    The name is left out because it is the key the two are matched on, and the
+    order of files because a listing does not promise one. Each part is compared
+    without its surrounding whitespace: saving through the API trims a file's final
+    newline, and a copy somebody opened and saved unchanged has not been edited.
+    """
+    digest = hashlib.sha256()
+    for part in (description, category or "", content):
+        digest.update(part.strip().encode("utf-8") + b"\0")
+    for name, body, about in sorted(resources, key=lambda resource: resource[0]):
+        for part in (name, body.strip(), (about or "").strip()):
+            digest.update(part.encode("utf-8") + b"\0")
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True, slots=True)

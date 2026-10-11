@@ -1,5 +1,5 @@
 ---
-source_sha: "3d41e332c829"
+source_sha: "8f28f7cd93ef"
 ---
 
 # Configuración { #configuration }
@@ -107,6 +107,7 @@ sin un límite propio.
 | `SECRET_KEY` | (insecure default) | Clave de firma de los JWT. **Tiene que** cambiarse en producción. Genérala con: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Vida del access token |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Vida del refresh token (7 días) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | Cuánto tiempo tras una rotación el refresh token gastado sigue recibiendo respuesta, siempre con el mismo sucesor, para que una respuesta perdida o una ráfaga de refrescos no terminen la sesión; `0` lo desactiva |
 | `ALGORITHM` | `HS256` | Algoritmo de firma de los JWT |
 
 Validación en producción: `SECRET_KEY` tiene que tener al menos 32 caracteres y no
@@ -732,9 +733,9 @@ dónde se sirven. Consulta [Artefactos](artifacts.md).
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
-| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la

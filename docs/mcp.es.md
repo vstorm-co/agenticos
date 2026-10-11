@@ -1,5 +1,5 @@
 ---
-source_sha: "97da4b30471c"
+source_sha: "0f382acc604e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -178,10 +178,15 @@ canal sería entregárselo al canal.
     como la que habla un agent. Hasta que elija, el agent se lo pide — adivinar en
     silencio el workspace más antiguo sería peor.
 
-    En el chat del dashboard el mismo hecho llega como una tarjeta, antes de que el
-    modelo responda, con un botón para conectar; y los controles del chat listan
-    los servicios personales del agent con su estado, así que un miembro nuevo ve
-    qué conectar antes de preguntar. Ver [la página de la consola](console.md#chat).
+    El chat del dashboard pregunta cuando el agent necesita el servicio, no antes.
+    Un servicio que la persona no ha conectado, del que tiene varias conexiones o
+    que debe autorizar de nuevo se ofrece al modelo como `connect_account`: cuando
+    una pregunta necesita Notion, el run se detiene en una tarjeta con el botón para
+    conectar y, en cuanto la cuenta está conectada, el mismo run sigue con las
+    herramientas de Notion. Si se omite, sigue sin ellas. Los controles del chat
+    también listan los servicios personales del agent con su estado, así que un
+    miembro nuevo ve qué conectar antes de preguntar. Ver
+    [la página de la consola](console.md#chat).
 
 El prefijo de herramientas de una vinculación personal es la clave del catálogo,
 se llame como se llame la conexión de cada persona, así que el agent presenta
@@ -747,16 +752,38 @@ catálogo le ahorra a alguien buscar una URL; no es una puerta.
 Para añadir una entrada a la lista, ver
 [Añadir un servidor al catálogo de MCP](howto/add-mcp-server.md).
 
+<a id="outlook-setup"></a>
+
+### Correo y calendario de Outlook { #outlook-email-and-calendar }
+
+Outlook está disponible mediante servicios MCP de terceros, no mediante un
+conector de buzón integrado. El registro incluido contiene entradas de MintMCP
+para correo y calendario:
+
+| Entrada del registro | URL del servidor |
+|---|---|
+| `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
+| `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
+
+Busca la entrada en el catálogo MCP o añade su URL como servidor personalizado.
+Sigue las [instrucciones del proveedor](https://www.mintmcp.com/servers), configura
+la cuenta y la autorización, prueba la conexión y selecciona las herramientas
+del agente. La disponibilidad, los permisos y los posibles cargos dependen del
+proveedor. Una entrada del registro no equivale a una prueba completa de la
+integración con AgenticOS. Revisa los modos de aprobación descritos abajo antes
+de activar herramientas de escritura.
+
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Puertas de aprobación.** La aprobación por herramienta la declaran las
-  capabilities en código. Las herramientas de un servidor MCP se descubren en
-  tiempo de ejecución, así que no hay nada que las haya declarado; mantén los
-  servidores genuinamente peligrosos fuera de las conexiones de una organización en
-  lugar de dar por hecha una puerta.
+- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
+  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
+  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
+  predeterminado **Follow the agent** no añade esa puerta. Restringe las
+  herramientas disponibles y revisa el modo de ejecución antes de activar una
+  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

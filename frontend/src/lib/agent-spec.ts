@@ -21,6 +21,10 @@ import type {
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
 
+/** The capability that publishes pages, and the bundled skill that teaches it to build them. */
+export const ARTIFACTS_ID = "artifacts";
+export const ARTIFACT_PAGES_SKILL = "artifact-pages";
+
 /** The capability that searches the collections bound in `collection_ids`. */
 export const KNOWLEDGE_ID = "knowledge";
 

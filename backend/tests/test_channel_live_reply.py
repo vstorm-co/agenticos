@@ -26,7 +26,9 @@ from pydantic_ai.messages import (
     ThinkingPart,
     ToolCallPart,
 )
+from pydantic_ai.models.function import FunctionModel
 
+from app.agents.capabilities import CapabilityBinding, build
 from app.services.agent_runner import AgentRunnerService
 from app.services.channels.live_reply import (
     EDIT_INTERVAL,
@@ -447,3 +449,39 @@ class TestTheEventsTheStreamActuallyReads:
         )
 
         assert reply.text == "Tak."
+
+
+class TestAScreenedAnswerInTheChat:
+    """An agent with an output check, edited into a channel reply (#1900).
+
+    The reply is rewritten about once a second while the answer arrives, and the
+    output guardrail only read the finished answer - so the unredacted text was
+    posted, and edited away a moment later. Every edit reads the stream screen's
+    release now.
+    """
+
+    @pytest.mark.security
+    async def test_no_edit_of_the_reply_shows_a_redacted_secret(self):
+        secret = "sk-ant-api03-ABCDEFGHIJKLMNOPQR"
+
+        async def stream(_messages: Any, _info: Any) -> AsyncIterator[str]:
+            yield "Here it is: sk-ant-api03-ABC"
+            yield "DEFGHIJKLMNOPQR."
+
+        agent = Agent(
+            FunctionModel(stream_function=stream),
+            capabilities=build(
+                [CapabilityBinding(capability_id="guardrails", config={"redact_secrets_out": True})]
+            ),
+        )
+        reply, push, clock = _reply()
+        # Every chunk a second apart, so the throttle would push each one.
+        push.side_effect = lambda _text: clock.tick(EDIT_INTERVAL)
+        clock.tick(EDIT_INTERVAL)
+
+        async with agent.iter("what is my key?") as agent_run:
+            await channel_stream(reply)(agent_run)
+
+        assert push.await_args_list
+        assert all(secret not in call.args[0] for call in push.await_args_list)
+        assert reply.text == "Here it is: [redacted:anthropic_key]."

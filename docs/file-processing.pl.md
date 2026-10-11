@@ -1,5 +1,5 @@
 ---
-source_sha: "44dae3302f97"
+source_sha: "217a295cc0a5"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -158,6 +158,16 @@ Wielostronicowy TIFF pokazuje modelowi do `CHAT_TIFF_MAX_INLINE_PAGES` stron; ag
 z workspace'em otwiera resztę z oryginału na dysku. Wyciągnięty tekst jest
 ograniczony do `CHAT_PARSED_TEXT_MAX_CHARS`, a budżety na plik i na turę ograniczają
 to, co jest wklejane agentowi bez workspace'u.
+
+**Limit to budżet, który zużywają parsery, a nie cięcie po parsowaniu.** PDF jest
+wczytywany strona po stronie i zatrzymuje się na stronie, która przekracza limit,
+albo po 2000 stron. `.xlsx` czyta wiersze strumieniowo, zatrzymuje się na wierszu i
+odczytuje najwyżej milion komórek, więc arkusz deklarujący ogromny pusty zakres nic dodatkowo nie kosztuje, a
+skoroszyt zatrzymany przez ten limit kończy się notką, która to mówi. DOCX, PPTX, ODT i ODP przestają wyciągać tekst na akapicie
+lub slajdzie, ale ich biblioteki najpierw rozpakowują i parsują cały plik, w
+granicach limitów rozmiaru archiwum. Zwykły tekst, `.msg` i `.doc` są czytane w
+całości. Tekst, który przekracza limit, kończy się znacznikiem mówiącym, że reszta
+dokumentu została pominięta.
 
 **Odmowa zapisu jest powiedziana raz i dotyczy workspace'u.** Run, którego
 workspace nie przyjmie pliku, to run, w którym shell i narzędzia plikowe też

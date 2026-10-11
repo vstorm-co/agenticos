@@ -183,14 +183,16 @@ rather than more information.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships three as worked
-examples — `refund-policy`, `code-review` and `incident-report` — and every
-organization starts with them. Creating an organization copies the whole shipped
-library in as ordinary skills, owned by the organization's owner and visible to the
+**The bundled ones are already there.** The repository ships four: three worked
+examples — `refund-policy`, `code-review` and `incident-report` — and
+`artifact-pages`, which teaches an agent to build a page for the
+[Artifacts](artifacts.md#the-library-set) capability. Every organization starts
+with them. Creating an organization copies the whole shipped library in as
+ordinary skills, owned by the organization's owner and visible to the
 organization.
 
 The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those three are not chosen — they arrive once, at
+matches the shipped library. Those four are not chosen — they arrive once, at
 creation.
 
 **And they are yours from then on.** A seeded skill is an ordinary row: edit it,
@@ -215,10 +217,22 @@ The seed command does the same from a terminal, for scripted setups:
 uv run agenticos cmd seed-skills                    # every organization
 uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
+uv run agenticos cmd seed-skills --replace          # also overwrite copies edited here
 ```
 
-It is idempotent by name — a skill the organization already has is left exactly as
-it is, so an edited refund policy survives a reseed.
+It installs what is missing and **refreshes what nobody has edited**. Every copy
+records which bundled version it was written from, so when a release improves a
+bundled skill, an organization's untouched copy is replaced with the new one —
+files and all, with its version bumped and a `skill.refreshed` audit entry.
+
+A copy edited here is left exactly as it is, so an edited refund policy survives a
+reseed; `--replace` is the one way to take the bundled version over such edits,
+and the audit entry says it did. A copy made before versions were recorded and
+different from the bundled one is reported and left alone too, since nothing can
+tell whether it was edited.
+
+The command prints what it did with each skill, and `--dry-run` prints the same
+plan without writing.
 
 `e2e/seed.setup.ts` also creates one through the UI, which is what the E2E suite
 asserts against.
@@ -235,7 +249,7 @@ is an ordinary skill the organization owns and edits, exactly like a bundled one
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled three live in `app/core/catalog/skills/` and are copied into
+    The bundled four live in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.

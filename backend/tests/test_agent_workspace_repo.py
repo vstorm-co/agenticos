@@ -207,7 +207,6 @@ class TestWriting:
             scope="conversation",
             scope_key="sc-1",
             backend="docker",
-            session_id="sc-1",
         )
 
         [created] = session.added
@@ -215,8 +214,18 @@ class TestWriting:
         assert created.agent_id == agent_id
         assert created.conversation_id == conversation_id
         assert created.owner_ref == "U123"
-        assert created.session_id == "sc-1"
+        # Recorded when a session is opened, not when the row is: see `record_session`.
+        assert created.session_id is None
         assert created.last_used_at is not None
+
+    async def test_recording_a_session_sets_it_and_forgetting_clears_it(self):
+        session = _RecordingSession()
+        row = _workspace()
+
+        await agent_workspace_repo.record_session(session, workspace=row, session_id="xc-1")
+        assert row.session_id == "xc-1"
+        await agent_workspace_repo.record_session(session, workspace=row, session_id=None)
+        assert row.session_id is None
 
     async def test_saving_bumps_the_version_so_an_overlap_is_visible(self):
         """Two turns of one conversation cannot normally run at once; this is
@@ -225,12 +234,13 @@ class TestWriting:
         row = _workspace(version=3)
 
         saved = await agent_workspace_repo.save_files(
-            session, workspace=row, files={"/a.txt": {}}, bytes_total=42
+            session, workspace=row, files={"/a.txt": {}}, directories=["/out"], bytes_total=42
         )
 
         assert saved.version == 4
         assert saved.bytes_total == 42
         assert saved.files == {"/a.txt": {}}
+        assert saved.directories == ["/out"]
 
     async def test_touching_records_use_without_changing_the_files(self):
         session = _RecordingSession()

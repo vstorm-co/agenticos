@@ -3,12 +3,25 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useArtifact, useArtifacts, useArtifactView } from "./use-artifacts";
+import {
+  useArtifact,
+  useArtifactAgents,
+  useArtifacts,
+  useArtifactView,
+  usePublicArtifactUnlock,
+} from "./use-artifacts";
 import { apiClient } from "@/lib/api-client";
 import type { ArtifactDetail } from "@/types/artifact";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), put: vi.fn(), patch: vi.fn(), post: vi.fn(), delete: vi.fn() },
+}));
+const unlock = vi.fn();
+vi.mock("@/lib/public-artifact-api", () => ({
+  unlockPublicArtifact: (...args: unknown[]) => unlock(...args),
+}));
+vi.mock("@/components/public-config/public-config-provider", () => ({
+  usePublicConfig: () => ({ apiUrl: "https://api.example" }),
 }));
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -31,12 +44,24 @@ const DETAIL: ArtifactDetail = {
   visibility: "private",
   owner_user_id: "u1",
   agent_id: "ag1",
+  environment_id: null,
+  environment_name: null,
   public_url: null,
   published_at: "2026-09-22T10:00:00Z",
   current_version: null,
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: true,
+  public_link: {
+    expires_at: null,
+    pinned_version_id: null,
+    pinned_version: null,
+    password_protected: false,
+    view_count: 0,
+    last_viewed_at: null,
+    embed_origins: [],
+    embed_url: null,
+  },
 };
 
 describe("useArtifacts", () => {
@@ -59,6 +84,31 @@ describe("useArtifacts", () => {
     expect(result.current.artifacts).toEqual([]);
     expect(result.current.total).toBe(0);
     expect(apiClient.get).toHaveBeenCalledWith("/artifacts?skip=0&limit=50");
+  });
+
+  it("narrows to one agent's pages when asked", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(() => useArtifacts({ agentId: "ag 1" }), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/artifacts?agent_id=ag+1&skip=0&limit=50"),
+    );
+  });
+});
+
+describe("useArtifactAgents", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("lists the publishers once it is allowed to ask", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "ag1", name: "Reporter" }] });
+    const { result } = renderHook(() => useArtifactAgents(true), { wrapper });
+    await waitFor(() => expect(result.current).toEqual([{ id: "ag1", name: "Reporter" }]));
+    expect(apiClient.get).toHaveBeenCalledWith("/artifacts/agents");
+  });
+
+  it("asks nothing for a caller who may not see artifacts", () => {
+    const { result } = renderHook(() => useArtifactAgents(false), { wrapper });
+    expect(result.current).toEqual([]);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 
@@ -117,6 +167,63 @@ describe("useArtifact", () => {
       await result.current.enablePublicLink.mutateAsync().catch(() => undefined);
     });
     expect(toastError).toHaveBeenCalled();
+  });
+
+  it("saves the link's settings and leaves a refusal to the form", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.updatePublicLink.mutateAsync({ password: null }));
+    expect(apiClient.patch).toHaveBeenCalledWith("/artifacts/a1/public-link", { password: null });
+    expect(toastSuccess).toHaveBeenCalledWith("Public link settings saved");
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("bad"));
+    await act(async () => {
+      await result.current.updatePublicLink.mutateAsync({}).catch(() => undefined);
+    });
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("restores a kept version and names the version it became", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      ...DETAIL,
+      current_version: {
+        id: "v9",
+        number: 9,
+        media_type: "text/html",
+        size_bytes: 1,
+        run_id: null,
+        created_at: "2026-09-30T10:00:00Z",
+      },
+    });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.restoreVersion.mutateAsync("v2"));
+    expect(apiClient.post).toHaveBeenCalledWith("/artifacts/a1/versions/v2/restore");
+    expect(toastSuccess).toHaveBeenCalledWith("Restored as version 9");
+
+    vi.mocked(apiClient.post).mockResolvedValueOnce(DETAIL);
+    await act(() => result.current.restoreVersion.mutateAsync("v1"));
+    expect(toastSuccess).toHaveBeenCalledWith("Restored as version 0");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("gone"));
+    await act(async () => {
+      await result.current.restoreVersion.mutateAsync("v0").catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalled();
+  });
+});
+
+describe("usePublicArtifactUnlock", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends the password to this deployment's API for this link", async () => {
+    unlock.mockResolvedValue({ password_required: false, title: "T" });
+    const { result } = renderHook(() => usePublicArtifactUnlock("key"), { wrapper });
+    await act(() => result.current.mutateAsync("hunter22"));
+    expect(unlock).toHaveBeenCalledWith("https://api.example", "key", "hunter22");
   });
 });
 

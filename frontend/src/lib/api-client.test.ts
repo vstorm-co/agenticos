@@ -38,6 +38,9 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   useOrgStore.setState({ activeOrgId: null });
   useAuthStore.setState({ accessToken: null });
+  // The cross-tab "just refreshed" marker would otherwise carry from one test's
+  // refresh into the next and skip it.
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -219,6 +222,45 @@ describe("recovering from an expired token", () => {
     });
   });
 
+  it("signs the store out when the refresh is refused, so the guard sends them to sign in", async () => {
+    // Left signed in, the page stayed up with every request answering 401 and
+    // nothing redirecting until a full reload.
+    useAuthStore.setState({ isAuthenticated: true });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "SESSION_EXPIRED" }));
+
+    await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("keeps the store signed in when the refresh failed for a reason that is not the session", async () => {
+    useAuthStore.setState({ isAuthenticated: true });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(502, { code: "INTERNAL_SERVER_ERROR" }))
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(429, {}));
+
+    await expect(apiClient.get("/a")).rejects.toMatchObject({ status: 401 });
+    await expect(apiClient.get("/b")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it("leaves an ended impersonation to its own exit rather than signing out", async () => {
+    useAuthStore.setState({ isAuthenticated: true, impersonationRevoked: false });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "IMPERSONATION_ENDED" }));
+
+    await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().impersonationRevoked).toBe(true);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
   it("survives a refresh whose body is not JSON, because the cookie still rotated", async () => {
     fetchMock
       .mockResolvedValueOnce(refused(401, {}))
@@ -298,6 +340,88 @@ describe("recovering from an expired token", () => {
 
     await expect(apiClient.post("/auth/refresh")).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("refreshing alongside other tabs", () => {
+  // Every tab shares the refresh cookie and the backend rotates it on each use,
+  // so a second tab spending it a moment after the first used to end the session.
+
+  function withLocks() {
+    const request = vi.fn((_name: string, fn: () => Promise<unknown>) => fn());
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+    return request;
+  }
+
+  it("refreshes under the cross-tab lock", async () => {
+    const lock = withLocks();
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(ok({ access_token: "fresh" }))
+      .mockResolvedValueOnce(ok({ id: 1 }));
+
+    await apiClient.get("/agents");
+
+    expect(lock).toHaveBeenCalledWith("agenticos-auth-refresh", expect.any(Function));
+  });
+
+  it("does not spend the refresh cookie again when another tab just refreshed", async () => {
+    // Waiting behind that tab's lock, this one already holds the rotated cookies.
+    localStorage.setItem("agenticos:auth-refreshed-at", String(Date.now()));
+    fetchMock.mockResolvedValueOnce(refused(401, {})).mockResolvedValueOnce(ok({ id: 1 }));
+
+    await expect(apiClient.get("/agents")).resolves.toEqual({ id: 1 });
+
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(urls).toEqual(["/api/agents", "/api/agents"]);
+  });
+
+  it("tells the other tabs when it has refreshed", async () => {
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(ok({ access_token: "fresh" }))
+      .mockResolvedValueOnce(ok({ id: 1 }));
+
+    await apiClient.get("/agents");
+
+    expect(Number(localStorage.getItem("agenticos:auth-refreshed-at"))).toBeGreaterThan(0);
+  });
+
+  it("reads the session under the lock, because that route refreshes too", async () => {
+    const lock = withLocks();
+
+    await apiClient.get("/auth/me");
+
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves an ordinary request out of the lock", async () => {
+    const lock = withLocks();
+
+    await apiClient.get("/agents");
+
+    expect(lock).not.toHaveBeenCalled();
+  });
+
+  it("recovers a session read's 401 outside the lock, which would otherwise wait on itself", async () => {
+    let held = false;
+    const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) => {
+      expect(held).toBe(false);
+      held = true;
+      try {
+        return await fn();
+      } finally {
+        held = false;
+      }
+    });
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(ok({ access_token: "fresh" }))
+      .mockResolvedValueOnce(ok({ id: 1 }));
+
+    await expect(apiClient.get("/auth/me")).resolves.toEqual({ id: 1 });
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });
 

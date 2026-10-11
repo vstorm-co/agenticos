@@ -17,3 +17,14 @@
  * rendering that wrapper.
  */
 export const PAGE_CLEARANCE = "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-16";
+
+/**
+ * The room a page drawing its own bottom edge owes the mobile tab bar.
+ *
+ * For the pages `PageTransition` leaves to themselves - chat pins its composer
+ * to the bottom of its own pane, so `PAGE_CLEARANCE` under it would be empty
+ * space below the box. With neither, the composer's action row sat under the
+ * bar on a phone, send button included. The bar is `min-h-[56px]` and a 1px
+ * border, plus the inset; `lg` has no bar.
+ */
+export const TAB_BAR_CLEARANCE = "pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] lg:pb-0";

@@ -216,7 +216,8 @@ docker compose exec app agenticos cmd doctor
 
 `doctor` asks the questions a first message would ask. Is the database reachable
 and at head? Does the vault decrypt? Is there a model profile with a key behind
-it? Does every registered sandbox connection answer with a runtime?
+it? Does every registered sandbox connection answer with a runtime? Are
+scheduled jobs actually running?
 
 Each line names the part that is missing, rather than telling you something
 failed.

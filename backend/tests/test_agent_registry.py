@@ -38,7 +38,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
@@ -2166,15 +2166,17 @@ class TestPublish:
         assert frozen["note"] == "first cut"
         assert audit.call_args.kwargs["details"] == {"version": 3, "note": "first cut"}
         assert published is version
-        # A first publish mints the default environment, pinned to the version
-        # that just went live - so every published agent has one, and has
-        # somewhere to run at all.
+        # A first publish mints the default environment on the version that
+        # just went live - so every published agent has somewhere to run - and
+        # following publishes: with one environment there is nothing to promote
+        # between, so the next publish should be what answers.
         created = environments.create.call_args.kwargs
-        assert (created["name"], created["is_default"], created["version_id"]) == (
-            "production",
-            True,
-            version.id,
-        )
+        assert (
+            created["name"],
+            created["is_default"],
+            created["version_id"],
+            created["tracks_latest"],
+        ) == ("production", True, version.id, True)
         # Two writes to the agent row, and only one of them names a version: the
         # status is publish's, the pointer is the default environment's.
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
@@ -3710,6 +3712,7 @@ class TestAgentTemplates:
             patch(f"{REGISTRY_PATH}.skill_library.gallery_get", return_value=entry),
             patch(f"{REGISTRY_PATH}.SkillService") as skills,
             patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch.object(
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
@@ -3729,6 +3732,79 @@ class TestAgentTemplates:
         assert result.skills_installed == ["Clinical procedure lookup"]
         # The skills it expects are installed before the agent that binds them.
         skills.return_value.install_gallery.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):
+        """`artifact-pages` ships with every organization; there is nothing to install.
+
+        It used to be passed to the gallery with the rest, reported unknown there,
+        and silently left off the agent - so the general-purpose template built
+        pages without the skill written to style them.
+        """
+        template = MagicMock()
+        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.description, template.instructions = "d", "You work..."
+        template.capabilities = ({"id": "artifacts"},)
+        template.skills = ("artifact-pages",)
+        template.mcp, template.attach, template.budget_usd = (), (), None
+
+        row = MagicMock()
+        row.id, row.name = uuid4(), "artifact-pages"
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.SkillService") as skills,
+            patch(
+                f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)
+            ) as by_name,
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "general/claude-code-like"
+            )
+
+        skills.return_value.install_gallery.assert_not_called()
+        assert by_name.await_args.args[1] == "artifact-pages"
+        assert create.await_args.args[1].skill_ids == [row.id]
+        assert result.skills_installed == ["artifact-pages"]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_skill_the_installer_may_not_read_is_not_bound(self):
+        """A bundled copy its owner made private would otherwise be bound, reported
+        as installed, and refused at publish as a skill that does not exist."""
+        template = MagicMock()
+        template.key, template.name = "general/claude-code-like", "Claude Code like"
+        template.description, template.instructions = "d", "You work..."
+        template.capabilities = ({"id": "artifacts"},)
+        template.skills = ("artifact-pages",)
+        template.mcp, template.attach, template.budget_usd = (), (), None
+        row = MagicMock()
+        row.id, row.name = uuid4(), "artifact-pages"
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "claude-code-like", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.SkillService"),
+            patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REGISTRY_PATH}.resolve_access", new=AsyncMock(return_value=False)) as access,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "general/claude-code-like"
+            )
+
+        assert access.await_args.args[3] is Perm.SKILLS_VIEW
+        assert create.await_args.args[1].skill_ids == []
+        assert result.skills_installed == []
 
     @pytest.mark.anyio
     async def test_a_template_with_no_skills_installs_nothing(self):
@@ -3793,6 +3869,7 @@ class TestTheShippedTemplatesOnDisk:
         from app.services import agent_templates, skill_library
 
         gallery = {s.key for i in skill_library.gallery() for s in i.skills}
+        gallery |= {s.key for s in skill_library.library()}
         servers = json.loads(
             (skill_library.GALLERY_ROOT.parent / "mcp_servers.json").read_text(encoding="utf-8")
         )
@@ -3821,6 +3898,52 @@ class TestTheShippedTemplatesOnDisk:
         first = agent_templates.catalog()[0].templates[0]
         assert agent_templates.get(first.key) is first
         assert agent_templates.get("nope/nope") is None
+
+    @pytest.mark.anyio
+    async def test_every_template_publishes_once_a_model_is_chosen(self):
+        """A template installs as a draft, and the one thing it leaves to a person
+        is the model. So every capability config it carries - an inline
+        specialist's included - has to pass the checks publish runs: the
+        registry's config schema, scopes, secrets and the delegation walk. A typo
+        in a manifest would otherwise surface as a refusal on the first person
+        who presses Publish.
+        """
+        from app.services import agent_templates
+
+        for industry in agent_templates.catalog():
+            for template in industry.templates:
+                spec = AgentSpec(
+                    name=template.name,
+                    description=template.description,
+                    instructions=template.instructions,
+                    capabilities=list(template.capabilities),
+                    model_profile_id=uuid.uuid4(),
+                )
+                with patch(
+                    f"{REGISTRY_PATH}.credential_repo.get_profile",
+                    new=AsyncMock(return_value=MagicMock()),
+                ):
+                    await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+    def test_the_general_purpose_template_delegates_and_works_in_a_workspace(self):
+        """`general/claude-code-like` is the one template meant to be useful for
+        anything, so what it switches on is the point of it: files and a shell,
+        planning, delegation to specialists sharing that workspace, and the web.
+        """
+        from app.services import agent_templates
+
+        template = agent_templates.get("general/claude-code-like")
+        assert template is not None
+        bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
+        assert {"sandbox", "planning", "subagents", "web_research", "web_fetch"} <= set(bound)
+        delegation = bound["subagents"]
+        assert delegation["share_with_delegates"] == ["sandbox"]
+        assert {specialist["name"] for specialist in delegation["inline"]} == {
+            "explore",
+            "research",
+            "review",
+        }
+        assert template.attach == ("sandbox",)
 
 
 class TestOneToolPrefixPerBinding:

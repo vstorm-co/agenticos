@@ -196,6 +196,14 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     same tool name can't collide (pydantic-ai raises on duplicates). The
     allowlist filter runs before prefixing, so it compares against the
     unprefixed names the user picked in the UI.
+
+    A tool error the server reports reaches the model as a failed result
+    (`tool_error_behavior="failed"`), not as a retry. A retry spends the tool's
+    one-attempt budget, and the error after it ends the whole run with
+    `UnexpectedModelBehavior` - which is how most failed runs here ended: a
+    Notion query the server refused twice took the conversation down, where the
+    model reading the refusal could have fixed the query or said it could not.
+    Repeats stay bounded by the run's step limit.
     """
     from pydantic_ai.mcp import MCPToolset
 
@@ -204,6 +212,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=spec.headers or None,
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
+        tool_error_behavior="failed",
     )
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)

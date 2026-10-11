@@ -1,5 +1,5 @@
 ---
-source_sha: "89439dd9f4e7"
+source_sha: "42ec3d82641d"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -203,8 +203,7 @@ agent en marzo* tiene respuesta.
 
 === "Lo que alguien edita"
 
-    ![Agents — cada uno con la versión que está en vivo y quién puede alcanzarlo](assets/screens/light/agents.webp#only-light)
-    ![Agents — cada uno con la versión que está en vivo y quién puede alcanzarlo](assets/screens/dark/agents.webp#only-dark)
+    > **Captura pendiente — Agents.** Las nuevas capturas claras y oscuras sustituirán las imágenes de la interfaz anterior.
 
 === "En qué se convierte"
 

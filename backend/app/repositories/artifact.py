@@ -5,12 +5,16 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, false, func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
@@ -25,8 +29,46 @@ async def get(db: AsyncSession, artifact_id: UUID, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+def _identity(
+    organization_id: UUID, agent_id: UUID, environment_id: UUID | None, name: str
+) -> list[Any]:
+    """The predicate naming one artifact: its agent, its environment and its name.
+
+    `IS NULL` for the default environment rather than `=`, which a null never
+    satisfies.
+    """
+    return [
+        Artifact.organization_id == organization_id,
+        Artifact.agent_id == agent_id,
+        Artifact.environment_id.is_(None)
+        if environment_id is None
+        else Artifact.environment_id == environment_id,
+        Artifact.name == name,
+    ]
+
+
+async def get_by_identity(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    environment_id: UUID | None,
+    name: str,
+) -> Artifact | None:
+    """The artifact a run of this agent in this environment knows by this name."""
+    result = await db.execute(
+        select(Artifact).where(*_identity(organization_id, agent_id, environment_id, name))
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_for_update(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, name: str
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    environment_id: UUID | None,
+    name: str,
 ) -> Artifact | None:
     """The artifact a publish writes to, locked until the transaction ends.
 
@@ -35,11 +77,7 @@ async def get_for_update(
     """
     result = await db.execute(
         select(Artifact)
-        .where(
-            Artifact.organization_id == organization_id,
-            Artifact.agent_id == agent_id,
-            Artifact.name == name,
-        )
+        .where(*_identity(organization_id, agent_id, environment_id, name))
         .with_for_update()
     )
     return result.scalar_one_or_none()
@@ -50,26 +88,16 @@ async def get_by_public_key(db: AsyncSession, public_key: str) -> Artifact | Non
     return result.scalar_one_or_none()
 
 
-async def list_visible(
-    db: AsyncSession,
+def _visible(
     *,
     organization_id: UUID,
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
-    shared_with_me: bool = False,
-    search: str | None = None,
-    skip: int = 0,
-    limit: int = 50,
-) -> tuple[list[Artifact], int]:
-    """The artifacts one member may see, newest publication first, with the total.
-
-    Args:
-        see_all: True when the caller's role reaches the whole organization.
-        shared_ids: Artifact ids explicitly shared with this member.
-        shared_with_me: Narrow to rows shared with the caller and not their own.
-    """
-    where = [Artifact.organization_id == organization_id]
+    shared_with_me: bool,
+) -> list[Any]:
+    """Which rows one member may see - the predicate the list and its filters share."""
+    where: list[Any] = [Artifact.organization_id == organization_id]
     if shared_with_me:
         where.append(
             and_(
@@ -88,8 +116,41 @@ async def list_visible(
                 Artifact.id.in_(shared_ids) if shared_ids else false(),
             )
         )
+    return where
+
+
+async def list_visible(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool = False,
+    search: str | None = None,
+    agent_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[Artifact], int]:
+    """The artifacts one member may see, newest publication first, with the total.
+
+    Args:
+        see_all: True when the caller's role reaches the whole organization.
+        shared_ids: Artifact ids explicitly shared with this member.
+        shared_with_me: Narrow to rows shared with the caller and not their own.
+        agent_id: Narrow to one agent's pages, on top of the visibility rules.
+    """
+    where = _visible(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+    )
     if search:
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
+    if agent_id is not None:
+        where.append(Artifact.agent_id == agent_id)
     items = await db.execute(
         select(Artifact)
         .where(*where)
@@ -101,12 +162,44 @@ async def list_visible(
     return list(items.scalars().all()), total or 0
 
 
+async def publishing_agents(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> list[tuple[UUID, str]]:
+    """The agents behind the artifacts one member may see, by name - an agent filter's options.
+
+    Named through the artifacts rather than the agents the member may open: a page
+    shared with somebody shows who published it, and the filter offers exactly the
+    publishers the list can contain.
+    """
+    where = _visible(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=False,
+    )
+    result = await db.execute(
+        select(Agent.id, Agent.name)
+        .join(Artifact, Artifact.agent_id == Agent.id)
+        .where(*where)
+        .distinct()
+        .order_by(Agent.name.asc(), Agent.id.asc())
+    )
+    return [(row[0], row[1]) for row in result.all()]
+
+
 async def create(
     db: AsyncSession,
     *,
     organization_id: UUID,
     owner_user_id: UUID | None,
     agent_id: UUID,
+    environment_id: UUID | None,
     name: str,
     title: str,
 ) -> Artifact:
@@ -114,6 +207,7 @@ async def create(
         organization_id=organization_id,
         owner_user_id=owner_user_id,
         agent_id=agent_id,
+        environment_id=environment_id,
         name=name,
         title=title,
         visibility=Visibility.PRIVATE.value,
@@ -135,6 +229,38 @@ async def update(db: AsyncSession, *, artifact: Artifact, update_data: dict[str,
 
 async def delete_artifact(db: AsyncSession, artifact: Artifact) -> None:
     await db.delete(artifact)
+    await db.flush()
+
+
+async def count_public_view(db: AsyncSession, artifact_id: UUID, *, at: datetime) -> None:
+    """Count one opening of the public link, in the database rather than in Python.
+
+    An `UPDATE ... SET n = n + 1`, so two visitors at once are two views and not
+    one read-modify-write that lost the other.
+    """
+    await db.execute(
+        sql_update(Artifact)
+        .where(Artifact.id == artifact_id)
+        .values(
+            public_view_count=Artifact.public_view_count + 1,
+            public_last_viewed_at=at,
+        )
+    )
+    await db.flush()
+
+
+async def detach_environment(db: AsyncSession, *, environment_id: UUID) -> None:
+    """Leave an environment's artifacts readable with no publisher, before it is deleted.
+
+    The environment's foreign key would null `environment_id` and drop the page
+    into the default environment's slot, where a page of the same name may already
+    be. Nulling `agent_id` as well is what deleting an agent does to its pages.
+    """
+    await db.execute(
+        sql_update(Artifact)
+        .where(Artifact.environment_id == environment_id)
+        .values(agent_id=None, environment_id=None)
+    )
     await db.flush()
 
 
@@ -239,16 +365,31 @@ async def create_version(
 
 
 async def versions_beyond(
-    db: AsyncSession, artifact_id: UUID, *, keep: int
+    db: AsyncSession, artifact_id: UUID, *, keep: int, pinned: int | None = None
 ) -> list[ArtifactVersion]:
-    """Every version older than the newest `keep` - what pruning removes."""
+    """Every version older than the newest `keep` - what pruning removes.
+
+    `pinned` is a version number the public link shows, which is never among
+    them however old it is.
+    """
     result = await db.execute(
         select(ArtifactVersion)
         .where(ArtifactVersion.artifact_id == artifact_id)
         .order_by(ArtifactVersion.number.desc())
         .offset(keep)
     )
-    return list(result.scalars().all())
+    return [version for version in result.scalars().all() if version.number != pinned]
+
+
+async def get_version_by_number(
+    db: AsyncSession, artifact_id: UUID, number: int
+) -> ArtifactVersion | None:
+    result = await db.execute(
+        select(ArtifactVersion).where(
+            ArtifactVersion.artifact_id == artifact_id, ArtifactVersion.number == number
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def delete_versions(db: AsyncSession, version_ids: list[UUID]) -> None:
@@ -263,3 +404,21 @@ async def storage_paths(db: AsyncSession, artifact_id: UUID) -> list[str]:
         select(ArtifactVersion.storage_path).where(ArtifactVersion.artifact_id == artifact_id)
     )
     return list(result.scalars().all())
+
+
+async def lock(db: AsyncSession, artifact_id: UUID) -> Artifact | None:
+    """The artifact locked until the transaction ends, for a write that adds a version."""
+    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id).with_for_update())
+    return result.scalar_one_or_none()
+
+
+async def environment_names(db: AsyncSession, environment_ids: list[UUID]) -> dict[UUID, str]:
+    """The names of the environments a page of artifacts was published in."""
+    if not environment_ids:
+        return {}
+    result = await db.execute(
+        select(AgentEnvironment.id, AgentEnvironment.name).where(
+            AgentEnvironment.id.in_(environment_ids)
+        )
+    )
+    return {row[0]: row[1] for row in result.all()}

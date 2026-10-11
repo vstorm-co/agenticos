@@ -228,6 +228,15 @@ def _is_language_bar(target: str) -> bool:
 def _localized(target: str, locale: str) -> str:
     """The `locale` counterpart of a link target, where one exists."""
     path, marker, fragment = target.partition("#")
+    site_url = "https://vstorm-co.github.io/agenticos/"
+    if path.startswith(site_url):
+        relative = path.removeprefix(site_url)
+        if relative.split("/", 1)[0] in LOCALES:
+            return target
+        candidates = (DOCS / relative / "index.md", DOCS / f"{relative.rstrip('/')}.md")
+        if any(page.exists() and translation_of(page, locale).exists() for page in candidates):
+            return f"{site_url}{locale}/{relative}{marker}{fragment}"
+        return target
     if not path.endswith(".md") or locale_of(Path(path)) is not None:
         return target
     translated = translation_of(REPO_ROOT / path, locale)
@@ -247,8 +256,9 @@ def linked_targets(page: Path, *, into: str | None = None) -> list[str]:
     without it gives the ones it does.
 
     A target is localized only where that translation exists, so `docs/ROADMAP.md`
-    (not published, owed no translation), `CLAUDE.md` and every external URL are
-    left alone rather than pointed at a file nobody wrote.
+    (not published, owed no translation), `CLAUDE.md` and external URLs other than
+    our published documentation are left alone rather than pointed at a file
+    nobody wrote.
 
     Two kinds of link are left out. A link a page aims at itself, which is
     `dangling()`'s business and is *expected* to differ because a translated

@@ -313,7 +313,7 @@ reports well over a hundred phantom failures and leaves a stray `node_modules/`.
 ```bash
 cd frontend
 
-bunx vitest run src/components/chat/usage-strip.test.tsx   # one spec, ~2s
+bunx vitest run src/components/chat/usage-meter.test.tsx   # one spec, ~2s
 bunx vitest run src/components/chat                        # one directory
 bun run test                                               # watch mode
 bun run test:coverage                                      # the suite plus the gate CI applies

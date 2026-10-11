@@ -15,7 +15,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from pydantic import ValidationError
 from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 
 from app.agents.model_resolver import (
     PROVIDERS,
@@ -123,13 +125,15 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
     return credential
 
 
-def _profile(ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None):
+def _profile(
+    ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None, api=None
+):
     """A stored model profile, keyed from the vault like every real one.
 
     `base_url` defaults to None explicitly rather than being left to the mock: a
     `MagicMock` attribute is truthy, so it reaches `httpx.URL()` as a mock and
     raises there instead of meaning "the provider's own API", which is what an
-    unset endpoint means.
+    unset endpoint means. `api` likewise, which a mock would fail to validate.
     """
     profile = MagicMock()
     profile.id = uuid.uuid4()
@@ -139,6 +143,7 @@ def _profile(ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai
     profile.model = model
     profile.secret_id = secret.id if secret else uuid.uuid4()
     profile.base_url = base_url
+    profile.api = api
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     return profile
@@ -197,14 +202,71 @@ class TestProviderCatalog:
         assert PROVIDERS["bedrock"].secret_kind is SecretKind.AWS_CREDENTIALS
         assert PROVIDERS["google_cloud"].secret_kind is SecretKind.GCP_SERVICE_ACCOUNT
 
-    def test_openai_builds_a_chat_model_not_a_responses_one(self):
-        """OpenAI-compatible servers implement Chat Completions and not Responses.
+    @pytest.mark.parametrize(
+        ("provider_id", "api", "wrapper"),
+        [
+            ("openai", "chat", OpenAIChatModel),
+            ("openai", "responses", OpenAIResponsesModel),
+            ("azure", "chat", OpenAIChatModel),
+            ("azure", "responses", OpenAIResponsesModel),
+        ],
+    )
+    def test_the_profile_api_picks_the_wrapper(self, provider_id, api, wrapper):
+        """Neither API is right for every endpoint, so the profile's choice decides.
 
-        `infer_model("openai:...")` returns a Responses model, which would make
-        every vLLM / LM Studio / LiteLLM endpoint fail - the exact case
-        `base_url` exists for.
+        OpenAI's newest models answer Chat Completions with a 400, and most
+        OpenAI-compatible servers implement nothing else.
         """
-        assert PROVIDERS["openai"].prefix == "openai-chat"
+        credential = ResolvedCredential(
+            provider=provider_id, secret=secret_for(PROVIDERS[provider_id]), api=api
+        )
+        assert type(build_model(credential, "gpt-6-luna")) is wrapper
+
+    def test_no_api_builds_chat_on_a_provider_that_serves_both(self):
+        """`None` is what a provider with one API carries; it never infers Responses.
+
+        `infer_model("openai:...")` would, which would make every vLLM / LM Studio
+        endpoint without a stored choice fail.
+        """
+        credential = ResolvedCredential(
+            provider="openai", secret=NoSecret(), base_url="http://vllm:8000/v1"
+        )
+        assert type(build_model(credential, "llama3.2")) is OpenAIChatModel
+
+    @pytest.mark.security
+    def test_a_responses_model_does_not_store_responses_with_the_provider(self):
+        """Responses stores every response on OpenAI's side by default; Chat does not.
+
+        Moving a profile to Responses must not start keeping its conversations
+        with the provider. It is the model's own setting, so a profile's
+        `openai_store` still overrides it.
+        """
+        credential = ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key"), api="responses"
+        )
+        assert build_model(credential, "gpt-6-luna").settings == {"openai_store": False}
+
+    @pytest.mark.parametrize(
+        ("provider_id", "base_url", "expected"),
+        [
+            ("openai", None, "responses"),
+            ("openai", "https://eu.api.openai.com/v1", "chat"),
+            ("azure", None, "chat"),
+            ("anthropic", None, None),
+            ("anthropic", "https://gateway.example.com", None),
+        ],
+    )
+    def test_the_default_api_follows_the_endpoint(self, provider_id, base_url, expected):
+        """OpenAI's own endpoint defaults to Responses, a `base_url` to Chat.
+
+        A default only: a regional OpenAI endpoint is a `base_url` that serves
+        Responses, which is why the profile stores a choice instead.
+        """
+        assert PROVIDERS[provider_id].default_api(base_url) == expected
+
+    def test_only_the_openai_apis_offer_a_choice(self):
+        offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
+        assert offering == {"openai": ("responses", "chat"), "azure": ("responses", "chat")}
 
     def test_the_catalog_is_ordered_for_a_stable_picker(self):
         names = [spec.name for spec in provider_catalog()]
@@ -973,6 +1035,123 @@ class TestAnEndpointOfItsOwn:
         assert written["base_url"] == "http://localhost:11434/v1"
 
 
+class TestTheApiAProfileUses:
+    """Which of OpenAI's two APIs a profile's requests go to, stored on the profile.
+
+    It was decided for every `openai` profile at once - Chat Completions, for
+    the OpenAI-compatible servers behind a `base_url` - so a profile on
+    OpenAI's newest models, which are served on Responses only, failed at its
+    first request with a 400. Deciding by `base_url` instead would be wrong for
+    a regional OpenAI endpoint, which has one and serves Responses.
+    """
+
+    @staticmethod
+    async def _written(ctx, *, provider="openai", **fields):
+        """Create a keyed profile and return what reached the repository."""
+        secret = _vault_secret(ctx, purpose=provider)
+        with (
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                ctx, label="p", provider=provider, model="m", secret_id=secret.id, **fields
+            )
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("base_url", "stored"),
+        [(None, "responses"), ("https://gateway.example.com/v1", "chat")],
+    )
+    async def test_an_omitted_api_is_stored_as_the_default(self, base_url, stored):
+        """Written down, so a later change of default cannot move this profile."""
+        written = await self._written(_ctx(), base_url=base_url)
+        assert written["api"] == stored
+
+    @pytest.mark.anyio
+    async def test_a_chosen_api_wins_over_the_endpoint_default(self):
+        """A regional OpenAI endpoint is a `base_url` that serves Responses."""
+        written = await self._written(
+            _ctx(), base_url="https://eu.api.openai.com/v1", api="responses"
+        )
+        assert written["api"] == "responses"
+
+    @pytest.mark.anyio
+    async def test_a_provider_with_one_api_stores_none(self):
+        written = await self._written(_ctx(), provider="anthropic")
+        assert written["api"] is None
+
+    @pytest.mark.anyio
+    async def test_a_choice_for_a_provider_with_one_api_is_refused_on_its_field(self):
+        """Accepted, it would be a setting that changes nothing about the request."""
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.create_profile", new=AsyncMock()
+            ) as create,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="p",
+                provider="anthropic",
+                model="claude-sonnet-5",
+                secret_id=uuid.uuid4(),
+                api="chat",
+            )
+
+        assert exc.value.details == {
+            "provider": "anthropic",
+            "fields": [{"field": "api", "message": exc.value.message}],
+        }
+        assert create.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_the_stored_api_reaches_the_keyed_credential(self):
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        profile = _profile(ctx, secret=secret, api="responses")
+
+        with patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            new=AsyncMock(return_value=secret),
+        ):
+            credential = await ModelProfileService(_db()).resolve_credential(
+                ctx.organization_id, profile
+            )
+
+        assert credential.api == "responses"
+
+    @pytest.mark.anyio
+    async def test_the_stored_api_reaches_the_keyless_credential(self):
+        """A vLLM without a key, on the API it implements."""
+        ctx = _ctx()
+        profile = _profile(ctx, base_url="http://vllm:8000/v1", api="chat")
+        profile.secret_id = None
+
+        credential = await ModelProfileService(_db()).resolve_credential(
+            ctx.organization_id, profile
+        )
+
+        assert credential.api == "chat"
+
+    @pytest.mark.anyio
+    async def test_a_stored_value_it_never_wrote_fails_loudly(self):
+        """Not built as Chat Completions by default: the column holds a bug."""
+        ctx = _ctx()
+        profile = _profile(ctx, base_url="http://vllm:8000/v1", api="realtime")
+        profile.secret_id = None
+
+        with pytest.raises(ValidationError):
+            await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+
+
 class TestTheWindowAModelAccepts:
     """What `context_length` is for, and why it is stored rather than resolved.
 
@@ -1048,6 +1227,7 @@ class TestTheWindowAModelAccepts:
             params={},
             secret_id=None,
             base_url="http://localhost:11434/v1",
+            api=None,
             fallback_profile_ids=[],
             context_length=128_000,
         )

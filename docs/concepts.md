@@ -97,14 +97,17 @@ may move it.
 
 So an environment either:
 
-- **waits to be promoted onto** — which is what `production`, the default, does; or
+- **waits to be promoted onto** — which is what `production` should do once there
+  is a `dev` or a `staging` beside it; or
 - **follows every publish** — which is what a `dev` somebody is iterating in
-  usually wants.
+  usually wants, and what `production` does while it is the only environment.
 
 Two consequences worth stating:
 
 1. The **first** publish creates `production` on the version it just minted,
-   because an agent with no environment has nowhere to run at all.
+   because an agent with no environment has nowhere to run at all, and it follows
+   publishes until somebody pins it. An environment added later waits to be
+   promoted onto unless it is told otherwise.
 2. A **rollback lands the same way** as a publish — it *is* a publish of an older
    spec. So putting an old version back in front of people is one click on its
    history row (promote), not a side effect of restoring the draft.
@@ -160,6 +163,47 @@ again, for the same reason.
 When that member can no longer run the agent — they left the organization, or
 their grant on it was revoked — the trigger **disables itself and records why**,
 rather than retrying a refusal for ever.
+
+### It is not that person's conversation
+
+The creator lends a fire their **authority**: their role and their grants. They
+do not lend it their **identity**. Nobody is listening to an unattended run, so
+it answers to no identified person, the same as an embedded widget visitor. These
+per-person stores are closed to it:
+
+- [Memory files](reference/capabilities.md#memory-files) and
+  [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
+  conversation has no memory.
+- [Conversation search](reference/capabilities.md#conversation-search): both
+  tools refuse.
+- A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
+- [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is
+  private to the creator, but `read_artifact` refuses, so a fire republishes a
+  whole page rather than editing one.
+
+This is deliberate. A store kept for a person is read back to that person, and a
+fire nobody started must not write into it on their behalf. No setting changes it
+today.
+
+!!! warning "A user-scoped sandbox is the exception"
+
+    A [sandbox](sandbox.md) with `session_scope: user` is not closed. A fire
+    opens the creator's own workspace for that agent, and it can read and write
+    the creator's files there. A member without `agents:edit` cannot edit or fire
+    a trigger that another member created, because a changed prompt could copy
+    those files out on the next fire.
+
+The rule decides how you design an agent that runs on a trigger:
+
+| An unattended run needs | Use |
+|---|---|
+| Standing facts or preferences | The trigger's own prompt, or a [context file](context.md) bound to the agent |
+| State kept from one fire to the next | A [sandbox](sandbox.md) with `session_scope: conversation`: every fire of one trigger appends to the same run-log conversation |
+| A mailbox or another external service | A connection bound with the organization's account, not each person's |
+
+[Competitor monitoring](howto/competitor-monitoring.md) and
+[a personal assistant](howto/personal-assistant.md) both meet this rule and show
+the workaround.
 
 ### Everything else is an ordinary run
 

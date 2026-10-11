@@ -46,9 +46,9 @@ Two places, and they answer different needs:
   works for every agent.
 - **When a workspace is open** (an agent with the `sandbox` capability), the same
   bytes are also written under `/output`, so a later `execute` step can build with
-  the image it just made - assemble a PDF, a slide, a page. The workspace backend
-  arrives as a build resource (`WORKSPACE_BACKEND_RESOURCE`); an agent without one
-  still generates and shows images, it just has nowhere to build.
+  the image it just made - assemble a PDF, a slide, a page. The tool writes to
+  the run's workspace (`ctx.workspace`); an agent without one still generates
+  and shows images, it just has nowhere to build.
 
 Storage is **organization-scoped, not per-user** - wider than a chat upload,
 because there is no row recording who produced an image, so the tenant is the

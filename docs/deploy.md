@@ -442,7 +442,7 @@ One volume matters, and it is not obvious which:
 |---|---|---|
 | `postgres_data` | everything — agents, conversations, sealed credentials | **yes** |
 | `media_data` | uploaded files, before ingestion | yes |
-| `prefect_data` | the flow-run history | no |
+| `prefect_data` | Prefect's database: deployments, run history, queued runs | no |
 
 The cache has no volume at all. Rate-limit buckets, channel dedupe claims and
 membership answers all carry a TTL and all rebuild themselves, so Valkey runs

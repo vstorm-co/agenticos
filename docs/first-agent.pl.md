@@ -1,5 +1,5 @@
 ---
-source_sha: "b0d255e47822"
+source_sha: "3b3318780aed"
 ---
 
 # Twój pierwszy agent { #your-first-agent }
@@ -60,9 +60,12 @@ na nowy model, nie dotykając ani jednego agenta.
 
 !!! tip "Albo zacznij od szablonu"
 
-    **Agents → Agent templates** dostarcza dwadzieścia osiem gotowych agentów
-    pogrupowanych według branży, każdego z napisanymi instrukcjami, włączonymi
-    capabilities i zainstalowanymi obok skillami, których potrzebuje.
+    **Agents → Agent templates** dostarcza dwadzieścia dziewięć gotowych agentów:
+    dwadzieścia osiem pogrupowanych według branży i **Claude Code like** w
+    kategorii *Ogólnego przeznaczenia* - agenta do każdego zadania, który pracuje
+    w workspace'ie, planuje, deleguje do specjalistów i szuka w sieci. Każdy ma
+    napisane instrukcje, włączone capabilities i zainstalowane obok skille,
+    których potrzebuje.
 
     Taki agent przychodzi jako **draft**, a nie opublikowany, i to celowo: szablon
     nie może wybrać twojego modelu i nigdy nie widział twojej kolekcji wiedzy.

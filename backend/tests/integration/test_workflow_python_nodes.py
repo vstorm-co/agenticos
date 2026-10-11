@@ -20,6 +20,7 @@ from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.workspaces import FileEntry, WorkspaceError
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -146,28 +147,27 @@ class _Session:
         self.reads: list[str] = []
         self.commands: list[str] = []
 
-    # The `RemoteSandbox` surface the step uses.
-    def exists(self, path: str) -> bool:
+    # The `_Sandbox` surface the step uses.
+    async def exists(self, path: str) -> bool:
         return path in self.files
 
-    def write(self, path: str, content: str | bytes) -> SimpleNamespace:
+    async def write(self, path: str, content: str | bytes) -> None:
         if self.fail_write:
-            return SimpleNamespace(path=None, error="disk full")
+            raise WorkspaceError("disk full")
         self.files[path] = content.encode() if isinstance(content, str) else content
-        return SimpleNamespace(path=path, error=None)
 
-    def execute(self, command: str) -> SimpleNamespace:
+    async def shell(self, command: str) -> tuple[int, str]:
         self.commands.append(command)
         if self.exec_exit:
-            return SimpleNamespace(output="boom", exit_code=self.exec_exit, truncated=False)
+            return self.exec_exit, "boom"
         if "wc -c" in command:
-            return SimpleNamespace(output=self._measured(), exit_code=0, truncated=False)
+            return 0, self._measured()
         if f"{job.ROOT}/job.pid" not in self.files:
             self.launches += 1
             self.files[f"{job.ROOT}/job.pid"] = b"42"
-        return SimpleNamespace(output="", exit_code=0, truncated=False)
+        return 0, ""
 
-    def read_bytes(self, path: str) -> bytes:
+    async def read_bytes(self, path: str) -> bytes:
         self.reads.append(path)
         return self.files[path]
 
@@ -183,14 +183,17 @@ class _Session:
             f"{len(outputs)}\n{sum(map(len, outputs))}\n{size['result.json']}\n{size['log.txt']}\n"
         )
 
-    def ls_info(self, path: str) -> list[dict[str, Any]]:
+    async def list_dir(self, path: str) -> list[FileEntry]:
         prefix = path.rstrip("/") + "/"
         found = [p for p in self.files if p.startswith(prefix)]
-        entries = [{"path": p, "is_dir": False, "name": p.rsplit("/", 1)[-1]} for p in found]
-        return [*entries, {"path": prefix + "sub", "is_dir": True, "name": "sub"}]
+        entries = [
+            FileEntry(name=p.rsplit("/", 1)[-1], path=p, is_dir=False, size=len(self.files[p]))
+            for p in found
+        ]
+        return [*entries, FileEntry(name="sub", path=prefix + "sub", is_dir=True, size=None)]
 
-    def stop(self, purge: bool = False) -> None:
-        self.stopped = purge
+    async def purge(self) -> None:
+        self.stopped = True
 
     def finish(
         self,
@@ -513,12 +516,15 @@ class TestTheSandboxHost:
 
     async def test_a_session_is_opened_on_the_connection_s_address_and_runtime(self):
         resolved = SimpleNamespace(
-            token="t", row=SimpleNamespace(base_url="http://sandboxd:8080", default_runtime="py")
+            token="t",
+            row=SimpleNamespace(id="c1", base_url="http://sandboxd:8080", default_runtime="py"),
         )
-        with patch("pydantic_ai_backends.remote.RemoteSandbox") as remote:
+        with patch("pydantic_ai_backends.workspaces.SandboxdWorkspace") as sandboxd:
             job._open(resolved, "wf-key", None, "org")
-        assert remote.call_args.kwargs["session_id"] == "wf-key"
-        assert remote.call_args.kwargs["runtime"] == "py"
+        assert sandboxd.call_args.kwargs["session_name"] == "wf-key"
+        assert sandboxd.call_args.kwargs["runtime"] == "py"
+        assert sandboxd.call_args.kwargs["provider"] == "sandboxd:c1"
+        assert sandboxd.call_args.kwargs["tenant"] == "org"
 
     async def test_a_step_with_no_script_says_so(self):
         result = await sandbox_node.handle(None, None)

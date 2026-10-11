@@ -38,6 +38,7 @@ from pydantic_ai_harness.compaction import (
 
 from app.agents.capabilities import CapabilityBinding, build, get
 from app.agents.capabilities.budget import (
+    BudgetExceeded,
     BudgetGuard,
     BudgetScope,
     SpendLedger,
@@ -76,8 +77,14 @@ def _response(*, input_tokens: int) -> ModelResponse:
     )
 
 
-def _run_context(usage: RunUsage | None = None) -> RunContext[None]:
-    return RunContext(deps=None, model=TestModel(), usage=usage or RunUsage())
+def _run_context(
+    usage: RunUsage | None = None, messages: list[ModelMessage] | None = None
+) -> RunContext[None]:
+    """The run a request belongs to. `messages` is its history - the harness
+    measures what to compact from the run, not from the request it edits."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=usage or RunUsage(), messages=list(messages or [])
+    )
 
 
 @dataclass
@@ -284,6 +291,32 @@ class TestMetering:
         assert len(ledger.entries) == 1
         assert (ledger.input_tokens, ledger.output_tokens) == (1_200, 300)
 
+    @pytest.mark.security
+    async def test_a_summary_that_reaches_a_cap_refuses_the_request_after_it(self):
+        """`BudgetGuard.wrap_model_request` encloses this hook since pydantic-ai 2.54,
+        so its check ran before the summary was bought. Without a second one, the
+        request the summary was made for would go out past the cap and be billed."""
+        ledger = SpendLedger()
+        exhausted = BudgetGuard(
+            ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
+        )
+        capability = MeteredCompaction(wrapped=_Spender(input_tokens=1_200, output_tokens=300))
+
+        with metered_by(ledger), guarded_by(exhausted), pytest.raises(BudgetExceeded):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
+        assert ledger.input_tokens == 1_200
+
+    @pytest.mark.security
+    async def test_a_strategy_that_paid_nothing_does_not_ask_the_budget_again(self):
+        """A cap is the next request's to refuse, through `BudgetGuard`: a strategy
+        that spent nothing has changed nothing the guard already checked."""
+        exhausted = BudgetGuard(limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))])
+        capability = MeteredCompaction(wrapped=_Spender())
+
+        with guarded_by(exhausted):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
     async def test_a_strategy_that_calls_no_model_books_nothing(self):
         """The zero-LLM strategies are wrapped too, and must stay free."""
         ledger = SpendLedger()
@@ -346,7 +379,7 @@ class TestMetering:
         messages = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
 
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(messages))
+            _run_context(messages=messages), _request_context(list(messages))
         )
 
         assert len(request_context.messages) < len(messages)
@@ -374,10 +407,10 @@ class TestSwitchingToASmallerModel:
             )
 
         roomy = await on(1_000_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
         cramped = await on(128_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(roomy.messages) == len(history)
@@ -428,7 +461,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(10_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -439,7 +472,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -454,7 +487,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.gauge = ContextGauge(overhead=3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -465,7 +498,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, None)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -539,7 +572,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.wrapped.context_window = 5_000
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -828,7 +861,7 @@ class TestToolPairingSurvives:
             wrapped=build_strategy(_triggers_immediately("sliding_window", keep_messages=3))
         )
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(request_context.messages) < len(history)

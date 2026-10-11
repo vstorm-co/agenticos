@@ -72,6 +72,12 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
 
     required_tool_names: frozenset[str] = frozenset()
     gate_every_tool: bool = False
+    # Tools that are themselves a question to the person there - `connect_account`
+    # acts on nothing and only waits for them. Gated, even under `ASK_ALL`, they
+    # would ask them to approve being asked, and a parked call resumes where
+    # nobody can be asked. Named by the factory for the tools it attached, never
+    # read off tool metadata, which an MCP server writes.
+    asking_tool_names: frozenset[str] = frozenset()
 
     async def wrap_tool_execute(
         self,
@@ -90,9 +96,12 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         # gate: `load_capability` is how a skill is opened, so a spec that asked
         # for approval before a skill is loaded has nowhere else to put it
         # (#1704 review).
-        gated = self.gate_every_tool or (
-            tool_def.name in self.required_tool_names
-            and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+        gated = tool_def.name not in self.asking_tool_names and (
+            self.gate_every_tool
+            or (
+                tool_def.name in self.required_tool_names
+                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+            )
         )
         if not gated:
             return await handler(args)

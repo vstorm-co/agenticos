@@ -267,6 +267,13 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    # How long after a rotation the refresh token it spent may still refresh
+    # once, instead of reading as a replay that ends the session. A browser whose
+    # refresh response never arrived - a VPN reconnecting, a laptop lid closing
+    # mid-request - holds exactly that token, and so do two tabs refreshing at
+    # once. Past the window the spent token is treated as stolen (#1519). 0 turns
+    # the window off.
+    REFRESH_REUSE_GRACE_SECONDS: int = Field(default=60, ge=0, le=600)
     # How long a parked tool call waits before the sweep denies it by timeout.
     # Three days spans a weekend, which is the gap an approval most often falls
     # into: the one that arrives on Friday afternoon is the one nobody decides,

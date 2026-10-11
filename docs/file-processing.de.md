@@ -1,5 +1,5 @@
 ---
-source_sha: "44dae3302f97"
+source_sha: "217a295cc0a5"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -167,6 +167,17 @@ bis zu `CHAT_TIFF_MAX_INLINE_PAGES` Seiten; ein Agent mit Workspace öffnet den 
 aus dem Original auf der Festplatte. Der extrahierte Text ist auf
 `CHAT_PARSED_TEXT_MAX_CHARS` begrenzt, und Budgets pro Datei und pro Runde begrenzen,
 was einem Agent ohne Workspace eingefügt wird.
+
+**Die Grenze ist ein Budget, das die Parser verbrauchen, kein Schnitt nach dem
+Parsen.** Ein PDF wird Seite für Seite geladen und stoppt an der Seite, die die
+Grenze überschreitet, oder nach 2.000 Seiten. Eine `.xlsx` liest ihre Zeilen als
+Stream, stoppt an der Zeile und liest höchstens eine Million Zellen, sodass ein Blatt, das einen riesigen leeren Bereich deklariert, nichts zusätzlich
+kostet, und eine Mappe, die diese Zahl stoppt, endet mit einem Hinweis darauf. DOCX,
+PPTX, ODT und ODP hören am Absatz oder an der Folie auf, Text zu extrahieren, aber
+ihre Bibliotheken entpacken und parsen zuerst die ganze Datei, innerhalb der
+Größengrenzen für Archive. Klartext, `.msg` und `.doc` werden ganz gelesen. Text,
+der die Grenze überschreitet, endet mit einer Markierung, die sagt, dass der Rest des
+Dokuments weggelassen wurde.
 
 **Ein abgelehnter Schreibvorgang wird einmal gesagt, über den Workspace.** Ein
 Run, dessen Workspace eine Datei nicht annimmt, ist ein Run, dessen Shell- und

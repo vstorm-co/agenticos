@@ -173,6 +173,8 @@ function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_
             secret_kind: "api_key",
             supports_base_url: false,
             keyless: false,
+            apis: ["responses", "chat"],
+            native_api: "responses",
           },
         ],
         total: 1,

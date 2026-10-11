@@ -75,6 +75,18 @@ The **scope** is a field of the agent's spec — `run`, `conversation`, `channel
 `user` or `agent`. So `conversation`, the usual choice, means one container and one
 directory per chat; `agent` means every run of that agent shares one.
 
+The key is also the session's **name** on the host — a `sandboxd` session's id, a
+Daytona sandbox's name — so every run of a scope opens it by that name: the first
+creates it and the others attach, concurrent ones included, and nothing has to
+record a provider's own id before the second run can find it.
+
+**Once a session has been opened, a later run only attaches to it.** The workspace
+row records it when the run that opened it ends, and the next run asks the host for
+that session rather than for the name. A session whose files were purged — swept by
+`SANDBOXD_WORKSPACE_TTL`, a host rebuilt — is then reported to the agent as gone,
+instead of being quietly replaced by an empty one it would carry on in. The row
+forgets it at the end of that run, so the turn after starts a fresh session.
+
 Folded into the key as well: which **backend kind** and which **host** the
 workspace lives on. A `state` document and a container's volume are not the same
 thing wearing different names, and neither are two `sandboxd` installations —
@@ -337,12 +349,13 @@ the host. Nothing outside that process ever saw the entries (#1061).
 Every workspace call already passes through this application — the run calls us, we
 call the service — so the record is ours to make.
 
-`RecordingBackend` wraps the backend the capability's tools reach, which is why
-adding a ninth tool cannot forget to record. The wrapper records eight named
-operations (`write`, `edit`, `read`, `read_bytes`, `ls_info`, `glob_info`,
-`grep_raw`, `execute`) and delegates everything else untouched. `exists` and
-`is_alive` are questions rather than operations, and a log full of them would bury
-the writes somebody came to read.
+`RecordingWorkspace` wraps the workspace the run works in, which is why adding a
+ninth tool cannot forget to record. It records what reached the sandbox — `read`,
+`write`, `ls_info`, `mkdir`, `remove` and `execute` — so a tool that is several
+operations shows as each of them: an `edit_file` is a `read` and a `write`, a
+`glob` or a `grep` the `execute` of the `find` or `grep` it ran. `exists` and
+`stat` are questions rather than operations, and a log full of them would bury the
+writes somebody came to read.
 
 It carries two facts the service never could, and they are the two an audit
 actually asks for: **which agent, and which run**. Both are `SET NULL` on delete,

@@ -15,6 +15,7 @@ import {
   Loader2,
   Scale,
   ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -42,6 +43,7 @@ const INDUSTRY_ICONS: Record<string, LucideIcon> = {
   "public-sector": Building2,
   legal: Scale,
   manufacturing: Factory,
+  general: Sparkles,
 };
 
 export function AgentTemplateDialog({

@@ -127,6 +127,14 @@ export interface ToolEntry {
    * replayed conversation a wall of diffs.
    */
   opensOnSight?: boolean;
+  /**
+   * Never open this step on its own - not even as the last step of a turn.
+   *
+   * For the agent's bookkeeping: what it noted to itself for next time is not
+   * something the person asked to see, and as the last step of a turn it opened
+   * over the answer it came after. It is still a line somebody can open.
+   */
+  staysClosed?: boolean;
 }
 
 /**
@@ -144,6 +152,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "publishArtifact",
     opensWhenDone: true,
     opensOnSight: true,
+  },
+  read_artifact: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingArtifact",
+    displayNameKey: "readArtifact",
   },
 
   // browser_choice - a whole browse. The step card stays generic because the live
@@ -283,13 +297,24 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
 
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
-  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking" },
-  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading" },
-  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving" },
-  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating" },
-  delete_memory: { kind: "edit", render: "generic", captionKey: "memoryForgetting" },
-  remember: { kind: "write", render: "generic", captionKey: "memoryRemembering" },
-  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling" },
+  // All of it `staysClosed`: bookkeeping, not an answer.
+  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking", staysClosed: true },
+  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading", staysClosed: true },
+  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving", staysClosed: true },
+  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating", staysClosed: true },
+  delete_memory: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "memoryForgetting",
+    staysClosed: true,
+  },
+  remember: {
+    kind: "write",
+    render: "generic",
+    captionKey: "memoryRemembering",
+    staysClosed: true,
+  },
+  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling", staysClosed: true },
 
   // conversation search - past threads, found and opened. Both answer in Markdown,
   // which the generic renderer already shows as prose.

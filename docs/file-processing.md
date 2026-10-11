@@ -150,6 +150,16 @@ rest from the original on disk. Extracted text is capped at
 `CHAT_PARSED_TEXT_MAX_CHARS`, and per-file and per-turn prompt budgets bound what a
 no-workspace agent is pasted.
 
+**The cap is a budget the readers spend, not a cut after the parse.** A PDF is
+loaded a page at a time and stops at the page that crosses the cap, or after 2,000
+pages. An `.xlsx` streams its rows, stops at the row and reads at most a million
+cells, so a sheet that declares a huge empty range costs nothing extra, and one
+stopped by that count ends with a note saying so. DOCX, PPTX,
+ODT and ODP stop extracting text at the paragraph or slide, but their libraries
+decompress and parse the whole file first, within the archive size limits. Plain
+text, `.msg` and `.doc` are read whole. Text that goes past the cap ends with a marker
+saying the rest of the document is left out.
+
 **A refused write is said once, about the workspace.** A run whose workspace will
 not take a file is a run whose shell and file tools will fail too, and a per-file
 line cannot say that: a turn read each failure as a problem with the command it

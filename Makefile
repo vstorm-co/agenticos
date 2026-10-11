@@ -543,9 +543,18 @@ audit:
 # target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
 # forward through their parents.
 AUDIT_LEVEL ?= high
+# The one other case is a finding with no fixed release anywhere in its chain: it
+# is named here with the path it arrives by and the condition that removes it,
+# and the audit ignores that advisory only.
+#   GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 has no patched release.
+#   It reaches the tree only through eslint-config-next > @next/eslint-plugin-next
+#   > fast-glob > micromatch, a lint-time dependency that the built console does
+#   not ship. Remove when braces publishes a fix or @next/eslint-plugin-next
+#   drops fast-glob. bun matches advisories by their GHSA id, not the CVE.
+AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm
 
 audit-frontend:
-	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
+	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL) $(addprefix --ignore=,$(AUDIT_IGNORE))
 
 # A CycloneDX inventory of what the *source tree* declares, written to `sbom/`.
 #
@@ -708,19 +717,28 @@ docs-slug-check:
 	uv run --directory backend --group docs pytest -q \
 		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
-# The client presentation is `docs/presentation/index.html` - a published page,
-# and the only copy. This renders the same file to a PDF for sending, and checks
-# it. The PDF is not committed: at 6 MB it is over the large-file limit, and it
-# is a derivative of a file that is already here.
+# Two decks are published pages, and the only copies: the 14-slide open-source
+# introduction at `docs/presentation/index.html` (served at /presentation/) and the
+# 44-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
+# which shares the introduction's `media/` and `fonts/`. Both are guided decks that
+# show one slide at a time, so printing either page gives one page, not a deck.
+# This checks what the README promises - each deck's slide count - and that every
+# file a deck names resolves. A PDF of every step is built from a deck's source with
+# the content-deck skill (`guided.py DECK --pdf`), not from these pages.
 #
-# DECK_TOOLS points at the `deck-build` skill, which is not in this repository.
-DECK_TOOLS ?= $(HOME)/.claude/skills/deck-build/tools/deck
-DECK_PDF ?= $(HOME)/notes/001_System/Assets/agenticos-deck/out/agenticos-client-deck.pdf
+# CONTENT_OS points at the content toolkit behind the `content-deck` skill, which is
+# not in this repository; `scripts/gen` runs its tools with the toolkit's Python.
+CONTENT_OS ?= $(HOME)/PycharmProjects/content-os
+PRESENTATIONS := docs/presentation/index.html:14 docs/presentation/tour/index.html:44
 presentation:
-	@test -d "$(DECK_TOOLS)" || { echo "deck-build skill not found at $(DECK_TOOLS)"; exit 1; }
-	python3 "$(DECK_TOOLS)/finalise.py" docs/presentation/index.html
-	python3 "$(DECK_TOOLS)/build.py" pdf docs/presentation/index.html -o "$(DECK_PDF)"
-	python3 "$(DECK_TOOLS)/verify.py" deck "$(DECK_PDF)" --expect-slides 20
+	@test -x "$(CONTENT_OS)/scripts/gen" || { echo "content toolkit not found at $(CONTENT_OS); set CONTENT_OS="; exit 1; }
+	@for entry in $(PRESENTATIONS); do \
+		deck=$${entry%%:*}; expected=$${entry##*:}; \
+		found=$$(grep -c '<section class="slide' "$$deck"); \
+		test "$$found" -eq "$$expected" || { echo "$$deck: $$found slides, expected $$expected"; exit 1; }; \
+		echo "$$deck: $$found slides"; \
+		"$(CONTENT_OS)/scripts/gen" tools/deck/verify.py assets "$$deck" || exit 1; \
+	done
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.
