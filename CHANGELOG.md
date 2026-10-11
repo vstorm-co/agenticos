@@ -32,7 +32,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **The Architect, by that name, with a mark of its own.** The corner assistant
   is called the Architect - "Architekt" in Polish and German - until an
   administrator renames it, and wears a drafting-compass mark until it is given
-  a picture. `GET /assistant` says `named_by_default` (#2075).
+  a picture. `GET /assistant` says `named_by_default` (#2075). Migration
+  `0120_architect_name` renames an assistant still called "AI Architect" or
+  "AI Architect (AgenticOS)"; a name an administrator chose is kept.
 - **How well each department's people are answered.** The group page shows,
   beside the budget, the helpful share of its people's ratings over 30 days, the
   agents they ran most and their latest not-helpful answers with comment and
