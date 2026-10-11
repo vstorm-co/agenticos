@@ -43,6 +43,8 @@ def _read() -> TableTriggerRead:
         node_instance_id=uuid.uuid4(),
         revision=1,
         filters=[],
+        events=["created"],
+        watched_column_ids=[],
         execution_principal_user_id=_CTX.user_id,
         is_active=True,
         activated_at=now,

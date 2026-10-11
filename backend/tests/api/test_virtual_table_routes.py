@@ -288,7 +288,7 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
         too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
 
     assert written.status_code == 200
-    assert written.json() == {"created": 1, "failed": []}
+    assert written.json() == {"created": 1, "updated": 0, "failed": []}
     assert (empty.status_code, too_many.status_code) == (422, 422)
     assert len(service.create_records.await_args.args[2].records) == 1
 
