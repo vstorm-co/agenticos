@@ -41,6 +41,11 @@ export type NavItem = {
   permission?: Permission;
   /** A `data-tour` anchor the onboarding coach points at — only where a flow returns here. */
   dataTour?: string;
+  /**
+   * The section's page is a set of tabs, each its own path one level down -
+   * `/admin/users`, `/admin/system` - so each is still the section's page.
+   */
+  tabbed?: boolean;
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -160,7 +165,7 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: "admin",
     domain: "admin",
     adminOnly: true,
-    items: [{ labelKey: "adminOverview", href: ROUTES.ADMIN, icon: ShieldCheck }],
+    items: [{ labelKey: "adminOverview", href: ROUTES.ADMIN, icon: ShieldCheck, tabbed: true }],
   },
 ];
 
@@ -217,7 +222,9 @@ export function navSectionFor(
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
       if (isActive(pathname, item.href)) {
-        return { item, domain: group.domain, isRoot: stripLocale(pathname) === item.href };
+        const path = stripLocale(pathname);
+        const tab = item.tabbed && /^\/[^/]+$/.test(path.slice(item.href.length));
+        return { item, domain: group.domain, isRoot: path === item.href || Boolean(tab) };
       }
     }
   }
