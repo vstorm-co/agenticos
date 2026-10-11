@@ -64,6 +64,18 @@ describe("ListCard's content padding", () => {
     expect(content).toHaveClass("p-0");
     expect(content).not.toHaveClass("sm:p-5");
   });
+
+  it("keeps the default on the sides a caller's own padding does not set", () => {
+    render(
+      <ListCard title="Workspaces" counted="4" contentClassName="pb-6">
+        <p>grid</p>
+      </ListCard>,
+    );
+
+    const content = screen.getByText("grid").parentElement;
+    expect(content).toHaveClass("p-5", "pb-6");
+    expect(content).not.toHaveClass("sm:p-5");
+  });
 });
 
 describe("ListCardEmpty", () => {

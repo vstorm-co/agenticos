@@ -4,7 +4,7 @@ import { UsedBy } from "@/components/agents/used-by";
 import { AudienceChip } from "@/components/sharing/audience-chip";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, Database, Plus, Sparkles, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
@@ -36,7 +36,9 @@ import { useTranslations } from "next-intl";
  * translator to call - `KBCard` reads `t(labelKey)` at the point of use.
  */
 const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
-  personal: { labelKey: "scopePersonal", icon: Lock },
+  // A person, not a lock: the lock is the audience chip's "Private", and one
+  // mark for two different facts read as the same fact twice.
+  personal: { labelKey: "scopePersonal", icon: UserRound },
   org: { labelKey: "scopeOrg", icon: Users },
   app: { labelKey: "scopeApp", icon: Sparkles },
 };
@@ -229,8 +231,10 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
 
       <div className="pointer-events-none flex h-full flex-col p-5">
         <div className="flex items-start justify-between gap-2">
+          {/* The card's mark is what it is - a knowledge base, as the page's own
+              icon says - and the scope is said once, in its footer. */}
           <span className="bg-muted text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-            <meta.icon className="h-4 w-4" />
+            <Database className="h-4 w-4" />
           </span>
 
           {kb.is_default && (

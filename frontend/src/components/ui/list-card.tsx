@@ -68,7 +68,11 @@ export function ListCard({
  * breakpoint up.
  */
 function contentPadding(own: string | undefined): string {
-  return own !== undefined && /(^|\s)p[xytrbl]?-/.test(own) ? own : cn("p-3 sm:p-5", own);
+  // A caller that sets padding of its own keeps the plain default under it -
+  // "pb-6" still wants the other three sides - and merges cleanly with it.
+  return own !== undefined && /(^|\s)p[xytrbl]?-/.test(own)
+    ? cn("p-5", own)
+    : cn("p-3 sm:p-5", own);
 }
 
 /**

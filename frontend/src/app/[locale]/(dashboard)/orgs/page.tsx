@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
   Skeleton,
+  EntityAvatar,
 } from "@/components/ui";
 import { useOrganizations } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -151,18 +152,18 @@ export default function OrgsPage() {
                   />
 
                   <div className="flex items-start gap-3">
-                    <span className="bg-muted text-foreground flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl">
-                      {org.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
-                          alt={org.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Building2 className="h-5 w-5" />
-                      )}
-                    </span>
+                    {/* The face the organization switcher shows for it - its
+                        picture, or its initials in its colour - rather than one
+                        building for every workspace. */}
+                    <EntityAvatar
+                      seed={org.id}
+                      name={org.name}
+                      imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
+                      hasImage={!!org.avatar_url}
+                      colorSlot={org.avatar_color}
+                      kind="org"
+                      className="h-11 w-11 shrink-0 rounded-xl text-sm"
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
