@@ -34,6 +34,8 @@ const TRIGGERS = [
   "chat",
   "schedule",
   "table_created",
+  "table_updated",
+  "table_deleted",
   "workflow_call",
   "workflow_failed",
 ] as const;

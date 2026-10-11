@@ -1,5 +1,5 @@
 ---
-source_sha: "ea006cd517a1"
+source_sha: "d44c1b71ec94"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -95,8 +95,10 @@ minutę.
 
 ### trigger.table_record { #trigger-table-record }
 
-**New table record.** Uruchamiany rekordem dodanym do jego tabeli, który pasuje do
-każdego filtra w chwili dodania. Publikacja wymaga dostępu do odczytu tabeli.
+**Table record.** Uruchamiany dodaniem, zmianą lub usunięciem rekordu jego tabeli -
+tym, co wymienia `events` - gdy rekord pasuje do każdego filtra. Zmiana uruchamia go
+tylko wtedy, gdy zmieniła się kolumna wybrana dla tabeli, o ile kolumny są wybrane.
+Publikacja wymaga dostępu do odczytu tabeli.
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 

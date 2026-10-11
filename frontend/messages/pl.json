@@ -684,17 +684,17 @@
       "editedWhen": "edytowano {when}",
       "triggers": {
         "button": "Wyzwalacze",
-        "sheetTitle": "Gdy przybędzie rekord",
-        "panelDescription": "Workflow, które startują od nowego rekordu w tej tabeli. Każdy uruchamia wersję, która go włączyła, jako osoba, która ją opublikowała.",
+        "sheetTitle": "Gdy rekord zostanie dodany, zmieniony lub usunięty",
+        "panelDescription": "Workflow, które startują od tego, co dzieje się z rekordami tej tabeli. Każdy uruchamia wersję, która go włączyła, jako osoba, która ją opublikowała.",
         "empty": "Żaden workflow nie startuje jeszcze od tej tabeli.",
         "runs": "Uruchamia v{version}",
-        "everyRecord": "Dla każdego dodanego rekordu",
+        "everyRecord": "Dla każdego rekordu",
         "whenFiltered": "Gdy pasuje {columns}",
         "active": "{name} jest włączony",
         "off": "Wyłączony",
         "historyOf": "Historia: {name}",
         "historyTitle": "Co zrobił {name}",
-        "historyEmpty": "Od włączenia nie dodano żadnego rekordu.",
+        "historyEmpty": "Od włączenia nic nie stało się z żadnym rekordem.",
         "openRun": "Otwórz uruchomienie",
         "status": {
           "queued": "Rozpoczął uruchomienie",
@@ -709,11 +709,18 @@
           "depth_limit": "Zbyt wiele wyzwalaczy w głąb",
           "quota": "Zbyt wiele uruchomień naraz",
           "permission_denied": "Członek, w którego imieniu działa, nie może go już uruchomić",
-          "unavailable": "Nie udało się odczytać utworzenia rekordu"
+          "unavailable": "Nie udało się odczytać, co stało się z rekordem"
         },
         "resumed": "Wyzwalacz wznowiony",
         "paused": "Wyzwalacz wstrzymany",
-        "howToAdd": "Żeby uruchamiać workflow po dodaniu tu rekordu, zacznij go od wyzwalacza „Nowy rekord w tabeli” dla tej tabeli i opublikuj."
+        "howToAdd": "Żeby uruchamiać workflow, gdy rekord jest tu dodawany, zmieniany lub usuwany, zacznij go od wyzwalacza „Rekord w tabeli” dla tej tabeli i opublikuj.",
+        "listensFor": "Startuje, gdy rekord zostanie {events}",
+        "watching": "zmiany w {columns}",
+        "events": {
+          "created": "dodany",
+          "updated": "zmieniony",
+          "deleted": "usunięty"
+        }
       },
       "newRecord": {
         "title": "Nowy rekord",
@@ -815,6 +822,8 @@
         "chat": "Czat",
         "schedule": "Harmonogram",
         "table_created": "Nowy rekord",
+        "table_updated": "Zmieniony rekord",
+        "table_deleted": "Usunięty rekord",
         "workflow_call": "Inny workflow",
         "workflow_failed": "Nieudany przebieg"
       },
@@ -936,8 +945,8 @@
           "description": "Działa według zegara: co jakiś czas, codziennie albo według wyrażenia cron."
         },
         "tableRecord": {
-          "name": "Nowy rekord w tabeli",
-          "description": "Rekord dodany do tabeli uruchamia run z tym rekordem."
+          "name": "Rekord w tabeli",
+          "description": "Rekord dodany do tabeli, zmieniony lub usunięty uruchamia przebieg z tym rekordem."
         },
         "api": {
           "name": "API request",

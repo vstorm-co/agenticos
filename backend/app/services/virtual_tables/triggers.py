@@ -1,4 +1,4 @@
-"""`TableTriggerService` - run a workflow when a record is added (#1785).
+"""`TableTriggerService` - run a workflow when a record is added, changed or deleted (#1785).
 
 A workflow whose trigger node is `trigger.table_record` is subscribed to its
 table when a version is published (`app.services.workflow_triggers`): the
@@ -13,7 +13,8 @@ until the stamp is in. So a trigger never starts on a record added before it
 was on - no backlog on activation, no replay of the time it was off.
 
 `TableTriggerConsumer` is the other half: it claims undelivered
-`table.record.created` events and, per active trigger on the event's table,
+`table.record.created`, `.updated` and `.deleted` events and, per active trigger
+on the event's table that listens for that one,
 records one `TableTriggerAdmission` - a queued run, or filtered, blocked or
 failed with a coarse reason - in a savepoint of its own. The unique
 `(trigger, event)` key is what makes a second consumer's pass admit nothing.
@@ -22,6 +23,7 @@ failed with a coarse reason - in a savepoint of its own. The unique
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -35,7 +37,6 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableOutbox,
-    VirtualTableRecordHistory,
 )
 from app.db.models.virtual_table_trigger import (
     AdmissionReason,
@@ -66,7 +67,11 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
-from app.workflows.nodes._triggers import TableRecordTriggerConfig, TableRecordTriggerOutput
+from app.workflows.nodes._triggers import (
+    RecordEvent,
+    TableRecordTriggerConfig,
+    TableRecordTriggerOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +167,11 @@ class TableTriggerService(Operations):
         table = await self._load_table(ctx, config.table.table_id, Perm.TABLES_VIEW, lock=True)
         self._ensure_live(table)
         filters = _checked_filters(await self._columns(table), config.filters)
+        listens = {
+            "events": list(config.events),
+            # The table's chosen columns are the ones whose change starts it.
+            "watched_column_ids": [str(column_id) for column_id in config.table.column_ids or []],
+        }
         trigger = await trigger_repo.get_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
@@ -181,6 +191,7 @@ class TableTriggerService(Operations):
                 node_instance_id=node_id,
                 revision=1,
                 filters=filters,
+                **listens,
                 execution_principal_user_id=ctx.subject_id,
                 is_active=True,
                 activated_at=trigger_repo.activation_time(),
@@ -191,6 +202,7 @@ class TableTriggerService(Operations):
         changes: dict[str, Any] = {
             "workflow_version_id": version.id,
             "filters": filters,
+            **listens,
             "execution_principal_user_id": ctx.subject_id,
             "revision": trigger.revision + 1,
             "is_active": True,
@@ -316,6 +328,8 @@ class TableTriggerService(Operations):
             node_instance_id=trigger.node_instance_id,
             revision=trigger.revision,
             filters=[RecordFilter.model_validate(item) for item in trigger.filters],
+            events=list(trigger.events),
+            watched_column_ids=[UUID(column_id) for column_id in trigger.watched_column_ids],
             execution_principal_user_id=trigger.execution_principal_user_id,
             is_active=trigger.is_active,
             activated_at=trigger.activated_at,
@@ -364,6 +378,31 @@ def _checked_filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> l
     return stored
 
 
+_TRIGGERED_BY: dict[RecordEvent, WorkflowRunTrigger] = {
+    "created": WorkflowRunTrigger.TABLE_CREATED,
+    "updated": WorkflowRunTrigger.TABLE_UPDATED,
+    "deleted": WorkflowRunTrigger.TABLE_DELETED,
+}
+
+
+@dataclass(frozen=True)
+class _Happened:
+    """What an event did to a record: the values a trigger judges, and what came before."""
+
+    event: RecordEvent
+    values: dict[str, Any]
+    """The record as created or changed to, or - deleted - as it was."""
+    before: dict[str, Any] | None
+    author_id: UUID | None
+
+    def changed(self) -> set[str]:
+        """The column ids a change changed; none for a creation or a deletion."""
+        if self.event != "updated" or self.before is None:
+            return set()
+        before, after = self.before, self.values
+        return {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+
+
 class TableTriggerConsumer:
     """Turn undelivered record-created events into admissions, once each per trigger."""
 
@@ -385,18 +424,19 @@ class TableTriggerConsumer:
         admitted: list[tuple[UUID, UUID]] = []
         now = datetime.now(UTC)
         for event in await trigger_repo.claim_pending(self.db, limit=limit):
-            triggers = await trigger_repo.list_for_table(
-                self.db,
-                table_id=event.table_id,
-                organization_id=event.organization_id,
-                active_only=True,
-            )
-            if triggers:
-                snapshot = await trigger_repo.creation_snapshot(
+            name = trigger_repo.EVENTS[event.event_type]
+            triggers = [
+                trigger
+                for trigger in await trigger_repo.list_for_table(
                     self.db,
-                    record_id=event.record_id,
-                    revision=int(event.payload.get("revision", 1)),
+                    table_id=event.table_id,
+                    organization_id=event.organization_id,
+                    active_only=True,
                 )
+                if name in trigger.events
+            ]
+            if triggers:
+                snapshot = await self._happened(event, name)
                 causing = await self._causing_run(event)
                 for trigger in triggers:
                     if await trigger_repo.admitted(
@@ -417,6 +457,37 @@ class TableTriggerConsumer:
             await trigger_repo.mark_dispatched(self.db, event=event, now=now)
         return admitted
 
+    async def _happened(self, event: VirtualTableOutbox, name: str) -> _Happened | None:
+        """What the event says happened to the record, or `None` when that is not known.
+
+        A creation is read from its history row; a change or a deletion carries the
+        whole record before and after in the event, since its history keeps only the
+        cells that changed.
+        """
+        if name == "created":
+            created = await trigger_repo.creation_snapshot(
+                self.db, record_id=event.record_id, revision=int(event.payload.get("revision", 1))
+            )
+            if created is None:
+                return None
+            return _Happened(
+                event="created",
+                values=created.after or {},
+                before=None,
+                author_id=created.actor_user_id,
+            )
+        before = event.payload.get("before")
+        after = event.payload.get("after")
+        actor = event.payload.get("actor_user_id")
+        if not isinstance(before, dict):
+            return None
+        return _Happened(
+            event="updated" if name == "updated" else "deleted",
+            values=after if isinstance(after, dict) else before,
+            before=before,
+            author_id=UUID(actor) if isinstance(actor, str) else None,
+        )
+
     async def _causing_run(self, event: VirtualTableOutbox) -> WorkflowRun | None:
         """The run whose step wrote this record, if a workflow did."""
         raw = event.payload.get("causation_run_id")
@@ -430,7 +501,7 @@ class TableTriggerConsumer:
         self,
         trigger: VirtualTableTrigger,
         event: VirtualTableOutbox,
-        snapshot: VirtualTableRecordHistory | None,
+        snapshot: _Happened | None,
         causing: WorkflowRun | None,
     ) -> tuple[UUID, UUID] | None:
         async def record(
@@ -459,7 +530,15 @@ class TableTriggerConsumer:
         if snapshot is None:
             await record(AdmissionStatus.FAILED, AdmissionReason.UNAVAILABLE)
             return None
-        values = snapshot.after or {}
+        values = snapshot.values
+        changed = snapshot.changed()
+        if (
+            snapshot.event == "updated"
+            and trigger.watched_column_ids
+            and not changed & set(trigger.watched_column_ids)
+        ):
+            await record(AdmissionStatus.FILTERED, AdmissionReason.FILTER_MISMATCH)
+            return None
         # The trigger's table foreign key cascades, so the table is there while it is.
         table = cast(
             VirtualTable,
@@ -493,13 +572,20 @@ class TableTriggerConsumer:
         payload = TableRecordTriggerOutput(
             table_id=table.id,
             record_id=event.record_id,
+            event=snapshot.event,
             values=values,
             fields={
                 column.label: readable(column, values[str(column.id)])
                 for column in columns.values()
                 if not column.archived and str(column.id) in values
             },
-            author_id=snapshot.actor_user_id,
+            before=snapshot.before,
+            changed=[
+                column.label
+                for column in columns.values()
+                if not column.archived and str(column.id) in changed
+            ],
+            author_id=snapshot.author_id,
         ).model_dump(mode="json")
         causation = Causation(
             root_run_id=causing.root_run_id if causing is not None else None,
@@ -518,7 +604,7 @@ class TableTriggerConsumer:
                     ctx,
                     workflow,
                     version,
-                    triggered_by=WorkflowRunTrigger.TABLE_CREATED,
+                    triggered_by=_TRIGGERED_BY[snapshot.event],
                     run_input=payload,
                     causation=causation,
                 )

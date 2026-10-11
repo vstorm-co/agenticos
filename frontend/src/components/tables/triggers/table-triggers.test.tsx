@@ -68,6 +68,8 @@ function trigger(overrides: Partial<TableTriggerRead> = {}): TableTriggerRead {
     node_instance_id: "n1",
     revision: 1,
     filters: [],
+    events: ["created"],
+    watched_column_ids: [],
     execution_principal_user_id: "u1",
     is_active: true,
     activated_at: "2026-09-29T10:00:00Z",
@@ -85,6 +87,17 @@ beforeEach(() => {
 });
 
 describe("TableTriggersPanel", () => {
+  it("says which of a record's events start it, and which columns a change must touch", () => {
+    hook.triggers = [
+      trigger({ events: ["created", "updated"], watched_column_ids: ["c-vip", "gone"] }),
+    ];
+    render(<TableTriggersPanel tableId="tbl" columns={COLUMNS} canEdit />);
+
+    expect(
+      screen.getByText("Starts when a record is added, changed · changes to VIP, gone"),
+    ).toBeTruthy();
+  });
+
   it("waits for the list, then says what an empty one means", () => {
     hook.isLoading = true;
     const { rerender } = render(<TableTriggersPanel tableId="tbl" columns={COLUMNS} canEdit />);
@@ -135,7 +148,7 @@ describe("TableTriggersPanel", () => {
     expect(hook.setActive.mutate).toHaveBeenCalledWith({ id: "t2", active: true });
     // Made and changed by publishing its workflow, not here.
     expect(screen.queryByRole("button", { name: /New trigger|Edit|Delete/ })).toBeNull();
-    expect(screen.getByText(/New table record/)).toBeTruthy();
+    expect(screen.getByText(/Table record/)).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "History of Lead follow-up" }));
     const history = await screen.findByRole("dialog");
@@ -155,10 +168,10 @@ describe("TableTriggersPanel", () => {
       <TableTriggersPanel tableId="tbl" columns={COLUMNS} canEdit={false} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "History of Lead follow-up" }));
-    expect(screen.queryByText(/No record has been added/)).toBeNull();
+    expect(screen.queryByText(/Nothing has happened to a record/)).toBeNull();
     admissions.isLoading = false;
     rerender(<TableTriggersPanel tableId="tbl" columns={COLUMNS} canEdit={false} />);
-    expect(await screen.findByText(/No record has been added/)).toBeTruthy();
+    expect(await screen.findByText(/Nothing has happened to a record/)).toBeTruthy();
   });
 
   it("shows a member who cannot edit a switched-off trigger without its switch", () => {

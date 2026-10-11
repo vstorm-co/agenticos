@@ -3569,6 +3569,8 @@
         "chat": "Chat",
         "schedule": "Schedule",
         "table_created": "New record",
+        "table_updated": "Record changed",
+        "table_deleted": "Record deleted",
         "workflow_call": "Another workflow",
         "workflow_failed": "A failed run"
       },
@@ -3661,8 +3663,8 @@
           "description": "It runs on a clock: every so often, daily, or on a cron expression."
         },
         "tableRecord": {
-          "name": "New table record",
-          "description": "A record added to a table starts a run with that record."
+          "name": "Table record",
+          "description": "A record added to a table, changed or deleted starts a run with that record."
         },
         "api": {
           "name": "API request",
@@ -4965,17 +4967,17 @@
       "editedWhen": "edited {when}",
       "triggers": {
         "button": "Triggers",
-        "sheetTitle": "When a record is added",
-        "panelDescription": "Workflows that start from a new record in this table. Each runs the version that switched it on, as whoever published it.",
+        "sheetTitle": "When a record is added, changed or deleted",
+        "panelDescription": "Workflows that start from what happens to records in this table. Each runs the version that switched it on, as whoever published it.",
         "empty": "No workflow starts from this table yet.",
         "runs": "Runs v{version}",
-        "everyRecord": "For every record added",
+        "everyRecord": "For every record",
         "whenFiltered": "When {columns} matches",
         "active": "{name} is on",
         "off": "Off",
         "historyOf": "History of {name}",
         "historyTitle": "What {name} did",
-        "historyEmpty": "No record has been added since it was switched on.",
+        "historyEmpty": "Nothing has happened to a record since it was switched on.",
         "openRun": "Open the run",
         "status": {
           "queued": "Started a run",
@@ -4990,11 +4992,18 @@
           "depth_limit": "Too many triggers deep",
           "quota": "Too many runs at once",
           "permission_denied": "The member it runs as can no longer run it",
-          "unavailable": "The record's creation could not be read"
+          "unavailable": "What happened to the record could not be read"
         },
         "resumed": "Trigger resumed",
         "paused": "Trigger paused",
-        "howToAdd": "To run a workflow when a record is added here, start it from a “New table record” trigger on this table and publish it."
+        "howToAdd": "To run a workflow when a record here is added, changed or deleted, start it from a “Table record” trigger on this table and publish it.",
+        "listensFor": "Starts when a record is {events}",
+        "watching": "changes to {columns}",
+        "events": {
+          "created": "added",
+          "updated": "changed",
+          "deleted": "deleted"
+        }
       },
       "newRecord": {
         "title": "New record",

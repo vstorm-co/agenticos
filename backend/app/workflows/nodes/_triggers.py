@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.db.models.workflow_exposure import MIN_INTERVAL_SECONDS
 from app.schemas.agent_trigger import MAX_INTERVAL_SECONDS, _cron_has_next
@@ -24,7 +24,6 @@ from app.schemas.virtual_table_trigger import MAX_FILTERS
 from app.services.workflow_execution import context
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.results import Failed, WorkflowError
-from app.workflows.nodes._tables import TABLE_FIELD
 
 
 class _Frozen(BaseModel):
@@ -84,24 +83,58 @@ class ScheduleTriggerOutput(_Frozen):
     input: dict[str, Any] = Field(default_factory=dict)
 
 
-class TableRecordTriggerConfig(_Frozen):
-    """Which table, and which of its new records start the workflow."""
+RecordEvent = Literal["created", "updated", "deleted"]
 
-    table: TableIORef = TABLE_FIELD
+
+class TableRecordTriggerConfig(_Frozen):
+    """Which table, which of its records' events, and which records, start the workflow."""
+
+    table: TableIORef = Field(
+        json_schema_extra={"x-resource": "table", "x-columns": "stored"},
+        description="The table, and the columns whose change starts it - any column's "
+        "when none are chosen.",
+    )
+    events: tuple[RecordEvent, ...] = Field(
+        default=("created",),
+        min_length=1,
+        max_length=3,
+        title="Starts when a record is",
+        description="Added, changed or deleted. A change starts it only when one of the "
+        "table's chosen columns changed, when columns are chosen.",
+        json_schema_extra={
+            "x-enum-labels": {"created": "Added", "updated": "Changed", "deleted": "Deleted"}
+        },
+    )
     filters: list[RecordFilter] = Field(
         default_factory=list,
         max_length=MAX_FILTERS,
-        description="Every one must hold on the record as it was added",
+        description="Every one must hold on the record - as it was added or changed to, "
+        "or as it was before it was deleted",
     )
+
+    @field_validator("events")
+    @classmethod
+    def _each_once(cls, events: tuple[RecordEvent, ...]) -> tuple[RecordEvent, ...]:
+        if len(set(events)) != len(events):
+            raise ValueError("Each event is named once")
+        return events
 
 
 class TableRecordTriggerOutput(_Frozen):
-    """The record as it was added: its values by column id and by label, and who added it."""
+    """The record the event is about: its values by column id and by label, who did it,
+    and - for a change or a deletion - what it held before."""
 
     table_id: UUID
     record_id: UUID
+    event: RecordEvent = "created"
     values: dict[str, Any] = Field(default_factory=dict)
     fields: dict[str, Any] = Field(default_factory=dict)
+    before: dict[str, Any] | None = Field(
+        default=None, description="A change's or a deletion's values before it, by column id"
+    )
+    changed: list[str] = Field(
+        default_factory=list, description="A change's columns that changed, by label"
+    )
     author_id: UUID | None = None
 
 

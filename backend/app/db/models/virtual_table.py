@@ -350,7 +350,11 @@ class VirtualTableOutbox(Base):
             "dispatched_at",
             postgresql_where=text("dispatched_at IS NOT NULL"),
         ),
-        CheckConstraint("event_type IN ('table.record.created')", name="event_type"),
+        CheckConstraint(
+            "event_type IN ('table.record.created', 'table.record.updated', "
+            "'table.record.deleted')",
+            name="event_type",
+        ),
     )
 
     def __repr__(self) -> str:

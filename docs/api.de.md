@@ -1,5 +1,5 @@
 ---
-source_sha: "f698da11d525"
+source_sha: "f4752bf94a9c"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -237,8 +237,9 @@ an oder aktualisiert ihn, mit `expected_revision`, sobald er existiert. `POST
 .../records/count` sagt, wie viele Datensätze dieselben Filter und dieselbe Suche
 treffen, höchstens 100.000.
 
-Ein Workflow, dessen Trigger-Knoten **New table record** ist, läuft nach der
-Veröffentlichung für jeden Datensatz, der seiner Tabelle hinzugefügt wird. `GET
+Ein Workflow, dessen Trigger-Knoten **Table record** ist, läuft nach der
+Veröffentlichung für die Datensätze seiner Tabelle, die hinzugefügt, geändert oder
+gelöscht werden - je nachdem, was sein Trigger nennt. `GET
 .../triggers` listet die Workflows, die mit einer Tabelle starten, `PATCH
 .../triggers/{trigger_id}` mit `{"is_active": false}` pausiert einen, und `GET
 .../triggers/{trigger_id}/admissions` listet, was er über jeden Datensatz entschieden

@@ -10,9 +10,9 @@ register(
     NodeDefinition(
         id=TABLE_RECORD,
         version=1,
-        name="New table record",
+        name="Table record",
         category=TRIGGER_CATEGORY,
-        description="A record is added to a table, from anywhere, and matches the filters.",
+        description="A record is added to a table, changed or deleted, and matches the filters.",
         kind="action",
         config_schema=TableRecordTriggerConfig,
         input_schema=None,

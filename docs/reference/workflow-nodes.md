@@ -87,8 +87,10 @@ minute.
 
 ### trigger.table_record { #trigger-table-record }
 
-**New table record.** Started by a record added to its table that matches every
-filter as it was added. Publishing it needs read access to the table.
+**Table record.** Started by a record of its table being added, changed or deleted -
+whichever its `events` name - that matches every filter. A change starts it only when a
+column chosen for the table changed, when columns are chosen. Publishing it needs read
+access to the table.
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 

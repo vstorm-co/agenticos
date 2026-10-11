@@ -1,5 +1,5 @@
 ---
-source_sha: "401b3cac88df"
+source_sha: "f89a37721b8a"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje sześć wyzwalaczy - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **New table record** - każdy jako poza nim
+**How does it start?** oferuje sześć wyzwalaczy - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **Table record** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -489,7 +489,7 @@ testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
 **Triggers** na górze wyboru kroków ma ich sześć: **Manual**, **API request**, **Chat message**,
-**Webhook**, **Schedule** i **New table record**. Dodanie jednego do workflow, który
+**Webhook**, **Schedule** i **Table record**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
 wyzwalacza, który tam wybierzesz.
@@ -569,14 +569,18 @@ dzienniku audytu. **Pause** w arkuszu **Trigger** zatrzymuje każdy z nich bez
 publikacji, a **New secret** wymienia sekret webhooka; stary od razu przestaje
 przechodzić weryfikację.
 
-### Gdy przybędzie rekord tabeli { #when-a-table-record-is-added }
+### Gdy rekord tabeli zostanie dodany, zmieniony lub usunięty { #when-a-table-record-is-added }
 
-Wyzwalacz **New table record** wskazuje tabelę i filtruje każdy rekord taki, jakim go
-dodano - z konsoli, przez API, przez agenta albo krok tabeli innego workflow.
-Przekazuje rekord: jego `record_id`, `values` według id kolumn, te same wartości jako
-`fields` według etykiet, z wyborem jako etykietą opcji, oraz `author_id` tego, kto
-go dodał. Publikacja wymaga dostępu do odczytu tabeli, a rekord dodany przed
-publikacją nigdy go nie uruchamia.
+Wyzwalacz **Table record** wskazuje tabelę, zdarzenia rekordu (`events`), od których
+startuje - dodanie, zmiana, usunięcie - oraz filtry na rekordzie takim, jaki został
+dodany lub zmieniony, albo jaki był przed usunięciem, z konsoli, API, od agenta lub z
+kroku tabeli innego workflow. Zmiana uruchamia go tylko wtedy, gdy zmieniła się
+wybrana kolumna, o ile kolumny tabeli są wybrane.
+
+Przekazuje rekord: `record_id`, `event`, `values` według id kolumn, te same wartości
+jako `fields` według etykiet, wybór jako etykietę opcji, `before` i kolumny `changed`
+przy zmianie lub usunięciu oraz `author_id` osoby, która to zrobiła. Publikacja wymaga
+dostępu do odczytu tabeli, a nic, co stało się przed publikacją, go nie uruchamia.
 
 Run uruchomiony w ten sposób niesie łańcuch wyzwalaczy, przez które przeszedł, więc
 workflow zapisujący z powrotem do tabeli, której wyzwalacz go uruchomił, jest

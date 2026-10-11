@@ -1,5 +1,5 @@
 ---
-source_sha: "ea006cd517a1"
+source_sha: "d44c1b71ec94"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -97,8 +97,10 @@ vez por minuto.
 
 ### trigger.table_record { #trigger-table-record }
 
-**New table record.** Se inicia con un registro añadido a su tabla que cumple cada
-filtro tal como se añadió. Publicarlo requiere acceso de lectura a la tabla.
+**Table record.** Se inicia cuando un registro de su tabla se añade, cambia o borra -
+según nombre `events` - y cumple cada filtro. Un cambio solo lo inicia cuando cambió una
+columna elegida para la tabla, si hay columnas elegidas. Publicarlo requiere acceso de
+lectura a la tabla.
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 

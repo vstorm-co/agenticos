@@ -173,4 +173,24 @@ describe("TableColumnPicker", () => {
     expect(screen.getByRole("combobox", { name: "Table" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Email" })).toBeDisabled();
   });
+
+  it("offers only stored columns where a change is watched", () => {
+    useWorkflowTableMock.mockReturnValue({
+      table: {
+        ...TABLE_T1,
+        columns: [
+          ...TABLE_T1.columns,
+          { id: "c4", label: "Total", type: "formula", archived: false },
+        ],
+      },
+      isLoading: false,
+    });
+    const onChange = vi.fn();
+    const { rerender } = render(<TableColumnPicker value={ref()} onChange={onChange} storedOnly />);
+
+    expect(screen.queryByRole("checkbox", { name: /Total/ })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /Email/ })).toBeInTheDocument();
+    rerender(<TableColumnPicker value={ref()} onChange={onChange} />);
+    expect(screen.getByRole("checkbox", { name: /Total/ })).toBeInTheDocument();
+  });
 });

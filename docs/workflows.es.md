@@ -1,5 +1,5 @@
 ---
-source_sha: "401b3cac88df"
+source_sha: "f89a37721b8a"
 ---
 
 # Workflows { #workflows }
@@ -20,7 +20,7 @@ sí no tiene recorrido.
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
 plantilla. **How does it start?** ofrece seis triggers - **Manual**, **API request**,
-**Chat message**, **Webhook**, **Schedule** y **New table record** -, cada uno un
+**Chat message**, **Webhook**, **Schedule** y **Table record** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
 renombrar y conectar, y **Two-step sequence**, dos pasos ya conectados para un flujo
@@ -505,7 +505,7 @@ acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
 **Triggers**, arriba en el selector de pasos, tiene seis: **Manual**, **API request**, **Chat message**,
-**Webhook**, **Schedule** y **New table record**. Añadir uno a un workflow que ya
+**Webhook**, **Schedule** y **Table record**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
 workflow por el trigger que elijas ahí.
@@ -586,14 +586,19 @@ registro de auditoría. **Pause**, en la hoja **Trigger**, detiene cualquiera de
 dos sin publicar, y **New secret** sustituye el secreto de un webhook; el anterior
 deja de verificarse al instante.
 
-### Cuando se añade un registro a una tabla { #when-a-table-record-is-added }
+### Cuando se añade, cambia o borra un registro de una tabla { #when-a-table-record-is-added }
 
-Un trigger **New table record** nombra una tabla y filtra cada registro tal como se
-añadió: desde la consola, la API, un agent o el paso de tabla de otro workflow. Pasa
-el registro: su `record_id`, sus `values` por id de columna, los mismos valores como
-`fields` por etiqueta, con una elección como la etiqueta de su opción, y el
-`author_id` de quien lo añadió. Publicarlo requiere acceso de lectura a la tabla, y
-un registro añadido antes de la publicación nunca lo inicia.
+Un trigger **Table record** nombra una tabla, los eventos de registro (`events`) con
+los que empieza - añadir, cambiar, borrar - y filtra el registro tal como se añadió o
+se cambió, o como era antes de borrarse: desde la consola, la API, un agent o el paso
+de tabla de otro workflow. Un cambio solo lo inicia cuando cambió una columna elegida,
+si hay columnas de la tabla elegidas.
+
+Pasa el registro: su `record_id`, el `event`, sus `values` por id de columna, los
+mismos valores como `fields` por etiqueta, con una elección como la etiqueta de su
+opción, `before` y las columnas `changed` en un cambio o un borrado, y el `author_id`
+de quien lo hizo. Publicarlo requiere acceso de lectura a la tabla, y nada de antes de
+la publicación lo inicia.
 
 Un run iniciado así lleva la cadena de triggers por la que pasó, así que un workflow
 que vuelve a escribir en la tabla cuyo trigger lo inició se bloquea en lugar de entrar

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import { ColumnTypeIcon } from "@/components/tables/column-type-icon";
 import { useWorkflowTable, useWorkflowTables } from "@/hooks";
+import { COMPUTED_TYPES } from "@/types/tables";
 import type { ColumnDef, ColumnTypeName, TableSummary } from "@/types/tables";
 import type { TableIORef } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,11 @@ export interface TableColumnPickerProps {
   disabled?: boolean;
   /** A validation message from the property panel, shown under the control. */
   error?: string;
+  /**
+   * Offer only the columns a record stores - for a trigger watching what changed,
+   * where a column worked out on read never does.
+   */
+  storedOnly?: boolean;
 }
 
 /** A fresh ref pinned to a table's current schema, all columns. */
@@ -154,7 +160,13 @@ function ColumnSelector({
  * revalidates at execution time regardless; rebinding here only spares the author
  * a publish-time refusal.
  */
-export function TableColumnPicker({ value, onChange, disabled, error }: TableColumnPickerProps) {
+export function TableColumnPicker({
+  value,
+  onChange,
+  disabled,
+  error,
+  storedOnly,
+}: TableColumnPickerProps) {
   const t = useTranslations("workflows");
   const { tables, isLoading: tablesLoading } = useWorkflowTables();
   const { table, isLoading: tableLoading } = useWorkflowTable(value?.table_id ?? null);
@@ -163,7 +175,10 @@ export function TableColumnPicker({ value, onChange, disabled, error }: TableCol
   const tableOrphaned = value !== null && !tablesLoading && chosen === undefined;
   const schemaChanged =
     value !== null && table !== null && table.schema_version !== value.schema_version;
-  const liveColumns = table?.columns.filter((column) => !column.archived) ?? [];
+  const liveColumns =
+    table?.columns.filter(
+      (column) => !column.archived && !(storedOnly && COMPUTED_TYPES.has(column.type)),
+    ) ?? [];
 
   return (
     <div className="space-y-3">

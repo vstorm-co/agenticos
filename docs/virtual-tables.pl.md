@@ -1,5 +1,5 @@
 ---
-source_sha: "6bebdd6277d7"
+source_sha: "1707bc3517bc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -390,20 +390,24 @@ konfiguracja nie jest przepisywana.
 ## Wyzwalacze { #triggers }
 
 [Workflow](workflows.md#when-a-table-record-is-added), którego węzłem wyzwalacza jest
-**New table record**, po publikacji uruchamia się dla każdego rekordu dodanego do jego
-tabeli, niezależnie od drogi: w konsoli, przez API, przez narzędzie tabel agenta albo
-krok tabeli innego workflow. Upsert, który tworzy rekord, go uruchamia; taki, który
-rekord aktualizuje, nie. Publikacja wymaga dostępu do odczytu tabeli i prawa do
-uruchamiania workflow, bo działa on jako członek, który go opublikował, nigdy jako autor
-rekordu. Dostęp tego członka jest sprawdzany ponownie przy każdym rekordzie.
+**Table record**, po publikacji uruchamia się dla tego, co dzieje się z rekordami jego
+tabeli - dodania, zmiany lub usunięcia, zależnie od `events`; domyślnie tylko dodania -
+niezależnie od drogi: w konsoli, przez API, przez narzędzie tabel agenta albo krok tabeli
+innego workflow. Upsert, który tworzy rekord, to dodanie, a taki, który go aktualizuje,
+to zmiana. Publikacja wymaga dostępu do odczytu tabeli i prawa do uruchamiania workflow,
+bo działa on jako członek, który go opublikował, nigdy jako autor rekordu. Dostęp tego
+członka jest sprawdzany ponownie przy każdym zdarzeniu.
 
 Wyzwalacz uruchamia wersję, która go włączyła, a następna publikacja przenosi go na
-nową wersję. Jego filtry używają operatorów z [Listowania i filtrowania](#listing-and-filtering)
-i są oceniane na rekordzie w chwili utworzenia, więc późniejsza edycja ani go nie
-uruchamia, ani nie zatrzymuje. Przekazuje runowi cały rekord: `record_id`, `values`
-według id kolumn, te same wartości jako `fields` według etykiet oraz `author_id`, żeby
-run mógł go zmienić z powrotem przez `table.record.update`. **Triggers** na stronie
-tabeli wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
+nową wersję. Jego filtry używają operatorów z [Listowania i
+filtrowania](#listing-and-filtering) i są oceniane na rekordzie takim, jaki został
+dodany lub zmieniony, albo jaki był przed usunięciem. Zmiana uruchamia go tylko wtedy,
+gdy zmieniła się jedna z kolumn wybranych dla tabeli, o ile kolumny są wybrane.
+
+Przekazuje runowi rekord: `record_id`, `event`, `values` według id kolumn, te same
+wartości jako `fields` według etykiet i `author_id`, a przy zmianie lub usunięciu
+także `before` oraz kolumny `changed` według etykiet. **Triggers** na stronie tabeli
+wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
 otwiera jego historię.
 
 Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -

@@ -4458,17 +4458,17 @@
       "editedWhen": "bearbeitet {when}",
       "triggers": {
         "button": "Trigger",
-        "sheetTitle": "Wenn ein Datensatz hinzukommt",
-        "panelDescription": "Workflows, die mit einem neuen Datensatz in dieser Tabelle starten. Jeder führt die Version aus, die ihn eingeschaltet hat, als die Person, die sie veröffentlicht hat.",
+        "sheetTitle": "Wenn ein Datensatz hinzugefügt, geändert oder gelöscht wird",
+        "panelDescription": "Workflows, die bei dem starten, was mit Datensätzen dieser Tabelle geschieht. Jeder führt die Version aus, die ihn eingeschaltet hat, als die Person, die sie veröffentlicht hat.",
         "empty": "Noch startet kein Workflow mit dieser Tabelle.",
         "runs": "Führt v{version} aus",
-        "everyRecord": "Für jeden hinzugefügten Datensatz",
+        "everyRecord": "Für jeden Datensatz",
         "whenFiltered": "Wenn {columns} passt",
         "active": "{name} ist eingeschaltet",
         "off": "Aus",
         "historyOf": "Verlauf von {name}",
         "historyTitle": "Was {name} getan hat",
-        "historyEmpty": "Seit dem Einschalten wurde kein Datensatz hinzugefügt.",
+        "historyEmpty": "Seit dem Einschalten ist mit keinem Datensatz etwas geschehen.",
         "openRun": "Run öffnen",
         "status": {
           "queued": "Run gestartet",
@@ -4483,11 +4483,18 @@
           "depth_limit": "Zu viele Trigger tief",
           "quota": "Zu viele Runs gleichzeitig",
           "permission_denied": "Das Mitglied, als das er läuft, darf ihn nicht mehr ausführen",
-          "unavailable": "Das Anlegen des Datensatzes konnte nicht gelesen werden"
+          "unavailable": "Was mit dem Datensatz geschah, ließ sich nicht lesen"
         },
         "resumed": "Auslöser fortgesetzt",
         "paused": "Auslöser pausiert",
-        "howToAdd": "Um einen Workflow zu starten, wenn hier ein Datensatz hinzugefügt wird, lassen Sie ihn mit einem Auslöser „Neuer Tabellendatensatz“ auf dieser Tabelle beginnen und veröffentlichen Sie ihn."
+        "howToAdd": "Um einen Workflow zu starten, wenn hier ein Datensatz hinzugefügt, geändert oder gelöscht wird, lassen Sie ihn mit einem Auslöser „Tabellendatensatz“ auf dieser Tabelle beginnen und veröffentlichen Sie ihn.",
+        "listensFor": "Startet, wenn ein Datensatz {events} wird",
+        "watching": "Änderungen an {columns}",
+        "events": {
+          "created": "hinzugefügt",
+          "updated": "geändert",
+          "deleted": "gelöscht"
+        }
       },
       "newRecord": {
         "title": "Neuer Datensatz",
@@ -4589,6 +4596,8 @@
         "chat": "Chat",
         "schedule": "Zeitplan",
         "table_created": "Neuer Datensatz",
+        "table_updated": "Datensatz geändert",
+        "table_deleted": "Datensatz gelöscht",
         "workflow_call": "Anderer Workflow",
         "workflow_failed": "Fehlgeschlagener Lauf"
       },
@@ -4710,8 +4719,8 @@
           "description": "Er läuft nach der Uhr: in Abständen, täglich oder nach einem Cron-Ausdruck."
         },
         "tableRecord": {
-          "name": "Neuer Tabellendatensatz",
-          "description": "Ein zu einer Tabelle hinzugefügter Datensatz startet einen Run mit diesem Datensatz."
+          "name": "Tabellendatensatz",
+          "description": "Ein Datensatz, der einer Tabelle hinzugefügt, geändert oder gelöscht wird, startet einen Lauf mit diesem Datensatz."
         },
         "api": {
           "name": "API request",

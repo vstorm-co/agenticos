@@ -17,6 +17,10 @@ from app.db.models.virtual_table_trigger import (
 )
 
 CREATED_EVENT = "table.record.created"
+UPDATED_EVENT = "table.record.updated"
+DELETED_EVENT = "table.record.deleted"
+EVENTS = {CREATED_EVENT: "created", UPDATED_EVENT: "updated", DELETED_EVENT: "deleted"}
+"""Each outbox event type a trigger consumes, by the name a trigger listens for."""
 
 
 def activation_time() -> ColumnElement[datetime]:
@@ -41,6 +45,8 @@ async def add_revision(db: AsyncSession, *, trigger: VirtualTableTrigger) -> Non
             revision=trigger.revision,
             workflow_version_id=trigger.workflow_version_id,
             filters=trigger.filters,
+            events=trigger.events,
+            watched_column_ids=trigger.watched_column_ids,
             execution_principal_user_id=trigger.execution_principal_user_id,
         )
     )
@@ -116,6 +122,25 @@ async def list_for_table(
     return list(result.scalars().all())
 
 
+async def has_active(db: AsyncSession, *, table_id: UUID, event: str) -> bool:
+    """Whether a live trigger on the table listens for `event` - `updated` or `deleted`.
+
+    Read by a write that holds the table's share lock, which a trigger's activation
+    waits behind: a trigger switched on after the answer starts on nothing the
+    write did, as it would on a record created before it.
+    """
+    result = await db.execute(
+        select(VirtualTableTrigger.id)
+        .where(
+            VirtualTableTrigger.table_id == table_id,
+            VirtualTableTrigger.is_active.is_(True),
+            VirtualTableTrigger.events.contains([event]),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def update(
     db: AsyncSession, *, trigger: VirtualTableTrigger, update_data: dict[str, Any]
 ) -> VirtualTableTrigger:
@@ -132,12 +157,12 @@ async def delete(db: AsyncSession, *, trigger: VirtualTableTrigger) -> None:
 
 
 async def claim_pending(db: AsyncSession, *, limit: int) -> list[VirtualTableOutbox]:
-    """Undelivered record-created events, oldest first, locked against a second consumer."""
+    """Undelivered record events, oldest first, locked against a second consumer."""
     result = await db.execute(
         select(VirtualTableOutbox)
         .where(
             VirtualTableOutbox.dispatched_at.is_(None),
-            VirtualTableOutbox.event_type == CREATED_EVENT,
+            VirtualTableOutbox.event_type.in_(list(EVENTS)),
         )
         .order_by(VirtualTableOutbox.created_at)
         .limit(limit)

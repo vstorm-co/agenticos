@@ -1,5 +1,5 @@
 ---
-source_sha: "f698da11d525"
+source_sha: "f4752bf94a9c"
 ---
 
 # API HTTP { #the-http-api }
@@ -221,8 +221,9 @@ istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje, przeszu
 i sortuje po jednej stronie naraz, a `POST .../records/count` mówi, ile rekordów
 pasuje do tych samych filtrów i wyszukiwania, najwyżej 100 000.
 
-Workflow, którego węzłem wyzwalacza jest **New table record**, po publikacji
-uruchamia się dla każdego rekordu dodanego do jego tabeli. `GET .../triggers`
+Workflow, którego węzłem wyzwalacza jest **Table record**, po publikacji
+uruchamia się dla rekordów jego tabeli dodanych, zmienionych lub usuniętych - zależnie
+od tego, co wymienia jego wyzwalacz. `GET .../triggers`
 wymienia workflow, które startują od tabeli, `PATCH .../triggers/{trigger_id}` z
 `{"is_active": false}` wstrzymuje jeden, a `GET .../triggers/{trigger_id}/admissions`
 wymienia, co zdecydował o każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).

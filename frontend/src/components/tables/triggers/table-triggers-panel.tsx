@@ -21,13 +21,14 @@ import { cn, formatDateTime } from "@/lib/utils";
 import type { ColumnDef, TableTriggerRead } from "@/types/tables";
 
 /**
- * The workflows a table runs when a record is added - in the table's Triggers sheet.
+ * The workflows a table runs when a record is added, changed or deleted - in the
+ * table's Triggers sheet.
  *
- * A trigger is a workflow's "New table record" node: publishing the workflow
+ * A trigger is a workflow's "Table record" node: publishing the workflow
  * switches it on, and it runs that version as the member who published it, for
- * records that match its filters as they were created - added in the console,
- * by the API, by an agent or by another workflow. A record added before it was
- * switched on never starts it. Here each can be paused and its decisions read;
+ * records that match its filters - added, changed or deleted in the console, by
+ * the API, by an agent or by another workflow. Nothing done before it was
+ * switched on starts it. Here each can be paused and its decisions read;
  * its table and filters are changed in its workflow.
  */
 export function TableTriggersPanel({
@@ -75,6 +76,17 @@ export function TableTriggersPanel({
                     {t("runs", { version: trigger.version_number })}
                   </p>
                   <p className="text-muted-foreground mt-1 text-[0.6875rem]">
+                    {t("listensFor", {
+                      events: trigger.events.map((event) => t(`events.${event}`)).join(", "),
+                    })}
+                    {trigger.watched_column_ids.length > 0 &&
+                      ` · ${t("watching", {
+                        columns: trigger.watched_column_ids
+                          .map((id) => labels.get(id) ?? id)
+                          .join(", "),
+                      })}`}
+                  </p>
+                  <p className="text-muted-foreground text-[0.6875rem]">
                     {trigger.filters.length === 0
                       ? t("everyRecord")
                       : t("whenFiltered", {

@@ -310,6 +310,7 @@ function ResourcePin({
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}
         error={error}
+        storedOnly={schema["x-columns"] === "stored"}
       />
     );
   }

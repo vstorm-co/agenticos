@@ -37,6 +37,7 @@ from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 from app.repositories import virtual_table_repo
+from app.repositories import virtual_table_trigger as trigger_repo
 from app.repositories.virtual_table import FilterClause, SearchClause, SortClause
 from app.schemas.virtual_table import (
     MAX_COUNT,
@@ -81,7 +82,9 @@ from app.services.virtual_tables.types import (
 )
 from app.services.workflow_execution import context as workflow_context
 
-CREATED_EVENT = "table.record.created"
+CREATED_EVENT = trigger_repo.CREATED_EVENT
+UPDATED_EVENT = trigger_repo.UPDATED_EVENT
+DELETED_EVENT = trigger_repo.DELETED_EVENT
 
 _RECORD_TIMESTAMPS = ("created_at", "updated_at")
 
@@ -787,6 +790,7 @@ class RecordOperations(Operations):
             record = await self._lock_record(ctx, table, record_id)
             if expected_revision is not None:
                 self._check_revision(record, expected_revision)
+            snapshot = quotas.delete_snapshot(record.values)
             await virtual_table_repo.add_history(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -795,8 +799,11 @@ class RecordOperations(Operations):
                 revision=record.revision + 1,
                 operation="delete",
                 actor_user_id=ctx.subject_id,
-                before=quotas.delete_snapshot(record.values),
+                before=snapshot,
                 after=None,
+            )
+            await self._tell_triggers(
+                ctx, table, record, DELETED_EVENT, before=snapshot, after=None
             )
             await virtual_table_repo.delete_record(self.db, record)
             return DeleteOutcome(record_id=record_id)
@@ -846,6 +853,46 @@ class RecordOperations(Operations):
             record=await self._read_through(ctx, table, outcome.record),
             created=outcome.created,
             replayed=replayed,
+        )
+
+    async def _tell_triggers(
+        self,
+        ctx: AuthContext,
+        table: VirtualTable,
+        record: VirtualTableRecord,
+        event_type: str,
+        *,
+        before: dict[str, Any],
+        after: dict[str, Any] | None,
+    ) -> None:
+        """Queue a record's change or deletion for the table's triggers - when one listens.
+
+        Unlike a creation, which is always queued, these are written only for a table
+        a live trigger asks them of: every edit of every record would otherwise grow
+        the outbox for no one. The event carries the whole record before and after,
+        since its history row keeps only the cells that changed.
+        """
+        if not await trigger_repo.has_active(
+            self.db, table_id=table.id, event=trigger_repo.EVENTS[event_type]
+        ):
+            return
+        await virtual_table_repo.add_outbox(
+            self.db,
+            organization_id=ctx.organization_id,
+            table_id=table.id,
+            record_id=record.id,
+            event_type=event_type,
+            payload={
+                "table_id": str(table.id),
+                "record_id": str(record.id),
+                "external_id": record.external_id,
+                "schema_version": table.schema_version,
+                "revision": record.revision,
+                "actor_user_id": str(ctx.subject_id),
+                "before": before,
+                "after": after,
+                **_causation(),
+            },
         )
 
     async def _read_through(
@@ -1028,3 +1075,4 @@ class RecordOperations(Operations):
             actor_user_id=ctx.subject_id,
             **_changed_cells(before, merged),
         )
+        await self._tell_triggers(ctx, table, record, UPDATED_EVENT, before=before, after=merged)

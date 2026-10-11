@@ -1,5 +1,5 @@
 ---
-source_sha: "401b3cac88df"
+source_sha: "f89a37721b8a"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet sechs Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **New table record** -, jeder
+beginnen lässt. **How does it start?** bietet sechs Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **Table record** -, jeder
 eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
 Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
@@ -541,7 +541,7 @@ hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `P
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sechs: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **New table record**. Einen
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sechs: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **Table record**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
 den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
@@ -628,15 +628,20 @@ abgeschaltet und im Audit-Trail vermerkt. **Pause** im Sheet **Trigger** hält b
 ohne Veröffentlichung an, und **New secret** ersetzt das Secret eines Webhooks; das
 alte verifiziert sofort nicht mehr.
 
-### Wenn ein Tabellen-Datensatz hinzukommt { #when-a-table-record-is-added }
+### Wenn ein Tabellen-Datensatz hinzukommt, sich ändert oder gelöscht wird { #when-a-table-record-is-added }
 
-Ein **New table record**-Trigger nennt eine Tabelle und filtert jeden Datensatz so,
-wie er hinzugefügt wurde - in der Konsole, über die API, durch einen Agent oder den
-Tabellenschritt eines anderen Workflows. Er gibt den Datensatz weiter: seine
-`record_id`, seine `values` nach Spalten-ID, dieselben Werte als `fields` nach
-Beschriftung, eine Auswahl als Label ihrer Option, und die `author_id` dessen, der
-ihn hinzugefügt hat. Das Veröffentlichen braucht Lesezugriff auf die Tabelle, und ein
-Datensatz, der vor der Veröffentlichung hinzukam, startet ihn nie.
+Ein **Table record**-Trigger nennt eine Tabelle, die Datensatz-Ereignisse (`events`),
+bei denen er startet - hinzufügen, ändern, löschen -, und filtert den Datensatz, wie
+er hinzugefügt oder geändert wurde, oder wie er vor dem Löschen war - aus der Konsole,
+der API, durch einen Agent oder den Tabellenschritt eines anderen Workflows. Eine
+Änderung startet ihn nur, wenn sich eine gewählte Spalte geändert hat, sofern Spalten
+der Tabelle gewählt sind.
+
+Er gibt den Datensatz weiter: `record_id`, `event`, `values` nach Spalten-ID,
+dieselben Werte als `fields` nach Beschriftung, eine Auswahl als Label ihrer Option,
+`before` und die `changed` Spalten bei einer Änderung oder Löschung und die
+`author_id` dessen, der es tat. Das Veröffentlichen braucht Lesezugriff auf die
+Tabelle, und nichts vor der Veröffentlichung startet ihn.
 
 Ein so gestarteter Run trägt die Kette der Trigger, die er
 durchlief, sodass ein Workflow, der in die Tabelle zurückschreibt, deren Trigger ihn

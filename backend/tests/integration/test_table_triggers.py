@@ -1,6 +1,6 @@
 """A table's triggers against a real Postgres (#1785).
 
-A trigger is a workflow's "New table record" node, switched on by publishing.
+A trigger is a workflow's "Table record" node, switched on by publishing.
 What only the database can show: that every way a record is added leaves the
 event a trigger reads, that an event admits at most once per trigger however
 often it is consumed, that the activation boundary holds across publishes and
@@ -103,13 +103,23 @@ def _ref(table: TableRead) -> dict[str, Any]:
 
 
 def _on_new_record(
-    table: TableRead, *, filters: list[RecordFilter] | None = None, into: TableRead | None = None
+    table: TableRead,
+    *,
+    filters: list[RecordFilter] | None = None,
+    into: TableRead | None = None,
+    events: tuple[str, ...] = ("created",),
+    watching: list[uuid.UUID] | None = None,
 ) -> WorkflowGraph:
-    """A workflow a new record in `table` starts - that adds a record to `into`, if given."""
+    """A workflow what happens to a record in `table` starts - added, by default - that
+    adds a record to `into`, if given."""
+    ref = _ref(table)
+    if watching is not None:
+        ref["column_ids"] = [str(column_id) for column_id in watching]
     entry = _node(
         "trigger.table_record",
         {
-            "table": _ref(table),
+            "table": ref,
+            "events": list(events),
             "filters": [item.model_dump(mode="json") for item in filters or []],
         },
     )
@@ -203,11 +213,15 @@ class _World:
         ctx: AuthContext | None = None,
         filters: list[RecordFilter] | None = None,
         into: TableRead | None = None,
+        events: tuple[str, ...] = ("created",),
+        watching: list[uuid.UUID] | None = None,
     ) -> uuid.UUID:
-        """Publish `workflow` - a new one when not given - to start from a new record
-        in `table`, and return the trigger that publish switched on."""
+        """Publish `workflow` - a new one when not given - to start from what happens to
+        a record in `table`, and return the trigger that publish switched on."""
         workflow = workflow or await self.workflow()
-        graph = _on_new_record(table or self.leads, filters=filters, into=into)
+        graph = _on_new_record(
+            table or self.leads, filters=filters, into=into, events=events, watching=watching
+        )
         await self.publish(workflow, graph, ctx=ctx)
         async with self.factory() as db:
             return (
@@ -341,9 +355,12 @@ async def test_an_added_record_starts_the_live_version_with_the_record(world: _W
     assert run.input == {
         "table_id": str(world.leads.id),
         "record_id": str(record_id),
+        "event": "created",
         "values": {email: "ada@example.com", score: 90, str(stage.id): won},
         # A choice reads by its label, as a step's condition names it.
         "fields": {"Email": "ada@example.com", "Score": 90, "Stage": "Won"},
+        "before": None,
+        "changed": [],
         "author_id": str(world.owner.id),
     }
     assert run.execution_principal_user_id == world.owner.id
@@ -899,3 +916,151 @@ async def test_archiving_a_workflow_pauses_its_table_trigger(world: _World):
 
     assert archived.trigger_active is False
     assert (await world.trigger_of(workflow)).is_active is False
+
+
+async def _change(world: _World, values: dict[str, Any]) -> uuid.UUID:
+    """Change the one record of the leads table, as a member does in the console."""
+    (record_id,) = await _record_ids(world)
+    async with world.factory() as db:
+        await VirtualTableService(db).update_record_cells(
+            world.ctx,
+            world.leads.id,
+            record_id,
+            {str(world.column(label)): value for label, value in values.items()},
+        )
+        await db.commit()
+    return record_id
+
+
+async def _outbox_events(world: _World) -> list[str]:
+    async with world.factory() as db:
+        rows = await db.execute(
+            select(VirtualTableOutbox.event_type).order_by(VirtualTableOutbox.created_at)
+        )
+        return list(rows.scalars())
+
+
+class TestChangesAndDeletions:
+    async def test_a_change_starts_it_with_what_came_before_and_which_columns_changed(
+        self, world: _World
+    ):
+        await world.add({"Email": "ada@x", "Score": 10})
+        trigger_id = await world.trigger(events=("updated",))
+
+        record_id = await _change(world, {"Score": 95, "VIP": True})
+        pairs = await world.consume()
+
+        (admission,) = await world.admissions(trigger_id)
+        assert (admission.status, admission.reason) == ("queued", None)
+        run = await world.run(pairs[0][0])
+        assert run.triggered_by == WorkflowRunTrigger.TABLE_UPDATED.value
+        email, score, vip = (str(world.column(label)) for label in ("Email", "Score", "VIP"))
+        assert run.input["event"] == "updated"
+        assert run.input["record_id"] == str(record_id)
+        assert run.input["values"] == {email: "ada@x", score: 95, vip: True}
+        assert run.input["before"] == {email: "ada@x", score: 10}
+        assert run.input["changed"] == ["Score", "VIP"]
+        assert run.input["author_id"] == str(world.owner.id)
+        ended = await world.drive(run.id, _on_new_record(world.leads, events=("updated",)))
+        assert ended.status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_a_change_to_columns_it_does_not_watch_starts_nothing(self, world: _World):
+        await world.add({"Email": "ada@x", "Score": 10})
+        trigger_id = await world.trigger(events=("updated",), watching=[world.column("Score")])
+
+        await _change(world, {"Email": "new@x"})
+        await _change(world, {"Score": 50})
+        await world.consume()
+
+        assert _statuses(await world.admissions(trigger_id)) == [
+            ("filtered", "filter_mismatch"),
+            ("queued", None),
+        ]
+
+    async def test_filters_hold_on_the_record_as_it_was_changed_to(self, world: _World):
+        await world.add({"Email": "ada@x", "Score": 10})
+        trigger_id = await world.trigger(
+            events=("updated",),
+            filters=[RecordFilter(column_id=world.column("Score"), op="gt", value=80)],
+        )
+
+        await _change(world, {"Score": 50})
+        await _change(world, {"Score": 90})
+        await world.consume()
+
+        assert _statuses(await world.admissions(trigger_id)) == [
+            ("filtered", "filter_mismatch"),
+            ("queued", None),
+        ]
+
+    async def test_a_deletion_starts_it_with_the_record_as_it_was(self, world: _World):
+        await world.add({"Email": "gone@x", "Score": 3})
+        trigger_id = await world.trigger(events=("created", "deleted"))
+        (record_id,) = await _record_ids(world)
+
+        async with world.factory() as db:
+            await VirtualTableService(db).delete_record(
+                world.ctx, world.leads.id, record_id, expected_revision=None
+            )
+            await db.commit()
+        pairs = await world.consume()
+
+        # Added before it was on, so only the deletion starts it.
+        assert _statuses(await world.admissions(trigger_id)) == [
+            ("filtered", "pre_activation"),
+            ("queued", None),
+        ]
+        run = await world.run(pairs[0][0])
+        assert run.triggered_by == WorkflowRunTrigger.TABLE_DELETED.value
+        assert run.input["event"] == "deleted"
+        assert run.input["fields"] == {"Email": "gone@x", "Score": 3}
+        assert run.input["before"] == run.input["values"]
+        assert run.input["changed"] == []
+
+    async def test_a_table_no_trigger_listens_to_for_changes_queues_none(self, world: _World):
+        await world.trigger()
+        await world.add({"Email": "ada@x"})
+
+        await _change(world, {"Score": 1})
+        (record_id,) = await _record_ids(world)
+        async with world.factory() as db:
+            await VirtualTableService(db).delete_record(
+                world.ctx, world.leads.id, record_id, expected_revision=None
+            )
+            await db.commit()
+
+        assert await _outbox_events(world) == ["table.record.created"]
+
+    async def test_an_event_that_carries_no_record_fails_as_unavailable(self, world: _World):
+        await world.add({"Email": "ada@x"})
+        trigger_id = await world.trigger(events=("updated",))
+        await _change(world, {"Score": 2})
+        async with world.factory() as db:
+            await db.execute(
+                update(VirtualTableOutbox)
+                .where(VirtualTableOutbox.event_type == "table.record.updated")
+                .values(payload={})
+            )
+            await db.commit()
+
+        await world.consume()
+
+        assert _statuses(await world.admissions(trigger_id)) == [("failed", "unavailable")]
+
+    async def test_a_trigger_keeps_what_it_listens_for_on_every_revision(self, world: _World):
+        workflow = await world.workflow()
+        await world.trigger(workflow, events=("created", "updated"), watching=[world.column("VIP")])
+
+        trigger = await world.trigger_of(workflow)
+        async with world.factory() as db:
+            revision = (
+                await db.execute(
+                    select(VirtualTableTriggerRevision).where(
+                        VirtualTableTriggerRevision.trigger_id == trigger.id
+                    )
+                )
+            ).scalar_one()
+        assert trigger.events == revision.events == ["created", "updated"]
+        assert (
+            trigger.watched_column_ids == revision.watched_column_ids == [str(world.column("VIP"))]
+        )

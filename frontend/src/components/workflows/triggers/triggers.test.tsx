@@ -53,7 +53,7 @@ const CATALOG = [
   definition("trigger.chat", "Chat message"),
   definition("trigger.webhook", "Webhook"),
   definition("trigger.schedule", "Schedule"),
-  definition("trigger.table_record", "New table record"),
+  definition("trigger.table_record", "Table record"),
   { id: "debug.echo", name: "Echo", category: "debug", version: 1 } as NodeDefinition,
 ];
 

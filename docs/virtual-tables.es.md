@@ -1,5 +1,5 @@
 ---
-source_sha: "6bebdd6277d7"
+source_sha: "1707bc3517bc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -392,22 +392,27 @@ guardada no se reescribe.
 
 ## Triggers { #triggers }
 
-Un [workflow](workflows.md#when-a-table-record-is-added) cuyo nodo trigger es **New
-table record** se ejecuta, una vez publicado, por cada registro que se añade a su tabla,
-llegue por donde llegue: en la consola, por la API, con la herramienta de tablas de un
-agent o con el paso de tabla de otro workflow. Un upsert que crea un registro lo inicia;
-uno que lo actualiza, no. Publicarlo requiere acceso de lectura a la tabla y permiso para
-ejecutar el workflow, porque se ejecuta como el miembro que lo publicó, nunca como el
-autor del registro. El acceso de ese miembro se vuelve a comprobar con cada registro.
+Un [workflow](workflows.md#when-a-table-record-is-added) cuyo nodo trigger es **Table
+record** se ejecuta, una vez publicado, por lo que les pasa a los registros de su
+tabla - añadirlos, cambiarlos o borrarlos, según nombre `events`; por defecto solo
+añadirlos -, llegue por donde llegue: en la consola, por la API, con la herramienta de
+tablas de un agent o con el paso de tabla de otro workflow. Un upsert que crea un
+registro es una adición, y uno que lo actualiza, un cambio.
+
+Publicarlo requiere acceso de lectura a la tabla y permiso para ejecutar el workflow,
+porque se ejecuta como el miembro que lo publicó, nunca como el autor del registro. El
+acceso de ese miembro se vuelve a comprobar con cada evento.
 
 El trigger ejecuta la versión que lo encendió, y la siguiente publicación lo pasa a la
-nueva versión. Sus filtros usan los operadores de [Listar y filtrar](#listing-and-filtering)
-y se evalúan sobre el registro tal como se creó, así que una edición posterior ni lo
-inicia ni lo detiene. Pasa al run el registro entero: `record_id`, `values` por id de
-columna, los mismos valores como `fields` por etiqueta y `author_id`, para que el run
-pueda cambiarlo de vuelta con `table.record.update`. **Triggers**, en la página de la
-tabla, enumera los workflows que empiezan por ella, pausa y reanuda cada uno y abre su
-historial.
+nueva versión. Sus filtros usan los operadores de [Listar y
+filtrar](#listing-and-filtering) y se evalúan sobre el registro tal como se añadió o
+se cambió, o como era antes de borrarse. Un cambio solo lo inicia cuando cambió una de
+las columnas elegidas para la tabla, si hay columnas elegidas.
+
+Pasa al run el registro: `record_id`, `event`, `values` por id de columna, los mismos
+valores como `fields` por etiqueta y `author_id`, y en un cambio o un borrado también
+`before` y las columnas `changed` por etiqueta. **Triggers**, en la página de la
+tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
 
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de

@@ -1,5 +1,5 @@
 ---
-source_sha: "f698da11d525"
+source_sha: "f4752bf94a9c"
 ---
 
 # La API HTTP { #the-http-api }
@@ -230,8 +230,8 @@ que leíste por última vez; una desfasada es `409 REVISION_CONFLICT`. `PUT
 ordena página a página, y `POST .../records/count` indica cuántos registros coinciden
 con los mismos filtros y la misma búsqueda, hasta 100.000.
 
-Un workflow cuyo nodo trigger es **New table record** se ejecuta, una vez publicado,
-por cada registro que se añade a su tabla. `GET .../triggers` enumera los workflows
+Un workflow cuyo nodo trigger es **Table record** se ejecuta, una vez publicado,
+por los registros de su tabla que se añaden, cambian o borran - según nombre su trigger. `GET .../triggers` enumera los workflows
 que empiezan por una tabla, `PATCH .../triggers/{trigger_id}` con `{"is_active": false}`
 pausa uno, y `GET .../triggers/{trigger_id}/admissions` lista lo que decidió sobre
 cada registro. Consulta [Triggers](virtual-tables.md#triggers).

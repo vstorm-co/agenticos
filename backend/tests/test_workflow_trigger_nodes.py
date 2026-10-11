@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.permissions import AuthContext
 from app.services.workflow_execution import context
@@ -73,11 +75,15 @@ HANDED_ON = [
             "fields": {"Email": "ada@example.com"},
             "author_id": None,
         },
+        # A run started before triggers knew of changes reads as an addition.
         {
             "table_id": _TABLE,
             "record_id": _RECORD,
+            "event": "created",
             "values": {"c1": "ada@example.com"},
             "fields": {"Email": "ada@example.com"},
+            "before": None,
+            "changed": [],
             "author_id": None,
         },
     ),
@@ -116,6 +122,52 @@ async def test_a_table_trigger_with_no_filters_checks_only_its_table(monkeypatch
     )
     assert await check_resources(MagicMock(), MagicMock(), config) == []
     checked.assert_awaited_once()
+
+
+async def test_a_table_trigger_watches_only_columns_a_record_stores(monkeypatch):
+    stored, worked_out, archived = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    monkeypatch.setattr(
+        "app.workflows.nodes.trigger_table_record._handler.check_table",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.workflows.nodes.trigger_table_record._handler.virtual_table_repo.get_schema_version",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                columns=[
+                    {"id": str(stored), "label": "Score", "type": "integer"},
+                    {"id": str(worked_out), "label": "Total", "type": "formula", "formula": "1"},
+                    {"id": str(archived), "label": "Old", "type": "text", "archived": True},
+                ]
+            )
+        ),
+    )
+    config = TableRecordTriggerConfig.model_validate(
+        {
+            "table": {
+                "table_id": str(_TABLE),
+                "schema_version": 1,
+                "column_ids": [str(stored), str(worked_out), str(archived)],
+            },
+            "events": ["updated"],
+        }
+    )
+
+    problems = await check_resources(MagicMock(), MagicMock(), config)
+
+    assert [field for field, _ in problems] == ["table.column_ids.1", "table.column_ids.2"]
+
+
+def test_a_table_trigger_starts_on_added_records_unless_told_more_and_names_each_once():
+    table = {"table_id": str(_TABLE), "schema_version": 1}
+
+    assert TableRecordTriggerConfig.model_validate({"table": table}).events == ("created",)
+    assert TableRecordTriggerConfig.model_validate(
+        {"table": table, "events": ["updated", "deleted"]}
+    ).events == ("updated", "deleted")
+    for events in ([], ["created", "created"], ["renamed"]):
+        with pytest.raises(ValidationError):
+            TableRecordTriggerConfig.model_validate({"table": table, "events": events})
 
 
 def test_every_trigger_is_in_the_catalog_under_one_category():

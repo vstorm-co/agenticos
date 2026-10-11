@@ -351,7 +351,7 @@ export function emptyViewConfig(): TableViewConfig {
 }
 
 /**
- * A workflow a table runs when a record is added - its "New table record"
+ * A workflow a table runs when a record is added, changed or deleted - its "Table record"
  * trigger node, switched on by publishing it. Mirrors `TableTriggerRead`. It runs
  * the version that switched it on, as the member who published that version.
  */
@@ -365,6 +365,10 @@ export interface TableTriggerRead {
   node_instance_id: string;
   revision: number;
   filters: RecordFilter[];
+  /** Which of a record's events start it. */
+  events: ("created" | "updated" | "deleted")[];
+  /** A change starts it only when one of these columns changed; any change when empty. */
+  watched_column_ids: string[];
   execution_principal_user_id: string | null;
   is_active: boolean;
   activated_at: string | null;

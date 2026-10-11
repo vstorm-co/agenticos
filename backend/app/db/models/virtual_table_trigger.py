@@ -34,6 +34,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -92,8 +93,20 @@ class VirtualTableTrigger(Base, TimestampMixin):
     # The trigger node this row switches on; another node replaces the row.
     node_instance_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    # `RecordFilter`s by column id, all of which must hold on the creation snapshot.
+    # `RecordFilter`s by column id, all of which must hold on the record: as it was
+    # created or changed to, or as it was before it was deleted.
     filters: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    # Which of `created`, `updated`, `deleted` start the workflow.
+    events: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: ["created"],
+        server_default=text("'[\"created\"]'::jsonb"),
+    )
+    # An update starts it only when one of these columns changed; any update when empty.
+    watched_column_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     # Whoever published the version it runs - never someone they name. SET NULL
     # keeps the history; a null principal admits nothing (`FAILED`).
     execution_principal_user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -130,6 +143,15 @@ class VirtualTableTriggerRevision(Base):
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     workflow_version_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     filters: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    events: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: ["created"],
+        server_default=text("'[\"created\"]'::jsonb"),
+    )
+    watched_column_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     execution_principal_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )

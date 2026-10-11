@@ -1,9 +1,12 @@
-"""Table trigger schemas - the workflows a table runs when a record is added (#1785)."""
+"""Table trigger schemas - the workflows a table runs when a record is added, changed or
+deleted (#1785)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from uuid import UUID
+
+from pydantic import Field
 
 from app.db.models.virtual_table_trigger import AdmissionStatus
 from app.schemas.base import BaseSchema, TimestampSchema
@@ -29,6 +32,10 @@ class TableTriggerRead(BaseSchema, TimestampSchema):
     node_instance_id: UUID
     revision: int
     filters: list[RecordFilter]
+    events: list[str] = Field(description="Which of created, updated and deleted start it.")
+    watched_column_ids: list[UUID] = Field(
+        description="A change starts it only when one of these changed; any change when empty."
+    )
     execution_principal_user_id: UUID | None
     is_active: bool
     activated_at: datetime | None

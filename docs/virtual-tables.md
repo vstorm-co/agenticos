@@ -364,21 +364,25 @@ of its chosen columns shows every live one. The stored config is not rewritten.
 
 ## Triggers { #triggers }
 
-A [workflow](workflows.md#when-a-table-record-is-added) whose trigger node is **New
-table record** runs for every record added to its table once it is published, however
-the record was added: in the console, over the API, by an agent's table tool or by
-another workflow's table step. An upsert that creates a record starts it; one that
-updates a record does not. Publishing it needs read access to the table and permission
-to run the workflow, because it runs as the member who published it, never as the
-record's author. That member's access is checked again on every record.
+A [workflow](workflows.md#when-a-table-record-is-added) whose trigger node is **Table
+record** runs once it is published for what happens to its table's records - added,
+changed or deleted, whichever its `events` name; added only by default - however it
+happens: in the console, over the API, by an agent's table tool or by another
+workflow's table step. An upsert that creates a record is an addition, and one that
+updates it a change. Publishing it needs read access to the table and permission to run
+the workflow, because it runs as the member who published it, never as the record's
+author. That member's access is checked again on every event.
 
 The trigger runs the version that switched it on, and the next publish moves it to the
-new version. Its filters use the operators of [Listing and filtering](#listing-and-filtering)
-and are judged on the record as it was created, so a later edit neither starts nor stops
-it. It hands the run the whole record: `record_id`, `values` by column id, the same
-values as `fields` by label, and `author_id`, so the run can change the record back with
-`table.record.update`. **Triggers** on the table's page lists the workflows that start
-from it, pauses and resumes each, and opens its history.
+new version. Its filters use the operators of [Listing and
+filtering](#listing-and-filtering) and are judged on the record as it was added or
+changed to, or as it was before it was deleted. A change starts it only when one of
+the columns chosen for the table changed, when columns are chosen.
+
+It hands the run the record: `record_id`, `event`, `values` by column id, the same
+values as `fields` by label and `author_id`, and for a change or a deletion `before`
+and the `changed` columns by label. **Triggers** on the table's page lists the
+workflows that start from it, pauses and resumes each, and opens its history.
 
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record

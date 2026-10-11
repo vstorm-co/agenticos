@@ -1,7 +1,7 @@
 /**
  * API client for a table's triggers - the workflows it runs when a record is
  * added (`backend/app/api/routes/v1/virtual_table_triggers.py`). Publishing a
- * workflow whose trigger node is "New table record" makes one; here they are
+ * workflow whose trigger node is "Table record" makes one; here they are
  * read, paused and resumed.
  */
 

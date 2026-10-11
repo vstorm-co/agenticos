@@ -217,8 +217,8 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 searches and sorts one page at a time, and `POST .../records/count` says how many
 records the same filters and search match, up to 100,000.
 
-A workflow whose trigger node is **New table record** runs for every record added
-to its table once it is published. `GET .../triggers` lists the workflows that
+A workflow whose trigger node is **Table record** runs, once it is published, for
+the records of its table added, changed or deleted - whichever its trigger names. `GET .../triggers` lists the workflows that
 start from a table, `PATCH .../triggers/{trigger_id}` with `{"is_active": false}`
 pauses one, and `GET .../triggers/{trigger_id}/admissions` lists what it decided
 about each record. See [Triggers](virtual-tables.md#triggers).

@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Table triggers on a record's change and deletion.** A workflow's **Table
+  record** trigger (formerly **New table record**) can start on records added,
+  changed or deleted, and a change only when one of the columns chosen for the
+  table changed. The run gets the record with its `event`, its values `before`
+  and the `changed` columns. Changes and deletions are queued only for a table a
+  trigger listens to. Migration `0129_table_trigger_events`.
+
 - **Formula columns.** A table column can work a value out from the record's
   other columns - `{Price} * {Quantity}`, `IF({Total} > 100, "large", "small")`,
   `DAYS({Due}, TODAY())` - with arithmetic, comparisons and a dozen functions,

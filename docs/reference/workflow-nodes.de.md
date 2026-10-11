@@ -1,5 +1,5 @@
 ---
-source_sha: "ea006cd517a1"
+source_sha: "d44c1b71ec94"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -101,9 +101,10 @@ pro Minute.
 
 ### trigger.table_record { #trigger-table-record }
 
-**New table record.** Von einem Datensatz gestartet, der seiner Tabelle hinzugefügt
-wird und beim Hinzufügen jedem Filter entspricht. Das Veröffentlichen braucht
-Lesezugriff auf die Tabelle.
+**Table record.** Gestartet, wenn ein Datensatz seiner Tabelle hinzugefügt, geändert
+oder gelöscht wird - je nachdem, was `events` nennt - und jedem Filter entspricht. Eine
+Änderung startet ihn nur, wenn sich eine für die Tabelle gewählte Spalte geändert hat,
+sofern Spalten gewählt sind. Das Veröffentlichen braucht Lesezugriff auf die Tabelle.
 
 ::: app.workflows.nodes._triggers.TableRecordTriggerConfig
 

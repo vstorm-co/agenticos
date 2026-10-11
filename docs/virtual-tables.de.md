@@ -1,5 +1,5 @@
 ---
-source_sha: "6bebdd6277d7"
+source_sha: "1707bc3517bc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -418,23 +418,28 @@ alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
 
 ## Trigger { #triggers }
 
-Ein [Workflow](workflows.md#when-a-table-record-is-added), dessen Trigger-Knoten **New
-table record** ist, läuft nach der Veröffentlichung für jeden Datensatz, der seiner
-Tabelle hinzugefügt wird, egal auf welchem Weg: in der Konsole, über die API, durch das
-Tabellen-Tool eines Agents oder den Tabellenschritt eines anderen Workflows. Ein Upsert,
-der einen Datensatz anlegt, startet ihn; einer, der ihn aktualisiert, nicht. Das
-Veröffentlichen braucht Lesezugriff auf die Tabelle und das Recht, den Workflow
-auszuführen, denn er läuft als das Mitglied, das ihn veröffentlicht hat, nie als der Autor
-des Datensatzes. Dessen Zugriff wird bei jedem Datensatz erneut geprüft.
+Ein [Workflow](workflows.md#when-a-table-record-is-added), dessen Trigger-Knoten
+**Table record** ist, läuft nach der Veröffentlichung für das, was mit den Datensätzen
+seiner Tabelle geschieht - hinzufügen, ändern oder löschen, je nachdem, was `events`
+nennt; standardmäßig nur hinzufügen -, egal auf welchem Weg: in der Konsole, über die
+API, durch das Tabellen-Tool eines Agents oder den Tabellenschritt eines anderen
+Workflows. Ein Upsert, der einen Datensatz anlegt, ist ein Hinzufügen, einer, der ihn
+aktualisiert, eine Änderung. Das Veröffentlichen braucht Lesezugriff auf die Tabelle und
+das Recht, den Workflow auszuführen, denn er läuft als das Mitglied, das ihn
+veröffentlicht hat. Dessen Zugriff wird bei jedem Ereignis erneut geprüft.
 
 Der Trigger führt die Version aus, die ihn eingeschaltet hat, und die nächste
-Veröffentlichung verschiebt ihn auf die neue Version. Seine Filter nutzen die Operatoren
-aus [Auflisten und Filtern](#listing-and-filtering) und werden am Datensatz geprüft, wie
-er angelegt wurde, sodass eine spätere Änderung ihn weder startet noch stoppt. Er gibt dem
-Run den ganzen Datensatz: `record_id`, `values` nach Spalten-ID, dieselben Werte als
-`fields` nach Beschriftung und `author_id`, damit der Run ihn mit `table.record.update`
-zurück ändern kann. **Triggers** auf der Seite der Tabelle listet die Workflows, die mit
-ihr starten, pausiert und setzt jeden fort und öffnet seinen Verlauf.
+Veröffentlichung verschiebt ihn auf die neue Version. Seine Filter nutzen die
+Operatoren aus [Auflisten und Filtern](#listing-and-filtering) und werden am Datensatz
+geprüft, wie er hinzugefügt oder geändert wurde, oder wie er vor dem Löschen war. Eine
+Änderung startet ihn nur, wenn sich eine der für die Tabelle gewählten Spalten
+geändert hat, sofern Spalten gewählt sind.
+
+Er gibt dem Run den Datensatz: `record_id`, `event`, `values` nach Spalten-ID,
+dieselben Werte als `fields` nach Beschriftung und `author_id`, bei einer Änderung
+oder Löschung auch `before` und die `changed` Spalten nach Beschriftung. **Triggers**
+auf der Seite der Tabelle listet die Workflows, pausiert und setzt jeden fort und
+öffnet seinen Verlauf.
 
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
 Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder

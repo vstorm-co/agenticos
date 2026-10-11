@@ -14,7 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers six triggers - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **New table record** - each an otherwise
+**How does it start?** offers six triggers - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -479,7 +479,7 @@ test run starts from where that run was. Over the API, `POST
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds six: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **New table record**. Adding one to a
+**Triggers** group at the top of the step picker holds six: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
@@ -554,14 +554,19 @@ refuses its deliveries, and such a schedule is switched off and recorded in the
 audit trail. **Pause** in the **Trigger** sheet stops either without a publish, and
 **New secret** replaces a webhook's secret; the old one stops verifying at once.
 
-### When a table record is added { #when-a-table-record-is-added }
+### When a table record is added, changed or deleted { #when-a-table-record-is-added }
 
-A **New table record** trigger names a table and filters on each record as it was
-added, from the console, the API, an agent or another workflow's table step. It
-hands on the record: its `record_id`, its `values` by column id, the same values as
-`fields` by label, a choice as its option's label, and the `author_id` of whoever
-added it. Publishing it needs read access to the table, and a record added before the
-publish never starts it.
+A **Table record** trigger names a table, the record `events` it starts on - added,
+changed, deleted - and filters on the record as it was added or changed to, or as it
+was before its deletion, from the console, the API, an agent or another workflow's
+table step. A change starts it only when a chosen column changed, when the table's
+columns are chosen.
+
+It hands on the record: its `record_id`, the `event`, its `values` by column id, the
+same values as `fields` by label, a choice as its option's label, `before` and the
+`changed` columns for a change or a deletion, and the `author_id` of whoever did it.
+Publishing it needs read access to the table, and nothing done before the publish
+starts it.
 
 A run started this way carries the chain of triggers it came through, so a workflow
 that writes back into a table whose trigger started it is blocked rather than

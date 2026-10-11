@@ -27,7 +27,7 @@ describe("WorkflowCreateDialog", () => {
       "Chat message",
       "Webhook",
       "Schedule",
-      "New table record",
+      "Table record",
     ]) {
       expect(screen.getByText(start)).toBeInTheDocument();
     }

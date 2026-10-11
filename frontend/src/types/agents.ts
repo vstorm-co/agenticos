@@ -671,13 +671,13 @@ export interface JsonSchemaProperty {
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */
-  items?: { type?: string };
+  items?: { type?: string; enum?: unknown[] };
   /** A `Literal | None` arrives as branches, one carrying the values. */
   anyOf?: {
     type?: string;
     enum?: unknown[];
     format?: string;
-    items?: { type?: string };
+    items?: { type?: string; enum?: unknown[] };
     "x-enum-labels"?: Record<string, string>;
   }[];
 }
