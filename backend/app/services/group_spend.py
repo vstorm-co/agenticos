@@ -65,7 +65,7 @@ class GroupSpendService:
         )
         if group is None:
             raise NotFoundError(message="Group not found", details={"group_id": group_id})
-        if not ctx.has(Perm.RUNS_VIEW) and not await self._leads(ctx, group_id):
+        if not ctx.has(Perm.RUNS_VIEW) and not await leads_group(self.db, ctx, group_id):
             raise AuthorizationError(
                 message="Only someone who can see the organization's spend, or the group's lead, can export it"
             )
@@ -79,8 +79,10 @@ class GroupSpendService:
             row_count=len(rows),
         )
 
-    async def _leads(self, ctx: AuthContext, group_id: UUID) -> bool:
-        if ctx.user_id is None:
-            return False
-        member = await group_repo.get_member(self.db, group_id=group_id, user_id=ctx.user_id)
-        return member is not None and member.is_lead
+
+async def leads_group(db: AsyncSession, ctx: AuthContext, group_id: UUID) -> bool:
+    """Whether the caller leads this department - what lets a lead read its figures."""
+    if ctx.user_id is None:
+        return False
+    member = await group_repo.get_member(db, group_id=group_id, user_id=ctx.user_id)
+    return member is not None and member.is_lead

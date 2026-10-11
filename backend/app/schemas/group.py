@@ -1,6 +1,6 @@
 """Schemas for groups - named sets of an organization's members."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, get_args
 from uuid import UUID
@@ -162,3 +162,58 @@ class GroupShareRequest(BaseSchema):
     level: GrantLevelLiteral = Field(
         default="use", description="What the group may do with each: `read`, `use` or `edit`."
     )
+
+
+class GroupQualityRead(BaseSchema):
+    """How one department's people rated answers in a window (#2101)."""
+
+    group_id: UUID
+    name: str
+    icon: GroupIcon | None = None
+    likes: int
+    dislikes: int
+
+
+class GroupQualityList(BaseSchema):
+    """Every department whose people rated an answer, least helpful share first.
+
+    A person in two departments counts in both, as with spend.
+    """
+
+    from_date: date
+    to_date: date
+    items: list[GroupQualityRead]
+
+
+class GroupAgentUse(BaseSchema):
+    """An agent a department's people ran, and how often."""
+
+    agent_id: UUID
+    name: str
+    run_count: int
+
+
+class GroupDownRatedAnswer(BaseSchema):
+    """An answer one of the department's people rated not helpful.
+
+    The run and agent are absent for an answer older than messages naming their
+    run. What was asked and answered stays behind the run's own gate.
+    """
+
+    rated_at: datetime
+    comment: str | None = None
+    run_id: UUID | None = None
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+
+
+class GroupQualityDetail(BaseSchema):
+    """One department's answer quality: the split, its busiest agents, its worst answers."""
+
+    group_id: UUID
+    from_date: date
+    to_date: date
+    likes: int
+    dislikes: int
+    top_agents: list[GroupAgentUse]
+    down_rated: list[GroupDownRatedAnswer]

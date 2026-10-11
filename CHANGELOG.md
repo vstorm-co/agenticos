@@ -29,6 +29,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **An MCP account goes to an agent from where it lives.** Each usable
   organization account on a server offers **Add to an agent**, and connecting one
   with a key or finishing its OAuth sign-in offers the same in the toast (#2075).
+- **How well each department's people are answered.** The group page shows,
+  beside the budget, the helpful share of its people's ratings over 30 days, the
+  agents they ran most and their latest not-helpful answers with comment and
+  run, for `runs:view` and the department's lead. A new dashboard card,
+  **Answer quality by department**, ranks departments least helpful first.
+  `GET /orgs/{org_id}/groups/quality` and `.../groups/{group_id}/quality` (#2101).
 - **You hear when an MCP server stops answering.** The deployment checks each
   organization server every fifteen minutes, and runs check the servers their
   agent uses. The first check that finds one down tells the administrators and

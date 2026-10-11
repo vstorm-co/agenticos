@@ -37,6 +37,10 @@ export const qk = {
     groupShareable: (orgId: string, groupId: string) =>
       ["organizations", orgId, "groups", groupId, "shareable"] as const,
     groupSpend: (orgId: string) => ["organizations", orgId, "groups", "spend"] as const,
+    groupsQuality: (orgId: string, window: { from?: string; to?: string }) =>
+      ["organizations", orgId, "groups", "quality", window] as const,
+    groupQuality: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "quality"] as const,
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {

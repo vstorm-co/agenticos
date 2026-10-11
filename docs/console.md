@@ -27,7 +27,7 @@ They arrive grouped into bands:
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
 | **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, [spend by department](departments.md#a-departments-budget), MCP health, stale knowledge, your most recent [notifications](#the-bell) |
 | **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
-| **People** | Members, active users, ratings, who is doing what |
+| **People** | Members, active users, ratings, [answer quality by department](departments.md#how-well-its-people-are-answered), who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
 | **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
 

@@ -12,6 +12,8 @@ import type {
   GroupList,
   GroupMember,
   GroupMemberList,
+  GroupQualityDetail,
+  GroupQualityList,
   GroupResourceList,
   GroupShareRequest,
   GroupSpendList,
@@ -94,6 +96,31 @@ export async function shareWithGroup(
 /** Every department's month to date against its cap. Needs `runs:view`. */
 export async function getGroupSpend(orgId: string): Promise<GroupSpendList> {
   return apiClient.get<GroupSpendList>(`${groups(orgId)}/spend`);
+}
+
+/** A window of whole UTC days, inclusive - the dashboard's period. Omitted, the last 30. */
+export interface QualityWindow {
+  from?: string;
+  to?: string;
+}
+
+/** How each department's people rated answers, least helpful first. Needs `runs:view`. */
+export async function getGroupsQuality(
+  orgId: string,
+  window: QualityWindow = {},
+): Promise<GroupQualityList> {
+  return apiClient.get<GroupQualityList>(`${groups(orgId)}/quality`, { params: { ...window } });
+}
+
+/** One department's answer quality - `runs:view`, or the department's lead. */
+export async function getGroupQuality(
+  orgId: string,
+  groupId: string,
+  window: QualityWindow = {},
+): Promise<GroupQualityDetail> {
+  return apiClient.get<GroupQualityDetail>(`${group(orgId, groupId)}/quality`, {
+    params: { ...window },
+  });
 }
 
 /** One department's month as CSV - `runs:view`, or the department's lead. */

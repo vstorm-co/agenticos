@@ -101,6 +101,20 @@ per member and agent. The dashboard's **Spend by department** card lists every
 department's month. Both need `runs:view`; a department's lead can also download
 its CSV from `GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
 
+## How well its people are answered
+
+Beside the budget, the group's page shows how the department's people rated
+answers over the last 30 days: the helpful share, the agents they ran most and
+the latest answers they rated not helpful, each with its comment and a link to
+its run. A rating counts for the department of whoever gave it, and for every
+department that person is in. The dashboard's **Answer quality by department**
+card ranks the departments, least helpful first, over the dashboard's period.
+
+The page's card is for anyone with `runs:view` and for the department's lead;
+an ordinary member, or a member of another department, sees none of it. The
+dashboard card needs `runs:view`. API: `GET /orgs/{org_id}/groups/quality` and
+`GET /orgs/{org_id}/groups/{group_id}/quality`, both taking `from` and `to`.
+
 ## Where an agent's knowledge comes from
 
 An agent can be bound to a knowledge base, skill, context file or MCP server that

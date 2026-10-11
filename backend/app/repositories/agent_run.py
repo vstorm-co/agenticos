@@ -721,6 +721,39 @@ async def group_spend_rows(
     return [(email, name, int(runs), Decimal(cost)) for email, name, runs, cost in result.all()]
 
 
+async def group_top_agents(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    group_id: UUID,
+    start: datetime,
+    end: datetime,
+    limit: int,
+) -> list[tuple[UUID, str, int]]:
+    """The agents a department's people ran most in a window (#2101).
+
+    Returns (agent_id, name, run_count) rows, busiest first. Top-level runs only,
+    like the department's spend: a delegation is the agent's own business.
+    """
+    members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    runs = func.count(AgentRun.id)
+    result = await db.execute(
+        select(Agent.id, Agent.name, runs)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= start,
+            AgentRun.started_at < end,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.user_id.in_(members),
+        )
+        .group_by(Agent.id, Agent.name)
+        .order_by(runs.desc(), Agent.name)
+        .limit(limit)
+    )
+    return [(agent_id, name, int(count)) for agent_id, name, count in result.all()]
+
+
 async def cost_breakdown(
     db: AsyncSession,
     *,

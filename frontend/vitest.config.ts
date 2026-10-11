@@ -68,6 +68,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/artifacts.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",
+        "src/components/dashboard/widgets/department-quality.tsx",
+        "src/components/groups/department-quality.tsx",
         "src/components/groups/department-budget.tsx",
         // The dashboard's start checklist (#2072).
         "src/components/dashboard/start-checklist.tsx",

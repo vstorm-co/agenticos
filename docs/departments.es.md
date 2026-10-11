@@ -1,5 +1,5 @@
 ---
-source_sha: "28cffc94fecf"
+source_sha: "9491e80913e7"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -111,6 +111,22 @@ por miembro y agent. La tarjeta **Spend by department** del dashboard muestra el
 mes de cada departamento. Ambas requieren `runs:view`; el responsable de un
 departamento también puede descargar su CSV desde
 `GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
+
+## Qué tan bien se responde a su gente { #how-well-its-people-are-answered }
+
+Junto al presupuesto, la página del grupo muestra cómo valoró la gente del
+departamento las respuestas en los últimos 30 días: la proporción de útiles,
+los agents que más usaron y las últimas respuestas que valoraron como no
+útiles, cada una con su comentario y un enlace a su run. Una valoración cuenta
+para el departamento de quien la dio, y para cada departamento en el que esté
+esa persona. La tarjeta **Answer quality by department** del dashboard ordena
+los departamentos, los menos útiles primero, en el periodo del dashboard.
+
+La tarjeta de la página es para cualquiera con `runs:view` y para quien lidera
+el departamento; un miembro corriente, o uno de otro departamento, no ve nada
+de ella. La tarjeta del dashboard necesita `runs:view`. API:
+`GET /orgs/{org_id}/groups/quality` y
+`GET /orgs/{org_id}/groups/{group_id}/quality`, ambos con `from` y `to`.
 
 ## De dónde viene el conocimiento de un agent { #where-an-agents-knowledge-comes-from }
 

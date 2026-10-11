@@ -7,10 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useAddDepartments,
   useGroupMembers,
+  useGroupQuality,
   useGroupResources,
   useGroupSharing,
   useGroupSpend,
   useGroups,
+  useGroupsQuality,
 } from "./use-groups";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -256,6 +258,36 @@ describe("useGroupSpend", () => {
 
     expect(apiClient.get).toHaveBeenCalledTimes(1);
     expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/spend");
+  });
+});
+
+describe("department answer quality (#2101)", () => {
+  it("reads every department's for a window, and nothing when it may not", async () => {
+    const overview = { from_date: "2026-10-01", to_date: "2026-10-11", items: [] };
+    vi.mocked(apiClient.get).mockResolvedValue(overview);
+    const window = { from: "2026-10-01", to: "2026-10-11" };
+
+    const allowed = renderHook(() => useGroupsQuality("o-1", window), { wrapper });
+    await waitFor(() => expect(allowed.result.current.quality).toEqual(overview));
+    renderHook(() => useGroupsQuality("o-1", window, false), { wrapper });
+    renderHook(() => useGroupsQuality(null, window), { wrapper });
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/quality", { params: window });
+  });
+
+  it("reads one department's last 30 days, and nothing without a department", async () => {
+    const detail = { group_id: "g-1", likes: 1, dislikes: 0, top_agents: [], down_rated: [] };
+    vi.mocked(apiClient.get).mockResolvedValue(detail);
+
+    const allowed = renderHook(() => useGroupQuality("o-1", "g-1"), { wrapper });
+    await waitFor(() => expect(allowed.result.current.quality).toEqual(detail));
+    renderHook(() => useGroupQuality("o-1", "g-1", false), { wrapper });
+    renderHook(() => useGroupQuality("o-1", null), { wrapper });
+    renderHook(() => useGroupQuality(undefined, "g-1"), { wrapper });
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/o-1/groups/g-1/quality", { params: {} });
   });
 });
 

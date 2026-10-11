@@ -320,6 +320,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "members", span: "s6", rows: "r3" },
       { widget: "org-ratings", span: "s6", rows: "r3" },
+      { widget: "department-quality", span: "s6", rows: "r3" },
     ],
   },
   /**

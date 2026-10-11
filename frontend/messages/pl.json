@@ -1991,6 +1991,15 @@
           "title": "Brak działów",
           "description": "Utwórz działy na stronie Działy, aby zobaczyć wydatki zespołów."
         }
+      },
+      "department-quality": {
+        "title": "Jakość odpowiedzi według działów",
+        "description": "Jak osoby z każdego działu oceniały odpowiedzi w tym okresie, od najmniej pomocnych. Osoba w dwóch działach liczy się w obu.",
+        "row": "{percent}% pomocnych · {total, plural, one {1 ocena} few {# oceny} many {# ocen} other {# oceny}}",
+        "empty": {
+          "title": "Brak ocen z działów",
+          "description": "Gdy osoby z działu ocenią odpowiedzi, zobaczysz tu, jak pomocne były, dział po dziale."
+        }
       }
     },
     "edit": {
@@ -5632,7 +5641,23 @@
     "runCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "exportCsv": "Eksportuj CSV",
     "noCapSpent": "wydane w tym miesiącu - bez miesięcznego limitu",
-    "ofCap": "z miesięcznego limitu {cap} - zostało {left}"
+    "ofCap": "z miesięcznego limitu {cap} - zostało {left}",
+    "quality": {
+      "title": "Jakość odpowiedzi",
+      "ratingCount": "{count, plural, =0 {Brak ocen} one {1 ocena} few {# oceny} many {# ocen} other {# oceny}} · 30 dni",
+      "emptyTitle": "Nikt tu jeszcze nie ocenił odpowiedzi",
+      "emptyWhy": "Gdy osoby z działu {name} ocenią odpowiedź agenta kciukiem, zobaczysz tu, jak pomocne były odpowiedzi, razem z tymi, które się nie spodobały.",
+      "noRatings": "Brak ocen w ostatnich 30 dniach",
+      "helpful": "pomocnych - {likes} z {total} ocen",
+      "mostUsed": "Agenci, z których dział korzysta najczęściej",
+      "runs": "{count, plural, one {1 run} few {# runy} many {# runów} other {# runu}}",
+      "notHelpful": "Ostatnie odpowiedzi ocenione jako niepomocne",
+      "noComment": "Bez komentarza",
+      "quoted": "„{comment}”",
+      "ratedOn": "{agent} · {date}",
+      "unknownAgent": "Agent",
+      "openRun": "Run"
+    }
   },
   "directory": {
     "navLabel": "Katalog",

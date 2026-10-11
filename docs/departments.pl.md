@@ -1,5 +1,5 @@
 ---
-source_sha: "28cffc94fecf"
+source_sha: "9491e80913e7"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -104,6 +104,21 @@ Strona grupy pokazuje miesiąc na tle limitu i eksportuje go do CSV, wiersz na
 członka i agenta. Karta **Wydatki działów** na dashboardzie pokazuje miesiąc
 każdego działu. Obie wymagają `runs:view`; lider działu może też pobrać jego CSV
 z `GET /orgs/{org_id}/groups/{group_id}/spend.csv`.
+
+## Jak dział jest obsługiwany { #how-well-its-people-are-answered }
+
+Obok budżetu strona grupy pokazuje, jak osoby z działu oceniały odpowiedzi w
+ostatnich 30 dniach: odsetek pomocnych, agentów, z których korzystały
+najczęściej, i ostatnie odpowiedzi ocenione jako niepomocne, każdą z
+komentarzem i linkiem do jej runa. Ocena liczy się dla działu osoby, która ją
+wystawiła, i dla każdego działu, w którym ta osoba jest. Karta **Jakość
+odpowiedzi według działów** na dashboardzie układa działy od najmniej
+pomocnych, w okresie wybranym na dashboardzie.
+
+Karta na stronie jest dla każdego z `runs:view` i dla lidera działu; zwykły
+członek ani członek innego działu nie widzi z niej nic. Karta na dashboardzie
+wymaga `runs:view`. API: `GET /orgs/{org_id}/groups/quality` oraz
+`GET /orgs/{org_id}/groups/{group_id}/quality`, oba przyjmują `from` i `to`.
 
 ## Skąd pochodzi wiedza agenta { #where-an-agents-knowledge-comes-from }
 

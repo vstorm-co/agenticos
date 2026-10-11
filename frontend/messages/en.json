@@ -1991,6 +1991,15 @@
           "title": "No departments yet",
           "description": "Create departments on the Departments page to see spend by team."
         }
+      },
+      "department-quality": {
+        "title": "Answer quality by department",
+        "description": "How each department's people rated answers this period, least helpful first. A person in two departments counts in both.",
+        "row": "{percent}% helpful · {total, plural, =1 {1 rating} other {# ratings}}",
+        "empty": {
+          "title": "No department ratings yet",
+          "description": "When people in a department rate answers, how helpful they were shows here, department by department."
+        }
       }
     },
     "edit": {
@@ -5858,7 +5867,23 @@
     "runCount": "{count, plural, =1 {1 run} other {# runs}}",
     "exportCsv": "Export CSV",
     "noCapSpent": "spent this month - no monthly cap",
-    "ofCap": "of the {cap} monthly cap - {left} left"
+    "ofCap": "of the {cap} monthly cap - {left} left",
+    "quality": {
+      "title": "Answer quality",
+      "ratingCount": "{count, plural, =0 {No ratings} =1 {1 rating} other {# ratings}} · 30 days",
+      "emptyTitle": "Nobody here has rated an answer yet",
+      "emptyWhy": "When people in {name} rate an agent's answer with a thumb, how helpful the answers were shows up here, with the ones they disliked.",
+      "noRatings": "No ratings in the last 30 days",
+      "helpful": "helpful - {likes} of {total} ratings",
+      "mostUsed": "Agents its people use most",
+      "runs": "{count, plural, =1 {1 run} other {# runs}}",
+      "notHelpful": "Latest answers rated not helpful",
+      "noComment": "No comment left",
+      "quoted": "“{comment}”",
+      "ratedOn": "{agent} · {date}",
+      "unknownAgent": "An agent",
+      "openRun": "Run"
+    }
   },
   "directory": {
     "navLabel": "Directory",

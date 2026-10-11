@@ -5,12 +5,14 @@ path, and `GroupService` decides from the caller's membership there - any member
 may read, `members:manage` may change.
 """
 
+from datetime import date
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import (
+    GroupQualitySvc,
     GroupSharingSvc,
     GroupSpendSvc,
     GroupSvc,
@@ -28,6 +30,8 @@ from app.schemas.group import (
     GroupMemberAdd,
     GroupMemberList,
     GroupMemberRead,
+    GroupQualityDetail,
+    GroupQualityList,
     GroupRead,
     GroupResourceList,
     GroupShareRequest,
@@ -72,6 +76,43 @@ async def group_spend(org_id: UUID, service: GroupSpendSvc, ctx: PathOrgAuth) ->
     A person in two departments counts in both, so the rows do not sum to the bill.
     """
     return await service.month(ctx)
+
+
+@router.get(
+    "/{org_id}/groups/quality",
+    response_model=GroupQualityList,
+    dependencies=[Depends(require_in_path_org(Perm.RUNS_VIEW))],
+)
+async def group_quality(
+    org_id: UUID,
+    service: GroupQualitySvc,
+    ctx: PathOrgAuth,
+    from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
+    to: date | None = Query(None, description="Last day, inclusive (UTC)"),
+) -> Any:
+    """How each department's people rated answers, least helpful first. Requires `runs:view`.
+
+    Defaults to the last 30 days. A rating counts for every department of whoever
+    gave it, so the rows are not a partition.
+    """
+    return await service.overview(ctx, from_date=from_, to_date=to)
+
+
+@router.get("/{org_id}/groups/{group_id}/quality", response_model=GroupQualityDetail)
+async def group_quality_detail(
+    org_id: UUID,
+    group_id: UUID,
+    service: GroupQualitySvc,
+    ctx: PathOrgAuth,
+    from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
+    to: date | None = Query(None, description="Last day, inclusive (UTC)"),
+) -> Any:
+    """One department's rating split, its busiest agents and its worst-rated answers.
+
+    `runs:view`, or the department's own lead - decided in the service, since a
+    role gate cannot see who leads what.
+    """
+    return await service.detail(ctx, group_id, from_date=from_, to_date=to)
 
 
 @router.get("/{org_id}/groups/{group_id}/spend.csv", response_model=None)

@@ -1,5 +1,5 @@
 ---
-source_sha: "cb8a35a07876"
+source_sha: "699b2eccc53b"
 ---
 
 # Konsola { #the-console }
@@ -32,7 +32,7 @@ Karty przychodzą pogrupowane w pasy:
 | **Deployment** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
 | **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, [wydatki działów](departments.md#a-departments-budget), kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
-| **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
+| **People** | Członkowie, aktywni użytkownicy, oceny, [jakość odpowiedzi według działów](departments.md#how-well-its-people-are-answered), kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
 | **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
 

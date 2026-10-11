@@ -23,7 +23,14 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.schemas.group import GroupSpendList, GroupSpendRead
+from app.schemas.group import (
+    GroupDownRatedAnswer,
+    GroupQualityDetail,
+    GroupQualityList,
+    GroupQualityRead,
+    GroupSpendList,
+    GroupSpendRead,
+)
 from app.services.exporting import ExportResult
 
 pytestmark = pytest.mark.anyio
@@ -265,6 +272,43 @@ class TestGroupRoutes:
         assert export.headers["content-type"].startswith("text/csv")
         assert "Finance-spend.csv" in export.headers["content-disposition"]
         assert service.export.await_args.args[1] == group_id
+
+    async def test_each_department_s_ratings_and_one_department_s_detail(
+        self, client: AsyncClient, signed_in: None
+    ) -> None:
+        """The window is the dashboard's, spelled `from`/`to` like `/stats` (#2101)."""
+        service = MagicMock()
+        app.dependency_overrides[deps.get_group_quality_service] = lambda: service
+        group_id, run_id = uuid4(), uuid4()
+        service.overview = AsyncMock(
+            return_value=GroupQualityList(
+                from_date=NOW.date(),
+                to_date=NOW.date(),
+                items=[GroupQualityRead(group_id=group_id, name="Finance", likes=3, dislikes=1)],
+            )
+        )
+        service.detail = AsyncMock(
+            return_value=GroupQualityDetail(
+                group_id=group_id,
+                from_date=NOW.date(),
+                to_date=NOW.date(),
+                likes=3,
+                dislikes=1,
+                top_agents=[],
+                down_rated=[GroupDownRatedAnswer(rated_at=NOW, comment="Wrong", run_id=run_id)],
+            )
+        )
+
+        overview = await client.get(
+            f"{V1}/orgs/{ORG}/groups/quality", params={"from": "2026-10-01", "to": "2026-10-11"}
+        )
+        detail = await client.get(f"{V1}/orgs/{ORG}/groups/{group_id}/quality")
+
+        assert overview.json()["items"][0]["dislikes"] == 1
+        assert str(service.overview.await_args.kwargs["from_date"]) == "2026-10-01"
+        assert detail.json()["down_rated"][0]["run_id"] == str(run_id)
+        assert service.detail.await_args.args[1] == group_id
+        assert service.detail.await_args.kwargs == {"from_date": None, "to_date": None}
 
     @pytest.mark.security
     async def test_a_refusal_from_the_service_is_a_403(

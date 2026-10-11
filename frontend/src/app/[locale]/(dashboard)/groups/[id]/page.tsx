@@ -18,15 +18,16 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
 import { DepartmentBudget } from "@/components/groups/department-budget";
+import { DepartmentQuality } from "@/components/groups/department-quality";
 import { GroupIcon } from "@/components/groups/group-icon";
 import { GroupFormDialog } from "@/components/orgs/group-form-dialog";
 import { GroupMembersDialog } from "@/components/orgs/group-members-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button, ListCard, ListCardEmpty } from "@/components/ui";
-import { useGroupResources, useGroups, usePermissions } from "@/hooks";
+import { useGroupMembers, useGroupResources, useGroups, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { useOrgStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import type { GroupResource } from "@/types/groups";
 import { Perm } from "@/types/permissions";
 
@@ -65,6 +66,11 @@ export default function GroupPage({ params }: PageProps) {
   const canManage = can(Perm.membersManage);
   const { groups, isLoading: groupsLoading } = useGroups(orgId);
   const { resources, isLoading, error } = useGroupResources(orgId, id);
+  const userId = useAuthStore((state) => state.user?.id);
+  const { members: people } = useGroupMembers(orgId, id);
+  // A lead reads their department's answer quality without `runs:view` (#2101).
+  const leads = people.some((person) => person.user_id === userId && person.is_lead);
+  const seesRuns = can(Perm.runsView);
   const [editing, setEditing] = useState(false);
   const [members, setMembers] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -106,7 +112,12 @@ export default function GroupPage({ params }: PageProps) {
         }
       />
 
-      {can(Perm.runsView) && <DepartmentBudget orgId={orgId} group={group} />}
+      {(seesRuns || leads) && (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {seesRuns && <DepartmentBudget orgId={orgId} group={group} />}
+          <DepartmentQuality orgId={orgId} group={group} />
+        </div>
+      )}
 
       <ListCard
         title={t("whatItHas")}

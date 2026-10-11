@@ -55,6 +55,7 @@ import * as orgGroupMembers from "./orgs/[id]/groups/[groupId]/members/route";
 import * as orgGroupMember from "./orgs/[id]/groups/[groupId]/members/[userId]/route";
 import * as orgGroupResources from "./orgs/[id]/groups/[groupId]/resources/route";
 import * as orgGroupShareable from "./orgs/[id]/groups/[groupId]/shareable/route";
+import * as orgGroupQuality from "./orgs/[id]/groups/[groupId]/quality/route";
 import * as orgGroupShares from "./orgs/[id]/groups/[groupId]/shares/route";
 import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route";
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
@@ -133,6 +134,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/groups/[groupId]/members/[userId]", orgGroupMember],
   ["orgs/[id]/groups/[groupId]/resources", orgGroupResources],
   ["orgs/[id]/groups/[groupId]/shareable", orgGroupShareable],
+  ["orgs/[id]/groups/[groupId]/quality", orgGroupQuality],
   ["orgs/[id]/groups/[groupId]/shares", orgGroupShares],
   ["orgs/[id]/groups/[groupId]/spend.csv", orgGroupSpendCsv],
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],

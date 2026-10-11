@@ -107,6 +107,48 @@ export interface GroupSpendList {
   items: GroupSpend[];
 }
 
+/** How one department's people rated answers in a window (#2101). */
+export interface GroupQuality {
+  group_id: string;
+  name: string;
+  icon: GroupIcon | null;
+  likes: number;
+  dislikes: number;
+}
+
+/** Every department whose people rated something, least helpful share first. */
+export interface GroupQualityList {
+  from_date: string;
+  to_date: string;
+  items: GroupQuality[];
+}
+
+export interface GroupAgentUse {
+  agent_id: string;
+  name: string;
+  run_count: number;
+}
+
+/** An answer one of the department's people rated not helpful. */
+export interface GroupDownRatedAnswer {
+  rated_at: string;
+  comment: string | null;
+  run_id: string | null;
+  agent_id: string | null;
+  agent_name: string | null;
+}
+
+/** One department's split, its busiest agents and its worst-rated answers. */
+export interface GroupQualityDetail {
+  group_id: string;
+  from_date: string;
+  to_date: string;
+  likes: number;
+  dislikes: number;
+  top_agents: GroupAgentUse[];
+  down_rated: GroupDownRatedAnswer[];
+}
+
 export interface GroupResourceList {
   items: GroupResource[];
   total: number;

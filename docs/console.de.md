@@ -1,5 +1,5 @@
 ---
-source_sha: "cb8a35a07876"
+source_sha: "699b2eccc53b"
 ---
 
 # Die Konsole { #the-console }
@@ -32,7 +32,7 @@ Sie kommen in Gruppen an:
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 | **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, [Ausgaben nach Abteilung](departments.md#a-departments-budget), MCP-Health, veraltetes Wissen, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, Modellmix, Versionsvergleich |
-| **People** | Mitglieder, aktive Nutzer, Bewertungen, wer was tut |
+| **People** | Mitglieder, aktive Nutzer, Bewertungen, [Antwortqualität nach Abteilung](departments.md#how-well-its-people-are-answered), wer was tut |
 | **Sandboxes** | [Kapazität, laufende Sessions, Policy](sandbox.md) |
 | **Workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde |
 

@@ -16,6 +16,9 @@ import {
   removeGroupMember,
   updateGroup,
   getGroupSpend,
+  getGroupQuality,
+  getGroupsQuality,
+  type QualityWindow,
   listShareableWithGroup,
   setGroupLead,
   shareWithGroup,
@@ -188,6 +191,41 @@ export function useGroupSpend(orgId: string | null | undefined, enabled = true) 
     enabled: !!orgId && enabled,
   });
   return { spend: data, isLoading, error, refetch };
+}
+
+/**
+ * How each department's people rated answers in a window (#2101). Off for a
+ * caller without `runs:view`, whom the server would refuse.
+ */
+export function useGroupsQuality(
+  orgId: string | null | undefined,
+  window: QualityWindow,
+  enabled = true,
+) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.organizations.groupsQuality(orgId ?? "", window),
+    queryFn: () => getGroupsQuality(orgId ?? "", window),
+    enabled: !!orgId && enabled,
+  });
+  return { quality: data, isLoading, error, refetch };
+}
+
+/**
+ * One department's answer quality over the last 30 days (#2101): the split, its
+ * busiest agents and its worst-rated answers. Off unless the caller may read it -
+ * `runs:view`, or leading this department.
+ */
+export function useGroupQuality(
+  orgId: string | null | undefined,
+  groupId: string | null | undefined,
+  enabled = true,
+) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.organizations.groupQuality(orgId ?? "", groupId ?? ""),
+    queryFn: () => getGroupQuality(orgId ?? "", groupId ?? ""),
+    enabled: !!orgId && !!groupId && enabled,
+  });
+  return { quality: data, isLoading, error };
 }
 
 /**

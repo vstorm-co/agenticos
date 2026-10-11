@@ -1991,6 +1991,15 @@
           "title": "Noch keine Abteilungen",
           "description": "Legen Sie auf der Seite Abteilungen Abteilungen an, um Ausgaben nach Team zu sehen."
         }
+      },
+      "department-quality": {
+        "title": "Antwortqualität nach Abteilung",
+        "description": "Wie die Personen jeder Abteilung Antworten in diesem Zeitraum bewertet haben, die am wenigsten hilfreichen zuerst. Wer in zwei Abteilungen ist, zählt in beiden.",
+        "row": "{percent} % hilfreich · {total, plural, =1 {1 Bewertung} other {# Bewertungen}}",
+        "empty": {
+          "title": "Noch keine Bewertungen aus Abteilungen",
+          "description": "Sobald Personen einer Abteilung Antworten bewerten, steht hier, wie hilfreich sie waren, Abteilung für Abteilung."
+        }
       }
     },
     "edit": {
@@ -5741,7 +5750,23 @@
     "runCount": "{count, plural, =1 {1 Run} other {# Runs}}",
     "exportCsv": "CSV exportieren",
     "noCapSpent": "diesen Monat ausgegeben - kein monatliches Limit",
-    "ofCap": "vom monatlichen Limit von {cap} - {left} übrig"
+    "ofCap": "vom monatlichen Limit von {cap} - {left} übrig",
+    "quality": {
+      "title": "Antwortqualität",
+      "ratingCount": "{count, plural, =0 {Keine Bewertungen} =1 {1 Bewertung} other {# Bewertungen}} · 30 Tage",
+      "emptyTitle": "Hier hat noch niemand eine Antwort bewertet",
+      "emptyWhy": "Sobald Personen in {name} eine Antwort eines Agents mit dem Daumen bewerten, steht hier, wie hilfreich die Antworten waren, samt denen, die nicht gefielen.",
+      "noRatings": "Keine Bewertungen in den letzten 30 Tagen",
+      "helpful": "hilfreich - {likes} von {total} Bewertungen",
+      "mostUsed": "Die meistgenutzten Agents der Abteilung",
+      "runs": "{count, plural, =1 {1 Run} other {# Runs}}",
+      "notHelpful": "Zuletzt als nicht hilfreich bewertete Antworten",
+      "noComment": "Kein Kommentar",
+      "quoted": "„{comment}“",
+      "ratedOn": "{agent} · {date}",
+      "unknownAgent": "Ein Agent",
+      "openRun": "Run"
+    }
   },
   "directory": {
     "navLabel": "Verzeichnis",

@@ -44,6 +44,7 @@ export type WidgetId =
   | "knowledge-freshness"
   | "members"
   | "org-ratings"
+  | "department-quality"
   | "my-agents"
   | "conversations"
   | "my-activity"
@@ -481,6 +482,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true },
+  },
+  "department-quality": {
+    id: "department-quality",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "usage",
+    seeAll: ROUTES.GROUPS,
     options: { period: true },
   },
   "my-agents": {

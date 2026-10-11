@@ -9,7 +9,7 @@ import GroupPage from "./[id]/page";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import { useOrgStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 
 vi.mock("@/lib/api-client", async () => {
@@ -50,6 +50,18 @@ const FINANCE = {
 };
 
 let shared: unknown[];
+/** Who is in Finance - a test making the reader its lead puts them here. */
+let financeMembers: unknown[];
+
+const QUALITY = {
+  group_id: "g-fin",
+  from_date: "2026-09-12",
+  to_date: "2026-10-11",
+  likes: 3,
+  dislikes: 1,
+  top_agents: [],
+  down_rated: [],
+};
 
 /** The test catalog's roles, plus `runs:view` where a test reads spend. */
 function serve(role: string, { seesSpend = false } = {}) {
@@ -67,6 +79,9 @@ function serve(role: string, { seesSpend = false } = {}) {
       });
     if (url === "/orgs/org-1/groups/g-fin/resources")
       return Promise.resolve({ items: shared, total: shared.length });
+    if (url === "/orgs/org-1/groups/g-fin/quality") return Promise.resolve(QUALITY);
+    if (url === "/orgs/org-1/groups/g-fin/members")
+      return Promise.resolve({ items: financeMembers, total: financeMembers.length });
     return Promise.resolve({ items: [], total: 0 });
   });
 }
@@ -88,6 +103,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
   shared = [];
+  financeMembers = [];
 });
 
 describe("the groups page", () => {
@@ -182,6 +198,31 @@ describe("the groups page", () => {
 });
 
 describe("one group's page", () => {
+  it("shows its lead the department's answer quality, without runs:view (#2101)", async () => {
+    serve("member");
+    useAuthStore.setState({ user: { id: "u-lead" } as never });
+    financeMembers = [{ user_id: "u-lead", email: "lead@acme.test", is_lead: true }];
+    await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
+
+    expect(await screen.findByText("Answer quality")).toBeInTheDocument();
+    expect(await screen.findByText("helpful - 3 of 4 ratings")).toBeInTheDocument();
+    // The month's spend stays with whoever sees runs.
+    expect(screen.queryByText("This month")).toBeNull();
+  });
+
+  it("shows a member who neither leads it nor sees runs none of it", async () => {
+    serve("member");
+    useAuthStore.setState({ user: { id: "u-anna" } as never });
+    financeMembers = [{ user_id: "u-anna", email: "anna@acme.test", is_lead: false }];
+    await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
+
+    expect(await screen.findByText("Nothing is shared with Finance yet")).toBeInTheDocument();
+    expect(screen.queryByText("Answer quality")).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/orgs/org-1/groups/g-fin/quality", {
+      params: {},
+    });
+  });
+
   it("shows what was shared with the department, by kind", async () => {
     serve("viewer");
     shared = [

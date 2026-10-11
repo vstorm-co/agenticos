@@ -10,8 +10,10 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 
 
@@ -368,3 +370,88 @@ async def rating_counts_by_version(
         .group_by(Message.agent_version_id)
     )
     return {row[0]: (int(row[1] or 0), int(row[2] or 0)) for row in result.all()}
+
+
+async def ratings_by_group(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    group_id: UUID | None = None,
+) -> list[tuple[UUID, int, int]]:
+    """How each department's people rated answers in a window (#2101).
+
+    Returns (group_id, likes, dislikes) rows, only for departments whose members
+    rated something. A rating counts for the department of whoever gave it - the
+    question is how well agents answer *its* people - and for every department
+    that person is in, so the rows are not a partition. Bounded to the
+    organization through the rated message's conversation, as every rating read
+    is.
+    """
+    conditions = [
+        Group.organization_id == organization_id,
+        Conversation.organization_id == organization_id,
+        MessageRating.created_at >= start,
+        MessageRating.created_at < end,
+    ]
+    if group_id is not None:
+        conditions.append(GroupMember.group_id == group_id)
+    result = await db.execute(
+        select(
+            GroupMember.group_id,
+            func.sum(case((MessageRating.rating > 0, 1), else_=0)),
+            func.sum(case((MessageRating.rating < 0, 1), else_=0)),
+        )
+        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*conditions)
+        .group_by(GroupMember.group_id)
+    )
+    return [(group, int(likes), int(dislikes)) for group, likes, dislikes in result.all()]
+
+
+async def group_down_rated(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    group_id: UUID,
+    start: datetime,
+    end: datetime,
+    limit: int,
+) -> list[tuple[datetime, str | None, UUID | None, UUID | None, str | None]]:
+    """The latest answers a department's people rated down, newest first (#2101).
+
+    Returns (rated_at, comment, run_id, agent_id, agent_name) rows. The run and
+    agent are absent for an answer from before messages named their run. What
+    was asked and answered is not read - the run holds it, behind its own gate.
+    """
+    result = await db.execute(
+        select(
+            MessageRating.created_at,
+            MessageRating.comment,
+            AgentRun.id,
+            Agent.id,
+            Agent.name,
+        )
+        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
+        .outerjoin(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            GroupMember.group_id == group_id,
+            Conversation.organization_id == organization_id,
+            MessageRating.rating < 0,
+            MessageRating.created_at >= start,
+            MessageRating.created_at < end,
+        )
+        .order_by(MessageRating.created_at.desc())
+        .limit(limit)
+    )
+    return [
+        (rated_at, comment, run_id, agent_id, agent_name)
+        for rated_at, comment, run_id, agent_id, agent_name in result.all()
+    ]

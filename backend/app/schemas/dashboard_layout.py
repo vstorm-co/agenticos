@@ -125,6 +125,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "knowledge-freshness",
         "members",
         "org-ratings",
+        "department-quality",
         "my-agents",
         "conversations",
         "my-activity",

@@ -1,5 +1,5 @@
 ---
-source_sha: "28cffc94fecf"
+source_sha: "9491e80913e7"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -114,6 +114,23 @@ CSV, eine Zeile pro Mitglied und Agent. Die Karte **Ausgaben nach Abteilung** im
 Dashboard listet den Monat jeder Abteilung. Beides erfordert `runs:view`; die
 Leitung einer Abteilung kann deren CSV auch über
 `GET /orgs/{org_id}/groups/{group_id}/spend.csv` herunterladen.
+
+## Wie gut ihre Leute Antworten bekommen { #how-well-its-people-are-answered }
+
+Neben dem Budget zeigt die Seite der Gruppe, wie die Personen der Abteilung
+Antworten in den letzten 30 Tagen bewertet haben: den hilfreichen Anteil, die
+Agents, die sie am meisten genutzt haben, und die zuletzt als nicht hilfreich
+bewerteten Antworten, jede mit ihrem Kommentar und einem Link zu ihrem Run.
+Eine Bewertung zählt für die Abteilung der Person, die sie abgegeben hat, und
+für jede Abteilung, in der diese Person ist. Die Karte **Antwortqualität nach
+Abteilung** im Dashboard ordnet die Abteilungen, die am wenigsten hilfreichen
+zuerst, über den Zeitraum des Dashboards.
+
+Die Karte auf der Seite ist für alle mit `runs:view` und für die Leitung der
+Abteilung; ein gewöhnliches Mitglied oder ein Mitglied einer anderen Abteilung
+sieht nichts davon. Die Dashboard-Karte braucht `runs:view`. API:
+`GET /orgs/{org_id}/groups/quality` und
+`GET /orgs/{org_id}/groups/{group_id}/quality`, beide mit `from` und `to`.
 
 ## Woher das Wissen eines Agents kommt { #where-an-agents-knowledge-comes-from }
 
