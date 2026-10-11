@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import {
+  Checkbox,
   Input,
   Label,
   MarkdownEditor,
@@ -164,9 +165,12 @@ function SchemaField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id}>
+        <Label htmlFor={id} title={property["x-hint"]}>
           {label}
           {required && <span className="text-muted-foreground"> *</span>}
+          {property["x-hint"] !== undefined && (
+            <span className="sr-only">{`. ${property["x-hint"]}`}</span>
+          )}
         </Label>
         {kind === "boolean" && (
           <Switch
@@ -263,6 +267,31 @@ function SchemaField({
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {kind === "choiceList" && (
+        <div id={id} role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-2">
+          {(listChoices(property) ?? []).map((choice) => {
+            const picked = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : [];
+            const on = picked.includes(choice);
+            return (
+              <label key={choice} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={on}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    const next =
+                      checked === true
+                        ? [...picked, choice]
+                        : picked.filter((item) => item !== choice);
+                    onChange(next.length === 0 ? undefined : next);
+                  }}
+                />
+                {enumLabel(property, choice)}
+              </label>
+            );
+          })}
+        </div>
       )}
 
       {kind === "stringList" && (
@@ -404,7 +433,8 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "suggested" | "stringList";
+type FieldKind =
+  "string" | "number" | "boolean" | "enum" | "suggested" | "stringList" | "choiceList";
 
 /**
  * What kind of input a property needs.
@@ -436,6 +466,7 @@ function resolveKind(property: JsonSchemaProperty): FieldKind {
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";
+  if (listChoices(property) !== null) return "choiceList";
   if (isStringList(property)) return "stringList";
 
   const candidates = property.anyOf
@@ -459,6 +490,19 @@ function resolveKind(property: JsonSchemaProperty): FieldKind {
  */
 function enumChoices(property: JsonSchemaProperty): string[] | null {
   const values = property.enum ?? property.anyOf?.find((entry) => entry.enum)?.enum;
+  if (values === undefined) return null;
+  return values.filter((value): value is string => typeof value === "string");
+}
+
+/**
+ * The values a list of choices may hold - a `tuple[Literal[...], ...]` - or null.
+ *
+ * Its labels are on the list itself (`x-enum-labels`), since the list is the
+ * field a person reads; each value is ticked on or off.
+ */
+function listChoices(property: JsonSchemaProperty): string[] | null {
+  const branch = property.anyOf?.find((entry) => entry.type === "array") ?? property;
+  const values = branch.type === "array" ? branch.items?.enum : undefined;
   if (values === undefined) return null;
   return values.filter((value): value is string => typeof value === "string");
 }

@@ -42,6 +42,10 @@ export const Perm = {
   agentsEdit: "agents:edit",
   agentsPublish: "agents:publish",
   agentsRun: "agents:run",
+  workflowsView: "workflows:view",
+  workflowsEdit: "workflows:edit",
+  workflowsCreate: "workflows:create",
+  workflowsRun: "workflows:run",
   collectionsView: "collections:view",
   collectionsEdit: "collections:edit",
   skillsView: "skills:view",
@@ -64,4 +68,7 @@ export const Perm = {
   budgetsManage: "budgets:manage",
   runsView: "runs:view",
   auditRead: "audit:read",
+  tablesView: "tables:view",
+  tablesEdit: "tables:edit",
+  tablesCreate: "tables:create",
 } as const satisfies Record<string, Permission>;

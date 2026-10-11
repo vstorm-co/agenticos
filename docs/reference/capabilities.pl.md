@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "e00bb9806c8f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -33,6 +33,8 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
 | `conversation_search` | Wyszukiwanie w rozmowach | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Wyszukiwanie w sieci | badania | `web_search` | `web:read` | dla usług płatnych |
 | `web_fetch` | Pobieranie stron | badania | `web_fetch` | `web:fetch` | — |
 | `browser_choice` | Automatyzacja przeglądarki (wybór) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
@@ -1481,6 +1483,55 @@ Używa własnego modelu runa — tego, którego poświadczenie rozwiązał vault
 nazwy z konfiguracji, czyli tej samej decyzji, którą wobec swojego streszczacza
 podejmuje [Zarządzanie kontekstem](#context-management).
 
+## Tabele { #tables }
+
+Czyta i zapisuje [Virtual Tables](../virtual-tables.md), do których binding daje
+dostęp. Panel w Builderze wypisuje tabele organizacji. Zaznacz tabelę i wybierz, co
+agent może w niej robić: czytać, dodawać, zmieniać i usuwać rekordy. Upsert wymaga
+dodawania i zmiany naraz, bo tworzy rekord, gdy żaden nie ma jego klucza.
+
+Uprawnienia są częścią opublikowanego specu, którego model nie może zmienić.
+Wywołanie wskazujące inną tabelę albo operację, której uprawnienie nie obejmuje,
+jest odrzucane, zanim cokolwiek zostanie przeczytane. Każde wywołanie przechodzi też
+własną kontrolę dostępu serwisu tabel jako członek, w imieniu którego działa run,
+odbudowany z jego członkostwa przy każdym wywołaniu. Tabela, którą przestano
+udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie.
+
+`create_table` jest dostępne tylko z **Allow create**, a członek nadal potrzebuje
+`tables:create`. Narzędzia rekordów nigdy nie tworzą tabel. Tabela, którą agent
+utworzy, jest dostępna do końca tego runa.
+
+Narzędzia zapisu są oznaczone jako mające skutki uboczne osobno dla każdego
+narzędzia, więc polityka zatwierdzeń obejmuje je, a nie odczyty. Klucz operacji
+zapisu pochodzi z runa i wywołania narzędzia, więc ponowione wywołanie odtwarza
+pierwszą odpowiedź. Wartości podaje się po id albo etykiecie kolumny, a wybór w
+kolumnie wyboru to etykieta opcji - tak samo przy zapisie, filtrowaniu i odczycie. Konflikty,
+walidacja, limity, historia i audyt są takie same jak w konsoli i API, bo każde
+narzędzie wywołuje ten sam serwis.
+
+## Workflowy { #workflows }
+
+Pozwala agentowi uruchamiać opublikowane [workflowy](../workflows.md), które wskazuje
+jego binding, i czytać, jak poszły. Panel w Builderze wypisuje workflowy organizacji,
+po wierszu na każdy, a zaznaczony wiersz to ten, który agent może uruchomić. Workflow
+będący szkicem albo startujący od webhooka, harmonogramu, wiadomości z czatu lub
+tabeli jest widoczny, ale nie da się go zaznaczyć: agent uruchamia tylko to, co
+startuje ręcznie, przez API albo wywołaniem z innego workflow. **Wait for a run**
+ogranicza, jak długo wywołanie czeka: 60 sekund, jeśli nie ustawiono inaczej, od 5 do 300.
+
+`list_workflows` wymienia te, które agent może uruchomić, z polami wejścia, które każdy
+deklaruje. `run_workflow` uruchamia jeden z tymi polami i czeka na jego odpowiedź, a
+`get_workflow_run` czyta run, który wciąż trwał, gdy oczekiwanie się skończyło. Każdy
+start to to samo żądanie co w API, wykonane jako członek, w którego imieniu działa run,
+odtwarzany z członkostwa przy każdym wywołaniu: jego dostęp, zadeklarowane wejście,
+budżety i limity przyjęć obowiązują, a run podaje, że uruchomił go **An agent**.
+
+Workflow spoza bindingu zostaje odrzucony, zanim cokolwiek wystartuje. `run_workflow`
+ma skutki uboczne, więc polityka zatwierdzeń może go bramkować, a odczyty działają
+swobodnie. Agent działający jako krok workflow niczego w ten sposób nie uruchamia: inny
+workflow wywołuje krok **Run a workflow**, zachowując limity pętli i głębokości łańcucha.
+Dlatego okno agenta w samym kroku nie oferuje tej capability.
+
 ## Data i godzina { #date-and-time }
 
 Bez narzędzi. Wstawia bieżącą datę i godzinę do instrukcji agenta, żeby przestał
@@ -1923,8 +1974,11 @@ sprawdzane w chwili składania agenta:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables` i każdy [węzeł workflow dla tabel](workflow-nodes.md#virtual-tables) |
+| `tables:write` | węzły workflow dla tabel, które zapisują |
+| `workflows:run` | `workflows` |
 
-!!! note "Wszystkie osiem jest dziś przyznanych domyślnie"
+!!! note "Wszystkie jedenaście jest dziś przyznanych domyślnie"
 
     `DEFAULT_GRANTED_SCOPES` w `app/services/agent_registry.py`. Zarządzanie
     zakresami per organizacja jest pracą z

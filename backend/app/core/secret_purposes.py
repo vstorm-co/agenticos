@@ -19,7 +19,9 @@ eleven secrets of that shape.
 `custom` is the escape hatch, and it is deliberately last: a purpose nobody
 anticipated is a real thing, and refusing to store it would send people back to
 environment variables. What it costs is that nothing can suggest it anywhere, so
-it is offered as what it is - the answer when none of the others fit.
+it is offered as what it is - the answer when none of the others fit. Its
+`kind` is only the shape the vault form starts on: storing one checks no shape,
+since a service nobody anticipated has none the catalog could name.
 """
 
 from __future__ import annotations

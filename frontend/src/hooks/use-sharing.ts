@@ -31,6 +31,7 @@ const SHARING_ROOT = {
   // only mounted on agents so far.
   collection: "/kb",
   secret: "/secrets",
+  table: "/tables",
   artifact: "/artifacts",
 } as const satisfies Record<SharingResourceType, string>;
 
@@ -47,6 +48,7 @@ const RESOURCE_KEYS = {
   skill: qk.skills.all,
   collection: qk.kb.all,
   secret: qk.secrets.all,
+  table: qk.tables.all,
   artifact: qk.artifacts.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
 

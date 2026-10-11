@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "f0b480efa06c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2121,6 +2121,16 @@ in jeden System-Prompt zu setzen. Das ist ein anderes Feature mit einem anderen
 Fehlermodus — ein `purpose`, geschrieben von jedem, der den Channel bearbeiten
 kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
 öffentlichen Bearbeiten-Schaltfläche.
+
+## Ein Bot, dessen Nachrichten einen Workflow starten { #a-bot-whose-messages-start-a-workflow }
+
+Ein Workflow mit einem Trigger **Channel message** übernimmt die Nachrichten eines
+Bots an Stelle seines Agenten. Ihn erreichen nur die Nachrichten, die der Agent
+beantwortet hätte, und davon nur die, die zum Filter des Triggers passen: Eine
+Nachricht, die einen anderen Agenten per `@handle` nennt, geht weiterhin dorthin,
+und eine, die der Filter auslässt, beantwortet der Agent des Bots wie bisher. Der
+Workflow antwortet mit seinem eigenen Schritt **Send a message** im Thread der
+Nachricht. Siehe [Über eine Kanalnachricht](workflows.md#from-a-channel-message).
 
 ## Auswählen { #choosing }
 

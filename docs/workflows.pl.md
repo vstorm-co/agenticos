@@ -1,0 +1,836 @@
+---
+source_sha: "f3d9346aa399"
+---
+
+# Workflows { #workflows }
+
+**Workflow** łączy kroki w automatyzację, którą wykonują Twoje agenty: odczytać
+[tabelę](virtual-tables.md), wywołać agenta, rozgałęzić się na podstawie wyniku,
+przejść w pętli po liście. Budujesz go na kanwie, łączysz kroki ze sobą i
+publikujesz jako niezmienną wersję — to ten sam kształt, który ma
+[agent](concepts.md): draft, który edytujesz, i opublikowana wersja, która
+działa.
+
+Ta strona opisuje edytor wizualny: listę, kanwę i wybór kroków, sposób konfiguracji
+węzła, autozapis i publikowanie oraz drogi klawiaturowe przez to wszystko. Edytor
+znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
+**"?"**, które odtwarza przewodnik po tej liście; sam edytor nie ma przewodnika.
+
+## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
+
+**New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
+**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
+pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
+**Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
+jeden przyciskiem **Use**, a znajdziesz się w edytorze.
+
+Lista pokazuje każdy workflow, który widzisz, jako kartę: jego status, kto może do
+niego dotrzeć, czy ma żywą wersję i kiedy ostatnio go edytowano. **Filter by
+status** zawęża ją do **Drafts**, które wciąż budujesz, **Published**, które działają,
+albo **Archived**. Z karty otwierasz edytor, runy workflow albo kopię.
+
+**Duplicate** kopiuje bieżący draft workflow do nowego o nazwie *{name} (copy)*.
+Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
+
+!!! info "Pusta lista może być filtrem, a nie pustą organizacją"
+
+    **No workflows yet** i **Nothing matches** to różne stany: pierwszy to
+    organizacja bez żadnego workflow, drugi to filtr statusu, pod który nie
+    wpada żaden wiersz. **Clear filter** przywraca pełną listę. Workflow
+    udostępniony Tobie pojawia się na tej samej liście, gdy masz `workflows:view`.
+
+### Szablony, eksport i import { #templates-exporting-and-importing }
+
+W sekcji **Automations** dialog oferuje też typowe workflow zbudowane na
+prawdziwych krokach: **Lead intake** zapisuje leady z webhooka w tabeli i
+odpowiada wywołującemu, **Slack alert on failure** wysyła wiadomość, gdy inny
+workflow się nie powiedzie, a **Daily summary** zleca agentowi dzienne
+podsumowanie dla zespołu w dni robocze. Każdy otwiera się z tabelą, botem,
+agentem albo osobami do wybrania; edytor je oznacza, a workflow da się opublikować,
+gdy zostaną wybrane.
+
+**Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
+`.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
+agent, tabela, sekret, członek, bot czy workflow wybrany w kroku zostaje pominięty
+i wymieniony, przypięte dane testowe też, podobnie jak workflow błędów. Nigdy nie
+zawiera wartości sekretu. **Import** na liście tworzy z takiego pliku nowy szkic,
+usuwa identyfikatory, które plik zrobiony ręcznie jeszcze zawiera, i wymienia
+każdy krok i pole do ponownego wybrania przed publikacją. Plik z krokiem, którego
+to wdrożenie nie ma, zostaje odrzucony i nic nie powstaje.
+
+### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
+
+Każda karta mówi, co uruchamia workflow i ile ma kroków, czy jest aktywny, czy to
+szkic, oraz jak i kiedy poszedł jego ostatni przebieg - do pierwszego przebiegu datę
+edycji.
+
+Nad kartami wyszukiwanie znajduje workflow po nazwie, opisie lub tagach, filtr tagów
+zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo najnowsze
+najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony link
+pokazują tę samą listę. W edytorze kliknij nazwę, aby zmienić nazwę workflow - jego
+identyfikator, którego używają wywołujący API, zostaje - kliknij opis pod nią albo
+**Add a description**, aby go zmienić, a **+ Tag** przypisuje tag.
+
+Pod nazwą edytor mówi, na czym stoi workflow: **Draft, not published** albo
+**Live · version 3**, z **Unpublished changes** obok, gdy szkic różni się od tej
+wersji w sposób, który przeniosłaby publikacja. Przesunięcie kroku ani przypięcie
+danych testowych się nie liczy.
+
+Opublikowany workflow, którego wyzwalacz działa sam - webhook, harmonogram lub nowy
+rekord tabeli - ma przełącznik **Active** w nagłówku edytora, a jego karta mówi
+**Active** albo **Paused**. Wyłączenie od razu wstrzymuje wyzwalacz; włączenie wznawia
+go jako publikującego, więc wymaga uprawnienia do uruchamiania workflow. Menu **...**
+na karcie archiwizuje workflow, co również wstrzymuje wyzwalacz. Zarchiwizowany można
+przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
+udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
+`WORKFLOW_IN_USE`.
+
+## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
+
+**Kanwa** to miejsce, w którym pojawiają się kroki i połączenia workflow, i ma całą
+szerokość edytora pod nagłówkiem. **Węzeł** to jeden krok; **krawędź** to
+połączenie ustalające kolejność: krok, na który wskazuje, działa po tym, z którego
+wychodzi.
+
+Każdy węzeł to karta z ikoną kroku, jego nazwą i jedną linią pod nią: co krok ma
+robić - warunek, URL, liczba zmapowanych pól - albo grupa, do której należy, na
+przykład **Slack** czy **Tables**. Krok z więcej niż jednym wyjściem wymienia porty z
+nazwy: **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** w
+kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma czerwony
+znacznik. Gładzik albo kółko myszy przesuwa kanwę, a gest szczypania - albo Ctrl lub
+Cmd z kółkiem - ją przybliża; jej przyciski są w rogu.
+
+Kroki wybiera się w **wyborze kroków**. Pokazuje sekcje - **Start**, **AI**,
+**Flow**, **Data**, **Apps and the web** - z grupami pod każdą. Grupa taka jak
+**Slack**, **Tables** czy **Jev decisions** otwiera się na swoje kroki, a grupa z jednym
+krokiem jest tym krokiem. **Search steps** znajduje dowolny krok po nazwie, tym, co
+robi, albo po grupie. Krok dodajesz na cztery sposoby:
+
+- **+** w lewym górnym rogu kanwy - albo **Add step** na środku pustej kanwy -
+  otwiera wybór. Krok trafia za zaznaczony krok albo na koniec widocznego przepływu i
+  łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
+  start i staje się nim.
+- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
+- **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
+  i tam trafia krok. Pod nim **Add a note** oraz, gdy coś skopiowano, **Paste**.
+- **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
+
+Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
+gdy jakieś ma, a kanwa przewija się do niego, gdy wypada poza widok. W ciele pętli
+każdy nowy krok zostaje wpięty w ciało, więc tam zostaje. Wybór pokazuje to, co jest
+poprawne tam, gdzie jesteś: **Loop item** i **Loop result** tylko w ciele pętli, a
+pętlę, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
+
+Prawy przycisk na kroku daje **Open settings**, **Duplicate**, **Switch off** i
+**Delete step**. Gdy
+zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
+
+!!! note "Katalog kroków rośnie z czasem"
+
+    Wybór zasila lista węzłów zarejestrowanych we wdrożeniu, a nie stała lista.
+    Rodzaj węzła zarejestrowany później pojawia się w nim od razu, bez zmiany
+    workflow, który już zbudowałeś.
+
+### Notatki, porządkowanie i skróty { #notes-tidying-and-shortcuts }
+
+**Add a note** pod wyborem kroków otwieranym prawym przyciskiem stawia notatkę obok kroków: markdown,
+pisany po dwukrotnym kliknięciu lub ołówkiem, przesuwany przeciąganiem i zmieniający
+rozmiar od rogów; zaznaczona pokazuje próbki kolorów - szary, żółty, zielony,
+niebieski, fioletowy albo czerwony - żeby ostrzeżenie odróżniało się od zadania.
+Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
+workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
+pokazuje **+**, które wstawia następny wybrany krok w jego środek, połączony z obu stron,
+gdzie porty pasują. **Tidy up** na pasku narzędzi układa widoczne kroki od lewej do prawej
+jako jedną edycję do cofnięcia, przycisk mapy pokazuje minimapę, a przycisk klawiatury -
+albo **?** - wypisuje wszystkie skróty; **Tab** otwiera wybór kroku. Żaden nie działa,
+gdy piszesz w polu.
+
+## Konfigurowanie węzła { #configuring-a-node }
+
+Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
+[referencja węzłów](reference/workflow-nodes.md).
+
+Kliknięcie zaznacza krok, a dwuklik otwiera go w oknie nad kanwą (w opublikowanej wersji, gdzie nic się nie zaznacza, wystarczy jedno kliknięcie): u góry jego nazwa i to, co robi, a pod
+nimi, zwykłymi słowami, każdy problem blokujący publikację - **Not connected yet** dla
+kroku, do którego nic nie prowadzi. **Parameters** to to, na czym krok pracuje i co ma
+zrobić, w jednej liście, z listą, na której krok pracuje, na początku: **Items** w
+Filter przed jego **Condition**. **Settings** to to, jak krok działa. Każda zmiana
+zapisuje się w drafcie od razu, więc **Done** tylko zamyka okno, a **Delete step**
+usuwa krok.
+
+Parametr przyjmujący tekst to jedno pole na wpisany tekst i wartości z wcześniejszych
+kroków naraz, na przykład `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+**Data** obok wstawia wartość w miejscu kursora, podobnie jak pole przeciągnięte z
+**Input**. Placeholder wskazuje krok i ścieżkę w jego wyjściu, jest sprawdzany przy
+publikacji jak każda wartość czytana z kroku i podąża za krokiem po zmianie jego nazwy.
+Z danymi przebiegu testowego wynik jest podglądany pod spodem. Nic nie jest wykonywane:
+gdy krok działa, każdy placeholder staje się tekstem swojej wartości, JSON-em dla listy
+albo obiektu, a taki, za którym nic nie stoi, kończy krok błędem `INVALID_BINDING` i go
+nazywa.
+
+Każdy inny parametr - liczba, wybór, przełącznik, lista wpisana jako JSON - ma własną
+kontrolkę, a **Data** obok bierze wartość z wcześniejszego kroku zamiast niej. **Data**
+pokazuje tylko wartości osiągalne w tym miejscu i o zgodnym typie, pogrupowane według
+kroków, każdą z rodzajem wartości, a gdy takich nie ma, mówi **No compatible upstream
+outputs**. Parametr pokazuje wtedy, co czyta - *Run an agent › text* - a **×** wraca do
+wpisanej wartości.
+
+Wymagany parametr bez wartości to problem walidacji, oznaczany na kroku, a nie
+wypełniany po cichu wartością domyślną. Niektóre parametry mają wartości
+strukturalne: listę wierszy, do której robisz **Add row**, zmieniasz kolejność i
+usuwasz, albo typowany wybór, który podmienia formularz pod spodem. Okno wchodzi w nie
+rekurencyjnie, zamiast odsyłać na osobny ekran.
+
+### Warunki { #conditions }
+
+**Filter a list**, **If** i **Switch** decydują warunkiem zbudowanym z wierszy: pole
+elementu albo wartości, sprawdzenie - **is equal to**, **is at least**, **contains**,
+**is not empty** i pozostałe - oraz to, z czym jest porównywane. Liczba, `true` i
+`false` są porównywane jako takie, cała reszta jako tekst. Przy kilku wierszach
+**Match all of these** albo **any** mówi, jak się łączą, a pola, które pokazał ostatni
+przebieg albo dane testowe, są podpowiadane. Warunek jest zapisywany jako wyrażenie
+JMESPath, które krok wylicza. **Write it as an expression** edytuje go jako to
+wyrażenie, a takie, którego wiersze nie pokażą, zostaje wyrażeniem.
+
+### Nazywanie kroku, notatka i wyłączanie { #naming-noting-and-switching-off-a-step }
+
+Kliknięcie nazwy kroku u góry jego okna nadaje mu własną nazwę, widoczną na karcie i
+wszędzie tam, gdzie późniejszy krok wybiera, co czytać - dwa kroki **Send a message**
+stają się *Tell sales* i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez
+względu na wielkość liter.
+
+W **Settings** **Note** zostawia linijkę dla tego, kto będzie edytował workflow jako
+następny, oznaczoną na karcie, a zakładka ma kropkę, gdy cokolwiek tam zmieniono.
+
+Wyłączenie tam **Run this step** albo **Switch off** w menu pod prawym przyciskiem
+zostawia krok na kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie
+robi i przekazuje dalej to, co do niego dotarło. Publikacja odrzuca wyłączony trigger
+albo krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
+niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma czytane pole,
+które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
+zachowują.
+
+### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
+
+W trakcie edycji okno umieszcza parametry kroku między dwoma panelami. **Input**
+pokazuje, co przekazał każdy krok, z którego ten czyta, pod nazwą i ikoną tamtego kroku,
+a **Output** to, co przekazał sam krok, oba z ostatniego przebiegu testowego
+uruchomionego w edytorze albo z najnowszego przy otwarciu. **Table** układa dane w
+wiersze, listę rekordów po jednym wierszu na rekord. **JSON** pokazuje je takimi, jakie
+są, a **Fields** wymienia każde pole po ścieżce ze zwykłym słowem na to, co zawiera -
+text, number, list, ID: ścieżki, które czyta późniejszy krok.
+
+Przed pierwszym przebiegiem oba panele pokazują w ten sam sposób pola, które krok
+przekazuje, i je także można przeciągać; krok, do którego nic nie prowadzi, mówi **Not
+connected yet**. Tabela pokazuje pierwsze 50 wierszy, dopóki **Show more** nie rozłoży
+reszty, a komórka przycięta do szerokości kolumny pokazuje całą wartość po najechaniu.
+
+Kolumnę albo pole z **Input** można przeciągnąć na parametr, który wtedy czyta je z
+tamtego kroku, tak jakby wybrano je w **Data** - do tekstu jako placeholder. Pole, które
+nie pasuje, zostaje odrzucone z powodem: typ, którego parametr nie przyjmuje, albo krok,
+który nie zawsze działa przed tym. Wewnątrz wartości bez określonego kształtu, takiej jak
+`values` mapowania albo `payload` triggera, typ jest taki, jaki pokazał przebieg.
+**Data** oferuje wartości bez kształtu każdemu parametrowi, z **Field inside it** na
+ścieżkę.
+
+**Keep as test data** zostawia wyjście na kroku, a **Set test data** pozwala wpisać je
+jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy przekazuje dane
+testowe dalej zamiast uruchamiać krok, więc wolne wywołanie modelu albo zapis do żywego
+systemu robi się raz i używa ponownie. Krok decydujący o drodze nigdy nie trzyma danych
+testowych, a publikacja usuwa je wszystkie: opublikowana wersja zawsze uruchamia swoje
+kroki. Ikona pinezki oznacza kartę, a **Remove test data** je usuwa.
+
+**Test step** uruchamia sam krok i jest głównym przyciskiem panelu, dopóki nie ma
+danych. Przebieg zachowuje tylko ten krok i kroki do niego prowadzące, a każdy z nich o
+znanym wyjściu, z danych testowych albo z ostatniego przebiegu testowego, przekazuje je
+zamiast działać. Reszta działa, a nic po tym kroku już nie. Krok, który zapisuje, najpierw
+pyta, bo test naprawdę zapisuje. Kroku w pętli nie da się przetestować osobno, bo działa
+raz na element, więc testuj pętlę. Przez API to samo robi `step` w
+`POST /api/v1/workflow-runs`.
+
+### Wybór zasobów { #resource-pickers }
+
+Ustawienie, które przypina zasób, otwiera pole wyboru zamiast pola tekstowego, więc
+krok nazywa realną rzecz, którą ma Twoja organizacja:
+
+| Pole wyboru | Co przypina |
+|---|---|
+| **Agent** i **Version** | Agenta, po jego awatarze i opisie, a potem jedną z jego opublikowanych wersji, z oznaczoną wersją live oraz datą i notatką każdej. Zmiana agenta czyści przypiętą wersję, bo wersja należy do jednego agenta. Karta kroku pokazuje wtedy awatar agenta i „nazwa · v3” |
+| **Table** i **Columns** | [Virtual Table](virtual-tables.md), a potem kolumny, które krok odczytuje — ograniczone do bieżącego schematu tej tabeli |
+| **Secret** | Sekret w [vault](secrets.md), przez referencję. Krok zapisuje id sekretu, nigdy jego wartość |
+| **MCP server** i **Tool** | Jeden z [serwerów MCP](mcp.md) organizacji, ze znakiem jego usługi, a potem jedno z narzędzi, które wypisał przy ostatnim teście. Wybór wymaga `mcp:manage` |
+
+Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
+referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do
+utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole wyboru
+**Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
+**Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
+zachętą, a nie cichym pęknięciem.
+
+### Ewaluacje kroku z modelem { #evals-for-a-model-step }
+
+Krok, na który odpowiada model - agent, **Ask a model**, **Classify**, **Extract
+data**, **Summarize or translate** albo decyzja - ma zakładkę **Evals**: przypadki,
+które powinien obsłużyć, i co powinna wtedy mówić jego odpowiedź. **Add a case**
+bierze wejście, z którym krok był ostatnio testowany - wejście runu i to, co
+przekazały kroki przed nim - więc najpierw przetestuj krok raz, a potem nazwij
+przypadek i wskaż, gdzie w odpowiedzi patrzeć (`text`, `category`, ścieżka taka jak
+`structured.amount` albo nic dla całego wyjścia), i czy ma **zawierać**, **nie
+zawierać** czy **równać się** wartości, bez względu na wielkość liter i spacje wokół.
+
+**Try** uruchamia run testowy kroku dla każdego przypadku, sprawdzany i rozliczany jak
+każdy inny, a każdy przypadek jest oznaczany jako zaliczony lub nie, gdy jego run się
+skończy, z tym, co powiedziała odpowiedź, albo powodem, dla którego jej nie było.
+Przypadek, którego run nie może wystartować - za dużo pracy w toku, wyczerpany budżet
+miesięczny - jest oznaczany jako niezaliczony z powodem. Uruchamiaj przypadki po zmianie
+promptu, modelu lub instrukcji. Krok mieści do 50 przypadków, a ich uruchomienie wymaga
+`workflows:edit`, jak testowanie szkicu.
+
+### Agent skonfigurowany w kroku { #an-agent-configured-in-the-step }
+
+Krok **Agent** albo przypina agenta z katalogu, albo - po wybraniu **Skonfiguruj
+tutaj** - definiuje własnego: nazwę, model, instrukcje, capabilities razem z
+wiedzą, skillami i plikami kontekstu, z których korzystają, oraz serwery MCP, w
+tych samych edytorach co Builder. Jedyną capability, której nie dostaje, jest
+delegowanie, bo to workflow przekazuje pracę z kroku do kroku.
+
+Taki agent należy do workflow. Jest wersjonowany razem z grafem i nie pojawia się
+w katalogu. Tworzy go pierwszy run, a run po zmianie konfiguracji najpierw
+publikuje jego nową wersję, sprawdzaną tak jak publikacja każdego agenta. Jego
+runy widać w Activity z budżetem, zatwierdzeniami i historią jak u każdego agenta,
+a jego strona odsyła z powrotem do workflow.
+
+**Skopiuj jego konfigurację do tego kroku** zaczyna od agenta z katalogu, żeby go
+dopasować, a **Zapisz jako agenta** umieszcza agenta kroku w katalogu jako szkic
+dla innych workflow i osób. **Max cost (USD)** ogranicza, ile może wydać jedno wykonanie
+kroku, obok limitów agenta, workflow i organizacji.
+
+### Gdy krok jest wolny albo zawodzi { #when-a-step-is-slow-or-fails }
+
+W **Settings** kroku sekcja **When it is slow or fails** ustala jego politykę. **Handle
+errors** daje krokowi port **Error**: błąd, którego ponowienia nie rozwiązały, wychodzi
+nim do kroku **Handle error** albo czegokolwiek innego, co podłączysz, zamiast
+kończyć run błędem. **Tries** to łączna liczba prób kroku, a **Wait between tries** i
+**First wait** ustalają przerwę między próbami. Krok, którego wywołania nie da się
+bezpiecznie powtórzyć, na przykład uruchomienie agenta, mówi o tym i nigdy nie jest
+ponawiany. **Time limit** przerywa wywołanie po tylu sekundach. Co każde ustawienie
+robi w trakcie runa, opisuje [referencja węzłów](reference/workflow-nodes.md#error-handling).
+
+Binding do wartości bez zadeklarowanego kształtu - bieżącego elementu pętli, payloadu
+triggera - oferuje pod źródłem pole **Field inside it**, w którym wpisujesz ścieżkę
+wewnątrz tej wartości, na przykład `record_id` albo `fields.Email`. Run sprawdza tę
+ścieżkę, gdy krok zostaje wysłany do wykonania, bo tylko run wie, co zawiera wartość.
+
+## Połączenia i scope foreach { #connections-and-foreach-scope }
+
+Krawędź rysujesz, łącząc port wyjściowy jednego węzła z portem wejściowym innego
+węzła. Edytor odrzuca połączenie między portami, które niosą różne kształty, zanim je
+narysuje, więc niezgodne połączenie nigdy nie ląduje na kanwie.
+
+Krawędź ustala kolejność, w jakiej wykonują się kroki; nie przenosi żadnych danych.
+Wartości, które krok czyta, to jego **bindingi**, opisane w sekcji
+[Konfigurowanie węzła](#configuring-a-node).
+
+Żebyś nie musiał wiązać każdego pola
+ręcznie, połączenie dwóch portów, które niosą dokładnie ten sam kształt — na przykład
+wyjścia Echo z wejściem Relay — wiąże też każdy input celu z polem o tej samej nazwie
+na źródle. Pole, które już związałeś, zostaje nietknięte.
+
+Gdy kształty się różnią albo port nie niesie danych, jeden wybór i tak zapada za Ciebie:
+krok pracujący na jednej liście, podłączony za krokiem, który przekazuje dokładnie jedną
+- **Filter a list** za **List records** - czyta tę listę. Nic więcej nie jest wiązane i
+każde źródło wybierasz sam przez **Data**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
+krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w ustawieniach kroku.
+
+Aby usunąć połączenie, zaznacz je: kliknij linię, a zostanie narysowana grubiej i pojawi się na niej przycisk **Delete connection**.
+Naciśnij przycisk albo `Backspace`, a połączenie zniknie, podczas gdy oba kroki
+zostaną. Połączeń opublikowanej wersji nie można zaznaczyć, więc nie można ich usunąć.
+
+Krok **For each** wykonuje swoje ciało raz na każdy element listy. Ciało nie jest
+osobnym dokumentem - jest częścią tego samego płaskiego grafu, pokazaną osobno.
+**Edit loop body** na kroku, które podaje, ile kroków zawiera ciało, wchodzi do tego
+widoku, a okruszki **Workflow scope** w rogu kanwy pokazują, gdzie jesteś, od
+**Workflow** w dół do pętli, którą otworzyłeś. Każdy okruszek nawiguje z powrotem na
+zewnątrz.
+
+Ciało zaczyna się od **Loop item**, z którym łączy się port **Each item**
+pętli, i kończy na **Loop result**; nic w nim nie łączy się z powrotem z pętlą, która
+idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Wybór kroków i źródła binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
+działało przed pętlą. Co robi pętla, opisuje
+[referencja węzłów](reference/workflow-nodes.md#loops).
+
+## Informacja zwrotna walidacji { #validation-feedback }
+
+Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i mówi o nim pod swoją nazwą po otwarciu, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **No problems** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
+
+Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już ustawiłeś,
+widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają pod **More
+options**, a to, jak krok działa, czeka w **Settings**. Wymagana wartość, której jeszcze nie podano, nie jest oznaczana przy polu,
+dopóki nie opuścisz tego pola albo nie spróbujesz uruchomić lub opublikować: znacznik
+kroku na kanwie mówi o niej od początku. Opis, który tylko powtarza
+nazwę pola, jest podpowiedzią przy nazwie zamiast wiersza pod polem.
+
+Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
+przez więcej niż jedno źródło, połączenie, którego porty niosą różne kształty, krok,
+którego nie da się osiągnąć od startu, pętlę z powrotem do wcześniejszego kroku,
+wartość, która czyta krok niewykonany na każdej prowadzącej tutaj ścieżce, albo
+połączenie, które przekracza granicę ciała pętli — do środka lub na zewnątrz.
+
+!!! info "Kontrola edytora to podgląd; publikowanie jest autorytetem"
+
+    Walidacja w edytorze to szybkie lustro reguł, które wymusza serwer. Istnieje po
+    to, by złapać problem, gdy na niego patrzysz, ale nigdy nie jest ostatnim słowem:
+    publikowanie ponownie uruchamia pełną walidację na serwerze, a problem, który
+    edytor przeoczył, jest pokazywany tak samo, przy węźle lub polu, do którego
+    należy.
+
+## Autozapis i banner konfliktu rewizji { #autosave-and-the-revision-conflict-banner }
+
+Twój draft zapisuje się sam. Krótka przerwa po tym, jak przestajesz edytować,
+zapisuje bieżący graf, a status pod tytułem, za tagami, to odzwierciedla — **Unsaved changes**,
+gdy zapis oczekuje, **Saving…**, gdy trwa, **Saved**, gdy się dokona, i **Save failed
+— will retry**, gdy się nie dokonał.
+
+Każdy zapis jest zapisywany względem rewizji, którą otworzyłeś, więc draft edytowany
+w dwóch miejscach naraz nie może po cichu nadpisać. Gdy to się zdarza, edytor podnosi
+banner zatytułowany **This draft changed elsewhere**: *Someone edited this workflow
+since you opened it. Overwrite keeps your changes; reload replaces them with the
+latest saved draft.* Wybierasz:
+
+- **Overwrite** — zachowaj swoją wersję i zapisz ją nad tą zapisaną gdzie indziej.
+- **Reload** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
+
+## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
+
+**Publish** zamraża bieżący draft jako niezmienną wersję, która działa — wersja nigdy
+nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utworzy, i przyjmuje opcjonalną
+**Release note** opisującą, co się zmieniło; gdy draft nie zmienił się od aktywnej
+wersji, mówi to najpierw. Jeśli graf wciąż ma problemy, publikowanie jest
+zablokowane z **Fix the problems below before publishing**, więc wersja, która by nie
+przeszła walidacji, nigdy nie powstaje.
+
+Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
+opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** w nagłówku edytora
+otwiera każdą opublikowaną wersję wraz z jej release note, a aktywną oznacza **Live**. **View** otwiera
+wcześniejszą wersję tylko do odczytu - opublikowana wersja jest tylko do odczytu, a
+aby wprowadzić zmiany, edytujesz draft dalej.
+
+Aby wrócić do opublikowanej wersji, otwórz ją przez **View** i wybierz **Restore to
+draft**. Po potwierdzeniu draft przejmuje graf tej wersji, a wszystko, co w drafcie
+było nieopublikowane, przepada. Sama wersja się nie zmienia i nic nie zostanie
+opublikowane, dopóki znowu nie opublikujesz draftu. Undo zaczyna od nowa od
+przywróconego grafu. Jeśli ktoś zmienił draft od chwili, gdy go otworzyłeś,
+przywrócenie zostaje odrzucone z tym samym bannerem konfliktu, który zgłasza zapis,
+zamiast nadpisać jego zmianę. Przywrócenie wymaga `workflows:edit` na tym workflow,
+a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafia do
+[dziennika audytu](governance.md) jako `workflow.version_restored`.
+
+**Compare with draft** w podglądzie wersji rysuje wersję i szkic na jednym
+płótnie: każdy krok, który szkic dodał, zmienił albo usunął, jest oznaczony na swojej
+karcie, a lista obok wymienia każdy zmieniony krok z tym, co się w nim zmieniło -
+ustawienie, wejście, nazwę, notatkę lub wersję, czy jest wyłączony i co robi, gdy
+działa wolno albo zawodzi. Przesunięcie kroku i przypięte dane testowe nie są
+zmianami. **Show this version** wraca do samej wersji.
+
+## Ustawienia workflow { #workflow-settings }
+
+**Settings** w menu **More** w nagłówku edytora zawierają to, z czym workflow jest uruchamiany, a nie
+to, co robi. Należą do workflow, nie do wersji: zmiana dotyczy każdego przebiegu
+rozpoczętego po niej, a publikacja je zachowuje.
+
+- **Timezone** - w niej czytane jest wyrażenie cron harmonogramu, także przy zmianie
+  czasu, i w niej pisze krok **Date & time**, który nie wskazuje własnej strefy.
+  Przebieg zachowuje tę ustawioną w chwili startu. Bez ustawienia UTC. Pole mówi,
+  która jest tam teraz godzina, i odrzuca strefę, której przeglądarka nie zna.
+- **Default deadline** - termin, który dostaje przebieg, gdy to, co go uruchamia, nie
+  podaje żadnego.
+- **Error workflow** - opublikowany workflow zaczynający się od **On failure of a
+  workflow**, uruchamiany raz, gdy przebieg zawiedzie. Zobacz
+  [Gdy inny workflow zawiedzie](#when-another-workflow-fails).
+- **Keep runs for** i **Keep runs that succeeded** - codzienne sprzątanie usuwa
+  przebieg i zapisane przez niego pliki po tylu dniach od jego końca, a udany przebieg
+  następnego dnia, gdy udanych się nie przechowuje. Bez ustawienia przebiegi zostają
+  na zawsze.
+
+**Limits** ograniczają, co jego runy robią naraz i ile wydają, ponad własnymi
+limitami każdego kroku - w tym pułapem kosztu kroku agenta:
+
+- **Runs under way at once** - prawdziwy run uruchomiony ponad limit jest odrzucany
+  z `429`, dopóki któryś się nie skończy. Nadawca webhooka lub GitHub dostaje prośbę
+  o ponowienie, harmonogram czeka na kolejny takt, skrzynka jest czytana ponownie, a
+  zdarzenie tabeli lub odpowiedź z formularza ponad limit są odrzucane. Runy testowe
+  nie są ani liczone, ani wstrzymywane.
+- **Most one run may spend** - własny budżet runu, ciaśniejszy z niego i budżetu
+  wersji: run, który go osiągnie, zatrzymuje się przed kolejnym krokiem, poza budżetem.
+- **Most its runs may spend a month** - liczony w miesiącu kalendarzowym w UTC,
+  łącznie z runami testowymi. Po osiągnięciu żaden run nie startuje - `402` - dopóki
+  nie zmieni się miesiąc albo budżet nie zostanie podniesiony. Strona runów pokazuje
+  wydatki miesiąca na tle budżetu.
+
+Przez API zastępuje je `PUT /api/v1/workflows/{id}/settings`.
+
+## Uruchamianie workflow { #running-a-workflow }
+
+**Run** w nagłówku edytora od razu testuje szkic - `Ctrl`/`Cmd` + `Enter` też -
+najpierw prosząc o pola, które deklaruje wyzwalacz Manual albo API. Run pokazuje się
+potem na kanwie na bieżąco: każdy krok dostaje swój status, próby i błąd, połączenie
+mówi, ile elementów nim przeszło, gdy krok przed nim przekazał listę, a pasek na dole
+mówi, jak run stoi, z **Open run** do jego strony. Następna edycja go ukrywa i zostawia
+pasek z informacją, że graf się od tego czasu zmienił, nadal z **Open run**. Krok,
+który poczekał i poszedł dalej, liczy jedną próbę, nie dwie.
+**Run** czeka, dopóki zmiana się zapisuje, i mówi, czemu nie może ruszyć, gdy szkic
+ma problemy.
+
+**Runs** w nagłówku edytora i ikona runów na karcie workflow otwierają jego runy,
+od najnowszego, każdy z jego statusem, tym, czy uruchomił draft czy opublikowaną
+wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run**
+uruchamia run ręcznie: **Test the draft** uruchamia draft w obecnym stanie, a
+**Published version** uruchamia żywą wersję. Jego **Input (JSON)** to to, co krok
+**Input** workflow przekazuje dalej jako `payload`.
+
+Nad listą **How it ran** podsumowuje prawdziwe runy z ostatnich 7, 30 lub 90 dni: ile
+się uruchomiło i ile zawiodło, jaki odsetek zakończonych się udał, typowy czas i czas,
+w jakim kończy się 95 na 100, oraz ile kosztowały w poszczególne dni. Karta kosztu
+podaje też wydatki z tego miesiąca, łącznie z runami testowymi, na tle miesięcznego
+budżetu workflow - na czerwono, gdy jest wyczerpany. **By step** pokazuje, skąd
+wziął się czas, koszt i błędy, od najdroższych. Przez API to
+`GET /api/v1/workflows/{id}/stats?days=30`.
+
+Karta **Workflows** na dashboardzie sumuje to samo dla każdego workflow, który
+widzisz, w okresie ustawionym na dashboardzie: runy, błędy, koszt i pięć najczęściej
+uruchamianych. Nad nimi liczy runy, które czekają teraz na człowieka - na
+zatwierdzenie albo krok wymagający uwagi - niezależnie od tego, kiedy się zaczęły.
+Przez API to `GET /api/v1/workflows/summary?from=2026-10-01&to=2026-10-31`.
+
+Run otwiera się na czasie trwania, koszcie i liczbie wykonanych kroków, a potem na
+błędzie, którym się zakończył, jeśli taki był. Obok jest graf, który wykonał, z każdym
+krokiem oznaczonym tym, co run z nim zrobił, jego próbami i błędem, oraz wyszarzonymi
+krokami, do których nigdy nie dotarł. **Open loop body** pokazuje w ten sam sposób
+iteracje pętli.
+
+Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się oparł, i
+liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
+krok, iteracja po iteracji, są obok.
+Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+
+
+Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
+**Published**, a przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
+API**. **Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
+albo 30 dni) zawężają przebiegi, a lista odpowiada po
+jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
+podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflow
+razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
+tego przebiegu.
+
+**Retry from failed step** uruchamia nowy przebieg tej samej wersji
+z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
+przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł, a
+zapis nigdy nie powtarza się dwa razy. Pętla działa ponownie i używa kroków
+każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
+roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
+testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
+/api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
+`status`, `mode`, `triggered_by`, `created_after` i `created_before`.
+
+## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
+
+Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
+**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
+**On failure of a workflow**. Dodanie jednego do workflow, który
+ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
+wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
+wyzwalacza, który tam wybierzesz.
+
+To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram, wyzwalacz tabeli,
+formularz i wiadomości do bota uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
+publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
+wyzwalacza, wyłącza stary. **Trigger** w menu **More** w nagłówku edytora pokazuje żywy wyzwalacz i
+jego stan oraz mówi, kiedy szkic startuje inaczej.
+
+Wersję, która startuje od **Manual** albo **API request** albo w ogóle bez wyzwalacza, uruchamia
+każdy, kto może ją uruchomić, jako on sam: **Start a run** w Runs,
+[HTTP API](api.md#running-a-workflow) albo WebSocket. Każdy run jest sprawdzany,
+rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiają
+żadnego innego wyzwalacza, a każdy inny wyzwalacz ma własną. Run testowy szkicu
+przyjmuje dowolny wyzwalacz, a **Start a run** otwiera go z wejściem w kształcie
+tego wyzwalacza.
+
+**Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Run**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Run** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
+JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
+listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
+
+### Z czatu { #from-the-chat }
+
+Wybór tego, kto odpowiada na czacie, wymienia pod agentami opublikowane workflow,
+które startują od **Chat message**. Gdy wybrany jest jeden z nich, każda wiadomość
+uruchamia jego run, a wyzwalacz przekazuje kolejnym krokom wiadomość jako `prompt`,
+razem z `conversation_id` i `user_id` nadawcy. Wątek pokazuje kartę ze statusem runa
+i linkiem do jego kroków, a odpowiedź workflow pojawia się pod nią, gdy run się
+skończy.
+
+Odpowiedź jest zapisywana w rozmowie, gdy run się kończy, niezależnie od tego, czy
+czat jest jeszcze otwarty, więc ponowne otwarcie rozmowy ją odczytuje. Run pisze do
+rozmowy, z której został uruchomiony, i nigdzie indziej: dotarcie do kogokolwiek
+innego wymaga kroku HTTP albo powiadomienia w grafie.
+
+**Open chat** w nagłówku edytora pozwala wypróbować szkic zaczynający się od
+wiadomości czatu bez wychodzenia z niego. Każda wiadomość wysłana w panelu
+uruchamia testowy run szkicu z tą wiadomością, run otwiera się na płótnie, a jego
+odpowiedź - tekst kroku Output - pojawia się pod wiadomością. To testowe runy bez
+rozmowy, do której mogłyby odpowiedzieć, więc nic z panelu nie trafia do
+prawdziwego czatu. **New chat** zaczyna od nowa z nowym id rozmowy.
+
+### Przez WebSocket { #over-a-websocket }
+
+`/api/v1/ws/workflow-runs` uruchamia run i strumieniuje jego zdarzenia albo śledzi
+run, który już trwa. Klient, który stracił połączenie, łączy się ponownie z kursorem
+ostatniego zdarzenia, które widział, i podejmuje dokładnie tam, gdzie przerwał.
+Zdarzenia są zapisywane, zanim zostaną wysłane, więc nic nie ginie i nic nie
+uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka przed każdą
+ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Webhook albo harmonogram { #a-webhook-or-a-schedule }
+
+Wyzwalacz **Webhook** dostaje adres i **signing secret** przy pierwszej publikacji
+wersji, która go zawiera. Publikacja pokazuje sekret raz, a kolejne publikacje tego
+samego węzła zachowują oba; węzeł webhooka usunięty i dodany ponownie dostaje nowy
+adres. Nadawca podpisuje sekretem dokładną treść żądania, HMAC-SHA256 w
+`X-Signature-256`, i nazywa każde dostarczenie w `X-Delivery-Id`; własne nagłówki
+GitHuba też działają. Wyzwalacz przekazuje JSON dostarczenia jako `body`, razem z
+jego `delivery_id`. Ponowienie, które powtarza id, dostaje odpowiedź z pierwszym
+runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuściło,
+w jednej transakcji.
+
+Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
+albo według wyrażenia cron, w strefie czasowej workflow (UTC, chyba że jego **Settings** wskazują inną) i
+najczęściej raz na minutę. Jego
+**Input** to to, od czego zaczyna każdy run, przekazywane jako `input` obok
+`fired_at` danego tyknięcia. Tyknięcie, które zastaje poprzedni run wciąż trwający,
+jest pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
+przyjęć czeka na następne.
+
+Oba działają jako członek, który opublikował wersję, a jego dostęp jest sprawdzany od
+nowa przy każdym odpaleniu. Webhook, którego członek nie może już uruchomić
+workflow, odrzuca dostarczenia, a taki harmonogram jest wyłączany i odnotowywany w
+dzienniku audytu. **Pause** w arkuszu **Trigger** zatrzymuje każdy z nich bez
+publikacji, a **New secret** wymienia sekret webhooka; stary od razu przestaje
+przechodzić weryfikację.
+
+### Gdy rekord tabeli zostanie dodany, zmieniony lub usunięty { #when-a-table-record-is-added }
+
+Wyzwalacz **Table record** wskazuje tabelę, zdarzenia rekordu (`events`), od których
+startuje - dodanie, zmiana, usunięcie - oraz filtry na rekordzie takim, jaki został
+dodany lub zmieniony, albo jaki był przed usunięciem, z konsoli, API, od agenta lub z
+kroku tabeli innego workflow. Zmiana uruchamia go tylko wtedy, gdy zmieniła się
+wybrana kolumna, o ile kolumny tabeli są wybrane.
+
+Przekazuje rekord: `record_id`, `event`, `values` według id kolumn, te same wartości
+jako `fields` według etykiet, wybór jako etykietę opcji, `before` i kolumny `changed`
+przy zmianie lub usunięciu oraz `author_id` osoby, która to zrobiła. Publikacja wymaga
+dostępu do odczytu tabeli, a nic, co stało się przed publikacją, go nie uruchamia.
+
+Run uruchomiony w ten sposób niesie łańcuch wyzwalaczy, przez które przeszedł, więc
+workflow zapisujący z powrotem do tabeli, której wyzwalacz go uruchomił, jest
+blokowany zamiast się zapętlić.
+
+**Triggers** samej tabeli wymienia workflow, które od niej startują, wstrzymuje je i
+wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
+[Virtual Tables](virtual-tables.md#triggers).
+
+### Z formularza { #from-a-form }
+
+Wyzwalacz **Form** daje workflow publiczną stronę: tytuł, opis i jedno pole na
+każde zadeklarowane pole, typowane tak jak pola **Manual**, z własnymi słowami na
+przycisku i po wysłaniu. Publikacja tworzy stronę, a **Trigger** pokazuje link do
+skopiowania lub otwarcia. Każdy z linkiem wypełnia ją bez logowania, a każda
+odpowiedź pasująca do pól uruchamia jeden run jako członek, który opublikował
+formularz. Kolejne kroki czytają odpowiedzi jako `payload`, a strona runów mówi,
+że uruchomił go formularz.
+
+Link jest jedynym poświadczeniem strony i przetrwa każdą publikację tego samego
+węzła. **New link** go zastępuje, a stary odpowiada wtedy tak, jakby formularza nie
+było; wstrzymanie wyzwalacza zamyka stronę. Odpowiedzi, które nie pasują, są
+wskazane na stronie i niczego nie uruchamiają, ukryte pole łapie skrypty, a każdy
+formularz przyjmuje najwyżej `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` odpowiedzi na
+minutę. Zobacz [trigger.form](reference/workflow-nodes.md#trigger-form).
+
+### Z GitHuba { #from-github }
+
+Wyzwalacz **GitHub** uruchamia workflow, gdy coś dzieje się w jednym repozytorium:
+zgłoszenie, komentarz, pull request lub jego recenzja, push, wydanie albo przebieg
+Actions - to, co wskazuje **Starts on**, i tylko wymienione **actions**, takie jak
+`opened`, jeśli jakieś są. Publikacja daje mu własny adres i sekret podpisu. Gdy
+**Set up the webhook for me** jest włączone, a konto GitHub organizacji jest
+podłączone z uprawnieniem do zarządzania webhookami, publikacja rejestruje hook w
+repozytorium i rejestruje go ponownie przy każdej kolejnej publikacji; w przeciwnym
+razie raz pokazuje sekret do wklejenia razem z adresem z **Trigger** w
+**Settings > Webhooks** repozytorium.
+
+Każda dostawa podpisana przez GitHub dla tego repozytorium, zdarzenia i akcji
+uruchamia run jako członek, który opublikował workflow, z `event`, `action`,
+`repository`, `sender` i całym `payload`. Ponowna dostawa odpowiada pierwszym runem,
+a wszystko inne - łącznie z `ping` GitHuba - jest pomijane. **New secret** zastępuje
+sekret i ponownie rejestruje hook tam, gdzie założyło go konto. Zobacz
+[trigger.github](reference/workflow-nodes.md#trigger-github).
+
+### Z e-maila { #from-an-email }
+
+Wyzwalacz **Gmail** uruchamia workflow, gdy do skrzynki Gmail organizacji - tej
+podłączonej przez portal **Gmail** - przyjdzie wiadomość. Panel kroku mówi, czy
+skrzynka jest podłączona, i pozwala ją podłączyć, a publikacja jest odrzucana, dopóki
+nie jest. Skrzynka jest czytana raz na minutę, tym samym odczytem, który uruchamia
+wyzwalacze Gmail agentów, a każda nowa wiadomość pasująca do wszystkich ustawionych
+filtrów - **Subject contains** i **Sender contains** bez względu na wielkość liter
+oraz **Label** dokładnie - uruchamia run jako członek, który opublikował workflow.
+
+Run dostaje `sender`, `to`, `subject`, `text`, `snippet`, `labels` i `message_id`
+skrzynki. Wiadomość przeczytana dwa razy uruchamia run raz, a ta, dla której
+organizacja nie miała jeszcze miejsca, jest czytana ponownie minutę później. Zobacz
+[trigger.gmail](reference/workflow-nodes.md#trigger-gmail).
+
+### Z wiadomości na kanale { #from-a-channel-message }
+
+Wyzwalacz **Channel message** przekazuje workflow wiadomości do bota na Slacku,
+Mattermost lub Telegramie. Każda wiadomość, na którą bot odpowiedziałby własnym
+agentem - przeszła politykę dostępu bota, jej nadawca został dopuszczony, a na
+kanale wskazała bota - uruchamia run jako członek, który opublikował workflow, jeśli
+pasuje do **Where** i **Only when the message contains**. Wiadomość wskazująca
+agenta przez `@handle` nadal trafia do niego, a ta, która nie pasuje, dostaje
+odpowiedź od agenta bota jak dotąd, więc workflow może przejąć zwroty i zostawić resztę.
+
+Wyzwalacz przekazuje `text`, `sender` - z członkiem, którego nadawca powiązał, jeśli
+to zrobił - oraz `channel_id` i `thread_id`, które przyjmuje krok **Send a message**
+tej samej platformy, więc odpowiedź trafia do wątku, z którego przyszła wiadomość.
+Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota
+wymaga `channels:manage`. Notatka głosowa przychodzi jako transkrypcja; inne
+załączniki nie są przekazywane. Zobacz
+[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
+
+### Gdy wywołuje go inny workflow { #when-another-workflow-calls-it }
+
+Wyzwalacz **Called by a workflow** tworzy workflow, który inne uruchamiają jako krok:
+wspólna logika - wzbogacenie leada, założenie zgłoszenia - trzymana w jednym miejscu.
+Deklaruje pola tak jak **Manual**, a krok **Run a workflow** innego workflow, który
+oferuje tylko tak opublikowane workflow, uruchamia go z powiązanym wejściem,
+sprawdzonym najpierw względem tych pól.
+
+Krok czeka na wywołany przebieg i przekazuje
+jego `output` albo od razu idzie dalej, gdy **Wait for it to finish** jest wyłączone.
+Wywołany przebieg jest powiązany z wywołującym w obie strony - jego strona mówi
+**Called by** ten przebieg, a wiersz kroku na stronie wywołującego otwiera przebieg,
+który krok uruchomił - i widać go na stronach przebiegów jak każdy inny. Przebieg
+uruchomiony przez workflow błędów mówi, niepowodzenie którego przebiegu go uruchomiło. Wywołanie z powrotem workflow, który już działa w łańcuchu, albo głębsze
+niż pięć wywołań, zostaje odrzucone.
+
+### Z agenta { #from-an-agent }
+
+Agent z capability [Workflowy](reference/capabilities.md#workflows) uruchamia workflowy
+wskazane w jego specyfikacji jako narzędzia, gdy rozmowa prosi o to, co któryś robi.
+Czyta pola wejścia każdego z nich, uruchamia run z tymi polami jako członek, w którego
+imieniu działa, i czeka na odpowiedź do limitu bindingu. Run jest sprawdzany, rozliczany
+i audytowany jak uruchomiony przez **Start a run**, a strona runów podaje, że uruchomił
+go **An agent**. Agentowi można dać tylko opublikowany workflow startujący od
+**Manual**, **API request** albo **Called by a workflow**.
+
+### Gdy inny workflow zawiedzie { #when-another-workflow-fails }
+
+Wyzwalacz **On failure of a workflow** tworzy workflow błędów. Wybrany jako workflow
+błędów innego workflow w jego **Settings**, uruchamia się raz dla każdego prawdziwego
+przebiegu tamtego workflow, który zakończy się niepowodzeniem, z `run_id` przebiegu,
+jego `workflow_id` i `workflow_name`, `step_id` i `step_name` kroku, który zawiódł,
+oraz `error`, którym się zakończył. Działa jako członek, który go wybrał i który
+nadal musi móc go uruchomić. Przebieg testowy niczego nie uruchamia, podobnie jak
+porażka przebiegu, który sam jest workflow błędów, więc zawodzący workflow błędów
+nigdy nie uruchamia się ponownie.
+## Gdy coś pójdzie nie tak { #when-something-goes-wrong }
+
+**Co obiecuje run.** Wynik kroku i wysłanie kroków po nim zapisują się razem, więc
+worker, który zatrzyma się między krokami, niczego nie gubi: inny podejmuje run tam,
+gdzie był. Worker, który zatrzyma się w środku kroku, zostawia próbę, której końca
+nikt nie widział. Krok bezpieczny do powtórzenia jest ponawiany. Zapis do tabeli
+odtwarza swój pierwszy zapis przez potwierdzenie zamiast zapisywać drugi raz, a
+powiadomienie idzie raz. Krok, który mógł już zadziałać gdzie indziej i niczego więcej
+nie obiecuje - jak uruchomienie agenta - nigdy nie jest powtarzany sam: run zatrzymuje
+się jako **Wymaga uwagi**, żeby nikt nie zapłacił za model dwa razy ani nie wysłał
+wiadomości dwa razy, zanim ktoś o tym zdecyduje.
+
+Nic innego nie dzieje się dokładnie raz. Wywołanie HTTP, upload albo zapis pliku mogą
+zostać wykonane ponownie po takim zatrzymaniu, więc system odbierający, który nie może
+zobaczyć żądania dwa razy, potrzebuje własnego klucza idempotencji. Obietnica ponowień
+każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
+
+| Co widzisz | Dlaczego | Co zrobić |
+|---|---|---|
+| **Wymaga uwagi** | Przerwano krok, który mógł zadziałać | Sprawdź, czy jego efekt nastąpił, a potem anuluj run i uruchom nowy, jeśli nie. Wznowienie go z konsoli nie jest jeszcze zbudowane |
+| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
+| `WORKFLOW_TRIGGER_MISMATCH` | Run zażądano drogą, którą nie jest żywy wyzwalacz: ręcznie albo przez API dla workflow startującego od webhooka, albo na czacie dla takiego, który nie startuje od wiadomości na czacie | Uruchom go tak, jak mówi jego wyzwalacz, albo przetestuj szkic, który przyjmuje dowolny wyzwalacz |
+| `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |
+| `REVISION_CONFLICT` | Ktoś zmienił rekord po tym, jak krok go odczytał | Skieruj błąd kroku przez `error.handle` do świeżego odczytu |
+| Historia wyzwalacza tabeli mówi **Zablokowany** | Run uruchomiłby sam siebie ponownie albo jego łańcuch sięgnął za głęboko | Zobacz [Wyzwalacze](virtual-tables.md#triggers) |
+| Webhook odpowiada `403` | Podpis nie pasuje do treści albo członek, jako który działa, nie może już uruchamiać workflow | Podpisz dokładnie wysłane bajty bieżącym sekretem albo niech członek, który może go uruchamiać, opublikuje go ponownie |
+
+## Klawiatura i dostępność { #keyboard-and-accessibility }
+
+Każda część edytora ma drogę, która nie wymaga wskaźnika. Wybór kroków to lista, po której poruszasz się strzałkami i wybierasz Enterem, a kliknięcie węzła w nim
+dodaje go bez przeciągania, każdy element sterujący z samą ikoną nosi wypowiadaną
+etykietę, a kanwa przyjmuje fokus klawiatury, więc możesz przechodzić tabem po jej
+krokach i połączeniach. Połączenie da się wykonać z klawiatury: zacznij je przy
+węźle, a potem zakończ przy zgodnym celu.
+
+Skróty kanwy działają tylko wtedy, gdy fokus jest w edytorze, więc nigdy nie kradną
+klawisza polu gdzie indziej na stronie:
+
+| Klawisze | Robi |
+|---|---|
+| `Ctrl`/`Cmd` + `Z` | Cofnij |
+| `Ctrl`/`Cmd` + `Shift` + `Z` lub `Ctrl`/`Cmd` + `Y` | Ponów |
+| `Ctrl`/`Cmd` + `C` | Kopiuj zaznaczenie |
+| `Ctrl`/`Cmd` + `X` | Wytnij zaznaczenie |
+| `Ctrl`/`Cmd` + `V` | Wklej, przesunięte, tak by nie zakrywało oryginału |
+| `Escape` | Przerwij trwające połączenie |
+
+Wklejenie dostaje świeże id i przemapowuje bindingi wśród skopiowanych kroków, więc
+wklejone kroki czytają od siebie nawzajem, a nie od oryginałów. Każdy skrót edycji
+jest bezczynny, gdy oglądasz opublikowaną wersję, która jest tylko do odczytu;
+`Escape` wciąż przerywa zabłąkane połączenie.
+
+Kopiowanie i wklejanie mają trzy ograniczenia:
+
+- **Krok z bindingami czyta stamtąd, skąd czytał.** Skopiowany krok zachowuje swoje
+  bindingi. Ten, który czyta z kroku, którego nie skopiowałeś, wciąż czyta z oryginału,
+  ale nic nie łączy wklejonego kroku z tamtym, więc nie przejdzie walidacji, dopóki ich
+  nie połączysz. Zaznacz oba kroki, aby skopiować parę, a kopia będzie czytać z własnego
+  kroku poprzedzającego.
+- **Połączenie podróżuje tylko ze swoimi dwoma krokami.** Zaznaczenie samego połączenia
+  i skopiowanie niczego nie robi.
+- **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
+  jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w ustawieniach kroku lub w wyborze kroków zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
+  ich użyjesz.
+
+## Podsumowanie { #recap }
+
+- Workflow to **draft, który edytujesz, i opublikowana, niezmienna wersja, która
+  działa** — zacznij go od wyzwalacza lub z szablonu, a **Duplicate** kopiuje draft do
+  nowego workflow.
+- **Wybór kroków** dodaje kroki - z **+**, z wyjścia kroku albo prawym przyciskiem; **kanwa** je łączy i
+  odrzuca połączenie między niezgodnymi portami.
+- Krawędź ustala **kolejność**, a bindingi niosą **wartości**; połączenie portów o tym
+  samym kształcie tworzy bindingi za Ciebie.
+- Parametr to **wartość albo dane z kroku** — **Data** czyta je z osiągalnego, zgodnego
+  typem wyjścia wcześniejszego kroku albo wstawia je do tekstu.
+- Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
+  lub **Reload**.
+- **Publish** jest zablokowany, dopóki problem istnieje, i waliduje ponownie na
+  serwerze; wcześniejsze wersje pozostają widoczne tylko do odczytu, a **Restore to
+  draft** robi z jednej z nich z powrotem draft.
+- Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
+  wersji tylko do odczytu.
+- Workflow startuje od jednego węzła **wyzwalacza** - **Manual**, **API request**, od
+  wiadomości na czacie, podpisanego **webhooka**, **harmonogramu** albo nowego
+  rekordu tabeli - a **publikacja** go włącza i działa jako członek, który publikował.
+- **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą
+  portem **Error**; ciało kroku **For each** wykonuje się od **Loop item** do **Loop
+  result** raz na każdy element.
+- **Runs** wymienia każdy run, **Start a run** testuje draft albo uruchamia
+  opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.

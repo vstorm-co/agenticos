@@ -44,6 +44,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from starlette.requests import HTTPConnection
@@ -164,6 +166,67 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     return Decision(allowed=True, retry_after_seconds=0)
 
 
+class LocalWindows:
+    """A per-process fixed window, for the attempts the shared limiter could not count.
+
+    `consume` fails open when Redis is down or nobody configured one - the right
+    trade for a public widget, where refusing a visitor over a cache blip is the
+    worse failure. It is the wrong trade for a surface whose per-caller limit is a
+    production control: a limiter that vanishes for the length of an outage lets a
+    permitted caller run unbounded until it recovers. This stands in for exactly
+    that stretch - wrong by the worker count, which is the very defect the shared
+    limiter exists to fix, and still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last window, not of every caller since the
+    process started.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_fallback_windows = LocalWindows()
+
+
+async def consume_with_local_floor(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """Count one attempt, keeping a per-process floor when the shared limiter cannot.
+
+    `consume` fails open (`metered=False`) when Redis is unreachable or
+    unconfigured, which removes the limit entirely for the length of the outage.
+    For a surface that is a real production control - a Virtual Tables write bounds
+    how fast a tenant grows the shared database, and a channel bot's `rate_limit_rpm`
+    is documented as one - that is not acceptable, so an unmetered decision is passed
+    through `LocalWindows` instead of taken at face value. The caller is namespaced by
+    `surface` so two surfaces sharing one process do not spend each other's floor.
+    """
+    decision = await consume(surface=surface, caller=caller, limit=limit)
+    if decision.metered:
+        return decision
+    allowed = _fallback_windows.consume(
+        f"{surface}:{caller}", attempts=limit.attempts, window_seconds=limit.window_seconds
+    )
+    return Decision(
+        allowed=allowed,
+        retry_after_seconds=0 if allowed else limit.window_seconds,
+        metered=False,
+    )
+
+
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
@@ -172,6 +235,16 @@ def run_limit() -> Limit:
 def ml_limit() -> Limit:
     """What one caller may ask the standalone ML services for, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
+
+
+def table_write_limit() -> Limit:
+    """What one member may write to Virtual Tables in one organization, per minute.
+
+    Every write stores a history row and, with an idempotency key, a receipt, so the
+    thing rationed is how fast a tenant can grow the shared database with requests that
+    are each tiny (#1823).
+    """
+    return Limit(attempts=settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE)
 
 
 def export_limit() -> Limit:
@@ -234,6 +307,32 @@ async def public_artifact_allowed(public_key: str) -> Decision:
         surface="public_artifact",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def form_page_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may be read again right now.
+
+    Keyed on the form, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own.
+    """
+    return await consume(
+        surface="workflow_form_page",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def form_submission_allowed(token: str) -> Decision:
+    """Whether a workflow's public form may take another submission right now.
+
+    Per form: each submission starts a run its publisher pays for, and the
+    console's server is the one caller every visitor arrives as.
+    """
+    return await consume(
+        surface="workflow_form_submission",
+        caller=f"form:{token}",
+        limit=Limit(attempts=settings.RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE),
     )
 
 

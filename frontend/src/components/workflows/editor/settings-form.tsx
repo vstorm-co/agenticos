@@ -1,0 +1,273 @@
+"use client";
+
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
+import { useWorkflows } from "@/hooks";
+import { WORKFLOW_FAILED_TRIGGER } from "@/lib/workflows/triggers";
+import type { WorkflowDetail, WorkflowSettings } from "@/lib/workflows/types";
+
+const NONE = "none";
+
+/** Every IANA timezone this browser knows, for the timezone field's suggestions. */
+function timezones(): string[] {
+  return Intl.supportedValuesOf("timeZone");
+}
+
+/**
+ * The time it is now in a timezone, or null when the browser does not know the
+ * zone - the field then says so rather than letting a schedule run in a place
+ * that does not exist.
+ */
+function timeIn(zone: string, locale: string): string | null {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
+}
+
+/** A whole number from a field, or null when it is empty. */
+function wholeOrNull(text: string): number | null {
+  const value = Number.parseInt(text, 10);
+  return Number.isNaN(value) ? null : value;
+}
+
+/** An amount of money from a field, or null when it is empty. */
+function amountOrNull(text: string): number | null {
+  const value = Number.parseFloat(text);
+  return Number.isNaN(value) ? null : value;
+}
+
+/** A setting as its field shows it: empty for none. */
+function shown(value: number | null): string {
+  return value === null ? "" : String(value);
+}
+
+/**
+ * A workflow's settings: what it is run with rather than what it does, so they
+ * are the workflow's and every later run takes them - the timezone its schedule
+ * keeps, the deadline a run gets when nothing names one, the workflow started
+ * when a run fails, how long its runs are kept, and what it may run and spend
+ * at once and in a month. **Save** writes them all.
+ */
+export function WorkflowSettingsForm({
+  workflow,
+  disabled,
+  saving,
+  onSave,
+}: {
+  workflow: WorkflowDetail;
+  disabled: boolean;
+  saving: boolean;
+  onSave: (settings: WorkflowSettings) => void;
+}) {
+  const t = useTranslations("pages.workflows");
+  const locale = useLocale();
+  const { workflows } = useWorkflows();
+  const saved = workflow.settings;
+  const [timezone, setTimezone] = useState(saved.timezone);
+  const [deadline, setDeadline] = useState(
+    saved.default_deadline_seconds === null ? "" : String(saved.default_deadline_seconds / 60),
+  );
+  const [errorWorkflow, setErrorWorkflow] = useState(saved.error_workflow_id ?? NONE);
+  const [retention, setRetention] = useState(
+    saved.run_retention_days === null ? "" : String(saved.run_retention_days),
+  );
+  const [keepSucceeded, setKeepSucceeded] = useState(saved.keep_succeeded_runs);
+  const [concurrent, setConcurrent] = useState(shown(saved.max_concurrent_runs));
+  const [runBudget, setRunBudget] = useState(shown(saved.run_budget_usd));
+  const [monthlyBudget, setMonthlyBudget] = useState(shown(saved.monthly_budget_usd));
+  const handlers = workflows.filter(
+    (candidate) =>
+      candidate.id !== workflow.id && candidate.live_trigger === WORKFLOW_FAILED_TRIGGER,
+  );
+  const minutes = wholeOrNull(deadline);
+  const zone = timezone.trim() || "UTC";
+  const now = timeIn(zone, locale);
+
+  const save = () =>
+    onSave({
+      timezone: zone,
+      default_deadline_seconds: minutes === null ? null : minutes * 60,
+      error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
+      run_retention_days: wholeOrNull(retention),
+      keep_succeeded_runs: keepSucceeded,
+      max_concurrent_runs: wholeOrNull(concurrent),
+      run_budget_usd: amountOrNull(runBudget),
+      monthly_budget_usd: amountOrNull(monthlyBudget),
+    });
+
+  return (
+    <div className="space-y-6">
+      <p className="text-muted-foreground text-sm">{t("settingsIntro")}</p>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="workflow-timezone">{t("settingsTimezone")}</Label>
+        <Input
+          id="workflow-timezone"
+          list="workflow-timezones"
+          value={timezone}
+          disabled={disabled}
+          aria-invalid={now === null}
+          aria-describedby="workflow-timezone-hint"
+          onChange={(event) => setTimezone(event.target.value)}
+        />
+        <datalist id="workflow-timezones">
+          {timezones().map((zone) => (
+            <option key={zone} value={zone} />
+          ))}
+        </datalist>
+        {now === null ? (
+          <p id="workflow-timezone-hint" className="text-destructive text-xs">
+            {t("settingsTimezoneUnknown", { zone })}
+          </p>
+        ) : (
+          <p id="workflow-timezone-hint" className="text-muted-foreground text-xs">
+            {t("settingsTimezoneNow", { time: now })} {t("settingsTimezoneHint")}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="workflow-deadline">{t("settingsDeadline")}</Label>
+        <Input
+          id="workflow-deadline"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          placeholder={t("settingsDeadlineNone")}
+          value={deadline}
+          disabled={disabled}
+          onChange={(event) => setDeadline(event.target.value)}
+        />
+        <p className="text-muted-foreground text-xs">{t("settingsDeadlineHint")}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>{t("settingsErrorWorkflow")}</Label>
+        <Select value={errorWorkflow} onValueChange={setErrorWorkflow} disabled={disabled}>
+          <SelectTrigger aria-label={t("settingsErrorWorkflow")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>{t("settingsErrorWorkflowNone")}</SelectItem>
+            {handlers.map((candidate) => (
+              <SelectItem key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </SelectItem>
+            ))}
+            {saved.error_workflow_id !== null &&
+              !handlers.some((candidate) => candidate.id === saved.error_workflow_id) && (
+                <SelectItem value={saved.error_workflow_id}>
+                  {t("settingsErrorWorkflowGone")}
+                </SelectItem>
+              )}
+          </SelectContent>
+        </Select>
+        <p className="text-muted-foreground text-xs">{t("settingsErrorWorkflowHint")}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="workflow-retention">{t("settingsRetention")}</Label>
+        <Input
+          id="workflow-retention"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          placeholder={t("settingsRetentionForever")}
+          value={retention}
+          disabled={disabled}
+          onChange={(event) => setRetention(event.target.value)}
+        />
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Label htmlFor="workflow-keep-succeeded" className="font-normal">
+            {t("settingsKeepSucceeded")}
+          </Label>
+          <Switch
+            id="workflow-keep-succeeded"
+            checked={keepSucceeded}
+            disabled={disabled}
+            onCheckedChange={setKeepSucceeded}
+          />
+        </div>
+        <p className="text-muted-foreground text-xs">{t("settingsRetentionHint")}</p>
+      </div>
+
+      <section className="space-y-4 border-t pt-6">
+        <div className="space-y-1">
+          <h3 className="text-sm font-medium">{t("settingsLimits")}</h3>
+          <p className="text-muted-foreground text-xs">{t("settingsLimitsHint")}</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="workflow-concurrent">{t("settingsConcurrent")}</Label>
+          <Input
+            id="workflow-concurrent"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            placeholder={t("settingsNoLimit")}
+            value={concurrent}
+            disabled={disabled}
+            onChange={(event) => setConcurrent(event.target.value)}
+          />
+          <p className="text-muted-foreground text-xs">{t("settingsConcurrentHint")}</p>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="workflow-run-budget">{t("settingsRunBudget")}</Label>
+            <Input
+              id="workflow-run-budget"
+              type="number"
+              min={0.01}
+              step="any"
+              inputMode="decimal"
+              placeholder={t("settingsNoLimit")}
+              value={runBudget}
+              disabled={disabled}
+              onChange={(event) => setRunBudget(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">{t("settingsRunBudgetHint")}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="workflow-monthly-budget">{t("settingsMonthlyBudget")}</Label>
+            <Input
+              id="workflow-monthly-budget"
+              type="number"
+              min={0.01}
+              step="any"
+              inputMode="decimal"
+              placeholder={t("settingsNoLimit")}
+              value={monthlyBudget}
+              disabled={disabled}
+              onChange={(event) => setMonthlyBudget(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">{t("settingsMonthlyBudgetHint")}</p>
+          </div>
+        </div>
+      </section>
+
+      {!disabled && (
+        <Button onClick={save} disabled={saving || now === null}>
+          {t("settingsSave")}
+        </Button>
+      )}
+    </div>
+  );
+}

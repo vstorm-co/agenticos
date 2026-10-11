@@ -123,6 +123,16 @@ class Agent(Base, TimestampMixin):
         nullable=True,
     )
 
+    # Set on the agent a workflow's `agent.run` step configures in place: the
+    # workflow owns it, so it is kept out of the catalog, reached through the
+    # workflow's access, and gone with the workflow. Both or neither.
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    workflow_node_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+
     # Declared here as well as in the migration: a schema built from the models
     # - which is what the integration tests and some dev setups do - would
     # otherwise accept values the production database rejects, and the tests
@@ -136,6 +146,17 @@ class Agent(Base, TimestampMixin):
         # comment above says: a schema built from the models must carry them too.
         Index("ix_agents_categories", "categories", postgresql_using="gin"),
         Index("ix_agents_tags", "tags", postgresql_using="gin"),
+        CheckConstraint(
+            "(workflow_id IS NULL) = (workflow_node_id IS NULL)", name="ck_agent_workflow_node"
+        ),
+        # One agent per step: the step finds its own agent by this pair.
+        Index(
+            "uq_agents_workflow_node",
+            "workflow_id",
+            "workflow_node_id",
+            unique=True,
+            postgresql_where="workflow_id IS NOT NULL",
+        ),
     )
 
     @property

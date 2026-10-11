@@ -281,6 +281,25 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
+  // virtual_tables - reads are lookups, writes are edits; `delete_record` is `edit`
+  // because `StepKind` has no delete, the same choice `delete_memory` makes.
+  list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
+  table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
+  describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
+  create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
+  record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
+  list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
+  get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
+  create_record: { kind: "write", render: "generic", captionKey: "recordsCreating" },
+  upsert_record: { kind: "write", render: "generic", captionKey: "recordsUpserting" },
+  update_record: { kind: "edit", render: "generic", captionKey: "recordsUpdating" },
+  delete_record: { kind: "edit", render: "generic", captionKey: "recordsDeleting" },
+
+  // workflows - starting one is a write: it sets a process going.
+  list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
+  run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
+  get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
+
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.

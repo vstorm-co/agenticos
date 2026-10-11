@@ -160,21 +160,16 @@ export function eventFilterConfig(
   return Object.keys(config).length ? config : undefined;
 }
 
-/** What makes this trigger fire, reduced for display. */
-export function triggerSummary(trigger: Trigger): TriggerSummary {
-  if (trigger.trigger_type === "event") {
-    // A preset reads in plain language - "New issue in acme/repo" - when the
-    // portal and its target (the backend's `provider_target`) are both known; a
-    // source with no target - a schedule, a manual trigger, an auto one with none
-    // chosen - falls back to the generic per-source label rather than half a
-    // sentence.
-    if (trigger.portal_key && trigger.provider_target) {
-      return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
-    }
-    return { kind: "event", source: trigger.event_source ?? "github" };
-  }
-  if (trigger.schedule_kind === "cron") {
-    const expression = trigger.cron_expression ?? "";
+/** A schedule's cadence, wherever one is kept - an agent's trigger or a workflow's. */
+export type ScheduleCadence = Pick<
+  Trigger,
+  "schedule_kind" | "interval_seconds" | "cron_expression"
+>;
+
+/** When a schedule fires, reduced for display. */
+export function scheduleSummary(schedule: ScheduleCadence): TriggerSummary {
+  if (schedule.schedule_kind === "cron") {
+    const expression = schedule.cron_expression ?? "";
     const parsed = parseCron(expression);
     switch (parsed.freq) {
       case "daily":
@@ -189,8 +184,24 @@ export function triggerSummary(trigger: Trigger): TriggerSummary {
         return { kind: "cron", expression };
     }
   }
-  const { unit, count } = intervalToUnit(trigger.interval_seconds ?? MINUTE);
+  const { unit, count } = intervalToUnit(schedule.interval_seconds ?? MINUTE);
   return { kind: "interval", unit, count };
+}
+
+/** What makes this trigger fire, reduced for display. */
+export function triggerSummary(trigger: Trigger): TriggerSummary {
+  if (trigger.trigger_type === "event") {
+    // A preset reads in plain language - "New issue in acme/repo" - when the
+    // portal and its target (the backend's `provider_target`) are both known; a
+    // source with no target - a schedule, a manual trigger, an auto one with none
+    // chosen - falls back to the generic per-source label rather than half a
+    // sentence.
+    if (trigger.portal_key && trigger.provider_target) {
+      return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
+    }
+    return { kind: "event", source: trigger.event_source ?? "github" };
+  }
+  return scheduleSummary(trigger);
 }
 
 /** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
@@ -221,7 +232,15 @@ function presetEventKey(portalKey: string): string {
  * branches that interpolate.
  */
 export function cadenceText(trigger: Trigger, t: Translate): string {
-  const summary = triggerSummary(trigger);
+  return summaryText(triggerSummary(trigger), t);
+}
+
+/** When a schedule fires, in one line - `cadenceText` for a cadence alone. */
+export function scheduleText(schedule: ScheduleCadence, t: Translate): string {
+  return summaryText(scheduleSummary(schedule), t);
+}
+
+function summaryText(summary: TriggerSummary, t: Translate): string {
   switch (summary.kind) {
     case "interval":
       if (summary.unit === "days") return t("cadence.everyDays", { count: summary.count });

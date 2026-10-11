@@ -1042,3 +1042,54 @@ describe("a field that suggests rather than restricts", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 });
+
+describe("a hint on hover", () => {
+  it("puts an x-hint on the label, for a pointer and a screen reader, not under the field", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { zone: { type: "string", title: "Timezone", "x-hint": "An IANA timezone" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="hint"
+      />,
+    );
+    expect(screen.getByText("Timezone").closest("label")).toHaveAttribute(
+      "title",
+      "An IANA timezone",
+    );
+    expect(screen.getByLabelText("Timezone. An IANA timezone")).toBeInTheDocument();
+  });
+
+  it("ticks each choice of a list of choices, named by its label", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            events: {
+              type: "array",
+              title: "Starts when a record is",
+              items: { type: "string", enum: ["created", "updated", "deleted"] },
+              default: ["created"],
+              "x-enum-labels": { created: "Added", updated: "Changed", deleted: "Deleted" },
+            },
+          },
+        }}
+        value={{}}
+        onChange={onChange}
+        idPrefix="t"
+      />,
+    );
+
+    expect(screen.getByRole("group", { name: "Starts when a record is" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Added" })).toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Changed" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: ["created", "updated"] });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Added" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: undefined });
+  });
+});

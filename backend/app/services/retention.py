@@ -27,6 +27,7 @@ again.
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -37,6 +38,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm, role_has
@@ -49,7 +51,7 @@ from app.core.retention import (
     known_periods,
     policy_conflicts,
 )
-from app.repositories import deployment_settings_repo, retention_repo
+from app.repositories import deployment_settings_repo, member_repo, retention_repo
 from app.schemas.retention import RetentionRead, RetentionUpdate
 
 if TYPE_CHECKING:
@@ -66,6 +68,74 @@ MAX_BATCHES = 40
 """Passes per class per sweep - twenty thousand rows, then the next class gets a
 turn. A backlog is worked off over several sweeps rather than in one that runs
 for an hour and blocks every other periodic flow behind it."""
+
+
+SWEEP_BACKLOG_HEADROOM = 2
+"""How many days' worth of steady-state writes one table-sweep pass can absorb.
+
+At exactly 1 the budget only ever keeps pace with today's production, so an organization
+that ever falls behind - a sweep that missed a day, traffic that briefly spiked - stays
+behind forever. At 2, a pass that finds no backlog still has a full day's capacity spare,
+which is what actually drains one: a backlog shrinks by roughly one day's production per
+pass until it is gone, rather than being merely held level."""
+
+MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET = 50
+"""The member count `_table_sweep_max_batches` will scale a budget by, however many an
+organization actually has.
+
+The bug this caps: multiplying the per-member rate by an organization's real member count,
+uncapped, means one organization with an unusual number of members turns into one pass
+issuing an unusually large number of DELETE statements for that organization alone - and
+while `commit_each` means that never blocks *another* organization's production writes
+(each organization's row locks and audit-chain lock are released at its own commit, not
+held until the whole sweep ends), it does mean the flow reaches later organizations in the
+same run later. Fifty active members, each sustaining the full per-member write rate all
+day, is already a very heavy tenant; past that, more members are not assumed to add
+further sustained load worth sizing a single pass's duration around - the same judgement
+`MAX_BATCHES` already makes for the older classes, extended to a dimension (member count)
+that did not exist when that bound was chosen. An organization that is genuinely heavier
+than this drains its backlog over more passes instead of one, exactly like any other."""
+
+
+def _table_sweep_max_batches(active_members: int) -> int:
+    """How many batches one Virtual Tables class may take in one organization's pass.
+
+    `MAX_BATCHES` bounds an older class at `BATCH * MAX_BATCHES` = 20,000 rows a pass, which
+    is generous for conversations or runs - nobody writes tens of thousands of those a day -
+    but not for a receipt or a history row. At the default `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+    one member can write up to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` of them a day,
+    432,000 at the shipped default, and a daily sweep held to the older classes' bound would
+    fall behind any organization writing anywhere near that rate - the backlog growing without
+    end rather than draining, which is the whole defect this exists to close.
+
+    That rate is per *member*, though - `limit_table_write` keys the write limit on
+    `org:{org_id}:user:{user_id}`, so each active member gets an independent allowance, and an
+    organization with several members writing near the limit at once produces that many times
+    the volume a budget sized for one member could ever drain. So the three table classes get a
+    budget sized off the organization's own active member count as well as the deployment's rate
+    limit: the most that many members could plausibly have queued for removal since the last
+    sweep, with `SWEEP_BACKLOG_HEADROOM` days of spare capacity so a real backlog is worked down
+    rather than merely held level, and `MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET` capping how large a
+    single organization's own pass can grow. `max(MAX_BATCHES, ...)` keeps a deployment that has
+    lowered the write limit, or an organization with no active members left, no worse off than
+    an older class. A backlog beyond even this is still worked off over several sweeps, exactly
+    as an older class is - this only makes "one pass keeps up with a heavy tenant's real usage"
+    true again; it does not promise a single pass drains an unbounded backlog.
+
+    What it deliberately does *not* close: the write limit is per member and there is no
+    organization-wide one, so an organization with more members than
+    `MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET`, every one of them sustaining the full per-member
+    ceiling all day, produces more per day than a daily sweep capped here can remove, and its
+    backlog grows. Lifting the cap to cover that case is the wrong lever - it would let one such
+    tenant's pass issue an unbounded run of DELETEs and delay every later organization in the
+    same sweep. The right one is an organization-wide write-admission limit, a product decision
+    of its own; this bound is sized for a heavy tenant, not for one whose entire membership
+    writes flat out without pause.
+    """
+    members = min(active_members, MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET)
+    per_organization_per_day = settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24 * members
+    with_headroom = per_organization_per_day * SWEEP_BACKLOG_HEADROOM
+    return max(MAX_BATCHES, -(-with_headroom // BATCH))
 
 
 @dataclass
@@ -220,7 +290,7 @@ class RetentionService:
                 continue
             cutoff = moment - timedelta(days=days)
             try:
-                removed = await self._purge(name, organization_id=organization_id, cutoff=cutoff)
+                await self._purge(name, result, cutoff=cutoff)
             except Exception:
                 # Named, not raised: a vector store that is down must not stop
                 # conversations being purged, and the next pass retries this
@@ -230,20 +300,102 @@ class RetentionService:
                     extra={"organization_id": str(organization_id), "retention_class": name},
                 )
                 result.failed.append(name)
-                continue
-            if removed:
-                result.removed[name] = removed
+        await self._sweep_table_data(organization_id, moment, result)
         return result
 
-    async def _purge(self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime) -> int:
-        """One class, in batches, until a pass removes nothing or the cap is reached."""
-        removed = 0
+    async def _sweep_table_data(
+        self, organization_id: UUID, moment: datetime, result: SweepResult
+    ) -> None:
+        """Virtual Tables' receipts, dispatched outbox rows and history, on the deployment's terms.
+
+        Not a class an organization sets a period on: how long a retry can be replayed and
+        how long a change is remembered are properties of the deployment
+        (`TABLES_RECEIPT_TTL_HOURS`, `TABLES_OUTBOX_RETENTION_DAYS`,
+        `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`), and the
+        sweep, the batching, the per-class failure handling and the one audit entry per
+        organization are this mechanism's. Counts go under `table_receipts`, `table_outbox`
+        and `table_history`, never content.
+
+        The outbox delete removes a dispatched row past `TABLES_OUTBOX_RETENTION_DAYS` and,
+        separately, an undispatched one past the much longer
+        `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` - a dead-letter cutoff for an event no
+        consumer exists yet to collect (#1785), not a claim that it was delivered. Bound with
+        `functools.partial` rather than a fourth loop variable: only this one class needs a
+        second cutoff, and the batch loop below calls every class the same way.
+        """
+        sweeps = (
+            (
+                "table_receipts",
+                retention_repo.delete_table_receipts,
+                moment - timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS),
+            ),
+            (
+                "table_outbox",
+                functools.partial(
+                    retention_repo.delete_table_outbox,
+                    undispatched_cutoff=moment
+                    - timedelta(days=settings.TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS),
+                ),
+                moment - timedelta(days=settings.TABLES_OUTBOX_RETENTION_DAYS),
+            ),
+            (
+                "table_history",
+                retention_repo.delete_table_history,
+                moment - timedelta(days=settings.TABLES_HISTORY_RETENTION_DAYS),
+            ),
+        )
+        active_members = await member_repo.count_active_for_org(
+            self.db, organization_id=organization_id
+        )
+        max_batches = _table_sweep_max_batches(active_members)
+        for name, delete_batch, cutoff in sweeps:
+            try:
+                for _ in range(max_batches):
+                    # Per batch, for the reason `_purge` gives.
+                    async with self.db.begin_nested():
+                        took = await delete_batch(
+                            self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH
+                        )
+                    self._count(result, name, took)
+                    if took < BATCH:
+                        break
+            except Exception:
+                logger.exception(
+                    "retention_class_failed",
+                    extra={"organization_id": str(organization_id), "retention_class": name},
+                )
+                result.failed.append(name)
+
+    @staticmethod
+    def _count(result: SweepResult, name: str, removed: int) -> None:
+        """Add a finished batch to the class's count, as soon as it is finished.
+
+        Counted per batch rather than when the class ends, because every batch that completed
+        is part of the transaction the sweep commits: a later batch failing must still report
+        the rows the earlier ones removed, or the audit entry says nothing was deleted when it
+        was. A class that removed nothing stays out of `removed`.
+        """
+        if removed:
+            result.removed[name] = result.removed.get(name, 0) + removed
+
+    async def _purge(self, name: RetentionClass, result: SweepResult, *, cutoff: datetime) -> None:
+        """One class, in batches, until a pass removes nothing or the cap is reached.
+
+        Adds what each batch removed to `result` as it goes; an error propagates for the
+        caller to name the class, with the earlier batches already counted.
+        """
         for _ in range(MAX_BATCHES):
-            took = await self._purge_batch(name, organization_id=organization_id, cutoff=cutoff)
-            removed += took
+            # A savepoint per batch: a database error in one delete aborts the transaction it
+            # runs in, and without this every later class - and the audit entry that records the
+            # sweep - would fail with InFailedSQLTransaction while the caught error looked
+            # handled. Rolling back to the savepoint undoes only the failing batch.
+            async with self.db.begin_nested():
+                took = await self._purge_batch(
+                    name, organization_id=result.organization_id, cutoff=cutoff
+                )
+            self._count(result, name, took)
             if took < BATCH:
                 break
-        return removed
 
     async def _purge_batch(
         self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime

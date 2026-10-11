@@ -9,6 +9,7 @@ import {
   formatBytes,
   formatDate,
   formatDateTime,
+  formatElapsed,
   formatRunDuration,
   getPasswordStrength,
   isAppAdmin,
@@ -213,6 +214,15 @@ describe("formatDateTime", () => {
   });
 });
 
+describe("formatElapsed", () => {
+  it("reads a span of milliseconds, and refuses one that is not a span", () => {
+    expect(formatElapsed(850)).toBe("850 ms");
+    expect(formatElapsed(75_000)).toBe("1 min 15 s");
+    expect(formatElapsed(-1)).toBe("-");
+    expect(formatElapsed(Number.NaN)).toBe("-");
+  });
+});
+
 describe("formatRunDuration", () => {
   it("reports sub-second runs in milliseconds and longer ones in seconds", () => {
     expect(formatRunDuration("2026-08-04T09:00:00.000Z", "2026-08-04T09:00:00.850Z")).toBe(
@@ -220,6 +230,12 @@ describe("formatRunDuration", () => {
     );
     expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:01.400Z")).toBe("1.4 s");
     expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:30Z")).toBe("30 s");
+  });
+
+  it("reads a long run in minutes, hours and days rather than thousands of seconds", () => {
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:01:05Z")).toBe("1 min 5 s");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-05T07:14:41Z")).toBe("22 h 14 min");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-06T12:00:00Z")).toBe("2 d 3 h");
   });
 
   it("admits it does not know a duration when the run has not finished", () => {

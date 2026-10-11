@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "15cf34650ce9"
 ---
 
 # Funciones { #features }
@@ -224,6 +224,21 @@ El aislamiento entre organizaciones son constraints y claves, no convención. Lo
 tests interesantes de este repositorio son los que comprueban un *rechazo*: una
 lectura entre tenants, un scope no concedido, un budget superado, una segunda
 decisión sobre una aprobación ya decidida.
+
+## Workflows, cuando un trabajo es más de un paso { #workflows-when-a-job-is-more-than-one-step }
+
+Parte del trabajo es una secuencia, no una única respuesta: leer un registro,
+llamar a un agent, ramificar según lo que dice, iterar sobre una lista. Eso lo
+construyes en un lienzo — arrastra los pasos, conecta la salida de un paso con el
+siguiente y publícalo como una versión inmutable, la misma forma de
+draft-y-luego-publicar que tiene un agent.
+
+Los inputs de cada paso son un valor que escribes o un valor leído de un paso
+anterior, y el editor solo ofrece una fuente que es de verdad alcanzable y lleva el
+tipo correcto. El draft se guarda solo mientras editas, y publicar vuelve a
+comprobar todo el grafo antes de congelar una versión.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
 
 ## Triggers, para que un agent se ejecute sin ti { #triggers-so-an-agent-runs-without-you }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "15cf34650ce9"
 ---
 
 # Funkcje { #features }
@@ -220,6 +220,21 @@ Izolacja organizacji to ograniczenia i klucze, a nie konwencja. Ciekawe testy w
 tym repozytorium to te, które sprawdzają *odmowę*: odczyt spoza tenanta,
 nieprzyznany scope, przekroczenie budżetu, drugą decyzję na rozstrzygniętym
 approvalu.
+
+## Workflows, gdy zadanie to więcej niż jeden krok { #workflows-when-a-job-is-more-than-one-step }
+
+Część pracy to sekwencja, a nie pojedyncza odpowiedź: odczytaj rekord, wywołaj
+agenta, rozgałęź się na tym, co powie, przejdź w pętli po liście. Budujesz to na
+kanwie — przeciągasz kroki, łączysz wyjście jednego kroku z następnym i publikujesz
+jako niezmienną wersję, w tym samym kształcie draft-a-potem-publikacja, który ma
+agent.
+
+Inputy każdego kroku to wartość, którą wpisujesz, albo wartość odczytana z
+wcześniejszego kroku, a edytor oferuje tylko źródło rzeczywiście osiągalne i o
+właściwym typie. Draft zapisuje się sam w trakcie edycji, a publikowanie ponownie
+sprawdza cały graf, zanim zamrozi wersję.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
 
 ## Triggery, żeby agent działał bez Ciebie { #triggers-so-an-agent-runs-without-you }
 

@@ -146,6 +146,21 @@ describe("useSharing", () => {
     expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
   });
 
+  it("marks a table's own queries stale when its visibility changes", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["tables", "t1"], { id: "t1", visibility: "private" });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("table", "t1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    expect(client.getQueryState(["tables", "t1"])?.isInvalidated).toBe(true);
+  });
+
   it("surfaces the server's refusal instead of leaving the panel silent", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.put).mockRejectedValue(new Error("You cannot change sharing"));

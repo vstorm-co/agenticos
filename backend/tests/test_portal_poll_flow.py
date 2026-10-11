@@ -79,8 +79,20 @@ def _service(recorder: _Recorder, *, read: PolledEvents | None, decisions: list)
     return connections, triggers
 
 
-async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
-    """The flow, with its two services and its dispatcher swapped out."""
+def _workflows(recorder: _Recorder, *, admitted: bool = True) -> MagicMock:
+    """The workflows listening to the mailbox: every message admitted, or not."""
+    workflows = MagicMock()
+
+    async def receive(*, organization_id, events):
+        recorder.steps.append(f"workflows:{len(events)}")
+        return admitted
+
+    workflows.receive_polled_email = receive
+    return workflows
+
+
+async def _run(recorder: _Recorder, *, read, decisions, dispatch=None, admitted=True):
+    """The flow, with its three services and its dispatcher swapped out."""
     from app.worker.tasks import trigger_tasks
 
     connections, triggers = _service(recorder, read=read, decisions=decisions)
@@ -108,6 +120,10 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
         patch.object(trigger_tasks, "_ensure_trigger_dedupe", already_configured),
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+        patch(
+            "app.services.workflow_exposure.WorkflowExposureService",
+            return_value=_workflows(recorder, admitted=admitted),
+        ),
     ):
         await trigger_tasks.poll_portal_grants_flow()
 
@@ -134,8 +150,23 @@ class TestTheOrderOfWork:
             "poll",
             "match:gmail:1",
             f"fire:{decision.trigger_id}",
+            "workflows:1",
             "cursor:600",
         ]
+
+    async def test_a_workflow_run_with_no_room_keeps_the_cursor(self):
+        """A message a workflow could not take yet is read again a minute later,
+        and the delivery it already has stops a second run of the ones it took."""
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            read=PolledEvents(events=(_event(),), cursor={"history_id": "602"}),
+            decisions=[],
+            admitted=False,
+        )
+
+        assert "workflows:1" in recorder.steps and "cursor:602" not in recorder.steps
 
     async def test_a_failed_dispatch_does_not_cost_the_rest_of_the_batch(self):
         """One transient Prefect error must not lose the other messages' fires -
@@ -182,7 +213,7 @@ class TestTheOrderOfWork:
             recorder, read=PolledEvents(events=(), cursor={"history_id": "700"}), decisions=[]
         )
 
-        assert recorder.steps == ["poll", "match:gmail:0", "cursor:700"]
+        assert recorder.steps == ["poll", "match:gmail:0", "workflows:0", "cursor:700"]
 
 
 class TestOneMailboxIsOneTenant:
@@ -232,6 +263,10 @@ class TestOneMailboxIsOneTenant:
             patch.object(trigger_tasks, "dispatch_trigger_fire", AsyncMock()),
             patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
             patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+            patch(
+                "app.services.workflow_exposure.WorkflowExposureService",
+                return_value=_workflows(recorder),
+            ),
         ):
             await trigger_tasks.poll_portal_grants_flow()
         return recorder, one, two

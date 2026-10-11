@@ -82,6 +82,7 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
+from app.repositories import workflow as workflow_repo
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
@@ -103,6 +104,7 @@ from app.services.access import (
     CONTEXT,
     SECRET,
     SKILL,
+    WORKFLOW,
     accessible_ids,
     resolve_access,
     visible_resource_ids,
@@ -149,6 +151,9 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "tables:read",
+        "tables:write",
+        "workflows:run",
     }
 )
 
@@ -717,6 +722,14 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
         raise refused_field("yaml", str(exc)) from exc
 
 
+_WORKFLOW_PERMS: dict[Perm, Perm] = {
+    Perm.AGENTS_VIEW: Perm.WORKFLOWS_VIEW,
+    Perm.AGENTS_RUN: Perm.WORKFLOWS_RUN,
+}
+"""What reaching a workflow step's own agent asks of its workflow; any other
+permission is a change, which only the step makes."""
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -734,10 +747,37 @@ class AgentRegistryService:
         agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
         if agent is None:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
-        allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
+        if agent.workflow_id is not None:
+            allowed = await self._workflow_allows(ctx, agent, agent.workflow_id, perm)
+        else:
+            allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
+
+    async def _workflow_allows(
+        self, ctx: AuthContext, agent: Agent, workflow_id: UUID, perm: Perm
+    ) -> bool:
+        """Whether the caller may do `perm` to an agent a workflow step configures.
+
+        The workflow owns it, so the workflow's access decides: seeing the agent
+        is seeing the workflow, and running it is running the workflow. Changing
+        it is refused here whoever asks - its spec is the step's, edited in the
+        workflow and versioned with it, and an edit made anywhere else would be
+        overwritten by the next run of the step.
+        """
+        workflow_perm = _WORKFLOW_PERMS.get(perm)
+        if workflow_perm is None:
+            raise BadRequestError(
+                message="This agent is configured in its workflow step",
+                details={"agent_id": str(agent.id), "workflow_id": str(agent.workflow_id)},
+            )
+        workflow = await workflow_repo.get(
+            self.db, workflow_id, organization_id=ctx.organization_id
+        )
+        return workflow is not None and await resolve_access(
+            self.db, ctx, workflow, workflow_perm, resource_type=WORKFLOW
+        )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may run this agent - the floor to create a trigger on it.
@@ -2507,6 +2547,36 @@ class AgentRegistryService:
                 ),
                 details={"limit": limit, "held": held},
             )
+
+    async def get_pinned_spec(
+        self, ctx: AuthContext, agent_id: UUID, version_id: UUID
+    ) -> tuple[Agent, AgentSpec, UUID]:
+        """The spec of one named published version, for a caller that pins it.
+
+        A workflow's `agent.run` step names the version it was built against, and
+        runs that version whatever is published since - which is why it cannot use
+        `get_runnable_spec`, whose answer follows the default environment. Delegation
+        pins a version the same way. The agent must still be one this caller may run
+        and not archived, and the version must be this agent's.
+
+        Raises:
+            NotFoundError: The agent or the version is not reachable, or the version
+                belongs to another agent.
+            BadRequestError: The agent is archived.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        version = await agent_repo.get_version(
+            self.db, version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.agent_id != agent.id:
+            raise NotFoundError(
+                message="Agent version not found", details={"version_id": str(version_id)}
+            )
+        return agent, AgentSpec.model_validate(version.spec), version.id
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

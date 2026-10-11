@@ -123,6 +123,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    workflow_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The workflow whose step configures this agent, when one does. Such an "
+            "agent is changed in that step, never here, and is not in the catalog."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(
@@ -643,6 +650,14 @@ class AgentRunResult(BaseSchema):
 
     run_id: UUID
     output: str
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer as an object, for an agent with an `output_schema`: it fits "
+            "that schema, and `output` shows the same object as a JSON block. Null "
+            "for a free-text answer, and for a run that parked or stopped"
+        ),
+    )
     status: str
     cost_usd: Decimal
     cost_is_partial: bool = Field(

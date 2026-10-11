@@ -1,0 +1,293 @@
+"""`mcp.call`: call one tool on one of the organization's MCP servers.
+
+The step names a connection and a tool, and its arguments are bound from earlier
+steps. The connection must be the organization's own - never a member's, for the
+reason a published agent may not bind one: a workflow's reach cannot depend on
+whose account happens to start it - and enabled when the step runs. Its headers
+come from the vault exactly as an agent's toolset gets them.
+
+A tool that changes something can wait for a person first. `approval` decides
+which: `writes` (the default) asks before every tool the server does not mark
+read-only, `all` before any, `none` never. Asking writes a `workflow_approvals`
+request keyed by the step's `NodeRun` - the one `human.approval` writes, so the
+same inbox, decision and wake apply - and the step calls the tool once the
+request is approved, or fails with `MCP_CALL_REJECTED`. A server's read-only mark
+is its own claim; `all` is for a server that is not trusted to make it.
+
+A crash after the call and before the step settles calls the tool again on the
+retry: MCP has no idempotency key to send, so the step is at least once.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.mcp import carries_base_exception, mcp_session, probe_error_message
+from app.core.permissions import AuthContext
+from app.db.models.mcp_connection import McpConnection
+from app.db.models.notification import NotificationChannel, NotificationEventType
+from app.db.models.workflow_approval import WorkflowApprovalStatus
+from app.db.session import get_worker_db_context
+from app.repositories import mcp_connection_repo
+from app.repositories import member as member_repo
+from app.repositories import workflow_approval as approval_repo
+from app.services.mcp_connection import resolve_auth_headers
+from app.services.notification_center import NotificationCenterService
+from app.services.workflow_execution import context
+from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+
+MAX_TEXT = 100_000
+"""The most of a tool's text answer a step keeps - a page, not a dump."""
+
+
+class McpCallConfig(BaseModel):
+    """Which server, which tool, and when a person approves the call first."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    connection_id: UUID = Field(
+        title="Server",
+        json_schema_extra={"x-resource": "mcp_connection"},
+        description="One of the organization's MCP servers.",
+    )
+    tool: str = Field(
+        min_length=1,
+        max_length=200,
+        json_schema_extra={"x-mcp-tool": "connection_id"},
+        description="The tool to call, as the server names it.",
+    )
+    approval: Literal["writes", "all", "none"] = Field(
+        default="writes",
+        title="Ask for approval",
+        description="Before a tool the server does not mark read-only, before every call, "
+        "or never.",
+        json_schema_extra={
+            "x-enum-labels": {
+                "writes": "Before a tool that can change something",
+                "all": "Before every call",
+                "none": "Never",
+            }
+        },
+    )
+    approvers: tuple[UUID, ...] = Field(
+        default=(),
+        max_length=50,
+        json_schema_extra={"x-resource": "member"},
+        title="Approvers",
+        description="Who may approve the call. Anyone who decides approvals when empty.",
+    )
+    timeout_seconds: int = Field(
+        default=60, ge=1, le=300, description="How long the tool may take to answer."
+    )
+    on_tool_error: Literal["fail", "complete"] = Field(
+        default="fail",
+        title="When the tool answers with an error",
+        description="Whether an error the tool answers with fails the step or is its output.",
+        json_schema_extra={
+            "x-enum-labels": {"fail": "Fail the step", "complete": "Hand the error on"}
+        },
+    )
+
+
+class McpCallInput(BaseModel):
+    """The tool's arguments, bound from an earlier step."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    arguments: dict[str, Any] | None = Field(
+        default=None, description="An object matching the tool's own input schema."
+    )
+
+
+class McpCallOutput(BaseModel):
+    """What the tool answered."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    text: str = Field(description="The answer's text, every text part joined")
+    structured: dict[str, Any] | None = Field(
+        default=None, description="The answer as data, when the tool returns some"
+    )
+    is_error: bool = Field(description="Whether the tool answered with an error")
+
+
+async def _connection(
+    db: AsyncSession, organization_id: UUID, connection_id: UUID
+) -> McpConnection | None:
+    return await mcp_connection_repo.get_org_scoped_by_id(
+        db, connection_id=connection_id, organization_id=organization_id
+    )
+
+
+async def check_resources(
+    db: AsyncSession, ctx: AuthContext, config: BaseModel
+) -> list[tuple[str, str]]:
+    """Refuse a server that is not the organization's own, and a tool it did not offer."""
+    if not isinstance(config, McpCallConfig):
+        return []
+    problems: list[tuple[str, str]] = []
+    connection = await _connection(db, ctx.organization_id, config.connection_id)
+    if connection is None:
+        problems.append(("connection_id", "This is not one of the organization's MCP servers"))
+    elif not connection.is_enabled:
+        problems.append(("connection_id", "This MCP server is turned off"))
+    elif connection.last_tools is not None and config.tool not in {
+        tool.get("name") for tool in connection.last_tools
+    }:
+        problems.append(("tool", "The server did not offer this tool when it was last tested"))
+    for index, user_id in enumerate(config.approvers):
+        if (
+            await member_repo.get_active(db, organization_id=ctx.organization_id, user_id=user_id)
+            is None
+        ):
+            problems.append(
+                (f"approvers.{index}", "This person is not a member of the organization")
+            )
+    return problems
+
+
+def _failed(code: str, message: str, **details: str) -> Failed:
+    return Failed(error=WorkflowError(code=code, message=message, details=dict(details)))
+
+
+def _answer(result: Any) -> McpCallOutput:
+    """A `CallToolResult` as the step's output: its text parts, its data, its error flag."""
+    from mcp.types import TextContent
+
+    text = "\n\n".join(part.text for part in result.content if isinstance(part, TextContent))
+    structured = result.structured_content
+    return McpCallOutput(
+        text=text[:MAX_TEXT],
+        structured=structured if isinstance(structured, dict) else None,
+        is_error=bool(result.is_error),
+    )
+
+
+async def _call(
+    config: McpCallConfig,
+    url: str,
+    headers: dict[str, str],
+    arguments: dict[str, Any] | None,
+    *,
+    ask_first: bool,
+) -> McpCallOutput | Literal["ask"] | Failed:
+    """Call the tool - or, when `ask_first` and the server does not mark it
+    read-only, report `"ask"` without calling it."""
+    from mcp.types import CallToolResult
+
+    try:
+        async with asyncio.timeout(config.timeout_seconds), mcp_session(url, headers) as session:
+            if ask_first:
+                listed = await session.list_tools()
+                tool = next((tool for tool in listed.tools if tool.name == config.tool), None)
+                if tool is None:
+                    return _failed(
+                        "MCP_TOOL_NOT_FOUND",
+                        "The server does not offer this tool",
+                        tool=config.tool,
+                    )
+                if not (tool.annotations is not None and tool.annotations.read_only_hint):
+                    return "ask"
+            result = await session.call_tool(config.tool, arguments or {})
+    except (Exception, BaseExceptionGroup) as exc:
+        if carries_base_exception(exc):
+            raise
+        return _failed("MCP_CALL_FAILED", probe_error_message(exc), tool=config.tool)
+    if not isinstance(result, CallToolResult):
+        return _failed(
+            "MCP_CALL_FAILED",
+            "The server asked for more before answering, which a workflow cannot give",
+            tool=config.tool,
+        )
+    return _answer(result)
+
+
+async def _ask(
+    db: AsyncSession, config: McpCallConfig, server: str, arguments: dict[str, Any] | None
+) -> None:
+    current = context.current()
+    if current.workflow_id is None:  # pragma: no cover - every dispatch carries its workflow
+        raise RuntimeError("A workflow step dispatched with no workflow")
+    title = f"Call {config.tool} on {server}?"[:200]
+    await approval_repo.create(
+        db,
+        organization_id=current.organization_id,
+        workflow_id=current.workflow_id,
+        workflow_run_id=current.workflow_run_id,
+        node_run_id=current.node_run_id,
+        title=title,
+        details=json.dumps(arguments or {}, indent=2, default=str)[:4000],
+        approver_user_ids=list(config.approvers),
+        expires_at=None,
+    )
+    if config.approvers:
+        await NotificationCenterService(db).write(
+            recipients=list(dict.fromkeys(config.approvers)),
+            event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
+            occurrence_id="workflow-approval:"
+            + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),
+            summary=f"Approval needed: {title}",
+            organization_id=current.organization_id,
+            actor_user_id=current.auth.user_id,
+            channels={NotificationChannel.IN_APP},
+        )
+
+
+async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+    """Call the tool, ask before calling it, or act on the answer to asking."""
+    if not isinstance(config, McpCallConfig):
+        return _failed("MCP_CALL_NOT_CONFIGURED", "This step names no server or tool")
+    arguments = node_input.arguments if isinstance(node_input, McpCallInput) else None
+    current = context.current()
+    async with get_worker_db_context() as db:
+        connection = await _connection(db, current.organization_id, config.connection_id)
+        if connection is None or not connection.is_enabled:
+            return _failed(
+                "MCP_SERVER_UNAVAILABLE",
+                "The MCP server is gone or turned off",
+                connection_id=str(config.connection_id),
+            )
+        headers = await resolve_auth_headers(db, connection)
+        if headers is None:
+            return _failed(
+                "MCP_SERVER_UNAUTHORIZED",
+                "The MCP server needs to be authorized again",
+                connection_id=str(config.connection_id),
+            )
+        # Read now: the session closes before the call, and the row with it.
+        url, server = connection.url, connection.label or connection.name
+        approval = await approval_repo.get_for_node_run_for_update(db, current.node_run_id)
+        if approval is not None and approval.status == WorkflowApprovalStatus.PENDING.value:
+            return Waiting(reason="approval", resume_token=str(current.node_run_id))
+        if approval is not None and approval.status != WorkflowApprovalStatus.APPROVED.value:
+            return _failed(
+                "MCP_CALL_REJECTED",
+                "The call was not approved",
+                tool=config.tool,
+            )
+        if approval is None and config.approval == "all":
+            await _ask(db, config, server, arguments)
+            return Waiting(reason="approval", resume_token=str(current.node_run_id))
+    answer = await _call(
+        config,
+        url,
+        headers,
+        arguments,
+        ask_first=approval is None and config.approval == "writes",
+    )
+    if answer == "ask":
+        async with get_worker_db_context() as db:
+            await _ask(db, config, server, arguments)
+        return Waiting(reason="approval", resume_token=str(current.node_run_id))
+    if isinstance(answer, Failed):
+        return answer
+    if answer.is_error and config.on_tool_error == "fail":
+        return _failed("MCP_TOOL_ERROR", answer.text[:500] or "The tool answered with an error")
+    return Completed[McpCallOutput](output=answer)

@@ -177,6 +177,30 @@ class TestTheGithubAdapter:
         assert result == RegisteredWebhook(provider_webhook_id="987654")
         assert calls == [("POST", "/repos/acme/api/hooks")]
 
+    async def test_a_hook_is_registered_for_the_events_asked_or_the_presets_issues(self) -> None:
+        """An agent trigger's presets act on issues alone; a workflow's GitHub trigger
+        names its own events, and the hook has to carry them or GitHub never sends one."""
+        sent: list[dict[str, Any]] = []
+
+        class _Recording(_FakeClient):
+            async def post(self, url: str, **kwargs: Any) -> _Resp:
+                sent.append(kwargs["json"])
+                return await super().post(url, **kwargs)
+
+        with patch("httpx.AsyncClient", lambda **_kw: _Recording([_Resp(201, {"id": 1})], [])):
+            await GitHubPortalAdapter().register_webhook(
+                access_token="t", target="acme/api", webhook_url="u", secret="s"
+            )
+            await GitHubPortalAdapter().register_webhook(
+                access_token="t",
+                target="acme/api",
+                webhook_url="u",
+                secret="s",
+                events=("push", "release"),
+            )
+
+        assert [body["events"] for body in sent] == [["issues"], ["push", "release"]]
+
     async def test_registering_without_a_repository_is_forbidden(self) -> None:
         with pytest.raises(WebhookRegistrationForbidden):
             await GitHubPortalAdapter().register_webhook(

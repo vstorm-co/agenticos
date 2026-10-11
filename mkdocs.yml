@@ -319,6 +319,8 @@ nav:
           - models.md
           - skills.md
           - context.md
+          - virtual-tables.md
+          - workflows.md
           - file-processing.md
           - mcp.md
           - sandbox.md
@@ -351,6 +353,7 @@ nav:
       - commands.md
       - reference/spec.md
       - reference/capabilities.md
+      - reference/workflow-nodes.md
       - reference/permissions.md
       - reference/components.md
   - Resources:

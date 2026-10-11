@@ -99,6 +99,24 @@ class TestThePublicRunApi:
             f"ratelimit:agent_run:user:{_CALLER}"
         )
 
+    async def test_starting_workflow_runs_past_the_allowance_is_refused_with_429(self, signed_in):
+        """Each start queues dispatch work and its nodes can spend the
+        organization's budget, so it is metered like the agent run API - on a
+        surface of its own, counted against the caller."""
+        client_mock = _redis(used=999)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/workflow-runs", json={"workflow_id": str(uuid4())}
+            )
+
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+        assert client_mock.count_in_window.await_args.args[0] == (
+            f"ratelimit:workflow_run:user:{_CALLER}"
+        )
+
     async def test_the_console_routes_are_not_metered(self, signed_in):
         """Public surfaces only. A blanket middleware would have limited the
         dashboard too, which is a different decision with its own issue."""

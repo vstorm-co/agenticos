@@ -209,7 +209,7 @@ class TestTheAllowanceAChatAccountGets:
         redis = MagicMock()
         redis.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
         rate_limit.configure(redis)
-        monkeypatch.setattr(router_module, "_fallback_windows", router_module._LocalWindows())
+        monkeypatch.setattr(router_module, "_fallback_windows", router_module.LocalWindows())
         router = ChannelMessageRouter()
         bot = _bot({"rate_limit_rpm": 3})
 
@@ -222,7 +222,7 @@ class TestTheAllowanceAChatAccountGets:
     async def test_a_deployment_with_no_limiter_is_bounded_locally_and_says_so(
         self, monkeypatch: pytest.MonkeyPatch, caplog
     ):
-        monkeypatch.setattr(router_module, "_fallback_windows", router_module._LocalWindows())
+        monkeypatch.setattr(router_module, "_fallback_windows", router_module.LocalWindows())
         router = ChannelMessageRouter()
         bot = _bot({"rate_limit_rpm": 1})
 
@@ -238,7 +238,7 @@ class TestTheAllowanceAChatAccountGets:
         """Bounded the way the shared window is bounded by its TTL: an entry
         lives one window, so the map is the callers of the last minute."""
         clock = iter([0.0, 1.0, 61.0, 62.0])
-        windows = router_module._LocalWindows(clock=lambda: next(clock))
+        windows = router_module.LocalWindows(clock=lambda: next(clock))
 
         assert windows.consume("a", attempts=1, window_seconds=60) is True
         assert windows.consume("a", attempts=1, window_seconds=60) is False

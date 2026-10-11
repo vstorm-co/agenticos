@@ -153,6 +153,77 @@ class TestDegradingRatherThanRefusing:
         assert "unmetered" in caplog.text
 
 
+class TestALocalFloorWhenTheSharedLimiterCannotCount:
+    """`consume_with_local_floor` is for a surface whose limit is a production
+    control - a Virtual Tables write bounds how fast a tenant grows the shared
+    database - where the shared limiter's fail-open default would remove the limit
+    entirely for the length of a Redis outage (#1823)."""
+
+    async def test_a_counted_decision_is_passed_straight_through(self):
+        """When Redis answers, the shared count is the whole answer and the local
+        window is not consulted at all."""
+        rate_limit.configure(_redis([4]))
+
+        decision = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=3)
+        )
+
+        assert decision.allowed is False
+        assert decision.metered is True
+
+    async def test_an_unmetered_decision_is_bounded_on_this_worker(self, monkeypatch):
+        """A Redis that cannot be reached would leave the surface unmetered; the
+        per-process window holds the same allowance instead of none."""
+        client = MagicMock()
+        client.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+        monkeypatch.setattr(rate_limit, "_fallback_windows", rate_limit.LocalWindows())
+
+        decisions = [
+            await rate_limit.consume_with_local_floor(
+                surface="table_write", caller="org:o:user:u", limit=Limit(attempts=2)
+            )
+            for _ in range(3)
+        ]
+
+        assert [d.allowed for d in decisions] == [True, True, False]
+        assert all(d.metered is False for d in decisions)
+        assert decisions[-1].retry_after_seconds == 60
+
+    async def test_the_floor_is_kept_per_surface_and_per_caller(self, monkeypatch):
+        """The caller is namespaced by surface, so a table write and a channel
+        turn do not spend each other's floor while Redis is down."""
+        monkeypatch.setattr(rate_limit, "_fallback_windows", rate_limit.LocalWindows())
+
+        first = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=1)
+        )
+        again = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=1)
+        )
+        elsewhere = await rate_limit.consume_with_local_floor(
+            surface="ml_call", caller="c", limit=Limit(attempts=1)
+        )
+
+        assert first.allowed is True
+        assert again.allowed is False
+        assert elsewhere.allowed is True
+
+
+class TestTheLocalWindowItself:
+    def test_it_forgets_windows_that_have_expired(self):
+        """Bounded the way the shared window is bounded by its TTL: an entry lives
+        one window, so the map holds the callers of the last window, not all of them."""
+        clock = iter([0.0, 1.0, 61.0, 62.0])
+        windows = rate_limit.LocalWindows(clock=lambda: next(clock))
+
+        assert windows.consume("a", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is False
+        assert windows.consume("b", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is True, "a new window"
+        assert len(windows) == 2
+
+
 class TestWhichAddressIsCounted:
     def test_the_socket_and_the_request_are_read_the_same_way(self):
         """Both are `HTTPConnection`, and the widget's handshake needs the same
@@ -430,3 +501,28 @@ class TestStoringAFileIsCountedTwice:
         )
 
         assert decision.allowed is False
+
+
+class TestAFormIsCountedPerForm:
+    """A workflow's public form is read and submitted through the console's server,
+    so every visitor arrives as the same caller: the bucket is the form."""
+
+    async def test_reading_and_submitting_are_two_buckets_of_one_form(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.form_page_allowed("tok")).allowed is True
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is True
+
+        keys = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert keys == [
+            "ratelimit:workflow_form_page:form:tok",
+            "ratelimit:workflow_form_submission:form:tok",
+        ]
+
+    async def test_a_form_over_its_submissions_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        rate_limit.configure(_redis([4]))
+
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is False

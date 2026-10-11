@@ -60,14 +60,17 @@ class OrganizationSecretService:
         The shape check is the one that matters: a purpose says which service
         the key is for, and every service knows what a credential for it looks
         like. Storing an AWS pair as an OpenAI key produces a vault entry that
-        reads correctly and fails at the first run.
+        reads correctly and fails at the first run. `custom` is the one that
+        takes any shape: it names no service, so it has no shape to insist on -
+        and it is how a credential for something the catalog does not know, an
+        HTTP API's for one, is stored at all.
         """
         entry = secret_purposes.get(purpose)
         if entry is None:
             raise BadRequestError(
                 message=f"Unknown purpose: {purpose}", details={"purpose": purpose}
             )
-        if entry.kind is not kind:
+        if entry.id != CUSTOM and entry.kind is not kind:
             raise BadRequestError(
                 message=(f"{entry.label} needs a {entry.kind.value} credential, not {kind.value}"),
                 details={"purpose": purpose, "expected_kind": entry.kind.value},

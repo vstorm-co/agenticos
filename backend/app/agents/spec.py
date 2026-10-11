@@ -23,6 +23,7 @@ scope is rejected when saved, so a broken agent never reaches a conversation.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 from enum import StrEnum
@@ -30,6 +31,8 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import yaml
+from jsonschema import exceptions as jsonschema_errors
+from jsonschema import validators
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -934,6 +937,36 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     return {**data, "capabilities": capabilities}
 
 
+MAX_OUTPUT_SCHEMA_BYTES = 16_384
+"""How large an answer's JSON Schema may be, as compact JSON. It is sent to the
+model with every request, so a bigger one costs every run and rarely helps."""
+
+
+def checked_output_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    """`schema` if it can shape an answer: a valid JSON Schema for one object.
+
+    An object because the model hands a structured answer back as the arguments
+    of one call, and arguments are an object; a bare string or list has a field
+    of its own to go in. Shared by `AgentSpec.output_schema` and the `agent.run`
+    step's override, so both refuse the same things with the same words.
+
+    Raises:
+        ValueError: Not a JSON Schema, not an object's, or over
+            `MAX_OUTPUT_SCHEMA_BYTES`.
+    """
+    if schema is None:
+        return None
+    try:
+        validators.validator_for(schema).check_schema(schema)
+    except jsonschema_errors.SchemaError as exc:
+        raise ValueError(f"This is not a valid JSON Schema: {exc.message}") from exc
+    if schema.get("type") != "object":
+        raise ValueError('A structured answer is an object: the schema needs "type": "object"')
+    if len(json.dumps(schema, separators=(",", ":"))) > MAX_OUTPUT_SCHEMA_BYTES:
+        raise ValueError(f"The schema is over {MAX_OUTPUT_SCHEMA_BYTES} bytes as JSON")
+    return schema
+
+
 class AgentSpec(BaseModel):
     """Everything that defines an agent's behaviour.
 
@@ -1030,6 +1063,17 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    output_schema: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The JSON Schema of the agent's answer, when it answers with data "
+            "rather than prose. The model is asked for an object of this shape "
+            "and its answer is validated against it before the run ends, on every "
+            "surface: the API returns it as `structured`, the chat shows it, and "
+            "an `agent.run` step hands it on. Null is a free-text answer."
+        ),
+    )
+
     budget: BudgetSpec | None = None
 
     notifications: NotificationSpec = Field(
@@ -1046,6 +1090,8 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    _output_schema = field_validator("output_schema")(checked_output_schema)
 
     @property
     def trace_content(self) -> TraceContent:

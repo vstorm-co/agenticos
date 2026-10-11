@@ -76,6 +76,30 @@ def _format_result(stdout: str, output: Any) -> str:
     return _clip(text)
 
 
+async def execute(
+    code: str,
+    *,
+    inputs: dict[str, Any] | None = None,
+    timeout_secs: float = DEFAULT_TIMEOUT_SECS,
+    max_memory_mb: int = DEFAULT_MAX_MEMORY_MB,
+) -> tuple[Any, str]:
+    """Run `code` in the Monty sandbox and return its last expression's value and stdout.
+
+    The typed half, for a caller that wants the value rather than prose about
+    it - a workflow's `code.python.simple` step. `inputs` become variables the
+    code reads by name. Raises what Monty raises: `MODEL_ERRORS` for a problem
+    in the code, `MontyError` for the sandbox itself.
+    """
+    limits: ResourceLimits = {
+        "max_feed_duration_secs": timeout_secs,
+        "max_memory": max_memory_mb * 1024 * 1024,
+    }
+    collector = CollectString()
+    async with AsyncMonty() as monty, monty.checkout(limits=limits) as session:
+        output = await session.feed_run(code, inputs=inputs, print_callback=collector)
+    return output, collector.output
+
+
 async def run_python(
     code: str,
     *,
@@ -95,14 +119,8 @@ async def run_python(
         The captured stdout plus the value of the final expression, or the
         failure - with `fixable` saying whether the program was the problem.
     """
-    limits: ResourceLimits = {
-        "max_feed_duration_secs": timeout_secs,
-        "max_memory": max_memory_mb * 1024 * 1024,
-    }
-    collector = CollectString()
     try:
-        async with AsyncMonty() as monty, monty.checkout(limits=limits) as session:
-            output = await session.feed_run(code, print_callback=collector)
+        output, stdout = await execute(code, timeout_secs=timeout_secs, max_memory_mb=max_memory_mb)
     except MODEL_ERRORS as e:
         # Not logged: a `NameError` in code the model wrote is not a defect in
         # this deployment, and an error log full of them hides the ones that are.
@@ -115,4 +133,4 @@ async def run_python(
         logger.exception("run_python execution failed")
         return RunOutcome(_clip(f"Execution failed: {e}"))
 
-    return RunOutcome(_format_result(collector.output, output))
+    return RunOutcome(_format_result(stdout, output))

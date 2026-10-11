@@ -13,6 +13,7 @@ import {
   getErrorMessage,
   parseErrorMessage,
   problemList,
+  schemaDependents,
   submitFailure,
 } from "./api-error";
 import { BFF_ERROR_KEYS } from "./bff-errors";
@@ -562,5 +563,36 @@ describe("nothing outside this module shows a refusal's raw message", () => {
     ]) {
       expect(READS_MESSAGE.test(shape), shape).toBe(false);
     }
+  });
+});
+
+describe("schemaDependents", () => {
+  const refusal = (dependents: unknown) =>
+    new ApiError(409, "…", {
+      error: { code: "SCHEMA_DEPENDENCY", message: "…", details: { dependents } },
+    });
+
+  it("returns what the refusal named, with a hidden one unnamed", () => {
+    expect(
+      schemaDependents(
+        refusal([
+          { kind: "workflow", id: "w1", name: "Sync" },
+          { kind: "table_trigger", id: "t1", name: null },
+          { kind: "workflow", id: 7, name: "not an id" },
+          { kind: "workflow", id: "w2", name: 3 },
+          "junk",
+        ]),
+      ),
+    ).toEqual([
+      { kind: "workflow", id: "w1", name: "Sync" },
+      { kind: "table_trigger", id: "t1", name: null },
+    ]);
+  });
+
+  it("is null for any other failure, or a list with nothing readable", () => {
+    expect(schemaDependents(new Error("boom"))).toBeNull();
+    expect(schemaDependents(new ApiError(403, "Insufficient permissions", null))).toBeNull();
+    expect(schemaDependents(refusal("not a list"))).toBeNull();
+    expect(schemaDependents(refusal([{ kind: 1, id: "x", name: null }]))).toBeNull();
   });
 });

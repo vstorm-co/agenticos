@@ -45,6 +45,10 @@ class NotificationEventType(enum.StrEnum):
     SECURITY_EVENT = "security_event"
     CONFIGURATION_CHANGED = "configuration_changed"
     ANNOUNCEMENT = "announcement"
+    # Written by a workflow's `notification.send` step. Its audience is the step's
+    # own recipient list, already checked against the workflow's reach, rather
+    # than a setting on an agent (#1789).
+    WORKFLOW_NOTIFICATION = "workflow_notification"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -136,7 +140,7 @@ class Notification(Base, TimestampMixin):
             "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
-            "'announcement')",
+            "'announcement', 'workflow_notification')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

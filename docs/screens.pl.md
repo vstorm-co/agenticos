@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "df9fa735e6b5"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -115,6 +115,51 @@ Każda wersja, jaką ten agent miał. Ta, która była na żywo w marcu, nadal j
 Ten sam agent jako graf: co do niego sięga i po co on sięga. Przerywana ramka to coś, do czego nic nie jest podpięte - budżet bez własnego sufitu czyta się jako luka, a nie jako wartość domyślna.
 
 > **Miejsce na zrzut — Visual map.**
+
+## Workflows i tabele { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+Katalog automatyzacji, po jednej karcie na każdą: jej status, kto może do niej dotrzeć, czy ma żywą wersję i kiedy ostatnio ją edytowano, a jej runy, edytor i kopia są jedno kliknięcie dalej.
+
+> **Miejsce na zrzut — Workflows.**
+
+### Edytor workflow { #the-workflow-editor }
+
+Kanwa ma całą szerokość: graf jako karty mówiące, do czego ustawiony jest każdy krok albo do jakiej grupy należy, ustawienia kroku w oknie nad nią i każdy krok do dodania o jedno kliknięcie - albo jeden prawy przycisk - stąd. Pętla pokazuje, ile kroków zawiera jej ciało.
+
+> **Miejsce na zrzut — Edytor workflow.**
+
+### Ciało pętli { #a-loops-body }
+
+Wewnątrz pętli, z zaznaczonym jednym krokiem: tabela, do której zapisuje, i jej kolumny, id rekordu czytane z bieżącego elementu pętli, wartości, które zapisuje, oraz jego polityka - trzy próby i błędy kierowane czerwonym portem **Error** do obsługi błędu zamiast kończenia runa błędem.
+
+> **Miejsce na zrzut — Ciało pętli.**
+
+### Runy { #runs }
+
+Każdy run jednego workflow, od najnowszego: czy uruchomił draft czy opublikowaną wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run** testuje draft z Twoim własnym inputem.
+
+> **Miejsce na zrzut — Runy.**
+
+### Run { #a-run }
+
+Jeden run tak, jak przebiegł: graf, który wykonał, z każdym krokiem oznaczonym tym, co zrobił, wyjście, którym odpowiedział, i każdy krok, który wykonał, iteracja po iteracji.
+
+> **Miejsce na zrzut — Run.**
+
+### Tabele { #tables }
+
+Typowane rekordy, które czytają i zapisują Twoi agenci, workflow i integracje, po jednej karcie na tabelę, z tym, kto może do niej dotrzeć, i wersją jej schematu.
+
+> **Miejsce na zrzut — Tabele.**
+
+### Tabela { #a-table }
+
+Rekordy jednej tabeli po tym, jak run powyżej podniósł każdy niski wynik: wartości wyboru jako kolorowe chipy, a te same rekordy jako tablica kanban albo lista w sąsiedniej zakładce.
+
+> **Miejsce na zrzut — Tabela.**
+
 ## Knowledge { #knowledge }
 
 ### Knowledge bases { #knowledge-bases }

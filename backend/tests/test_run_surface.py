@@ -36,7 +36,9 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_eight_surfaces_that_exist(self):
+        # `workflow` is written by a workflow's `agent.run` step; that it is written
+        # is proven in `tests/integration/test_workflow_agent_node.py`.
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
@@ -45,6 +47,7 @@ class TestEveryMemberIsAssignedBySomething:
             "telegram",
             "mattermost",
             "schedule",
+            "workflow",
         }
 
     def test_playground_is_absent_but_schedule_now_has_a_writer(self):

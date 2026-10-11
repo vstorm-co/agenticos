@@ -16,14 +16,18 @@ SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.sanitize import validate_webhook_url
+
+if TYPE_CHECKING:
+    from mcp import ClientSession
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +64,20 @@ async def validate_mcp_url(url: str) -> str:
 
 @dataclass(frozen=True)
 class McpToolInfo:
-    """One tool advertised by an MCP server (for the /test endpoint and UI)."""
+    """One tool advertised by an MCP server (for the /test endpoint and UI).
+
+    `input_schema` is the JSON Schema of its arguments, for a workflow step that
+    calls the tool to offer one field per argument. Recorded only while small: a
+    schema is the server's to write, and a connection row is no place for an
+    unbounded one.
+    """
 
     name: str
     description: str
+    input_schema: dict[str, Any] | None = None
+
+
+MAX_INPUT_SCHEMA_BYTES = 20_000
 
 
 @dataclass(frozen=True)
@@ -127,31 +141,53 @@ async def probe_mcp_server(
     backing call for the connection "test" endpoint. The transport (streamable
     HTTP or SSE) is inferred from the URL, matching the toolset layer.
     """
-    from mcp import ClientSession
-
     try:
         async with asyncio.timeout(timeout or CONNECT_TIMEOUT_SECS):
-            async with (
-                _mcp_transport(url, headers) as (read, write),
-                ClientSession(read, write) as session,
-            ):
-                await session.initialize()
+            async with mcp_session(url, headers) as session:
                 result = await session.list_tools()
     except (Exception, BaseExceptionGroup) as exc:
-        if _carries_base_exception(exc):
+        if carries_base_exception(exc):
             raise
         raise McpProbeError(probe_error_message(exc)) from exc
-    return [McpToolInfo(name=t.name, description=t.description or "") for t in result.tools]
+    return [
+        McpToolInfo(
+            name=t.name,
+            description=t.description or "",
+            input_schema=(
+                t.input_schema
+                if len(json.dumps(t.input_schema, default=str)) <= MAX_INPUT_SCHEMA_BYTES
+                else None
+            ),
+        )
+        for t in result.tools
+    ]
 
 
-def _carries_base_exception(exc: BaseException) -> bool:
+@asynccontextmanager
+async def mcp_session(url: str, headers: dict[str, str] | None) -> AsyncIterator[ClientSession]:
+    """An initialized client session on the server at *url*, closed on exit.
+
+    Raises what the transport raises - often an exception group; see
+    :func:`carries_base_exception` and :func:`probe_error_message` for reading one.
+    """
+    from mcp import ClientSession
+
+    async with (
+        _mcp_transport(url, headers) as (read, write),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        yield session
+
+
+def carries_base_exception(exc: BaseException) -> bool:
     """True when *exc* is (or wraps) something that isn't an `Exception`.
 
     A group carrying a `CancelledError` means the turn was cancelled, not
     that the server is down - swallowing it would keep the run alive.
     """
     if isinstance(exc, BaseExceptionGroup):
-        return any(_carries_base_exception(inner) for inner in exc.exceptions)
+        return any(carries_base_exception(inner) for inner in exc.exceptions)
     return not isinstance(exc, Exception)
 
 

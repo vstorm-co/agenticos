@@ -487,7 +487,7 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
     return counts
 
 
-async def _resolve_auth_headers(
+async def resolve_auth_headers(
     db: AsyncSession, connection: McpConnection
 ) -> dict[str, str] | None:
     """Auth headers to reach *connection*, or None if it can't be used right now
@@ -704,7 +704,7 @@ class McpConnectionService:
         """Talk to the server, record what happened, and report its tools."""
         tools: list[McpToolInfo] = []
         error: str | None = None
-        headers = await _resolve_auth_headers(self.db, db_connection)
+        headers = await resolve_auth_headers(self.db, db_connection)
         if headers is None:
             error = "This plugin needs to be authorized before it can connect."
         else:
@@ -1876,7 +1876,7 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
-        headers = await _resolve_auth_headers(db, connection)
+        headers = await resolve_auth_headers(db, connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
@@ -1956,7 +1956,7 @@ async def _own_spec(
     connection = _nominated(owned)
     if connection is None:
         return "undecided" if owned else "not_connected"
-    headers = await _resolve_auth_headers(db, connection)
+    headers = await resolve_auth_headers(db, connection)
     if headers is None:
         logger.info(
             "Skipping the sender's own %r connection for this run: no usable credentials",

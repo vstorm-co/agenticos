@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from urllib.parse import quote
 
 import httpx
@@ -23,8 +24,9 @@ logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.github.com"
 _TIMEOUT = httpx.Timeout(10.0)
-# The one webhook event the delivery layer acts on (`trigger_events._github_matches`
-# refuses anything but `issues`), so every GitHub preset registers for it.
+# The one webhook event an agent trigger's delivery acts on (`trigger_events.
+# _github_matches` refuses anything but `issues`), so every GitHub preset registers
+# for it. A workflow's GitHub trigger names its own events.
 _EVENTS = ["issues"]
 # How many 100-repo pages the target listing follows. Ten pages is a thousand
 # administered repositories - past that the free-text target entry is the honest
@@ -92,7 +94,13 @@ class GitHubPortalAdapter(PortalAdapter):
         return targets
 
     async def register_webhook(
-        self, *, access_token: str, target: str | None, webhook_url: str, secret: str
+        self,
+        *,
+        access_token: str,
+        target: str | None,
+        webhook_url: str,
+        secret: str,
+        events: Sequence[str] | None = None,
     ) -> RegisteredWebhook:
         if not target:
             raise WebhookRegistrationForbidden(
@@ -106,7 +114,7 @@ class GitHubPortalAdapter(PortalAdapter):
                     json={
                         "name": "web",
                         "active": True,
-                        "events": _EVENTS,
+                        "events": list(events) if events else _EVENTS,
                         "config": {
                             "url": webhook_url,
                             "content_type": "json",

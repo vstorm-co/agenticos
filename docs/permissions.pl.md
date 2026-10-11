@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "c4f8ea3975a6"
 ---
 
 # Uprawnienia { #permissions }
@@ -267,8 +267,8 @@ jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
 do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
 
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
-do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu i przechowywane
-klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
+do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu,
+[tabele](virtual-tables.md), workflow i przechowywane klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
 kaskadowo usunąć grantu, kiedy jego cel znika, więc serwisy usuwają granty razem
 z zasobem.
 
@@ -363,6 +363,31 @@ swoich grantów przy zwykłym listowaniu, więc filtr i tak je pobiera — bez t
 Dla kb wyklucza dodatkowo wiersze osobiste (z konstrukcji należące do
 wywołującego) i wiersze o zasięgu aplikacji (należące do wdrożenia — nigdy nikomu
 nieudostępniane).
+
+### Runy workflowów { #workflow-runs }
+
+Run nie ma własnej widoczności: dziedziczy ją po swoim workflowie. Uruchomienie
+wymaga `workflows:run` na workflowie, a run w trybie `test`, na
+nieopublikowanym drafcie, wymaga dodatkowo `workflows:edit`. Odczyt runa i jego
+zdarzeń wymaga `workflows:view`, a lista bez filtra pokazuje runy workflowów,
+które wywołujący widzi - własnych, widocznych dla organizacji i udostępnionych
+mu. Run, którego wywołujący nie widzi, odpowiada dokładnie tak, jak run, który
+nie istnieje.
+
+**Anulowanie jest węższe niż uruchomienie.** Osoba, która uruchomiła run, może
+go anulować, dopóki wolno jej uruchamiać ten workflow, a każdy, kto może
+edytować workflow, może anulować każdy jego run. Member, który może uruchomić
+workflow widoczny dla organizacji, zatrzyma swoje runy, ale nie runy kolegi;
+widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
+
+**Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
+każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde
+wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem organizacji -
+także app admin, tak jak przy każdym żądaniu - i nadal miało `workflows:run` na
+workflowie, a przy runie `test` także `workflows:edit`. Gdy
+cokolwiek z tego się zmieniło, run kończy się błędem `PRINCIPAL_REVOKED`, zanim
+handler węzła się uruchomi. Run potrzebuje osoby, w której imieniu działa, więc
+kontekst bez podmiotu nie może go uruchomić.
 
 ## Gdzie stoją bramki { #where-the-gates-go }
 

@@ -37,6 +37,9 @@ export const KNOWLEDGE_ID = "knowledge";
  * served by the API, so the panel asks rather than lists.
  */
 export const IMAGE_GENERATION_ID = "image_generation";
+/** Reads and writes Virtual Tables - its grants are drawn by a panel of their own. */
+export const VIRTUAL_TABLES_ID = "virtual_tables";
+export const WORKFLOWS_ID = "workflows";
 
 /**
  * The binding a capability would get if somebody switched it on.

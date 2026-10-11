@@ -223,7 +223,7 @@ history is a run nobody is accountable for.
 Both boundaries are proved against a real database in
 `tests/integration/test_run_commit_boundary.py`.
 
-### The one other early commit
+### A second early commit { #the-one-other-early-commit }
 
 `SessionService.detect_refresh_reuse` is the second, and for the opposite reason:
 not that the transaction would be held too long, but that it is about to be
@@ -236,6 +236,17 @@ Uncommitted, that is a 401, a compromised chain still live, and no record that
 anything happened. `test_the_response_survives_the_refusal_that_follows_it` rolls
 back after the call and asserts what is still there
 ([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+### A webhook that waits for its answer { #a-webhook-that-waits-for-its-answer }
+
+`WorkflowExposureService._answer` is the third. A webhook whose graph holds a
+Respond to webhook step answers its sender with what that step records, so the
+request has to wait for a run that has not started - and it cannot start until
+the admission is visible to the worker. The service commits the run and its
+delivery record, starts the dispatch `spawn_after_commit` queued (only the
+session's closing commit would otherwise start it), and then polls the run's
+answer. Nothing is written after the commit, so the closing commit has nothing
+left to do. `TestAnsweringTheSender` drives the run from that dispatch.
 
 Visibility cuts both ways. Anything that used to reason "an executing run's row
 cannot be seen" now reasons about a row that *is* seen, and the agent-triggers
@@ -328,6 +339,29 @@ deployment.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Workflow runs: an outbox and short transactions
+
+A workflow run can take days - a node can wait on an approval - so no process
+holds its position. Postgres does: `dispatch_outbox` names each node that is
+ready, and each worker flow claims one row, runs one attempt and settles it.
+The code is `app/services/workflow_execution/dispatcher.py`.
+
+Each attempt is three short transactions around a call that holds none. The
+claim commits a lease on the row; the attempt row commits `in_flight` before
+the handler is called, so a worker that dies mid-call leaves something the
+reconciler can find; and the settle commits the result, the cost and the next
+node's outbox row together, so a result is never durable without its next
+step. While the handler runs, the worker renews its lease in transactions of
+its own, and a renewal that finds the claim gone tells the handler.
+
+Every status transition after the claim is fenced on the claim's token and the
+row still being claimed, under a lock taken in one order - run, node run,
+outbox - by the dispatcher and the reconciler alike. Cost is the one write that
+is not: what a call spent is booked even when its result arrives too late to
+be accepted. An interrupted attempt is never assumed to
+have succeeded or failed: it becomes `uncertain`, and only a node declared
+idempotent is tried again automatically.
 
 ## Agent runs: a capability never fetches
 
@@ -912,6 +946,9 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
   again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
   the session it just revoked and the entry recording why, because its caller
   raises a 401 immediately afterwards and the rollback would undo both.
+- A webhook whose graph answers its deliveries commits the admission in
+  `WorkflowExposureService._answer`, so the run can start while the request waits
+  for its Respond to webhook step.
 - Background work that reads a row this request wrote is handed over with
   **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing

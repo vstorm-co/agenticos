@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -52,9 +51,15 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
-from app.services.rate_limit import Limit
+from app.services.rate_limit import Limit, LocalWindows
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
+from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
+    WorkflowRunInputTooLargeError,
+)
+from app.services.workflow_exposure import WorkflowExposureService
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -110,42 +115,10 @@ class _ChatLocks:
 _chat_locks = _ChatLocks()
 
 
-class _LocalWindows:
-    """A per-process fixed window, for the turns the shared limiter could not count.
-
-    `rate_limit.consume` is the limit that holds across workers, and it fails
-    open when Redis is down or nobody configured one. For a public widget that
-    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
-    is a production control (`SECURITY.md`), and a limiter that vanishes for
-    the length of a Redis outage lets a permitted participant run the model as
-    fast as they can type until it recovers. So this stands in for exactly that
-    stretch: wrong by the worker count, which is the defect the shared limiter
-    exists to fix, and still a floor where there would have been none.
-
-    Bounded: every write drops the windows that have expired, so the map is the
-    size of the callers seen in the last minute, not of every caller since the
-    process started - which is what the dict this replaces did.
-    """
-
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._windows: dict[str, tuple[int, float]] = {}
-        self._clock = clock
-
-    def __len__(self) -> int:
-        return len(self._windows)
-
-    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
-        now = self._clock()
-        for key in [
-            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
-        ]:
-            del self._windows[key]
-        count, opened = self._windows.get(caller, (0, now))
-        self._windows[caller] = (count + 1, opened)
-        return count < attempts
-
-
-_fallback_windows = _LocalWindows()
+#: A per-process floor for the turns the shared limiter could not count. The
+#: primitive lives in `rate_limit` (it is a rate-limiting concept, not a channel
+#: one); this instance holds the channel bot's own fallback windows.
+_fallback_windows = LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -297,8 +270,10 @@ class ChannelMessageRouter:
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
-            8. Otherwise run the bot's only exposed agent.
-            9. Send reply via adapter.
+            8. Otherwise start the workflow listening to this bot, if it takes
+               the message, and stop.
+            9. Otherwise run the bot's only exposed agent.
+            10. Send reply via adapter.
         """
         bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if not bot or not bot.is_active:
@@ -438,6 +413,9 @@ class ChannelMessageRouter:
             file_refusals=file_refusals,
             thread_history=thread_history,
         ):
+            return
+
+        if await self._start_workflow(bot, incoming, identity, db, files=files):
             return
 
         live, handle = await self._open_reply(bot, incoming)
@@ -588,6 +566,39 @@ class ChannelMessageRouter:
             files=files,
             file_refusals=file_refusals,
         )
+
+    async def _start_workflow(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+        *,
+        files: list[Any],
+    ) -> bool:
+        """Hand the message to the workflow listening to this bot, if it takes it.
+
+        After the mention path, so a message naming an agent still reaches it, and
+        before the bot's own agent, which answers whatever the workflow leaves.
+        The workflow answers with a step of its own, so nothing is posted here
+        unless the run cannot be admitted; the files stored for the turn are given
+        back, since a run is handed the message's text and not its attachments.
+        """
+        try:
+            taken = await WorkflowExposureService(db).receive_channel_message(
+                bot, incoming, sender_user_id=identity.user_id
+            )
+        except (
+            WorkflowAdmissionQuotaError,
+            WorkflowBudgetReachedError,
+            WorkflowRunInputTooLargeError,
+        ) as exc:
+            await self._discard_files(db, files)
+            await self._send_reply(bot, incoming, exc.message)
+            return True
+        if taken:
+            await self._discard_files(db, files)
+        return taken
 
     async def _run_turn(
         self,

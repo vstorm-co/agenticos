@@ -319,6 +319,23 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def count_active_for_org(db: AsyncSession, organization_id: UUID) -> int:
+    """Members whose account can still sign in - what a per-member allowance scales by.
+
+    Joined against `User.is_active`, the same test `get_active` reads a single membership
+    through: a deactivated account cannot write, so counting its row would inflate a budget
+    nothing is producing traffic against. Used by the Virtual Tables retention sweep to size
+    one organization's daily removal budget off how many members could actually be writing,
+    rather than assuming exactly one.
+    """
+    result = await db.execute(
+        select(func.count(OrganizationMember.id))
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.organization_id == organization_id, User.is_active.is_(True))
+    )
+    return result.scalar() or 0
+
+
 async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | None:
     """The earliest-joined owner - who system-made rows are attributed to."""
     return await db.scalar(

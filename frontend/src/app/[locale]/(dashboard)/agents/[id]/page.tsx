@@ -17,6 +17,7 @@ import {
   Plug,
   Trash2,
   Upload,
+  Workflow,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -38,11 +39,8 @@ import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
-import type { McpCatalogEntry } from "@/types/mcp";
-import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
-import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
-import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { bindingKey } from "@/components/agents/mcp-server-picker";
+import { McpBindingsEditor } from "@/components/agents/mcp-bindings-editor";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { MetadataEditor } from "@/components/agents/metadata-editor";
@@ -50,6 +48,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
@@ -84,6 +83,8 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  Alert,
+  AlertDescription,
 } from "@/components/ui";
 import {
   useAgent,
@@ -111,62 +112,24 @@ import {
   withSkills,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
-import { toolsForBinding } from "@/lib/binding-tools";
+import type { FieldProblem } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
-import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
-import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { narrowedSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-}
-
-/**
- * What the tool picker opens with for one binding.
- *
- * The tools come from the connection's **last successful probe** rather than a
- * fresh one: probing dials out to a third party and is gated on
- * `connections:manage`, which an agent author need not hold (#1341).
- *
- * A connection nothing has probed yet has no catalogue, and a binding that
- * already names tools would then read "0 of 0 on" while its card says three -
- * so the names it holds stand in. They came from the server once, they are what
- * the agent is bound to, and they can at least be narrowed further without a
- * probe. The dialog says where to get the real list.
- */
-function toolChoice(
-  ref: McpServerRef,
-  connection: OrgMcpConnectionRecord,
-  name: string,
-): ToolPickerState {
-  const probed = connection.last_tools;
-  const tools =
-    probed ?? (ref.allowed_tools ?? []).map((tool) => ({ name: tool, description: "" }));
-  return {
-    scope: "organization",
-    // The server's name, not the connection's: a binding to each person's own
-    // account borrows an organization connection's probe for the catalogue of
-    // tools and is not a narrowing of that connection.
-    name,
-    connection,
-    tools,
-    checked: new Set(ref.allowed_tools ?? tools.map((one) => one.name)),
-    appliesTo: "agent",
-  };
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
   const tAgents = useTranslations("agents");
-  const tErrors = useTranslations("errors");
+  const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
@@ -206,16 +169,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // the ids the spec stores belong to the connections.
   const {
     connections: mcpConnections,
-    test: probeMcpConnection,
     isLoading: connectionsLoading,
     error: connectionsError,
   } = useOrgMcpConnections();
-  const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
-  const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
-  // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
-  // picker state rather than inside it because the dialog is shared with the
-  // servers page, where a binding is not a thing.
-  const [toolBinding, setToolBinding] = useState<string | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
@@ -256,8 +212,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
+  // A workflow step's own agent is changed in that step, so nothing here edits it.
+  const ownedByWorkflow = agent?.workflow_id ?? null;
+  const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
+  const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -935,48 +893,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
-      <McpToolPickerDialog
-        toolPicker={toolPicker}
-        setToolPicker={setToolPicker}
-        submitting={false}
-        // Written into the spec rather than onto the connection: this is the
-        // agent's narrowing, and the connection's own allowlist is everybody's.
-        // Every tool checked means "no narrowing from here", which is null - not
-        // a list that would freeze out a tool the server adds later.
-        onSave={() => {
-          if (toolPicker === null) return;
-          const allowed = narrowedSelection(
-            toolPicker.checked,
-            toolPicker.tools,
-            // Only a real probe can mean "everything": where the catalogue is
-            // the binding's own names, all-checked is true by construction.
-            toolPicker.connection.last_tools !== null,
-          );
-          update({
-            mcp_servers: spec.mcp_servers.map((ref) =>
-              bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-            ),
-          });
-          setToolPicker(null);
-          setToolBinding(null);
-        }}
-      />
-
-      <ConnectServerDialog
-        entry={connectingServer}
-        onClose={() => setConnectingServer(null)}
-        // Bound as soon as it exists: somebody who connected a server from
-        // inside the Builder was going to tick it next.
-        onConnected={(connectionId) =>
-          update({
-            mcp_servers: [
-              ...spec.mcp_servers,
-              { account: "organization", connection_id: connectionId, allowed_tools: null },
-            ],
-          })
-        }
-      />
-
       <PublishDialog
         open={publishOpen}
         onOpenChange={setPublishOpen}
@@ -1045,6 +961,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
       {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+      {ownedByWorkflow !== null && (
+        <Alert>
+          <Workflow className="h-4 w-4" />
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span className="min-w-0 flex-1">{t("ownedByWorkflow")}</span>
+            <Button asChild size="sm" variant="outline">
+              <Link href={ROUTES.WORKFLOW_DETAIL(ownedByWorkflow)}>{t("openWorkflow")}</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Above the tabs, whatever tab is open: a reference to something deleted
           is refused at publish, and the panel that would have listed it belongs
           to a capability the agent may not even have switched on. */}
@@ -1146,6 +1074,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
                 onToggle={() => toggleCapability(THINKING_ID)}
                 onChange={updateCapability}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          <Card data-tour="agent-answer-format">
+            <CardHeader>
+              <CardTitle>{tAnswer("title")}</CardTitle>
+              <CardDescription>{tAnswer("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AnswerFormatForm
+                value={spec.output_schema ?? null}
+                onChange={(output_schema) => update({ output_schema })}
                 disabled={!canEdit}
               />
             </CardContent>
@@ -1267,29 +1209,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <McpServerPicker
-                connections={mcpConnections}
-                catalog={mcpCatalog}
+              <McpBindingsEditor
                 value={spec.mcp_servers}
                 onChange={(mcp_servers) => update({ mcp_servers })}
-                onTools={async (ref, connection, name) => {
-                  setToolBinding(bindingKey(ref));
-                  // A connection nobody has checked has no tool list; check it
-                  // here for whoever may, rather than sending them to the servers
-                  // page to press the button and find their way back.
-                  try {
-                    const { connection: probed, error } = await toolsForBinding(
-                      connection,
-                      can(Perm.connectionsManage) ? probeMcpConnection : null,
-                    );
-                    if (error !== null) toast.error(error);
-                    setToolPicker(toolChoice(ref, probed, name));
-                  } catch (caught) {
-                    toast.error(getErrorMessage(caught, tErrors));
-                    setToolPicker(toolChoice(ref, connection, name));
-                  }
-                }}
-                onConnect={setConnectingServer}
                 disabled={!canEdit}
               />
               <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>

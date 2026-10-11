@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "e00bb9806c8f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -32,6 +32,8 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
 | `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record` | `tables:read` | — |
+| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
 | `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
 | `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
@@ -1512,6 +1514,59 @@ nombre de la configuración, la misma decisión que toma la
 Ante cualquier error, o cuando el budget reservado ya está gastado, recurre a la
 línea de reanclaje del objetivo. Una generación fallida nunca bloquea el run.
 
+## Tablas { #tables }
+
+Lee y escribe las [Virtual Tables](../virtual-tables.md) que concede el binding. El
+panel del Builder lista las tablas de la organización. Marca una y elige qué puede
+hacer el agent en ella: leer, añadir, actualizar y borrar registros. Un upsert
+necesita añadir y actualizar a la vez, porque crea el registro cuando ninguno tiene
+su clave.
+
+Las concesiones forman parte del spec publicado, que el modelo no puede cambiar.
+Una llamada que nombra otra tabla, o una operación que la concesión no incluye, se
+rechaza antes de leer nada. Cada llamada pasa además la propia comprobación de
+acceso del servicio de tablas como el miembro para el que actúa el run, reconstruido
+a partir de su membresía en cada llamada, así que una tabla que se deja de compartir
+o un rol reducido detiene la llamada siguiente.
+
+`create_table` solo se ofrece con **Allow create**, y el miembro sigue necesitando
+`tables:create`. Las herramientas de registros nunca crean tablas. Una tabla que
+crea el agent se puede usar el resto de ese run.
+
+Las herramientas de escritura tienen efectos secundarios por herramienta, así que una
+política de aprobación las cubre a ellas y no a las lecturas. La clave de operación
+de una escritura sale del run y de la llamada a la herramienta, así que una llamada
+reintentada repite su primera respuesta. Los valores se indican por id o etiqueta de
+columna, y la elección de una columna de selección es la etiqueta de su opción, igual
+al escribir, filtrar y leer. Los conflictos, la validación, las cuotas, el historial y la auditoría son
+los mismos que en la consola y la API, porque cada herramienta llama al mismo
+servicio.
+
+## Workflows { #workflows }
+
+Permite al agente iniciar los [workflows](../workflows.md) publicados que nombra su
+binding, y leer cómo fueron. El panel del Builder lista los workflows de la
+organización, una fila por cada uno, y una fila marcada es uno que el agente puede
+iniciar. Un borrador, o un workflow que arranca desde un webhook, una programación, un
+mensaje del chat o una tabla, se muestra pero no se puede marcar: un agente solo inicia
+lo que arranca a mano, por la API o por la llamada de otro workflow. **Wait for a run**
+limita cuánto espera una llamada: 60 segundos salvo que se indique, entre 5 y 300.
+
+`list_workflows` nombra los que el agente puede iniciar con los campos de entrada que
+declara cada uno. `run_workflow` inicia uno con esos campos y espera su respuesta, y
+`get_workflow_run` lee una ejecución que seguía en curso cuando terminó la espera. Cada
+inicio es la misma petición que hace la API, hecha como el miembro por quien actúa la
+ejecución, reconstruido desde su membresía en cada llamada: rigen su acceso, la entrada
+declarada, los presupuestos y las cuotas de admisión, y la ejecución dice que la inició
+**An agent**.
+
+Un workflow fuera del binding se rechaza antes de que nada arranque. `run_workflow` tiene
+efectos secundarios, así que una política de aprobación puede retenerlo mientras las
+lecturas corren libres. Un agente que se ejecuta como paso de un workflow no inicia nada
+por esta vía: un paso **Run a workflow** llama a otro workflow y conserva los límites de
+bucle y de profundidad de la cadena. Por eso el diálogo del agente del propio paso no
+ofrece esta capability.
+
 ## Fecha y hora { #date-and-time }
 
 Sin herramientas. Pone la fecha y la hora actuales en las instrucciones del agent,
@@ -1963,8 +2018,11 @@ comprobados cuando se ensambla el agent:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables` y cada [nodo de workflow para tablas](workflow-nodes.md#virtual-tables) |
+| `tables:write` | los nodos de workflow para tablas que escriben |
+| `workflows:run` | `workflows` |
 
-!!! note "Los ocho se conceden hoy por defecto"
+!!! note "Los once se conceden hoy por defecto"
 
     `DEFAULT_GRANTED_SCOPES` en `app/services/agent_registry.py`. La gestión de
     scopes por organización es trabajo de la

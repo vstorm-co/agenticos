@@ -147,6 +147,10 @@ class NotificationService:
         spec: it stopped this run and is about to stop every other one, so it
         goes to the administrators regardless of what any agent asks for.
         """
+        if scope is BudgetScope.RUN:
+            # A ceiling one caller set for one run - a workflow step's - is
+            # reported by that caller: the workflow run fails with it.
+            return
         if scope is BudgetScope.ORGANIZATION:
             recipients = await self._administrator_ids(run.organization_id)
         else:

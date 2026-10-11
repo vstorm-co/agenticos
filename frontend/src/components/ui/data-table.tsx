@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
 import { cn } from "@/lib/utils";
@@ -99,7 +99,20 @@ interface DataTableProps<T> {
   onSort?: (sort: TableSort) => void;
   /** Where client-side sorting starts. Ignored when `onSort` is given. */
   defaultSort?: TableSort;
+  /**
+   * The height of every row, in pixels, to draw only the rows in view - for a
+   * list of thousands, where a row per record would be a DOM the browser cannot
+   * scroll. Needs `fillHeight`, since the rows in view are the scroll
+   * container's. A row that grows past it only shifts the window by a few rows,
+   * which the rows drawn either side of the viewport absorb.
+   */
+  rowHeight?: number;
+  /** Called as the scroll nears the last row, to load the next page into `rows`. */
+  onEndReached?: () => void;
 }
+
+/** Rows drawn beyond each edge of the viewport, so a fast scroll never shows a gap. */
+const OVERSCAN = 8;
 
 const alignClass = { left: "text-left", right: "text-right", center: "text-center" } as const;
 
@@ -137,6 +150,8 @@ export function DataTable<T>({
   sort,
   onSort,
   defaultSort,
+  rowHeight,
+  onEndReached,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
@@ -164,6 +179,31 @@ export function DataTable<T>({
     return result;
   }, [rows, columns, serverSorted, clientSort]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewport, setViewport] = useState(0);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!rowHeight || !element) return;
+    const observer = new ResizeObserver(() => setViewport(element.clientHeight));
+    observer.observe(element);
+    setViewport(element.clientHeight);
+    return () => observer.disconnect();
+  }, [rowHeight]);
+
+  const total = visible?.length ?? 0;
+  const first = rowHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN) : 0;
+  const last = rowHeight
+    ? Math.min(total, Math.ceil((scrollTop + viewport) / rowHeight) + OVERSCAN)
+    : total;
+  const drawn = rowHeight ? visible?.slice(first, last) : visible;
+
+  const onScroll = (element: HTMLDivElement) => {
+    if (rowHeight) setScrollTop(element.scrollTop);
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (onEndReached && remaining < (rowHeight ?? 48) * OVERSCAN) onEndReached();
+  };
+
   // A failure wins over emptiness, because a failed request has no rows either
   // and would otherwise be drawn as a collection with nothing in it.
   const showError = !loading && error != null;
@@ -178,6 +218,8 @@ export function DataTable<T>({
       )}
     >
       <div
+        ref={scrollRef}
+        onScroll={(event) => onScroll(event.currentTarget)}
         className={cn(
           "scrollbar-thin overflow-x-auto",
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
@@ -238,10 +280,13 @@ export function DataTable<T>({
                 </tr>
               ))}
 
+            {!loading && first > 0 && (
+              <tr aria-hidden="true" style={{ height: first * (rowHeight as number) }} />
+            )}
             {!loading &&
-              visible?.map((row, i) => (
+              drawn?.map((row, offset) => (
                 <tr
-                  key={getRowKey(row, i)}
+                  key={getRowKey(row, first + offset)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   // `aria-selected` as well as the tint, because "which row is
                   // open" is an answer a screen reader needs too, and a colour
@@ -273,6 +318,9 @@ export function DataTable<T>({
                   ))}
                 </tr>
               ))}
+            {!loading && last < total && (
+              <tr aria-hidden="true" style={{ height: (total - last) * (rowHeight as number) }} />
+            )}
           </tbody>
         </table>
       </div>

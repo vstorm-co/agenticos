@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "f0b480efa06c"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1990,6 +1990,15 @@ To celowo *nie* jest to samo co wkładanie listy członków kanału i jego celu
 w każdy system prompt. To inna funkcja z innym trybem awarii — `purpose` napisany
 przez kogokolwiek, kto może edytować kanał, wklejony do instrukcji, jest prompt
 injection z publicznym przyciskiem edycji.
+
+## Bot, którego wiadomości uruchamiają workflow { #a-bot-whose-messages-start-a-workflow }
+
+Workflow z wyzwalaczem **Channel message** przejmuje wiadomości bota zamiast jego
+agenta. Docierają do niego tylko wiadomości, na które agent by odpowiedział, a z nich
+tylko te pasujące do filtra wyzwalacza: wiadomość wskazująca innego agenta przez
+`@handle` nadal trafia do niego, a tę, którą filtr pomija, obsługuje agent bota jak
+dotąd. Workflow odpowiada własnym krokiem **Send a message** w wątku, z którego
+przyszła wiadomość. Zobacz [Z wiadomości na kanale](workflows.md#from-a-channel-message).
 
 ## Wybór { #choosing }
 

@@ -1,0 +1,432 @@
+"""Virtual Tables routes - the HTTP face of the shared table service.
+
+The console, agent tools, workflow nodes and the public API all reach the same
+`VirtualTableService`; these routes add nothing to it but the wire format.
+
+Routes acting on the collection carry a `require(...)` gate. Routes acting on one
+table deliberately do not: the service resolves access against that table's owner,
+visibility and grants, and a role-level gate would refuse a viewer who was
+explicitly given edit on a single table - the case sharing exists for.
+
+**The error envelope is part of the contract.** Every refusal answers
+`{"error": {"code", "message", "details"}}` (`ErrorEnvelope`), and each `code` below
+is stable: a client branches on it, not on the message.
+
+- `REVISION_CONFLICT` (409): the record changed since it was read. `details` carries
+  `current_revision`; read the record again and retry.
+- `REVISION_REQUIRED` (428): an upsert found the record and was not told which
+  revision it replaces. `details` carries `current_revision`.
+- `SCHEMA_VERSION_CONFLICT` (409): the schema changed since it was read.
+- `SCHEMA_DEPENDENCY` (409): something depends on what a schema change removes.
+- `TABLE_ARCHIVED` (409): the table refuses writes.
+- `ALREADY_EXISTS` (409): a table name or a record's external id is taken.
+- `VALIDATION_ERROR` (422): the request itself is malformed, refused before the service runs.
+- `AUTHORIZATION_ERROR` (403): the caller lacks the permission a collection route requires.
+- `CONCURRENT_CHANGE` (409): an upsert lost a race with a delete of the same record; retry.
+- `INVALID_RECORD`, `ARCHIVED_COLUMN`, `INVALID_QUERY`, `INVALID_SCHEMA` (422): the
+  value, filter or schema does not fit; `details.fields` names each field.
+- `IDEMPOTENCY_KEY_REUSED` (422): the `Idempotency-Key` was used for a different
+  request.
+- `QUOTA_EXCEEDED` (402): the write would exceed a storage limit; `details` names the quota
+  (`tables`, `records` or `record_bytes`) and its ceiling.
+- `RATE_LIMIT_EXCEEDED` (429): too many writes in the last minute; see `Retry-After`.
+- `NOT_FOUND` (404): no such table or record - also what another organization's
+  table, or one the caller may not reach, looks like.
+
+**Idempotency.** Every record write accepts an `Idempotency-Key` header. Retrying a
+write with the same key and the same body returns the stored answer (with
+`Idempotent-Replayed: true`) and writes nothing; the same key with a different body
+is refused. Keys are scoped to the caller and the kind of write. A replayed delete answers
+204 as the first one did and is not marked.
+"""
+
+from typing import Annotated, Any, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
+from fastapi.responses import StreamingResponse
+
+from app.api.deps import (
+    Auth,
+    StreamingVirtualTableSvc,
+    VirtualTableSvc,
+    limit_table_write,
+    require,
+)
+from app.api.routes.v1._path_convertors import ANYTEXT
+from app.api.routes.v1._table_responses import answer
+from app.core.permissions import Perm
+from app.schemas.virtual_table import (
+    ErrorEnvelope,
+    OperationKey,
+    RecordBatchCreate,
+    RecordBatchResult,
+    RecordCount,
+    RecordCountQuery,
+    RecordCreate,
+    RecordExists,
+    RecordExportQuery,
+    RecordList,
+    RecordQuery,
+    RecordRead,
+    RecordSort,
+    RecordUpdate,
+    RecordUpsert,
+    SchemaUpdate,
+    SchemaVersionList,
+    SortDirection,
+    TableCreate,
+    TableList,
+    TableRead,
+    TableUpdate,
+)
+
+router = APIRouter()
+
+IdempotencyKey = Annotated[
+    OperationKey | None,
+    Header(
+        description=(
+            "Makes a retry safe: the same key and body return the first answer, and the "
+            "same key with a different body is refused."
+        ),
+    ),
+]
+
+# NUL is refused in every string that reaches a text column: PostgreSQL cannot store it.
+_NO_NUL = r"^[^\x00]*$"
+# An external id also refuses line breaks. Its route uses the `anytext` convertor, which
+# matches them, so this is where an id holding one is refused rather than misrouted.
+_PLAIN_KEY = r"^[^\x00\r\n]*$"
+
+ExternalIdPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=255,
+        pattern=_PLAIN_KEY,
+        description="The caller's own key for the record. It may contain `/`.",
+    ),
+]
+
+_REFUSALS: dict[int | str, dict[str, Any]] = {
+    404: {"model": ErrorEnvelope, "description": "No such table or record"},
+    409: {"model": ErrorEnvelope, "description": "A conflict; see `error.code`"},
+    422: {"model": ErrorEnvelope, "description": "The request does not fit the table"},
+    428: {"model": ErrorEnvelope, "description": "`expected_revision` is required"},
+}
+
+# The collection routes carry a `require(...)` gate, which refuses with a 403 before the
+# handler runs. The per-table routes have no gate and answer 404 for a table the caller may
+# not reach, so they do not advertise it.
+_QUOTA: dict[int | str, dict[str, Any]] = {
+    402: {
+        "model": ErrorEnvelope,
+        "description": "`QUOTA_EXCEEDED`: the write would exceed a storage limit",
+    },
+}
+_LIMITED: dict[int | str, dict[str, Any]] = {
+    429: {
+        "model": ErrorEnvelope,
+        "description": "Too many table writes in the last minute; see `Retry-After`",
+    },
+}
+# A write that stores something can also hit a quota. One that only removes or renames
+# cannot, so it advertises the rate limit and not the quota.
+_WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {**_REFUSALS, **_LIMITED}
+_TOO_LARGE: dict[int | str, dict[str, Any]] = {
+    413: {"model": ErrorEnvelope, "description": "More records match than one export writes"},
+}
+_STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
+
+_GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
+    403: {
+        "model": ErrorEnvelope,
+        "description": "The caller lacks the permission this route requires",
+    },
+    **_REFUSALS,
+}
+
+
+@router.get(
+    "",
+    response_model=TableList,
+    responses=_GATED_REFUSALS,
+    dependencies=[Depends(require(Perm.TABLES_VIEW))],
+)
+async def list_tables(
+    service: VirtualTableSvc,
+    ctx: Auth,
+    q: str | None = Query(
+        None, max_length=100, pattern=_NO_NUL, description="Match on name or description"
+    ),
+    include_archived: bool = Query(False),
+    sort: Literal["name", "updated_at"] = Query(
+        "name", description="`updated_at` orders most-recently-changed first"
+    ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The tables the caller may see, by name or by most recently changed."""
+    return await service.list_tables(
+        ctx, include_archived=include_archived, search=q, sort=sort, skip=skip, limit=limit
+    )
+
+
+@router.post(
+    "",
+    response_model=TableRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={**_GATED_REFUSALS, **_STORING_REFUSALS},
+    dependencies=[Depends(require(Perm.TABLES_CREATE)), Depends(limit_table_write)],
+)
+async def create_table(data: TableCreate, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """Create a table with its first schema version."""
+    return await service.create_table(ctx, data)
+
+
+@router.get("/{table_id}", response_model=TableRead, responses=_REFUSALS)
+async def describe_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """A table and the columns of its current schema."""
+    return await service.describe_table(ctx, table_id)
+
+
+@router.patch(
+    "/{table_id}",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def update_table(
+    table_id: UUID, data: TableUpdate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Rename a table or change its description."""
+    return await service.update_table(ctx, table_id, data)
+
+
+@router.post(
+    "/{table_id}/archive",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """Archive a table. Records stay readable; every write is refused."""
+    return await service.archive_table(ctx, table_id)
+
+
+@router.put(
+    "/{table_id}/schema",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def change_schema(
+    table_id: UUID, data: SchemaUpdate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Append the next schema version from the full list of columns the table should have."""
+    return await service.update_schema(ctx, table_id, data)
+
+
+@router.get("/{table_id}/schema-versions", response_model=SchemaVersionList, responses=_REFUSALS)
+async def list_schema_versions(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """Every schema version the table has had."""
+    return await service.list_schema_versions(ctx, table_id)
+
+
+@router.get("/{table_id}/records", response_model=RecordList, responses=_REFUSALS)
+async def list_records(
+    table_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    sort: str = Query("created_at", description="`created_at`, `updated_at` or a column id"),
+    direction: SortDirection = Query("asc"),
+    skip: int = Query(0, ge=0, le=10_000),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """A page of records, unfiltered. Use `POST .../records/query` to filter."""
+    query = RecordQuery(sort=RecordSort(by=sort, direction=direction), skip=skip, limit=limit)
+    return await service.list_records(ctx, table_id, query)
+
+
+@router.post("/{table_id}/records/query", response_model=RecordList, responses=_REFUSALS)
+async def query_records(
+    table_id: UUID, query: RecordQuery, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """A page of records matching typed filters, in a deterministic order."""
+    return await service.list_records(ctx, table_id, query)
+
+
+@router.post("/{table_id}/records/count", response_model=RecordCount, responses=_REFUSALS)
+async def count_records(
+    table_id: UUID, query: RecordCountQuery, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """How many records match typed filters and a search, counted up to 100,000.
+
+    A listing has no `total`; this is the separate, bounded question. `capped`
+    says more match than were counted.
+    """
+    return await service.count_records(ctx, table_id, query)
+
+
+@router.get("/{table_id}/records/exists", response_model=RecordExists, responses=_REFUSALS)
+async def record_exists(
+    table_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    external_id: str = Query(..., min_length=1, max_length=255, pattern=_PLAIN_KEY),
+) -> Any:
+    """Whether a record with this external id exists."""
+    return RecordExists(exists=await service.record_exists(ctx, table_id, external_id))
+
+
+@router.get(
+    f"/{{table_id}}/records/by-external-id/{{external_id:{ANYTEXT}}}",
+    response_model=RecordRead,
+    responses=_REFUSALS,
+)
+async def get_record_by_external_id(
+    table_id: UUID, external_id: ExternalIdPath, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """One record, by the caller's own key for it."""
+    return await service.get_record_by_external_id(ctx, table_id, external_id)
+
+
+@router.put(
+    f"/{{table_id}}/records/by-external-id/{{external_id:{ANYTEXT}}}",
+    response_model=RecordRead,
+    responses={**_STORING_REFUSALS, 201: {"model": RecordRead, "description": "Created"}},
+    dependencies=[Depends(limit_table_write)],
+)
+async def upsert_record(
+    table_id: UUID,
+    external_id: ExternalIdPath,
+    data: RecordUpsert,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
+) -> Any:
+    """Create the record with this external id, or update it.
+
+    201 when it was created. When it already exists the call is an update: send
+    `expected_revision`, or receive `REVISION_REQUIRED` (428) with the revision to send.
+    """
+    written = await service.upsert_record(
+        ctx, table_id, external_id, data, operation_key=idempotency_key
+    )
+    return answer(response, written)
+
+
+@router.post(
+    "/{table_id}/records",
+    response_model=RecordRead,
+    status_code=status.HTTP_201_CREATED,
+    responses=_STORING_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def create_record(
+    table_id: UUID,
+    data: RecordCreate,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
+) -> Any:
+    """Create a record at revision 1."""
+    written = await service.create_record(ctx, table_id, data, operation_key=idempotency_key)
+    return answer(response, written)
+
+
+@router.post(
+    "/{table_id}/records/batch",
+    response_model=RecordBatchResult,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def create_records(
+    table_id: UUID, data: RecordBatchCreate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Create up to 200 records, each on its own - what a CSV import sends.
+
+    A record that is refused is listed in `failed` with the code a single create
+    would answer (`INVALID_RECORD`, `ALREADY_EXISTS`, `QUOTA_EXCEEDED`...), and the
+    others are written. The whole batch counts once against the write rate limit.
+    """
+    return await service.create_records(ctx, table_id, data)
+
+
+@router.post("/{table_id}/records/export", responses={**_REFUSALS, **_TOO_LARGE})
+async def export_records(
+    table_id: UUID, query: RecordExportQuery, service: StreamingVirtualTableSvc, ctx: Auth
+) -> Any:
+    """The records a query matches, in its order, as a CSV file headed by column labels.
+
+    A select cell is written as its option's label, several as `a; b`, a yes/no as
+    `true` or `false`, and an empty cell as nothing. A text cell a spreadsheet would
+    read as a formula is written with a leading `'`. More than 100,000 matching
+    records are refused with `EXPORT_TOO_LARGE` (413): narrow them with a filter.
+    """
+    export = await service.export_records(ctx, table_id, query)
+    return StreamingResponse(
+        export.lines,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{export.filename}"'},
+    )
+
+
+@router.get("/{table_id}/records/{record_id}", response_model=RecordRead, responses=_REFUSALS)
+async def get_record(table_id: UUID, record_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
+    """One record."""
+    return await service.get_record(ctx, table_id, record_id)
+
+
+@router.patch(
+    "/{table_id}/records/{record_id}",
+    response_model=RecordRead,
+    responses=_STORING_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def update_record(
+    table_id: UUID,
+    record_id: UUID,
+    data: RecordUpdate,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
+) -> Any:
+    """Change the named cells, if the record is still at `expected_revision`.
+
+    An update that would leave every cell as it is changes nothing: the revision stays and
+    the current record is returned.
+    """
+    written = await service.update_record(
+        ctx, table_id, record_id, data, operation_key=idempotency_key
+    )
+    return answer(response, written)
+
+
+@router.delete(
+    "/{table_id}/records/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def delete_record(
+    table_id: UUID,
+    record_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    expected_revision: int = Query(..., ge=1, description="The revision the caller last read"),
+    idempotency_key: IdempotencyKey = None,
+) -> None:
+    """Delete a record, if it is still at `expected_revision`. Its history is kept."""
+    await service.delete_record(
+        ctx,
+        table_id,
+        record_id,
+        expected_revision=expected_revision,
+        operation_key=idempotency_key,
+    )

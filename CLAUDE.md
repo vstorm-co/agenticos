@@ -47,9 +47,11 @@ template-inherited subsystems have different coverage gates, described below.
   `DBSession`: its `scope="function"` commits after the route returns and before
   the response is written. A bare `Depends(get_db_session)` has different timing.
   The agent run paths in `AgentRunnerService._run` and `ChatAgentRunner.run`
-  explicitly commit before the model call and in terminal cleanup, and
+  explicitly commit before the model call and in terminal cleanup,
   `SessionService.detect_refresh_reuse` commits the security response its caller
-  is about to raise past. See `docs/architecture.md#the-requests-transaction`.
+  is about to raise past, and `WorkflowExposureService._answer` commits a webhook's
+  admission before waiting for its Respond to webhook step. See
+  `docs/architecture.md#the-requests-transaction`.
 - Dispatch background work needing rows written by the request with
   `spawn_after_commit`, so its own session can see those rows. See
   `docs/architecture.md#dispatching-background-work-from-a-request`.
@@ -203,6 +205,7 @@ retranslated is how a stale translation stops being visible.
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
+| Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
@@ -214,6 +217,8 @@ retranslated is how a stale translation stops being visible.
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
+| Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |

@@ -57,6 +57,11 @@ export interface McpConnectionRecord {
 export interface McpToolInfo {
   name: string;
   description: string;
+  /**
+   * The JSON Schema of the tool's arguments, when the server's was small enough
+   * to keep. Absent from a list recorded before it was kept.
+   */
+  input_schema?: Record<string, unknown> | null;
 }
 
 export interface McpConnectionTestResult {

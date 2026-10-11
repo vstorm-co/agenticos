@@ -5,6 +5,7 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  TABLE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -34,6 +35,8 @@ export type FlowId =
   | "create-org"
   | "create-group"
   | "create-routine"
+  | "create-table"
+  | "create-workflow"
   | "explore-chat";
 
 /**
@@ -48,7 +51,8 @@ export type FlowId =
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
  * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine";
+export type FlowResource =
+  "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine" | "table";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -355,6 +359,47 @@ function kbDialogSteps(page: string, requires?: string): FlowStep[] {
       permission: Perm.collectionsEdit,
       inOverlay: true,
       signal: { kind: "created", resource: "kb" },
+      requires,
+    },
+  ];
+}
+
+function tableDialogSteps(page: string, requires?: string): FlowStep[] {
+  return [
+    {
+      id: "flow-table-field-name",
+      page,
+      target: "table-dialog-name",
+      permission: Perm.tablesCreate,
+      inOverlay: true,
+      blockSubmit: "table-dialog-create",
+      requires,
+    },
+    {
+      id: "flow-table-field-columns",
+      page,
+      target: "table-dialog-columns",
+      permission: Perm.tablesCreate,
+      inOverlay: true,
+      blockSubmit: "table-dialog-create",
+      requires,
+    },
+    {
+      id: "flow-table-field-visibility",
+      page,
+      target: "table-dialog-visibility",
+      permission: Perm.tablesCreate,
+      inOverlay: true,
+      blockSubmit: "table-dialog-create",
+      requires,
+    },
+    {
+      id: "flow-table-field-create",
+      page,
+      target: "table-dialog-create",
+      permission: Perm.tablesCreate,
+      inOverlay: true,
+      signal: { kind: "created", resource: "table" },
       requires,
     },
   ];
@@ -701,6 +746,20 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...kbDialogSteps(ROUTES.RAG),
     ],
   },
+  "create-table": {
+    id: "create-table",
+    permission: Perm.tablesCreate,
+    steps: [
+      {
+        id: "flow-table-create",
+        page: ROUTES.TABLES,
+        target: "tables-new",
+        permission: Perm.tablesCreate,
+        signal: { kind: "opened" },
+      },
+      ...tableDialogSteps(ROUTES.TABLES),
+    ],
+  },
   "create-mcp": {
     id: "create-mcp",
     permission: Perm.connectionsManage,
@@ -767,6 +826,24 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.ORGS,
         target: "orgs-new",
         signal: { kind: "created", resource: "org" },
+      },
+    ],
+  },
+  // Starting a workflow. One step: point at "New workflow" and end when its
+  // dialog opens — from there the reader picks a blank canvas or a template, and
+  // either lands them in the editor, which is the visual editor leaf's to teach,
+  // not this list's. An `opened` signal keeps the flow to the one thing this page
+  // owns and needs no new creatable-resource count in the coach's snapshot.
+  "create-workflow": {
+    id: "create-workflow",
+    permission: Perm.workflowsCreate,
+    steps: [
+      {
+        id: "flow-workflow-create",
+        page: ROUTES.WORKFLOWS,
+        target: "workflows-new",
+        permission: Perm.workflowsCreate,
+        signal: { kind: "opened" },
       },
     ],
   },
@@ -847,10 +924,15 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.RAG:
     case KB_DETAIL:
       return "create-kb";
+    case ROUTES.TABLES:
+    case TABLE_DETAIL:
+      return "create-table";
     case ROUTES.MCP_SERVERS:
       return "create-mcp";
     case ROUTES.ROUTINES:
       return "create-routine";
+    case ROUTES.WORKFLOWS:
+      return "create-workflow";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:

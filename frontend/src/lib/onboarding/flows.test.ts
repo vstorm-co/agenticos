@@ -16,6 +16,7 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  TABLE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -219,8 +220,11 @@ describe("flowForPage", () => {
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
+    expect(flowForPage(ROUTES.TABLES)).toBe("create-table");
+    expect(flowForPage(TABLE_DETAIL)).toBe("create-table");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
+    expect(flowForPage(ROUTES.WORKFLOWS)).toBe("create-workflow");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");

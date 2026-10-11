@@ -41,7 +41,7 @@ async def delete(db: AsyncSession, entity_id: UUID) -> Entity | None:
 ```
 
 Rules:
-- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`). Two sanctioned exceptions: the agent run path (`AgentRunnerService._run` and `ChatAgentRunner.run` commit before the model call and again in the terminal `finally`, #12, #3), and `SessionService.detect_refresh_reuse`, whose caller raises a 401 immediately afterwards — uncommitted, the rollback would undo the revocation and the audit entry the refusal exists to record (#1519)
+- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`). Three sanctioned exceptions: the agent run path (`AgentRunnerService._run` and `ChatAgentRunner.run` commit before the model call and again in the terminal `finally`, #12, #3); `SessionService.detect_refresh_reuse`, whose caller raises a 401 immediately afterwards — uncommitted, the rollback would undo the revocation and the audit entry the refusal exists to record (#1519); and `WorkflowExposureService._answer`, which commits a webhook's admission and starts its deferred dispatch so the run can reach the Respond to webhook step the request waits for (#1949)
 - Use keyword-only args after `db`: `create(db, *, email: str, name: str)`
 - Return the entity (or None for get/delete), never return IDs or dicts
 - Functions are async (PostgreSQL via asyncpg)
@@ -101,7 +101,7 @@ Other thick domains using the same shape: `services/rag/` (ingestion + vectorsto
 Rules for thick subpackages:
 - Public API: only the top-level facade exported from `__init__.py`. Routes/workers never import sub-modules directly.
 - Domain-specific exceptions live in the subpackage and inherit from `core/exceptions.py` base classes.
-- Top-level `app/` is reserved for framework concerns (`api/`, `core/`, `db/`, `repositories/`, `schemas/`, `services/`, `worker/`, `agents/`, `commands/`, `clients/`). No new top-level domain packages.
+- Top-level `app/` is reserved for framework concerns (`api/`, `core/`, `db/`, `repositories/`, `schemas/`, `services/`, `worker/`, `agents/`, `workflows/`, `commands/`, `clients/`). No new top-level domain packages beyond these. `agents/` and `workflows/` are the two sanctioned exceptions to "thick domain → `services/<domain>/`": each is a whole execution model (an agent's own run loop and capability registry; a workflow graph's own node registry and validator) that other top-level packages depend on and that predates or parallels `services/` itself, not a services-shaped subpackage that happened to grow large.
 
 ## Dependency Injection (`app/api/deps.py`)
 

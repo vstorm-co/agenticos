@@ -1129,6 +1129,16 @@ it spent.
     another entry point. Tools executed inside a model provider do not pass
     through the local approval gate.
 
+### A workflow step that asks a person { #workflow-step-approvals }
+
+A workflow asks with a [`human.approval`](reference/workflow-nodes.md#human-approval)
+step rather than a gated tool: the step writes its own request - a title, the
+details it was given, who may decide and until when - and its run waits on it.
+The **Approvals** tab lists these above the tool calls, and deciding one wakes the
+run, which goes on by the answer. A decision is final and is recorded in the audit
+trail with what was asked. A step that names its approvers can be decided only by
+them. One nobody decides in time expires, and a cancelled run cancels its requests.
+
 ## Alerts
 
 Every alert here is about a run nobody is looking at. A chat run that stops on its
@@ -1462,6 +1472,12 @@ obligations get a setting.
 Set it at **Organizations → a workspace → Members → Retention**, gated on
 `org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
 the rows would not be a policy.
+
+[Virtual Tables](virtual-tables.md#limits-and-retention) data joins the same sweep, on
+deployment-wide periods that no organization sets: idempotency receipts after 24 hours,
+dispatched outbox rows after 3 days and record history after 365 days, which is also what
+removes the history of a deleted record. The entry it writes names `table_receipts`,
+`table_outbox` or `table_history` and a count.
 
 The deployment's own three numbers - `retention_defaults`, `retention_max_days`
 and `audit_retention_floor_days` - are fields on the deployment settings, written
