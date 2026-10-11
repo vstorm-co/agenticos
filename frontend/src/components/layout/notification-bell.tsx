@@ -71,7 +71,10 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
       <PopoverContent
         side={variant === "row" ? "right" : "bottom"}
         align="start"
-        className="w-[min(24rem,calc(100vw-2rem))] p-0"
+        // Kept off the screen's edge: from the phone header's bell at the right
+        // edge it was pushed flush against it, with a gap only on the left.
+        collisionPadding={12}
+        className="w-[min(24rem,calc(100vw-1.5rem))] p-0"
       >
         <NotificationPanel
           open={open}

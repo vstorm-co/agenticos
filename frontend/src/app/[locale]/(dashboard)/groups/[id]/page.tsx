@@ -113,7 +113,7 @@ export default function GroupPage({ params }: PageProps) {
       />
 
       {(seesRuns || leads) && (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           {seesRuns && <DepartmentBudget orgId={orgId} group={group} />}
           <DepartmentQuality orgId={orgId} group={group} />
         </div>
