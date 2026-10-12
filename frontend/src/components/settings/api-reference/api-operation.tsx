@@ -30,7 +30,7 @@ export function ApiOperation({
       <summary className="hover:bg-accent/50 flex cursor-pointer list-none items-center gap-3 rounded-md px-2 py-2.5 focus-visible:outline-offset-[-2px] [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
-            "w-16 shrink-0 rounded-md py-0.5 text-center font-mono text-[11px] font-semibold uppercase",
+            "w-16 shrink-0 rounded-md py-0.5 text-center font-mono text-xs font-semibold uppercase",
             METHOD_STYLE[operation.method],
           )}
         >

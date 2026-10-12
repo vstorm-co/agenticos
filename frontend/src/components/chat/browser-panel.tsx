@@ -124,10 +124,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
               {browse.title || t("browserHeading")}
             </h2>
             {browse.url && (
-              <p
-                className="text-muted-foreground truncate font-mono text-[11px]"
-                title={browse.url}
-              >
+              <p className="text-muted-foreground truncate font-mono text-xs" title={browse.url}>
                 {browse.url}
               </p>
             )}
@@ -152,7 +149,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
       >
         {browse.goal && (
           <p className="text-foreground/60 text-xs leading-relaxed">
-            <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("browserGoal")}
             </span>
             <br />
@@ -165,7 +162,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
 
         {browse.steps.length > 0 && (
           <section className="space-y-1">
-            <h3 className="text-muted-foreground px-2 font-mono text-[11px] tracking-wider uppercase">
+            <h3 className="text-muted-foreground px-2 font-mono text-xs tracking-wider uppercase">
               {t("browserSteps")}
             </h3>
             <ul className="space-y-0.5">

@@ -137,7 +137,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             saying which kind it is at the start is what stops the panel reading as
             an answer that never arrived. */}
         {delegation.mode === "async" && (
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider uppercase">
+          <span className="text-muted-foreground shrink-0 font-mono text-xs tracking-wider uppercase">
             {t("background")}
           </span>
         )}
@@ -146,7 +146,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             specialist from a cheap one. */}
         {delegation.costUsd !== null && (
           <span
-            className="text-muted-foreground shrink-0 font-mono text-[11px]"
+            className="text-muted-foreground shrink-0 font-mono text-xs"
             title={t("tokens", {
               input: delegation.inputTokens ?? 0,
               output: delegation.outputTokens ?? 0,

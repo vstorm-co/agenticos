@@ -153,7 +153,7 @@ export function FileCard({
           <TextPeek
             source={preview}
             format={suffixOf(name) === "md" ? "markdown" : "plain"}
-            className="[&_p]:text-[11px]"
+            className="[&_p]:text-xs"
           />
         ) : (
           <div className="flex justify-center pt-2.5">
@@ -163,9 +163,7 @@ export function FileCard({
       </DocPeek>
 
       {meta !== "" && (
-        <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-          {meta}
-        </p>
+        <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">{meta}</p>
       )}
     </>
   );
@@ -192,7 +190,7 @@ export function FileCard({
             {name}
           </span>
           {meta !== "" && (
-            <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
+            <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
               {meta}
             </span>
           )}
@@ -274,7 +272,7 @@ export function PendingFileCard({
           <span title={name} className="truncate text-xs leading-tight font-medium">
             {name}
           </span>
-          <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
+          <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
             {t("uploading", { size: formatBytes(size) })}
           </span>
         </span>
@@ -294,7 +292,7 @@ export function PendingFileCard({
         </span>
       </div>
       <div className="h-16 w-full" />
-      <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+      <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
         {t("uploading", { size: formatBytes(size) })}
       </p>
     </div>

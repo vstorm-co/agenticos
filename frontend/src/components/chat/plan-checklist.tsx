@@ -226,7 +226,7 @@ export function PlanMeter({
           style={{ width: `${percent}%` }}
         />
       </span>
-      <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider">
+      <span className="text-muted-foreground shrink-0 font-mono text-xs tracking-wider">
         {t("count", { completed, total })}
       </span>
     </span>

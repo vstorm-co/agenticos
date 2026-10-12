@@ -186,7 +186,7 @@ function AgentOption({
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>
             {isDefault && (
-              <span className="text-muted-foreground shrink-0 text-[11px]">{t("default")}</span>
+              <span className="text-muted-foreground shrink-0 text-xs">{t("default")}</span>
             )}
           </span>
           {/* One line, truncated. Wrapped to two, a description made every row a

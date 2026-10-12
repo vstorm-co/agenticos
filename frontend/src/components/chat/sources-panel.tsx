@@ -37,7 +37,7 @@ function RAGSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
       )}
     >
       <div className="flex items-start gap-2.5">
-        <span className="bg-foreground/8 text-foreground/65 mt-0.5 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[11px] tabular-nums">
+        <span className="bg-foreground/8 text-foreground/65 mt-0.5 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-xs tabular-nums">
           {item.index}
         </span>
         <div className="min-w-0 flex-1">
@@ -49,7 +49,7 @@ function RAGSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
             {item.score !== undefined && <ScoreDot score={item.score} />}
           </div>
           {item.subtitle && (
-            <p className="text-muted-foreground mt-0.5 pl-5 font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground mt-0.5 pl-5 font-mono text-xs tracking-wider uppercase">
               {item.subtitle}
             </p>
           )}
@@ -87,7 +87,7 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
             {item.title}
           </p>
           {item.subtitle && (
-            <div className="text-muted-foreground mt-0.5 flex items-center gap-1 text-[11px]">
+            <div className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
               <Link className="h-2.5 w-2.5 shrink-0" />
               {item.subtitle}
             </div>
@@ -153,7 +153,7 @@ export function SourcesPanel() {
         {ragSources.length > 0 && (
           <section className="space-y-2">
             {ragSources.length > 0 && webSources.length > 0 && (
-              <h3 className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+              <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                 {t("knowledgeBase")}
               </h3>
             )}
@@ -170,7 +170,7 @@ export function SourcesPanel() {
         {webSources.length > 0 && (
           <section className="space-y-2">
             {ragSources.length > 0 && (
-              <h3 className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+              <h3 className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                 {t("web")}
               </h3>
             )}

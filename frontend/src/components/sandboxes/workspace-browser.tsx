@@ -191,7 +191,7 @@ function FlatFiles() {
               <p className="text-muted-foreground flex items-center gap-1 px-1 text-xs">
                 <span
                   className={cn(
-                    "shrink-0 rounded px-1 py-0.5 text-[11px]",
+                    "shrink-0 rounded px-1 py-0.5 text-xs",
                     file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground",
                   )}
                 >

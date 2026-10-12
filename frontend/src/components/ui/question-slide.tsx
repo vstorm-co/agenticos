@@ -114,7 +114,7 @@ export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: Que
       <div className={cn("flex items-start gap-3 px-4 pb-3", aside && "pt-3")}>
         <div className="min-w-0 flex-1 space-y-1.5">
           {item.header && (
-            <span className="bg-foreground/[0.06] text-muted-foreground inline-block rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase">
+            <span className="bg-foreground/[0.06] text-muted-foreground inline-block rounded-md px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
               {item.header}
             </span>
           )}

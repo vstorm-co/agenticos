@@ -31,7 +31,7 @@ export function MessageCost({ usage }: MessageCostProps) {
   const cost = `$${Number(usage.cost_usd).toFixed(4)}`;
   return (
     <span
-      className="text-muted-foreground font-mono text-[11px]"
+      className="text-muted-foreground font-mono text-xs"
       title={
         usage.cost_is_partial
           ? t("tokensDetailPartial", {

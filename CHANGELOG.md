@@ -477,6 +477,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **One shape and one type floor across the console.** Fields and selects share
+  a 12px corner beside the pill buttons, borders and field edges are a step
+  stronger in both themes, small buttons and the console's 11px captions move up
+  to readable sizes, and the dashboard's period choice is a segmented control.
+  The chat's model setting uses the Builder's searchable model picker instead of
+  a plain field.
 - **Chat reads like the Architect's window.** Each turn opens with the face and
   the name on one line, the message under them at the column's full width, and
   the column is narrower - about the width ChatGPT and Claude keep - with nothing

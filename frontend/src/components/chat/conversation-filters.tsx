@@ -154,9 +154,7 @@ export function ConversationFilters({
           <Code2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {agentId !== null && (
-        <p className="text-muted-foreground text-[11px]">{t("agentFilterHint")}</p>
-      )}
+      {agentId !== null && <p className="text-muted-foreground text-xs">{t("agentFilterHint")}</p>}
     </div>
   );
 }

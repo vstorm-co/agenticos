@@ -265,7 +265,7 @@ function DelimitedTable({ text }: { text: string }) {
               {header.map((cell, index) => (
                 <th
                   key={index}
-                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-[11px] font-semibold tracking-wider uppercase"
+                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-xs font-semibold tracking-wider uppercase"
                 >
                   {cell}
                 </th>
@@ -289,7 +289,7 @@ function DelimitedTable({ text }: { text: string }) {
         </table>
       </div>
       {body.length > MAX_ROWS && (
-        <p className="text-muted-foreground text-center text-[11px] tracking-wider uppercase">
+        <p className="text-muted-foreground text-center text-xs tracking-wider uppercase">
           {t("truncatedRows", { shown: MAX_ROWS, total: body.length })}
         </p>
       )}

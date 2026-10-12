@@ -316,7 +316,7 @@ export function MessageItem({
           // numbers are one pointer move away when somebody wants them.
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
-              <span className="hover-reveal text-muted-foreground text-[11px]">
+              <span className="hover-reveal text-muted-foreground text-xs">
                 {new Date(message.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -329,7 +329,7 @@ export function MessageItem({
                  reader takes a truncated one as everything the agent had to say.
                  Beside the cost, because the two together are the whole account
                  of a turn that produced nothing usable and still spent money. */
-              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground flex items-center gap-1 text-xs">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
               </span>

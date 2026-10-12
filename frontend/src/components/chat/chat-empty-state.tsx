@@ -39,12 +39,10 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
       onPick={onPick}
       footer={
         <>
-          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[11px]">
-            ⌘K
-          </kbd>
+          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-xs">⌘K</kbd>
           <span>{t("commandPalette")}</span>
           <span className="text-border">·</span>
-          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
+          <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-xs">/</kbd>
           <span>{t("slashCommands")}</span>
         </>
       }

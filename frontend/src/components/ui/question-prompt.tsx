@@ -98,7 +98,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
                 <ChevronLeft className="h-4 w-4" />
               </button>
             )}
-            <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {reviewing ? t("reviewAnswers") : t("questionStep", { step: step + 1, total })}
             </span>
           </div>

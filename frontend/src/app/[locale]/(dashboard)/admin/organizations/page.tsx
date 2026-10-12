@@ -91,7 +91,7 @@ export default function AdminOrganizationsPage() {
           <>
             <span className="text-foreground font-medium">{org.name}</span>
             {org.is_personal && (
-              <Badge variant="outline" className="ml-2 text-[11px]">
+              <Badge variant="outline" className="ml-2 text-xs">
                 {t("personal")}
               </Badge>
             )}
