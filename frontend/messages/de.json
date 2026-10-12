@@ -3419,6 +3419,10 @@
       "settings-api-usage": {
         "title": "Die API verwenden",
         "body": "Die Basis-URL, wie ein Schlüssel sich anmeldet, und die Referenz jedes Endpunkts, den ein Schlüssel aufrufen kann."
+      },
+      "agent-share": {
+        "title": "Teilen",
+        "body": "Fügen Sie eine Person oder Gruppe hinzu und wählen Sie, was sie darf, oder öffnen Sie ihn für die ganze Organisation. Der Besitzer behält immer Zugriff."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4910,24 +4914,23 @@
     "levelRead": "Darf ansehen",
     "levelUse": "Darf verwenden",
     "notSharedWithAnyone": "Noch mit niemandem geteilt.",
-    "ownedBy": "Gehört {email}",
-    "peopleAndGroups": "Personen und Gruppen",
-    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
     "secretRuntimeNote": "Die Freigabe steuert, wer diesen Schlüssel an einen Agent binden und wer ihn rotieren darf – nicht, wer von ihm profitiert. Sobald ein Agent diesen Schlüssel verwendet, läuft er damit für alle, die diesen Agent ausführen dürfen, auch für Personen, die den Schlüssel hier nicht sehen können.",
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
-    "visibility": "Sichtbarkeit",
-    "visibilityOrg": "Organisation",
+    "visibilityOrg": "Alle in der Organisation",
     "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} other {Secrets}} überhaupt ansehen dürfen.",
-    "visibilityPrivate": "Privat",
-    "visibilityPrivateReaches": "Nur Sie und die unten aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
-    "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
+    "visibilityPrivate": "Nur Personen mit Zugriff",
+    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
     "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
-    "groupSubject": "Gruppe"
+    "groupSubject": "Gruppe",
+    "peopleWithAccess": "Personen mit Zugriff",
+    "generalAccess": "Allgemeiner Zugriff",
+    "owner": "Besitzer",
+    "shareNamed": "{name} teilen"
   },
   "skills": {
     "addFile": "Datei hinzufügen",

@@ -3307,6 +3307,10 @@
       "settings-api-usage": {
         "title": "Korzystanie z API",
         "body": "Adres bazowy, sposób uwierzytelniania kluczem i dokumentacja wszystkich endpointów dostępnych dla klucza."
+      },
+      "agent-share": {
+        "title": "Udostępnij go",
+        "body": "Dodaj osobę lub grupę i wybierz, co mogą robić, albo otwórz go całej organizacji. Właściciel zawsze ma dostęp."
       }
     },
     "chooseLanguage": "Język"
@@ -4798,24 +4802,23 @@
     "levelRead": "Może przeglądać",
     "levelUse": "Może używać",
     "notSharedWithAnyone": "Jeszcze nikomu nie udostępnione.",
-    "ownedBy": "Właściciel: {email}",
-    "peopleAndGroups": "Osoby i grupy",
-    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby albo wszystkich w grupie do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}}, nie zmieniając ich ról nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
     "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować - nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
     "share": "Udostępnij",
     "sharingUpdated": "Udostępnianie zaktualizowane",
-    "visibility": "Widoczność",
-    "visibilityOrg": "Organizacja",
+    "visibilityOrg": "Wszyscy w organizacji",
     "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {aplikacje} other {sekrety}}.",
-    "visibilityPrivate": "Prywatne",
-    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} na swojej liście - a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
-    "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
+    "visibilityPrivate": "Tylko osoby z dostępem",
+    "visibilityPrivateReaches": "Tylko osoby wymienione wyżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tej aplikacji} other {tego sekretu}} na swojej liście - a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
     "visibilityTeam": "Zespół (już nieoferowane)",
     "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {aplikacji} other {sekretów}}. Ta organizacja nie ma zespołów - wybierz jedną z dwóch powyżej.",
     "visibilityUpdated": "Widoczność zaktualizowana",
     "groupsHeading": "Grupy",
     "membersHeading": "Członkowie",
-    "groupSubject": "Grupa"
+    "groupSubject": "Grupa",
+    "peopleWithAccess": "Osoby z dostępem",
+    "generalAccess": "Dostęp ogólny",
+    "owner": "Właściciel",
+    "shareNamed": "Udostępnij: {name}"
   },
   "skills": {
     "addFile": "Dodaj plik",

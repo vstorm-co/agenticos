@@ -1,5 +1,5 @@
 ---
-source_sha: "4576627e8758"
+source_sha: "850efeb9c9f0"
 ---
 
 # Permisos { #permissions }
@@ -277,6 +277,11 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `read` | ver la configuración |
 | `use` | además ejecutarlo o adjuntarlo |
 | `edit` | además cambiarlo |
+
+En la consola es un solo diálogo, como se comparte un documento: el botón
+**Share** de un agent añade una persona o un grupo con un nivel, lista quién tiene
+acceso con el propietario primero y fija el **acceso general** - *Only people with
+access* es `private`, *Everyone in the organization* es `org`.
 
 Una concesión a un grupo alcanza a quien esté en el grupo en el momento en que se
 comprueba el acceso, así que entrar en el grupo es ganar el acceso y salir de él

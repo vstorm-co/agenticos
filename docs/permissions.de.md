@@ -1,5 +1,5 @@
 ---
-source_sha: "4576627e8758"
+source_sha: "850efeb9c9f0"
 ---
 
 # Berechtigungen { #permissions }
@@ -283,6 +283,11 @@ ihn sieht, nicht was er tut.
 | `read` | die Konfiguration zu sehen |
 | `use` | sie außerdem auszuführen oder anzuhängen |
 | `edit` | sie außerdem zu ändern |
+
+In der Konsole ist das ein Dialog, so wie man ein Dokument teilt: Der Button
+**Share** eines Agents fügt eine Person oder Gruppe auf einer Stufe hinzu, listet
+auf, wer Zugriff hat, den Besitzer zuerst, und setzt den **Allgemeinen Zugriff** -
+*Nur Personen mit Zugriff* ist `private`, *Alle in der Organisation* ist `org`.
 
 Ein Grant an eine Gruppe erreicht, wer in dem Moment in der Gruppe ist, in dem der
 Zugriff geprüft wird: Der Gruppe beizutreten heißt also, den Zugriff zu gewinnen,

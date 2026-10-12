@@ -18,6 +18,7 @@ import {
   Plug,
   Trash2,
   Upload,
+  UserPlus,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -131,7 +132,7 @@ import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_CANVAS, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { narrowedSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
@@ -175,6 +176,7 @@ function toolChoice(
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
+  const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const { id } = use(params);
@@ -252,6 +254,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   // Fetched only while the map shows it: the server resolves and
   // access-checks every pinned version to build this.
   const {
@@ -868,11 +871,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <Network className="h-4 w-4" />
                 {t("visualMap")}
               </Button>
-              <Button variant="outline" asChild>
-                <a href={`/api/agents/${id}/spec.yaml`} download>
-                  <Download className="h-4 w-4" />
-                  {t("exportYaml")}
-                </a>
+              {/* For whoever cannot open the overflow menu, which is where an
+                  editor finds the export - a header of six buttons asked for
+                  every decision at once. */}
+              {!canEdit && (
+                <Button variant="outline" asChild>
+                  <a href={`/api/agents/${id}/spec.yaml`} download>
+                    <Download className="h-4 w-4" />
+                    {t("exportYaml")}
+                  </a>
+                </Button>
+              )}
+              {/* Who reaches this agent, the way a document is shared: one
+                  button, one dialog, instead of two cards at the foot of a tab. */}
+              <Button variant="outline" onClick={() => setShareOpen(true)} data-tour="agent-share">
+                <UserPlus className="h-4 w-4" />
+                {tSharing("share")}
               </Button>
               {canPublish && (
                 <Button
@@ -894,6 +908,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <a href={`/api/agents/${id}/spec.yaml`} download>
+                        <Download className="h-4 w-4" />
+                        {t("exportYaml")}
+                      </a>
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() =>
                         clone.mutate(id, {
@@ -984,6 +1004,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
             ))}
           </div>
         )}
+
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+          <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
+            <DialogHeader>
+              <DialogTitle>{tSharing("shareNamed", { name: agent.name })}</DialogTitle>
+            </DialogHeader>
+            <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={mapOpen} onOpenChange={setMapOpen}>
           <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
@@ -1504,7 +1533,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               }
             />
             <EmbedsPanel agentId={id} canManage={canPublish} />
-            <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
           </TabsContent>
 
           <TabsContent value="history" className="mt-6 space-y-6">

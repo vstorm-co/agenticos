@@ -281,6 +281,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsEdit,
     inTour: true,
   },
+  // Who reaches the agent, in one dialog (#2062). The page's "?" walk only: the
+  // launch pass already takes one stop per Builder tab.
+  {
+    id: "agent-share",
+    page: AGENT_BUILDER,
+    target: "agent-share",
+    permission: Perm.agentsView,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,

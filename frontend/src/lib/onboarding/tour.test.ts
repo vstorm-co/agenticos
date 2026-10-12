@@ -45,6 +45,7 @@ const BUILDER_STEPS = [
   "agent-availability",
   "agent-history",
   "agent-test",
+  "agent-share",
   "agent-publish",
 ];
 

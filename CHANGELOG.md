@@ -483,6 +483,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Sharing reads like sharing a document.** An agent's **Share** button opens
+  one dialog: add a person or a group at a level, see who has access - the owner
+  first, faces and group icons beside the names - and set **General access** to
+  *Only people with access* or *Everyone in the organization*. The two cards of
+  radio buttons and paragraphs at the foot of the Availability tab are gone, the
+  vault's key sharing uses the same panel, and the agent's YAML export moved
+  into its **…** menu for whoever may edit it.
 - **Fixes from a screen-by-screen pass.** The Architect says what is waiting for
   approval once a visit instead of on every page, until more arrives; badges
   and short table values no longer break over two or three lines; an

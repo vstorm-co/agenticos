@@ -124,43 +124,47 @@ describe("SharingPanel", () => {
   it("waits for the sharing state rather than rendering an empty one", () => {
     sharing = undefined;
     renderPanel();
-    expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
+    expect(screen.queryByText("General access")).not.toBeInTheDocument();
   });
 
-  it("says who each visibility reaches, in the place the choice is made", () => {
+  it("says who the general access reaches, under the choice", () => {
     renderPanel();
     expect(screen.getByText(/Nobody else finds this agent in their list/)).toBeInTheDocument();
+  });
+
+  it("says who an organization-wide resource reaches", () => {
+    renderPanel(true, { visibility: "org" });
     expect(
       screen.getByText("Everyone in the organization who can view agents at all."),
     ).toBeInTheDocument();
   });
 
-  it("does not offer a visibility this product has no concept of", () => {
+  it("does not offer a visibility this product has no concept of", async () => {
     // "Team" is a third value the column accepts and `resolve_access`
     // understands, and it means "anyone whose role reaches team resources" -
     // a role scope with no team behind it, because there are no teams here.
     // Offering it asked people to choose between a concept the product has and
     // one it does not.
     renderPanel();
-    expect(screen.queryByRole("radio", { name: /Team/ })).toBeNull();
+    await choose(screen.getByLabelText("General access"), "Everyone in the organization");
+    expect(screen.queryByRole("option", { name: /Team/ })).toBeNull();
   });
 
   it("still shows Team for a row already set to it", () => {
     // Otherwise a legacy row renders with nothing selected, and the one action
     // that would fix it - picking something else - looks like it is already done.
     renderPanel(true, { visibility: "team" });
-    expect(screen.getByRole("radio", { name: /Team/ })).toBeChecked();
+    expect(screen.getByLabelText("General access")).toHaveTextContent(/Team/);
   });
 
   it("shows the visibility the resource actually has", () => {
     renderPanel();
-    expect(screen.getByRole("radio", { name: "Private" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Organization" })).not.toBeChecked();
+    expect(screen.getByLabelText("General access")).toHaveTextContent("Only people with access");
   });
 
   it("asks the server to widen visibility instead of assuming it worked", async () => {
     renderPanel();
-    await userEvent.click(screen.getByRole("radio", { name: "Organization" }));
+    await choose(screen.getByLabelText("General access"), "Everyone in the organization");
     expect(setVisibility.mutate).toHaveBeenCalledWith("org");
   });
 
@@ -168,13 +172,21 @@ describe("SharingPanel", () => {
     renderPanel();
     expect(screen.getByText("sam@example.com")).toBeInTheDocument();
     expect(screen.getByLabelText("Access for sam@example.com")).toHaveTextContent("Can view");
-    expect(screen.getByText("Owned by owner@example.com")).toBeInTheDocument();
+    // The owner heads the list, named as the owner rather than given a level.
+    expect(screen.getByText("owner@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
-  it("says plainly that nobody has been shared with", () => {
-    sharing = { ...SHARING, grants: [] };
+  it("says plainly that nobody has access when there is no owner to list", () => {
+    sharing = { ...SHARING, owner_user_id: null, grants: [] };
     renderPanel();
     expect(screen.getByText("Not shared with anyone yet.")).toBeInTheDocument();
+  });
+
+  it("draws a group it is shared with by the group's own icon", () => {
+    groups = [{ ...group("g-fin", "Finance"), icon: "banknote" } as Group];
+    const { container } = renderPanel(true, { grants: [GROUP_GRANT] });
+    expect(container.querySelector("li svg")).not.toBeNull();
   });
 
   it("explains an empty picker rather than offering an empty menu", () => {
@@ -291,7 +303,7 @@ describe("SharingPanel", () => {
     expect(
       screen.queryByRole("button", { name: "Remove sam@example.com" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Organization" })).toBeDisabled();
+    expect(screen.getByLabelText("General access")).toBeDisabled();
     expect(screen.getByLabelText("Access for sam@example.com")).toBeDisabled();
   });
 
@@ -332,7 +344,7 @@ describe("SharingPanel", () => {
       <SharingPanel resourceType="artifact" resourceId="r1" canManage />,
     );
 
-    expect(screen.getByText(/Who reaches this app without being named/)).toBeInTheDocument();
+    expect(screen.getByText(/Nobody else finds this app in their list/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/secret/i);
   });
 

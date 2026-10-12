@@ -255,6 +255,11 @@ who can see it, not what it does.
 | `use` | also run or attach it |
 | `edit` | also change it |
 
+In the console this is one dialog, the way a document is shared: an agent's
+**Share** button adds a person or a group at a level, lists who has access with
+the owner first, and sets **General access** - *Only people with access* is
+`private`, *Everyone in the organization* is `org`.
+
 A grant to a group reaches whoever is in the group at the moment access is
 checked, so joining the group is gaining the access and leaving it is losing it.
 A person holding several grants on one row - their own and their groups' - gets

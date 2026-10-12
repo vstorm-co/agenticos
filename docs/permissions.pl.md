@@ -1,5 +1,5 @@
 ---
-source_sha: "4576627e8758"
+source_sha: "850efeb9c9f0"
 ---
 
 # Uprawnienia { #permissions }
@@ -268,6 +268,11 @@ robi.
 | `read` | zobaczyć konfigurację |
 | `use` | dodatkowo uruchomić go albo podpiąć |
 | `edit` | dodatkowo go zmienić |
+
+W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
+agenta dodaje osobę lub grupę na danym poziomie, pokazuje, kto ma dostęp, z
+właścicielem na początku, i ustawia **Dostęp ogólny** - *Tylko osoby z dostępem*
+to `private`, *Wszyscy w organizacji* to `org`.
 
 Grant dla grupy sięga do każdego, kto jest w grupie w chwili sprawdzania dostępu,
 więc dołączenie do grupy oznacza zyskanie dostępu, a odejście z niej — jego

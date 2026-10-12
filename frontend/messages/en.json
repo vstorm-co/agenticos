@@ -3537,6 +3537,10 @@
       "settings-api-usage": {
         "title": "Use the API",
         "body": "The base URL, how a key authenticates, and the reference of every endpoint a key can call."
+      },
+      "agent-share": {
+        "title": "Share it",
+        "body": "Add a person or a group and choose what they can do, or open it to the whole organization. The owner always keeps access."
       }
     },
     "chooseLanguage": "Language"
@@ -5028,24 +5032,23 @@
     "levelRead": "Can view",
     "levelUse": "Can use",
     "notSharedWithAnyone": "Not shared with anyone yet.",
-    "ownedBy": "Owned by {email}",
-    "peopleAndGroups": "People and groups",
-    "peopleReaches": "A share lifts the access of one person, or of everybody in a group, to this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
     "secretRuntimeNote": "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
     "share": "Share",
     "sharingUpdated": "Sharing updated",
-    "visibility": "Visibility",
-    "visibilityOrg": "Organization",
+    "visibilityOrg": "Everyone in the organization",
     "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} other {secrets}} at all.",
-    "visibilityPrivate": "Private",
-    "visibilityPrivateReaches": "Only you and the people listed below. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
-    "visibilityReaches": "Who reaches this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} other {secret}} without being named. Sharing adds people on top of this; it never takes access away.",
+    "visibilityPrivate": "Only people with access",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
     "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
-    "groupSubject": "Group"
+    "groupSubject": "Group",
+    "peopleWithAccess": "People with access",
+    "generalAccess": "General access",
+    "owner": "Owner",
+    "shareNamed": "Share {name}"
   },
   "skills": {
     "addFile": "Add file",
