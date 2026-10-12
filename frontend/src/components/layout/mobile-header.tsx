@@ -11,18 +11,24 @@
  *
  * The bell is the one control repeated here rather than left to the drawer:
  * unread state is worth seeing without first opening the column that holds it.
+ * On the chat, the conversation list is a second slide-over with no other way
+ * in, so its button sits beside the bell there.
  */
 
-import { Menu } from "lucide-react";
+import { MessagesSquare, Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { usePathname } from "next/navigation";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { Button } from "@/components/ui";
-import { useSidebarStore } from "@/stores";
+import { Button, IconButton } from "@/components/ui";
+import { pageOf } from "@/lib/assistant-bubbles";
+import { useChatSidebarStore, useSidebarStore } from "@/stores";
 
 export function MobileHeader() {
   const { toggle } = useSidebarStore();
+  const openConversations = useChatSidebarStore((state) => state.open);
+  const onChat = pageOf(usePathname()).startsWith("/chat");
   const t = useTranslations("nav");
 
   return (
@@ -32,7 +38,17 @@ export function MobileHeader() {
         <span className="sr-only">{t("toggleMenu")}</span>
       </Button>
       <BrandLink />
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1">
+        {onChat && (
+          <IconButton
+            size="icon"
+            aria-label={t("openConversations")}
+            onClick={openConversations}
+            className="text-muted-foreground rounded-lg [&_svg]:size-5"
+          >
+            <MessagesSquare />
+          </IconButton>
+        )}
         <NotificationBell variant="icon" />
       </div>
     </header>

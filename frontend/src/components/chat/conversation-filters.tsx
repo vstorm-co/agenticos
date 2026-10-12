@@ -101,7 +101,7 @@ export function ConversationFilters({
   const narrowed = agentId !== null || hideApi || sort !== DEFAULT_SORT || view === "archived";
 
   return (
-    <div className="flex items-center gap-2 px-3 pb-2">
+    <div className="flex items-center gap-2 px-3 pt-3 pb-2">
       {/* `sm:w-full` overrides `SearchInput`'s own `sm:w-64`, which is a sensible
           default on the wide pages every other caller sits on and wider than
           this column. */}

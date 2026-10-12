@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { pageOf } from "@/lib/assistant-bubbles";
 import { ROUTES } from "@/lib/constants";
 import { useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,10 @@ export function AssistantSetup({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [everOpened, setEverOpened] = useState(false);
+  // The chat's composer owns the bottom corner, and its send button sits
+  // exactly where the offer and the button would; the walkthrough is one
+  // page away on every other screen.
+  const overComposer = pageOf(usePathname()).startsWith("/chat");
   const steps = assistant.can_configure ? STEPS : [...STEPS.slice(0, -1), "askAdmin" as const];
 
   return (
@@ -85,7 +91,7 @@ export function AssistantSetup({
         </div>
       )}
 
-      {!everOpened && (
+      {!everOpened && !overComposer && (
         <button
           type="button"
           onClick={() => {
@@ -106,6 +112,7 @@ export function AssistantSetup({
           setOpen(!open);
           setEverOpened(true);
         }}
+        overComposer={overComposer}
       />
     </WidgetRoot>
   );

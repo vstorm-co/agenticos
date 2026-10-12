@@ -8,6 +8,8 @@ import { AssistantSetup, TYPING_MS } from "./assistant-setup";
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
+const pathname = vi.hoisted(() => ({ current: "/agents" }));
+vi.mock("next/navigation", () => ({ usePathname: () => pathname.current }));
 
 function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
   return {
@@ -44,6 +46,7 @@ function typeEverything() {
 beforeEach(() => {
   vi.useFakeTimers();
   push.mockReset();
+  pathname.current = "/agents";
 });
 
 afterEach(() => {
@@ -127,5 +130,13 @@ describe("the Architect with no model", () => {
     expect(dialog).not.toHaveClass("hidden");
     fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
     expect(dialog).toHaveClass("hidden");
+  });
+
+  it("steps out of the chat composer's corner, offer and button both", () => {
+    pathname.current = "/pl/chat";
+    mount();
+
+    expect(screen.queryByText(/I'm not connected to a model yet/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("hidden");
   });
 });
