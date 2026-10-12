@@ -1,5 +1,5 @@
 ---
-source_sha: "e0d6f1125173"
+source_sha: "0bb69f0bf324"
 ---
 
 # La consola { #the-console }
@@ -24,7 +24,17 @@ propias notificaciones, más abajo, que solo necesitan que hayas iniciado
 sesión. Una banda vacía desaparece junto con su título en lugar de quedarse ahí
 vacía.
 
-La disposición por defecto muestra las tarjetas que responden con datos,
+Un selector arriba dice de quién es el dashboard, y ofrece solo las vistas que
+puedes abrir:
+
+| Vista | Responde a |
+|---|---|
+| **Me** | Tus agents, tus conversaciones, tu actividad, lo que han compartido contigo y lo que te espera |
+| **Organization** | La página que se ordena, descrita abajo |
+| **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector |
+| **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
+
+La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
 de conocimiento, departamentos, miembros, sandboxes - espera en el catálogo, a un
 clic bajo **Customize**:
@@ -34,8 +44,6 @@ clic bajo **Customize**:
 | *(sin título, arriba del todo)* | El resumen, los runs día a día y cómo terminaron |
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
 | **Usage & cost** | Qué agents se usan, gasto, cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
-| **Your workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
-| **Deployment** | Al final, y solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
 
 Quien construye agents ve además **Get started** encima de las bandas hasta
 completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,

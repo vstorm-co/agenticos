@@ -1,5 +1,5 @@
 ---
-source_sha: "e0d6f1125173"
+source_sha: "0bb69f0bf324"
 ---
 
 # Konsola { #the-console }
@@ -24,7 +24,17 @@ poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żeb
 był zalogowany. Pusty pas znika razem ze swoim nagłówkiem, zamiast stać tam
 pusty.
 
-Domyślny układ pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
+Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
+możesz otworzyć:
+
+| Widok | Odpowiada na |
+|---|---|
+| **Ja** | Twoi agenci, Twoje rozmowy, Twoja aktywność, co Ci udostępniono i co na Ciebie czeka |
+| **Organizacja** | Układalna strona opisana niżej |
+| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika |
+| **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+
+Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
 sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
@@ -33,8 +43,6 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 | *(bez tytułu, na górze)* | Podsumowanie, runy dzień po dniu i to, jak się skończyły |
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage & cost** | Których agentów się używa, wydatki, kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
-| **Your workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
-| **Deployment** | Na końcu i tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
 
 Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
 wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę

@@ -1,5 +1,5 @@
 ---
-source_sha: "e0d6f1125173"
+source_sha: "0bb69f0bf324"
 ---
 
 # Die Konsole { #the-console }
@@ -24,17 +24,25 @@ außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Si
 angemeldet sind. Eine leere Gruppe verschwindet samt ihrer Überschrift, statt
 leer dazustehen.
 
-Die Standardanordnung zeigt die Karten, die mit Daten antworten, in Gruppen.
-Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen, Mitglieder,
-Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customize**:
+Ein Schalter oben sagt, wessen Dashboard es ist, und bietet nur die Ansichten
+an, die Sie öffnen dürfen:
+
+| Ansicht | Beantwortet |
+|---|---|
+| **Ich** | Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde und was auf Sie wartet |
+| **Organisation** | Die anordenbare Seite unten |
+| **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter |
+| **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+
+Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
+Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
+Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customize**:
 
 | Gruppe | Beantwortet |
 |---|---|
 | *(ohne Titel, ganz oben)* | Die Zusammenfassung, Runs Tag für Tag und wie sie ausgingen |
 | **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage & cost** | Welche Agents genutzt werden, Ausgaben, wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
-| **Your workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde |
-| **Deployment** | Zuletzt und nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 
 Wer Agents baut, sieht über den Bändern außerdem **Erste Schritte**, bis jeder
 Schritt erledigt ist: einen Agent anlegen, ihn veröffentlichen, ihm eine

@@ -19,7 +19,17 @@ its queries are never issued — except your own notifications, below, which nee
 only that you are signed in. An empty band disappears with its heading rather
 than sitting there empty.
 
-The default arrangement shows the cards that answer with data, grouped into
+A switch at the top says whose dashboard it is, and offers only the views you
+may open:
+
+| View | Answers |
+|---|---|
+| **Me** | Your agents, your conversations, your activity, what was shared with you and what is waiting on you |
+| **Organization** | The arrangeable page below |
+| **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch |
+| **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
+
+The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
 members, sandboxes - wait in the catalog, one click away under **Customize**:
 
@@ -28,8 +38,6 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 | *(untitled, at the top)* | The summary, runs day by day and how they ended |
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
 | **Usage & cost** | Which agents are used, spend, when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
-| **Your workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
-| **Deployment** | Last, and only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
 
 Somebody who builds agents also sees **Get started** above the bands until each
 of its steps is done: create an agent, publish it, give it a knowledge base, add

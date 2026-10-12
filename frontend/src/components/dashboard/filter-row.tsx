@@ -27,6 +27,13 @@ interface FilterRowProps {
   sections: SectionDef[];
   selectedSections: string[] | null;
   onSectionsChange: (selected: string[] | null) => void;
+  /**
+   * Whether the shortcuts are drawn. They act on the organization - create an
+   * agent, review approvals, invite somebody - so a group's or the
+   * deployment's page leaves them out rather than offering them beside numbers
+   * they do not change.
+   */
+  showActions: boolean;
 }
 
 /**
@@ -40,6 +47,7 @@ export function FilterRow({
   sections,
   selectedSections,
   onSectionsChange,
+  showActions,
 }: FilterRowProps) {
   const t = useTranslations("dashboard");
   const { can } = usePermissions();
@@ -101,28 +109,30 @@ export function FilterRow({
           four decisions asked at once, so the page's one primary action - go
           and talk to an agent - sits in the header where every other page in
           the product puts its primary, and what is left here is quiet. */}
-      <div
-        data-tour="dashboard-actions"
-        className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
-      >
-        {can(Perm.agentsEdit) ? (
-          <Button asChild variant="ghost" size="sm" className="gap-1.5">
-            <Link href={ROUTES.AGENTS}>
-              <Bot className="size-3.5" aria-hidden />
-              {t("actions.createAgent")}
-            </Link>
-          </Button>
-        ) : null}
-        {can(Perm.approvalsDecide) ? <ReviewApprovalsAction /> : null}
-        {can(Perm.membersManage) && activeOrgId ? (
-          <Button asChild variant="ghost" size="sm" className="gap-1.5">
-            <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>
-              <UserPlus className="size-3.5" aria-hidden />
-              {t("actions.invite")}
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+      {showActions ? (
+        <div
+          data-tour="dashboard-actions"
+          className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
+        >
+          {can(Perm.agentsEdit) ? (
+            <Button asChild variant="ghost" size="sm" className="gap-1.5">
+              <Link href={ROUTES.AGENTS}>
+                <Bot className="size-3.5" aria-hidden />
+                {t("actions.createAgent")}
+              </Link>
+            </Button>
+          ) : null}
+          {can(Perm.approvalsDecide) ? <ReviewApprovalsAction /> : null}
+          {can(Perm.membersManage) && activeOrgId ? (
+            <Button asChild variant="ghost" size="sm" className="gap-1.5">
+              <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>
+                <UserPlus className="size-3.5" aria-hidden />
+                {t("actions.invite")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

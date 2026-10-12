@@ -1070,11 +1070,15 @@ class RunFilter:
     would have been eight signatures, and the third would be eight more.
 
     An empty filter is the organization's whole window, which is what the
-    dashboard asks for by default.
+    dashboard asks for by default. `group_id` narrows to the runs of the
+    group's members today - a person who joins a department brings their past
+    runs into its dashboard, which is the question "how does this team use
+    agents" asks.
     """
 
     user_id: UUID | None = None
     agent_id: UUID | None = None
+    group_id: UUID | None = None
 
 
 def _window_conditions(
@@ -1109,6 +1113,12 @@ def _window_conditions(
         conditions.append(AgentRun.user_id == filters.user_id)
     if filters.agent_id is not None:
         conditions.append(AgentRun.agent_id == filters.agent_id)
+    if filters.group_id is not None:
+        conditions.append(
+            AgentRun.user_id.in_(
+                select(GroupMember.user_id).where(GroupMember.group_id == filters.group_id)
+            )
+        )
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
     return conditions

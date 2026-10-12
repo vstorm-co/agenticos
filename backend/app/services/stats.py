@@ -23,10 +23,11 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
-from app.core.exceptions import AuthorizationError, ValidationError
+from app.core.exceptions import AuthorizationError, NotFoundError, ValidationError
 from app.core.permissions import Perm
 from app.repositories import (
     agent_run_repo,
+    group_repo,
     ingestion_spend_repo,
     member_repo,
     message_rating_repo,
@@ -139,34 +140,48 @@ class StatsService:
             )
         return None
 
-    def _narrow(
+    async def _narrow(
         self,
         ctx: AuthContext,
         scope: UsageScope,
         *,
         agent_id: UUID | None,
         user_id: UUID | None,
+        group_id: UUID | None = None,
     ) -> RunFilter:
         """The scope decision and the caller's own narrowing, as one filter.
 
         A dashboard card may be pinned to one agent or to one colleague while
         the page's filter stays where it is, so these are the same question as
-        `scope` and answered in the same place. Narrowing to a colleague reads
-        somebody else's rows, which is `scope=org` and therefore already behind
-        `runs:view`; `scope=own` needs no such gate and cannot be pointed at
-        anybody else.
+        `scope` and answered in the same place. Narrowing to a colleague or to a
+        group reads somebody else's rows, which is `scope=org` and therefore
+        already behind `runs:view`; `scope=own` needs no such gate and cannot be
+        pointed at anybody else.
 
         Raises:
-            ValidationError: `scope=own` with a `user_id` - it can only ever be
-                the caller's own, and a request saying otherwise is a mistake
-                worth answering rather than silently reinterpreting.
+            ValidationError: `scope=own` with a `user_id` or a `group_id` - it
+                can only ever be the caller's own, and a request saying
+                otherwise is a mistake worth answering rather than silently
+                reinterpreting.
+            NotFoundError: a `group_id` that is not one of this organization's
+                groups.
         """
-        if scope == "own" and user_id is not None:
+        if scope == "own" and (user_id is not None or group_id is not None):
             raise ValidationError(
-                message="scope=own is already the caller; drop user_id",
+                message="scope=own is already the caller; drop user_id and group_id",
                 details={"scope": scope},
             )
-        return RunFilter(user_id=self._scope_filter(ctx, scope) or user_id, agent_id=agent_id)
+        if group_id is not None:
+            group = await group_repo.get(
+                self.db, organization_id=ctx.organization_id, group_id=group_id
+            )
+            if group is None:
+                raise NotFoundError(message="Group not found", details={"group_id": str(group_id)})
+        return RunFilter(
+            user_id=self._scope_filter(ctx, scope) or user_id,
+            agent_id=agent_id,
+            group_id=group_id,
+        )
 
     async def usage(
         self,
@@ -177,9 +192,12 @@ class StatsService:
         to_date: date | None = None,
         agent_id: UUID | None = None,
         user_id: UUID | None = None,
+        group_id: UUID | None = None,
     ) -> UsageStats:
         """The composed answer: totals, slices, latency and cost of one window."""
-        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=user_id)
+        where = await self._narrow(
+            ctx, scope, agent_id=agent_id, user_id=user_id, group_id=group_id
+        )
         window = resolve_window(from_date, to_date)
         prev_start, prev_end = window.previous
         org = ctx.organization_id
@@ -269,9 +287,15 @@ class StatsService:
         active_users = None
         pending_approvals = None
         if where.user_id is None:
+            # A group's dashboard reaches the group, so its denominator is the
+            # group's members rather than the whole organization's.
             active_users = ActiveUsers(
                 active=current.distinct_users,
-                total_members=await member_repo.count_for_org(self.db, org),
+                total_members=(
+                    await group_repo.count_members(self.db, where.group_id)
+                    if where.group_id is not None
+                    else await member_repo.count_for_org(self.db, org)
+                ),
             )
         else:
             pending_approvals = await agent_run_repo.count_pending_approval_runs(
@@ -304,6 +328,7 @@ class StatsService:
         to_date: date | None = None,
         agent_id: UUID | None = None,
         user_id: UUID | None = None,
+        group_id: UUID | None = None,
     ) -> UsageStats:
         """When the window's runs happened, by weekday and hour.
 
@@ -315,7 +340,9 @@ class StatsService:
         Sparse, and deliberately so - a slot nobody ever ran in is absent, and
         the client draws an empty cell for it.
         """
-        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=user_id)
+        where = await self._narrow(
+            ctx, scope, agent_id=agent_id, user_id=user_id, group_id=group_id
+        )
         window = resolve_window(from_date, to_date)
 
         rows = await agent_run_repo.runs_by_hour(
@@ -351,7 +378,7 @@ class StatsService:
         rows - the window filter carries the tenant - so the answer is empty
         rather than a probe.
         """
-        where = self._narrow(ctx, scope, agent_id=None, user_id=None)
+        where = await self._narrow(ctx, scope, agent_id=None, user_id=None)
         window = resolve_window(from_date, to_date)
 
         rows = await agent_run_repo.usage_by_version(
@@ -403,6 +430,7 @@ class StatsService:
         from_date: date | None = None,
         to_date: date | None = None,
         agent_id: UUID | None = None,
+        group_id: UUID | None = None,
         limit: int,
     ) -> UsageStats:
         """Per-person rows for the window - the who-is-using-it card's answer.
@@ -416,7 +444,7 @@ class StatsService:
         usage_by_version() does: the card asking this question already holds
         the composed response, and the count it sits under comes from there.
         """
-        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=None)
+        where = await self._narrow(ctx, scope, agent_id=agent_id, user_id=None, group_id=group_id)
         window = resolve_window(from_date, to_date)
 
         rows = await agent_run_repo.usage_by_user(

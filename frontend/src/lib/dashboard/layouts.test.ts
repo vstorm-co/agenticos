@@ -13,6 +13,7 @@ import {
   SPAN_CLASS,
   stepRows,
   stepSpan,
+  viewLayout,
   visibleSections,
   type AudienceId,
 } from "./layouts";
@@ -81,10 +82,10 @@ describe("the layouts", () => {
   it("renames the agents card for a viewer, the one thing a shared list must not claim", () => {
     // A viewer's `my-agents` lists what was shared with them, so "your agents"
     // is the single place the shared list would say something untrue.
-    const viewerEntry = LAYOUTS.viewer
+    const viewerEntry = viewLayout("me", "viewer")
       .flatMap((section) => section.entries)
       .find((entry) => entry.widget === "my-agents");
-    const stewardEntry = LAYOUTS.steward
+    const stewardEntry = viewLayout("me", "steward")
       .flatMap((section) => section.entries)
       .find((entry) => entry.widget === "my-agents");
 
@@ -111,20 +112,20 @@ describe("visibleSections", () => {
       held.includes(permission);
 
   it("drops a section whose every widget is refused, heading included", () => {
-    // A viewer holds agents:view and collections:view; the organization's own
-    // bands have nothing for them but the one card gated on being signed in.
+    // A viewer holds agents:view and collections:view; their own view keeps the
+    // cards those allow and the one card gated on being signed in.
     const sections = visibleSections(
-      LAYOUTS.steward,
+      viewLayout("me", "viewer"),
       holds(Perm.agentsView, Perm.collectionsView),
       false,
     );
 
-    expect(sections.map((section) => section.id)).toEqual(["attention", "workspace"]);
-    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual(["notifications"]);
-    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([
+    expect(sections.map((section) => section.id)).toEqual(["workspace", "attention"]);
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
       "my-agents",
       "shared-with-you",
     ]);
+    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual(["notifications"]);
   });
 
   it("a caller with nothing still sees their own notifications, and nothing else", () => {
@@ -137,17 +138,45 @@ describe("visibleSections", () => {
     ]);
   });
 
-  it("opens on the organization's figures, with the deployment band last for an app admin", () => {
+  it("opens the organization's view on its figures, and keeps the person's and the host's apart", () => {
     const sections = visibleSections(LAYOUTS.app_admin, () => true, true);
-    const ids = sections.map((section) => section.id);
+    const widgets = sections.flatMap((section) => section.entries.map((entry) => entry.widget));
 
-    expect(ids[0]).toBe("overview");
-    expect(ids.at(-1)).toBe("deployment");
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
       "summary",
       "runs",
       "outcomes",
     ]);
+    expect(widgets).not.toContain("my-agents");
+    expect(widgets).not.toContain("platform");
+  });
+
+  it("gives the group and deployment views only cards that answer their question", () => {
+    const usageCards = new Set([
+      "summary",
+      "runs",
+      "outcomes",
+      "agents",
+      "spend",
+      "activity-rhythm",
+      "surfaces",
+      "model-mix",
+      "latency",
+      "top-people",
+    ]);
+    const group = viewLayout("group", "steward").flatMap((section) => section.entries);
+    const deployment = viewLayout("deployment", "app_admin").flatMap((section) => section.entries);
+
+    // Every group card reads /stats/usage, the one endpoint that takes a group.
+    expect(group.every((entry) => usageCards.has(entry.widget))).toBe(true);
+    expect(deployment.map((entry) => entry.widget)).toEqual([
+      "platform",
+      "health",
+      "top-orgs",
+      "platform-ratings",
+    ]);
+    // And an organization admin is refused all of the deployment's cards.
+    expect(visibleSections(viewLayout("deployment", "steward"), () => true, false)).toEqual([]);
   });
 
   it("an org admin never sees the deployment strip", () => {

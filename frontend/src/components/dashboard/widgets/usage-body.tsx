@@ -32,7 +32,7 @@ export function UsageBody({
   const t = useTranslations("dashboard.widgets");
   const { usage, isLoading, isStale, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
-    { filter: { agentId: options?.agentId, userId: options?.userId } },
+    { filter: { agentId: options?.agentId, userId: options?.userId, groupId: options?.groupId } },
   );
 
   if (isLoading) return <WidgetSkeleton />;

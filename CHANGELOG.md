@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Four dashboards, chosen at the top.** **Me** shows a person's own agents,
+  conversations and what waits on them; **Organization** is the arrangeable
+  page; **Group** narrows the figures, runs, spend, models, rhythm and people
+  to one group's members; **Deployment** is the host's, for its admin. Only the
+  views a person may open are offered. `GET /stats/usage` takes a `group_id`
+  for it, refused with `scope=own` and with `group_by=version`.
 - **A script can hold a conversation with an agent.** A run over the public API
   opens a conversation when it names none and returns its `conversation_id`; the
   next call that sends it continues it, with the model reading what was said

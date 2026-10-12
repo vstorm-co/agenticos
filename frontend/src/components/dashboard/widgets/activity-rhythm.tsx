@@ -36,7 +36,7 @@ export function ActivityRhythmWidget({
   const t = useTranslations("dashboard.widgets.activity-rhythm");
   const { byHour, isLoading, error, refetch } = useUsageByHour(
     { from: period.from, to: period.to },
-    { filter: { agentId: options?.agentId, userId: options?.userId } },
+    { filter: { agentId: options?.agentId, userId: options?.userId, groupId: options?.groupId } },
   );
 
   return (

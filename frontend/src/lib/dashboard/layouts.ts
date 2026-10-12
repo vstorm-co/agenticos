@@ -39,6 +39,12 @@ export interface WidgetOptions {
   agentId?: string;
   /** Narrow every number on this card to one person. */
   userId?: string;
+  /**
+   * Narrow every number on this card to one group's members. Never stored: the
+   * page's group view sets it on every card it renders, after the saved
+   * options are sanitized, so no widget declares it.
+   */
+  groupId?: string;
 }
 
 export interface LayoutEntry {
@@ -231,14 +237,14 @@ export function nearestRows(rows: number): Rows {
 }
 
 /**
- * The arrangement every new person lands on, whatever their role.
+ * The organization view's arrangement, whatever the reader's role.
  *
  * One list rather than six curated ones, and it is not a simplification: the
- * layout only *proposes*, and `visibleSections` below disposes. A member is
- * refused every card in the organization's bands and lands on their workspace;
- * a viewer is refused all but two. Six hand-written variants said the same
- * thing a permission already says, and drifted from each other every time a
- * widget was added to one of them.
+ * layout only *proposes*, and `visibleSections` below disposes. Six
+ * hand-written variants said the same thing a permission already says, and
+ * drifted from each other every time a widget was added to one of them. A
+ * person's own cards and the deployment's are views of their own (`viewLayout`)
+ * rather than bands at the foot of this one.
  *
  * Every placement carries its height as well as its width, because both were
  * chosen on a real screen with a month of real-shaped data in the cards. That
@@ -298,29 +304,72 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "top-people", span: "s12", rows: "r4" },
     ],
   },
-  // The band a member's whole page is: their own agents, their own threads,
-  // their own runs. Everything above it fails their gates and vanishes, so this
-  // is what they land on - and it is why the personal cards are here rather
-  // than in a variant nobody would keep in step.
+];
+
+/**
+ * A person's own page: their agents, their threads, their runs, and what is
+ * waiting on them. The view a member without `runs:view` opens on, and one
+ * click away for everybody else.
+ */
+const ME_SECTIONS: SectionDef[] = [
   {
     id: "workspace",
-    titleKey: "workspace",
+    titleKey: null,
     entries: [
-      { widget: "my-agents", span: "s6", rows: "r4" },
-      { widget: "conversations", span: "s6", rows: "r4" },
       { widget: "my-activity", span: "s8", rows: "r3" },
       { widget: "my-quality", span: "s4", rows: "r3" },
+      { widget: "my-agents", span: "s6", rows: "r4" },
+      { widget: "conversations", span: "s6", rows: "r4" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
     ],
   },
-  // Deployment-wide, so app-admin only - every card here fails an
-  // organization's gate and the band disappears with them. Last, because the
-  // admin is also somebody in an organization, and that is what they open the
-  // page to read most days; the host's own state is the scroll below it.
+  {
+    id: "attention",
+    titleKey: "attention",
+    entries: [
+      { widget: "approvals", span: "s6", rows: "r3" },
+      { widget: "notifications", span: "s6", rows: "r3" },
+    ],
+  },
+];
+
+/**
+ * One group's members, the cards that can be narrowed to them - every one of
+ * these reads `/stats/usage`, which takes a `group_id`. Ratings, approvals and
+ * failures are the organization's and are left to its view rather than shown
+ * here unnarrowed under a group's name.
+ */
+const GROUP_SECTIONS: SectionDef[] = [
+  {
+    id: "overview",
+    titleKey: null,
+    entries: [
+      { widget: "summary", span: "s12", rows: "r3" },
+      { widget: "runs", span: "s8", rows: "r4" },
+      { widget: "outcomes", span: "s4", rows: "r4" },
+    ],
+  },
+  {
+    id: "usage",
+    titleKey: "usage",
+    entries: [
+      { widget: "agents", span: "s6", rows: "r3" },
+      { widget: "spend", span: "s6", rows: "r3" },
+      { widget: "activity-rhythm", span: "s8", rows: "r4" },
+      { widget: "surfaces", span: "s4", rows: "r4" },
+      { widget: "model-mix", span: "s6", rows: "r3" },
+      { widget: "latency", span: "s6", rows: "r3" },
+      { widget: "top-people", span: "s12", rows: "r4" },
+    ],
+  },
+];
+
+/** The host itself, for a deployment admin: every organization at once. */
+const DEPLOYMENT_SECTIONS: SectionDef[] = [
   {
     id: "deployment",
-    titleKey: "deployment",
+    titleKey: null,
     entries: [
       { widget: "platform", span: "s6", rows: "r2" },
       { widget: "health", span: "s6", rows: "r2" },
@@ -329,6 +378,15 @@ const DEFAULT_SECTIONS: SectionDef[] = [
     ],
   },
 ];
+
+/**
+ * Which dashboard is on screen. The organization's is the arrangeable one -
+ * a person's saved layout and presets are an arrangement of it; the other
+ * three are fixed pages, each made of the cards that answer its question.
+ */
+export type DashboardView = "me" | "org" | "group" | "deployment";
+
+export const DASHBOARD_VIEWS: readonly DashboardView[] = ["me", "org", "group", "deployment"];
 
 /**
  * The same arrangement, with the agents card renamed for a viewer.
@@ -348,14 +406,30 @@ function forViewer(sections: SectionDef[]): SectionDef[] {
   }));
 }
 
+/** The organization view's default, for every audience - the gate is what differs. */
 export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
   app_admin: DEFAULT_SECTIONS,
   steward: DEFAULT_SECTIONS,
   operator: DEFAULT_SECTIONS,
   builder: DEFAULT_SECTIONS,
   member: DEFAULT_SECTIONS,
-  viewer: forViewer(DEFAULT_SECTIONS),
+  viewer: DEFAULT_SECTIONS,
 };
+
+/** The fixed layout of a view other than the organization's arrangeable one. */
+export function viewLayout(
+  view: Exclude<DashboardView, "org">,
+  audience: AudienceId,
+): SectionDef[] {
+  switch (view) {
+    case "me":
+      return audience === "viewer" ? forViewer(ME_SECTIONS) : ME_SECTIONS;
+    case "group":
+      return GROUP_SECTIONS;
+    case "deployment":
+      return DEPLOYMENT_SECTIONS;
+  }
+}
 
 /**
  * A section list with every entry the caller may not see removed, and every

@@ -16,11 +16,13 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import event
 
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun as AgentRunModel
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.conversation import Conversation, Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -381,6 +383,101 @@ class TestTenantAndScopeBoundaries:
         )
 
         assert active == 2
+
+
+class TestGroupNarrowing:
+    """A department's dashboard: the runs of the group's members, nobody else's."""
+
+    async def _department(self, db) -> tuple[Organization, User, User, Group, Agent]:
+        organization, owner = await _org_with_owner(db, "Dept")
+        member = await _user(db)
+        outsider = await _user(db)
+        for person in (member, outsider):
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(),
+                    organization_id=organization.id,
+                    user_id=person.id,
+                    role=OrgRoleName.MEMBER.value,
+                )
+            )
+        group = Group(id=uuid.uuid4(), organization_id=organization.id, name="Finance")
+        db.add(group)
+        await db.flush()
+        db.add(GroupMember(id=uuid.uuid4(), group_id=group.id, user_id=member.id))
+        await db.flush()
+        agent = await _agent(db, organization, owner)
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=member.id,
+            cost=Decimal("0.5"),
+        )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=outsider.id,
+            cost=Decimal("2"),
+        )
+        # An anonymous widget visitor belongs to no group.
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=None)
+        return organization, owner, member, group, agent
+
+    async def test_counts_only_the_members_runs_and_reaches_the_group(self, db) -> None:
+        organization, owner, _member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        result = await StatsService(db).usage(
+            ctx, from_date=START.date(), to_date=END.date() - timedelta(days=1), group_id=group.id
+        )
+
+        assert result.total_runs == 1
+        assert result.cost is not None and result.cost.period_usd == Decimal("0.5")
+        # Active out of the group's one member, not the organization's three.
+        assert result.active_users is not None
+        assert (result.active_users.active, result.active_users.total_members) == (1, 1)
+
+    async def test_the_grid_and_the_people_rows_follow_the_group(self, db) -> None:
+        organization, owner, member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+        service = StatsService(db)
+        window = {"from_date": START.date(), "to_date": END.date() - timedelta(days=1)}
+
+        hours = await service.usage_by_hour(ctx, group_id=group.id, **window)
+        people = await service.usage_by_user(ctx, group_id=group.id, limit=10, **window)
+
+        assert sum(cell.runs for cell in hours.by_hour or []) == 1
+        assert [row.user_id for row in people.by_user or []] == [member.id]
+
+    async def test_refuses_another_organizations_group(self, db) -> None:
+        organization, owner, *_ = await self._department(db)
+        elsewhere, _ = await _org_with_owner(db, "Elsewhere")
+        foreign = Group(id=uuid.uuid4(), organization_id=elsewhere.id, name="Theirs")
+        db.add(foreign)
+        await db.flush()
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        with pytest.raises(NotFoundError):
+            await StatsService(db).usage(ctx, group_id=foreign.id)
+
+    async def test_refuses_a_group_with_own_scope(self, db) -> None:
+        organization, owner, _member, group, _agent_ = await self._department(db)
+        ctx = AuthContext(
+            user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER.value
+        )
+
+        with pytest.raises(ValidationError):
+            await StatsService(db).usage(ctx, scope="own", group_id=group.id)
 
 
 class TestPendingApprovals:

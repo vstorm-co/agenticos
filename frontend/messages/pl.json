@@ -1456,9 +1456,7 @@
     "revokeSession2": "Unieważnij sesję",
     "sections": {
       "attention": "Wymaga uwagi",
-      "deployment": "Instalacja",
-      "usage": "Użycie i koszty",
-      "workspace": "Twoja przestrzeń"
+      "usage": "Użycie i koszty"
     },
     "sectionsFilter": {
       "all": "Wszystkie sekcje",
@@ -1468,14 +1466,6 @@
     "sessionRevoked": "Sesja unieważniona",
     "states": {
       "loading": "Ładowanie"
-    },
-    "subtitles": {
-      "app_admin": "Najpierw Twoja organizacja, potem cała instalacja - ta sama strona, więcej odpowiedzi.",
-      "builder": "Czy agenci, których budujesz, są naprawdę używani - i czy są zdrowi?",
-      "member": "Wróć tam, gdzie skończyłeś.",
-      "operator": "Czy wszystko działa i co czeka na Ciebie?",
-      "steward": "Adopcja, koszty i to, co czeka na decyzję.",
-      "viewer": "To, co Ci udostępniono."
     },
     "title": "Panel",
     "whatThisShows": "Co pokazuje {title}",
@@ -2133,6 +2123,26 @@
         "departments": "Dodaj swoje działy",
         "teammate": "Zaproś kogoś z zespołu",
         "channel": "Wstaw agenta tam, gdzie pisze zespół"
+      }
+    },
+    "views": {
+      "label": "Widok dashboardu",
+      "me": {
+        "label": "Ja",
+        "description": "Twoi agenci, Twoje rozmowy i to, co na Ciebie czeka."
+      },
+      "org": {
+        "label": "Organizacja",
+        "description": "Jak organizacja używa agentów - co działało, ile kosztowało i co wymaga uwagi."
+      },
+      "group": {
+        "label": "Grupa",
+        "description": "Jak jedna grupa używa agentów - runy, wydatki i nawyki jej członków.",
+        "pick": "Wybierz grupę"
+      },
+      "deployment": {
+        "label": "Wdrożenie",
+        "description": "Całe wdrożenie - każda organizacja, usługi i jakość odpowiedzi."
       }
     }
   },

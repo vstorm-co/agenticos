@@ -12,7 +12,7 @@ The current edited demo shows the OSS Launch Planner: a task using a Notion brie
 
 ### Dashboard
 
-Arrangeable widgets, this organization first and then the whole deployment. Runs, spend, service health and answer quality; each card is gated on the permission its own data needs, so a card whose primary read you cannot make is a card you are not offered.
+Your own view, the organization's arrangeable one, one group's and - for a deployment admin - the whole deployment's, chosen at the top. Runs, spend, service health and answer quality; each card is gated on the permission its own data needs, so a card whose primary read you cannot make is a card you are not offered.
 
 > **Screenshot pending — Dashboard.**
 

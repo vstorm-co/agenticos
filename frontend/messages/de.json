@@ -1456,9 +1456,7 @@
     "revokeSession2": "Sitzung widerrufen",
     "sections": {
       "attention": "Braucht Aufmerksamkeit",
-      "deployment": "Deployment",
-      "usage": "Nutzung & Kosten",
-      "workspace": "Ihr Workspace"
+      "usage": "Nutzung & Kosten"
     },
     "sectionsFilter": {
       "all": "Alle Abschnitte",
@@ -1468,14 +1466,6 @@
     "sessionRevoked": "Sitzung widerrufen",
     "states": {
       "loading": "Wird geladen"
-    },
-    "subtitles": {
-      "app_admin": "Erst Ihre Organisation, dann das ganze Deployment – dieselbe Seite, mehr Antworten.",
-      "builder": "Werden die Agents, die Sie bauen, tatsächlich genutzt – und geht es ihnen gut?",
-      "member": "Machen Sie dort weiter, wo Sie aufgehört haben.",
-      "operator": "Läuft alles, und was wartet auf Sie?",
-      "steward": "Akzeptanz, Kosten und was eine Entscheidung braucht.",
-      "viewer": "Was mit Ihnen geteilt wurde."
     },
     "title": "Dashboard",
     "whatThisShows": "Was {title} zeigt",
@@ -2133,6 +2123,26 @@
         "departments": "Ihre Abteilungen hinzufügen",
         "teammate": "Jemanden aus dem Team einladen",
         "channel": "Einen Agent dorthin bringen, wo Ihr Team chattet"
+      }
+    },
+    "views": {
+      "label": "Dashboard-Ansicht",
+      "me": {
+        "label": "Ich",
+        "description": "Ihre Agents, Ihre Unterhaltungen und was auf Sie wartet."
+      },
+      "org": {
+        "label": "Organisation",
+        "description": "Wie die Organisation ihre Agents nutzt - was lief, was es kostete und was Aufmerksamkeit braucht."
+      },
+      "group": {
+        "label": "Gruppe",
+        "description": "Wie eine Gruppe ihre Agents nutzt - Runs, Ausgaben und Gewohnheiten ihrer Mitglieder.",
+        "pick": "Gruppe wählen"
+      },
+      "deployment": {
+        "label": "Deployment",
+        "description": "Das ganze Deployment - jede Organisation, die Dienste und die Antwortqualität."
       }
     }
   },

@@ -136,6 +136,7 @@ const RATINGS = {
 // The caller's saved arrangement, as GET /me/dashboard-layout would answer.
 // `null` is the common case - no saved layout, so the audience default stands.
 // A test sets it to a StoredLayout to exercise the personalization layer.
+let groupList: { items: unknown[]; total: number } = { items: [], total: 0 };
 let savedLayout: { entries: { widget: string; span: string; rows?: string }[] } | null = null;
 
 // The caller's named presets, as GET /me/dashboard-layout/presets would answer.
@@ -147,6 +148,7 @@ let presets: { items: { id: string; name: string; entries: unknown[] }[]; total:
 function respond(path: string, options?: { params?: Record<string, string> }): unknown {
   if (path === "/me/dashboard-layout") return savedLayout;
   if (path === "/me/dashboard-layout/presets") return presets;
+  if (path === "/orgs/org1/groups") return groupList;
   // The sandbox cards carry their query in the path rather than in params, so
   // they are matched before the switch. What they answer is exercised properly in
   // `widgets/sandbox.integration.test.tsx`; here it only has to be well-shaped.
@@ -304,6 +306,9 @@ function callsTo(path: string) {
 beforeEach(() => {
   params.delete("period");
   params.delete("sections");
+  params.delete("view");
+  params.delete("group");
+  groupList = { items: [], total: 0 };
   savedLayout = null;
   presets = { items: [], total: 0 };
   vi.mocked(apiClient.get).mockReset();
@@ -332,7 +337,6 @@ describe("the steward's dashboard", () => {
 
     expect(screen.getByText("dashboard.sections.attention")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.usage")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.sections.workspace")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.sections.deployment")).not.toBeInTheDocument();
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
@@ -380,7 +384,6 @@ describe("the steward's dashboard", () => {
     expect(
       (await screen.findAllByText("dashboard.widgets.approvals.wants")).length,
     ).toBeGreaterThan(0);
-    expect((await screen.findAllByText("Support triage")).length).toBeGreaterThan(0);
 
     const before = callsTo("/stats/usage").length;
     const retry = (await screen.findAllByText("dashboard.errors.retry"))[0];
@@ -429,14 +432,72 @@ describe("the sandbox cards", () => {
 });
 
 describe("the app admin's dashboard", () => {
-  it("adds the deployment strip", async () => {
+  it("opens on the organization, and asks the host only on the deployment view", async () => {
     auth.isAppAdmin = true;
     auth.role = "";
 
+    const { unmount } = render(<DashboardPage />, { wrapper });
+    await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
+    expect(callsTo("/admin/stats")).toHaveLength(0);
+    unmount();
+
+    params.set("view", "deployment");
     render(<DashboardPage />, { wrapper });
 
-    expect(screen.getByText("dashboard.sections.deployment")).toBeInTheDocument();
     await waitFor(() => expect(callsTo("/admin/stats").length).toBeGreaterThan(0));
+    expect(screen.getByText("dashboard.views.deployment.description")).toBeInTheDocument();
+  });
+});
+
+describe("the view switcher", () => {
+  it("moves to the reader's own view and writes it to the URL", async () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    render(<DashboardPage />, { wrapper });
+
+    await userEvent.click(screen.getByText("dashboard.views.me.label"));
+
+    expect(await screen.findByText("dashboard.widgets.my-agents.title")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
+    expect(String(replaceState.mock.calls.at(-1)?.[2])).toContain("view=me");
+  });
+
+  it("offers no deployment view to an organization admin", () => {
+    render(<DashboardPage />, { wrapper });
+
+    expect(screen.getByText("dashboard.views.org.label")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.views.deployment.label")).not.toBeInTheDocument();
+  });
+
+  it("is not drawn for a reader who has only their own view", () => {
+    auth.role = "member";
+    auth.can = holds("agents:view", "agents:run");
+
+    render(<DashboardPage />, { wrapper });
+
+    expect(screen.queryByRole("group", { name: "dashboard.views.label" })).not.toBeInTheDocument();
+    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+  });
+
+  it("narrows every usage question to the chosen group", async () => {
+    groupList = {
+      items: [
+        { id: "g1", name: "Finance", icon: null, member_count: 3 },
+        { id: "g2", name: "Sales", icon: null, member_count: 5 },
+      ],
+      total: 2,
+    };
+    params.set("view", "group");
+    params.set("group", "g2");
+
+    render(<DashboardPage />, { wrapper });
+
+    await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
+    const asked = callsTo("/stats/usage").map(
+      ([, options]) => (options as { params: Record<string, string> }).params.group_id,
+    );
+    expect(asked.every((groupId) => groupId === "g2")).toBe(true);
+    // Ratings belong to the organization, so the group view does not ask them.
+    expect(callsTo("/ratings/summary")).toHaveLength(0);
   });
 });
 
@@ -567,11 +628,11 @@ describe("the arrangeable dashboard", () => {
   it("does not offer a widget the caller cannot see in the add catalog", async () => {
     // The catalog is a second surface with the same secrets: a member must not
     // be offered the deployment strip they could never render.
-    auth.role = "member";
-    auth.can = holds("agents:view", "agents:run");
+    auth.role = "builder";
+    auth.can = holds("agents:view", "agents:run", "runs:view");
 
     render(<DashboardPage />, { wrapper });
-    await screen.findByText("dashboard.widgets.my-agents.title");
+    await screen.findByText("dashboard.widgets.summary.title");
 
     await userEvent.click(screen.getByText("dashboard.edit.customize"));
     await userEvent.click(screen.getByText("dashboard.edit.addWidget"));

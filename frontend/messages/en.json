@@ -1456,9 +1456,7 @@
     "revokeSession2": "Revoke session",
     "sections": {
       "attention": "Needs attention",
-      "deployment": "Deployment",
-      "usage": "Usage & cost",
-      "workspace": "Your workspace"
+      "usage": "Usage & cost"
     },
     "sectionsFilter": {
       "all": "All sections",
@@ -1468,14 +1466,6 @@
     "sessionRevoked": "Session revoked",
     "states": {
       "loading": "Loading"
-    },
-    "subtitles": {
-      "app_admin": "Your organization first, then the whole deployment - same page, more answers.",
-      "builder": "Are the agents you build actually used - and are they healthy?",
-      "member": "Pick up where you left off.",
-      "operator": "Is everything running, and what is waiting on you?",
-      "steward": "Adoption, cost, and what needs a decision.",
-      "viewer": "What has been shared with you."
     },
     "title": "Dashboard",
     "whatThisShows": "What {title} shows",
@@ -2133,6 +2123,26 @@
         "departments": "Add your departments",
         "teammate": "Invite a teammate",
         "channel": "Put an agent where your team chats"
+      }
+    },
+    "views": {
+      "label": "Dashboard view",
+      "me": {
+        "label": "Me",
+        "description": "Your agents, your conversations and what is waiting on you."
+      },
+      "org": {
+        "label": "Organization",
+        "description": "How the organization uses its agents - what ran, what it cost and what needs attention."
+      },
+      "group": {
+        "label": "Group",
+        "description": "How one group uses its agents - its members' runs, spend and habits.",
+        "pick": "Choose a group"
+      },
+      "deployment": {
+        "label": "Deployment",
+        "description": "The whole deployment - every organization, the services and answer quality."
       }
     }
   },

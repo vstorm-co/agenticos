@@ -11,7 +11,8 @@ import {
   type Period,
   type PeriodPreset,
 } from "@/lib/dashboard/period";
-import { cn } from "@/lib/utils";
+
+import { SEGMENTED_CLASS, segment } from "./segmented";
 
 /**
  * The time-window strip: the presets and the custom-range calendar, one shape
@@ -29,16 +30,7 @@ export function PeriodControl({
   const t = useTranslations("dashboard");
 
   return (
-    <div
-      // One line that scrolls on a phone wherever it is placed: squeezed, its
-      // buttons broke "Last 7 days" over three lines.
-      // A segmented control: one pill holding the choices, the chosen one
-      // filled in ink. Loose `text-xs` chips with a square-cornered fill read
-      // as smaller and squarer than every button beside them.
-      className="border-border bg-muted/60 flex w-fit max-w-full shrink-0 scrollbar-none items-center gap-0.5 rounded-full border p-0.5 max-md:overflow-x-auto [&>*]:shrink-0 [&>*]:whitespace-nowrap"
-      role="group"
-      aria-label={t("period.label")}
-    >
+    <div className={SEGMENTED_CLASS} role="group" aria-label={t("period.label")}>
       {PERIOD_PRESETS.map((preset: PeriodPreset) => (
         <button
           key={preset}
@@ -55,7 +47,7 @@ export function PeriodControl({
           <button
             type="button"
             aria-pressed={period.preset === "custom"}
-            className={cn("flex items-center gap-1.5", segment(period.preset === "custom"))}
+            className={segment(period.preset === "custom")}
           >
             <CalendarRange className="size-3.5" aria-hidden />
             {period.preset === "custom" ? `${period.from} – ${period.to}` : t("period.custom")}
@@ -69,15 +61,5 @@ export function PeriodControl({
         </PopoverContent>
       </Popover>
     </div>
-  );
-}
-
-/** One choice on the control: a pill, filled in ink when it is the one chosen. */
-function segment(active: boolean): string {
-  return cn(
-    "h-8 rounded-full px-3.5 text-sm font-medium transition-colors",
-    active
-      ? "bg-primary text-primary-foreground shadow-card"
-      : "text-muted-foreground hover:text-foreground",
   );
 }
