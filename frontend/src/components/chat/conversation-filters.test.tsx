@@ -24,8 +24,11 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
   const onAgentChange = vi.fn();
   const onSortChange = vi.fn();
   const onHideApiChange = vi.fn();
+  const onViewChange = vi.fn();
   render(
     <ConversationFilters
+      view="active"
+      onViewChange={onViewChange}
       search=""
       onSearchChange={onSearchChange}
       agentId={null}
@@ -37,7 +40,12 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
       {...props}
     />,
   );
-  return { onSearchChange, onAgentChange, onSortChange, onHideApiChange };
+  return { onSearchChange, onAgentChange, onSortChange, onHideApiChange, onViewChange };
+}
+
+/** Everything but the search sits behind one button. */
+async function openFilters() {
+  await userEvent.click(screen.getByRole("button", { name: "Filter and sort" }));
 }
 
 describe("the sort value", () => {
@@ -87,6 +95,7 @@ describe("the filter bar", () => {
       { id: "a-2", slug: "retired-support", name: "Retired support" },
     ]);
     mount();
+    await openFilters();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
 
@@ -97,6 +106,7 @@ describe("the filter bar", () => {
   it("hands back the chosen agent's id", async () => {
     listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
     const { onAgentChange } = mount();
+    await openFilters();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
     await userEvent.click(screen.getByRole("option", { name: /Analyst/ }));
@@ -109,6 +119,7 @@ describe("the filter bar", () => {
     // `all` on screen and the absence of a filter everywhere else.
     listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
     const { onAgentChange } = mount({ agentId: "a-1" });
+    await openFilters();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
     await userEvent.click(screen.getByRole("option", { name: "All agents" }));
@@ -116,39 +127,42 @@ describe("the filter bar", () => {
     expect(onAgentChange).toHaveBeenCalledWith(null);
   });
 
-  it("says what the agent filter means, only while one is applied", () => {
+  it("says what the agent filter means, only while one is applied", async () => {
     listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
-    const { rerender } = render(
-      <ConversationFilters
-        search=""
-        onSearchChange={vi.fn()}
-        agentId={null}
-        onAgentChange={vi.fn()}
-        sort={DEFAULT_SORT}
-        onSortChange={vi.fn()}
-        hideApi={false}
-        onHideApiChange={vi.fn()}
-      />,
-    );
+    mount();
+    await openFilters();
     expect(screen.queryByText("Threads this agent answered in")).not.toBeInTheDocument();
+  });
 
-    rerender(
-      <ConversationFilters
-        search=""
-        onSearchChange={vi.fn()}
-        agentId="a-1"
-        onAgentChange={vi.fn()}
-        sort={DEFAULT_SORT}
-        onSortChange={vi.fn()}
-        hideApi={false}
-        onHideApiChange={vi.fn()}
-      />,
-    );
+  it("says so beside the picker once an agent narrows the list", async () => {
+    listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
+    mount({ agentId: "a-1" });
+    await openFilters();
     expect(screen.getByText("Threads this agent answered in")).toBeVisible();
+  });
+
+  it("marks its button when anything narrows or reorders the list", () => {
+    mount({ hideApi: true });
+    const button = screen.getByRole("button", { name: "Filter and sort" });
+    expect(button.querySelector("span[aria-hidden]")).not.toBeNull();
+  });
+
+  it("leaves its button unmarked on the plain list", () => {
+    mount();
+    const button = screen.getByRole("button", { name: "Filter and sort" });
+    expect(button.querySelector("span[aria-hidden]")).toBeNull();
+  });
+
+  it("switches to the archive from behind the button", async () => {
+    const { onViewChange } = mount();
+    await openFilters();
+    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    expect(onViewChange).toHaveBeenCalledWith("archived");
   });
 
   it("hands back a sort the route will accept", async () => {
     const { onSortChange } = mount();
+    await openFilters();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Sort conversations" }));
     await userEvent.click(screen.getByRole("option", { name: "Title A–Z" }));
@@ -171,20 +185,22 @@ describe("the filter bar", () => {
 });
 
 describe("conversations opened over the API (#2122)", () => {
-  it("hides them with one press, and says it is pressed", async () => {
+  it("hides them with one switch", async () => {
     const { onHideApiChange } = mount();
-    const toggle = screen.getByRole("button", { name: "Hide conversations opened over the API" });
+    await openFilters();
+    const toggle = screen.getByRole("switch", { name: "Hide conversations opened over the API" });
 
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
     await userEvent.click(toggle);
     expect(onHideApiChange).toHaveBeenCalledWith(true);
   });
 
-  it("shows them again from the pressed state", async () => {
+  it("shows them again from the switched-on state", async () => {
     const { onHideApiChange } = mount({ hideApi: true });
+    await openFilters();
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Hide conversations opened over the API" }),
+      screen.getByRole("switch", { name: "Hide conversations opened over the API" }),
     );
     expect(onHideApiChange).toHaveBeenCalledWith(false);
   });

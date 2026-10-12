@@ -90,7 +90,7 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl px-3 py-3 text-sm transition-all",
+        "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         isActive
           ? "bg-accent text-foreground border-border border"
           : "text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground border border-transparent",
@@ -108,7 +108,11 @@ function ConversationItem({
       {conversation.agents && conversation.agents.length > 0 ? (
         <ConversationAgents agents={conversation.agents} showName={false} className="shrink-0" />
       ) : (
-        <MessageSquare className={cn("h-4 w-4 shrink-0", isActive && "text-foreground")} />
+        // In a box the size of an agent's face, so every title in the list
+        // starts at the same x whichever kind of row it is.
+        <span className="flex size-6 shrink-0 items-center justify-center">
+          <MessageSquare className={cn("h-4 w-4", isActive && "text-foreground")} />
+        </span>
       )}
       {isEditing ? (
         <input
@@ -125,29 +129,21 @@ function ConversationItem({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <div className="min-w-0 flex-1">
-          {/* One line. Wrapping to two was tried and is worse: it made every
-              row in the list a third taller to buy about six more characters,
-              and still ended in an ellipsis. What actually buys width is the
-              row being narrower - the icon is `h-4` in a `gap-2` row rather
-              than an avatar-sized block, and the star and the kebab only take
-              their space on hover. */}
-          <span className="block truncate">{displayTitle}</span>
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 truncate text-xs">
-            {/* How long ago, not which calendar day. "Sep 21" and "Sep 22" on a
-                list somebody opened this morning is a date they have to
-                subtract from today to read; "2 hours ago" is the answer. It
-                falls back to the date after a week, where the distance stops
-                being the useful part - `timeAgo` in `lib/utils`, the same
-                reading the notification rows use. */}
-            {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
-            {/* Opened by a script through an API key, not typed here (#2122). */}
-            {conversation.origin === "api" && (
-              <span className="border-border rounded border px-1 font-mono text-[10px] leading-4">
-                {t("sidebar.apiBadge")}
-              </span>
-            )}
-          </span>
+        // One line: the title, and the API mark where a script opened it. When
+        // it was last active is the band it sits under, so the row says it only
+        // on hover - two lines per row put a third of the list's height into
+        // "4h ago", repeated.
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1.5"
+          title={timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+        >
+          <span className="truncate">{displayTitle}</span>
+          {/* Opened by a script through an API key, not typed here (#2122). */}
+          {conversation.origin === "api" && (
+            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
+              {t("sidebar.apiBadge")}
+            </span>
+          )}
         </div>
       )}
 
@@ -164,7 +160,7 @@ function ConversationItem({
           size="sm"
           aria-label={t("unfavourite")}
           aria-pressed
-          className="text-warning h-8 w-8 shrink-0 p-0"
+          className="text-warning h-7 w-7 shrink-0 p-0"
           onClick={(e) => {
             e.stopPropagation();
             onFavourite(false);
@@ -194,12 +190,12 @@ function ConversationItem({
             // reach Rename, Share, Archive and Delete. That variant is declared
             // in `globals.css`; it was in use here and undeclared, which
             // compiled to nothing.
-            "h-8 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
+            "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
             "w-0 opacity-0",
-            "group-hover:w-8 group-hover:opacity-100",
-            "focus-visible:w-8 focus-visible:opacity-100",
-            "touch:w-8 touch:opacity-100",
-            showMenu && "w-8 opacity-100",
+            "group-hover:w-7 group-hover:opacity-100",
+            "focus-visible:w-7 focus-visible:opacity-100",
+            "touch:w-7 touch:opacity-100",
+            showMenu && "w-7 opacity-100",
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -319,6 +315,40 @@ interface ConversationListProps {
   onNewChat: () => void;
   onNavigate?: () => void;
   onLoadMore?: () => void;
+  /** Whether the list is newest-activity first, so it can be read by day. */
+  datedOrder: boolean;
+}
+
+/** The bands a dated list falls into, newest first. */
+const AGES = ["today", "yesterday", "week", "month", "older"] as const;
+type Age = (typeof AGES)[number];
+
+/**
+ * Threads by how long ago they were last active, in the order they arrived.
+ *
+ * Calendar days in the reader's own time, not 24-hour windows: something from
+ * last night is "Yesterday" at nine in the morning.
+ */
+export function byAge(
+  conversations: Conversation[],
+  now: Date = new Date(),
+): { age: Age; rows: Conversation[] }[] {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 86_400_000;
+  const ageOf = (conversation: Conversation): Age => {
+    const at = new Date(conversation.updated_at || conversation.created_at).getTime();
+    if (at >= startOfToday) return "today";
+    if (at >= startOfToday - day) return "yesterday";
+    if (at >= startOfToday - 7 * day) return "week";
+    if (at >= startOfToday - 30 * day) return "month";
+    return "older";
+  };
+  const groups = new Map<Age, Conversation[]>();
+  for (const conversation of conversations) {
+    const age = ageOf(conversation);
+    groups.set(age, [...(groups.get(age) ?? []), conversation]);
+  }
+  return AGES.filter((age) => groups.has(age)).map((age) => ({ age, rows: groups.get(age)! }));
 }
 
 function ConversationList({
@@ -340,6 +370,7 @@ function ConversationList({
   onNewChat,
   onNavigate,
   onLoadMore,
+  datedOrder,
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -384,22 +415,32 @@ function ConversationList({
    * look for what archiving just moved.
    */
   const bands = useMemo(() => {
+    const firstOther = conversations.findIndex(
+      (conversation) => conversation.is_favourite !== true,
+    );
     const starred = isArchivedView
       ? []
-      : conversations.slice(
-          0,
-          conversations.findIndex((conversation) => conversation.is_favourite !== true) === -1
-            ? conversations.length
-            : conversations.findIndex((conversation) => conversation.is_favourite !== true),
-        );
+      : conversations.slice(0, firstOther === -1 ? conversations.length : firstOther);
     const rest = conversations.slice(starred.length);
     return [
       ...(starred.length > 0
-        ? [{ key: "favourites", heading: t("favourites"), rows: starred }]
+        ? [{ key: "favourites", heading: t("favourites"), starred: true, rows: starred }]
         : []),
-      ...(rest.length > 0 ? [{ key: "rest", heading: null, rows: rest }] : []),
+      // Under the date they were last active, the way a chat product's history
+      // reads, when the list is in that order; any other order has no dates to
+      // fall into, so it stays one run.
+      ...(datedOrder
+        ? byAge(rest).map(({ age, rows }) => ({
+            key: age,
+            heading: ts(`age.${age}`),
+            starred: false,
+            rows,
+          }))
+        : rest.length > 0
+          ? [{ key: "rest", heading: null, starred: false, rows: rest }]
+          : []),
     ];
-  }, [conversations, isArchivedView, t]);
+  }, [conversations, isArchivedView, datedOrder, t, ts]);
 
   return (
     <>
@@ -445,25 +486,24 @@ function ConversationList({
 
       {filters}
 
-      <div className="px-3 pb-2">
-        <div className="bg-secondary/50 flex rounded-lg p-0.5">
-          {/* No count on the tab. The one that used to sit here counted the
-              pages the sidebar had fetched, so it read "Active 8 · Archived 2"
-              in a deployment holding hundreds. The honest number is the
-              server's, it describes one list rather than two, and it goes
-              below - where it can also say that a filter is what narrowed it. */}
-          <ViewTab
-            label={ts("active")}
-            active={view === "active"}
+      {/* Where the archive is said, since the switch to it now sits behind
+          the filter button: a list of old threads with nothing saying so reads
+          as the active list gone strange. */}
+      {isArchivedView && (
+        <div className="text-muted-foreground flex items-center justify-between px-4 pb-2 text-xs">
+          <span className="flex items-center gap-1.5">
+            <Archive className="h-3.5 w-3.5" aria-hidden />
+            {ts("archived")}
+          </span>
+          <button
+            type="button"
             onClick={() => onViewChange("active")}
-          />
-          <ViewTab
-            label={ts("archived")}
-            active={view === "archived"}
-            onClick={() => onViewChange("archived")}
-          />
+            className="hover:text-foreground underline-offset-2 hover:underline"
+          >
+            {ts("backToActive")}
+          </button>
         </div>
-      </div>
+      )}
 
       <div
         className="flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
@@ -519,15 +559,20 @@ function ConversationList({
             )}
           </div>
         ) : (
-          <div className="space-y-1">
-            <p className="text-muted-foreground px-1 pb-1 text-xs">
-              {ts("counted", { count: total })}
-            </p>
-            {bands.map(({ key, heading, rows }) => (
-              <div key={key} className="space-y-1">
+          <div>
+            {/* The count says what a filter or the archive narrowed to; on the
+                plain list the days are the structure, and a number over them
+                is one more thing to read. */}
+            {(isFiltered || isArchivedView) && (
+              <p className="text-muted-foreground px-2 pb-1 text-xs">
+                {ts("counted", { count: total })}
+              </p>
+            )}
+            {bands.map(({ key, heading, starred, rows }) => (
+              <div key={key} className="space-y-0.5">
                 {heading !== null && (
-                  <p className="text-muted-foreground flex items-center gap-1 px-1 pt-1 text-xs font-medium tracking-wide uppercase">
-                    <Star className="h-3 w-3 fill-current" aria-hidden />
+                  <p className="text-muted-foreground flex items-center gap-1 px-2 pt-3 pb-1 text-xs font-medium">
+                    {starred && <Star className="h-3 w-3 fill-current" aria-hidden />}
                     {heading}
                   </p>
                 )}
@@ -685,6 +730,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         onSortChange={changeSort}
         hideApi={hideApi}
         onHideApiChange={changeHideApi}
+        view={view}
+        onViewChange={changeView}
         autoFocusSearch={focusSearchOnOpen}
       />
     ),
@@ -698,6 +745,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onRename: renameConversation,
     onNewChat: startNewChat,
     onLoadMore: fetchMoreConversations,
+    datedOrder: sort === DEFAULT_SORT,
   };
 
   if (isCollapsed) {
@@ -829,8 +877,8 @@ function CollapsedSidebar({
         size="sm"
         className="h-10 w-10 p-0"
         onClick={onSearch}
-        title={ts("searchPlaceholder")}
-        aria-label={ts("searchPlaceholder")}
+        title={ts("searchLabel")}
+        aria-label={ts("searchLabel")}
       >
         <Search className="h-4 w-4" aria-hidden />
       </Button>
@@ -895,30 +943,5 @@ function CollapsedSidebar({
         </>
       )}
     </div>
-  );
-}
-
-function ViewTab({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-        active
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
   );
 }

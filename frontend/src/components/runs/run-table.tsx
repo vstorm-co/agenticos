@@ -12,6 +12,7 @@ import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
+import { modelShortName } from "@/lib/model-profiles";
 import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
@@ -219,16 +220,17 @@ export function RunTable({
       header: t("model"),
       // The vendor's mark beside the profile label, the way the Builder's
       // current-model row draws it - one presentation for a model everywhere.
-      // One line, truncated, with the whole label in the title: a model name
+      // The model alone, the vendor's mark saying whose it is; one line,
+      // truncated, with the whole label in the title: a model name
       // wrapping over three lines makes every row in the list three rows tall,
       // and the list is narrow whenever the run detail is open beside it.
       cell: (run) => (
-        <span className="flex items-center gap-1.5 font-mono text-xs">
+        <span className="flex items-center gap-1.5 text-xs">
           {run.provider !== null && (
             <ProviderIcon provider={run.provider} className="h-3.5 w-3.5 shrink-0" />
           )}
           <span className="max-w-[11rem] truncate" title={run.model_label ?? undefined}>
-            {run.model_label ?? "-"}
+            {run.model_label === null ? "-" : modelShortName(run.model_label)}
           </span>
         </span>
       ),

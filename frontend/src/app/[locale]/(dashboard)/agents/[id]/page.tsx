@@ -837,6 +837,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 ) : (
                   isDirty && <Badge variant="secondary">{t("unsaved")}</Badge>
                 ))}
+              {/* Its labels beside its status, under the name, rather than a row
+                of their own between the header and the tabs. */}
+              {[...(agent.categories ?? []), ...(agent.tags ?? [])].map((label, index) => (
+                <Badge
+                  key={`${index}:${label}`}
+                  variant="outline"
+                  className="text-muted-foreground font-normal"
+                >
+                  {label}
+                </Badge>
+              ))}
             </>
           }
           description={agent.description ?? undefined}
@@ -988,29 +999,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
             onReload={remote.reload}
             onKeepMine={remote.keepMine}
           />
-        )}
-
-        {((agent.categories ?? []).length > 0 || (agent.tags ?? []).length > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(agent.categories ?? []).map((label) => (
-              <Badge
-                key={`c:${label}`}
-                variant="outline"
-                className="text-muted-foreground font-normal"
-              >
-                {label}
-              </Badge>
-            ))}
-            {(agent.tags ?? []).map((label) => (
-              <Badge
-                key={`t:${label}`}
-                variant="outline"
-                className="text-muted-foreground font-normal"
-              >
-                {label}
-              </Badge>
-            ))}
-          </div>
         )}
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
@@ -1539,15 +1527,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           <TabsContent value="availability" className="mt-6 space-y-6">
+            {/* Where people reach it first - a website, a page, the API - then the
+                chat apps, then what runs it on its own. Two cards here were both
+                called "where", and the one most people came for was last. */}
             <div data-tour="agent-availability">
-              <ExposuresPanel
-                agentId={id}
-                canManage={canPublish}
-                hasWorkspace={spec.capabilities.some(
-                  (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
-                )}
-              />
+              <EmbedsPanel agentId={id} canManage={canPublish} />
             </div>
+            <ExposuresPanel
+              agentId={id}
+              canManage={canPublish}
+              hasWorkspace={spec.capabilities.some(
+                (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
+              )}
+            />
             {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel
@@ -1560,21 +1552,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 ) || spec.mcp_servers.some((server) => server.account === "personal")
               }
             />
-            <EmbedsPanel agentId={id} canManage={canPublish} />
           </TabsContent>
 
           <TabsContent value="history" className="mt-6 space-y-6">
-            <Card data-tour="agent-history">
-              <CardHeader>
-                <CardTitle>{t("environments")}</CardTitle>
-                <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EnvironmentsPanel agentId={id} canManage={canPublish} />
-              </CardContent>
-            </Card>
+            {/* The first publish mints `production`; before it there is nothing
+                to point anywhere, and a card of explanation with nothing under
+                it read as a page that failed to load. */}
+            {agent.current_version_id !== null && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("environments")}</CardTitle>
+                  <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <EnvironmentsPanel agentId={id} canManage={canPublish} />
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
+            <Card data-tour="agent-history">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <History className="h-4 w-4" />

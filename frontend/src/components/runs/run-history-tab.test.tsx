@@ -340,7 +340,7 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
-    await userEvent.click(screen.getByText("openai · gpt-5"));
+    await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });

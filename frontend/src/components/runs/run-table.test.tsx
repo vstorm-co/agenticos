@@ -87,17 +87,13 @@ describe("a run history row", () => {
 
     // Beside the label rather than inside it: the label truncates on one line,
     // so it is a span of its own with the mark next to it.
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).not.toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).not.toBeNull();
   });
 
   it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
     render(<RunTable runs={[run({ provider: null })]} />);
 
-    expect(
-      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
-    ).toBeNull();
+    expect(within(row()).getByText("gpt-5").closest("td")?.querySelector("svg")).toBeNull();
   });
 
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
@@ -194,7 +190,7 @@ describe("opening a run from its row", () => {
     const onOpen = vi.fn();
     render(<RunTable runs={[run()]} onOpen={onOpen} />);
 
-    await userEvent.click(within(row()).getByText("openai · gpt-5"));
+    await userEvent.click(within(row()).getByText("gpt-5"));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "run-1" });

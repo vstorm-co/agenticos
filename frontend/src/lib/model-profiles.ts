@@ -23,3 +23,17 @@ export function modelDetail(
     name.includes(profile.provider.toLowerCase()) && name.includes(profile.model.toLowerCase());
   return saysIt ? null : `${profile.provider} · ${profile.model}`;
 }
+
+/**
+ * A run's model as a list column reads it: the model alone, without the vendor
+ * or the routing prefix a derived label carries.
+ *
+ * `OpenRouter · openai/gpt-5.5` printed in a narrow column ends as
+ * `OpenRouter · openai/gpt…`, cutting off the one part that differs between
+ * rows - the vendor's mark beside it already says whose model it is. A label
+ * somebody typed (`fast gpt-5`) has neither separator and is kept whole.
+ */
+export function modelShortName(label: string): string {
+  const model = label.split(" · ").at(-1) ?? label;
+  return model.split("/").at(-1) || model;
+}

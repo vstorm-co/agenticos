@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { DashboardView } from "@/lib/dashboard/layouts";
 import type { Group } from "@/types/groups";
 
-import { SEGMENTED_CLASS, segment } from "./segmented";
+import { cn } from "@/lib/utils";
 
 const VIEW_ICONS: Record<DashboardView, LucideIcon> = {
   me: User,
@@ -45,17 +45,30 @@ export function ViewSwitcher({
   if (views.length < 2) return null;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <div className={SEGMENTED_CLASS} role="group" aria-label={t("label")}>
+    // Tabs, not a second pill control: which dashboard this is sits a level
+    // above the period it is read over, and two identical pill rows stacked
+    // under one another read as two filters of equal weight.
+    <div className="border-border mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b">
+      <div
+        className="-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto"
+        role="group"
+        aria-label={t("label")}
+      >
         {views.map((option) => {
           const Icon = VIEW_ICONS[option];
+          const active = view === option;
           return (
             <button
               key={option}
               type="button"
-              aria-pressed={view === option}
+              aria-pressed={active}
               onClick={() => onViewChange(option)}
-              className={segment(view === option)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+                active
+                  ? "border-foreground text-foreground"
+                  : "text-muted-foreground hover:text-foreground border-transparent",
+              )}
             >
               <Icon className="size-4" aria-hidden />
               {t(`${option}.label`)}
@@ -65,7 +78,7 @@ export function ViewSwitcher({
       </div>
       {view === "group" && groupId !== null ? (
         <Select value={groupId} onValueChange={onGroupChange}>
-          <SelectTrigger className="h-9 w-auto min-w-44 rounded-full" aria-label={t("group.pick")}>
+          <SelectTrigger className="mb-1.5 h-8 w-auto min-w-44" aria-label={t("group.pick")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

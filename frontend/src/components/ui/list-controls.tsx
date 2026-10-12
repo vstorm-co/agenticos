@@ -87,12 +87,16 @@ export function SearchInput({
   onChange,
   placeholder,
   className,
+  label,
   autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   className?: string;
+  /** What the box searches, for a screen reader, where the placeholder is a
+   *  single word the column it sits in leaves room for. Defaults to it. */
+  label?: string;
   /** For a caller that opened this box *in order to* search - the chat's
    *  collapsed rail. Off everywhere else: a box that grabs the cursor on every
    *  page load takes it from whatever somebody was typing in. */
@@ -105,7 +109,7 @@ export function SearchInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        aria-label={placeholder}
+        aria-label={label ?? placeholder}
         autoFocus={autoFocus}
         className="pl-9"
       />

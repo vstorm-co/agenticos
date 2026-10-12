@@ -483,6 +483,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A quieter, denser console, item by item.** Card descriptions fold to one
+  line with **More** at its end; the chat's history reads by day (Today,
+  Yesterday, Previous 7 days…) in one-line rows, with search alone above it and
+  agent, sort, API threads and the archive behind one filter button; the
+  Builder's labels sit beside its status under the name, alert audiences take
+  two columns, Environments waits for the first publish, and Availability leads
+  with the website, page and API surfaces before the chat apps; run history names
+  the model alone beside its vendor's mark; the dashboard's view switcher is a
+  tab strip above the period control.
 - **The places people miss are pointed at (#2131).** The first publish of an
   agent says where else it can be reached and opens its **Availability** tab;
   the MCP servers stop in the walkthrough says a server can be connected with

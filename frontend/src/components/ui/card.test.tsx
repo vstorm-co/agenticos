@@ -17,19 +17,19 @@ describe("CardDescription", () => {
     measured(40, 40);
     render(<CardDescription>What this agent can do.</CardDescription>);
 
-    expect(screen.getByText("What this agent can do.")).toHaveClass("line-clamp-2");
+    expect(screen.getByText("What this agent can do.")).toHaveClass("line-clamp-1");
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("folds a long one to two lines and opens the rest on More", async () => {
+  it("folds a long one to a line and opens the rest on More", async () => {
     measured(120, 40);
-    render(<CardDescription>A paragraph that runs well past two lines.</CardDescription>);
-    const text = screen.getByText("A paragraph that runs well past two lines.");
+    render(<CardDescription>A paragraph that runs well past one line.</CardDescription>);
+    const text = screen.getByText("A paragraph that runs well past one line.");
 
     await userEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(text).not.toHaveClass("line-clamp-2");
+    expect(text).not.toHaveClass("line-clamp-1");
 
     await userEvent.click(screen.getByRole("button", { name: "Less" }));
-    expect(text).toHaveClass("line-clamp-2");
+    expect(text).toHaveClass("line-clamp-1");
   });
 });

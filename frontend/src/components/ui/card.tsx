@@ -39,13 +39,14 @@ const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
 CardTitle.displayName = "CardTitle";
 
 /**
- * The line under a card's title, folded to two lines when it runs longer.
+ * The line under a card's title, folded to one line when it runs longer.
  *
  * Several of the console's cards explain themselves at length, and stacked
  * under one another they turned a settings page into a wall of text before the
- * first control. The first two lines say what the card is for; "More" opens the
- * rest. A short description draws exactly as before - the toggle appears only
- * when the text is cut.
+ * first control. One line says what the card is for, as a premium console's
+ * cards do; "More", at the end of that line, opens the rest. A short
+ * description draws exactly as before - the toggle appears only when the text
+ * is cut.
  */
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
@@ -63,15 +64,26 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       return () => observer.disconnect();
     }, [children]);
     return (
-      <div ref={ref} className={cn("text-muted-foreground text-sm", className)} {...props}>
-        <div ref={text} className={cn(!open && "line-clamp-2")}>
+      <div
+        ref={ref}
+        className={cn(
+          "text-muted-foreground text-sm",
+          !open && "flex items-baseline gap-2",
+          className,
+        )}
+        {...props}
+      >
+        <div ref={text} className={cn(!open && "line-clamp-1 min-w-0 flex-1")}>
           {children}
         </div>
         {(cut || open) && (
           <button
             type="button"
             onClick={() => setOpen((shown) => !shown)}
-            className="text-foreground/70 hover:text-foreground mt-0.5 text-xs underline-offset-2 hover:underline"
+            className={cn(
+              "text-foreground/70 hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline",
+              open && "mt-0.5",
+            )}
           >
             {open ? t("showLess") : t("showMore")}
           </button>

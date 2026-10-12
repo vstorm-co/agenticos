@@ -168,22 +168,39 @@ describe("searching the conversation list", () => {
 });
 
 describe("what the sidebar says about the list", () => {
-  it("counts what matches, not what it fetched", async () => {
+  it("counts what a search matches, not what it fetched", async () => {
+    urlParams = new URLSearchParams("q=numbers");
     serve([conversation("c-1", "Quarterly numbers")], 214);
     mount();
 
     expect(await screen.findAllByText("214 conversations")).not.toHaveLength(0);
   });
 
-  it("puts no count on the tabs, because it never knew one", async () => {
-    serve([conversation("c-1", "Quarterly numbers")], 214);
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    expect(within(list()).getByRole("button", { name: "Active" })).toHaveTextContent(/^Active$/);
-    expect(within(list()).getByRole("button", { name: "Archived" })).toHaveTextContent(
-      /^Archived$/,
+  it("reads the plain list by day, with no count over it", async () => {
+    serve(
+      [
+        { ...conversation("c-1", "This morning"), updated_at: new Date().toISOString() },
+        conversation("c-2", "Back in July"),
+      ] as unknown as ReturnType<typeof conversation>[],
+      214,
     );
+    mount();
+    await screen.findAllByText("This morning");
+
+    expect(within(list()).getByText("Today")).toBeInTheDocument();
+    expect(within(list()).getByText("Older")).toBeInTheDocument();
+    expect(within(list()).queryByText("214 conversations")).toBeNull();
+  });
+
+  it("keeps one run, without days, in an order that is not by date", async () => {
+    urlParams = new URLSearchParams("sort=title:asc");
+    serve([
+      { ...conversation("c-1", "Alpha"), updated_at: new Date().toISOString() },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Alpha");
+
+    expect(within(list()).queryByText("Today")).toBeNull();
   });
 
   it("distinguishes an empty deployment from an empty search", async () => {
@@ -221,7 +238,8 @@ describe("what the sidebar says about the list", () => {
     serve([]);
     mount();
 
-    await userEvent.click(within(list()).getByRole("button", { name: "Archived" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
+    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -483,8 +501,9 @@ describe("conversations opened over the API (#2122)", () => {
     await screen.findAllByText("Nightly report");
 
     expect(within(list()).getByText("API")).toBeInTheDocument();
+    await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
     await userEvent.click(
-      within(list()).getByRole("button", { name: "Hide conversations opened over the API" }),
+      screen.getByRole("switch", { name: "Hide conversations opened over the API" }),
     );
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
