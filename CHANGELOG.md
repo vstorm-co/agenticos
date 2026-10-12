@@ -445,6 +445,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Notifications appear at the top right**, clear of the Architect's
+  launcher and bubbles in the bottom corner.
 - **The Architect's window and the Builder's test panel are the console's own
   chat, not a page framed inside it.** Each keeps a conversation of its own
   beside the main chat; the window is wider and its opening fits without
