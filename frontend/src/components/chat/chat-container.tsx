@@ -57,10 +57,9 @@ import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
+import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
-
-const SCROLL_NEAR_BOTTOM_THRESHOLD_PX = 150;
 
 /**
  * How many tokens the model that will answer next accepts, or `null`.
@@ -304,17 +303,8 @@ export function ChatContainer({
     }
   }, [currentMessages, addChatMessage, clearMessages]);
 
-  // Track whether the user has manually scrolled up so we don't hijack their position
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      userScrolledUpRef.current = distFromBottom > SCROLL_NEAR_BOTTOM_THRESHOLD_PX;
-    };
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  // Whether the reader has moved up to read, so the transcript stops following.
+  useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
 
   // Auto-scroll on every messages update unless user has scrolled up. The
   // transcript scrolls itself rather than calling `scrollIntoView`, which also

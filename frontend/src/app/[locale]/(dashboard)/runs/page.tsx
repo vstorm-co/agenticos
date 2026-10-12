@@ -146,7 +146,7 @@ export default function RunsPage() {
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} className="mb-4" />
 
       <div className="mb-6">
-        <PeriodControl period={period} onChange={changePeriod} />
+        <PeriodControl period={period} onChange={changePeriod} variant="menu" />
       </div>
 
       {/* Not until the permission set has answered. The strip's *shape* depends
