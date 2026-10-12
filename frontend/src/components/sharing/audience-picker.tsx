@@ -91,7 +91,7 @@ export function AudiencePicker({
             )}
           >
             <span className="flex items-center gap-1.5 text-sm font-medium">
-              <option.icon className="h-4 w-4" aria-hidden />
+              <option.icon className="h-4 w-4 shrink-0" aria-hidden />
               {option.label}
             </span>
             <span className="text-muted-foreground text-xs">{option.hint}</span>

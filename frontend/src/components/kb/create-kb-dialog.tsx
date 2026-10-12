@@ -43,7 +43,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { CreateKnowledgeBaseInput, IngestionConfig } from "@/types";
 import { useTranslations } from "next-intl";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -170,7 +170,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* A column with one scrolling part, so expanding the settings never
           pushes Create off the bottom of the screen. */}
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
           <DialogDescription>{t("createKbDescription")}</DialogDescription>

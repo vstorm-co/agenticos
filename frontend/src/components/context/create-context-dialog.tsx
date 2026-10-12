@@ -37,7 +37,7 @@ import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { ContextMode } from "@/types/providers";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
@@ -143,7 +143,7 @@ export function CreateContextDialog({
       {/* Wider gutters than the default 24px: this dialog is three columns of
           form above a full editor, and at that width the content ran into the
           edge of the sheet. */}
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE, "sm:px-8 sm:py-7")}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("newContext")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>

@@ -98,7 +98,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // whose credential is one token calls that token an API key. Scoped to the
   // textbox because the reveal button beside it is named "Show API key".
   await keyDialog.getByRole("textbox", { name: /API key/i }).fill(PROVIDER_KEY);
-  await keyDialog.getByRole("button", { name: "Store secret" }).click();
+  await keyDialog.getByRole("button", { name: "Store key" }).click();
 
   // Asserted in the list rather than in the toast: a toast says the request was
   // accepted, the list says the key is actually there. Everything below depends

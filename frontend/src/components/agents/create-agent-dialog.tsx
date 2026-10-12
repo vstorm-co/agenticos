@@ -30,7 +30,7 @@ import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import { useTranslations } from "next-intl";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 import { ASK_USER_ID, unboundBinding } from "@/lib/agent-spec";
@@ -151,7 +151,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           editors and a preview that gets taller with every tag, which on a phone
           or a short window pushed the header and the Create button off the
           screen with nothing to scroll - a dialog you cannot submit. */}
-      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>

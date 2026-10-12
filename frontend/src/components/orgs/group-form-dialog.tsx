@@ -133,7 +133,11 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
           </FormField>
           <div className="space-y-1.5">
             <p className="text-sm font-medium">{t("icon")}</p>
-            <div role="radiogroup" aria-label={t("icon")} className="flex flex-wrap gap-1.5">
+            <div
+              role="radiogroup"
+              aria-label={t("icon")}
+              className="grid grid-cols-6 gap-1.5 sm:grid-cols-12"
+            >
               {GROUP_ICONS.map((key) => {
                 const Mark = GROUP_ICON_COMPONENTS[key];
                 return (
@@ -145,7 +149,7 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
                     aria-label={t(`icons.${key}`)}
                     onClick={() => setIcon(icon === key ? null : key)}
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg border transition-colors",
+                      "flex aspect-square w-full items-center justify-center rounded-lg border transition-colors",
                       icon === key ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
                     )}
                   >
