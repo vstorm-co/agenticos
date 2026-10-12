@@ -45,12 +45,20 @@ describe("ProviderIcon", () => {
   });
 
   it("renders a monogram for one it does not, rather than nothing", () => {
-    // Heroku, OVHcloud and a LiteLLM proxy have no mark anywhere, and a
-    // deployment gains a provider whenever Pydantic AI does - so this is the
-    // normal case. A blank gap would read as a logo that failed to load.
-    const { container } = render(<ProviderIcon provider="litellm" />);
+    // A deployment gains a provider whenever Pydantic AI does, so one with no
+    // mark is the normal case. A blank gap would read as a logo that failed to
+    // load.
+    const { container } = render(<ProviderIcon provider="newcomer" />);
     expect(container.querySelector("svg")).toBeNull();
-    expect(container.textContent).toBe("l");
+    expect(container.textContent).toBe("n");
+  });
+
+  it("draws every provider the vault offers with a mark, not an initial", () => {
+    for (const provider of ["xai", "cohere", "huggingface", "heroku", "ovhcloud", "litellm"]) {
+      const { container, unmount } = render(<ProviderIcon provider={provider} />);
+      expect(container.querySelector("svg")).not.toBeNull();
+      unmount();
+    }
   });
 
   it("stays out of the accessibility tree either way", () => {

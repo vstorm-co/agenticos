@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Brain, KeyRound, MousePointerClick, type LucideIcon } from "lucide-react";
+import { Box, Brain, KeyRound, MousePointerClick, TrainFront, type LucideIcon } from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -23,6 +23,8 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   daytona: Box,
   mem0: Brain,
   typesafe: MousePointerClick,
+  // No icon set carries LiteLLM; its own mark is the bullet-train emoji.
+  litellm: TrainFront,
 };
 
 /** Every provider id with a mark - what the monochrome pin in the test iterates. */
@@ -49,8 +51,8 @@ interface ProviderIconProps {
  * A provider's logo: the checked-in mark, a custom mark the deployment ships
  * under this id, or a monogram.
  *
- * Three of the platform's providers have no brand mark anywhere (Heroku AI,
- * OVHcloud, a LiteLLM proxy), and a deployment gains a provider whenever
+ * A provider can have no brand mark anywhere - LiteLLM has none, and wears the
+ * service mark above - and a deployment gains a provider whenever
  * Pydantic AI does - so the missing case is the normal case, not the error
  * case. The middle step is a deployment's answer to it: drop `heroku.svg`
  * into the backend's catalog icons and this draws it, as a `currentColor`
