@@ -3,7 +3,7 @@ import { WorkspaceExplorer } from "@/components/sandboxes/workspace-explorer";
 import { getTranslations } from "next-intl/server";
 
 /**
- * One workspace, browsable.
+ * One folder of Documents - the files one workspace holds - browsable.
  *
  * Its own page rather than a card that unfolds under the table: a workspace with a
  * `skills/` directory and a couple of reports is a tree, and a flat list of every
@@ -15,7 +15,7 @@ import { getTranslations } from "next-intl/server";
  * mean fetching the listing twice - once for a heading and once for the files - and
  * the explorer already shows whose files these are.
  */
-export default async function WorkspacePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DocumentFolderPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getTranslations("pages.workspaces");
   const { id } = await params;
 

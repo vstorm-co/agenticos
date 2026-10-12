@@ -1,5 +1,5 @@
 ---
-source_sha: "c5d33aea3c6f"
+source_sha: "b593099aa7f0"
 ---
 
 # Słownik { #glossary }
@@ -38,7 +38,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
 | Serwer MCP | Zewnętrzny serwer narzędzi, z którego korzystają agenci, podłączony raz | `mcp_connection` |
 | Sandbox | Odizolowany komputer, na którym agent zapisuje pliki i uruchamia kod | `sandbox` |
-| Pliki agentów | Pliki, które agenci trzymają w swoich sandboxach | `workspace` |
+| Dokumenty | Pliki, które agenci trzymają dla człowieka, załączone lub napisane, w swoich sandboxach | `workspace` |
 
 ## Kto decyduje { #who-decides }
 

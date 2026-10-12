@@ -2,9 +2,9 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceBrowser } from "@/components/sandboxes/workspace-browser";
 import { useTranslations } from "next-intl";
 
-const WORKSPACES_DESCRIPTION = "pageDescription";
-
 /**
+ * Documents: every file agents are keeping for the reader.
+ *
  * Its own page, rather than a card at the bottom of the Sandboxes screen.
  *
  * The two were together because both are about sandboxes, and that was the wrong
@@ -16,11 +16,11 @@ const WORKSPACES_DESCRIPTION = "pageDescription";
  * browser reads its own data and the backend decides what it may see - so this
  * stays a heading and a sentence.
  */
-export default function WorkspacesPage() {
+export default function DocumentsPage() {
   const t = useTranslations("pages.workspaces");
   return (
     <div className="space-y-6">
-      <PageHeader title={t("workspaces")} description={t(WORKSPACES_DESCRIPTION)} />
+      <PageHeader title={t("workspaces")} description={t("pageDescription")} />
       <div data-tour="workspaces-browser">
         <WorkspaceBrowser />
       </div>

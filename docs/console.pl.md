@@ -1,5 +1,5 @@
 ---
-source_sha: "b9c53e13093a"
+source_sha: "e0d6f1125173"
 ---
 
 # Konsola { #the-console }
@@ -247,7 +247,7 @@ zostanie zamknięty dla tego przeglądania.
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
 Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
-**Knowledge** to Knowledge bases, Agent files, Skills i Context. Dwie grupy są
+**Knowledge** to Knowledge bases, Documents, Skills i Context. Dwie grupy są
 zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
 rzadko: **Connections** (MCP servers, Channels, Vault, Sandboxes) i
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
@@ -262,7 +262,8 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
-| **Sandboxes / Workspaces** | Izolowane sesje plików i powłoki, w których pracował agent | [Sandbox](sandbox.md) |
+| **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
 | **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |

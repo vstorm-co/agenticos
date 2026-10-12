@@ -2953,7 +2953,6 @@
     "users": "Users",
     "vault": "Vault",
     "workspace": "Workspace",
-    "workspaces": "Agent files",
     "allOrganizations": "All organizations",
     "context": "Context",
     "deploymentSettings": "Deployment",
@@ -2966,7 +2965,8 @@
     "api": "API",
     "mcpClients": "MCP clients",
     "connections": "Connections",
-    "organization": "Organization"
+    "organization": "Organization",
+    "documents": "Documents"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3467,12 +3467,12 @@
         "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing - about a minute, and you can close it whenever you like."
       },
       "workspaces-browser": {
-        "title": "Files agents kept for you",
+        "title": "Your documents",
         "body": "When an agent saves a file, it lands here - browse, preview and download whatever your conversations produced."
       },
       "workspaces-detail": {
-        "title": "Inside a workspace",
-        "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
+        "title": "Inside a folder",
+        "body": "One agent's files, folder by folder. Preview a file, or download whatever an agent produced for you."
       },
       "skills-gallery": {
         "title": "Start from the gallery",
@@ -3585,7 +3585,7 @@
       "classes": {
         "conversations": "Conversations, their messages and their files",
         "runs": "Runs and their manifests",
-        "workspaces": "Agent workspaces",
+        "workspaces": "Documents",
         "memory": "Agent memory",
         "knowledge_documents": "Uploaded documents",
         "audit": "Audit trail",
@@ -4631,11 +4631,11 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
-      "pageDescription": "The files agents are keeping for you. A workspace is scratch space - it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
+      "pageDescription": "Every file agents are keeping for you - what you attached and what they wrote. Files live as long as the conversation they belong to, so download anything you want to keep.",
       "whatOneAgentKeeping": "What one agent is keeping, folder by folder. Search covers every folder, not just the one on screen.",
-      "workspace": "Workspace",
+      "workspace": "Folder",
       "workspaceUnreadable": "That workspace could not be read",
-      "workspaces": "Agent files"
+      "workspaces": "Documents"
     },
     "context": {
       "context": "Context",
@@ -4776,8 +4776,6 @@
   "sandboxes": {
     "activityLogUnreadable": "That activity log could not be read",
     "agentsNameNoConnection": "Agents that name no connection run here. Only one can hold this.",
-    "allFiles": "All files",
-    "byWorkspace": "By workspace",
     "cancel": "Cancel",
     "connection": {
       "add": "Add connection",
@@ -4821,7 +4819,6 @@
     "noAgentHoldingFile": "No agent is holding a file yet.",
     "noAgentHoldingFileWhy": "An agent with the Sandbox capability keeps the files it writes here, for as long as the conversation they belong to.",
     "openAgents": "Open your agents",
-    "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
     "noFileMatches": "No file matches that search.",
     "nothingRecordedYet": "Nothing recorded for <id>{session}</id> yet.",
     "nothingRunningSandboxOpens": "Nothing running. A sandbox opens on an agent's first file or shell call, so an agent that has one and never uses it costs nothing here.",
@@ -4953,49 +4950,27 @@
     "workspaces": {
       "agent": "Agent",
       "allFiles": "All files",
-      "byWorkspace": "By workspace",
       "bytesStored": "· {size} stored",
       "container": "container",
       "conversation": "Conversation",
-      "conversationCount": "{count, plural, =1 {1 conversation} other {# conversations}}",
-      "countFiles": "Count files",
-      "countFilesHint": "Reads every host to count its files - one round trip per workspace.",
-      "countingStopped": "Counting stopped short of the list.",
-      "everyFile": "Every file",
       "fileCount": "{count, plural, =0 {} =1 {1 file} other {# files}}",
-      "files": "Files",
       "folderEmpty": "This folder is empty.",
       "folders": "Folders",
       "fromAnyone": "Anyone",
       "fromMe": "Attached",
       "fromTheAgent": "By the agent",
       "host": "on the host",
-      "lastUsed": "Last used",
       "listingTruncated": "This is not every file. Reading a host is a round trip per folder, so the listing stops at six levels deep and 2,000 entries.",
-      "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
       "noMatches": "Nothing in this workspace matches “{query}”.",
       "nothingListed": "Nothing could be listed here.",
-      "onTheHostUnmeasured": "These files are on their host. Turn on Count files to read them.",
       "open": "Open",
-      "openTheChatBehindFiles": "Open the chat these files belong to",
-      "owner": "Owner",
       "pickAFile": "Pick a file to read it here.",
       "preview": "Preview",
       "searchLabel": "Search files by name",
       "searchPlaceholder": "Search every folder",
-      "size": "Size",
-      "someHostsSilent": "{count, plural, =1 {1 host did not answer} other {# hosts did not answer}}",
       "source": "Source",
       "stored": "stored",
-      "untitledChat": "Untitled chat",
-      "usedDaysAgo": "{days} days ago",
-      "usedNever": "never",
-      "usedToday": "today",
-      "usedYesterday": "yesterday",
-      "whoCanSeeIt": "Who can see it",
-      "whoPutItThere": "Who put it there",
-      "workspace": "Workspace",
-      "workspaceCount": "{count, plural, =0 {No workspaces} =1 {1 workspace} other {# workspaces}}"
+      "whoPutItThere": "Who put it there"
     }
   },
   "settings": {

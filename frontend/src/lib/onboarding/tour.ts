@@ -60,7 +60,7 @@ export const SETTINGS_DETAIL = "settings-detail";
 export const GROUP_DETAIL = "group-detail";
 
 /**
- * A workspace's file browser, `/workspaces/<id>`, collapsed the same way. Unlike a
+ * A Documents folder, `/documents/<id>`, collapsed the same way. Unlike a
  * seeded agent or collection there is no example to open from the list — a
  * workspace is one person's own agent output — so its stop is "?"-only help shown
  * in place, once the reader has opened one of their own.
@@ -593,7 +593,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsRun,
   },
 
-  { id: "workspaces-browser", page: ROUTES.WORKSPACES, target: "workspaces-browser" },
+  { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk
   // spotlights the browser rather than opening an example there is none of.
@@ -658,7 +658,7 @@ export function pageKey(path: string): string {
   }
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
-  if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   return path;
 }
 

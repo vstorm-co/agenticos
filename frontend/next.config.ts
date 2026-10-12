@@ -54,6 +54,10 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
   // notifications and old conversations.
   { from: "/artifacts", to: "/apps" },
   { from: "/artifacts/:id", to: "/apps/:id" },
+  // The files agents keep were "Agent files" at `/workspaces` until #2126; people
+  // looked for them as documents, and a workspace meant something else to them.
+  { from: "/workspaces", to: "/documents" },
+  { from: "/workspaces/:id", to: "/documents/:id" },
 ];
 
 const nextConfig: NextConfig = {

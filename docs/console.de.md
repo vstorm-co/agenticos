@@ -1,5 +1,5 @@
 ---
-source_sha: "b9c53e13093a"
+source_sha: "e0d6f1125173"
 ---
 
 # Die Konsole { #the-console }
@@ -267,7 +267,7 @@ es, bleibt es für diesen Durchlauf geschlossen.
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
 Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
-Activity; **Knowledge** enthält Knowledge bases, Agent files, Skills und Context.
+Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
 Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
 einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
 Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
@@ -283,7 +283,8 @@ verlassen haben.
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
-| **Sandboxes / Workspaces** | Isolierte Datei- und Shell-Sessions, in denen ein Agent gearbeitet hat | [Die Sandbox](sandbox.md) |
+| **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
 | **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |

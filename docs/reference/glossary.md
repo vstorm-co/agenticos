@@ -35,7 +35,7 @@ rename.
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |
 | Sandbox | An isolated computer where an agent writes files and runs code | `sandbox` |
-| Agent files | The files agents keep in their sandboxes | `workspace` |
+| Documents | The files agents keep for a person, attached or written, in their sandboxes | `workspace` |
 
 ## Who decides
 

@@ -82,7 +82,7 @@ describe("pageKey", () => {
   it("collapses each settings tab and each workspace onto one identity", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
-    expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
   });
 });
 
@@ -216,7 +216,7 @@ describe("stepsForPage", () => {
       "settings-connected-apps",
       "settings-assistant",
     ]);
-    expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
+    expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
     ]);
   });

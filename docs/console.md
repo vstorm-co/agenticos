@@ -235,7 +235,7 @@ closed for that browse.
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
-**Knowledge** holds Knowledge bases, Agent files, Skills and Context. Two groups
+**Knowledge** holds Knowledge bases, Documents, Skills and Context. Two groups
 fold to their heading until you open them, because they are set up once and
 visited rarely: **Connections** (MCP servers, Channels, Vault, Sandboxes) and
 **Organization** (Organizations, Groups). A folded group opens by itself on any
@@ -250,7 +250,8 @@ page inside it, and stays the way you left it.
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
-| **Sandboxes / Workspaces** | Isolated file-and-shell sessions an agent worked in | [The sandbox](sandbox.md) |
+| **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
 | **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |

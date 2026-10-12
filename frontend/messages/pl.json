@@ -2723,7 +2723,6 @@
     "users": "Użytkownicy",
     "vault": "Vault",
     "workspace": "Przestrzeń",
-    "workspaces": "Pliki agentów",
     "allOrganizations": "Wszystkie organizacje",
     "context": "Kontekst",
     "deploymentSettings": "Instalacja",
@@ -2736,7 +2735,8 @@
     "api": "API",
     "mcpClients": "Klienci MCP",
     "connections": "Połączenia",
-    "organization": "Organizacja"
+    "organization": "Organizacja",
+    "documents": "Dokumenty"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -3237,12 +3237,12 @@
         "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę - jakaś minuta, a zamkniesz to, kiedy chcesz."
       },
       "workspaces-browser": {
-        "title": "Pliki, które agenci zachowali dla Ciebie",
-        "body": "Gdy agent zapisuje plik, trafia tutaj - przeglądaj, podglądaj i pobieraj to, co wytworzyły Twoje rozmowy."
+        "title": "Twoje dokumenty",
+        "body": "Gdy agent zapisze plik, trafia tutaj - przeglądaj, podglądaj i pobieraj wszystko, co powstało w Twoich rozmowach."
       },
       "workspaces-detail": {
-        "title": "Wnętrze przestrzeni",
-        "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+        "title": "W folderze",
+        "body": "Pliki jednego agenta, folder po folderze. Podejrzyj plik albo pobierz to, co agent dla Ciebie przygotował."
       },
       "skills-gallery": {
         "title": "Zacznij od galerii",
@@ -3355,7 +3355,7 @@
       "classes": {
         "conversations": "Rozmowy, ich wiadomości i pliki",
         "runs": "Runy i ich manifesty",
-        "workspaces": "Workspace'y agentów",
+        "workspaces": "Dokumenty",
         "memory": "Pamięć agentów",
         "knowledge_documents": "Wgrane dokumenty",
         "audit": "Ślad audytowy",
@@ -4401,11 +4401,11 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Nie udało się wczytać workspace",
-      "pageDescription": "Pliki, które agenci trzymają dla Ciebie. Workspace to brudnopis - jest usuwany razem z rozmową, do której należy, i nie służy do trwałego przechowywania.",
+      "pageDescription": "Wszystkie pliki, które agenci trzymają dla Ciebie - to, co załączyłeś, i to, co napisali. Pliki żyją tak długo jak rozmowa, do której należą, więc pobierz to, co chcesz zachować.",
       "whatOneAgentKeeping": "Co trzyma jeden agent, folder po folderze. Wyszukiwanie obejmuje każdy folder, nie tylko ten na ekranie.",
-      "workspace": "Workspace",
+      "workspace": "Folder",
       "workspaceUnreadable": "Nie udało się odczytać tego workspace",
-      "workspaces": "Pliki agentów"
+      "workspaces": "Dokumenty"
     },
     "context": {
       "context": "Kontekst",
@@ -4546,8 +4546,6 @@
   "sandboxes": {
     "activityLogUnreadable": "Nie udało się odczytać tego logu aktywności",
     "agentsNameNoConnection": "Tu działają agenci, którzy nie wskazują połączenia. Może to mieć tylko jedno.",
-    "allFiles": "Wszystkie pliki",
-    "byWorkspace": "Według workspace",
     "cancel": "Anuluj",
     "connection": {
       "add": "Dodaj połączenie",
@@ -4591,7 +4589,6 @@
     "noAgentHoldingFile": "Żaden agent nie trzyma jeszcze pliku.",
     "noAgentHoldingFileWhy": "Agent z capability Sandbox trzyma tu pliki, które zapisuje, dopóki istnieje rozmowa, do której należą.",
     "openAgents": "Otwórz swoich agentów",
-    "noAgentKeepingFiles": "Żaden agent nie trzyma jeszcze plików. Pojawi się tu, gdy agent z workspace pierwszy raz coś zapisze.",
     "noFileMatches": "Żaden plik nie pasuje do wyszukiwania.",
     "nothingRecordedYet": "Dla <id>{session}</id> nic jeszcze nie zapisano.",
     "nothingRunningSandboxOpens": "Nic nie działa. Sandbox otwiera się przy pierwszym wywołaniu pliku lub powłoki przez agenta, więc agent, który go ma, ale nie używa, nic tu nie kosztuje.",
@@ -4723,49 +4720,27 @@
     "workspaces": {
       "agent": "Agent",
       "allFiles": "Wszystkie pliki",
-      "byWorkspace": "Według workspace",
       "bytesStored": "· zapisano {size}",
       "container": "kontener",
       "conversation": "Rozmowa",
-      "conversationCount": "{count, plural, one {1 rozmowa} few {# rozmowy} many {# rozmów} other {# rozmowy}}",
-      "countFiles": "Policz pliki",
-      "countFilesHint": "Czyta każdy host, aby policzyć jego pliki - jedno zapytanie na workspace.",
-      "countingStopped": "Liczenie zatrzymało się przed końcem listy.",
-      "everyFile": "Każdy plik",
       "fileCount": "{count, plural, =0 {} one {1 plik} few {# pliki} many {# plików} other {# pliku}}",
-      "files": "Pliki",
       "folderEmpty": "Ten folder jest pusty.",
       "folders": "Foldery",
       "fromAnyone": "Ktokolwiek",
       "fromMe": "Dołączone",
       "fromTheAgent": "Przez agenta",
       "host": "na hoście",
-      "lastUsed": "Ostatnio używany",
       "listingTruncated": "To nie są wszystkie pliki. Czytanie hosta to jedno zapytanie na folder, więc lista zatrzymuje się na sześciu poziomach i 2000 pozycji.",
-      "noAgentKeepingFiles": "Żaden agent nie trzyma jeszcze plików. Pojawi się tu, gdy agent z workspace pierwszy raz coś zapisze.",
       "noMatches": "Nic w tym workspace nie pasuje do „{query}”.",
       "nothingListed": "Nie udało się tu niczego wylistować.",
-      "onTheHostUnmeasured": "Te pliki są na swoim hoście. Włącz Policz pliki, aby je odczytać.",
       "open": "Otwórz",
-      "openTheChatBehindFiles": "Otwórz czat, do którego należą te pliki",
-      "owner": "Właściciel",
       "pickAFile": "Wybierz plik, aby go tu przeczytać.",
       "preview": "Podgląd",
       "searchLabel": "Szukaj plików po nazwie",
       "searchPlaceholder": "Szukaj w każdym folderze",
-      "size": "Rozmiar",
-      "someHostsSilent": "{count, plural, one {1 host nie odpowiedział} few {# hosty nie odpowiedziały} many {# hostów nie odpowiedziało} other {# hosta nie odpowiedziało}}",
       "source": "Źródło",
       "stored": "zapisane",
-      "untitledChat": "Czat bez tytułu",
-      "usedDaysAgo": "{days} dni temu",
-      "usedNever": "nigdy",
-      "usedToday": "dziś",
-      "usedYesterday": "wczoraj",
-      "whoCanSeeIt": "Kto może to zobaczyć",
-      "whoPutItThere": "Kto to tam umieścił",
-      "workspace": "Workspace",
-      "workspaceCount": "{count, plural, =0 {Brak workspace} one {1 workspace} few {# workspace} many {# workspace} other {# workspace}}"
+      "whoPutItThere": "Kto to tam umieścił"
     }
   },
   "settings": {

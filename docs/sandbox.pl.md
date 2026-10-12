@@ -1,5 +1,5 @@
 ---
-source_sha: "60bcc666c4a3"
+source_sha: "904d3115d4e7"
 ---
 
 # Sandbox { #the-sandbox }
@@ -457,10 +457,10 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 
 ## Co pokazuje przeglądarka plików, a co pomija { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
+**Documents** (`/documents`) wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
 sam zbiór co to, co leży na wolumenie. Dwa prefiksy są pomijane w każdym
-zestawieniu, które czyta człowiek — w widoku płaskim, we własnych plikach
-workspace'u, w panelu rozmowy i w liczbach plików:
+zestawieniu, które czyta człowiek — na liście wszystkich plików, w plikach
+jednego folderu, w panelu rozmowy i w liczbach plików:
 
 - `skills/` — treść skilla i jego zasoby, zapisywane na starcie każdego runa,
   który ma i skille, i workspace. Są tam potrzebne: zasób to skrypt, który

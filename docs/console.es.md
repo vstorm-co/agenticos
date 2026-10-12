@@ -1,5 +1,5 @@
 ---
-source_sha: "b9c53e13093a"
+source_sha: "e0d6f1125173"
 ---
 
 # La consola { #the-console }
@@ -250,7 +250,7 @@ una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 ## Para qué sirve cada área { #what-each-area-is-for }
 
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
-**Knowledge** reúne Knowledge bases, Agent files, Skills y Context. Dos grupos se
+**Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
 pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
 poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
@@ -265,7 +265,8 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
-| **Sandboxes / Workspaces** | Sesiones aisladas de archivos y shell en las que trabajó un agent | [La sandbox](sandbox.md) |
+| **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
 | **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |

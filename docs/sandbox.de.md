@@ -1,5 +1,5 @@
 ---
-source_sha: "60bcc666c4a3"
+source_sha: "904d3115d4e7"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -484,10 +484,10 @@ Was bleibt, ausgesprochen statt angedeutet:
 
 ## Was der Dateibrowser zeigt, und was er auslässt { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` listet auf, was ein Agent **für eine Person** aufbewahrt, was nicht
+**Documents** (`/documents`) listet auf, was ein Agent **für eine Person** aufbewahrt, was nicht
 dieselbe Menge ist wie das, was auf dem Volume liegt. Zwei Präfixe fallen aus jeder
-Auflistung, die eine Person liest - der flachen Ansicht, den eigenen Dateien eines
-Workspace, dem Panel einer Unterhaltung und den Dateizahlen:
+Auflistung, die eine Person liest - der Liste aller Dateien, den Dateien eines
+Ordners, dem Panel einer Unterhaltung und den Dateizahlen:
 
 - `skills/` — der Rumpf eines Skills und seine Ressourcen, geschrieben zu Beginn
   jedes Runs, der sowohl Skills als auch einen Workspace hat. Sie werden dort

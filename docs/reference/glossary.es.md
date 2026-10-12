@@ -1,5 +1,5 @@
 ---
-source_sha: "c5d33aea3c6f"
+source_sha: "b593099aa7f0"
 ---
 
 # Glosario { #glossary }
@@ -40,7 +40,7 @@ tal como se ven en pantalla.
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
 | Sandbox | Un ordenador aislado donde un agent escribe archivos y ejecuta código | `sandbox` |
-| Agent files | Los archivos que los agents guardan en sus sandboxes | `workspace` |
+| Documents | Los archivos que los agents guardan para una persona, adjuntos o escritos, en sus sandboxes | `workspace` |
 
 ## Quién decide { #who-decides }
 

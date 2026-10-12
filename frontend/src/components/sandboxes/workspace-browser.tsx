@@ -1,16 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FolderOpen, MessageSquare } from "lucide-react";
+import { Download, FolderOpen } from "lucide-react";
 
 import {
-  Button,
-  DataTable,
   ListCard,
   ListCardEmpty,
   Pager,
   SearchInput,
-  Switch,
   Select,
   SelectContent,
   SelectItem,
@@ -18,19 +15,17 @@ import {
   SelectValue,
   Skeleton,
   useListControls,
-  type Column,
 } from "@/components/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FileCard, FileViewer } from "@/components/files";
-import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
+import { useAllWorkspaceFiles } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { suffixOf } from "@/lib/file-kinds";
 import { workspaceFileAccess } from "@/lib/workspace-files";
-import { cn, formatBytes } from "@/lib/utils";
-import type { FlatFile, WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
+import { cn } from "@/lib/utils";
+import type { FlatFile } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
 /** One file's identity across workspaces: the same path exists in several.
@@ -64,296 +59,31 @@ function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
 }
 
 /**
- * What identifies one workspace, in words.
+ * Every file agents are keeping for this reader, in one list.
  *
- * The conversation where there is one, because that is what an agent's twenty
- * workspaces differ by. A `run`- or `agent`-scoped workspace has no single chat,
- * so it leads with whose it is - which under `agent` scope is the whole point.
- */
-function title(workspace: WorkspaceSummary, t: (key: string) => string): string {
-  if (workspace.conversation_title !== null) return workspace.conversation_title;
-  if (workspace.conversation_id !== null) return t("untitledChat");
-  return workspace.owner_label;
-}
-
-/** When it was last touched, roughly. */
-function used(when: string | null, t: (key: string, values?: Record<string, number>) => string) {
-  if (when === null) return t("usedNever");
-  const days = Math.floor((Date.now() - new Date(when).getTime()) / 86_400_000);
-  if (days <= 0) return t("usedToday");
-  if (days === 1) return t("usedYesterday");
-  return t("usedDaysAgo", { days });
-}
-
-/**
- * The workspaces this reader can see, and the files in one.
+ * It used to open on a table of workspaces with a switch to this list, and the
+ * list was what people came for: "where is that CSV" and "what did the agent
+ * write" are the questions this page is opened with, and "which workspaces
+ * exist" was an operator's question answered on a page that is everybody's. A
+ * workspace is still one click away - each file names the agent holding it, and
+ * that name opens the folder it sits in.
  *
- * A workspace is scratch space, so a list of them is a list of what the agents are
- * *holding* — which is the question this answers and the conversation panel cannot:
- * a `run`-scoped workspace never had a conversation and an `agent`-scoped one
- * belongs to all of them, so neither is reachable from a chat.
- *
- * Which workspaces appear is the backend's decision, not this component's: an
- * operator sees the organization's, and everybody else sees the ones they are part
- * of. That is why this is no longer gated in the nav — a person's own files are not
- * an operator surface.
- *
- * `access_label` is a column and not decoration. Under `agent` scope one workspace
- * is shared by everybody who talks to that agent, and a table of paths with no
- * statement of who can see them is the wrong thing to hand somebody auditing this.
+ * Which files appear is the backend's decision, not this component's: an
+ * operator sees the organization's, and everybody else sees the ones they are
+ * part of.
  */
 export function WorkspaceBrowser() {
-  const t = useTranslations("sandboxes.workspaces");
-  // Counting the files in a container-backed workspace is a round trip to its
-  // host, per workspace - so it is a switch rather than something the page pays for
-  // on open. A stored workspace is counted either way, because its files arrived
-  // with the row.
-  const [measure, setMeasure] = useState(false);
-  const { workspaces, unreadable, truncated, isLoading, error } = useSandboxWorkspaces(measure);
-  // Every file, first. "Where is that CSV" and "what did the agent write" are the
-  // questions somebody opens this page with; "which workspaces exist" is the one an
-  // operator asks second, and a table of them was the landing view for no better
-  // reason than that it was built first.
-  const [flat, setFlat] = useState(true);
-
-  /**
-   * Four columns, not seven, and the row is the link.
-   *
-   * Seven columns of small grey text made a table nobody could scan, and three of
-   * them were two halves of one fact: an agent and the chat its files belong to are
-   * one identity, and what holds a workspace and who can see it are one answer
-   * about reach. Folded, each cell carries a heading and its qualifier - which is
-   * the shape every other listing in this product already uses (#1039).
-   *
-   * The trailing `Open` button is gone and the agent's name is the link instead -
-   * a real one, so the URL can be copied, middle-clicked and sent, which this
-   * page's own comment says is the point of a workspace having one. Deliberately
-   * not a clickable row: every `onRowClick` in this codebase opens something in
-   * place, and a router push from one would need next-intl's navigation for the
-   * locale prefix, which is a provider this table has never needed.
-   */
-  const columns = useMemo<Column<WorkspaceSummary>[]>(
-    () => [
-      {
-        key: "workspace",
-        header: t("workspace"),
-        className: "pl-5",
-        sortable: true,
-        sortValue: (workspace) => title(workspace, t),
-        // **The chat is the heading, and the agent is under it.** It was the other
-        // way round, which read as twenty rows called `jarvis`: an organization
-        // runs a handful of agents and a great many conversations, so the agent is
-        // the part every row shares and the conversation is the part that tells
-        // them apart.
-        cell: (workspace) => (
-          <div className="flex min-w-0 items-center gap-3">
-            {/* Decorative beside the agent it initials - the presentation every
-                list of agents draws. */}
-            <span aria-hidden>
-              <AgentAvatar
-                agentId={workspace.agent_id}
-                slug={workspace.agent_slug}
-                hasAvatar={workspace.agent_has_avatar}
-                size="sm"
-              />
-            </span>
-            <div className="min-w-0">
-              <Link
-                href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
-                className="text-foreground block truncate text-sm font-medium underline-offset-4 hover:underline"
-              >
-                {title(workspace, t)}
-              </Link>
-              <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-                <span className="truncate">{workspace.agent_name}</span>
-                {/* How many chats reach these files, where that is not one. Under
-                    `agent` scope it is the difference between "my files" and
-                    "everybody's", and the heading above cannot carry it because
-                    such a workspace has no single conversation to be named after. */}
-                {workspace.conversation_id === null && workspace.conversations > 0 && (
-                  <span className="shrink-0">
-                    · {t("conversationCount", { count: workspace.conversations })}
-                  </span>
-                )}
-                {/* The chat itself, for the reader's own thread only - anybody
-                    else's would land on an empty sidebar dressed as the
-                    conversation. An icon rather than the title again, which is
-                    now the heading above it. */}
-                {workspace.conversation_id !== null && workspace.conversation_is_mine && (
-                  <Link
-                    href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
-                    className="hover:text-foreground shrink-0"
-                    aria-label={t("openTheChatBehindFiles")}
-                  >
-                    <MessageSquare className="h-3 w-3" aria-hidden />
-                  </Link>
-                )}
-              </span>
-            </div>
-          </div>
-        ),
-      },
-      {
-        key: "owner",
-        header: t("owner"),
-        sortable: true,
-        // Owned last rather than first: the scopes with no owner are the common
-        // ones, and an absence is not a name.
-        sortValue: (workspace) => workspace.owner_name ?? "",
-        // **Who, beside who else.** `access_label` one column along describes the
-        // *scope* - "everybody who talks to this agent", "one person" - and on an
-        // `agent`-scoped workspace shared by six people that is exactly the
-        // question this row could not answer (#137).
-        //
-        // `owner_name`, not `owner_label`: that one is the scope in words ("Your
-        // files for this agent"), so a column drawing it under this heading names
-        // nobody. An em dash for the three scopes that record no owner, which is
-        // the honest answer rather than the scope again.
-        //
-        // Plain text, never a link: an owner who arrived through Slack is a
-        // platform id rather than an account, so half the rows would carry a
-        // destination that does not exist (#131).
-        cell: (workspace) => (
-          <span className="text-muted-foreground block min-w-0 truncate text-xs">
-            {workspace.owner_name ?? "—"}
-          </span>
-        ),
-      },
-      {
-        key: "whoCanSeeIt",
-        header: t("whoCanSeeIt"),
-        // The label alone. The `container` badge beside it repeated on every row
-        // of a deployment that runs one kind of host - a column of one word,
-        // twenty times, saying what `Where` now says once per row.
-        cell: (workspace) => (
-          <span className="text-muted-foreground block min-w-0 truncate text-xs">
-            {workspace.access_label}
-          </span>
-        ),
-      },
-      {
-        key: "files",
-        header: t("files"),
-        align: "right",
-        sortable: true,
-        // `null` rather than `0` for one nobody counted: an absence is not a small
-        // number, and the table sorts it last either way.
-        sortValue: (workspace) => workspace.file_count,
-        cell: (workspace) => (
-          <span className="text-muted-foreground text-xs">{workspace.file_count ?? "—"}</span>
-        ),
-      },
-      {
-        key: "size",
-        header: t("size"),
-        align: "right",
-        sortable: true,
-        // What the files come to, not what the row weighs: `bytes_total` is the
-        // stored document's size and zero for a container, which is how a size
-        // column ends up calling a container empty.
-        sortValue: (workspace) => workspace.measured_bytes,
-        cell: (workspace) => (
-          <span
-            className="text-muted-foreground text-xs"
-            title={
-              workspace.measured_bytes === null && workspace.backend !== "state"
-                ? t("onTheHostUnmeasured")
-                : undefined
-            }
-          >
-            {workspace.measured_bytes === null ? "—" : formatBytes(workspace.measured_bytes)}
-          </span>
-        ),
-      },
-      {
-        key: "lastUsed",
-        header: t("lastUsed"),
-        cell: (workspace) => (
-          <span className="text-muted-foreground text-xs">{used(workspace.last_used_at, t)}</span>
-        ),
-      },
-    ],
-    [t],
-  );
-
+  const t = useTranslations("sandboxes");
+  // The same query the list below reads, so the count costs no second request.
+  const { listing, isLoading } = useAllWorkspaceFiles(true);
   return (
-    <div className="space-y-4">
-      <ListCard
-        // The view, not the page's own title again. Under a page headed
-        // `Workspaces` the card said `Workspaces` and then repeated the page's
-        // two sentences - three lines of chrome saying one thing.
-        title={flat ? t("everyFile") : t("byWorkspace")}
-        // A count, which is what this line is for. It carried the page header's
-        // own two sentences, so the same prose was on screen twice - once under
-        // the title and once under the card's.
-        counted={isLoading ? null : t("workspaceCount", { count: workspaces.length })}
-        controls={
-          /* Two questions, not two designs: "which workspaces exist" is a table
-             of rows, and "who is holding a copy of that CSV" is a flat list of
-             files. The second cannot be answered by opening the first one row at
-             a time, which is what this exists for. */
-          <div className="flex shrink-0 items-center gap-3">
-            {!flat && (
-              <label className="flex items-center gap-2 text-xs whitespace-nowrap">
-                <Switch
-                  checked={measure}
-                  onCheckedChange={setMeasure}
-                  aria-label={t("countFiles")}
-                />
-                <span className="text-muted-foreground" title={t("countFilesHint")}>
-                  {t("countFiles")}
-                </span>
-              </label>
-            )}
-            <div className="flex gap-1">
-              <Button
-                variant={flat ? "ghost" : "secondary"}
-                size="sm"
-                aria-pressed={!flat}
-                onClick={() => setFlat(false)}
-              >
-                {t("byWorkspace")}
-              </Button>
-              <Button
-                variant={flat ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={flat}
-                onClick={() => setFlat(true)}
-              >
-                {t("allFiles")}
-              </Button>
-            </div>
-          </div>
-        }
-        contentClassName="p-0"
-      >
-        {flat ? (
-          <FlatFiles />
-        ) : (
-          <>
-            <DataTable<WorkspaceSummary>
-              columns={columns}
-              rows={workspaces}
-              getRowKey={(workspace) => workspace.id}
-              loading={isLoading}
-              error={error}
-              empty={t("noAgentKeepingFiles")}
-              className="rounded-none border-0 bg-transparent"
-            />
-            {/* What counting left out, on screen rather than in a log. A host that
-              did not answer leaves a row saying `—`, which is indistinguishable
-              from a workspace holding nothing. */}
-            {measure && (unreadable > 0 || truncated) && (
-              <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
-                {unreadable > 0 && t("someHostsSilent", { count: unreadable })}
-                {unreadable > 0 && truncated && " · "}
-                {truncated && t("countingStopped")}
-              </p>
-            )}
-          </>
-        )}
-      </ListCard>
-    </div>
+    <ListCard
+      title={t("workspaces.allFiles")}
+      counted={isLoading ? null : t("fileCount", { count: listing?.total ?? 0 })}
+      contentClassName="p-0"
+    >
+      <FlatFiles />
+    </ListCard>
   );
 }
 
@@ -468,7 +198,7 @@ function FlatFiles() {
                   {file.from_upload ? t("workspaces.fromMe") : t("workspaces.fromTheAgent")}
                 </span>
                 <Link
-                  href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
+                  href={ROUTES.DOCUMENT_FOLDER(file.workspace_id)}
                   className="truncate hover:underline"
                 >
                   {file.agent_name}

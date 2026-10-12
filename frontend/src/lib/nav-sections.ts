@@ -116,8 +116,8 @@ export const NAV_GROUPS: NavGroup[] = [
         // person looking*, and the backend narrows the listing to what they are
         // part of - so a permission here would hide somebody's own files behind
         // an operator's authority.
-        labelKey: "workspaces",
-        href: ROUTES.WORKSPACES,
+        labelKey: "documents",
+        href: ROUTES.DOCUMENTS,
         icon: FolderOpen,
       },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },

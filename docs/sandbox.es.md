@@ -1,5 +1,5 @@
 ---
-source_sha: "60bcc666c4a3"
+source_sha: "904d3115d4e7"
 ---
 
 # La sandbox { #the-sandbox }
@@ -469,10 +469,10 @@ Lo que queda, dicho en lugar de dado por supuesto:
 
 ## Qué muestra el navegador de archivos, y qué deja fuera { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` lista lo que un agent guarda **para una persona**, que no es el mismo
+**Documents** (`/documents`) lista lo que un agent guarda **para una persona**, que no es el mismo
 conjunto que lo que hay en el volumen. Dos prefijos se descartan de cada listado
-que lee una persona —la vista plana, los archivos propios de un workspace, el
-panel de una conversación y los recuentos de archivos—:
+que lee una persona —la lista de todos los archivos, los archivos de una carpeta,
+el panel de una conversación y los recuentos de archivos—:
 
 - `skills/` — el cuerpo de un skill y sus recursos, escritos al principio de cada
   run que tiene skills y workspace. Ahí hacen falta: un recurso es un script que la

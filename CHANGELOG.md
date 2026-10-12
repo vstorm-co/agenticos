@@ -477,6 +477,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Agent files are Documents.** The page every file an agent keeps for you lands
+  on is called **Documents** and lives at `/documents`; `/workspaces` links
+  redirect. It opens on the list of files alone - the table of workspaces and the
+  switch to it are gone, and each file still opens the folder it sits in (#2126).
 - **A calmer sidebar.** Knowledge bases, agent files, skills and context sit
   together under **Knowledge**; MCP servers, channels, the vault and sandboxes
   fold under **Connections**, and organizations and groups under

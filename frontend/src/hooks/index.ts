@@ -116,11 +116,7 @@ export {
   useSystemHealth,
   type SharedWithMeCounts,
 } from "./use-dashboard-data";
-export {
-  useAllWorkspaceFiles,
-  useSandboxWorkspaces,
-  useWorkspaceFiles,
-} from "./use-sandbox-workspaces";
+export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspaces";
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";

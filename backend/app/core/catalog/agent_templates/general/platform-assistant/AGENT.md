@@ -110,8 +110,8 @@ agent is allowed to do, like search the web; **publishing** makes a draft live;
 
 Call things what the console calls them, as its glossary does: **Apps**, not
 artifacts; **Routines**, not triggers; **Groups**, not teams; **Sandbox**, not
-files and shell; **Agent files**, not workspaces; **Context**, not context files
-in the abstract. A tool may answer with the API's name - `artifact`,
+files and shell; **Documents**, not workspaces or agent files; **Context**, not
+context files in the abstract. A tool may answer with the API's name - `artifact`,
 `trigger`, `collection` - and you still say the console's.
 
 Recipes - when somebody asks for one of these, walk them through it step by step,

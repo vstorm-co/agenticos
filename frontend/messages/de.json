@@ -2835,7 +2835,6 @@
     "users": "Benutzer",
     "vault": "Vault",
     "workspace": "Workspace",
-    "workspaces": "Agentendateien",
     "allOrganizations": "Alle Organisationen",
     "context": "Kontext",
     "deploymentSettings": "Deployment",
@@ -2848,7 +2847,8 @@
     "api": "API",
     "mcpClients": "MCP-Clients",
     "connections": "Verbindungen",
-    "organization": "Organisation"
+    "organization": "Organisation",
+    "documents": "Dokumente"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3349,12 +3349,12 @@
         "body": "Hier baut, betreibt und steuert Ihr Team seine KI-Agents. Wir gehen jeden Bereich durch und zeigen, worauf es ankommt - etwa eine Minute, und Sie können jederzeit schließen."
       },
       "workspaces-browser": {
-        "title": "Dateien, die Agents für Sie aufbewahrt haben",
-        "body": "Wenn ein Agent eine Datei speichert, landet sie hier - stöbern, ansehen und herunterladen, was Ihre Unterhaltungen hervorgebracht haben."
+        "title": "Ihre Dokumente",
+        "body": "Wenn ein Agent eine Datei speichert, landet sie hier - durchsuchen, ansehen und herunterladen, was Ihre Unterhaltungen erzeugt haben."
       },
       "workspaces-detail": {
-        "title": "In einem Workspace",
-        "body": "Die Dateien aus einem Workspace. Stöbern Sie in den Ordnern, sehen Sie sich eine Datei an oder laden Sie herunter, was ein Agent für Sie erstellt hat."
+        "title": "In einem Ordner",
+        "body": "Die Dateien eines Agents, Ordner für Ordner. Sehen Sie eine Datei an oder laden Sie herunter, was ein Agent für Sie erstellt hat."
       },
       "skills-gallery": {
         "title": "Mit der Galerie beginnen",
@@ -3467,7 +3467,7 @@
       "classes": {
         "conversations": "Unterhaltungen, ihre Nachrichten und ihre Dateien",
         "runs": "Runs und ihre Manifeste",
-        "workspaces": "Agent-Workspaces",
+        "workspaces": "Dokumente",
         "memory": "Agent-Gedächtnis",
         "knowledge_documents": "Hochgeladene Dokumente",
         "audit": "Audit-Trail",
@@ -4513,11 +4513,11 @@
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspaces konnten nicht geladen werden",
-      "pageDescription": "Die Dateien, die Agents für Sie aufbewahren. Ein Workspace ist Arbeitsfläche - er wird mit der Unterhaltung gelöscht, zu der er gehört, und ist kein Ort für etwas Dauerhaftes.",
+      "pageDescription": "Alle Dateien, die Agents für Sie aufbewahren - was Sie angehängt und was sie geschrieben haben. Dateien leben so lange wie die Unterhaltung, zu der sie gehören; laden Sie herunter, was Sie behalten möchten.",
       "whatOneAgentKeeping": "Was ein Agent aufbewahrt, Ordner für Ordner. Die Suche erfasst jeden Ordner, nicht nur den auf dem Bildschirm.",
-      "workspace": "Workspace",
+      "workspace": "Ordner",
       "workspaceUnreadable": "Dieser Workspace konnte nicht gelesen werden",
-      "workspaces": "Agentendateien"
+      "workspaces": "Dokumente"
     },
     "context": {
       "context": "Kontext",
@@ -4658,8 +4658,6 @@
   "sandboxes": {
     "activityLogUnreadable": "Dieses Aktivitätsprotokoll konnte nicht gelesen werden",
     "agentsNameNoConnection": "Agents, die keine Verbindung nennen, laufen hier. Nur eine kann das innehaben.",
-    "allFiles": "Alle Dateien",
-    "byWorkspace": "Nach Workspace",
     "cancel": "Abbrechen",
     "connection": {
       "add": "Verbindung hinzufügen",
@@ -4703,7 +4701,6 @@
     "noAgentHoldingFile": "Noch hält kein Agent eine Datei.",
     "noAgentHoldingFileWhy": "Ein Agent mit der Capability Sandbox legt die Dateien, die er schreibt, hier ab, solange das Gespräch besteht, zu dem sie gehören.",
     "openAgents": "Deine Agents öffnen",
-    "noAgentKeepingFiles": "Noch bewahrt kein Agent Dateien auf. Einer erscheint hier, sobald ein Agent mit Workspace zum ersten Mal etwas schreibt.",
     "noFileMatches": "Keine Datei passt zu dieser Suche.",
     "nothingRecordedYet": "Für <id>{session}</id> ist noch nichts aufgezeichnet.",
     "nothingRunningSandboxOpens": "Nichts läuft. Eine Sandbox öffnet sich beim ersten Datei- oder Shell-Aufruf eines Agents, ein Agent, der eine hat und sie nie nutzt, kostet hier also nichts.",
@@ -4835,49 +4832,27 @@
     "workspaces": {
       "agent": "Agent",
       "allFiles": "Alle Dateien",
-      "byWorkspace": "Nach Workspace",
       "bytesStored": "· {size} gespeichert",
       "container": "Container",
       "conversation": "Unterhaltung",
-      "conversationCount": "{count, plural, =1 {1 Unterhaltung} other {# Unterhaltungen}}",
-      "countFiles": "Dateien zählen",
-      "countFilesHint": "Liest jeden Host, um dessen Dateien zu zählen – ein Rundlauf pro Workspace.",
-      "countingStopped": "Das Zählen endete vor dem Ende der Liste.",
-      "everyFile": "Jede Datei",
       "fileCount": "{count, plural, =0 {} =1 {1 Datei} other {# Dateien}}",
-      "files": "Dateien",
       "folderEmpty": "Dieser Ordner ist leer.",
       "folders": "Ordner",
       "fromAnyone": "Alle",
       "fromMe": "Angehängt",
       "fromTheAgent": "Vom Agent",
       "host": "auf dem Host",
-      "lastUsed": "Zuletzt verwendet",
       "listingTruncated": "Das sind nicht alle Dateien. Einen Host zu lesen ist ein Rundlauf pro Ordner, deshalb endet die Auflistung bei sechs Ebenen Tiefe und 2.000 Einträgen.",
-      "noAgentKeepingFiles": "Noch bewahrt kein Agent Dateien auf. Einer erscheint hier, sobald ein Agent mit Workspace zum ersten Mal etwas schreibt.",
       "noMatches": "In diesem Workspace passt nichts zu „{query}“.",
       "nothingListed": "Hier konnte nichts aufgelistet werden.",
-      "onTheHostUnmeasured": "Diese Dateien liegen auf ihrem Host. Schalten Sie „Dateien zählen“ ein, um sie zu lesen.",
       "open": "Öffnen",
-      "openTheChatBehindFiles": "Den Chat öffnen, zu dem diese Dateien gehören",
-      "owner": "Besitzer",
       "pickAFile": "Wählen Sie eine Datei, um sie hier zu lesen.",
       "preview": "Vorschau",
       "searchLabel": "Dateien nach Namen suchen",
       "searchPlaceholder": "Jeden Ordner durchsuchen",
-      "size": "Größe",
-      "someHostsSilent": "{count, plural, =1 {1 Host hat nicht geantwortet} other {# Hosts haben nicht geantwortet}}",
       "source": "Quelle",
       "stored": "gespeichert",
-      "untitledChat": "Chat ohne Titel",
-      "usedDaysAgo": "vor {days} Tagen",
-      "usedNever": "nie",
-      "usedToday": "heute",
-      "usedYesterday": "gestern",
-      "whoCanSeeIt": "Wer sie sehen kann",
-      "whoPutItThere": "Wer sie dort abgelegt hat",
-      "workspace": "Workspace",
-      "workspaceCount": "{count, plural, =0 {Keine Workspaces} =1 {1 Workspace} other {# Workspaces}}"
+      "whoPutItThere": "Wer sie dort abgelegt hat"
     }
   },
   "settings": {

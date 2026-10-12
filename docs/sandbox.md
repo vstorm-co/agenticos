@@ -439,10 +439,10 @@ What remains, stated rather than implied:
 
 ## What the file browser shows, and what it leaves out
 
-`/workspaces` lists what an agent is keeping **for a person**, which is not the
+**Documents** (`/documents`) lists what an agent is keeping **for a person**, which is not the
 same set as what is on the volume. Two prefixes are dropped from every listing a
-person reads - the flat view, a workspace's own files, a conversation's panel, and
-the file counts:
+person reads - the list of every file, one folder's files, a conversation's panel,
+and the file counts:
 
 - `skills/` — a skill's body and its resources, written at the start of every run
   that has both skills and a workspace. They are needed there: a resource is a
