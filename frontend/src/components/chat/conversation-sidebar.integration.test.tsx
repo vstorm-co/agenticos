@@ -491,33 +491,33 @@ describe("the favourites band", () => {
 });
 
 describe("conversations opened over the API (#2122)", () => {
-  it("labels them, and leaves them out on request", async () => {
+  it("leaves them out by default, and labels them once shown", async () => {
     serve([
       { ...conversation("c-api", "Nightly report"), origin: "api" } as ReturnType<
         typeof conversation
       >,
     ]);
     mount();
-    await screen.findAllByText("Nightly report");
-
-    expect(within(list()).getByText("API")).toBeInTheDocument();
-    await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Hide conversations opened over the API" }),
-    );
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
-    expect(window.location.search).toContain("api=hide");
+    await userEvent.click(await within(list()).findByRole("button", { name: "Filter and sort" }));
+    const hide = screen.getByRole("switch", { name: "Hide conversations opened over the API" });
+    expect(hide).toBeChecked();
+    await userEvent.click(hide);
+
+    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
+    expect(window.location.search).toContain("api=show");
+    expect(within(list()).getByText("API")).toBeInTheDocument();
   });
 
-  it("clears it with the other filters", async () => {
-    urlParams = new URLSearchParams("api=hide");
+  it("goes back to hiding them when the filters are cleared", async () => {
+    urlParams = new URLSearchParams("api=show&q=report");
     serve([]);
     mount();
 
-    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
     await userEvent.click(await within(list()).findByRole("button", { name: /clear/i }));
 
-    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
+    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
   });
 });

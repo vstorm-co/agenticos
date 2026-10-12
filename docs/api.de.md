@@ -1,5 +1,5 @@
 ---
-source_sha: "88c49bc97aa7"
+source_sha: "398e54a8f2d7"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -160,9 +160,9 @@ als `conversation_id` zurück; senden Sie sie mit dem nächsten Aufruf, und der
 Agent liest, was zuvor gesagt wurde - die letzten Züge oder die Zusammenfassung
 älterer und was danach kam. Ein pro Unterhaltung geteilter Workspace, der
 Standard, ist der dieser Unterhaltung. Eine unbekannte Id oder die Unterhaltung
-eines anderen antwortet `404`. Die Unterhaltung erscheint in der Chatliste des
-Ausstellers mit dem Label **API**, wo ein Schalter solche Unterhaltungen
-ausblendet.
+eines anderen antwortet `404`. Die Unterhaltung landet in der Chatliste des
+Ausstellers mit dem Label **API** und bleibt ausgeblendet, bis er solche
+Unterhaltungen dort per Schalter einblendet.
 
 `GET /api/v1/conversations/{id}/transcript` liest eine der Unterhaltungen des
 Ausstellers Zug für Zug, mit den Tools, die jeder Zug aufgerufen hat, und den

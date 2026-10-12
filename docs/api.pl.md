@@ -1,5 +1,5 @@
 ---
-source_sha: "88c49bc97aa7"
+source_sha: "398e54a8f2d7"
 ---
 
 # API HTTP { #the-http-api }
@@ -147,8 +147,8 @@ dla wystawcy klucza i zwraca jej identyfikator jako `conversation_id`; wyślij g
 w kolejnym wywołaniu, a agent przeczyta, co padło wcześniej - ostatnie tury albo
 podsumowanie starszych i to, co po nim. Workspace współdzielony per rozmowa
 (domyślny) należy do tej rozmowy. Nieznany identyfikator albo cudza rozmowa
-dostają `404`. Rozmowa pojawia się na liście czatów wystawcy z etykietą **API**,
-a przełącznik ukrywa takie rozmowy.
+dostają `404`. Rozmowa trafia na listę czatów wystawcy z etykietą **API**
+i pozostaje ukryta, dopóki nie włączy tam takich rozmów przełącznikiem.
 
 `GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po
 turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z

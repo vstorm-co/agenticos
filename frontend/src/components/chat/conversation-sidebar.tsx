@@ -15,7 +15,6 @@ import {
 import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
@@ -482,8 +481,6 @@ function ConversationList({
         )}
       </div>
 
-      <SidebarTriggers />
-
       {filters}
 
       {/* Where the archive is said, since the switch to it now sits behind
@@ -648,7 +645,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   );
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
-  const [hideApi, setHideApi] = useState(searchParams.get("api") === "hide");
+  // Hidden unless asked for: an organization key's runs open a conversation
+  // each, and a script calling the API every minute buried the chats a person
+  // came here for. `?api=show` brings them back.
+  const [hideApi, setHideApi] = useState(searchParams.get("api") !== "show");
   const [sort, setSort] = useState<ConversationSort>(() => {
     const fromUrl = searchParams.get("sort");
     return isConversationSort(fromUrl) ? fromUrl : DEFAULT_SORT;
@@ -702,12 +702,13 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   };
   const changeHideApi = (next: boolean) => {
     setHideApi(next);
-    setUrlParam("api", next ? "hide" : null);
+    setUrlParam("api", next ? null : "show");
   };
   const clearFilters = () => {
     changeSearch("");
     changeAgent(null);
-    changeHideApi(false);
+    // Back to the default, which hides them - not to "everything".
+    changeHideApi(true);
   };
 
   const listProps = {
@@ -718,7 +719,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     // The sort is not a filter: it reorders the same threads, so an empty list
     // under it is empty for some other reason and "clear the filters" would do
     // nothing a reader could see.
-    isFiltered: debouncedSearch.trim() !== "" || agentId !== null || hideApi,
+    isFiltered: debouncedSearch.trim() !== "" || agentId !== null,
     onClearFilters: clearFilters,
     filters: (
       <ConversationFilters
