@@ -119,3 +119,28 @@ def test_a_route_mounted_directly_on_an_app_is_read_too() -> None:
     assert ("get", "/bare") in operations
     assert ("get", "/v1/console-thing") not in operations
     assert set(document["paths"]) == {"/v1/public-thing", "/bare"}
+
+
+def test_a_route_can_declare_refusals_of_its_own() -> None:
+    """The run route answers 500 and 502 naming the run (#2121); the document says
+    so in the envelope, and the instruction that said so is not left in it."""
+    small = FastAPI()
+
+    @small.post(
+        "/run",
+        dependencies=[PUBLIC],
+        openapi_extra={"x-error-responses": {"502": "The provider failed."}},
+    )
+    async def run() -> dict[str, str]:
+        return {}
+
+    document = public_openapi(
+        get_openapi(title="t", version="1", routes=small.routes), public_operations(small.routes)
+    )
+    operation = document["paths"]["/run"]["post"]
+
+    assert operation["responses"]["502"]["description"] == "The provider failed."
+    assert operation["responses"]["502"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    assert "x-error-responses" not in operation

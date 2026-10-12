@@ -420,6 +420,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A run the API started and the model provider refused names itself.** It
+  answered a bare `500`; now `502 MODEL_CALL_FAILED` (or `500 RUN_FAILED` for
+  any other failure once started) with `details.run_id` and `details.status`, so
+  the caller can read the run it was billed for (#2121).
 - **Signing in to Meta Ads works.** OAuth discovery sent its requests with no
   User-Agent, and Facebook answers those with an "unsupported browser" page, so
   the server read as having no OAuth metadata.

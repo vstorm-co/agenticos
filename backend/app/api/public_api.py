@@ -153,7 +153,11 @@ def public_openapi(full: dict[str, Any], public: set[tuple[str, str]]) -> dict[s
                 for code, answer in operation.get("responses", {}).items()
                 if code != "422"
             }
-            for code, description in _ERRORS.items():
+            # A route's own refusals beyond the common ones, declared on it -
+            # the run route's failed-run answers (#2121). Read and removed: the
+            # extension is an instruction to this function, not a part of the API.
+            extra: dict[str, str] = operation.pop("x-error-responses", {})
+            for code, description in {**_ERRORS, **extra}.items():
                 responses.setdefault(
                     code,
                     {

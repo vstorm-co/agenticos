@@ -66,6 +66,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -175,10 +176,13 @@ from app.agents.subagent_runtime import (
 )
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
+    ModelCallFailedError,
     NotFoundError,
     RunExecutionError,
+    RunFailedError,
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
@@ -2024,6 +2028,19 @@ class RunSegment:
     run: AgentRun
     tool_calls: list[RecordedToolCall]
     settled: dict[str, str]
+
+
+def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
+    """The refusal naming a run that failed once it started (#2121).
+
+    `run.error` is our own sentence, written by `_run` from the exception; the
+    exception itself is not put on the wire.
+    """
+    kind = ModelCallFailedError if isinstance(exc, ModelAPIError) else RunFailedError
+    return kind(
+        message=f"{kind.message}: {run.error}" if run.error else kind.message,
+        details={"run_id": str(run.id), "status": run.status},
+    )
 
 
 class AgentRunnerService:
@@ -3959,6 +3976,7 @@ class AgentRunnerService:
         parks_questions: bool = False,
         steering: SteeringInbox | None = None,
         aside: bool = False,
+        reports_failure: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3998,6 +4016,12 @@ class AgentRunnerService:
 
         `steering` is the inbox of a surface whose person may add to the task
         while it runs, and `aside` answers a question on the side of one (#2087).
+
+        `reports_failure` is for the HTTP API: a run that fails once started raises
+        :class:`RunFailedError` naming it - :class:`ModelCallFailedError` when the
+        model provider was what failed - instead of the bare exception, so the
+        caller learns which run to read (#2121). The other surfaces answer a
+        failure their own way and keep the original exception.
         """
         if aside:
             # Said as the person asked it; told to the model as a side question.
@@ -4032,18 +4056,25 @@ class AgentRunnerService:
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             ).build_prompt(prompt, attachments)
-        segment = await self._run(
-            prepared,
-            user_prompt=assembled,
-            # The prompt as it was *given*, not as it was assembled: the files
-            # are recorded as rows below, and a surface that prepends its own
-            # note passes what the person typed.
-            said=prompt if said is None else said,
-            attachments=attachments or (),
-            message_history=message_history,
-            deferred_tool_results=None,
-            stream=stream,
-        )
+        try:
+            segment = await self._run(
+                prepared,
+                user_prompt=assembled,
+                # The prompt as it was *given*, not as it was assembled: the files
+                # are recorded as rows below, and a surface that prepends its own
+                # note passes what the person typed.
+                said=prompt if said is None else said,
+                attachments=attachments or (),
+                message_history=message_history,
+                deferred_tool_results=None,
+                stream=stream,
+            )
+        except Exception as exc:
+            # A refusal of ours already says what it means; only a failure the
+            # run recorded as one is renamed.
+            if not reports_failure or isinstance(exc, AppException):
+                raise
+            raise failed_run_error(prepared.run, exc) from exc
         if outbound is not None:
             outbound.extend(prepared.outbound)
         if outbound_refused is not None:

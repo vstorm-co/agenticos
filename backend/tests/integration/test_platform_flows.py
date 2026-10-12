@@ -4951,6 +4951,38 @@ class TestCallingWithAnOrganizationKey:
         assert run is not None
         assert run.conversation_id == thread.id
 
+    async def test_a_run_the_model_provider_refused_names_the_run_it_recorded(
+        self, db, monkeypatch
+    ) -> None:
+        """A provider's refusal used to answer a bare 500, and the caller never
+        learnt the id of the run it had paid for (#2121)."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        from app.agents.model_resolver import ModelRequestSpec
+
+        async def refuse(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise ModelHTTPError(status_code=400, model_name="m", body={"error": "ttl"})
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(refuse))
+        tenant = await _tenant(db, name="KeyRefused")
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        created = await ApiKeyService(db).create(
+            tenant.ctx,
+            ApiKeyCreate(name="nightly", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_RUN]),
+        )
+
+        answer = await self._run(db, agent, created.key)
+
+        assert answer.status_code == 502, answer.text
+        error = answer.json()["error"]
+        assert error["code"] == "MODEL_CALL_FAILED"
+        assert error["details"]["status"] == RunStatus.FAILED.value
+        assert "ttl" not in error["message"], "the provider's body is not put on the wire"
+        run = await db.get(AgentRun, uuid.UUID(error["details"]["run_id"]))
+        assert run is not None
+        assert run.status == RunStatus.FAILED.value
+        assert run.surface == RunSurface.API.value
+
     @pytest.mark.security
     async def test_a_conversation_that_is_not_the_issuers_is_reported_missing(self, db) -> None:
         """Unknown, another member's, another tenant's: one 404, and no run.

@@ -1,5 +1,5 @@
 ---
-source_sha: "97fc5cae2144"
+source_sha: "35c84eab89b3"
 ---
 
 # API HTTP { #the-http-api }
@@ -319,6 +319,14 @@ stronę ponownie.
 
 Odpowiedź `401` niesie `WWW-Authenticate: Bearer`. Odczyt spoza najemcy
 odpowiada `404`, a nie `403`, z podanego wyżej powodu.
+
+**Run, który się zaczął i nie powiódł, podaje swoje id.** `POST /agents/{id}/run`
+odpowiada `502` z `MODEL_CALL_FAILED`, gdy dostawca modelu odrzucił żądanie albo
+go nie dokończył, oraz `500` z `RUN_FAILED` przy każdej innej awarii po starcie
+runu. Obie odpowiedzi niosą `details.run_id` i `details.status`, a `message` mówi
+dlaczego słowami platformy, a nie surową odpowiedzią dostawcy. Run jest zapisany
+jako nieudany razem z tym, co zużył, więc `GET /api/v1/runs/{run_id}` go odczyta;
+ponowne wysłanie żądania zaczyna nowy run.
 
 ## Ponawianie, idempotencja i rewizje { #retries-idempotency-and-revisions }
 

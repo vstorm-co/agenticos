@@ -567,6 +567,15 @@ async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> 
 @router.post(
     "/{agent_id}/run",
     response_model=AgentRunResult,
+    # Answered in the error envelope with `details.run_id` (#2121); the public
+    # document draws them as it draws every other refusal.
+    openapi_extra={
+        "x-error-responses": {
+            "500": "The run started and failed. `details.run_id` names it, and `message` says why.",
+            "502": "The model provider refused or failed the run's request. "
+            "`details.run_id` names the run, which is recorded as failed.",
+        }
+    },
     # Not a permission gate - see the boundary about `require(...)` on
     # per-resource routes. A rate limit is about the caller, not about the row,
     # and this is the one route on this surface a stranger with a token reaches.
@@ -623,6 +632,7 @@ async def run_agent(
         conversation_id=data.conversation_id,
         environment_id=data.environment_id,
         attachments=attachments,
+        reports_failure=True,
     )
     return AgentRunResult(
         run_id=run.id,

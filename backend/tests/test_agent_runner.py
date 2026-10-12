@@ -66,8 +66,10 @@ from app.agents.subagent_runtime import DelegationSpend, DelegationStash, Parked
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ModelCallFailedError,
     NotFoundError,
     RunExecutionError,
+    RunFailedError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
@@ -4937,3 +4939,56 @@ class TestAddingToARunAndAskingAside:
             await service.prepare(_ctx(), agent.id, aside=True)
 
         assert assemble.await_args.kwargs["spec"].capabilities == []
+
+
+class TestAFailedRunOverTheApi:
+    """The API learns which run failed, and why in our words (#2121)."""
+
+    @staticmethod
+    def _service(raised: BaseException, *, error: str | None = "The model refused the request."):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.run.error = error
+        prepared.run.status = RunStatus.FAILED.value
+        service.prepare = AsyncMock(return_value=prepared)
+        service._run = AsyncMock(side_effect=raised)
+        return service, prepared.run
+
+    @pytest.mark.anyio
+    async def test_a_provider_refusal_names_the_run_as_a_bad_gateway(self):
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        service, run = self._service(ModelHTTPError(400, "m", {"secret": "https://x?key=k"}))
+
+        with pytest.raises(ModelCallFailedError) as raised:
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+        assert raised.value.status_code == 502
+        assert raised.value.details == {"run_id": str(run.id), "status": "failed"}
+        assert raised.value.message.endswith("The model refused the request.")
+        assert "key=k" not in raised.value.message
+
+    @pytest.mark.anyio
+    async def test_any_other_failure_names_the_run_too(self):
+        service, run = self._service(RuntimeError("boom"), error=None)
+
+        with pytest.raises(RunFailedError) as raised:
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+        assert raised.value.status_code == 500
+        assert raised.value.message == RunFailedError.message
+        assert raised.value.details["run_id"] == str(run.id)
+
+    @pytest.mark.anyio
+    async def test_a_refusal_of_ours_stays_itself(self):
+        service, _run = self._service(BadRequestError(message="No model"))
+
+        with pytest.raises(BadRequestError):
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+    @pytest.mark.anyio
+    async def test_other_surfaces_keep_the_original_exception(self):
+        service, _run = self._service(RuntimeError("boom"))
+
+        with pytest.raises(RuntimeError):
+            await service.execute(_ctx(), uuid.uuid4(), "hi")
