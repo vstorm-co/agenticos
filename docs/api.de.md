@@ -1,5 +1,5 @@
 ---
-source_sha: "d0d20e768913"
+source_sha: "a62977c3aff8"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -26,7 +26,7 @@ Drei Wege hinein, für drei verschiedene Aufrufer.
 ### API-Schlüssel der Organisation { #organization-api-keys }
 
 Ein Schlüssel wird von einem Mitglied in einer Organisation ausgestellt, unter
-**Einstellungen → API-Schlüssel** (oder mit `POST /api/v1/api-keys` aus einer
+**Einstellungen → API** (oder mit `POST /api/v1/api-keys` aus einer
 angemeldeten Sitzung). Er trägt die Befugnisse dieses Mitglieds, zweifach
 eingeschränkt:
 
@@ -168,8 +168,7 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 ## Beispiele Schritt für Schritt { #worked-examples }
 
 Jedes läuft mit einem Organisationsschlüssel in `$AGENTICOS_KEY` und dem Ursprung
-der API in `$BASE`. Erstellen Sie den Schlüssel unter **Einstellungen →
-API-Schlüssel** mit den Berechtigungen, die das Beispiel nennt; die Konsole zeigt
+der API in `$BASE`. Erstellen Sie den Schlüssel unter **Einstellungen → API** mit den Berechtigungen, die das Beispiel nennt; die Konsole zeigt
 ihn einmal.
 
 **Ein Dokument in eine Wissensbasis legen und sie durchsuchen** — ein Schlüssel
@@ -314,6 +313,8 @@ oder Enum-Wert —, und ein Client muss Antwortfelder ignorieren, die er nicht
 kennt. Entfernen oder Umbenennen geschieht erst, nachdem es dort mindestens 90 Tage
 als `deprecated` markiert und in den [Release Notes](release-notes.md) aufgeführt
 war; eine Änderung, die so nicht geht, kommt in `/api/v2`, neben v1.
+
+Die Konsole zeigt dasselbe Dokument als Seite: **Einstellungen → API → API-Referenz** listet jeden Endpunkt mit Parametern, Body, Antworten und einem fertigen `curl`-Aufruf.
 
 Die erste Umbenennung nach dieser Regel sind Apps (#2071): Was Artefakte waren,
 wird unter `/api/v1/apps` und `/api/v1/public/apps` ausgeliefert, und die alten

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b234d824fff"
+source_sha: "6c7a679e16af"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -849,6 +849,8 @@ godzinę, który sam się odnawia. Nigdzie nie wklejasz klucza.
 Rejestracja nie wymaga poświadczeń, więc jest limitowana per adres jak logowanie,
 a klient, z którym nikt nie dokończył logowania, znika po dobie.
 
+W konsoli **Ustawienia → Klienci MCP** pokazuje adres tego serwera i dokładne polecenie albo konfigurację dla Claude Code, Codexa, Claude Desktop, Cursora i VS Code, dla obu sposobów logowania.
+
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp
 ```
@@ -884,7 +886,7 @@ Celowo nie ma tu publikowania agenta, dotykania poświadczeń ani usuwania
 czegokolwiek poza draftem agenta, który wywołujący sam utworzył i nigdy nie
 opublikował - to cofnięcie draftu utworzonego przez pomyłkę. Draft utworzony
 tutaj publikuje osoba w konsoli. Podłączone aplikacje są
-widoczne w **Ustawienia → Klucze API**, gdzie odłączenie kończy ich dostęp razem
+widoczne w **Ustawienia → Klienci MCP**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
 

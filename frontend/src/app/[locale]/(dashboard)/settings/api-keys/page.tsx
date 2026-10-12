@@ -1,13 +1,13 @@
 "use client";
 
 import { ApiKeysManager } from "@/components/settings/api-keys-manager";
-import { ConnectedApps } from "@/components/settings/connected-apps";
+import { ApiUsage } from "@/components/settings/api-usage";
 
 export default function ApiKeysSettingsPage() {
   return (
     <div className="space-y-6">
+      <ApiUsage />
       <ApiKeysManager />
-      <ConnectedApps />
     </div>
   );
 }

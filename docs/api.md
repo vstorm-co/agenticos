@@ -21,7 +21,7 @@ Three ways in, for three different callers.
 
 ### Organization API keys
 
-A key is issued by a member, in one organization, from **Settings → API keys**
+A key is issued by a member, in one organization, from **Settings → API**
 (or `POST /api/v1/api-keys` from a signed-in session). It carries that member's
 authority, narrowed twice:
 
@@ -149,7 +149,7 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 ## Worked examples
 
 Each one runs with an organization key in `$AGENTICOS_KEY` and the API's origin
-in `$BASE`. Create the key under **Settings → API keys** with the permissions the
+in `$BASE`. Create the key under **Settings → API** with the permissions the
 example names; the console shows the key once.
 
 **Put a document into a knowledge base and search it** — a key with
@@ -292,6 +292,8 @@ Removing or renaming something there happens only after it has been marked
 `deprecated` in that document for at least 90 days and listed in the
 [release notes](release-notes.md); a change that cannot be made that way goes into
 `/api/v2`, beside v1.
+
+The console reads the same document as a page: **Settings → API → API reference** lists every endpoint with its parameters, body, responses and a ready `curl` call.
 
 The first rename under that rule is apps (#2071): what were artifacts are served at
 `/api/v1/apps` and `/api/v1/public/apps`, and the old `/api/v1/artifacts` and

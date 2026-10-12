@@ -814,6 +814,8 @@ anywhere.
 Registration needs no credential, so it is limited per address like sign-in,
 and a client nobody completed sign-in with is forgotten after a day.
 
+In the console, **Settings → MCP clients** shows this server's URL and the exact command or configuration for Claude Code, Codex, Claude Desktop, Cursor and VS Code, for both ways of signing in.
+
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp
 ```
@@ -849,7 +851,7 @@ Deliberately absent: publishing an agent, touching a credential, and deleting
 anything but an agent draft its caller created and never published - the undo
 for a draft made by mistake. A draft created here is published by a person in
 the console.
-Connected applications are listed under **Settings → API keys**, where
+Connected applications are listed under **Settings → MCP clients**, where
 disconnecting one ends its access and every token it holds. Calls that change
 something wait for approval, as [below](#which-calls-wait-for-a-person) explains.
 

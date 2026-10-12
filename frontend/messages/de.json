@@ -1400,7 +1400,9 @@
     "yes": "Ja",
     "dismiss": "Ausblenden",
     "showMore": "Mehr",
-    "showLess": "Weniger"
+    "showLess": "Weniger",
+    "copy": "Kopieren",
+    "copied": "Kopiert"
   },
   "dashboard": {
     "actions": {
@@ -2822,9 +2824,10 @@
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
     "artifacts": "Apps",
-    "apiKeys": "API-Schlüssel",
     "assistant": "Assistent",
-    "groups": "Gruppen"
+    "groups": "Gruppen",
+    "api": "API",
+    "mcpClients": "MCP-Clients"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3383,6 +3386,14 @@
       "group-add-to": {
         "title": "Geben Sie ihr, was sie braucht",
         "body": "Teilen Sie Agents, Wissen, Skills, Kontext, Apps und MCP-Server mit der ganzen Abteilung auf einmal. Jedes Mitglied wird benachrichtigt."
+      },
+      "settings-mcp-connect": {
+        "title": "Einen MCP-Client verbinden",
+        "body": "Verbinden Sie Claude Code, Codex, Cursor oder VS Code mit dieser Organisation: Kopieren Sie die Server-URL oder den Befehl für Ihren Client und melden Sie sich über den Browser an."
+      },
+      "settings-api-usage": {
+        "title": "Die API verwenden",
+        "body": "Die Basis-URL, wie ein Schlüssel sich anmeldet, und die Referenz jedes Endpunkts, den ein Schlüssel aufrufen kann."
       }
     },
     "chooseLanguage": "Sprache"
@@ -6686,5 +6697,70 @@
         "description": "Wie viele Ergebnisse eine Suche liefert; bei nativer Suche ignoriert."
       }
     }
+  },
+  "apiReference": {
+    "title": "API-Referenz",
+    "description": "Jeder Endpunkt, den ein API-Schlüssel in dieser Installation aufrufen kann (Version {version}), gelesen aus ihrem eigenen OpenAPI-Dokument. Öffnen Sie einen Endpunkt für Parameter, Body, Antworten und einen fertigen curl-Aufruf.",
+    "back": "API-Schlüssel",
+    "baseUrl": "Basis-URL",
+    "authTitle": "Authentifizierung",
+    "authBody": "Senden Sie den Schlüssel im Header <code>Authorization: Bearer aos_…</code>. Er handelt in der Organisation, in der er ausgestellt wurde, mit den Berechtigungen, mit denen er ausgestellt wurde, nie mit mehr, als sein Aussteller jetzt hat, und hat ein eigenes Rate Limit.",
+    "guide": "So rufen Sie die API auf",
+    "download": "OpenAPI herunterladen (JSON)",
+    "search": "Endpunkte durchsuchen",
+    "groups": "Endpunktgruppen",
+    "count": "{count, plural, one {# Endpunkt} other {# Endpunkte}}",
+    "noMatch": "Kein Endpunkt passt zu „{query}“.",
+    "parameters": "Parameter",
+    "requestBody": "Request-Body",
+    "responses": "Antworten",
+    "example": "Beispiel",
+    "name": "Name",
+    "location": "Wo",
+    "type": "Typ",
+    "fieldDescription": "Beschreibung",
+    "requiredMark": "erforderlich",
+    "loadError": "Die API-Referenz konnte nicht geladen werden."
+  },
+  "mcpConnect": {
+    "title": "Einen MCP-Client verbinden",
+    "why": "Claude Code, Codex, Cursor oder jeder andere MCP-Client kann über den eigenen MCP-Server von AgenticOS in dieser Organisation arbeiten: Agents auflisten und ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken durchsuchen und füllen, Mitglieder einladen.",
+    "docs": "Was der MCP-Server kann",
+    "serverUrl": "Server-URL",
+    "signIn": "Anmeldung",
+    "viaBrowser": "Über den Browser",
+    "viaKey": "Mit einem API-Schlüssel",
+    "browserHint": "Der Client öffnet diese Konsole, Sie wählen die Organisation und was er darf, und sein Zugang erneuert sich selbst. Verbundene Clients stehen unten.",
+    "keyHint": "Für einen Client, der keinen Browser öffnen kann. Erstellen Sie oben einen Schlüssel und setzen Sie ihn als AGENTICOS_API_KEY in der Umgebung des Clients.",
+    "note": {
+      "claude-code": {
+        "browser": "Führen Sie das aus, geben Sie dann /mcp in Claude Code ein und wählen Sie agenticos, um sich anzumelden.",
+        "key": "Führen Sie das mit gesetztem AGENTICOS_API_KEY in Ihrer Shell aus."
+      },
+      "codex": {
+        "browser": "Der zweite Befehl öffnet den Browser zur Anmeldung.",
+        "key": "Codex liest den Schlüssel aus AGENTICOS_API_KEY in seiner Umgebung."
+      },
+      "claude-desktop": {
+        "browser": "Öffnen Sie in Claude (Desktop oder claude.ai) Einstellungen → Connectors → Add custom connector, nennen Sie ihn AgenticOS und fügen Sie die Server-URL ein. Claude meldet sich über diese Konsole an. Die URL muss aus dem Internet über HTTPS erreichbar sein.",
+        "key": "Claudes Connectors melden sich immer über den Browser an, ein API-Schlüssel wird hier nicht verwendet. Wechseln Sie zu „Über den Browser“."
+      },
+      "cursor": {
+        "browser": "Fügen Sie das zu .cursor/mcp.json in Ihrem Home-Verzeichnis hinzu; Cursor fragt beim ersten Mal nach der Anmeldung.",
+        "key": "Fügen Sie das zu .cursor/mcp.json in Ihrem Home-Verzeichnis hinzu und ersetzen Sie aos_… durch Ihren Schlüssel."
+      },
+      "vscode": {
+        "browser": "Fügen Sie das zu .vscode/mcp.json in Ihrem Projekt hinzu; VS Code fragt beim ersten Mal nach der Anmeldung.",
+        "key": "Fügen Sie das zu .vscode/mcp.json in Ihrem Projekt hinzu; VS Code fragt einmal nach dem Schlüssel und speichert ihn sicher."
+      }
+    }
+  },
+  "apiUsage": {
+    "title": "Die API verwenden",
+    "why": "Alles, was ein API-Schlüssel kann, über einfaches HTTP: Agents ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken füllen und durchsuchen, Mitglieder verwalten. Erstellen Sie unten einen Schlüssel und rufen Sie die Basis-URL auf.",
+    "baseUrl": "Basis-URL",
+    "auth": "Senden Sie den Schlüssel im Header <code>Authorization: Bearer aos_…</code>.",
+    "reference": "API-Referenz: jeder Endpunkt",
+    "guide": "So rufen Sie die API auf"
   }
 }

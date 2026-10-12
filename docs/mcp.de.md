@@ -1,5 +1,5 @@
 ---
-source_sha: "3b234d824fff"
+source_sha: "6c7a679e16af"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -884,6 +884,8 @@ Die Registrierung braucht keine Anmeldedaten, daher ist sie wie die Anmeldung pr
 Adresse begrenzt, und ein Client, mit dem niemand die Anmeldung abgeschlossen hat,
 wird nach einem Tag vergessen.
 
+In der Konsole zeigt **Einstellungen → MCP-Clients** die URL dieses Servers und den genauen Befehl oder die Konfiguration für Claude Code, Codex, Claude Desktop, Cursor und VS Code, für beide Arten der Anmeldung.
+
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp
 ```
@@ -921,7 +923,7 @@ Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
 löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie
 veröffentlicht hat - das Rückgängigmachen eines versehentlichen Entwurfs. Einen
 hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
-Verbundene Anwendungen stehen unter **Einstellungen → API-Schlüssel**, wo das
+Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
 

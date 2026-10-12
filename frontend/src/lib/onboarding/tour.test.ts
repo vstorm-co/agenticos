@@ -210,7 +210,9 @@ describe("stepsForPage", () => {
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
       "my-memory",
+      "settings-api-usage",
       "settings-api-keys",
+      "settings-mcp-connect",
       "settings-connected-apps",
       "settings-assistant",
     ]);

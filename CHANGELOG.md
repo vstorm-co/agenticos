@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A reference of every endpoint an API key can call.** **Settings → API → API
+  reference** reads the public OpenAPI document into a searchable page, grouped
+  as the document tags them: each endpoint's parameters, body, responses and a
+  `curl` call to copy. The API tab leads with the base URL and how a key signs in.
+- **Connecting an MCP client has its own tab.** **Settings → MCP clients** shows
+  the server URL and the command or configuration for Claude Code, Codex, Claude
+  Desktop, Cursor and VS Code, for signing in through the browser or with an API
+  key, above the applications already connected.
+
 - **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
   languages, names each thing as the console does, says what it is and gives its
   name in the API and the spec; the Architect uses the same names, and a test
@@ -69,7 +78,7 @@ Two things are versioned separately from this file and worth knowing about:
   blocked keyword ends the run as `guardrail_blocked`. A delegate's streamed text
   and reasoning now pass its delegating run's output check in the delegation
   panel (#2000).
-- **Organization API keys.** A member issues a key under **Settings → API keys**
+- **Organization API keys.** A member issues a key under **Settings → API**
   and calls the public API with `Authorization: Bearer aos_…` from a script,
   Postman or an MCP client, with no browser session. A key carries its issuer's
   authority narrowed to the permissions it was issued with (presets or a custom
@@ -114,7 +123,7 @@ Two things are versioned separately from this file and worth knowing about:
   rotate, and a reused one revokes the grant with every token it issued. The
   access token is an organization key under the grant, so it is narrowed and
   audited like one. Connected applications are listed, and disconnected, under
-  **Settings → API keys**. Migration `0108_oauth_for_mcp` (#2059).
+  **Settings → MCP clients**. Migration `0108_oauth_for_mcp` (#2059).
 - **The Architect.** Every organization has one, without installing
   anything: the first time anybody opens the console it is installed from the
   *Architect* template as the organization's owner, shared with everyone, and

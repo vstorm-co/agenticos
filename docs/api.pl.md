@@ -1,5 +1,5 @@
 ---
-source_sha: "d0d20e768913"
+source_sha: "a62977c3aff8"
 ---
 
 # API HTTP { #the-http-api }
@@ -24,7 +24,7 @@ Trzy drogi wejścia, dla trzech różnych wywołujących.
 
 ### Klucze API organizacji { #organization-api-keys }
 
-Klucz wydaje członek, w jednej organizacji, w **Ustawienia → Klucze API** (albo
+Klucz wydaje członek, w jednej organizacji, w **Ustawienia → API** (albo
 przez `POST /api/v1/api-keys` z zalogowanej sesji). Niesie uprawnienia tego
 członka, zawężone dwukrotnie:
 
@@ -154,7 +154,7 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 ## Przykłady krok po kroku { #worked-examples }
 
 Każdy działa z kluczem organizacji w `$AGENTICOS_KEY` i adresem API w `$BASE`.
-Utwórz klucz w **Ustawienia → Klucze API** z uprawnieniami, które przykład
+Utwórz klucz w **Ustawienia → API** z uprawnieniami, które przykład
 wymienia; konsola pokaże klucz raz.
 
 **Wgraj dokument do bazy wiedzy i przeszukaj ją** — klucz z `collections:view` i
@@ -297,6 +297,8 @@ nie zna. Usunięcie albo zmiana nazwy następuje dopiero po co najmniej 90 dniac
 oznaczenia jako `deprecated` w tym dokumencie i wpisie w
 [notatkach do wydań](release-notes.md); zmiana, której nie da się tak przeprowadzić,
 trafia do `/api/v2`, obok v1.
+
+Konsola pokazuje ten sam dokument jako stronę: **Ustawienia → API → Dokumentacja API** wymienia każdy endpoint z parametrami, body, odpowiedziami i gotowym wywołaniem `curl`.
 
 Pierwszą zmianą nazwy według tej zasady są aplikacje (#2071): to, co było
 artefaktami, jest serwowane pod `/api/v1/apps` i `/api/v1/public/apps`, a stare

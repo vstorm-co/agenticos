@@ -1400,7 +1400,9 @@
     "yes": "Tak",
     "dismiss": "Odrzuć",
     "showMore": "Więcej",
-    "showLess": "Mniej"
+    "showLess": "Mniej",
+    "copy": "Kopiuj",
+    "copied": "Skopiowano"
   },
   "dashboard": {
     "actions": {
@@ -2710,9 +2712,10 @@
     "collapseSidebar": "Zwiń panel boczny",
     "expandSidebar": "Rozwiń panel boczny",
     "artifacts": "Aplikacje",
-    "apiKeys": "Klucze API",
     "assistant": "Asystent",
-    "groups": "Grupy"
+    "groups": "Grupy",
+    "api": "API",
+    "mcpClients": "Klienci MCP"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -3271,6 +3274,14 @@
       "group-add-to": {
         "title": "Daj mu to, czego potrzebuje",
         "body": "Udostępnij agentów, wiedzę, skille, kontekst, aplikacje i serwery MCP całemu działowi naraz. Każdy członek dostaje powiadomienie."
+      },
+      "settings-mcp-connect": {
+        "title": "Podłącz klienta MCP",
+        "body": "Podłącz Claude Code, Codex, Cursora lub VS Code do tej organizacji: skopiuj adres serwera albo polecenie dla swojego klienta i zaloguj się przez przeglądarkę."
+      },
+      "settings-api-usage": {
+        "title": "Korzystanie z API",
+        "body": "Adres bazowy, sposób uwierzytelniania kluczem i dokumentacja wszystkich endpointów dostępnych dla klucza."
       }
     },
     "chooseLanguage": "Język"
@@ -6587,5 +6598,70 @@
         "description": "Ile wyników zwraca jedno wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
       }
     }
+  },
+  "apiReference": {
+    "title": "Dokumentacja API",
+    "description": "Wszystkie endpointy, które klucz API może wywołać w tym wdrożeniu (wersja {version}), odczytane z jego dokumentu OpenAPI. Rozwiń endpoint, aby zobaczyć parametry, body, odpowiedzi i gotowe wywołanie curl.",
+    "back": "Klucze API",
+    "baseUrl": "Adres bazowy",
+    "authTitle": "Uwierzytelnianie",
+    "authBody": "Wyślij klucz w nagłówku <code>Authorization: Bearer aos_…</code>. Działa w organizacji, w której go wydano, z nadanymi mu uprawnieniami i nigdy ponad to, co jego wystawca ma teraz, a limit zapytań ma osobny.",
+    "guide": "Jak korzystać z API",
+    "download": "Pobierz OpenAPI (JSON)",
+    "search": "Szukaj endpointów",
+    "groups": "Grupy endpointów",
+    "count": "{count, plural, one {# endpoint} few {# endpointy} many {# endpointów} other {# endpointu}}",
+    "noMatch": "Żaden endpoint nie pasuje do „{query}”.",
+    "parameters": "Parametry",
+    "requestBody": "Body żądania",
+    "responses": "Odpowiedzi",
+    "example": "Przykład",
+    "name": "Nazwa",
+    "location": "Gdzie",
+    "type": "Typ",
+    "fieldDescription": "Opis",
+    "requiredMark": "wymagane",
+    "loadError": "Nie udało się wczytać dokumentacji API."
+  },
+  "mcpConnect": {
+    "title": "Podłącz klienta MCP",
+    "why": "Claude Code, Codex, Cursor i każdy inny klient MCP może pracować w tej organizacji przez własny serwer MCP AgenticOS: wyświetlać i uruchamiać agentów, czytać runy i ich koszty, przeszukiwać i uzupełniać bazy wiedzy, zapraszać członków.",
+    "docs": "Co potrafi serwer MCP",
+    "serverUrl": "Adres serwera",
+    "signIn": "Logowanie",
+    "viaBrowser": "Przez przeglądarkę",
+    "viaKey": "Kluczem API",
+    "browserHint": "Klient otwiera tę konsolę, wybierasz organizację i to, co może robić, a dostęp odnawia się sam. Podłączone klienty są na liście niżej.",
+    "keyHint": "Dla klienta, który nie może otworzyć przeglądarki. Utwórz klucz powyżej i ustaw go jako AGENTICOS_API_KEY w środowisku klienta.",
+    "note": {
+      "claude-code": {
+        "browser": "Uruchom to polecenie, potem wpisz /mcp w Claude Code i wybierz agenticos, aby się zalogować.",
+        "key": "Uruchom to polecenie z ustawionym AGENTICOS_API_KEY w powłoce."
+      },
+      "codex": {
+        "browser": "Drugie polecenie otwiera przeglądarkę, żeby się zalogować.",
+        "key": "Codex odczytuje klucz z AGENTICOS_API_KEY w swoim środowisku."
+      },
+      "claude-desktop": {
+        "browser": "W Claude (aplikacja desktopowa lub claude.ai) otwórz Ustawienia → Connectors → Add custom connector, nazwij go AgenticOS i wklej adres serwera. Claude zaloguje się przez tę konsolę. Adres musi być dostępny z internetu przez HTTPS.",
+        "key": "Konektory Claude zawsze logują się przez przeglądarkę, więc klucz API nie jest tu używany. Przełącz na „Przez przeglądarkę”."
+      },
+      "cursor": {
+        "browser": "Dodaj to do .cursor/mcp.json w katalogu domowym; Cursor poprosi o zalogowanie przy pierwszym użyciu.",
+        "key": "Dodaj to do .cursor/mcp.json w katalogu domowym i zamień aos_… na swój klucz."
+      },
+      "vscode": {
+        "browser": "Dodaj to do .vscode/mcp.json w projekcie; VS Code poprosi o zalogowanie przy pierwszym użyciu.",
+        "key": "Dodaj to do .vscode/mcp.json w projekcie; VS Code raz poprosi o klucz i zapisze go bezpiecznie."
+      }
+    }
+  },
+  "apiUsage": {
+    "title": "Korzystanie z API",
+    "why": "Wszystko, co może klucz API, przez zwykłe HTTP: uruchamianie agentów, odczyt runów i ich kosztów, uzupełnianie i przeszukiwanie baz wiedzy, zarządzanie członkami. Utwórz klucz poniżej i wywołuj adres bazowy.",
+    "baseUrl": "Adres bazowy",
+    "auth": "Wyślij klucz w nagłówku <code>Authorization: Bearer aos_…</code>.",
+    "reference": "Dokumentacja API: wszystkie endpointy",
+    "guide": "Jak korzystać z API"
   }
 }

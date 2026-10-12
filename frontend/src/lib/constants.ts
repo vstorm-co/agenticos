@@ -18,6 +18,8 @@ export const ROUTES = {
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
   SETTINGS_MEMORY: "/settings/memory",
   SETTINGS_API_KEYS: "/settings/api-keys",
+  SETTINGS_API_REFERENCE: "/settings/api-keys/reference",
+  SETTINGS_MCP: "/settings/mcp",
   SETTINGS_ASSISTANT: "/settings/assistant",
   OAUTH_CONSENT: "/oauth/consent",
   MCP_SERVERS: "/mcp-servers",
@@ -79,4 +81,6 @@ export const DOCS_URL = "https://vstorm-co.github.io/agenticos";
 export const DOCS = {
   RAW_WEBSOCKET: `${DOCS_URL}/channels/#the-raw-websocket`,
   PUBLIC_API: `${DOCS_URL}/channels/#the-public-api`,
+  API_KEYS: `${DOCS_URL}/api/#organization-api-keys`,
+  MCP_SERVER: `${DOCS_URL}/mcp/#agenticos-as-an-mcp-server`,
 } as const;

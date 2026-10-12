@@ -79,6 +79,11 @@ export default defineConfig({
         "src/components/settings/create-api-key-dialog.tsx",
         "src/components/settings/scope-picker.tsx",
         "src/components/settings/connected-apps.tsx",
+        "src/components/settings/api-reference/**",
+        "src/components/settings/api-usage.tsx",
+        "src/components/settings/copy-code.tsx",
+        "src/components/settings/mcp-connect.tsx",
+        "src/components/settings/mcp-snippets.ts",
         // The page an MCP client sends a person to, to consent (#2059).
         "src/components/oauth/**/*.tsx",
         // Live updates from changes made elsewhere (#2061).

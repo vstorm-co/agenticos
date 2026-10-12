@@ -13,6 +13,11 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  // The same document for everybody and every organization: it changes on a
+  // redeploy, not while somebody reads it.
+  publicApi: {
+    openapi: () => ["public-api", "openapi"] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,

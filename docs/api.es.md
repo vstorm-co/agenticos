@@ -1,5 +1,5 @@
 ---
-source_sha: "d0d20e768913"
+source_sha: "a62977c3aff8"
 ---
 
 # La API HTTP { #the-http-api }
@@ -25,7 +25,7 @@ Tres formas de entrar, para tres llamantes distintos.
 
 ### Claves de API de la organización { #organization-api-keys }
 
-Una clave la emite un miembro, en una organización, desde **Settings → API keys**
+Una clave la emite un miembro, en una organización, desde **Settings → API**
 (o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
 ese miembro, limitada dos veces:
 
@@ -159,7 +159,7 @@ curl -X POST "$BASE/api/v1/ml/privacy/pii" \
 ## Ejemplos paso a paso { #worked-examples }
 
 Cada uno funciona con una clave de la organización en `$AGENTICOS_KEY` y el origen
-de la API en `$BASE`. Crea la clave en **Settings → API keys** con los permisos que
+de la API en `$BASE`. Crea la clave en **Settings → API** con los permisos que
 nombra el ejemplo; la consola la muestra una vez.
 
 **Sube un documento a una base de conocimiento y búscalo** — una clave con
@@ -302,6 +302,8 @@ cliente debe ignorar los campos de respuesta que no conozca. Quitar o renombrar 
 solo ocurre después de marcarlo como `deprecated` en ese documento durante al menos
 90 días y listarlo en las [notas de versión](release-notes.md); un cambio que no se
 pueda hacer así va a `/api/v2`, junto a v1.
+
+La consola muestra el mismo documento como una página: **Settings → API → API reference** lista cada endpoint con sus parámetros, cuerpo, respuestas y una llamada `curl` lista para copiar.
 
 El primer cambio de nombre bajo esa regla son las aplicaciones (#2071): lo que eran
 artefactos se sirve en `/api/v1/apps` y `/api/v1/public/apps`, y las rutas antiguas

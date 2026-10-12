@@ -1400,7 +1400,9 @@
     "yes": "Yes",
     "dismiss": "Dismiss",
     "showMore": "More",
-    "showLess": "Less"
+    "showLess": "Less",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "dashboard": {
     "actions": {
@@ -2940,9 +2942,10 @@
     "collapseSidebar": "Collapse the sidebar",
     "expandSidebar": "Expand the sidebar",
     "artifacts": "Apps",
-    "apiKeys": "API keys",
     "assistant": "Assistant",
-    "groups": "Groups"
+    "groups": "Groups",
+    "api": "API",
+    "mcpClients": "MCP clients"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3501,6 +3504,14 @@
       "group-add-to": {
         "title": "Give it what it needs",
         "body": "Share agents, knowledge, skills, context, apps and MCP servers with the whole department at once. Each member is told it is there."
+      },
+      "settings-mcp-connect": {
+        "title": "Connect an MCP client",
+        "body": "Point Claude Code, Codex, Cursor or VS Code at this organization: copy the server URL or the command for your client, and sign in through the browser."
+      },
+      "settings-api-usage": {
+        "title": "Use the API",
+        "body": "The base URL, how a key authenticates, and the reference of every endpoint a key can call."
       }
     },
     "chooseLanguage": "Language"
@@ -6803,5 +6814,70 @@
         "description": "How many results one search returns; ignored for native search."
       }
     }
+  },
+  "apiReference": {
+    "title": "API reference",
+    "description": "Every endpoint an API key can call on this deployment (version {version}), read from its own OpenAPI document. Open an endpoint for its parameters, body, responses and a ready curl call.",
+    "back": "API keys",
+    "baseUrl": "Base URL",
+    "authTitle": "Authentication",
+    "authBody": "Send the key in the <code>Authorization: Bearer aos_…</code> header. It acts in the organization it was issued in, with the permissions it was issued with and never more than its issuer holds now, and it is rate limited on its own.",
+    "guide": "How to call the API",
+    "download": "Download OpenAPI (JSON)",
+    "search": "Search endpoints",
+    "groups": "Endpoint groups",
+    "count": "{count, plural, one {# endpoint} other {# endpoints}}",
+    "noMatch": "No endpoint matches “{query}”.",
+    "parameters": "Parameters",
+    "requestBody": "Request body",
+    "responses": "Responses",
+    "example": "Example",
+    "name": "Name",
+    "location": "In",
+    "type": "Type",
+    "fieldDescription": "Description",
+    "requiredMark": "required",
+    "loadError": "The API reference could not be loaded."
+  },
+  "mcpConnect": {
+    "title": "Connect an MCP client",
+    "why": "Claude Code, Codex, Cursor or any other MCP client can work in this organization through AgenticOS's own MCP server: list and run agents, read runs and what they cost, search and fill knowledge bases, invite members.",
+    "docs": "What the MCP server can do",
+    "serverUrl": "Server URL",
+    "signIn": "Sign in",
+    "viaBrowser": "Through the browser",
+    "viaKey": "With an API key",
+    "browserHint": "The client opens this console, you choose the organization and what it may do, and its access renews itself. Connected clients are listed below.",
+    "keyHint": "For a client that cannot open a browser. Create a key above and set it as AGENTICOS_API_KEY in the client’s environment.",
+    "note": {
+      "claude-code": {
+        "browser": "Run this, then type /mcp in Claude Code and choose agenticos to sign in.",
+        "key": "Run this with AGENTICOS_API_KEY set in your shell."
+      },
+      "codex": {
+        "browser": "The second command opens the browser to sign in.",
+        "key": "Codex reads the key from AGENTICOS_API_KEY in its environment."
+      },
+      "claude-desktop": {
+        "browser": "In Claude (desktop or claude.ai), open Settings → Connectors → Add custom connector, name it AgenticOS and paste the server URL. Claude signs in through this console. The URL has to be reachable from the internet over HTTPS.",
+        "key": "Claude’s connectors always sign in through the browser, so an API key is not used here. Switch to “Through the browser”."
+      },
+      "cursor": {
+        "browser": "Add this to .cursor/mcp.json in your home folder; Cursor asks you to sign in the first time.",
+        "key": "Add this to .cursor/mcp.json in your home folder and replace aos_… with your key."
+      },
+      "vscode": {
+        "browser": "Add this to .vscode/mcp.json in your project; VS Code asks you to sign in the first time.",
+        "key": "Add this to .vscode/mcp.json in your project; VS Code asks for the key once and stores it securely."
+      }
+    }
+  },
+  "apiUsage": {
+    "title": "Use the API",
+    "why": "Everything an API key can do, over plain HTTP: run agents, read runs and what they cost, fill and search knowledge bases, manage members. Create a key below, then call the base URL.",
+    "baseUrl": "Base URL",
+    "auth": "Send the key in the <code>Authorization: Bearer aos_…</code> header.",
+    "reference": "API reference: every endpoint",
+    "guide": "How to call the API"
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b234d824fff"
+source_sha: "6c7a679e16af"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -869,6 +869,8 @@ El registro no necesita credenciales, así que se limita por dirección como el
 inicio de sesión, y un cliente con el que nadie completó el inicio de sesión se
 olvida al cabo de un día.
 
+En la consola, **Settings → MCP clients** muestra la URL de este servidor y el comando o la configuración exactos para Claude Code, Codex, Claude Desktop, Cursor y VS Code, para las dos formas de iniciar sesión.
+
 ```bash
 claude mcp add --transport http agenticos https://<your-deployment>/mcp
 ```
@@ -904,7 +906,7 @@ permiso que faltaba.
 A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
 un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
 creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
-aparecen en **Settings → API keys**, donde desconectar una termina su acceso y
+aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
 
