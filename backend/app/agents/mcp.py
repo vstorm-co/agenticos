@@ -71,6 +71,10 @@ class McpToolInfo:
 
     name: str
     description: str
+    read_only: bool = False
+    """Whether the server marks the tool `readOnlyHint` - the same signal the
+    `writes` approval policy trusts, so the console shows which tools a binding
+    would stop for. Absent is a write: a hint nobody gave promises nothing."""
 
 
 @dataclass(frozen=True)
@@ -155,7 +159,14 @@ async def probe_mcp_server(
         if _carries_base_exception(exc):
             raise
         raise McpProbeError(probe_error_message(exc)) from exc
-    return [McpToolInfo(name=t.name, description=t.description or "") for t in result.tools]
+    return [
+        McpToolInfo(
+            name=t.name,
+            description=t.description or "",
+            read_only=bool(t.annotations and t.annotations.read_only_hint is True),
+        )
+        for t in result.tools
+    ]
 
 
 def _carries_base_exception(exc: BaseException) -> bool:

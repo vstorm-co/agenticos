@@ -24,6 +24,10 @@ MAX_ALLOWED_TOOLS = 100
 class McpToolRead(BaseSchema):
     name: str
     description: str
+    read_only: bool = Field(
+        default=False,
+        description="The server marks it readOnlyHint; anything else is treated as a write",
+    )
 
 
 class McpConnectionCreate(BaseSchema):

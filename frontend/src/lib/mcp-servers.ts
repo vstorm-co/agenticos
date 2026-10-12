@@ -375,3 +375,14 @@ export function ownAccountStatus(
   if (chosen === undefined) return "undecided";
   return chosen.authorized ? "connected" : "unauthorized";
 }
+
+/**
+ * A backend category slug as a reader sees it.
+ *
+ * The catalog's categories are identifiers - `project-management`,
+ * `observability` - and uppercasing one in CSS turns the hyphen into a visible
+ * seam that reads as a machine field rather than a section of a catalogue.
+ */
+export function categoryLabel(category: string): string {
+  return category.replace(/-/g, " ");
+}

@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cable, ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
+import { Cable, ChevronRight, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
   ConfirmDialog,
   ListCard,
   Pager,
@@ -19,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -41,6 +39,7 @@ import {
   connectionState,
   CUSTOM_CATEGORY,
   matchingCustomRows,
+  categoryLabel,
   customRows,
   isReviewed,
   MCP_AUTH_LABEL,
@@ -49,6 +48,7 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import type { McpAuthKind } from "@/types/mcp";
 import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
@@ -65,17 +65,6 @@ const CONNECT_PARAM = "connect";
 
 /** Whether a row is filtered by whether anybody has connected it. */
 type StateFilter = "all" | "connected" | "not-connected";
-
-/**
- * A backend category slug as a heading.
- *
- * The catalog's categories are identifiers - `project-management`,
- * `observability` - and uppercasing one in CSS turns the hyphen into a visible
- * seam that reads as a machine field rather than a section of a catalogue.
- */
-function categoryLabel(category: string): string {
-  return category.replace(/-/g, " ");
-}
 
 /**
  * A name nothing in this scope holds yet, for a second account on one server.
@@ -142,6 +131,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
+  // What a server asks for, asked of the server like the category: the mirror's
+  // rows say it only where the catalog check found it out (#2103).
+  const [auth, setAuth] = useState<McpAuthKind | "all">("all");
   // The query, the category and the page all go to the server, because the list
   // is a request now rather than a filter over what the client holds. It held
   // the curated hundred and filtered them locally, which was right until 5,703
@@ -149,7 +141,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // whatever that page happened to contain, and so is ranking one.
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
-  const listing = useMcpCatalogPage(query, category === "all" ? "" : category, page);
+  const listing = useMcpCatalogPage(
+    query,
+    category === "all" ? "" : category,
+    auth === "all" ? "" : auth,
+    page,
+  );
 
   // The page's catalog entries with their connections folded on. Custom rows are
   // *not* built from a page: whether a connection is "not in the catalog" is a
@@ -530,6 +527,25 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={auth}
+            onValueChange={(value) => {
+              setAuth(value as McpAuthKind | "all");
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-auto min-w-36" aria-label={t("authFilter")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("anyAuth")}</SelectItem>
+              {(["oauth", "token", "none"] as const).map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {t(MCP_AUTH_LABEL[kind])}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
             <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
               <SelectValue />
@@ -589,149 +605,71 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          */}
         <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((row, index) => (
-            <Card
+            <McpServerCard
               key={row.key}
-              role="group"
-              aria-label={row.name}
-              className="h-full"
-              data-tour={index === 0 ? "mcp-connect" : undefined}
-            >
-              {/* No hover state, unlike the agents grid: there a card is a link and
-                the border lighting up says so. Here the actions are inside the
-                card, and a card that responds to a hover but does nothing when
-                clicked is a worse lie than a flat one. */}
-              <CardContent className="flex h-full flex-col gap-3 p-4">
-                <div className="flex items-start gap-2.5">
-                  <McpServerIcon
-                    icon={row.entry?.icon ?? null}
-                    name={row.name}
-                    className="mt-0.5 h-6 w-6"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{row.name}</span>
-                      {/* One list holds both kinds, so the difference has to be
-                          on the row rather than in a heading over half of it.
-                          Nobody here checked a registry server: the description
-                          is the publisher's and there is no token hint, which is
-                          worth knowing before pasting a credential into it. */}
-                      {isReviewed(row) ? (
-                        <Badge variant="outline" className="shrink-0">
-                          {t(MCP_AUTH_LABEL[row.auth])}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className="shrink-0"
-                          title={t("fromRegistryHint")}
-                        >
-                          {t("fromRegistry")}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                      {row.category === CUSTOM_CATEGORY
-                        ? t("notCatalog")
-                        : categoryLabel(row.category)}
-                    </p>
-                    <p className="text-muted-foreground line-clamp-2 text-sm">
-                      {rowDescription(row, t)}
-                    </p>
-                    {row.url === null ? (
-                      // Prose, so it is set as prose. Monospacing this sentence
-                      // and then truncating it produced "Self-hosted - you supply
-                      // the…", which reads as a URL that got cut off.
-                      <p className="text-muted-foreground text-xs">{t("selfHostedYouSupply")}</p>
-                    ) : (
-                      // Truncated rather than wrapped: spelled out, the URL is the
-                      // tallest thing on the card, and the full editable copy is
-                      // one click away in the dialog.
-                      <p
-                        className="text-muted-foreground truncate font-mono text-xs"
-                        title={row.url}
-                      >
-                        {/* A query string may carry a key - never render one. */}
-                        {`${row.url.split("?")[0]}${row.url.includes("?") ? "?…" : ""}`}
-                      </p>
-                    )}
-                    {row.docsUrl && (
-                      <a
-                        href={row.docsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
-                      >
-                        {t("documentation")}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pushed to the foot, and the rule above it is why that reads as
-                  a decision rather than a hole. An earlier version kept the
-                  actions directly under the description to avoid a void in the
-                  middle of the card - but cards in a row are the same height and
-                  their descriptions are not, so the buttons landed at a
-                  different height in every column. Consistent placement is worth
-                  more than tight spacing: a separator turns the slack into an
-                  action bar. */}
-                <div className="mt-auto">
-                  {/* One row, always, and always at the foot of the card.
-                    The block above takes the slack, so a description that runs
-                    to four lines and one that runs to two put their actions in
-                    the same place - which is the whole reason a grid of cards
-                    is scannable. State rides on the trigger rather than on a
-                    chip of its own, because a chip on some cards and not others
-                    is the misalignment again, one row up. */}
-                  {/* `min-w-0` so the row can shrink rather than overflow. Every
-                      `Button` is `whitespace-nowrap` and nothing here could give
-                      way, so the two controls took the full width, `ml-auto`
-                      collapsed to nothing, and the `shrink-0` dot was pushed
-                      past the card's right edge - visibly outside it on a card
-                      with three connections. */}
-                  <div className="border-border mt-3 flex min-w-0 items-center gap-1.5 border-t pt-3">
-                    {/* Exactly two controls, whatever the card holds. The row
-                        used to grow one chip per connection, so a server with
-                        three accounts stood taller than its neighbours and the
-                        grid went ragged - the misalignment this footer exists
-                        to prevent, reintroduced one row down. */}
+              name={row.name}
+              icon={row.entry?.icon ?? null}
+              // One list holds both kinds, so the difference has to be on the
+              // card rather than in a heading over half of it. Nobody here
+              // checked a registry server: the description is the publisher's
+              // and there is no token hint, which is worth knowing before
+              // pasting a credential into it.
+              badge={
+                isReviewed(row) ? (
+                  <Badge variant="outline" className="shrink-0">
+                    {t(MCP_AUTH_LABEL[row.auth])}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="shrink-0" title={t("fromRegistryHint")}>
+                    {t("fromRegistry")}
+                  </Badge>
+                )
+              }
+              category={
+                row.category === CUSTOM_CATEGORY ? t("notCatalog") : categoryLabel(row.category)
+              }
+              description={rowDescription(row, t)}
+              url={row.url}
+              docsUrl={row.docsUrl}
+              entry={row.entry}
+              dataTour={index === 0 ? "mcp-connect" : undefined}
+              // Exactly two controls, whatever the card holds. The row used to
+              // grow one chip per connection, so a server with three accounts
+              // stood taller than its neighbours and the grid went ragged.
+              actions={
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
+                    disabled={busyId === row.key}
+                  >
+                    <Plug className="mr-1 h-3.5 w-3.5" />
+                    {busyId === row.key ? t("redirecting") : t("connectAction")}
+                  </Button>
+                  {connectionCount(row) > 0 && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="shrink-0"
-                      onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
-                      disabled={busyId === row.key}
+                      variant="ghost"
+                      // The one control allowed to give way: the count is the
+                      // least important thing on the row.
+                      className="min-w-0"
+                      onClick={() => setManaging(row)}
+                      aria-label={t("manageConnectionsOn", {
+                        name: row.name,
+                        count: connectionCount(row),
+                      })}
                     >
-                      <Plug className="mr-1 h-3.5 w-3.5" />
-                      {busyId === row.key ? t("redirecting") : t("connectAction")}
+                      <Cable className="h-3.5 w-3.5" aria-hidden />
+                      <span className="tabular-nums">{connectionCount(row)}</span>
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                     </Button>
-                    {connectionCount(row) > 0 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        // The one control allowed to give way: the count is the
-                        // least important thing on the row, and something has to
-                        // shrink or the dot leaves the card.
-                        className="min-w-0"
-                        onClick={() => setManaging(row)}
-                        aria-label={t("manageConnectionsOn", {
-                          name: row.name,
-                          count: connectionCount(row),
-                        })}
-                      >
-                        {/* A mark and the number, not "2 conn..." cut off by
-                            the dot: the button's label says it, count and all. */}
-                        <Cable className="h-3.5 w-3.5" aria-hidden />
-                        <span className="tabular-nums">{connectionCount(row)}</span>
-                        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                      </Button>
-                    )}
-                    <StateDot row={row} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  )}
+                </>
+              }
+              trailing={<StateDot row={row} />}
+            />
           ))}
         </div>
 
@@ -807,11 +745,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
  * which is what somebody adding one on this page is usually after.
  */
 function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope {
-  // The empty side first, then the organization's - which is the one an agent
-  // can actually be bound to, so it is the right default for a second account.
-  if (canManageOrganization && row.organizations.length === 0) return "organization";
-  if (row.personals.length === 0) return "personal";
-  return canManageOrganization ? "organization" : "personal";
+  // Your own account first: it is what most people connecting a server mean, and
+  // a shared one deserves a deliberate choice, since every agent in the
+  // organization then acts through it. Once you hold your own, a second account
+  // is the organization's - where an administrator can make one.
+  if (row.personals.length === 0 || !canManageOrganization) return "personal";
+  return "organization";
 }
 
 /**
@@ -850,7 +789,7 @@ function StateDot({ row }: { row: McpServerRow }) {
   return (
     <span
       className={cn(
-        "ml-auto inline-block h-2 w-2 shrink-0 rounded-full",
+        "inline-block h-2 w-2 shrink-0 rounded-full",
         worst === "connected"
           ? "bg-success"
           : worst === "error"

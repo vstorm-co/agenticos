@@ -439,7 +439,8 @@ class TestProbeSuccess:
         with a missing description read as empty rather than None."""
         described = MagicMock(description="Search issues")
         described.name = "search"
-        bare = MagicMock(description=None)
+        described.annotations = MagicMock(read_only_hint=True)
+        bare = MagicMock(description=None, annotations=None)
         bare.name = "create_issue"
         session = AsyncMock()
         session.list_tools = AsyncMock(return_value=MagicMock(tools=[described, bare]))
@@ -452,8 +453,10 @@ class TestProbeSuccess:
 
         tools = await probe_mcp_server("https://example.com/mcp")
 
+        # A tool says it only reads through `readOnlyHint`; one that says nothing
+        # is a write, the same reading the approval policy gives it.
         assert tools == [
-            McpToolInfo(name="search", description="Search issues"),
+            McpToolInfo(name="search", description="Search issues", read_only=True),
             McpToolInfo(name="create_issue", description=""),
         ]
         session.initialize.assert_awaited_once()
@@ -4178,6 +4181,33 @@ class TestAUrlNoRequestCanBeBuiltFor:
 
         assert server.token_endpoint == "https://93.184.216.35/token"
         assert server.authorization_endpoint == "https://93.184.216.35/authorize"
+
+    @pytest.mark.anyio
+    async def test_every_discovery_request_names_its_client(self, monkeypatch):
+        """The SDK builds these requests bare. Facebook answers a request with no
+        User-Agent by redirecting to an "unsupported browser" page, which made
+        Meta Ads read as a server with no OAuth metadata (#2103)."""
+        agents: list[str | None] = []
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            agents.append(request.headers.get("user-agent"))
+            if request.url.path == "/.well-known/oauth-protected-resource":
+                return httpx2.Response(
+                    200,
+                    json={
+                        "resource": "https://93.184.216.34/mcp",
+                        "authorization_servers": ["https://93.184.216.35"],
+                    },
+                )
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx2.Response(200, json=self._metadata("https://93.184.216.35/token"))
+            return self._hinting_at_the_bad_port(request)
+
+        self._serving(monkeypatch, handler)
+        await mcp_oauth.discover(self._SERVER)
+
+        assert agents and all(agents), "a request went out with no User-Agent"
+        assert "agenticos MCP client" in agents[1:], "the SDK's bare requests carry ours"
 
     @pytest.mark.anyio
     async def test_a_token_endpoint_discovery_accepted_but_httpx2_will_not_build(

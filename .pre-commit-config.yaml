@@ -83,11 +83,13 @@ repos:
         # English page whose glossary states each term in four languages, and the
         # MCP registry snapshot, which carries 5,703 publishers' own descriptions
         # - their typos are not ours to correct, and a `--fetch` would bring every
-        # one of them back.
+        # one of them back - and the catalog check snapshot, keyed by those same
+        # publishers' names.
         exclude: |
           (?x)^(
             frontend/messages/(pl|de)\.json|
             backend/app/core/catalog/mcp_registry\.json|
+            backend/app/core/catalog/mcp_checks\.json|
             docs/howto/translate\.md
           )$
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "6c7a679e16af"
+source_sha: "785274d96fc0"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -620,9 +620,13 @@ no un listado:
   50 — así que la aritmética vive en `mcp_listing.page` con un test sobre ese
   límite, porque un error de uno ahí se salta un servidor o lo muestra dos veces en
   una lista donde nadie notaría cuál.
-- **Una categoría pide solo entradas del catálogo.** El espejo no tiene
-  categorías, así que responder a una con filas replicadas archivaría servidores
-  sin categoría bajo un encabezado que dice lo contrario.
+- **Una categoría también llega al espejo.** El registro no tiene categorías,
+  así que cada entrada recibe una al sincronizar a partir de su propio nombre y
+  descripción, contando las palabras por las que se reconoce cada categoría; una
+  entrada que no nombra ninguna se archiva en *other* en lugar de adivinarle un
+  encabezado. El filtro **Sign-in** pregunta por lo que pide un servidor - OAuth,
+  un token, nada -, y para una entrada replicada es lo que encontró la
+  comprobación del catálogo.
 - **Sin logo empaquetado.** La consola incrusta un favicon por host curado para
   que una insignia se dibuje sin conexión; a 1,9 KB cada uno, hacer eso para el
   espejo serían 10,5 MB de base64 en un módulo que carga el navegador. Las filas
@@ -655,15 +659,44 @@ Un servidor que no está en ninguna de las dos listas sigue siendo alcanzable:
     tipo, no miles de servidores que alguien revisó. Las dos formas son útiles, y no
     son la misma afirmación.
 
-!!! warning "Una promesa que hay que volver a hacer"
+### Cómo se mantiene el catálogo { #how-the-catalog-is-kept }
 
-    La promesa se degrada. El servidor de referencia oficial de Postgres se archivó
-    fuera de `modelcontextprotocol/servers` en 2025 y este catálogo siguió
-    enlazándolo, así que lo único que la entrada le ofrecía a un lector era un 404.
-    Nada comprueba estos enlaces — un test que sale a la internet pública es un test
-    que falla en el tren de alguien — así que releer el catálogo es un trabajo
-    humano periódico, y una entrada por la que nadie puede responder debería
-    borrarse en lugar de dejarse.
+La promesa se degrada. El servidor de referencia oficial de Postgres se archivó
+fuera de `modelcontextprotocol/servers` en 2025 y este catálogo siguió enlazándolo,
+así que lo único que la entrada le ofrecía a un lector era un 404. En octubre de
+2026 Linear había dejado `/sse`, Pipedrive se había mudado a otro host y doce
+entradas curadas tenían un servidor alojado que nadie había anotado. Por eso ahora
+se llama a cada servidor listado, como lo llama una primera conexión, con un
+comando:
+
+```bash
+uv run agenticos cmd mcp-catalog-check --report catalog-check.md
+```
+
+Envía a cada servidor el handshake de MCP sin credenciales y registra lo que pasó:
+respondió y listó sus herramientas (**open**, con cuántas solo leen), rechazó y
+publica metadatos OAuth (**sign in**), rechazó sin esos metadatos (**token**), o
+no respondió como un servidor MCP en absoluto (**unreachable**, **broken**, o
+**refused** para una dirección dentro de una red). Dos entradas del registro en
+una misma dirección son un solo servidor, y se queda el nombre más corto. No se
+inicia sesión en ningún sitio: si las herramientas funcionan una vez conectado es
+la prueba propia de la conexión.
+
+Lo que encontró se ve en las tarjetas. Un servidor que respondió dice **Checked**
+con la fecha, y sus recuentos de herramientas donde las listó. Un servidor curado
+que no respondió lo dice en rojo y sigue listado, porque alguien lo eligió; una
+entrada replicada que no respondió, o que repite otra, deja de ofrecerse. Una
+entrada curada que promete OAuth y no publicó los metadatos para ello no se marca
+como comprobada, porque su **Connect** es el botón que fallaría.
+
+La comprobación se ejecuta antes de cada versión con `--snapshot`, que escribe
+`app/core/catalog/mcp_checks.json`; `make platform-bootstrap` la carga, así que un
+despliegue nuevo empieza con aquello contra lo que se comprobó la versión. Ejecuta
+el comando en un despliegue para comprobar de nuevo; sus propios resultados se
+conservan por encima de los incluidos. `--source catalog` comprueba solo la lista
+curada en unos diez segundos; el registro entero tarda unos minutos. El informe
+lista cada entrada curada con lo que declara, lo que se encontró y por qué alguna
+no pasó.
 
 `(self-hosted)` más abajo significa que la entrada describe el servidor pero la
 URL la pones tú: o bien porque corre en tu propia infraestructura, o bien porque
@@ -680,7 +713,7 @@ el proveedor emite un endpoint por cuenta.
 | Vercel | oauth | `https://mcp.vercel.com/` |
 | Netlify | oauth | `https://mcp.netlify.com/mcp` |
 | Railway | token | `https://mcp.railway.app/mcp` |
-| Replit | oauth | self-hosted |
+| Replit | oauth | `https://mcp.replit.com/server/mcp` |
 | Hugging Face | token | `https://huggingface.co/mcp` |
 | Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
 | Semgrep | token | `https://mcp.semgrep.ai/mcp` |
@@ -693,12 +726,12 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Linear | oauth | `https://mcp.linear.app/sse` |
+| Linear | oauth | `https://mcp.linear.app/mcp` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
 | ClickUp | oauth | `https://mcp.clickup.com/mcp` |
-| Trello | oauth | self-hosted |
-| Todoist | oauth | self-hosted |
+| Trello | oauth | `https://mcp.trello.com/v1` |
+| Todoist | oauth | `https://ai.todoist.net/mcp` |
 | monday.com | oauth | `https://mcp.monday.com/mcp` |
 
 ### Datos y analítica { #data-and-analytics }
@@ -714,6 +747,7 @@ el proveedor emite un endpoint por cuenta.
 | Google BigQuery | oauth | self-hosted |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
+| Google Analytics 4 | token | self-hosted |
 | Neon | oauth | `https://mcp.neon.tech/mcp` |
 | Amplitude | token | `https://mcp.amplitude.com/mcp` |
 | Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
@@ -728,6 +762,9 @@ el proveedor emite un endpoint por cuenta.
 | Servidor | Auth | URL |
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
+| Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
+| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
+| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -746,11 +783,11 @@ el proveedor emite un endpoint por cuenta.
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
 | Xero | oauth | `https://mcp.xero.com/mcp` |
-| HubSpot | oauth | self-hosted |
+| HubSpot | oauth | `https://mcp.hubspot.com/` |
 | Shopify | oauth | self-hosted |
 | Attio | oauth | `https://mcp.attio.com/mcp` |
-| Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
-| Lusha | token | `https://mcp.lusha.com/mcp` |
+| Pipedrive | oauth | `https://mcp.pipedrive.ai/mcp` |
+| Lusha | oauth | `https://mcp.lusha.com` |
 
 ### Observabilidad { #observability }
 
@@ -769,12 +806,14 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Mailchimp | oauth | self-hosted |
+| Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
 | Resend | token | `https://mcp.resend.com/mcp` |
 | Webflow | oauth | `https://mcp.webflow.com/mcp` |
 | Wix | oauth | `https://mcp.wix.com/mcp` |
-| WordPress.com | oauth | self-hosted |
-| Semrush | token | self-hosted |
+| WordPress.com | oauth | `https://public-api.wordpress.com/wpcom/v2/mcp/v1` |
+| Semrush | oauth | `https://mcp.semrush.com/v1/mcp` |
+| Meta Ads | oauth | `https://mcp.facebook.com/ads` |
+| Google Ads | token | self-hosted |
 | Similarweb | token | `https://mcp.similarweb.com/mcp` |
 | Figma | oauth | `https://mcp.figma.com/mcp` |
 | Miro | oauth | `https://mcp.miro.com/mcp` |
@@ -787,24 +826,28 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Zapier | oauth | self-hosted |
+| Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
 | Box | oauth | `https://mcp.box.com/mcp` |
 | Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
-| Calendly | oauth | self-hosted |
-| Typeform | oauth | self-hosted |
+| Calendly | oauth | `https://mcp.calendly.com/` |
+| Typeform | oauth | `https://api.typeform.com/mcp` |
 | SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
-| DeepL | token | self-hosted |
-| ElevenLabs | token | self-hosted |
+| DeepL | oauth | `https://mcp.deepl.com/v1/mcp` |
+| ElevenLabs | oauth | `https://api.elevenlabs.io/v1/mcp` |
 | Fireflies | token | `https://mcp.fireflies.ai/mcp` |
 | Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
 | Apify | token | `https://mcp.apify.com` |
 | Tally | token | `https://api.tally.so/mcp` |
-| Pipedream | token | `https://remote.mcp.pipedream.net` |
+| Pipedream | oauth | `https://mcp.pipedream.net/v2` |
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
+| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
+| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
+| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
+| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Cualquier otra cosa { #anything-else }
 
@@ -830,11 +873,22 @@ Para añadir una entrada a la lista, ver
 
 <a id="outlook-setup"></a>
 
-### Correo y calendario de Outlook { #outlook-email-and-calendar }
+### Microsoft 365 y Outlook { #microsoft-365-and-outlook }
 
-Outlook está disponible mediante servicios MCP de terceros, no mediante un
-conector de buzón integrado. El registro incluido contiene entradas de MintMCP
-para correo y calendario:
+Microsoft publica sus propios servidores MCP para Microsoft 365, y el catálogo los
+lista: **Work IQ** - un endpoint para correo, reuniones, chats y archivos - y los
+servidores por aplicación de Mail, Calendar, Teams, SharePoint, OneDrive y Word.
+Cada uno necesita una licencia de Microsoft 365 Copilot y una aplicación
+registrada en Microsoft Entra: añade el permiso de Work IQ del servidor (para el
+correo, `WorkIQ-MailServer`) y la URL de redirección de esta consola, que muestra
+el diálogo de conexión, y escribe el client ID de la aplicación al conectar.
+
+Entra no registra un cliente en el acto, así que el client ID no es opcional. Microsoft
+marca los servidores por aplicación como mantenidos por compatibilidad y dirige
+los proyectos nuevos a Work IQ.
+
+Outlook también está disponible mediante servicios MCP de terceros. El registro
+incluido contiene entradas de MintMCP para correo y calendario:
 
 | Entrada del registro | URL del servidor |
 |---|---|

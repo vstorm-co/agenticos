@@ -1,31 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plug, UserRound, Wrench } from "lucide-react";
+import { Plug, Settings2 } from "lucide-react";
 
-import { McpServerHealth } from "@/components/agents/mcp-server-health";
-import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
+import { McpServerCard } from "@/components/mcp/mcp-server-card";
 import {
   Badge,
   Button,
   Checkbox,
   Pager,
   SearchInput,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Switch,
   useListControls,
 } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import {
+  categoryLabel,
   connectionState,
   entryForConnection,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
 } from "@/lib/mcp-servers";
-import { cn } from "@/lib/utils";
 import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
@@ -215,7 +211,7 @@ export function McpServerPicker({
         </label>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}
@@ -330,189 +326,116 @@ function ServerCard({
       allowed_tools: binding?.allowed_tools ?? null,
     });
 
-  const body = (
-    <>
-      <span
-        className={cn(
-          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-          isOn ? "border-brand bg-brand text-brand-foreground" : "border-input",
-          !orgBindable && "border-dashed",
-        )}
-      >
-        {isOn && <Check className="h-3 w-3" />}
-      </span>
-      {/* Beside the name rather than at the edge: the mark is what the eye
-          lands on when scanning fifty rows, and it belongs to the server, not
-          to the checkbox. */}
-      <McpServerIcon icon={icon} name={name} className="mt-0.5" />
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{name}</span>
-          {auth && <Badge variant="outline">{auth}</Badge>}
-          {personal ? (
-            <Badge variant="secondary">{t("eachPersonsOwnAccount")}</Badge>
-          ) : (
-            state !== "connected" && (
-              <Badge variant={state === "error" ? "destructive" : "secondary"}>
-                {tMcp(MCP_STATE_LABEL[state])}
-              </Badge>
-            )
-          )}
-        </span>
-        <span className="text-muted-foreground mt-1 block truncate text-xs">{description}</span>
-      </span>
-    </>
-  );
-
-  // No organization account to bind and none bound, so the card is the way to
-  // make one rather than a checkbox that would have no id to write into the
-  // spec - it opens the connect dialog here rather than linking to the servers
-  // page, which threw away an unsaved draft. Beside it, the other kind of
-  // binding, which needs no connection to exist: each person brings their own.
-  if (!orgBindable && !isOn) {
-    return (
-      <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-4">
-        <button
-          type="button"
-          disabled={disabled || entry === null}
-          onClick={() => entry && onConnect(entry)}
-          className="hover:text-foreground flex items-start gap-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {body}
-          <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">{t("connectServerFirst")}</span>
-        </button>
-        {personalBindable && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={bindPersonal}
-            className="self-start pl-7"
-          >
-            <UserRound className="mr-1 h-3.5 w-3.5" />
-            {t("useEachPersonsOwnAccount")}
-          </Button>
-        )}
-      </div>
-    );
-  }
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Switched on, a card binds the organization's account where there is one and
+  // each person's own where there is not - the one kind that needs no connection
+  // to exist - and opens its settings, because which account and which tools is
+  // the next thing to decide. Off unbinds it, whichever kind it was.
+  const toggle = (on: boolean) => {
+    if (!on) {
+      onRebind(null);
+      return;
+    }
+    if (connection) bindOrganization(connection);
+    else bindPersonal();
+    setSettingsOpen(true);
+  };
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border p-4 transition-colors",
-        isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
-        disabled && "cursor-not-allowed opacity-60",
-      )}
-    >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={isOn}
-        aria-label={name}
+    <>
+      <McpServerCard
+        name={name}
+        icon={icon}
+        badge={
+          <>
+            {auth && (
+              <Badge variant="outline" className="shrink-0">
+                {auth}
+              </Badge>
+            )}
+            {/* Only for an account that exists and is not working: a server
+                with none says so through the Connect at its foot. */}
+            {!personal && orgBindable && state !== "connected" && (
+              <Badge variant={state === "error" ? "destructive" : "secondary"} className="shrink-0">
+                {tMcp(MCP_STATE_LABEL[state])}
+              </Badge>
+            )}
+          </>
+        }
+        headerAction={
+          <Switch
+            checked={isOn}
+            disabled={disabled || (!orgBindable && !personalBindable)}
+            onCheckedChange={toggle}
+            aria-label={t("useServerInAgent", { name })}
+          />
+        }
+        category={entry ? categoryLabel(entry.category) : tMcp("notCatalog")}
+        description={description}
+        url={entry?.url ?? connection?.url ?? null}
+        docsUrl={entry?.docs_url ?? null}
+        entry={entry}
+        selected={isOn}
+        onOpen={disabled ? undefined : () => setSettingsOpen(true)}
+        actions={
+          isOn ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              disabled={disabled}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings2 className="mr-1 h-3.5 w-3.5" />
+              {personal ? t("eachPersonsOwnAccount") : t("serverSettings")}
+            </Button>
+          ) : (
+            // Here rather than on the servers page, which would throw away an
+            // unsaved draft.
+            !orgBindable &&
+            entry !== null && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                disabled={disabled}
+                onClick={() => onConnect(entry)}
+              >
+                <Plug className="mr-1 h-3.5 w-3.5" />
+                {tMcp("connectAction")}
+              </Button>
+            )
+          )
+        }
+      />
+      <McpBindingDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        name={name}
+        binding={binding}
+        connections={connections}
+        connection={connection}
+        personalBindable={personalBindable}
+        onBindOrganization={bindOrganization}
+        onBindPersonal={bindPersonal}
+        onTools={(ref, probed, server) => {
+          setSettingsOpen(false);
+          onTools(ref, probed, server);
+        }}
+        onConnect={
+          entry
+            ? () => {
+                setSettingsOpen(false);
+                onConnect(entry);
+              }
+            : undefined
+        }
+        onCheck={onCheck}
         disabled={disabled}
-        onClick={() => (isOn ? onRebind(null) : connection && bindOrganization(connection))}
-        className="flex w-full items-start gap-3 text-left"
-      >
-        {body}
-      </button>
-
-      {isOn && !personal && connection && (
-        <McpServerHealth connection={connection} onCheck={onCheck} />
-      )}
-
-      {/* Whose account, once bound. The organization's is what a binding
-          means by default; each person's own is the other kind, and switching
-          rewrites the binding rather than flagging it - the spec stores which
-          kind it is, and a run reads that. */}
-      {isOn && personalBindable && (
-        <div className="mt-3 pl-7">
-          <Select
-            value={personal ? "personal" : "organization"}
-            disabled={disabled}
-            onValueChange={(next) =>
-              next === "personal" ? bindPersonal() : connection && bindOrganization(connection)
-            }
-          >
-            <SelectTrigger className="h-8 text-xs" aria-label={t("accountForServer", { name })}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Offered only where there is one to bind; the row above says
-                  how to connect one. */}
-              {orgBindable && (
-                <SelectItem value="organization" className="text-xs">
-                  {t("organizationsAccount")}
-                </SelectItem>
-              )}
-              <SelectItem value="personal" className="text-xs">
-                {t("eachPersonsOwnAccount")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          {personal && (
-            <p className="text-muted-foreground mt-2 text-xs">{t("eachPersonsOwnAccountHint")}</p>
-          )}
-        </div>
-      )}
-
-      {/* Which connection, where the organization holds more than one. Choosing
-          is binding: there is nowhere but the spec to remember a choice, so a
-          select that only recorded an intention would forget it on reload. */}
-      {!personal && connections.length > 1 && connection && (
-        <div className="mt-3 pl-7">
-          <Select
-            value={connection.id}
-            disabled={disabled}
-            onValueChange={(next) => {
-              const target = connections.find((option) => option.id === next);
-              if (target) bindOrganization(target);
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs" aria-label={t("whichAccount", { name })}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {connections.map((option) => (
-                <SelectItem key={option.id} value={option.id} className="text-xs">
-                  {/* The label if somebody set one, and the slug beside it
-                      either way - that is the prefix the model reads, and a
-                      run's tool calls are recorded under it. */}
-                  {option.label ?? option.name}
-                  {option.label !== null && (
-                    <span className="text-muted-foreground ml-2 font-mono">{option.name}</span>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Which of the server's tools this agent may call. The catalogue of
-          tools comes from an organization connection's probe, so a binding to
-          each person's own account can be narrowed only where the organization
-          holds a connection to the same server - the server's tools are the
-          same whoever's credential reaches them. */}
-      {isOn && binding && connection && (
-        <div className="mt-3 pl-7">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={() => onTools(binding, connection, name)}
-          >
-            <Wrench className="mr-1 h-3.5 w-3.5" />
-            {binding.allowed_tools == null
-              ? t("everyToolThisServerOffers")
-              : t("toolCount", { count: binding.allowed_tools.length })}
-          </Button>
-        </div>
-      )}
-    </div>
+      />
+    </>
   );
 }
 

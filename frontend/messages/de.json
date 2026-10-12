@@ -169,7 +169,6 @@
     "comparing": "Vergleicht",
     "configurationSchema": "Konfigurationsschema",
     "advancedSettings": "Erweiterte Einstellungen",
-    "connectServerFirst": "Verbinden Sie diesen Server zuerst",
     "connectedOnly": "Nur verbundene",
     "connectionNoLongerAllows": "Diese Verbindung erlaubt <code>{runtime}</code> nicht mehr. Wählen Sie eine, die sie erlaubt, sonst scheitert der Agent an seinem ersten Tool-Aufruf.",
     "connectionSDefault": "Der Standard der Verbindung",
@@ -660,7 +659,6 @@
     "accountForServer": "Wessen {name}-Konto dieser Agent nutzt",
     "organizationsAccount": "Das Konto der Organisation",
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
-    "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
     "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
     "whoCanFindIt": "Wer es finden kann",
@@ -742,7 +740,13 @@
     "mcpHealthChecked": "Antwortet - geprüft {ago}",
     "mcpHealthUnchecked": "Noch nicht geprüft",
     "mcpHealthCheck": "Jetzt prüfen",
-    "addNamedToAgent": "{name} einem Agent hinzufügen"
+    "addNamedToAgent": "{name} einem Agent hinzufügen",
+    "useServerInAgent": "{name} in diesem Agent nutzen",
+    "connectOrganizationAccount": "Konto der Organisation verbinden",
+    "serverSettings": "Einstellungen",
+    "serverSettingsTitle": "{name} in diesem Agent",
+    "serverSettingsDescription": "Über wessen Konto der Agent spricht und welche Tools des Servers er aufrufen darf.",
+    "chooseAccount": "Konto wählen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2757,7 +2761,15 @@
       "completed": "fertig",
       "failed": "fehlgeschlagen",
       "awaiting_approval": "wartet auf Freigabe"
-    }
+    },
+    "authFilter": "Anmeldung",
+    "anyAuth": "Jede Anmeldung",
+    "checkedOn": "Geprüft am {date}",
+    "checkedOnWithTools": "Geprüft am {date} · {tools, plural, one {# Tool} other {# Tools}}, {readOnly} nur lesend",
+    "didNotAnswerOn": "Hat bei der Katalogprüfung am {date} nicht geantwortet",
+    "toolReadsOnly": "liest",
+    "toolWrites": "schreibt",
+    "noAnswerOn": "Keine Antwort {date}"
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",

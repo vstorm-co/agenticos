@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The MCP catalog is checked, and says so.** `agenticos cmd mcp-catalog-check`
+  calls every curated and registry server the way a first connection would and
+  records whether it answered, how it wants to be signed into and how many of its
+  tools only read. Cards say **Checked** with the date; the 1,063 registry
+  listings that were dead, broken or duplicates are no longer offered; a category
+  reaches the registry and a new **Sign-in** filter narrows by OAuth, token or
+  none. The release ships the results, so a new deployment starts checked
+  (#2103).
+- **Meta Ads, Google Ads, Google Analytics 4 and Microsoft 365 in the catalog.**
+  Meta's hosted Ads server, Google's own Ads and GA4 servers to run yourself, and
+  Microsoft's Work IQ with its Mail, Calendar, Teams, SharePoint, OneDrive and
+  Word servers. Twelve curated entries gained the hosted server they lacked
+  and four moved to their new address (#2103).
+- **A connected server's tools say whether they only read or write**, which is
+  what decides whether a binding's calls wait for approval.
 - **A reference of every endpoint an API key can call.** **Settings → API → API
   reference** reads the public OpenAPI document into a searchable page, grouped
   as the document tags them: each endpoint's parameters, body, responses and a
@@ -405,6 +420,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Signing in to Meta Ads works.** OAuth discovery sent its requests with no
+  User-Agent, and Facebook answers those with an "unsupported browser" page, so
+  the server read as having no OAuth metadata.
 - **A refusal before the agent starts answering is shown.** An agent with no
   model, or nobody picked to answer, used to leave the question sitting there
   with no reply; the refusal now appears as the answer.
@@ -449,6 +467,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Builder shows MCP servers as the servers page does.** The same cards,
+  with a switch for whether this agent uses the server; switching it on, or
+  clicking the card, opens its settings - whose account, which one, which
+  tools. Connecting a server now starts on **My own account**, so a shared
+  account is a deliberate choice.
+- **When a server was last checked sits at the foot of its card**, beside
+  Connect, with the full date and its tool counts on hover.
 - **The Architect's window and the Builder's test panel are compact.** Each
   message carries its face and name on one line above it and takes the full
   width, the text is smaller, there is no turn rail, and the composer sits on an

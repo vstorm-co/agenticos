@@ -623,6 +623,7 @@ include = [
     "app/commands/sandbox_runtimes.py",
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
+    "app/commands/mcp_audit.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -790,6 +791,7 @@ include = [
     # offered and fails on the first voice note - is invisible without a test.
     "app/services/mcp_listing.py",
     "app/services/mcp_registry.py",
+    "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -820,6 +822,7 @@ include = [
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
+    "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
@@ -1024,6 +1027,7 @@ include = [
     "app/commands/sandbox_runtimes.py",
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
+    "app/commands/mcp_audit.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -1224,6 +1228,7 @@ include = [
     # offered and fails on the first voice note - is invisible without a test.
     "app/services/mcp_listing.py",
     "app/services/mcp_registry.py",
+    "app/services/mcp_audit.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -1254,6 +1259,7 @@ include = [
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
+    "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",

@@ -81,6 +81,8 @@ export interface McpToolCall {
 export interface McpToolInfo {
   name: string;
   description: string;
+  /** The server marks it read-only; anything else is treated as a write. */
+  read_only?: boolean;
 }
 
 export interface McpConnectionTestResult {

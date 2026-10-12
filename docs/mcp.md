@@ -572,9 +572,12 @@ listing:
   the join — 99 curated rows against a page size of 50 — so the arithmetic lives
   in `mcp_listing.page` with a test on the boundary, because an off-by-one there
   skips a server or shows it twice on a list where nobody would notice which.
-- **A category asks for catalog entries only.** The mirror has no categories, so
-  answering one with mirrored rows would file uncategorised servers under a
-  heading that says otherwise.
+- **A category reaches the mirror too.** The registry has no categories, so each
+  listing is given one at sync from its own name and description, counting the
+  words each category is known by; a listing that names none of them is filed
+  under *other* rather than guessed into a heading. The **Sign-in** filter asks
+  for what a server wants - OAuth, a token, nothing - which for a mirrored
+  listing is what the catalog check found.
 - **No baked logo.** The console inlines a favicon per curated host so a badge
   renders offline; at 1.9 KB each, doing that for the mirror would be 10.5 MB of
   base64 in a module the browser loads. Registry rows fall through to the
@@ -606,14 +609,42 @@ needs no catalog entry at all.
     kind, not thousands of servers somebody reviewed. Both shapes are useful, and
     they are not the same claim.
 
-!!! warning "A promise that has to be re-made"
+### How the catalog is kept
 
-    The promise decays. The official Postgres reference server was archived out
-    of `modelcontextprotocol/servers` in 2025 and this catalog went on linking to
-    it, so the one thing the entry offered a reader was a 404. Nothing checks
-    these links — a test that reaches the public internet is a test that fails on
-    somebody's train — so re-reading the catalog is a periodic human job, and an
-    entry nobody can vouch for should be deleted rather than left.
+The promise decays. The official Postgres reference server was archived out of
+`modelcontextprotocol/servers` in 2025 and this catalog went on linking to it, so
+the one thing the entry offered a reader was a 404. In October 2026 Linear had
+moved off `/sse`, Pipedrive to a new host, and twelve curated entries had a hosted
+server nobody had written down. So every listed server is now called, the way a
+first connection calls it, by one command:
+
+```bash
+uv run agenticos cmd mcp-catalog-check --report catalog-check.md
+```
+
+It sends each server the MCP handshake without a credential and records what
+happened: it answered and listed its tools (**open**, with how many only read),
+it refused and publishes OAuth metadata (**sign in**), it refused without that
+metadata (**token**), or it did not answer as an MCP server at all
+(**unreachable**, **broken**, or **refused** for an address inside a network).
+Two registry listings at one address are one server, and the shorter name is
+kept. Nothing signs in anywhere: whether the tools work once connected is the
+connection's own test.
+
+What it found shows on the cards. A server that answered says **Checked** with
+the date, and its tool counts where it listed them. A curated server that did not
+answer says so in red and stays listed, because somebody chose it; a mirrored
+listing that did not answer, or that repeats another, is no longer offered. A
+curated entry that promises OAuth and did not publish the metadata for it is not
+marked checked, because its **Connect** is the button that would fail.
+
+The check runs before each release with `--snapshot`, which writes
+`app/core/catalog/mcp_checks.json`; `make platform-bootstrap` seeds it, so a new
+deployment starts from what the release was checked against. Run the command on
+a deployment to check again; its own results are kept over the bundled ones.
+`--source catalog` checks the curated list alone in about ten seconds; the whole
+registry takes a few minutes. The report lists every curated entry with what it
+declares, what was found and why one did not pass.
 
 `(self-hosted)` below means the entry describes the server but you supply the URL:
 either because it runs on your own infrastructure, or because the vendor issues a
@@ -630,7 +661,7 @@ per-account endpoint.
 | Vercel | oauth | `https://mcp.vercel.com/` |
 | Netlify | oauth | `https://mcp.netlify.com/mcp` |
 | Railway | token | `https://mcp.railway.app/mcp` |
-| Replit | oauth | self-hosted |
+| Replit | oauth | `https://mcp.replit.com/server/mcp` |
 | Hugging Face | token | `https://huggingface.co/mcp` |
 | Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
 | Semgrep | token | `https://mcp.semgrep.ai/mcp` |
@@ -643,12 +674,12 @@ per-account endpoint.
 
 | Server | Auth | URL |
 |---|---|---|
-| Linear | oauth | `https://mcp.linear.app/sse` |
+| Linear | oauth | `https://mcp.linear.app/mcp` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
 | ClickUp | oauth | `https://mcp.clickup.com/mcp` |
-| Trello | oauth | self-hosted |
-| Todoist | oauth | self-hosted |
+| Trello | oauth | `https://mcp.trello.com/v1` |
+| Todoist | oauth | `https://ai.todoist.net/mcp` |
 | monday.com | oauth | `https://mcp.monday.com/mcp` |
 
 ### Data and analytics
@@ -664,6 +695,7 @@ per-account endpoint.
 | Google BigQuery | oauth | self-hosted |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
+| Google Analytics 4 | token | self-hosted |
 | Neon | oauth | `https://mcp.neon.tech/mcp` |
 | Amplitude | token | `https://mcp.amplitude.com/mcp` |
 | Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
@@ -678,6 +710,9 @@ per-account endpoint.
 | Server | Auth | URL |
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
+| Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
+| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
+| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -696,11 +731,11 @@ per-account endpoint.
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
 | Xero | oauth | `https://mcp.xero.com/mcp` |
-| HubSpot | oauth | self-hosted |
+| HubSpot | oauth | `https://mcp.hubspot.com/` |
 | Shopify | oauth | self-hosted |
 | Attio | oauth | `https://mcp.attio.com/mcp` |
-| Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
-| Lusha | token | `https://mcp.lusha.com/mcp` |
+| Pipedrive | oauth | `https://mcp.pipedrive.ai/mcp` |
+| Lusha | oauth | `https://mcp.lusha.com` |
 
 ### Observability
 
@@ -719,12 +754,14 @@ per-account endpoint.
 
 | Server | Auth | URL |
 |---|---|---|
-| Mailchimp | oauth | self-hosted |
+| Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
 | Resend | token | `https://mcp.resend.com/mcp` |
 | Webflow | oauth | `https://mcp.webflow.com/mcp` |
 | Wix | oauth | `https://mcp.wix.com/mcp` |
-| WordPress.com | oauth | self-hosted |
-| Semrush | token | self-hosted |
+| WordPress.com | oauth | `https://public-api.wordpress.com/wpcom/v2/mcp/v1` |
+| Semrush | oauth | `https://mcp.semrush.com/v1/mcp` |
+| Meta Ads | oauth | `https://mcp.facebook.com/ads` |
+| Google Ads | token | self-hosted |
 | Similarweb | token | `https://mcp.similarweb.com/mcp` |
 | Figma | oauth | `https://mcp.figma.com/mcp` |
 | Miro | oauth | `https://mcp.miro.com/mcp` |
@@ -737,24 +774,28 @@ per-account endpoint.
 
 | Server | Auth | URL |
 |---|---|---|
-| Zapier | oauth | self-hosted |
+| Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
 | Box | oauth | `https://mcp.box.com/mcp` |
 | Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
-| Calendly | oauth | self-hosted |
-| Typeform | oauth | self-hosted |
+| Calendly | oauth | `https://mcp.calendly.com/` |
+| Typeform | oauth | `https://api.typeform.com/mcp` |
 | SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
-| DeepL | token | self-hosted |
-| ElevenLabs | token | self-hosted |
+| DeepL | oauth | `https://mcp.deepl.com/v1/mcp` |
+| ElevenLabs | oauth | `https://api.elevenlabs.io/v1/mcp` |
 | Fireflies | token | `https://mcp.fireflies.ai/mcp` |
 | Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
 | Apify | token | `https://mcp.apify.com` |
 | Tally | token | `https://api.tally.so/mcp` |
-| Pipedream | token | `https://remote.mcp.pipedream.net` |
+| Pipedream | oauth | `https://mcp.pipedream.net/v2` |
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
+| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
+| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
+| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
+| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Anything else
 
@@ -778,10 +819,22 @@ To add an entry to the list, see
 
 <a id="outlook-setup"></a>
 
-### Outlook email and calendar
+### Microsoft 365 and Outlook
 
-Outlook is available through third-party MCP services, not a built-in mailbox
-connector. The bundled registry includes MintMCP entries for email and calendar:
+Microsoft publishes its own MCP servers for Microsoft 365, and the catalog lists
+them: **Work IQ** - one endpoint onto mail, meetings, chats and files - and the
+per-application Mail, Calendar, Teams, SharePoint, OneDrive and Word servers.
+Each needs a Microsoft 365 Copilot licence and an app registered in Microsoft
+Entra: add the server's Work IQ permission (for mail, `WorkIQ-MailServer`) and
+this console's redirect URL, which the connect dialog shows, then enter the app's
+client ID when you connect.
+
+Entra registers no client on the spot, so the client
+ID is not optional. Microsoft marks the per-application servers as kept for
+compatibility and points new work at Work IQ.
+
+Outlook is also available through third-party MCP services. The bundled registry
+includes MintMCP entries for email and calendar:
 
 | Registry entry | Server URL |
 |---|---|

@@ -35,7 +35,7 @@ from app.repositories import (
     skill_repo,
 )
 from app.schemas.user import UserCreate
-from app.services import skill_library
+from app.services import mcp_audit, skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.context import ContextService
 from app.services.mcp_registry import seed_entries
@@ -272,11 +272,17 @@ async def _resolve_mcp_mirror(db) -> None:
     """
     if await mcp_registry_server_repo.count(db):
         info("MCP registry mirror already loaded")
-        return
-    entries = list(seed_entries())
-    for start in range(0, len(entries), 500):
-        await mcp_registry_server_repo.upsert_many(db, entries[start : start + 500])
-    success(f"Loaded {len(entries)} MCP registry servers")
+    else:
+        entries = list(seed_entries())
+        for start in range(0, len(entries), 500):
+            await mcp_registry_server_repo.upsert_many(db, entries[start : start + 500])
+        success(f"Loaded {len(entries)} MCP registry servers")
+    # What the release was checked against, so the console marks the servers
+    # that answered and stops offering dead listings before anybody runs the
+    # check here. A check this deployment already ran is kept.
+    seeded = await mcp_audit.seed_snapshot(db)
+    if seeded:
+        success(f"Loaded {seeded} MCP catalog checks")
 
 
 async def _resolve_organization(db, owner_id: uuid.UUID, name: str):

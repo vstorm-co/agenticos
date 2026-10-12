@@ -169,7 +169,6 @@
     "comparing": "Porównywanie",
     "configurationSchema": "Schemat konfiguracji",
     "advancedSettings": "Ustawienia zaawansowane",
-    "connectServerFirst": "Najpierw połącz ten serwer",
     "connectedOnly": "Tylko połączone",
     "connectionNoLongerAllows": "To połączenie nie zezwala już na <code>{runtime}</code>. Wybierz taki, na który zezwala, albo agent zawiedzie przy pierwszym wywołaniu narzędzia.",
     "connectionSDefault": "Domyślny z połączenia",
@@ -660,7 +659,6 @@
     "accountForServer": "Czyjego konta {name} używa ten agent",
     "organizationsAccount": "Konto organizacji",
     "eachPersonsOwnAccount": "Własne konto każdej osoby",
-    "useEachPersonsOwnAccount": "Użyj własnego konta każdej osoby",
     "eachPersonsOwnAccountHint": "Kto rozmawia z tym agentem, podłącza własne konto, a agent mówi do usługi jako ta osoba - w panelu, w wiadomościach bezpośrednich i na kanałach. Niedostępne dla kluczy API, widżetu, harmonogramów i wyzwalaczy, gdzie nikt nie jest zalogowany.",
     "everyToolThisServerOffers": "Każde narzędzie, które oferuje",
     "whoCanFindIt": "Kto może go znaleźć",
@@ -742,7 +740,13 @@
     "mcpHealthChecked": "Odpowiada - sprawdzono {ago}",
     "mcpHealthUnchecked": "Jeszcze nie sprawdzony",
     "mcpHealthCheck": "Sprawdź teraz",
-    "addNamedToAgent": "Dodaj {name} do agenta"
+    "addNamedToAgent": "Dodaj {name} do agenta",
+    "useServerInAgent": "Używaj {name} w tym agencie",
+    "connectOrganizationAccount": "Połącz konto organizacji",
+    "serverSettings": "Ustawienia",
+    "serverSettingsTitle": "{name} w tym agencie",
+    "serverSettingsDescription": "Przez czyje konto agent rozmawia z serwerem i których jego narzędzi może używać.",
+    "chooseAccount": "Wybierz konto"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -2645,7 +2649,15 @@
       "failed": "błąd",
       "awaiting_approval": "czeka na zatwierdzenie"
     },
-    "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem - wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}"
+    "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem - wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}",
+    "authFilter": "Logowanie",
+    "anyAuth": "Dowolne logowanie",
+    "checkedOn": "Sprawdzony {date}",
+    "checkedOnWithTools": "Sprawdzony {date} · {tools, plural, one {# narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}, tylko do odczytu: {readOnly}",
+    "didNotAnswerOn": "Nie odpowiedział przy sprawdzeniu katalogu {date}",
+    "toolReadsOnly": "czyta",
+    "toolWrites": "zapisuje",
+    "noAnswerOn": "Brak odpowiedzi {date}"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",

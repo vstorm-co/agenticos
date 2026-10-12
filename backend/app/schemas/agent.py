@@ -521,6 +521,28 @@ class CapabilityCatalogEntry(BaseSchema):
     )
 
 
+class McpCatalogCheck(BaseSchema):
+    """What `agenticos cmd mcp-catalog-check` found when it last called a listing."""
+
+    outcome: Literal[
+        "open", "sign_in", "token", "unreachable", "broken", "refused", "duplicate", "self_hosted"
+    ] = Field(
+        description=(
+            "open: answered and listed its tools with no credential; sign_in: asks for "
+            "OAuth; token: asks for a key or token; unreachable, broken, refused: did not "
+            "answer as an MCP server; duplicate: another listing is the same server; "
+            "self_hosted: no address to call until somebody connects one"
+        )
+    )
+    checked_at: datetime
+    tools: int | None = Field(
+        default=None, description="Tools it listed without a credential, where it did"
+    )
+    read_only_tools: int | None = Field(
+        default=None, description="How many of those it marks read-only"
+    )
+
+
 class McpCatalogEntry(BaseSchema):
     """One connectable MCP server in the curated catalog."""
 
@@ -548,6 +570,16 @@ class McpCatalogEntry(BaseSchema):
             "registry, where the description is the publisher's and there is no token "
             "hint because the registry has no such field."
         ),
+    )
+    verified: bool = Field(
+        default=False,
+        description=(
+            "Whether the last catalog check found it answering the way this entry says "
+            "it does - reachable, speaking MCP, and asking for the sign-in it promises"
+        ),
+    )
+    check: McpCatalogCheck | None = Field(
+        default=None, description="What the last catalog check found; null if never checked"
     )
 
 

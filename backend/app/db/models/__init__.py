@@ -28,6 +28,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
+from app.db.models.mcp_server_check import McpServerCheck
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
@@ -116,6 +117,7 @@ __all__ = [
     "DashboardPreset",
     "McpConnection",
     "McpRegistryServer",
+    "McpServerCheck",
     "AgentEmbed",
     "EmbedVisitor",
     "Agent",

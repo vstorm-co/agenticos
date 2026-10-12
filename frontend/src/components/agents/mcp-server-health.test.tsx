@@ -79,7 +79,7 @@ describe("a bound MCP server's health in the Builder (#2072)", () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
-  it("sits under a server the agent is bound to through the organization's account", () => {
+  it("sits in the settings of a server the agent is bound to through the organization's account", async () => {
     render(
       <McpServerPicker
         connections={[server({})]}
@@ -91,6 +91,8 @@ describe("a bound MCP server's health in the Builder (#2072)", () => {
         onCheck={vi.fn()}
       />,
     );
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(screen.getByText("Answering - checked 5m ago")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check now" })).toBeInTheDocument();

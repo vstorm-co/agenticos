@@ -122,16 +122,19 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       // for" a test of the mock.
       const params = new URLSearchParams(path.split("?")[1] ?? "");
       const needle = (params.get("q") ?? "").toLowerCase();
+      const auth = params.get("auth") ?? "";
       const skip = Number(params.get("skip") ?? 0);
       const limit = Number(params.get("limit") ?? 50);
       const all = [...CATALOG.items, ...registryResults];
-      const matched = needle
-        ? all.filter(
-            (entry) =>
-              entry.name.toLowerCase().includes(needle) ||
-              (entry.description ?? "").toLowerCase().includes(needle),
-          )
-        : all;
+      const matched = (
+        needle
+          ? all.filter(
+              (entry) =>
+                entry.name.toLowerCase().includes(needle) ||
+                (entry.description ?? "").toLowerCase().includes(needle),
+            )
+          : all
+      ).filter((entry) => !auth || entry.auth === auth);
       return {
         items: matched.slice(skip, skip + limit),
         total: matched.length,
@@ -208,6 +211,12 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    // Your own account is the default; the shared one is chosen on purpose.
+    expect(screen.getByRole("radio", { name: /^My own account/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.type(screen.getByLabelText("Access token"), "ghp-secret-9876");
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
@@ -458,6 +467,19 @@ describe("McpServerList", () => {
     expect(screen.queryByRole("group", { name: "Linear" })).toBeNull();
   });
 
+  it("narrows to servers asking for one kind of sign-in (#2103)", async () => {
+    await mount();
+    const tokenOnly = CATALOG.items.find((entry) => entry.auth === "token");
+    const oauthOnly = CATALOG.items.find((entry) => entry.auth === "oauth");
+    expect(tokenOnly && oauthOnly).toBeTruthy();
+
+    await userEvent.click(screen.getByLabelText("Sign-in"));
+    await userEvent.click(screen.getByRole("option", { name: "OAuth" }));
+
+    expect(await screen.findByRole("group", { name: oauthOnly!.name })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: tokenOnly!.name })).toBeNull();
+  });
+
   it("filters to what somebody has actually connected", async () => {
     // The question this answers on a catalog page: which of these are live?
     // Reading it off fifty-nine cards is the thing the filter replaces.
@@ -692,6 +714,7 @@ describe("naming a connection something a person can read", () => {
 
     await within(githubRow()).getByRole("button", { name: "Connect" }).click();
     const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.type(form.getByLabelText("Name"), "  Marketing workspace  ");
     await userEvent.click(form.getByRole("button", { name: /Connect/ }));
 
@@ -742,6 +765,7 @@ describe("naming a connection something a person can read", () => {
 
     await within(githubRow()).getByRole("button", { name: "Connect" }).click();
     const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.click(form.getByRole("button", { name: /Connect/ }));
 
     // The create, not the probe `handleTools` fires straight after it.

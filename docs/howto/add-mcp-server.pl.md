@@ -1,5 +1,5 @@
 ---
-source_sha: "34c34d991836"
+source_sha: "6829acd99f72"
 ---
 
 # Dodaj serwer do katalogu MCP { #add-a-server-to-the-mcp-catalog }
@@ -95,6 +95,10 @@ ikon jest skończony, a ten katalog nie jest.
    drugim kroku, wygląda w UI identycznie jak taki, który jest po prostu wolny.
 4. Sprawdź, czy nazwa nie koliduje z
    [prefiksem narzędzi](../mcp.md#name-collisions) istniejącego wpisu.
+5. Uruchom `uv run agenticos cmd mcp-catalog-check --source catalog` i potwierdź,
+   że raport oznacza wpis jako zweryfikowany, a potem odśwież dołączony snapshot
+   pełnym uruchomieniem z `--snapshot` - zobacz
+   [jak katalog jest utrzymywany](../mcp.md#how-the-catalog-is-kept).
 
 ## Co nie wymaga zmiany { #what-does-not-need-changing }
 

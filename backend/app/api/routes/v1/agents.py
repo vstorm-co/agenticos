@@ -18,7 +18,7 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
@@ -72,7 +72,7 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_catalog, mcp_listing
+from app.services import mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
@@ -176,20 +176,7 @@ async def list_mcp_catalog(db: DBSession) -> Any:
     auth flow works and the description is honest. `registry_total` says how many
     the mirror holds beside them, so a count line can say what searching reaches.
     """
-    items = [
-        McpCatalogEntry(
-            key=entry.key,
-            name=entry.name,
-            description=entry.description,
-            category=entry.category,
-            auth=entry.auth.value,
-            url=entry.url or None,
-            docs_url=entry.docs_url or None,
-            token_hint=entry.token_hint or None,
-            icon=entry.icon or None,
-        )
-        for entry in mcp_catalog.CATALOG
-    ]
+    items = [McpCatalogEntry(**vars(server)) for server in await mcp_listing.curated(db)]
     return McpCatalog(
         items=items,
         total=len(items),
@@ -206,6 +193,9 @@ async def list_mcp_servers(
     db: DBSession,
     q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
+    auth: Literal["", "none", "token", "oauth"] = Query(
+        "", description="What the server asks for, or blank for any"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -218,11 +208,14 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
-    A registry row carries `reviewed: false`, the only thing separating it from a
-    curated one: nobody here checked it, the description is the publisher's, and
-    there is no token hint because the registry has no such field.
+    A registry row carries `reviewed: false`: nobody here wrote it, the description
+    is the publisher's, and there is no token hint because the registry has no such
+    field. `verified` and `check` say what the last catalog check found, for either
+    kind; a registry listing it found dead or duplicated is not on the list.
     """
-    found = await mcp_listing.page(db, query=q, category=category, skip=skip, limit=limit)
+    found = await mcp_listing.page(
+        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+    )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
         total=found.total,
