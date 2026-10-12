@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Activity, KeyRound } from "lucide-react";
@@ -96,7 +98,17 @@ function CostCell({ cost, partial, title }: { cost: string; partial?: boolean; t
  * yet" for a 502 is the reassuring reading of the two, which is what makes it
  * the dangerous one on a page about money.
  */
-export function SpendTab({ period }: { period: Period }) {
+export function SpendTab({
+  period,
+  periodControl,
+}: {
+  period: Period;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
+}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
@@ -309,6 +321,7 @@ export function SpendTab({ period }: { period: Period }) {
           {/* The facet switch lives inside the container it slices, like every
               list card's filters. One table below, four subjects. */}
           <ListCardControlsRow role="group" aria-label={t("spendFacet")}>
+            {periodControl}
             {FACETS.map((entry) => (
               <Button
                 key={entry.id}

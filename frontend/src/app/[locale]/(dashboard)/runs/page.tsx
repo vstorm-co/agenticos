@@ -123,6 +123,9 @@ export default function RunsPage() {
   // badge says, and the height mattered - the three of them cost about 380px, so
   // a 900px viewport left the table three rows deep under them.
   const range = { from: periodStart(period), to: periodEnd(period) };
+  // One control, drawn first among the open tab's filters: the window narrows
+  // every tab, so each carries it where its other filters are.
+  const periodControl = <PeriodControl period={period} onChange={changePeriod} variant="menu" />;
   const { total: runCount } = useRuns(undefined, {
     startedFrom: range.from,
     startedTo: range.to,
@@ -138,16 +141,7 @@ export default function RunsPage() {
     // 900px viewport left a run history three rows deep inside its own scroll
     // box - a second scrollbar to reach what the page had room for all along.
     <div className="flex flex-col">
-      {/* `mb-4` rather than the header's own `mb-6 md:mb-8`: the window control
-          belongs *to* the heading above it - everything below is what it filters -
-          and two centimetres of white between a title and its own filter reads as
-          two unrelated bands. The room goes below the dates instead, where the
-          break actually is. */}
-      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} className="mb-4" />
-
-      <div className="mb-6">
-        <PeriodControl period={period} onChange={changePeriod} variant="menu" />
-      </div>
+      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
           on this permission - whether there is an Approvals tab at all - so
@@ -233,7 +227,11 @@ export default function RunsPage() {
                     data-tour="activity-approvals"
                     className="mt-0 min-h-0 flex-1 overflow-y-auto"
                   >
-                    <ApprovalsTab period={period} onFocusRun={focusRun} />
+                    <ApprovalsTab
+                      period={period}
+                      onFocusRun={focusRun}
+                      periodControl={periodControl}
+                    />
                   </TabsContent>
                 )}
 
@@ -241,6 +239,7 @@ export default function RunsPage() {
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab
+                    periodControl={periodControl}
                     agentId={agentId}
                     period={period}
                     filters={filters}
@@ -253,7 +252,7 @@ export default function RunsPage() {
                 </TabsContent>
 
                 <TabsContent value="spend" data-tour="activity-spend" className="mt-0">
-                  <SpendTab period={period} />
+                  <SpendTab period={period} periodControl={periodControl} />
                 </TabsContent>
               </div>
 

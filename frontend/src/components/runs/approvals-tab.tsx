@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -64,9 +66,15 @@ const APPROVALS_PAGE = 50;
 export function ApprovalsTab({
   period,
   onFocusRun,
+  periodControl,
 }: {
   period: Period;
   onFocusRun: (runId: string | null) => void;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
@@ -215,22 +223,25 @@ export function ApprovalsTab({
           : t("approvalsCounted", { waiting: total, decided: history.total })
       }
       controls={
-        <ExportMenu
-          permission={Perm.approvalsDecide}
-          endpoint="/approvals/export"
-          kind="approvals"
-          // Every status the table shows, queue and record alike - absent, the
-          // route exports the pending queue alone. Pairs, because the
-          // parameter repeats.
-          params={[
-            ["status", "pending"],
-            ["status", "approved"],
-            ["status", "rejected"],
-            ["status", "expired"],
-          ]}
-          rangeParams={{ from: "created_from", to: "created_to" }}
-          range={range}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {periodControl}
+          <ExportMenu
+            permission={Perm.approvalsDecide}
+            endpoint="/approvals/export"
+            kind="approvals"
+            // Every status the table shows, queue and record alike - absent, the
+            // route exports the pending queue alone. Pairs, because the
+            // parameter repeats.
+            params={[
+              ["status", "pending"],
+              ["status", "approved"],
+              ["status", "rejected"],
+              ["status", "expired"],
+            ]}
+            rangeParams={{ from: "created_from", to: "created_to" }}
+            range={range}
+          />
+        </div>
       }
       contentClassName="p-0"
     >

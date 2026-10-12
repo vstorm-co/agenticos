@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
@@ -70,6 +72,7 @@ export function RunHistoryTab({
   onFocusRun,
   focusedRunId = null,
   initialDurationSort = false,
+  periodControl,
 }: {
   agentId: string | null;
   period: Period;
@@ -78,6 +81,11 @@ export function RunHistoryTab({
   onFiltersChange: (filters: RunFilters) => void;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
+  /**
+   * The page's window, drawn first among this tab's own filters: it narrows
+   * the same table they do, so it sits with them rather than in a band above.
+   */
+  periodControl?: ReactNode;
   /** Which run the detail panel is showing, so its row reads as the open one. */
   focusedRunId?: string | null;
   initialDurationSort?: boolean;
@@ -249,6 +257,7 @@ export function RunHistoryTab({
                   control with nothing to do. */}
               {canView && (
                 <ListCardControlsRow className="shrink-0">
+                  {periodControl}
                   <RunFilterBar
                     filters={filters}
                     period={period}
