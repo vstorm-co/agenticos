@@ -477,6 +477,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Chat reads like the Architect's window.** Each turn opens with the face and
+  the name on one line, the message under them at the column's full width, and
+  the column is narrower - about the width ChatGPT and Claude keep - with nothing
+  showing through under the composer.
 - **The Builder's Toolbox opens on the capabilities.** The card listing where an
   agent's knowledge comes from left the tab; the same answer stays at
   `GET /agents/{agent_id}/knowledge-reach`.

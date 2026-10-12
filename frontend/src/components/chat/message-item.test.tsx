@@ -768,27 +768,13 @@ describe("the footer", () => {
 });
 
 describe("a turn split across several messages", () => {
-  it("joins the group visually, and stands a single one alone", () => {
-    const { container, unmount } = item({}, { groupPosition: "first" });
-    expect(container.querySelector(".ring-2")).not.toBeNull();
+  it("sits its parts closer together than two separate turns", () => {
+    const { container, unmount } = item({}, { groupPosition: "middle" });
+    expect(container.querySelector("[data-message-id]")).toHaveClass("pt-2");
     unmount();
 
     const single = item({}, { groupPosition: "single" });
-    expect(single.container.querySelector(".ring-2")).toBeNull();
-  });
-
-  it("draws the connector for a middle and a last message too", () => {
-    for (const position of ["middle", "last"] as const) {
-      const { container, unmount } = item({}, { groupPosition: position });
-      expect(container.querySelector(".ring-2"), position).not.toBeNull();
-      unmount();
-    }
-  });
-
-  it("never groups a person's own message", () => {
-    const { container } = item({ role: "user", content: "x" }, { groupPosition: "first" });
-
-    expect(container.querySelector(".ring-2")).toBeNull();
+    expect(single.container.querySelector("[data-message-id]")).toHaveClass("pt-3");
   });
 });
 
@@ -993,15 +979,16 @@ describe("a segment that continues the turn above it", () => {
     expect(container.firstElementChild!.className).not.toContain("pb-0");
   });
 
-  it("keeps the gutter, so the whole turn stays in one column", () => {
+  it("draws no second face or name, so the turn reads as one message", () => {
     const { container } = item(
       {},
       { agent: { id: "a-1", slug: "support", name: "Support" } as Agent, continuesTurn: true },
     );
 
-    // The avatar slot is still rendered and still the same size - empty rather
-    // than absent, and hidden from a screen reader because it says nothing.
-    expect(container.querySelector('[aria-hidden="true"].rounded-full')).toBeInTheDocument();
+    // The face and the name head the turn once, over the full-width column, so a
+    // segment that continues it starts straight with its content.
+    expect(container.querySelector(".rounded-full")).toBeNull();
+    expect(screen.queryByText("Support")).toBeNull();
   });
 });
 

@@ -154,21 +154,13 @@ export function MessageItem({
 
   const avatar = (
     <div
-      aria-hidden={continuesTurn}
       className={cn(
         "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
-        compact ? "h-6 w-6" : "h-8 w-8 sm:h-9 sm:w-9",
-        // Empty, not absent: the gutter is what keeps every segment of the turn
-        // in one column under the avatar that opened it.
-        continuesTurn
-          ? "bg-transparent"
-          : isUser
-            ? "bg-foreground text-background"
-            : "bg-muted text-foreground",
-        isGrouped && !isUser && !continuesTurn && "ring-background ring-2",
+        compact ? "h-6 w-6" : "h-7 w-7",
+        isUser ? "bg-foreground text-background" : "bg-muted text-foreground",
       )}
     >
-      {continuesTurn ? null : isUser && authUser?.avatar_url ? (
+      {isUser && authUser?.avatar_url ? (
         <Image
           src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
           alt=""
@@ -205,8 +197,12 @@ export function MessageItem({
       // drawn around it.
       data-message-id={message.id}
       className={cn(
-        "group relative flex overflow-visible",
-        compact ? "flex-col gap-1.5" : "gap-2 sm:gap-4",
+        // The face and the name on one line over the message, as in the
+        // Architect's window, and the message under them at the column's full
+        // width: a column of avatars beside every turn spent a gutter on a face
+        // that only needs saying once per turn.
+        "group relative flex flex-col overflow-visible",
+        compact ? "gap-1.5" : "gap-2",
         // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
         // utilities of equal specificity leave which one wins to the order of the
         // generated stylesheet, and a segment reading `py-3 pt-0 pb-0` kept its
@@ -219,62 +215,36 @@ export function MessageItem({
         // three separate things the agent did.
         continuesTurn ? "pt-0" : compact ? "pt-2" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
         endsTurn ? (compact ? "pb-2" : isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
-        isUser && (compact ? "items-end" : "flex-row-reverse"),
+        isUser && "items-end",
       )}
     >
-      {" "}
-      {isGrouped && !isUser && !compact && (
-        <div
-          className={cn("bg-border absolute left-[15px] w-0.5 sm:left-[17px]")}
-          style={
-            groupPosition === "first"
-              ? { top: "24px", bottom: "0" }
-              : groupPosition === "last"
-                ? { top: "0", height: "24px" }
-                : { top: "0", bottom: "0" }
-          }
-        />
+      {/* Which agent answered, on the turn it answered: a conversation that
+          switched agents mid-way says so, instead of relabelling the whole thread
+          with whatever is selected now. The version, where the transcript
+          recorded one, because this turn was answered by one frozen spec. */}
+      {!continuesTurn && (
+        <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
+          {avatar}
+          <span
+            className={cn(
+              "truncate font-medium",
+              compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+            )}
+          >
+            {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+            {!isUser && message.agentVersion !== undefined && (
+              <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
+            )}
+          </span>
+        </div>
       )}
-      {compact
-        ? // One line over the message rather than a column beside it: the face and
-          // the name together, and the message below them at the window's full
-          // width.
-          !continuesTurn && (
-            <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
-              {avatar}
-              <span className="text-muted-foreground truncate text-xs font-medium">
-                {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
-                {!isUser && message.agentVersion !== undefined && (
-                  <span className="text-muted-foreground/70"> · v{message.agentVersion}</span>
-                )}
-              </span>
-            </div>
-          )
-        : avatar}
       <div
         className={cn(
-          "flex-1 overflow-hidden",
-          compact
-            ? cn("space-y-1.5", isUser ? "max-w-[85%]" : "w-full")
-            : "max-w-[88%] space-y-2 sm:max-w-[85%]",
-          isUser && "flex flex-col items-end",
+          "overflow-hidden",
+          compact ? "space-y-1.5" : "space-y-2",
+          isUser ? "flex max-w-[85%] flex-col items-end" : "w-full",
         )}
       >
-        {/* Which agent answered, on the turn it answered. A conversation that
-            switched agents mid-way says so, instead of relabelling the whole
-            thread with whatever is selected now. */}
-        {!isUser && agent && !continuesTurn && !compact && (
-          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {agent.name}
-            {/* The version, where the transcript recorded one. An agent gets
-                rewritten; this turn was answered by one frozen spec, and that
-                is the thing "why did it say that" is a question about. */}
-            {message.agentVersion !== undefined && (
-              <span className="text-muted-foreground"> · v{message.agentVersion}</span>
-            )}
-          </p>
-        )}
-
         {isUser &&
           (() => {
             const attachments: AttachmentDisplay[] =
