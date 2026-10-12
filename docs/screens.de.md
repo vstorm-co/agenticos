@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a4e83b7fd4"
+source_sha: "8fa34a0bfa16"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -16,7 +16,7 @@ Die aktuelle bearbeitete Demo zeigt den OSS Launch Planner: eine Aufgabe mit ein
 
 ### Dashboard { #dashboard }
 
-Anordenbare Widgets, zuerst das ganze Deployment und dann diese Organisation. Runs, Ausgaben, Dienstzustand und Antwortqualität; jede Karte ist an der Permission gemessen, die ihre eigenen Daten verlangen, sodass eine Karte, deren primären Lesezugriff Sie nicht machen dürfen, Ihnen gar nicht angeboten wird.
+Anordenbare Widgets, zuerst diese Organisation und dann das ganze Deployment. Runs, Ausgaben, Dienstzustand und Antwortqualität; jede Karte ist an der Permission gemessen, die ihre eigenen Daten verlangen, sodass eine Karte, deren primären Lesezugriff Sie nicht machen dürfen, Ihnen gar nicht angeboten wird.
 
 > **Screenshot ausstehend — Dashboard.**
 

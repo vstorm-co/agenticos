@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import {
   Area,
   AreaChart,
@@ -36,6 +37,8 @@ export function TrendChartImpl({
   // for each, and duplicating the axes to switch between them is how the two
   // drift into disagreeing about their own scale.
   const Chart = variant === "bars" ? BarChart : AreaChart;
+  // `useId` answers with characters (`:` or `«`) a `url(#…)` reference cannot hold.
+  const washId = `wash-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
     <ResponsiveContainer width="100%" height="100%">
       {/* The right margin is the last tick's other half. Recharts anchors an
@@ -85,9 +88,12 @@ export function TrendChartImpl({
           }}
           labelStyle={{ color: "var(--color-muted-foreground)" }}
         />
-        {/* A flat wash rather than a gradient: the fill says "under the line",
-            and a ramp invents a second encoding down the y-axis that no data
-            asked for. */}
+        <defs>
+          <linearGradient id={washId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-chart)" stopOpacity={AREA_FILL_OPACITY} />
+            <stop offset="100%" stopColor="var(--color-chart)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {variant === "bars" ? (
           <Bar
             dataKey="value"
@@ -101,8 +107,7 @@ export function TrendChartImpl({
             dataKey="value"
             stroke="var(--color-chart)"
             strokeWidth={LINE_WIDTH}
-            fill="var(--color-chart)"
-            fillOpacity={AREA_FILL_OPACITY}
+            fill={`url(#${washId})`}
             dot={false}
             // The hovered point, drawn in the surface with the line's own colour
             // around it - the cursor line alone says which column, never which

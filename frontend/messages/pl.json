@@ -1445,10 +1445,6 @@
     "failedRevokeSessions": "Nie udało się unieważnić sesji",
     "lastActive": "Ostatnia aktywność {when}",
     "noSessionDataAvailable": "Brak danych o sesjach.",
-    "orgDivider": {
-      "label": "Organizacja",
-      "note": "Wszystko poniżej dotyczy tej organizacji"
-    },
     "period": {
       "1d": "Dzisiaj",
       "30d": "Ostatnie 30 dni",
@@ -1467,8 +1463,6 @@
     "sections": {
       "attention": "Wymaga uwagi",
       "deployment": "Instalacja",
-      "people": "Ludzie i jakość",
-      "sandboxes": "Gdzie agenci uruchamiają kod",
       "usage": "Użycie i koszty",
       "workspace": "Twoja przestrzeń"
     },
@@ -1482,7 +1476,7 @@
       "loading": "Ładowanie"
     },
     "subtitles": {
-      "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
+      "app_admin": "Najpierw Twoja organizacja, potem cała instalacja - ta sama strona, więcej odpowiedzi.",
       "builder": "Czy agenci, których budujesz, są naprawdę używani - i czy są zdrowi?",
       "member": "Wróć tam, gdzie skończyłeś.",
       "operator": "Czy wszystko działa i co czeka na Ciebie?",

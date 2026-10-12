@@ -33,7 +33,7 @@
  * |--------------------------------|------------------------------------------|
  * | A data mark (bar, line, area)  | `--color-chart` (`brand-500`)            |
  * | The unfilled part of that bar  | `--color-track` (`brand-100` / `brand-900`) |
- * | An area wash                   | the mark at 10%, flat                    |
+ * | An area wash                   | the mark at 22% at the line, fading to 0 |
  * | A gridline or axis             | one step off surface, solid hairline     |
  * | A quiet surface                | `bg-muted` - the one token               |
  * | State                          | `success` / `warning` / `destructive`, reserved, always labelled |
@@ -131,8 +131,16 @@ export function seriesColor(index: number): string {
  */
 export const QUIET_SURFACE = "bg-muted";
 
-/** Recharts wants numbers, not classes: the area wash, flat rather than a ramp. */
-export const AREA_FILL_OPACITY = 0.1;
+/**
+ * Recharts wants numbers, not classes: the area wash's strength at the line.
+ *
+ * It fades to nothing at the baseline, so it is a shadow the line casts rather
+ * than a block under it - averaged over the area it is lighter than the flat
+ * tenth it replaced, which on the dark theme read as a grey slab with a line on
+ * top. The fade carries no value: the line is the data, the wash only says
+ * which side of it is "under".
+ */
+export const AREA_FILL_OPACITY = 0.22;
 
 /** Recharts wants numbers, not classes: a line is 2px. */
 export const LINE_WIDTH = 2;

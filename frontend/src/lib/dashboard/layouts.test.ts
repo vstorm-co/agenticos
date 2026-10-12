@@ -111,8 +111,8 @@ describe("visibleSections", () => {
       held.includes(permission);
 
   it("drops a section whose every widget is refused, heading included", () => {
-    // A viewer holds agents:view and collections:view; the steward layout's
-    // attention and people sections have nothing for them.
+    // A viewer holds agents:view and collections:view; the organization's own
+    // bands have nothing for them but the one card gated on being signed in.
     const sections = visibleSections(
       LAYOUTS.steward,
       holds(Perm.agentsView, Perm.collectionsView),
@@ -120,19 +120,7 @@ describe("visibleSections", () => {
     );
 
     expect(sections.map((section) => section.id)).toEqual(["attention", "workspace"]);
-    // Both collections cards survive on that one permission: freshness answers
-    // whether documents are still arriving, knowledge whether the ones that
-    // did ever finished indexing. Routines survives on `agents:view`, which is
-    // what its own data needs - the outcome half of each row asks for runs and
-    // is simply not fetched for a reader without them. Notifications survives
-    // on nothing at all - it is the one card in this band gated on being
-    // signed in rather than on any permission.
-    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
-      "knowledge-freshness",
-      "notifications",
-      "routines",
-      "knowledge",
-    ]);
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual(["notifications"]);
     expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([
       "my-agents",
       "shared-with-you",
@@ -149,58 +137,45 @@ describe("visibleSections", () => {
     ]);
   });
 
-  it("the app admin passes every gate on their own layout", () => {
+  it("opens on the organization's figures, with the deployment band last for an app admin", () => {
     const sections = visibleSections(LAYOUTS.app_admin, () => true, true);
-    const widgets = sections.flatMap((section) => section.entries.map((entry) => entry.widget));
+    const ids = sections.map((section) => section.id);
 
-    expect(sections.map((section) => section.id)[0]).toBe("deployment");
-    expect(widgets).toContain("platform");
-    expect(widgets).toContain("approvals");
+    expect(ids[0]).toBe("overview");
+    expect(ids.at(-1)).toBe("deployment");
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
+      "summary",
+      "runs",
+      "outcomes",
+    ]);
   });
 
   it("an org admin never sees the deployment strip", () => {
     // Everybody is offered the same arrangement, so what withholds the band is
     // the gate on its four cards - all four are app-admin-only, so the heading
-    // goes with them. The summary is deliberately not among them: it is the
-    // organization's own, and a band titled "Deployment" is not where it reads.
+    // goes with them.
     const sections = visibleSections(LAYOUTS.steward, () => true, false);
 
     expect(sections.map((section) => section.id)).not.toContain("deployment");
-    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual(["summary"]);
   });
 
-  it("withholds the sandbox section, heading included, without connections:view", () => {
-    // Not rendered and then 403'd: a caller who cannot ask a host what it runs
-    // must not be told the section exists.
-    const sections = visibleSections(
-      LAYOUTS.steward,
-      holds(Perm.runsView, Perm.membersManage),
-      false,
+  it("leaves the cards that are usually empty to the catalog", () => {
+    // A default that leads with "nothing connected yet" in six places is the
+    // page this arrangement replaced; those cards are one click away in
+    // Customize, and every one of them is still in the registry.
+    const placed = new Set(
+      LAYOUTS.app_admin.flatMap((section) => section.entries.map((entry) => entry.widget)),
     );
-
-    expect(sections.map((section) => section.id)).not.toContain("sandboxes");
-  });
-
-  it("gives an operator the sandbox section on the strength of connections:view", () => {
-    const sections = visibleSections(LAYOUTS.operator, holds(Perm.connectionsView), false);
-
-    // Attention survives too, on the one card nothing gates: an operator with
-    // no other permission in this list still has their own inbox.
-    expect(sections.map((section) => section.id)).toEqual(["attention", "sandboxes"]);
-    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([
-      "sandbox-capacity",
-      "sandbox-policy",
+    for (const widget of [
+      "mcp-health",
+      "channels",
+      "routines",
+      "knowledge-freshness",
       "sandbox-sessions",
-    ]);
-  });
-
-  it("does not offer the sandbox cards for connections:manage alone", () => {
-    // The cards gate on the read, and the catalog implies neither permission
-    // from the other - the same rule the backend keeps. A real manage-holding
-    // role also holds the view; a caller with only manage is not one.
-    const sections = visibleSections(LAYOUTS.builder, holds(Perm.connectionsManage), false);
-
-    expect(sections.map((section) => section.id)).not.toContain("sandboxes");
+    ] as const) {
+      expect(placed.has(widget), widget).toBe(false);
+      expect(WIDGETS[widget]).toBeTruthy();
+    }
   });
 });
 

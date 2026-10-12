@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a4e83b7fd4"
+source_sha: "8fa34a0bfa16"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -16,7 +16,7 @@ Aktualne zmontowane demo pokazuje OSS Launch Planner: zadanie wykorzystujące br
 
 ### Dashboard { #dashboard }
 
-Układalne widgety, najpierw całe wdrożenie, a potem ta organizacja. Runy, wydatki, kondycja usług i jakość odpowiedzi; każda karta jest bramkowana uprawnieniem, którego wymagają jej własne dane, więc karta, której podstawowego odczytu nie możesz wykonać, to karta, której nie dostajesz do wyboru.
+Układalne widgety, najpierw ta organizacja, a potem całe wdrożenie. Runy, wydatki, kondycja usług i jakość odpowiedzi; każda karta jest bramkowana uprawnieniem, którego wymagają jej własne dane, więc karta, której podstawowego odczytu nie możesz wykonać, to karta, której nie dostajesz do wyboru.
 
 > **Miejsce na zrzut — Dashboard.**
 

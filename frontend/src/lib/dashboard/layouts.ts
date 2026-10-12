@@ -235,109 +235,67 @@ export function nearestRows(rows: number): Rows {
  *
  * One list rather than six curated ones, and it is not a simplification: the
  * layout only *proposes*, and `visibleSections` below disposes. A member is
- * refused every card in the first five bands and lands on their workspace; a
- * viewer is refused all but two. Six hand-written variants said the same thing
- * a permission already says, and drifted from each other every time a widget
- * was added to one of them.
+ * refused every card in the organization's bands and lands on their workspace;
+ * a viewer is refused all but two. Six hand-written variants said the same
+ * thing a permission already says, and drifted from each other every time a
+ * widget was added to one of them.
  *
  * Every placement carries its height as well as its width, because both were
- * chosen on a real screen with real data in the cards - this is a page somebody
- * arranged and then asked to be the default, not a table of guesses. That is
- * also why the page renders a default in the same fixed-row grid as an arranged
- * one: a height nobody can see is not a default anybody chose.
+ * chosen on a real screen with a month of real-shaped data in the cards. That
+ * is also why the page renders a default in the same fixed-row grid as an
+ * arranged one: a height nobody can see is not a default anybody chose.
+ *
+ * **It shows the cards that answer with data, not every card there is.** The
+ * catalog holds the rest - integrations, channels, routines, sandboxes,
+ * departments - and each is one click away in Customize. On the default they
+ * were mostly empty states: in an organization that had not connected an MCP
+ * server or a channel, half the page said "nothing here", and the charts that
+ * did have something to say began two screens down.
  *
  * The order inside a band is the order it was arranged in, and it is the rule
  * the whole page is built on - a row holds cards of comparable natural height,
  * and a chart never sits beside a status list it dwarfs.
  */
 const DEFAULT_SECTIONS: SectionDef[] = [
-  // Deployment-wide, so app-admin only - every card here fails an
-  // organization's gate and the band disappears with them.
-  {
-    id: "deployment",
-    titleKey: "deployment",
-    entries: [
-      { widget: "platform", span: "s6", rows: "r2" },
-      { widget: "health", span: "s6", rows: "r2" },
-      { widget: "top-orgs", span: "s6", rows: "r3" },
-      { widget: "platform-ratings", span: "s6", rows: "r3" },
-    ],
-  },
-  // Untitled, and above every heading: it is the answer the rest of the page is
-  // the detail of. It is *not* in the deployment band, where the arrangement
-  // this default was taken from had put it - the four cards there are the
-  // admin's alone, so for everybody else that band would render as a heading
-  // reading "Deployment" over one card of their own organization's numbers.
+  // Untitled, and first: the four figures, the runs behind them day by day and
+  // how those runs ended. It is the answer the rest of the page is the detail
+  // of, so it fills the first screen on its own.
   {
     id: "overview",
     titleKey: null,
-    entries: [{ widget: "summary", span: "s12", rows: "r3" }],
+    entries: [
+      { widget: "summary", span: "s12", rows: "r3" },
+      { widget: "runs", span: "s8", rows: "r4" },
+      { widget: "outcomes", span: "s4", rows: "r4" },
+    ],
   },
+  // What a person can act on now. Kept to four cards that are short when there
+  // is nothing to do - an approval queue, the failures, the budgets and the
+  // notifications - and the notifications are the one card everybody sees.
   {
     id: "attention",
     titleKey: "attention",
     entries: [
       { widget: "approvals", span: "s6", rows: "r3" },
-      { widget: "budget-headroom", span: "s6", rows: "r2" },
-      { widget: "department-spend", span: "s6", rows: "r2" },
-      { widget: "mcp-health", span: "s6", rows: "r2" },
       { widget: "recent-failures", span: "s6", rows: "r3" },
-      { widget: "knowledge-freshness", span: "s6", rows: "r3" },
-      { widget: "channels", span: "s6", rows: "r3" },
-      // The only card in this band everybody sees - the rest fail an
-      // organization-scoped gate for a plain member and disappear.
+      { widget: "budget-headroom", span: "s6", rows: "r3" },
       { widget: "notifications", span: "s6", rows: "r3" },
-      // Beside the channels rather than under Usage: an unattended run nobody is
-      // watching is the definition of something that wants attention, and a
-      // routine that has been failing every hour is invisible anywhere else on
-      // this page (#594).
-      { widget: "routines", span: "s6", rows: "r3" },
-      { widget: "knowledge", span: "s6", rows: "r2" },
     ],
   },
   {
     id: "usage",
     titleKey: "usage",
     entries: [
-      { widget: "runs", span: "s8", rows: "r3" },
-      { widget: "outcomes", span: "s4", rows: "r3" },
-      { widget: "surfaces", span: "s6", rows: "r3" },
       { widget: "agents", span: "s6", rows: "r3" },
       { widget: "spend", span: "s6", rows: "r3" },
-      { widget: "model-mix", span: "s6", rows: "r3" },
-      // The heatmap takes a row to itself - it is seven rows by twenty-four,
-      // and anything beside it is either dwarfed or forced to a height it has
-      // no content for.
-      { widget: "activity-rhythm", span: "s12", rows: "r4" },
-      { widget: "latency", span: "s6", rows: "r3" },
-      { widget: "active-users", span: "s6", rows: "r3" },
+      // Eight columns are enough for twenty-four hours, and the channel list
+      // beside it is about as tall as seven days are.
+      { widget: "activity-rhythm", span: "s8", rows: "r4" },
+      { widget: "surfaces", span: "s4", rows: "r4" },
+      { widget: "model-mix", span: "s4", rows: "r3" },
+      { widget: "latency", span: "s4", rows: "r3" },
+      { widget: "org-ratings", span: "s4", rows: "r3" },
       { widget: "top-people", span: "s12", rows: "r4" },
-    ],
-  },
-  {
-    id: "people",
-    titleKey: "people",
-    entries: [
-      { widget: "members", span: "s6", rows: "r3" },
-      { widget: "org-ratings", span: "s6", rows: "r3" },
-      { widget: "department-quality", span: "s6", rows: "r3" },
-    ],
-  },
-  /**
-   * Where agents run code. The cards gate on `connections:view` - the read that
-   * owner, admin, builder and now operator all hold (`ROLE_PERMS` in
-   * `app/core/permissions.py`). The operator was the point of splitting the
-   * permission: "why did that agent just get a 429" is their question, and it
-   * needs the session list and the ceilings, not the authority to point a host
-   * somewhere. See #129 and #449.
-   */
-  {
-    id: "sandboxes",
-    titleKey: "sandboxes",
-    entries: [
-      { widget: "sandbox-capacity", span: "s5", rows: "r3" },
-      { widget: "sandbox-policy", span: "s7", rows: "r3" },
-      { widget: "sandbox-sessions", span: "s12", rows: "r4" },
     ],
   },
   // The band a member's whole page is: their own agents, their own threads,
@@ -350,11 +308,24 @@ const DEFAULT_SECTIONS: SectionDef[] = [
     entries: [
       { widget: "my-agents", span: "s6", rows: "r4" },
       { widget: "conversations", span: "s6", rows: "r4" },
-      { widget: "my-activity", span: "s12", rows: "r4" },
-      { widget: "my-top-agents", span: "s6", rows: "r4" },
-      { widget: "my-quality", span: "s3", rows: "r3" },
-      { widget: "shared-with-you", span: "s3", rows: "r3" },
-      { widget: "artifacts", span: "s6", rows: "r4" },
+      { widget: "my-activity", span: "s8", rows: "r3" },
+      { widget: "my-quality", span: "s4", rows: "r3" },
+      { widget: "my-top-agents", span: "s6", rows: "r3" },
+      { widget: "shared-with-you", span: "s6", rows: "r3" },
+    ],
+  },
+  // Deployment-wide, so app-admin only - every card here fails an
+  // organization's gate and the band disappears with them. Last, because the
+  // admin is also somebody in an organization, and that is what they open the
+  // page to read most days; the host's own state is the scroll below it.
+  {
+    id: "deployment",
+    titleKey: "deployment",
+    entries: [
+      { widget: "platform", span: "s6", rows: "r2" },
+      { widget: "health", span: "s6", rows: "r2" },
+      { widget: "top-orgs", span: "s6", rows: "r3" },
+      { widget: "platform-ratings", span: "s6", rows: "r3" },
     ],
   },
 ];

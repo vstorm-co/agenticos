@@ -1,5 +1,5 @@
 ---
-source_sha: "b26230b385ba"
+source_sha: "7b9aa914e4ff"
 ---
 
 # La consola { #the-console }
@@ -24,17 +24,18 @@ propias notificaciones, más abajo, que solo necesitan que hayas iniciado
 sesión. Una banda vacía desaparece junto con su título en lugar de quedarse ahí
 vacía.
 
-Llegan agrupadas en bandas:
+La disposición por defecto muestra las tarjetas que responden con datos,
+agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
+de conocimiento, departamentos, miembros, sandboxes - espera en el catálogo, a un
+clic bajo **Customize**:
 
 | Banda | Responde a |
 |---|---|
-| *(sin título, arriba del todo)* | El resumen del que el resto de la página es el detalle |
-| **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
-| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, [gasto por departamento](departments.md#a-departments-budget), salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
-| **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
-| **People** | Miembros, usuarios activos, valoraciones, [calidad de respuesta por departamento](departments.md#how-well-its-people-are-answered), quién hace qué |
-| **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
-| **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
+| *(sin título, arriba del todo)* | El resumen, los runs día a día y cómo terminaron |
+| **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
+| **Usage & cost** | Qué agents se usan, gasto, cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
+| **Your workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
+| **Deployment** | Al final, y solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
 
 Quien construye agents ve además **Get started** encima de las bandas hasta
 completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,

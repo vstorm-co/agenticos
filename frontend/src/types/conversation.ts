@@ -19,7 +19,8 @@ export interface Conversation {
   user_id?: string;
   title?: string;
   created_at: string;
-  updated_at: string;
+  /** Null until the conversation is first changed after it was created. */
+  updated_at: string | null;
   is_archived: boolean;
   /**
    * Whether **the caller** has starred it. A property of the reader rather than

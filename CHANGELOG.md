@@ -477,6 +477,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The dashboard opens on the numbers.** The default arrangement leads with the
+  period's figures, runs day by day and how they ended, then what needs
+  attention, then usage and cost; a deployment admin's platform band moves to
+  the end. Cards that are usually empty - integrations, channels, routines,
+  knowledge sync, departments, members, sandboxes - leave the default for the
+  catalog under **Customize**. Charts fade their wash to the baseline, the
+  heatmap's quiet hours stand clear of empty ones, the outcomes key moves under
+  the ring when the card is narrow, and a conversation that was never changed
+  no longer reads as from January 1.
 - **The Builder shows MCP servers as the servers page does.** The same cards,
   with a switch for whether this agent uses the server; switching it on, or
   clicking the card, opens its settings - whose account, which one, which

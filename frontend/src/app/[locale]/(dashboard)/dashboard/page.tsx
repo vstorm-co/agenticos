@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, Fragment, useMemo, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
@@ -10,18 +10,12 @@ import { toast } from "sonner";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
-import { OrgDivider } from "@/components/dashboard/org-divider";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
 import { EmptyState, LoadingState } from "@/components/states";
-import {
-  useDashboardLayout,
-  useDashboardPresets,
-  useOrganizationList,
-  usePermissions,
-} from "@/hooks";
+import { useDashboardLayout, useDashboardPresets, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
 import { useOrgStore } from "@/stores";
 import {
@@ -104,11 +98,6 @@ export default function DashboardPage() {
     setCollapseOverrides({});
   }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const organizations = useOrganizationList();
-  const activeOrgName = useMemo(
-    () => organizations.data?.find((organization) => organization.id === activeOrgId)?.name ?? null,
-    [organizations.data, activeOrgId],
-  );
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward, so hold the skeleton
@@ -260,7 +249,6 @@ export default function DashboardPage() {
 
   const selectedSections = parseSectionsParam(sectionsParam, visible);
   const sections = applySectionsFilter(visible, selectedSections);
-  const firstOrgSectionId = sections.find((section) => section.id !== "deployment")?.id;
 
   return (
     <div>
@@ -295,83 +283,79 @@ export default function DashboardPage() {
           const toggleCollapsed = () =>
             setCollapseOverrides((current) => ({ ...current, [section.id]: !collapsed }));
           return (
-            <Fragment key={section.id}>
-              {!isCustom && audience === "app_admin" && section.id === firstOrgSectionId ? (
-                <OrgDivider name={activeOrgName} />
-              ) : null}
-              <section
-                className={cn(coloured && "dash-section-accent p-4", decoration?.className)}
-                style={decoration?.style as CSSProperties | undefined}
-              >
-                {/* A band label, not a title. A section heading set at the same
+            <section
+              key={section.id}
+              className={cn(coloured && "dash-section-accent p-4", decoration?.className)}
+              style={decoration?.style as CSSProperties | undefined}
+            >
+              {/* A band label, not a title. A section heading set at the same
                   size and weight as the card titles under it gave the page two
                   levels where it has three, so nothing marked where one band
-                  ended and the next began - the mono kicker `OrgDivider`
-                  already used is the level between. */}
-                {heading ? (
-                  <h2 className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={toggleCollapsed}
-                      aria-expanded={!collapsed}
-                      aria-label={
-                        collapsed
-                          ? t("edit.expand", { title: heading })
-                          : t("edit.collapse", { title: heading })
-                      }
-                      className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
-                    >
-                      {collapsed ? (
-                        <ChevronRight className="size-4" aria-hidden />
-                      ) : (
-                        <ChevronDown className="size-4" aria-hidden />
-                      )}
-                    </button>
-                    {coloured ? (
-                      <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
-                    ) : null}
-                    <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
-                      {heading}
-                    </span>
-                    <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
-                  </h2>
-                ) : null}
-                {collapsed ? null : (
-                  <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
-                    {section.entries.map((entry, index) => {
-                      const Widget = WIDGET_COMPONENTS[entry.widget];
-                      // Width and height, both from the placement. The shipped
-                      // default carries a height on every card now - it is a page
-                      // somebody arranged - so this is the same grid an arranged
-                      // layout renders in and the editor previews. A placement
-                      // predating heights falls back to the widget's own.
-                      const cell = `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows ?? WIDGETS[entry.widget].defaultRows]}`;
-                      return (
-                        <div
-                          key={`${entry.widget}-${index}`}
-                          className={cn(cell, coloured && "dash-tile-accent")}
-                        >
-                          <Widget
-                            title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
-                            hint={t(`widgets.${entry.widget}.description`)}
-                            // A card pinning its own window gets that one; every
-                            // other card follows the page's filter. Resolved here
-                            // rather than inside the widget, so a widget never has
-                            // to know which of the two it was handed - and so the
-                            // preset is resolved once against one "today".
-                            period={
-                              entry.options?.period ? resolvePreset(entry.options.period) : period
-                            }
-                            seeAll={WIDGETS[entry.widget].seeAll}
-                            options={entry.options}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </Fragment>
+                  ended and the next began - a mono kicker is the level
+                  between. */}
+              {heading ? (
+                <h2 className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleCollapsed}
+                    aria-expanded={!collapsed}
+                    aria-label={
+                      collapsed
+                        ? t("edit.expand", { title: heading })
+                        : t("edit.collapse", { title: heading })
+                    }
+                    className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
+                  >
+                    {collapsed ? (
+                      <ChevronRight className="size-4" aria-hidden />
+                    ) : (
+                      <ChevronDown className="size-4" aria-hidden />
+                    )}
+                  </button>
+                  {coloured ? (
+                    <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
+                  ) : null}
+                  <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
+                    {heading}
+                  </span>
+                  <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
+                </h2>
+              ) : null}
+              {collapsed ? null : (
+                <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
+                  {section.entries.map((entry, index) => {
+                    const Widget = WIDGET_COMPONENTS[entry.widget];
+                    // Width and height, both from the placement. The shipped
+                    // default carries a height on every card now - it is a page
+                    // somebody arranged - so this is the same grid an arranged
+                    // layout renders in and the editor previews. A placement
+                    // predating heights falls back to the widget's own.
+                    const cell = `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows ?? WIDGETS[entry.widget].defaultRows]}`;
+                    return (
+                      <div
+                        key={`${entry.widget}-${index}`}
+                        className={cn(cell, coloured && "dash-tile-accent")}
+                      >
+                        <Widget
+                          title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
+                          hint={t(`widgets.${entry.widget}.description`)}
+                          // A card pinning its own window gets that one; every
+                          // other card follows the page's filter. Resolved here
+                          // rather than inside the widget, so a widget never has
+                          // to know which of the two it was handed - and so the
+                          // preset is resolved once against one "today".
+                          period={
+                            entry.options?.period ? resolvePreset(entry.options.period) : period
+                          }
+                          seeAll={WIDGETS[entry.widget].seeAll}
+                          options={entry.options}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           );
         })}
       </div>

@@ -42,7 +42,8 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
           // Three of the four figures have a daily series behind them, from the
           // same response - `by_day` carries runs, completed and cost per day.
           // The fourth does not: distinct people cannot be summed across days
-          // without counting somebody twice, so it stays a number.
+          // without counting somebody twice, so it is drawn as the share of the
+          // members it reached instead.
           const days = usage.by_day ?? [];
           return (
             // Stretching, not centred: three of the four figures carry a daily
@@ -86,6 +87,11 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
                 label={t("people")}
                 value={<AnimatedTally value={active} />}
                 caption={t("ofMembers", { total: usage.active_users?.total_members ?? 0 })}
+                meter={
+                  usage.active_users?.total_members
+                    ? active / usage.active_users.total_members
+                    : undefined
+                }
               />
             </div>
           );

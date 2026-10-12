@@ -327,13 +327,11 @@ beforeEach(() => {
 });
 
 describe("the steward's dashboard", () => {
-  it("renders the five sections and reads org-scoped usage", async () => {
+  it("renders the organization's sections and reads org-scoped usage", async () => {
     render(<DashboardPage />, { wrapper });
 
     expect(screen.getByText("dashboard.sections.attention")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.usage")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.sections.people")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.sections.sandboxes")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.workspace")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.sections.deployment")).not.toBeInTheDocument();
 
@@ -416,49 +414,28 @@ describe("the steward's dashboard", () => {
   });
 });
 
-describe("the sandbox section", () => {
-  it("is there for an operator, who holds connections:view, and asks the host about itself", async () => {
-    // The audience #129 wrote the cards for: an operator watches where agents
-    // run without the manage authority to point a host somewhere.
-    auth.role = "operator";
-    auth.can = holds(
-      "agents:view",
-      "agents:run",
-      "approvals:decide",
-      "runs:view",
-      "connections:view",
-    );
-
-    render(<DashboardPage />, { wrapper });
-
-    expect(screen.getByText("dashboard.sections.sandboxes")).toBeInTheDocument();
-    await waitFor(() => expect(callsTo("/sandbox-connections").length).toBeGreaterThan(0));
-  });
-
-  it("is absent without connections:view, and the browser never asks where agents run code", async () => {
-    // Not rendered, not rendered-then-403: the operator layout lists the
-    // section, so this proves the per-widget gate withholds it when the read is
-    // missing rather than the layout simply omitting it.
+describe("the sandbox cards", () => {
+  it("are left to the catalog, so the default never asks where agents run code", async () => {
+    // The default arrangement does not place them; an operator adds them in
+    // Customize, where the per-widget gate on connections:view still decides.
     auth.role = "operator";
     auth.can = holds("agents:view", "agents:run", "approvals:decide", "runs:view");
 
     render(<DashboardPage />, { wrapper });
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
-    expect(screen.queryByText("dashboard.sections.sandboxes")).not.toBeInTheDocument();
     expect(callsTo("/sandbox-connections")).toHaveLength(0);
   });
 });
 
 describe("the app admin's dashboard", () => {
-  it("adds the deployment strip and the organization divider", async () => {
+  it("adds the deployment strip", async () => {
     auth.isAppAdmin = true;
     auth.role = "";
 
     render(<DashboardPage />, { wrapper });
 
     expect(screen.getByText("dashboard.sections.deployment")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.orgDivider.label")).toBeInTheDocument();
     await waitFor(() => expect(callsTo("/admin/stats").length).toBeGreaterThan(0));
   });
 });

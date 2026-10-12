@@ -1445,10 +1445,6 @@
     "failedRevokeSessions": "Sitzungen konnten nicht widerrufen werden",
     "lastActive": "Zuletzt aktiv {when}",
     "noSessionDataAvailable": "Keine Sitzungsdaten verfügbar.",
-    "orgDivider": {
-      "label": "Organisation",
-      "note": "Alles darunter gehört zu dieser Organisation"
-    },
     "period": {
       "1d": "Heute",
       "30d": "Letzte 30 Tage",
@@ -1467,8 +1463,6 @@
     "sections": {
       "attention": "Braucht Aufmerksamkeit",
       "deployment": "Deployment",
-      "people": "Menschen & Qualität",
-      "sandboxes": "Wo Agents Code ausführen",
       "usage": "Nutzung & Kosten",
       "workspace": "Ihr Workspace"
     },
@@ -1482,7 +1476,7 @@
       "loading": "Wird geladen"
     },
     "subtitles": {
-      "app_admin": "Erst das ganze Deployment, dann Ihre Organisation – dieselbe Seite, mehr Antworten.",
+      "app_admin": "Erst Ihre Organisation, dann das ganze Deployment – dieselbe Seite, mehr Antworten.",
       "builder": "Werden die Agents, die Sie bauen, tatsächlich genutzt – und geht es ihnen gut?",
       "member": "Machen Sie dort weiter, wo Sie aufgehört haben.",
       "operator": "Läuft alles, und was wartet auf Sie?",

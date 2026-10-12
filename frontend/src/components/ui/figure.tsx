@@ -32,6 +32,12 @@ export interface FigureProps {
   captionTone?: "muted" | "destructive";
   /** Recent points, drawn as a trend hint under the number. */
   spark?: number[];
+  /**
+   * A share from 0 to 1, drawn as a bar along the foot of the figure - for the
+   * figure that is a part of a whole and has no series behind it. Takes the
+   * sparkline's place, so it is ignored beside one.
+   */
+  meter?: number;
   /** `lg` is for the one figure a view leads with. */
   size?: "md" | "lg";
   className?: string;
@@ -59,13 +65,16 @@ export function Figure({
   caption,
   captionTone = "muted",
   spark,
+  meter,
   size = "md",
   className,
 }: FigureProps) {
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       {label ? (
-        <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
+        <p className="text-muted-foreground truncate text-xs tracking-wide uppercase" title={label}>
+          {label}
+        </p>
       ) : null}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span
@@ -99,6 +108,17 @@ export function Figure({
         // above an inch of nothing.
         <div className="min-h-9 w-full flex-1 pt-3">
           <FigureSpark spark={spark} />
+        </div>
+      ) : meter !== undefined ? (
+        // At the foot, where a sparkline's baseline would be, so a row of
+        // figures still ends on one line whether each carries a series or not.
+        <div className="mt-auto pt-3">
+          <div className="bg-track h-1.5 w-full overflow-hidden rounded-full">
+            <div
+              className="bg-chart h-full rounded-full transition-[width] duration-500"
+              style={{ width: `${Math.round(Math.min(Math.max(meter, 0), 1) * 100)}%` }}
+            />
+          </div>
         </div>
       ) : null}
     </div>

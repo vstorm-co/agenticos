@@ -1445,10 +1445,6 @@
     "failedRevokeSessions": "Failed to revoke sessions",
     "lastActive": "Last active {when}",
     "noSessionDataAvailable": "No session data available.",
-    "orgDivider": {
-      "label": "Organization",
-      "note": "Everything below is this organization"
-    },
     "period": {
       "1d": "Today",
       "30d": "Last 30 days",
@@ -1467,8 +1463,6 @@
     "sections": {
       "attention": "Needs attention",
       "deployment": "Deployment",
-      "people": "People & quality",
-      "sandboxes": "Where agents run code",
       "usage": "Usage & cost",
       "workspace": "Your workspace"
     },
@@ -1482,7 +1476,7 @@
       "loading": "Loading"
     },
     "subtitles": {
-      "app_admin": "The whole deployment first, then your organization - same page, more answers.",
+      "app_admin": "Your organization first, then the whole deployment - same page, more answers.",
       "builder": "Are the agents you build actually used - and are they healthy?",
       "member": "Pick up where you left off.",
       "operator": "Is everything running, and what is waiting on you?",

@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a4e83b7fd4"
+source_sha: "8fa34a0bfa16"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -16,7 +16,7 @@ La demo editada actual muestra el OSS Launch Planner: una tarea con un briefing 
 
 ### Dashboard { #dashboard }
 
-Widgets que puedes ordenar, primero todo el despliegue y después esta organización. Runs, gasto, salud de los servicios y calidad de las respuestas; cada tarjeta está protegida por el permiso que necesitan sus propios datos, así que una tarjeta cuya lectura principal no puedes hacer es una tarjeta que no se te ofrece.
+Widgets que puedes ordenar, primero esta organización y después todo el despliegue. Runs, gasto, salud de los servicios y calidad de las respuestas; cada tarjeta está protegida por el permiso que necesitan sus propios datos, así que una tarjeta cuya lectura principal no puedes hacer es una tarjeta que no se te ofrece.
 
 > **Captura pendiente — Dashboard.**
 
