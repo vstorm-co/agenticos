@@ -96,6 +96,17 @@ export const THINKING_ID = "thinking";
 export const SANDBOX_ID = "sandbox";
 
 /**
+ * The capabilities that reach one person's own things - their notes, their past
+ * conversations. A schedule or an event reaches them only when it acts as the
+ * person who made it, and conversation search never (#2027).
+ */
+export const PERSONAL_CAPABILITIES: readonly string[] = [
+  "memory_files",
+  "memory_mem0",
+  "conversation_search",
+];
+
+/**
  * The memory-files capability, whose panel carries one action as well as settings.
  *
  * There is no memory tab and no browsing surface: what an agent wrote down about

@@ -197,6 +197,7 @@ async def create(
     connection_id: UUID | None = None,
     portal_key: str | None = None,
     delivery_mode: str | None = None,
+    runs_as_creator: bool = False,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -217,6 +218,7 @@ async def create(
         connection_id=connection_id,
         portal_key=portal_key,
         delivery_mode=delivery_mode,
+        runs_as_creator=runs_as_creator,
     )
     db.add(trigger)
     await db.flush()

@@ -113,6 +113,7 @@ import {
 } from "@/hooks";
 import {
   readSubagentsConfig,
+  PERSONAL_CAPABILITIES,
   SANDBOX_ID,
   SUBAGENTS_ID,
   THINKING_ID,
@@ -1494,7 +1495,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </div>
             {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
-            <TriggersPanel agentId={id} canCreate={agent.can_run} />
+            <TriggersPanel
+              agentId={id}
+              canCreate={agent.can_run}
+              reachesPersonal={
+                spec.capabilities.some(
+                  (binding) =>
+                    PERSONAL_CAPABILITIES.includes(binding.id) && binding.enabled !== false,
+                ) || spec.mcp_servers.some((server) => server.account === "personal")
+              }
+            />
             <EmbedsPanel agentId={id} canManage={canPublish} />
             <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
           </TabsContent>

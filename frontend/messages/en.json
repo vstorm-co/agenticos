@@ -5411,6 +5411,13 @@
     "option": "Colour {n}"
   },
   "triggers": {
+    "runAsMe": "Run as me",
+    "runAsCreator": "Runs as the person who made it",
+    "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",
+    "runAsMeEventHint": "Each run uses your memory and your own connections, as your own chat does. It reads your notes but never saves any, because what an event carries came from outside; it never searches your past conversations.",
+    "runAsCreatorOthersHint": "Each run uses their memory and their own connections. Only they can turn this on, and changing the message, the environment or the filter turns it off.",
+    "actsAsCreator": "As its creator",
+    "personalReachHint": "This agent uses memory, conversation search or a personal connection. A schedule or event reaches memory and personal connections only when it runs as the person who made it, and never their conversations.",
     "cadence": {
       "everyMinutes": "{count, plural, =1 {Every minute} other {Every # minutes}}",
       "everyHours": "{count, plural, =1 {Every hour} other {Every # hours}}",

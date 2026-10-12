@@ -195,6 +195,15 @@ class AgentRun(Base, TimestampMixin):
     initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
+    # The trigger that fired this run, when one did - "trigger X, acting as member
+    # Y" with `user_id` (#2027). SET NULL: the run is the record of what happened
+    # and outlives the trigger that started it.
+    trigger_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_triggers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),

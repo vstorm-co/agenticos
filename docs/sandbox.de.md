@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "60bcc666c4a3"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -83,6 +83,12 @@ Der **Scope** ist ein Feld des Specs des Agents — `run`, `conversation`, `chan
 `user` oder `agent`. `conversation`, die übliche Wahl, bedeutet also einen Container
 und ein Verzeichnis pro Chat; `agent` bedeutet, dass sich jeder Run dieses Agents
 einen teilt.
+
+`user` gehört der angemeldeten Person, also hat ein Run, der für jemanden
+einspringt, keinen: Der Besucher eines Widgets und das Auslösen eines Triggers
+werden abgewiesen, statt den Workspace des Herausgebers oder des Erstellers zu
+bekommen — es sei denn, der Trigger
+[läuft als sein Ersteller](concepts.md#unless-its-creator-lets-it-run-as-them).
 
 Der Schlüssel ist auch der **Name** der Session auf dem Host — die Session-ID bei
 `sandboxd`, der Name einer Daytona-Sandbox —, also öffnet jeder Run eines Scopes

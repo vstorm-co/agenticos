@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from app.core.exceptions import AuthorizationError
@@ -405,12 +406,26 @@ class AuthContext:
     exists so a person store can refuse to attribute a stranger's note to the
     owner rather than leak it into the owner's store (#788).
 
-    Invariant: set `True` in exactly one place - `publisher_context`, the sole
-    constructor that runs a turn as someone other than the asker. Any future
-    stand-in constructor must set it too, or a person-store write silently lands
-    in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
-    the one assignment site by grep, the way `AuthContext.anonymous` is the one
-    subject-less constructor.
+    Invariant: set in exactly two places. `publisher_context` sets it `True` -
+    the sole constructor that runs a turn as someone other than the asker - and
+    `AgentTriggerService._creator_context` sets it for a fire, where `user_id` is
+    the trigger's creator as an authority rather than a person at the keyboard,
+    unless the creator let the trigger act as them (`fired_as_creator`). Any
+    future stand-in constructor must set it too, or a person-store write silently
+    lands in the owner's store as if it were the visitor's.
+    `test_publisher_standing.py` pins both assignment sites by grep, the way
+    `AuthContext.anonymous` is the one subject-less constructor.
+    """
+
+    fired_as_creator: Literal["schedule", "event"] | None = None
+    """Set when a trigger fires acting as its creator, and which kind fired (#2027).
+
+    Then `user_id` is the creator as a real subject: their memory and their own
+    MCP connections are open, as in their own chat. On the creator's terms,
+    though, not all of them: a schedule may write their memory and an event may
+    only read it, because an event's prompt carries a mail or a webhook body
+    nobody vetted and a note written from it would be read by every later chat;
+    and their past conversations stay closed to search either way.
     """
 
     api_key_id: UUID | None = None

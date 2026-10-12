@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "60bcc666c4a3"
 ---
 
 # La sandbox { #the-sandbox }
@@ -82,6 +82,11 @@ El **scope** es un campo del spec del agent: `run`, `conversation`, `channel`,
 `user` o `agent`. Así que `conversation`, la elección habitual, significa un
 contenedor y un directorio por chat; `agent` significa que todos los runs de ese
 agent comparten uno.
+
+`user` es de la persona que inició sesión, así que un run que sustituye a alguien
+no tiene ninguno: el visitante de un widget y el disparo de un trigger se rechazan
+en lugar de recibir el workspace del publicador o del creador — salvo que el
+trigger [se ejecute como su creador](concepts.md#unless-its-creator-lets-it-run-as-them).
 
 La clave es también el **nombre** de la sesión en el host —el id de una sesión de
 `sandboxd`, el nombre de un sandbox de Daytona—, así que cada run de un scope la

@@ -273,7 +273,9 @@ there is nothing for the agent to get wrong.
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.
   Put a fact a scheduled run needs in the trigger's prompt or in a bound
-  context file. See [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  context file - or let the trigger [run as its
+  creator](../concepts.md#unless-its-creator-lets-it-run-as-them): a schedule then
+  reads and writes the creator's store, and an event only reads it.
 
 There is no organisation-wide store. One existed and was removed: it was a second
 mechanism for what [context files](../context.md) already do — standing knowledge
@@ -405,7 +407,10 @@ read one person's private conversations out to everyone in the room. It is the
 line the memory index draws, one layer further out.
 
 A schedule or an event trigger answers nobody, so both tools refuse there too,
-for the reason [memory files](#whose-notes-and-who-may-hear-them) do.
+for the reason [memory files](#whose-notes-and-who-may-hear-them) do - and they
+still refuse on a trigger that [runs as its
+creator](../concepts.md#unless-its-creator-lets-it-run-as-them), which opens memory
+and personal connections but never a person's conversations.
 
 ### How it matches
 

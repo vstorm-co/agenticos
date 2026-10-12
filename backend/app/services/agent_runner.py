@@ -608,6 +608,22 @@ class AdmittedAs(BaseModel):
             "the way back (#788)."
         ),
     )
+    audience_writes_memory: bool = Field(
+        default=True,
+        description=(
+            "Whether the run may write the memory it reads - false for an event "
+            "trigger acting as its creator (#2027). Kept so a resume does not lift "
+            "the restriction the fire was admitted under; true for a run parked "
+            "before it existed, which is what every such run was."
+        ),
+    )
+    audience_searches_conversations: bool = Field(
+        default=True,
+        description=(
+            "Whether the run may search the person's past conversations - false for "
+            "a trigger acting as its creator (#2027). Kept for the same reason."
+        ),
+    )
     subject_is_publisher_fallback: bool = Field(
         default=False,
         description=(
@@ -2581,7 +2597,17 @@ class AgentRunnerService:
                 agent_id=agent.id,
                 run_id=run.id,
                 conversation_id=conversation_id,
-                user_id=None if ctx.user_id is None else str(ctx.user_id),
+                # A publisher standing in for a visitor, or a trigger's creator as
+                # an authority rather than a person, has no workspace of their own
+                # here - the rule memory and personal connections keep. Without it a
+                # `user`-scoped workspace opened the publisher's own for every
+                # stranger on their widget, and the creator's own for every fire
+                # that may not read their notes (#2027).
+                user_id=(
+                    None
+                    if ctx.user_id is None or subject_is_publisher_fallback
+                    else str(ctx.user_id)
+                ),
                 channel_key=channel_key,
             ),
             # What the binding that admitted this run says, if it says anything.
@@ -2675,6 +2701,7 @@ class AgentRunnerService:
         audience = restored_audience or derive_audience(
             user_id=audience_user_id,
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
+            fired_as_creator=ctx.fired_as_creator,
             room_key=memory_room_key,
         )
         built = build_agent(
@@ -2747,6 +2774,8 @@ class AgentRunnerService:
                 acts_for_sender=acts_for_sender,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
+                audience_writes_memory=audience.writes_memory,
+                audience_searches_conversations=audience.searches_conversations,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
@@ -4136,6 +4165,8 @@ class AgentRunnerService:
             restored_audience=RunAudience(
                 user_id=state.admitted_as.audience_user_id,
                 room_key=state.admitted_as.audience_room_key,
+                writes_memory=state.admitted_as.audience_writes_memory,
+                searches_conversations=state.admitted_as.audience_searches_conversations,
             ),
             # The run's own terms, not the approver's context: whether user_id was
             # a publisher stand-in is gone with the request that carried it, so a

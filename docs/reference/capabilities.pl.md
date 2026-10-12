@@ -1,5 +1,5 @@
 ---
-source_sha: "a12974d5df2f"
+source_sha: "4ded689df78b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -295,7 +295,9 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
   runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
-  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  kontekstowym - albo pozwól triggerowi [działać jako jego
+  twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): harmonogram
+  czyta wtedy i zapisuje magazyn twórcy, a zdarzenie tylko go czyta.
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -432,7 +434,10 @@ niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. 
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
 
 Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
-też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them)
+— i odmawiają nadal przy triggerze, który [działa jako jego
+twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): ten otwiera pamięć
+i osobiste połączenia, ale nigdy rozmów danej osoby.
 
 ### Jak działa dopasowanie { #how-it-matches }
 

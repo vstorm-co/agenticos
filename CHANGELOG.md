@@ -27,6 +27,15 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
+- **A trigger can run as the person who made it.** *Run as me* on a schedule or
+  an event trigger lets each fire reach its creator's memory and their own MCP
+  connections - the morning "what matters in my inbox" - on fixed terms: a
+  schedule writes memory and an event only reads it, past conversations stay
+  closed, only the creator can turn it on (not through impersonation or an API
+  key), and anybody else's change to the message, environment or filter turns
+  it off. The run names the trigger that fired it, audit entries carry
+  `via_trigger`, and the Builder says what an unattended run can reach.
+  Migration `0121_trigger_runs_as_creator` (#2027).
 - **The website widget looks like a product.** It wears the agent's face -
   breathing at rest, pondering while it answers - renders answers as Markdown,
   shows each step as a chip (*Searching the knowledge base*), streams with a
@@ -402,6 +411,9 @@ Two things are versioned separately from this file and worth knowing about:
   the Architect failed every turn OpenRouter routed there.
 - **No rating on an answer that was never saved.** A turn that failed before
   the server stored it offered thumbs that answered "Message not found".
+- **A `user`-scoped workspace is no longer handed to a stand-in.** A widget
+  visitor shared the publisher's own workspace, and every trigger fire opened its
+  creator's; both are refused now unless the trigger runs as its creator (#2027).
 - **A run over the API checks the conversation it names.** An unknown
   `conversation_id` was a 500, and another member's conversation lent the run
   its workspace and its plan; both now answer `404`.

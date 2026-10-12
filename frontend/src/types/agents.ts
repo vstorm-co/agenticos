@@ -252,7 +252,8 @@ export type McpApproval = "writes" | "all" | "none";
  * Names a catalog entry rather than a connection: whose connection answers is
  * decided when the turn runs, from whoever wrote the message. Where nobody did
  * - an API key, the widget, a schedule, an unlinked chat account - the server
- * is absent from that run and the agent is told so.
+ * is absent from that run and the agent is told so; a schedule that acts as its
+ * creator is the creator writing (#2027).
  */
 export interface PersonalMcpServerRef {
   account: "personal";

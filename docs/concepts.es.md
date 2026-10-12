@@ -1,5 +1,5 @@
 ---
-source_sha: "6763956ff2b1"
+source_sha: "72e58e25745e"
 ---
 
 # Conceptos { #concepts }
@@ -181,24 +181,37 @@ almacenes que se guardan por persona le están cerrados:
   vuelve a publicar una página entera en lugar de editarla.
 
 Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
-un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún
-ajuste lo cambia.
+un disparo que nadie inició no debe escribir en él en su nombre. Una
+[sandbox](sandbox.md) con `session_scope: user` sigue la misma regla: un disparo
+no tiene allí un workspace propio.
 
-!!! warning "Una sandbox con alcance de usuario es la excepción"
+### Salvo que su creador le deje ejecutarse como él { #unless-its-creator-lets-it-run-as-them }
 
-    Una [sandbox](sandbox.md) con `session_scope: user` no está cerrada. Un
-    disparo abre el workspace propio del creador para ese agent, y puede leer y
-    escribir allí los archivos del creador. Un miembro sin `agents:edit` no puede
-    editar ni disparar un trigger que creó otro miembro, porque un prompt
-    cambiado podría copiar esos archivos fuera en el siguiente disparo.
+**Ejecutar como yo**, un ajuste del trigger, es la única excepción, y solo el
+creador puede activarlo, para sí mismo. Un disparo alcanza entonces su memoria y
+sus propias conexiones MCP como lo hace su propio chat — el matinal *dime qué
+importa en mi buzón* que el valor por defecto no puede hacer — en estas
+condiciones:
+
+- **Un horario lee y escribe la memoria; un evento solo la lee.** El prompt de un
+  evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
+  escrita a partir de él la leería cada chat posterior como propia del creador.
+- **Las conversaciones anteriores siguen cerradas** en ambos casos.
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
+  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
+  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+  un script con tu clave de API, no puede activarlo.
+- **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
+  de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
+  que actuó.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
 | Un run desatendido necesita | Usa |
 |---|---|
-| Hechos o preferencias permanentes | El propio prompt del trigger, o un [archivo de contexto](context.md) vinculado al agent |
+| Hechos o preferencias permanentes | El propio prompt del trigger, un [archivo de contexto](context.md) vinculado al agent, o la memoria del creador con **Ejecutar como yo** |
 | Estado que se conserva de un disparo al siguiente | Una [sandbox](sandbox.md) con `session_scope: conversation`: cada disparo de un trigger se añade a la misma conversación de registro de runs |
-| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, no con la de cada persona |
+| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, o la propia del creador con **Ejecutar como yo** |
 
 [Vigilar páginas web en busca de cambios](howto/competitor-monitoring.md) y
 [un asistente personal](howto/personal-assistant.md) se encuentran ambos con

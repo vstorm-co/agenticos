@@ -1,5 +1,5 @@
 ---
-source_sha: "a12974d5df2f"
+source_sha: "4ded689df78b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -307,7 +307,9 @@ Agent falsch machen könnte.
   Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
   niemand zu und die Tools verweigern. Legen Sie einen Fakt, den ein geplanter
   Run braucht, in den Prompt des Triggers oder in eine gebundene Kontextdatei.
-  Siehe [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  Oder lassen Sie den Trigger [als seinen Ersteller
+  laufen](../concepts.md#unless-its-creator-lets-it-run-as-them): Ein Zeitplan liest
+  und schreibt dann den Speicher des Erstellers, ein Ereignis liest ihn nur.
 
 Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
 Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
@@ -457,7 +459,10 @@ weiter außen.
 
 Ein Zeitplan oder ein Ereignis-Trigger antwortet niemandem, also verweigern beide
 Tools auch dort, aus demselben Grund wie die
-[Gedächtnisdateien](#whose-notes-and-who-may-hear-them).
+[Gedächtnisdateien](#whose-notes-and-who-may-hear-them) - und sie verweigern auch
+bei einem Trigger, der [als sein Ersteller
+läuft](../concepts.md#unless-its-creator-lets-it-run-as-them): Der öffnet Gedächtnis
+und persönliche Verbindungen, nie aber die Unterhaltungen einer Person.
 
 ### Wie gesucht wird { #how-it-matches }
 

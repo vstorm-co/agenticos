@@ -485,16 +485,67 @@ class TestPrepare:
                 new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
             ) as toolsets,
             patch("app.services.agent_runner.build_agent"),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
         ):
             prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
 
         assert toolsets.await_args.kwargs["sender_user_id"] is None
         assert prepared.admitted_as.subject_is_publisher_fallback is True
+        # Nor their workspace: a `user`-scoped one keyed on the publisher was one
+        # workspace shared by every stranger on the widget (#2027).
+        assert opened.await_args.kwargs["identity"].user_id is None
         # The same fact, carried onto the row itself - a run-finished
         # notification reading `user_id` back later has no other way to
         # tell a real initiator from the publisher standing in for one
         # (#1598's own run-flood regression).
         assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is True
+
+    @pytest.mark.anyio
+    async def test_a_fire_acting_as_its_creator_is_the_creator_on_their_terms(self):
+        """Their own connections speak for it and the audience is them - but an
+        event's audience writes no memory and no fire searches conversations, and
+        the parked terms carry both so a resume keeps them (#2027)."""
+        creator = uuid.uuid4()
+        ctx = AuthContext(
+            user_id=creator,
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            fired_as_creator="event",
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Inbox", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(
+                ctx, agent.id, surface=RunSurface.SCHEDULE, acts_for_sender=True
+            )
+
+        assert toolsets.await_args.kwargs["sender_user_id"] == creator
+        assert build.call_args.kwargs["audience"] == RunAudience(
+            user_id=creator, writes_memory=False, searches_conversations=False
+        )
+        assert prepared.admitted_as.audience_writes_memory is False
+        assert prepared.admitted_as.audience_searches_conversations is False
 
     @pytest.mark.anyio
     async def test_a_scheduled_runs_creator_is_notified_despite_the_mcp_gate(self):
@@ -2279,6 +2330,8 @@ class TestParking:
                 "acts_for_sender": False,
                 "audience_user_id": None,
                 "audience_room_key": None,
+                "audience_writes_memory": True,
+                "audience_searches_conversations": True,
                 "subject_is_publisher_fallback": False,
             },
         }
@@ -2749,6 +2802,29 @@ class TestResume:
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
         assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
+
+    @pytest.mark.anyio
+    async def test_a_parked_fire_keeps_the_terms_it_was_admitted_on(self):
+        """An event trigger acting as its creator parks read-only and with search
+        closed; an approver releasing it must not reopen either (#2027)."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": None,
+                    "audience_writes_memory": False,
+                    "audience_searches_conversations": False,
+                },
+            }
+        )
+
+        assert build.call_args.kwargs["audience"] == RunAudience(
+            user_id=_THE_ASKER, writes_memory=False, searches_conversations=False
+        )
 
     @pytest.mark.anyio
     async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):

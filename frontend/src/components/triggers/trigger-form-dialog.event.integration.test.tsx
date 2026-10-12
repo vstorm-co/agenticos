@@ -36,6 +36,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     is_active: true,
     can_manage: true,
     environment_id: null,
+    runs_as_creator: false,
     trigger_type: "event",
     schedule_kind: "interval",
     interval_seconds: null,

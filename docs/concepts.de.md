@@ -1,5 +1,5 @@
 ---
-source_sha: "6763956ff2b1"
+source_sha: "72e58e25745e"
 ---
 
 # Begriffe { #concepts }
@@ -192,25 +192,40 @@ für ihn verschlossen:
 
 Das ist Absicht. Ein Speicher, der für eine Person geführt wird, wird dieser
 Person vorgelesen, und ein Auslösen, das niemand gestartet hat, darf nicht in
-ihrem Namen hineinschreiben. Heute ändert keine Einstellung daran etwas.
+ihrem Namen hineinschreiben. Eine [Sandbox](sandbox.md) mit
+`session_scope: user` folgt derselben Regel: Ein Auslösen hat dort keinen eigenen
+Workspace.
 
-!!! warning "Eine Sandbox mit Benutzer-Scope ist die Ausnahme"
+### Es sei denn, der Ersteller lässt es als sich laufen { #unless-its-creator-lets-it-run-as-them }
 
-    Eine [Sandbox](sandbox.md) mit `session_scope: user` ist nicht verschlossen.
-    Ein Auslösen öffnet den eigenen Workspace des Erstellers für diesen Agent und
-    kann dort die Dateien des Erstellers lesen und schreiben. Ein Mitglied ohne
-    `agents:edit` kann einen Trigger, den ein anderes Mitglied angelegt hat,
-    weder bearbeiten noch auslösen, denn ein geänderter Prompt könnte diese
-    Dateien beim nächsten Auslösen hinauskopieren.
+**Als ich ausführen**, eine Einstellung am Trigger, ist die einzige Ausnahme, und
+nur der Ersteller kann sie einschalten, für sich selbst. Ein Auslösen erreicht
+dann sein Gedächtnis und seine eigenen MCP-Verbindungen wie sein eigener Chat —
+das morgendliche *sag mir, was in meinem Postfach wichtig ist*, das der Standard
+nicht kann — zu diesen Bedingungen:
+
+- **Ein Zeitplan liest und schreibt das Gedächtnis; ein Ereignis liest es nur.**
+  Der Prompt eines Ereignisses trägt eine Mail oder einen Webhook-Body, den
+  niemand geprüft hat, und eine daraus geschriebene Notiz würde jeder spätere Chat
+  als die eigene des Erstellers lesen.
+- **Frühere Gespräche bleiben verschlossen**, so oder so.
+- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung
+  oder den Filter eines Triggers ändert, den er nicht angelegt hat, schaltet es
+  aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
+  Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
+  nicht einschalten.
+- **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
+  jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
+  Mitglied, als das es gehandelt hat.
 
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
 
 | Ein unbeaufsichtigter Run braucht | Verwenden Sie |
 |---|---|
-| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers oder eine an den Agent gebundene [Context-Datei](context.md) |
+| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers, eine an den Agent gebundene [Context-Datei](context.md) oder das Gedächtnis des Erstellers mit **Als ich ausführen** |
 | Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an |
-| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, nicht mit dem jeder Person |
+| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, oder die eigene des Erstellers mit **Als ich ausführen** |
 
 [Webseiten auf Änderungen prüfen](howto/competitor-monitoring.md) und
 [ein persönlicher Assistent](howto/personal-assistant.md) treffen beide auf diese

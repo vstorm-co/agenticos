@@ -31,12 +31,13 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import {
   type CronFrequency,
   eventFilterConfig,
@@ -187,6 +188,10 @@ export function TriggerFormDialog({
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
+  const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  // A new trigger is the caller's own; an existing one is whoever made it.
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const isCreator = trigger === null || trigger.created_by_user_id === me;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -361,6 +366,9 @@ export function TriggerFormDialog({
       name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      // Only when asked for: off is the server's default, and the request then
+      // says nothing about acting as anybody.
+      ...(runsAsCreator ? { runs_as_creator: true } : {}),
     };
     if (type === "schedule") {
       return { ...base, ...scheduleCadence() };
@@ -385,6 +393,7 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -590,6 +599,13 @@ export function TriggerFormDialog({
                 defaultEnvironment={defaultEnvironment}
               />
             )}
+
+            <RunAsCreatorField
+              checked={runsAsCreator}
+              onChange={setRunsAsCreator}
+              type={trigger.trigger_type}
+              isCreator={isCreator}
+            />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -695,6 +711,13 @@ export function TriggerFormDialog({
                   defaultEnvironment={defaultEnvironment}
                 />
               )}
+
+              <RunAsCreatorField
+                checked={runsAsCreator}
+                onChange={setRunsAsCreator}
+                type={type}
+                isCreator={isCreator}
+              />
             </div>
           )}
 

@@ -5181,6 +5181,13 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "runAsMe": "Uruchamiaj jako ja",
+    "runAsCreator": "Działa jako osoba, która go utworzyła",
+    "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
+    "runAsMeEventHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń, jak twój czat. Czyta notatki, ale niczego nie zapisuje, bo treść zdarzenia przychodzi z zewnątrz; nigdy nie przeszukuje twoich rozmów.",
+    "runAsCreatorOthersHint": "Każde uruchomienie korzysta z pamięci i własnych połączeń tej osoby. Włączyć może tylko ona, a zmiana wiadomości, środowiska albo filtra to wyłącza.",
+    "actsAsCreator": "Jako twórca",
+    "personalReachHint": "Ten agent korzysta z pamięci, przeszukiwania rozmów albo osobistego połączenia. Harmonogram lub zdarzenie sięga do pamięci i osobistych połączeń tylko wtedy, gdy działa jako osoba, która je utworzyła, a do jej rozmów - nigdy.",
     "cadence": {
       "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
       "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",

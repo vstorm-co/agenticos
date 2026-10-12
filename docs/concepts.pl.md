@@ -1,5 +1,5 @@
 ---
-source_sha: "6763956ff2b1"
+source_sha: "72e58e25745e"
 ---
 
 # Koncepcje { #concepts }
@@ -179,23 +179,36 @@ magazyny prowadzone dla konkretnej osoby są dla niego zamknięte:
 
 Tak jest celowo. Magazyn prowadzony dla osoby jest odczytywany tej osobie, a
 odpalenie, którego nikt nie rozpoczął, nie może do niego pisać w jej imieniu.
-Dziś żadne ustawienie tego nie zmienia.
+[Sandbox](sandbox.md) z `session_scope: user` trzyma się tej samej reguły:
+odpalenie nie ma tam własnego workspace'u.
 
-!!! warning "Wyjątkiem jest sandbox o zakresie użytkownika"
+### Chyba że twórca pozwoli mu działać jako on { #unless-its-creator-lets-it-run-as-them }
 
-    [Sandbox](sandbox.md) z `session_scope: user` nie jest zamknięty. Odpalenie
-    otwiera własny workspace twórcy dla tego agenta i może czytać oraz zapisywać
-    tam pliki twórcy. Członek bez `agents:edit` nie może edytować ani odpalić
-    triggera utworzonego przez innego członka, bo zmieniony prompt mógłby
-    wynieść te pliki przy następnym odpaleniu.
+**Uruchamiaj jako ja**, ustawienie triggera, to jedyny wyjątek, i włączyć je może
+tylko twórca, dla siebie. Odpalenie sięga wtedy do jego pamięci i jego własnych
+połączeń MCP tak jak jego własny czat — poranne *powiedz mi, co ważnego w mojej
+skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
+
+- **Harmonogram czyta i zapisuje pamięć; zdarzenie tylko ją czyta.** Prompt
+  zdarzenia niesie maila albo treść webhooka, której nikt nie sprawdził, a
+  notatka zapisana na jej podstawie byłaby czytana w każdym kolejnym czacie jako
+  własna notatka twórcy.
+- **Poprzednie rozmowy pozostają zamknięte** w obu przypadkach.
+- **Edycja kogoś innego to wyłącza.** Zmiana wiadomości, środowiska albo filtra
+  triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
+  tego, co działa jako ty. Administrator działający jako ty przez impersonację
+  ani skrypt z twoim kluczem API nie mogą go włączyć.
+- **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
+  audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
+  działało.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
 | Run bez nadzoru potrzebuje | Użyj |
 |---|---|
-| Stałych faktów albo preferencji | Własnego promptu triggera albo [pliku kontekstowego](context.md) podpiętego do agenta |
+| Stałych faktów albo preferencji | Własnego promptu triggera, [pliku kontekstowego](context.md) podpiętego do agenta albo pamięci twórcy z **Uruchamiaj jako ja** |
 | Stanu zachowanego od jednego odpalenia do następnego | [Sandboksa](sandbox.md) z `session_scope: conversation`: każde odpalenie jednego triggera dopisuje się do tej samej rozmowy z logiem runów |
-| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji, a nie kontem każdej osoby |
+| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji albo własnego połączenia twórcy z **Uruchamiaj jako ja** |
 
 [Obserwowanie stron pod kątem zmian](howto/competitor-monitoring.md) i
 [osobisty asystent](howto/personal-assistant.md) trafiają na tę regułę i

@@ -1,5 +1,5 @@
 ---
-source_sha: "a12974d5df2f"
+source_sha: "4ded689df78b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -296,7 +296,9 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   autoridad, no su identidad, así que nadie escucha y las herramientas se
   niegan. Pon un dato que necesite un run programado en el prompt del trigger o
   en un archivo de contexto vinculado. Consulta
-  [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  [Trigger](../concepts.md#it-is-not-that-persons-conversation), o deja que el trigger
+  [se ejecute como su creador](../concepts.md#unless-its-creator-lets-it-run-as-them):
+  un horario lee y escribe entonces el almacén del creador, y un evento solo lo lee.
 
 No hay un almacén para toda la organización. Existió uno y se retiró: era un
 segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
@@ -440,7 +442,10 @@ afuera.
 
 Una programación o un trigger de evento no responde a nadie, así que ambas
 herramientas se niegan también ahí, por la misma razón que los
-[archivos de memoria](#whose-notes-and-who-may-hear-them).
+[archivos de memoria](#whose-notes-and-who-may-hear-them) - y siguen negándose en un
+trigger que [se ejecuta como su
+creador](../concepts.md#unless-its-creator-lets-it-run-as-them), que abre la memoria
+y las conexiones personales, pero nunca las conversaciones de una persona.
 
 ### Cómo busca { #how-it-matches }
 

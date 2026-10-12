@@ -21,6 +21,12 @@ interface TriggersPanelProps {
    * so this does not reach them.
    */
   canCreate: boolean;
+  /**
+   * Whether the agent binds something personal - memory, conversation search or
+   * a personal MCP connection - which an unattended run reaches only when its
+   * trigger acts as its creator (#2027).
+   */
+  reachesPersonal?: boolean;
 }
 
 /**
@@ -35,7 +41,7 @@ interface TriggersPanelProps {
  * not manage them. "New schedule" opens the cadence form; "New event trigger"
  * opens the portal grid, the default path to an event trigger.
  */
-export function TriggersPanel({ agentId, canCreate }: TriggersPanelProps) {
+export function TriggersPanel({ agentId, canCreate, reachesPersonal = false }: TriggersPanelProps) {
   const t = useTranslations("triggers");
   const { triggers, isLoading } = useTriggers(agentId);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
@@ -51,6 +57,12 @@ export function TriggersPanel({ agentId, canCreate }: TriggersPanelProps) {
       </CardHeader>
       <CardContent className="space-y-3">
         {triggers.length === 0 && <p className="text-muted-foreground text-sm">{t("empty")}</p>}
+
+        {reachesPersonal && triggers.length > 0 && (
+          <p className="bg-muted/50 text-muted-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
+            {t("personalReachHint")}
+          </p>
+        )}
 
         {triggers.map((trigger) => (
           <TriggerRow key={trigger.id} trigger={trigger} />

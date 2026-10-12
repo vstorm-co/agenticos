@@ -31,6 +31,7 @@ toolset turns it into a corpus or a refusal.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 __all__ = ["RunAudience", "derive_audience"]
@@ -59,6 +60,22 @@ class RunAudience:
     the channel layer sees.
     """
 
+    writes_memory: bool = True
+    """Whether this run may change the store it reads, not only read it (#2027).
+
+    False for an event trigger acting as its creator: its prompt carries a mail
+    or a webhook body nobody vetted, and a note written from it would be read by
+    every later conversation as the creator's own.
+    """
+
+    searches_conversations: bool = True
+    """Whether this run may search the person's past conversations (#2027).
+
+    False for any trigger acting as its creator. Memory and the creator's own
+    connections are what a morning report needs; every chat they have had is the
+    widest window there is onto them, and no fire needs it.
+    """
+
     @property
     def private(self) -> bool:
         """Whether the person is the only listener.
@@ -73,6 +90,7 @@ def derive_audience(
     *,
     user_id: UUID | None,
     subject_is_publisher_fallback: bool,
+    fired_as_creator: Literal["schedule", "event"] | None = None,
     room_key: str | None,
 ) -> RunAudience:
     """The audience of a run, from the identity the request arrived with.
@@ -104,4 +122,6 @@ def derive_audience(
     return RunAudience(
         user_id=None if subject_is_publisher_fallback else user_id,
         room_key=room_key,
+        writes_memory=fired_as_creator != "event",
+        searches_conversations=fired_as_creator is None,
     )

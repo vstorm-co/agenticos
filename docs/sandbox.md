@@ -75,6 +75,11 @@ The **scope** is a field of the agent's spec — `run`, `conversation`, `channel
 `user` or `agent`. So `conversation`, the usual choice, means one container and one
 directory per chat; `agent` means every run of that agent shares one.
 
+`user` is the signed-in person's own, so a run standing in for somebody has none:
+a widget's visitor and a trigger's fire are refused rather than handed the
+publisher's or the creator's workspace — unless the trigger
+[runs as its creator](concepts.md#unless-its-creator-lets-it-run-as-them).
+
 The key is also the session's **name** on the host — a `sandboxd` session's id, a
 Daytona sandbox's name — so every run of a scope opens it by that name: the first
 creates it and the others attach, concurrent ones included, and nothing has to

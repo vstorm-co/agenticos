@@ -94,3 +94,39 @@ class TestPrivacy:
 
         with pytest.raises(FrozenInstanceError):
             audience.user_id = uuid4()  # ty: ignore[invalid-assignment]
+
+
+class TestAFireActingAsItsCreator:
+    """A trigger the creator let act as them reaches their memory - on their terms (#2027)."""
+
+    def test_a_schedule_reads_and_writes_but_does_not_search_conversations(self):
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=False,
+            room_key=None,
+            fired_as_creator="schedule",
+        )
+
+        assert audience.user_id == PERSON
+        assert audience.writes_memory is True
+        assert audience.searches_conversations is False
+
+    def test_an_event_only_reads(self):
+        """Its prompt carries a mail or a webhook body nobody vetted."""
+        audience = derive_audience(
+            user_id=PERSON,
+            subject_is_publisher_fallback=False,
+            room_key=None,
+            fired_as_creator="event",
+        )
+
+        assert audience.writes_memory is False
+        assert audience.searches_conversations is False
+
+    def test_anything_else_keeps_both(self):
+        audience = derive_audience(
+            user_id=PERSON, subject_is_publisher_fallback=False, room_key=None
+        )
+
+        assert audience.writes_memory is True
+        assert audience.searches_conversations is True
