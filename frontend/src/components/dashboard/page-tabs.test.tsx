@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
-import { PageTabs } from "./page-tabs";
+import { PageSideNav, PageTabs } from "./page-tabs";
 
 vi.mock("@/lib/active-route", () => ({
   useActiveRoute: () => (href: string) => href === "/settings/api-keys",
@@ -40,5 +40,18 @@ describe("PageTabs", () => {
     );
 
     expect(screen.getByRole("navigation").scrollLeft).toBe(0);
+  });
+});
+
+describe("PageSideNav", () => {
+  it("lists the same tabs as a column and marks the open one", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageSideNav tabs={TABS} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "API" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
   });
 });
