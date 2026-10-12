@@ -26,8 +26,8 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.1.0",
-    "sqlalchemy[asyncio]>=2.1.3",
-    "asyncpg>=0.31.0",
+    "sqlalchemy[asyncio]>=2.1.4",
+    "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
     # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
@@ -84,7 +84,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.52.0",
+    "pydantic-ai-harness>=0.55.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -97,11 +97,11 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.16.0",
+    "llama-cloud>=2.18.0",
     "liteparse>=2.15.1",
     "google-api-python-client>=2.201.0",
     "google-auth>=2.59.1",
-    "boto3>=1.43.108",
+    "boto3>=1.43.111",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -120,7 +120,7 @@ dependencies = [
     # through `rich`; declared because `app/services/artifact.py` imports it.
     "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
-    "tavily-python>=0.8.4",
+    "tavily-python>=0.8.5",
     "pydantic-monty>=1.1.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
@@ -135,7 +135,7 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.32",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.33",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -193,7 +193,7 @@ dependencies = [
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
-    "phonenumberslite>=9.0.40",
+    "phonenumberslite>=9.0.41",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -266,8 +266,8 @@ dev = [
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.10",
-    "ty>=0.0.84",
+    "ruff>=0.17.0",
+    "ty>=0.0.86",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
