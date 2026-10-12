@@ -18,7 +18,9 @@ import {
   Plug,
   Trash2,
   Upload,
+  Radio,
   UserPlus,
+  X,
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -76,6 +78,7 @@ import {
   DialogHeader,
   DialogTitle,
   AvatarColorPicker,
+  IconButton,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -255,6 +258,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [tab, setTab] = useState("build");
+  // Set by the first publish only: the moment an agent can be reached is the
+  // moment to say where it can be reached from, which people did not find on
+  // their own (#2131).
+  const [firstPublished, setFirstPublished] = useState(false);
   // Fetched only while the map shows it: the server resolves and
   // access-checks every pinned version to build this.
   const {
@@ -1103,6 +1111,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             try {
               await publish.mutateAsync(null);
               setPublishOpen(false);
+              if (nextVersion === 1) setFirstPublished(true);
             } catch {
               // The hook already toasts the refusal; the dialog stays open so
               // the retry is one click rather than a re-run of validation.
@@ -1178,7 +1187,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
           disabled={!canEdit}
         />
 
-        <Tabs defaultValue="build">
+        {firstPublished && (
+          <div className="border-border bg-muted/40 mb-6 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
+            <Radio className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm">{t("firstPublishNext")}</p>
+            <Button
+              size="sm"
+              onClick={() => {
+                setTab("availability");
+                setFirstPublished(false);
+              }}
+            >
+              {t("openAvailability")}
+            </Button>
+            <IconButton aria-label={tc("dismiss")} onClick={() => setFirstPublished(false)}>
+              <X />
+            </IconButton>
+          </div>
+        )}
+
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
               {t("build")}

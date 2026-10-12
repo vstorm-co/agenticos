@@ -3254,7 +3254,7 @@
       },
       "mcp-catalog": {
         "title": "Tools anstecken",
-        "body": "MCP-Server sind fertige Tool-Sammlungen, die Ihre Agents aufrufen können. Verbinden Sie hier einen und fügen Sie ihn dann über die Toolbox einem Agent hinzu."
+        "body": "MCP-Server sind fertige Werkzeugsätze, die Ihre Agents aufrufen können. Verbinden Sie einen für die ganze Organisation oder mit Ihrem eigenen Konto für sich, und fügen Sie ihn dann im Tab MCP servers eines Agents hinzu."
       },
       "mcp-connect": {
         "title": "Verbinden, dann Tools wählen",
@@ -3774,7 +3774,9 @@
       "labelCount": "{used} von {max}",
       "thisPlatformMcp": "AgenticOS (diese Plattform)",
       "testPanelOpen": "Testen",
-      "testPanelShortcut": "Neben dem Builder testen (T)"
+      "testPanelShortcut": "Neben dem Builder testen (T)",
+      "firstPublishNext": "Er ist im Chat und über die API live. Wählen Sie als Nächstes, wo ihn die Leute sonst erreichen - ein Website-Widget, eine gehostete Seite, Slack oder Telegram.",
+      "openAvailability": "Availability öffnen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",

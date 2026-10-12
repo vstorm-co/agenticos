@@ -285,6 +285,23 @@ Two of them are shaped differently on purpose:
 
     Every arrangement is per-person, so experimenting moves nobody else's page.
 
+## What you can already do
+
+Four things people go looking for and do not find on their own:
+
+- **Put it on a website, a hosted page, a WebSocket or the public API** - the
+  agent's **Availability** tab. The Builder points there after the first publish.
+- **Connect a tool with your own account** - each person their own GitHub, Gmail
+  or Notion - from the server's card on **MCP servers**. See
+  [MCP](mcp.md#personal-or-organization-wide).
+- **Find the files an agent saved** - what people attached and what agents wrote
+  are in **Documents**.
+- **Share it like a document** - **Share** in the Builder's header adds a person
+  or a group and sets who else finds it. See [Permissions](permissions.md).
+
+The **Architect**, in the corner of every page, answers the same questions and
+links to the control.
+
 ## Next
 
 <div class="grid cards" markdown>

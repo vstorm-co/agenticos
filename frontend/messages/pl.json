@@ -3142,7 +3142,7 @@
       },
       "mcp-catalog": {
         "title": "Podłącz narzędzia",
-        "body": "Serwery MCP to gotowe zestawy narzędzi, które Twoi agenci mogą wywoływać. Podłącz jeden tutaj, potem dodaj go do agenta z jego Toolboxa."
+        "body": "Serwery MCP to gotowe zestawy narzędzi, z których mogą korzystać Twoi agenci. Połącz serwer dla całej organizacji albo dla siebie, własnym kontem, a potem dodaj go agentowi w jego zakładce MCP servers."
       },
       "mcp-connect": {
         "title": "Połącz, potem wybierz narzędzia",
@@ -3662,7 +3662,9 @@
       "labelCount": "{used} z {max}",
       "thisPlatformMcp": "AgenticOS (ta platforma)",
       "testPanelOpen": "Testuj",
-      "testPanelShortcut": "Testuj obok Buildera (T)"
+      "testPanelShortcut": "Testuj obok Buildera (T)",
+      "firstPublishNext": "Działa już w czacie i przez API. Teraz wybierz, gdzie jeszcze ludzie mają do niego trafiać - widget na stronie, hostowana strona, Slack albo Telegram.",
+      "openAvailability": "Otwórz Availability"
     },
     "auth": {
       "backSign": "Wróć do logowania",

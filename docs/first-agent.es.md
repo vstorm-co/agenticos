@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3318780aed"
+source_sha: "153cccfb75a4"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -305,6 +305,25 @@ Dos de ellos tienen a propósito otra forma:
 
     Cada disposición es por persona, así que experimentar no mueve la página de
     nadie más.
+
+## Lo que ya puedes hacer { #what-you-can-already-do }
+
+Cuatro cosas que la gente busca y no encuentra sola:
+
+- **Ponerlo en una web, una página alojada, un WebSocket o la API pública** - la
+  pestaña **Availability** del agent. El Builder la señala tras la primera
+  publicación.
+- **Conectar una herramienta con tu propia cuenta** - cada persona su GitHub,
+  Gmail o Notion - desde la tarjeta del servidor en **MCP servers**. Consulta
+  [MCP](mcp.md#personal-or-organization-wide).
+- **Encontrar los archivos que guardó un agent** - lo que la gente adjuntó y lo
+  que escribieron los agents está en **Documents**.
+- **Compartirlo como un documento** - **Share** en la cabecera del Builder añade
+  una persona o un grupo y decide quién más lo encuentra. Consulta
+  [Permisos](permissions.md).
+
+El **Architect**, en la esquina de cada página, responde a las mismas preguntas y
+enlaza con el control adecuado.
 
 ## Siguiente { #next }
 

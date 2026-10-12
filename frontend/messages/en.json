@@ -3372,7 +3372,7 @@
       },
       "mcp-catalog": {
         "title": "Plug in tools",
-        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
+        "body": "MCP servers are ready-made tool sets your agents can call. Connect one for the whole organization, or for yourself with your own account, then add it to an agent from its MCP servers tab."
       },
       "mcp-connect": {
         "title": "Connect, then pick tools",
@@ -3892,7 +3892,9 @@
       "labelCount": "{used} of {max}",
       "thisPlatformMcp": "AgenticOS (this platform)",
       "testPanelOpen": "Test",
-      "testPanelShortcut": "Test beside the Builder (T)"
+      "testPanelShortcut": "Test beside the Builder (T)",
+      "firstPublishNext": "It is live in chat and over the API. Next, choose where else people reach it - a website widget, a hosted page, Slack or Telegram.",
+      "openAvailability": "Open Availability"
     },
     "auth": {
       "backSign": "Back to sign in",

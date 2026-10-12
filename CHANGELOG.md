@@ -483,6 +483,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The places people miss are pointed at (#2131).** The first publish of an
+  agent says where else it can be reached and opens its **Availability** tab;
+  the MCP servers stop in the walkthrough says a server can be connected with
+  your own account; the Architect's instructions link Availability, sharing,
+  personal MCP accounts and Documents; the getting-started page gains a short
+  **What you can already do**.
 - **Sharing reads like sharing a document.** An agent's **Share** button opens
   one dialog: add a person or a group at a level, see who has access - the owner
   first, faces and group icons beside the names - and set **General access** to

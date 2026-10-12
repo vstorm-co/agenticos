@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3318780aed"
+source_sha: "153cccfb75a4"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -313,6 +313,25 @@ Zwei davon sind mit Absicht anders geformt:
 
     Jede Anordnung gilt pro Person, also verschiebt Ausprobieren niemandes andere
     Seite.
+
+## Was Sie schon tun können { #what-you-can-already-do }
+
+Vier Dinge, nach denen Leute suchen und die sie allein nicht finden:
+
+- **Auf eine Website, eine gehostete Seite, einen WebSocket oder die öffentliche
+  API bringen** - der Tab **Availability** des Agents. Der Builder zeigt nach der
+  ersten Veröffentlichung dorthin.
+- **Ein Werkzeug mit dem eigenen Konto verbinden** - jede Person ihr eigenes
+  GitHub, Gmail oder Notion - über die Karte des Servers unter **MCP servers**.
+  Siehe [MCP](mcp.md#personal-or-organization-wide).
+- **Die Dateien finden, die ein Agent gespeichert hat** - was Leute angehängt
+  und Agents geschrieben haben, liegt unter **Documents**.
+- **Ihn wie ein Dokument teilen** - **Share** im Kopf des Builders fügt eine
+  Person oder Gruppe hinzu und legt fest, wer ihn sonst findet. Siehe
+  [Berechtigungen](permissions.md).
+
+Der **Architect** in der Ecke jeder Seite beantwortet dieselben Fragen und
+verlinkt zum richtigen Bedienelement.
 
 ## Weiter { #next }
 
