@@ -38,6 +38,7 @@ from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
+from app.agents.steering import SteeringInbox
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -250,6 +251,7 @@ async def _run(
     subagent_events: Any = None,
     on_personal_gaps: Any = None,
     request_connection: Any = None,
+    steering: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -266,6 +268,7 @@ async def _run(
         subagent_events=subagent_events,
         on_personal_gaps=on_personal_gaps,
         request_connection=request_connection,
+        steering=steering,
     )
 
 
@@ -1100,3 +1103,35 @@ class TestTellingTheChatWhatThePersonCannotReach:
             await _run(_db(), request_connection=ask)
 
         assert runner.prepare.await_args.kwargs["request_connection"] is ask
+
+
+class TestAddingToTheTurnAndAskingAside:
+    """The chat runner's half of #2087."""
+
+    async def test_the_inbox_the_surface_holds_is_the_one_the_run_reads(self):
+        prepared = _prepared()
+        inbox = SteeringInbox()
+        with _runner(prepared):
+            await _run(_db(), steering=inbox)
+
+        assert prepared.deps.steering is inbox
+
+    async def test_an_aside_is_a_run_of_its_own_on_the_answer_only_path(self):
+        run = MagicMock()
+        history: list[Any] = []
+        with _runner(_prepared()) as runner:
+            runner.execute = AsyncMock(return_value=("Three.", run))
+            answer = await ChatAgentRunner(MagicMock()).answer_aside(
+                user=_user(),
+                organization_id=uuid.uuid4(),
+                agent_id=uuid.uuid4(),
+                question="how many?",
+                message_history=history,
+            )
+
+        assert answer == ("Three.", run)
+        kwargs = runner.execute.await_args.kwargs
+        assert runner.execute.await_args.args[2] == "how many?"
+        assert kwargs["aside"] is True
+        assert kwargs["message_history"] is history
+        assert kwargs["surface"] is RunSurface.WEB

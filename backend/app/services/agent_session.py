@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.exceptions import CallDeferred
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
 from app.agents.ask_user import (
@@ -23,6 +23,7 @@ from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
@@ -179,6 +180,12 @@ class AgentSession:
         # holds each round until its answer arrives, so questions queue rather
         # than collide.
         self._ask_lock = asyncio.Lock()
+        # What the person adds to the running turn (#2087). Set for the length of
+        # a turn by `process_message`, None between turns.
+        self._steering: SteeringInbox | None = None
+        # Side questions being answered, held so they are not garbage-collected
+        # mid-answer and so a closing socket can let them finish.
+        self._asides: set[asyncio.Task[None]] = set()
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -227,6 +234,32 @@ class AgentSession:
                         render_answer(answers[index] if index < len(answers) else None),
                         asked_by=self._pending_asked_by,
                     )
+            return
+
+        if msg_type == "steer":
+            text = str(data.get("text") or "").strip()
+            if not text:
+                return
+            inbox = self._steering
+            if inbox is None or self._turn_task is None or self._turn_task.done():
+                # The turn ended between the click and the frame: nothing left to
+                # steer, so the client sends it as an ordinary message instead.
+                await send_event(self.websocket, "steer_unapplied", {"texts": [text]})
+                return
+            if not await self._reauthorize():
+                return
+            inbox.add(text)
+            return
+
+        if msg_type == "side_question":
+            text = str(data.get("text") or "").strip()
+            if not text:
+                return
+            if not await self._reauthorize():
+                return
+            task = asyncio.create_task(self._answer_aside(data, text))
+            self._asides.add(task)
+            task.add_done_callback(self._asides.discard)
             return
 
         if msg_type == "connect_account_response":
@@ -341,6 +374,12 @@ class AgentSession:
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
         """
+        # A side answer has nobody left to read it, unlike the turn's own answer,
+        # which the transcript keeps - so it is stopped rather than waited for.
+        asides = list(self._asides)
+        for aside in asides:
+            aside.cancel()
+        await asyncio.gather(*asides, return_exceptions=True)
         task = self._turn_task
         if task is None or task.done():
             return
@@ -434,6 +473,14 @@ class AgentSession:
         # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         self._current_timeline = timeline
+
+        async def steered(text: str) -> None:
+            # Where it reached the model is where the transcript shows it.
+            timeline.add_steer(text)
+            await send_event(self.websocket, "steer_applied", {"text": text})
+
+        steering = SteeringInbox(on_applied=steered)
+        self._steering = steering
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -505,6 +552,7 @@ class AgentSession:
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).
                     testing=requested_testing(data),
+                    steering=steering,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -603,6 +651,14 @@ class AgentSession:
             await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
             self._current_timeline = None
+            self._steering = None
+            late = steering.unapplied()
+            if late:
+                # Sent after the agent's last request, so no request carried them.
+                # Handed back rather than dropped: the client sends them as the
+                # next message.
+                with contextlib.suppress(Exception):
+                    await send_event(self.websocket, "steer_unapplied", {"texts": late})
             if not answered:
                 await self._persist_partial_turn(
                     opened,
@@ -612,6 +668,49 @@ class AgentSession:
                     thinking=timeline.thinking,
                     parts=timeline.stored(),
                 )
+
+    async def _answer_aside(self, data: dict[str, Any], question: str) -> None:
+        """Answer a side question while the turn keeps working (#2087).
+
+        From the thread so far and what the running turn has said, on a session
+        of its own so it never waits on the turn's. The answer comes back as
+        `side_answer`, tagged with the client's `id` so it lands on the card that
+        asked; a refusal comes back the same way rather than as the turn's `error`.
+        """
+        aside_id = data.get("id")
+        try:
+            agent_id = requested_agent_id(data)
+        except AppException as exc:
+            await self._side_answer({"id": aside_id, "error": exc.message})
+            return
+        if agent_id is None:
+            await self._side_answer({"id": aside_id, "error": _PICK_AN_AGENT})
+            return
+        try:
+            history = await self._history(None)
+            said = self._current_timeline.text if self._current_timeline is not None else ""
+            if said:
+                history = [*history, ModelResponse(parts=[TextPart(content=said)])]
+            async with get_db_context() as db:
+                answer, run = await ChatAgentRunner(db).answer_aside(
+                    user=self.user,
+                    organization_id=self.organization_id,
+                    agent_id=agent_id,
+                    question=question,
+                    message_history=history,
+                )
+            payload: dict[str, Any] = {"id": aside_id, "answer": answer, "run_id": str(run.id)}
+        except AppException as exc:
+            payload = {"id": aside_id, "error": exc.message}
+        except Exception as exc:
+            logger.exception("Error answering a side question")
+            payload = {"id": aside_id, "error": _turn_failed(exc)}
+        await self._side_answer(payload)
+
+    async def _side_answer(self, payload: dict[str, Any]) -> None:
+        # The socket may have closed while the answer was being written.
+        with contextlib.suppress(Exception):
+            await send_event(self.websocket, "side_answer", payload)
 
     async def _persist_partial_turn(
         self,

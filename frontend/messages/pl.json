@@ -1370,7 +1370,20 @@
     "browserOpenPanel": "Otwórz w panelu bocznym",
     "browserOpenFull": "Otwórz na pełnym ekranie",
     "conversationActions": "Akcje konwersacji",
-    "imageNotLoaded": "Obraz (niezaładowany)"
+    "imageNotLoaded": "Obraz (niezaładowany)",
+    "steerAdded": "Dodałeś:",
+    "whileWorking": {
+      "label": "Gdy agent pracuje, twoja wiadomość",
+      "modes": {
+        "steer": "Dołącza do zadania",
+        "after": "Czeka na odpowiedź",
+        "aside": "Pyta na boku"
+      },
+      "steersWaiting": "Dołączone do bieżącego zadania - agent przeczyta to w następnym kroku",
+      "askedAside": "Na boku:",
+      "dismiss": "Zamknij",
+      "answering": "Odpowiadam obok zadania…"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

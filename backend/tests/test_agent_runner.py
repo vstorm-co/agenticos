@@ -61,6 +61,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
 )
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import (
     AuthorizationError,
@@ -72,6 +73,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.repositories.group import CappedGroup
 from app.services.agent_runner import (
+    ASIDE_PREFIX,
     AgentRunnerService,
     ApprovalChannel,
     ParkedApproval,
@@ -80,6 +82,7 @@ from app.services.agent_runner import (
     PreparedRun,
     RecordedDelegation,
     RunSegment,
+    _answer_only,
     _classify_output,
     _connect_on_use,
     _with_personal_service_gaps,
@@ -4868,3 +4871,69 @@ class TestParkedQuestions:
         deferred = await self._resume(run)
 
         assert deferred.calls == {"ask-1": DECLINED}
+
+
+class TestAddingToARunAndAskingAside:
+    """The runner's half of #2087: the inbox reaches the run, an aside runs without tools."""
+
+    @pytest.mark.anyio
+    async def test_the_inbox_reaches_the_run_and_an_aside_is_put_as_one(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        result = MagicMock(output="Three.")
+        result.all_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+        inbox = SteeringInbox()
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+            patch.object(service, "_run", new=AsyncMock()) as run,
+        ):
+            run.return_value = MagicMock(output="Three.", run=MagicMock(), tool_calls=[])
+            await service.execute(_ctx(), uuid.uuid4(), "how many?", steering=inbox, aside=True)
+
+        assert prepared.built.deps.steering is inbox
+        assert prepare.await_args.kwargs["aside"] is True
+        kwargs = run.await_args.kwargs
+        assert kwargs["said"] == "how many?"
+        assert kwargs["user_prompt"].startswith(ASIDE_PREFIX)
+        assert kwargs["user_prompt"].endswith("how many?")
+
+    def test_an_aside_keeps_the_voice_and_drops_everything_that_acts(self):
+        spec = AgentSpec(
+            name="Ops",
+            instructions="Be terse.",
+            capabilities=[CapabilityBindingSpec(id="web_search")],
+            mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())],
+            skill_ids=[uuid.uuid4()],
+            collection_ids=[uuid.uuid4()],
+            context_ids=[uuid.uuid4()],
+        )
+
+        answered = _answer_only(spec)
+
+        assert (answered.capabilities, answered.mcp_servers, answered.skill_ids) == ([], [], [])
+        assert answered.collection_ids == []
+        assert answered.instructions == "Be terse."
+        assert answered.context_ids == spec.context_ids
+
+    @pytest.mark.anyio
+    async def test_prepare_answers_aside_on_the_stripped_spec(self):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Ops", capabilities=[CapabilityBindingSpec(id="web_search")])
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service, "_assemble", new=AsyncMock()) as assemble,
+            patch.object(
+                service, "_with_environment_observability", new=AsyncMock(return_value=spec)
+            ),
+        ):
+            await service.prepare(_ctx(), agent.id, aside=True)
+
+        assert assemble.await_args.kwargs["spec"].capabilities == []

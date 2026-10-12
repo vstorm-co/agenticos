@@ -50,6 +50,23 @@ import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
  *  Held outside the chat history until the drainer ships it. */
+/** How a message typed while the agent works is sent (#2087). */
+export type SendMode = "steer" | "after" | "aside";
+
+/** A correction sent to the running turn, shown until it reaches the model. */
+export interface SteerDraft {
+  id: string;
+  text: string;
+}
+
+/** A question asked on the side of the running turn, and its answer once it comes. */
+export interface SideQuestion {
+  id: string;
+  question: string;
+  answer?: string;
+  error?: string;
+}
+
 export interface QueuedMessage {
   id: string;
   content: string;
@@ -167,6 +184,10 @@ export function useChat(options: UseChatOptions = {}) {
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  // Corrections sent into the running turn, until `steer_applied` says the model
+  // has them, and questions asked beside it with their answers (#2087).
+  const [steers, setSteers] = useState<SteerDraft[]>([]);
+  const [asides, setAsides] = useState<SideQuestion[]>([]);
   const modelProfileRef = useRef<string | null>(null);
   // Read at send time like the model profile, and for the same reason: the queue
   // drainer sends a turn up to a minute later, and the frame must carry whatever
@@ -703,6 +724,45 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "steer_applied": {
+          // The model has it: off the waiting list, and into the turn where it
+          // landed - the text after it is the agent acting on it.
+          const { text } = wsEvent.data as { text: string };
+          setSteers((waiting) => {
+            const index = waiting.findIndex((steer) => steer.text === text);
+            return index < 0 ? waiting : [...waiting.slice(0, index), ...waiting.slice(index + 1)];
+          });
+          if (currentMessageIdRef.current) {
+            updateMessage(currentMessageIdRef.current, (msg) => ({
+              ...msg,
+              parts: [...(msg.parts ?? []), { id: clientId(), type: "steer", content: text }],
+            }));
+          }
+          break;
+        }
+
+        case "steer_unapplied": {
+          // Too late for the turn it was sent into: sent as the next message
+          // instead, through the queue that already does exactly that.
+          const { texts } = wsEvent.data as { texts: string[] };
+          setSteers((waiting) => waiting.filter((steer) => !texts.includes(steer.text)));
+          for (const text of texts) messageQueueRef.current.push({ id: clientId(), content: text });
+          setQueuedMessages([...messageQueueRef.current]);
+          break;
+        }
+
+        case "side_answer": {
+          const { id, answer, error } = wsEvent.data as {
+            id: string;
+            answer?: string;
+            error?: string;
+          };
+          setAsides((asked) =>
+            asked.map((aside) => (aside.id === id ? { ...aside, answer, error } : aside)),
+          );
+          break;
+        }
+
         case "ask_user": {
           const { questions } = wsEvent.data as { questions: WireQuestion[] };
           setPendingQuestions(toAskUserQuestions(questions ?? []));
@@ -980,8 +1040,42 @@ export function useChat(options: UseChatOptions = {}) {
     ],
   );
 
+  const askAside = useCallback(
+    (question: string) => {
+      const id = clientId();
+      setAsides((asked) => [...asked, { id, question }]);
+      const agentId = selectionApi.getState().selectedAgentId;
+      sendMessage({
+        type: "side_question",
+        id,
+        text: question,
+        ...(agentId ? { agent_id: agentId } : {}),
+      });
+    },
+    [selectionApi, sendMessage],
+  );
+
+  const dismissAside = useCallback((id: string) => {
+    setAsides((asked) => asked.filter((aside) => aside.id !== id));
+  }, []);
+
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mode: SendMode = "steer") => {
+      // While the agent works, a message joins the task by default and reaches
+      // it at its next step; a question can be asked beside it instead (#2087).
+      // A file cannot ride along with a correction, so a message carrying one
+      // waits for the turn like "after" does.
+      if (isProcessing && isConnected && !fileIds?.length) {
+        if (mode === "steer") {
+          setSteers((waiting) => [...waiting, { id: clientId(), text: content }]);
+          sendMessage({ type: "steer", text: content });
+          return;
+        }
+        if (mode === "aside") {
+          askAside(content);
+          return;
+        }
+      }
       // Queue when the agent is busy OR the socket is offline. The queue is
       // surfaced above the input as pending entries the user can cancel; the
       // drainer effect below pops the head as soon as the agent is idle.
@@ -993,7 +1087,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
       doSend(content, fileIds, files);
     },
-    [isProcessing, isConnected, doSend],
+    [isProcessing, isConnected, doSend, sendMessage, askAside],
   );
 
   const cancelQueued = useCallback((id: string) => {
@@ -1081,6 +1175,8 @@ export function useChat(options: UseChatOptions = {}) {
     if (previous === activeConversationId || previous === null) return;
     setDelegations([]);
     setBrowses([]);
+    setSteers([]);
+    setAsides([]);
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
@@ -1668,6 +1764,11 @@ export function useChat(options: UseChatOptions = {}) {
     queuedMessages,
     cancelQueued,
     clearQueued,
+    /** Corrections sent into the running turn that have not reached the model yet. */
+    steers,
+    /** Questions asked beside the running turn, with their answers as they come. */
+    asides,
+    dismissAside,
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
     },

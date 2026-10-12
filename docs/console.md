@@ -211,6 +211,13 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
+**While the agent works**, what you send joins the task: the agent reads it at its
+next step and adjusts course without starting over, and the answer shows where it
+arrived. Above the composer you can pick **Waits for the answer** instead, which
+sends it as the next message, or **Asks on the side**, which answers a quick
+question from the conversation so far - in a run of its own, with no tools -
+while the task keeps going.
+
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one

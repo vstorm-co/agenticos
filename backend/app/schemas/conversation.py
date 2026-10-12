@@ -41,6 +41,9 @@ class MessagePart(BaseSchema):
     put nor the answer it acted on (#502). `asked_by` names the delegate a question
     came from, because a question from a specialist reads differently from one the
     main agent put itself (#1042).
+
+    A `steer` entry is what the person added while the agent was working, stored
+    where it reached the model (#2087): the transcript says when the course changed.
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -55,9 +58,12 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user"] = Field(description="What this entry is.")
+    type: Literal["text", "thinking", "tool", "ask_user", "steer"] = Field(
+        description="What this entry is."
+    )
     text: str | None = Field(
-        default=None, description="The words, for a `text` or `thinking` entry."
+        default=None,
+        description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
     )
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."

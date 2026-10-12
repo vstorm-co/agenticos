@@ -27,6 +27,12 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
+- **Steer a running turn, or ask on the side.** In the chat, a message sent while
+  the agent works now joins the task - it reads it at its next step and the answer
+  shows where it landed - or, picked above the composer, waits for the answer or is
+  asked on the side: answered at once from the conversation so far, in a run of
+  its own with no tools. In Slack, Telegram and Mattermost a mid-turn message from
+  the same person joins the turn, and `/btw ...` asks on the side (#2087).
 - **A trigger can run as the person who made it.** *Run as me* on a schedule or
   an event trigger lets each fire reach its creator's memory and their own MCP
   connections - the morning "what matters in my inbox" - on fixed terms: a

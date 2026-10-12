@@ -68,6 +68,7 @@ from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
+from app.agents.steering import Steering
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -343,6 +344,10 @@ def build_agent(
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
         ReinjectSystemPrompt(),
+        # Before every configured capability: it writes the person's mid-run
+        # words into the history, and a compaction strategy that rebuilds the
+        # request from that history must find them there.
+        Steering(),
         budget,
         ApprovalGate(
             required_tool_names=approval_required,

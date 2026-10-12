@@ -80,6 +80,13 @@ class TurnTimeline:
             MessagePart(type="ask_user", question=question, answer=answer, asked_by=asked_by)
         )
 
+    def add_steer(self, text: str) -> None:
+        """Record what the person added mid-run, where it reached the model (#2087).
+
+        Never coalesced: two corrections are two moments in the turn.
+        """
+        self.parts.append(MessagePart(type="steer", text=text))
+
     def _append(self, kind: str, delta: str) -> None:
         open_part = self.parts[-1] if self.parts else None
         if open_part is not None and open_part.type == kind:
@@ -121,6 +128,6 @@ class TurnTimeline:
         """
         if len(self.parts) > 1:
             return self.parts
-        if self.parts and self.parts[0].type == "ask_user":
+        if self.parts and self.parts[0].type in ("ask_user", "steer"):
             return self.parts
         return None

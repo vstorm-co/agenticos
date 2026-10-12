@@ -1,5 +1,5 @@
 ---
-source_sha: "b60f73f32ab0"
+source_sha: "4dbf0368c985"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1299,6 +1299,14 @@ mehr als einer bewertet wurde - ein Agent, der in der Konsole gut und in Slack
 schlecht abschneidet, zeigt es.
 
 ## Was jeder Kanal gemeinsam hat { #what-every-channel-shares }
+
+- **Eine Nachricht, die gesendet wird, während der Agent arbeitet, ergänzt seine
+  Aufgabe.** Von der Person, deren Zug es ist, erreicht eine normale Nachricht im
+  selben Chat den laufenden Zug beim nächsten Schritt, statt auf einen eigenen zu
+  warten; eine, die nach dem letzten Schritt des Agents ankommt, wird als nächste
+  Nachricht beantwortet. `/btw` mit einer Frage fragt nebenbei: sofort beantwortet
+  aus dem bisherigen Thread, ohne Tools, während der Zug weiterläuft. Die Nachricht
+  eines Kollegen in einem Gruppenchat ist immer ein eigener Zug.
 
 - **Das Modell wird an die jüngsten Runden erinnert, nicht an die ersten.** Ein
   Kanal-Thread ist auf den Chat geschlüsselt und rollt nie über, also läuft ein

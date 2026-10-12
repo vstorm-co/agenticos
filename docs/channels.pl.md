@@ -1,5 +1,5 @@
 ---
-source_sha: "b60f73f32ab0"
+source_sha: "4dbf0368c985"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1214,6 +1214,14 @@ dobrych odpowiedzi według powierzchni, gdy ocen jest więcej niż na jednej, wi
 agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
+
+- **Wiadomość wysłana, gdy agent pracuje, dołącza do jego zadania.** Od osoby,
+  której to tura, zwykła wiadomość w tym samym czacie trafia do trwającej tury w
+  jej następnym kroku, zamiast czekać na własną turę; ta, która przyjdzie po
+  ostatnim kroku agenta, dostaje odpowiedź jako następna wiadomość. `/btw` z
+  pytaniem pyta na boku: odpowiedź przychodzi od razu, na podstawie dotychczasowego
+  wątku, bez narzędzi, a tura trwa dalej. Wiadomość kolegi w czacie grupowym to
+  zawsze osobna tura.
 
 - **Modelowi przypominane są najnowsze tury, a nie pierwsze.** Wątek kanałowy
   jest kluczowany na czat i nigdy się nie przewija, więc kanał wsparcia

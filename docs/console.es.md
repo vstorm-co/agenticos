@@ -1,5 +1,5 @@
 ---
-source_sha: "284770479850"
+source_sha: "92b2405b2792"
 ---
 
 # La consola { #the-console }
@@ -223,6 +223,13 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**Mientras el agent trabaja**, lo que envías se suma a la tarea: el agent lo lee
+en su siguiente paso y corrige el rumbo sin empezar de nuevo, y la respuesta
+muestra dónde llegó. Encima del cuadro de texto puedes elegir en su lugar **Espera
+a la respuesta**, que lo envía como el siguiente mensaje, o **Pregunta aparte**,
+que responde a una pregunta rápida a partir de la conversación hasta ahora - en un
+run propio, sin herramientas - mientras la tarea sigue.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras

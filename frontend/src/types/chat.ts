@@ -125,13 +125,13 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer";
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
   id: string;
   type: MessagePartType;
-  /** Text for "thinking"/"text" parts. */
+  /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
   content?: string;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
@@ -206,6 +206,9 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "steer_applied"
+  | "steer_unapplied"
+  | "side_answer"
   | "connect_account"
   | "compaction_started"
   | "compaction_finished"

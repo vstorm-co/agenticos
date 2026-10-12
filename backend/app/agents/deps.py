@@ -23,6 +23,7 @@ from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
@@ -83,6 +84,12 @@ class AgentDeps:
     # Set when the surface can ask the user something mid-run (WebSocket chat);
     # None on surfaces that cannot, so tools must handle its absence.
     ask_user: AskUserCallback | None = None
+
+    # Set when somebody is watching the run and may add to it mid-way (#2087):
+    # what they send lands here and reaches the model at its next request. None on
+    # every surface where nobody can, and on a delegate - a correction is to the
+    # task the person asked for, which is the parent's.
+    steering: SteeringInbox | None = None
 
     # Set when the surface can show a card of multiple-choice questions and wait
     # for the picks (#2064); `None` hides the `ask_user` capability's tool.

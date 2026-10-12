@@ -15,7 +15,7 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool" | "ask_user";
+  type: "text" | "thinking" | "tool" | "ask_user" | "steer";
   text?: string | null;
   tool_call_id?: string | null;
   question?: string | null;

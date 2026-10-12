@@ -152,3 +152,23 @@ class TestWhatIsWorthStoring:
         assert [(part.type, part.question, part.answer) for part in stored] == [
             ("ask_user", "Which region?", "eu-west-1")
         ]
+
+
+class TestWhatThePersonAdded:
+    """A mid-run correction is a moment in the turn, kept where it landed (#2087)."""
+
+    def test_it_sits_between_what_came_before_and_after_and_is_not_text(self):
+        timeline = TurnTimeline()
+        timeline.add_text("Looking at the US numbers. ")
+        timeline.add_steer("use the EU numbers")
+        timeline.add_steer("and round them")
+        timeline.add_text("Switching to the EU numbers.")
+
+        assert [part.type for part in timeline.parts] == ["text", "steer", "steer", "text"]
+        assert timeline.text == "Looking at the US numbers. Switching to the EU numbers."
+
+    def test_a_lone_one_is_still_stored(self):
+        timeline = TurnTimeline()
+        timeline.add_steer("stop")
+
+        assert timeline.stored() == timeline.parts

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircleQuestion } from "lucide-react";
+import { CornerDownRight, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
@@ -87,6 +87,8 @@ export function TurnParts({
             // that thought twice would otherwise show two of them.
             isStreaming={isStreaming && run.isLast}
           />
+        ) : run.part.type === "steer" ? (
+          <SteerBlock key={run.part.id} text={run.content} />
         ) : run.part.type === "ask_user" ? (
           <AskUserBlock
             key={run.part.id}
@@ -145,6 +147,24 @@ export function ThinkingBlock({
         <MarkdownContent content={text} />
       </div>
     </details>
+  );
+}
+
+/**
+ * What the person added while the agent was working, where it reached the model
+ * (#2087). An aside in the turn, like a question asked mid-turn: it is the moment
+ * the course changed, and the text after it is the agent acting on it.
+ */
+export function SteerBlock({ text }: { text: string }) {
+  const t = useTranslations("chat");
+  return (
+    <div className="border-foreground/10 text-muted-foreground flex items-start gap-2 border-l pl-3.5 text-[13px]">
+      <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+      <span className="flex flex-wrap gap-x-1">
+        <span className="text-foreground/70 font-medium">{t("steerAdded")}</span>
+        <span className="text-foreground whitespace-pre-wrap">{text}</span>
+      </span>
+    </div>
   );
 }
 
@@ -283,6 +303,10 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
     }
     if (part.type === "ask_user") {
       runs.push({ kind: "other", part, content: "", isLast: false });
+      continue;
+    }
+    if (part.type === "steer" && part.content) {
+      runs.push({ kind: "other", part, content: part.content, isLast: false });
       continue;
     }
     if (

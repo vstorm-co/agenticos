@@ -61,6 +61,7 @@ from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
     UsageReportService,
@@ -369,7 +370,11 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064).
             parks_questions=True,
-            conversation_id=conversation_id,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
@@ -479,7 +484,11 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064).
             parks_questions=True,
-            conversation_id=conversation_id,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,

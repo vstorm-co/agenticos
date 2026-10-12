@@ -1184,6 +1184,13 @@ agent that does well in the console and badly in Slack shows it.
 
 ## What every channel shares
 
+- **A message sent while the agent works joins its task.** From the person whose
+  turn it is, a plain message in the same chat reaches the running turn at its next
+  step instead of waiting for a turn of its own; one that arrives after the agent's
+  last step is answered as the next message. `/btw` followed by a question asks on
+  the side: answered at once from the thread so far, without tools, while the turn
+  keeps going. A colleague's message in a group chat is always a turn of its own.
+
 - **The model is reminded of the most recent turns, not the first ones.** A
   channel thread is keyed to the chat and never rolls over, so a support channel
   passes the window in days. Two hundred turns for a channel against forty for a

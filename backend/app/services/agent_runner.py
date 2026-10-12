@@ -156,6 +156,7 @@ from app.agents.spec import (
     TraceContent,
     trace_content_block,
 )
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegateWorkspace,
@@ -1633,6 +1634,35 @@ def _personal_gap_briefing(
     )
 
 
+ASIDE_PREFIX = (
+    "A side question about this conversation, asked while you are still working on "
+    "the task. Answer it briefly from what has been said so far. Do not continue, "
+    "repeat or redo the task, and do not promise to."
+)
+"""How a question on the side of a running task is put to the model (#2087)."""
+
+
+def _answer_only(spec: AgentSpec) -> AgentSpec:
+    """The spec with everything that acts or looks things up taken away (#2087).
+
+    For a question asked on the side of a run still working: it is answered from
+    the conversation so far, and it must not touch the world the main run is in
+    the middle of changing - a second set of tool calls against the same
+    workspace or mailbox, racing the first, is exactly what "without derailing
+    it" rules out. What stays is what shapes the answer's voice: the
+    instructions, the context files and the model.
+    """
+    return spec.model_copy(
+        update={
+            "capabilities": [],
+            "mcp_servers": [],
+            "subagents": [],
+            "skill_ids": [],
+            "collection_ids": [],
+        }
+    )
+
+
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -2139,10 +2169,14 @@ class AgentRunnerService:
         person_time_zone: str | None = None,
         draft: bool = False,
         test: bool = False,
+        aside: bool = False,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
         Args:
+            aside: A question asked on the side of a run still working (#2087):
+                answered from the conversation alone, with the agent's tools,
+                knowledge, servers and delegates taken away - see `_answer_only`.
             approval_mode: How much this session wants to be asked, whatever the
                 spec says (#925). `FOLLOW_AGENT` is every run that does not name
                 one and is exactly the behaviour that existed before. The other
@@ -2220,6 +2254,8 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
+        if aside:
+            spec = _answer_only(spec)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -3921,6 +3957,8 @@ class AgentRunnerService:
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
         parks_questions: bool = False,
+        steering: SteeringInbox | None = None,
+        aside: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3957,7 +3995,14 @@ class AgentRunnerService:
         `parks_questions` is for a surface that can put an `ask_user` question to
         its person later - a chat, as buttons: the question parks the run in
         `awaiting_answer` instead of being answered as declined (#2064).
+
+        `steering` is the inbox of a surface whose person may add to the task
+        while it runs, and `aside` answers a question on the side of one (#2087).
         """
+        if aside:
+            # Said as the person asked it; told to the model as a side question.
+            said = prompt if said is None else said
+            prompt = f"{ASIDE_PREFIX}\n\n{prompt}"
         prepared = await self.prepare(
             ctx,
             agent_id,
@@ -3970,7 +4015,9 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
             on_compaction=on_compaction,
+            aside=aside,
         )
+        prepared.built.deps.steering = steering
         if parks_questions:
             prepared.built.deps.ask_questions = park_the_question
         # `str | list[Any]`, not `str`: an attached image is folded in as

@@ -2262,7 +2262,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     vi.useFakeTimers();
     const { result, rerender } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
-    act(() => result.current.sendMessage("second"));
+    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
     expect(result.current.queuedMessages).toHaveLength(1);
 
     socket.isConnected = false;
@@ -2329,7 +2329,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     let conversationId = "c-interrupted";
     const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
     act(() => result.current.sendMessage("first"));
-    act(() => result.current.sendMessage("second"));
+    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
     socket.isConnected = false;
     rerender();
     socket.isConnected = true;
@@ -2421,13 +2421,13 @@ describe("useChat - a socket that went away mid-answer", () => {
 });
 
 describe("useChat - the outbound queue", () => {
-  it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
+  it("queues what is sent to wait for the answer, and drains it when the agent is idle", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
     expect(result.current.isProcessing).toBe(true);
 
-    act(() => result.current.sendMessage("second"));
+    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["second"]);
     expect(sent).toHaveBeenCalledTimes(1);
 
@@ -2958,5 +2958,85 @@ describe("useChat - a question its person came back to", () => {
 
     expect(result.current.pendingQuestions).toBeNull();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("useChat - adding to a running turn and asking aside (#2087)", () => {
+  beforeEach(() => {
+    sent.mockClear();
+    useChatStore.setState({ messages: [] });
+  });
+
+  it("sends a message typed while the agent works into the task, and shows where it landed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+
+    act(() => result.current.sendMessage("use the EU numbers"));
+    expect(frame(1)).toEqual({ type: "steer", text: "use the EU numbers" });
+    expect(result.current.steers.map((steer) => steer.text)).toEqual(["use the EU numbers"]);
+    expect(result.current.queuedMessages).toEqual([]);
+
+    receive("steer_applied", { text: "use the EU numbers" });
+    expect(result.current.steers).toEqual([]);
+    const answer = useChatStore.getState().messages.at(-1);
+    expect(answer?.parts?.at(-1)).toMatchObject({ type: "steer", content: "use the EU numbers" });
+    // A second notice for the same words finds nothing left to clear.
+    receive("steer_applied", { text: "use the EU numbers" });
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("sends one that came too late as the next message", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    act(() => result.current.sendMessage("and the totals"));
+
+    receive("steer_unapplied", { texts: ["and the totals"] });
+
+    expect(result.current.steers).toEqual([]);
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["and the totals"]);
+  });
+
+  it("asks on the side and shows the answer on its card, or why there is none", () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "agent-1" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    act(() => result.current.sendMessage("how long will it take?", undefined, undefined, "aside"));
+    act(() => result.current.sendMessage("and the cost?", undefined, undefined, "aside"));
+
+    const asked = frame(1);
+    expect(asked).toMatchObject({
+      type: "side_question",
+      text: "how long will it take?",
+      agent_id: "agent-1",
+    });
+    receive("side_answer", { id: asked.id, answer: "A minute." });
+    receive("side_answer", { id: frame(2).id, error: "Over budget" });
+
+    expect(result.current.asides.map(({ answer, error }) => answer ?? error)).toEqual([
+      "A minute.",
+      "Over budget",
+    ]);
+    act(() => result.current.dismissAside(String(asked.id)));
+    expect(result.current.asides.map((aside) => aside.question)).toEqual(["and the cost?"]);
+  });
+
+  it("asks without naming an agent when none is selected", () => {
+    useAgentSelectionStore.setState({ selectedAgentId: null });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("go"));
+    act(() => result.current.sendMessage("why?", undefined, undefined, "aside"));
+
+    expect(frame(1)).not.toHaveProperty("agent_id");
+  });
+
+  it("holds a message with a file for the answer - a correction carries no file", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() => result.current.sendMessage("this one", ["file-1"]));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
+    expect(result.current.steers).toEqual([]);
   });
 });

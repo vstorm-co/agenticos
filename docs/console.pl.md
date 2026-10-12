@@ -1,5 +1,5 @@
 ---
-source_sha: "284770479850"
+source_sha: "92b2405b2792"
 ---
 
 # Konsola { #the-console }
@@ -221,6 +221,13 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**Gdy agent pracuje**, to, co wysyłasz, dołącza do zadania: agent czyta to w
+następnym kroku i zmienia kurs bez zaczynania od nowa, a odpowiedź pokazuje, gdzie
+to dotarło. Nad kompozytorem możesz zamiast tego wybrać **Czeka na odpowiedź**,
+które wysyła to jako następną wiadomość, albo **Pyta na boku**, które odpowiada na
+szybkie pytanie na podstawie dotychczasowej rozmowy - we własnym runie, bez
+narzędzi - podczas gdy zadanie trwa dalej.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,

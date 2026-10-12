@@ -9,12 +9,14 @@ import re
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
@@ -61,6 +63,7 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.channels.prompts import ChannelPrompts
+from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -118,6 +121,11 @@ class _ChatLocks:
 
 
 _chat_locks = _ChatLocks()
+
+# The turn each chat is running in this process, so a message that arrives
+# behind it can join it rather than wait for it (#2087). Per process like the
+# lock beside it: the turn and its inbox live where the lock is held.
+_in_flight: dict[str, InFlight] = {}
 
 
 class _LocalWindows:
@@ -291,9 +299,43 @@ class ChannelMessageRouter:
                 incoming.message_id,
             )
             return
+        key = f"{incoming.bot_id}:{incoming.platform_chat_id}"
+        running = _in_flight.get(key)
+        question = aside_question(incoming.text)
+        if question is not None:
+            # The command is a gesture, not part of what is asked.
+            incoming = replace(incoming, text=question)
         try:
+            if running is not None and question is not None:
+                # A question on the side of the running turn: answered now, from
+                # the thread so far, rather than queued behind what it asks about.
+                # With nothing running it is simply the next message.
+                with answering_aside():
+                    await self._route_inner(incoming, db)
+                return
+            steer = (
+                running.inbox.add(incoming.text)
+                if running is not None
+                and running.sender == incoming.platform_user_id
+                and incoming.text.strip()
+                and not incoming.text.lstrip().startswith("/")
+                else None
+            )
             async with _chat_locks.hold(incoming.bot_id, incoming.platform_chat_id):
-                await self._route_inner(incoming, db)
+                if steer is not None and steer.applied:
+                    # It reached the turn it was sent into, which answered it.
+                    return
+                if steer is not None:
+                    # Too late for that turn's last request; mark it taken so the
+                    # unapplied list stays honest, and answer it as its own turn.
+                    steer.applied = True
+                inbox = SteeringInbox()
+                _in_flight[key] = InFlight(inbox=inbox, sender=incoming.platform_user_id)
+                try:
+                    with steerable(inbox):
+                        await self._route_inner(incoming, db)
+                finally:
+                    _in_flight.pop(key, None)
         except BaseException:
             await release_delivery(incoming)
             raise

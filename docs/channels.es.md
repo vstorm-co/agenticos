@@ -1,5 +1,5 @@
 ---
-source_sha: "b60f73f32ab0"
+source_sha: "4dbf0368c985"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1232,6 +1232,14 @@ valoraciones en más de una, así que un agent que va bien en la consola y mal e
 Slack lo muestra.
 
 ## Qué comparte cada canal { #what-every-channel-shares }
+
+- **Un mensaje enviado mientras el agent trabaja se suma a su tarea.** De la
+  persona cuyo turno es, un mensaje normal en el mismo chat llega al turno en curso
+  en su siguiente paso en lugar de esperar un turno propio; uno que llega después
+  del último paso del agent se responde como el siguiente mensaje. `/btw` seguido de
+  una pregunta pregunta aparte: se responde al momento a partir del hilo hasta
+  ahora, sin herramientas, mientras el turno sigue. El mensaje de un colega en un
+  chat de grupo es siempre un turno propio.
 
 - **Al modelo se le recuerdan los turnos más recientes, no los primeros.** Un hilo
   de canal se indexa por el chat y nunca pasa página, así que un canal de soporte

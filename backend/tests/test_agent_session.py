@@ -93,6 +93,7 @@ from app.agents.capabilities.subagents import Delegation
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.deps import AgentDeps
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import (
     SubagentFinished,
     SubagentStarted,
@@ -478,6 +479,21 @@ class TestReauthorizingEachFrame:
         persist.assert_not_called()
         assert session._turn_task is None
         session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_a_revoked_session_neither_steers_nor_asks_aside(self):
+        """Both act on the session, so both are refused on a dead credential (#2087)."""
+        session = self._socket_session()
+        inbox = SteeringInbox()
+        session._steering = inbox
+        session._turn_task = asyncio.get_running_loop().create_future()  # a turn "running"
+
+        with self._revoked():
+            await session.handle_frame({"type": "steer", "text": "use the EU numbers"})
+            await session.handle_frame({"type": "side_question", "text": "how long?"})
+
+        assert inbox.unapplied() == []
+        assert session._asides == set()
+        session._turn_task.cancel()
 
     async def test_a_revoked_session_cancels_a_turn_already_running(self):
         """A turn in flight when the next frame lands on a revoked session is
@@ -3088,3 +3104,154 @@ class TestForwardingBrowserFrames:
         assert name == "browser_finished"
         assert payload["outcome"] == "blocked"
         assert "no available action" in payload["detail"]
+
+
+class TestAddingToARunningTurn:
+    """`steer` adds to the turn the person is watching; `side_question` asks beside it (#2087)."""
+
+    async def test_a_correction_reaches_the_running_turn_and_is_shown_where_it_landed(self):
+        session = _session()
+        running = asyncio.Event()
+        release = asyncio.Event()
+
+        async def runs_until_released(**kwargs: Any) -> ChatTurn:
+            running.set()
+            await release.wait()
+            # What the model's next request does with it: tells the surface.
+            steering = kwargs["steering"]
+            for steer in steering.take():
+                await steering.on_applied(steer.text)
+            return _finished_turn()
+
+        with _chat(AsyncMock(side_effect=runs_until_released)) as chat:
+            await session.handle_frame(_message("draft the report"))
+            turn = session._turn_task
+            assert turn is not None
+            await _wait(running)
+
+            await session.handle_frame({"type": "steer", "text": "  use the EU numbers  "})
+            release.set()
+            await turn
+
+        assert ("steer_applied", {"text": "use the EU numbers"}) in _sent_events(session)
+        parts = chat.answer.await_args.kwargs["parts"]
+        assert MessagePart(type="steer", text="use the EU numbers") in parts
+        assert session._steering is None
+
+    async def test_one_that_arrived_after_the_last_request_is_handed_back(self):
+        session = _session()
+        running = asyncio.Event()
+        release = asyncio.Event()
+
+        async def runs_until_released(**_kwargs: Any) -> ChatTurn:
+            running.set()
+            await release.wait()
+            return _finished_turn()
+
+        with _chat(AsyncMock(side_effect=runs_until_released)):
+            await session.handle_frame(_message("go"))
+            turn = session._turn_task
+            assert turn is not None
+            await _wait(running)
+            await session.handle_frame({"type": "steer", "text": "and the totals"})
+            release.set()
+            await turn
+
+        assert ("steer_unapplied", {"texts": ["and the totals"]}) in _sent_events(session)
+
+    async def test_with_nothing_running_it_is_handed_back_at_once(self):
+        session = _session()
+
+        await session.handle_frame({"type": "steer", "text": "hello"})
+        await session.handle_frame({"type": "steer", "text": "   "})
+
+        assert _sent_events(session) == [("steer_unapplied", {"texts": ["hello"]})]
+
+    async def test_a_side_question_is_answered_beside_the_turn_from_what_was_said(self):
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        session._current_timeline.add_text("So far: 3 tickets.")
+        run = MagicMock(id=uuid4())
+        answer = AsyncMock(return_value=("Three.", run))
+
+        with _chat(AsyncMock()) as chat:
+            chat.runner.answer_aside = answer
+            await session.handle_frame(
+                {"type": "side_question", "text": "how many?", "id": "q1", "agent_id": str(uuid4())}
+            )
+            await asyncio.gather(*session._asides)
+
+        assert ("side_answer", {"id": "q1", "answer": "Three.", "run_id": str(run.id)}) in (
+            _sent_events(session)
+        )
+        history = answer.await_args.kwargs["message_history"]
+        assert isinstance(history[-1], ModelResponse)
+        assert answer.await_args.kwargs["question"] == "how many?"
+
+    @pytest.mark.parametrize(
+        ("frame", "error"),
+        [
+            ({"agent_id": "not-a-uuid"}, None),
+            ({}, "pick"),
+        ],
+    )
+    async def test_a_side_question_with_no_agent_is_refused_on_its_card(self, frame, error):
+        session = _session()
+
+        await session.handle_frame(
+            {"type": "side_question", "text": "how many?", "id": "q2", **frame}
+        )
+        await asyncio.gather(*session._asides)
+
+        ((event, data),) = _sent_events(session)
+        assert event == "side_answer"
+        assert data["id"] == "q2"
+        assert data["error"]
+
+    async def test_a_side_question_that_fails_says_so_on_its_card(self):
+        session = _session()
+
+        with _chat(AsyncMock()) as chat:
+            chat.runner.answer_aside = AsyncMock(side_effect=BadRequestError(message="Over budget"))
+            await session.handle_frame(
+                {"type": "side_question", "text": "x", "id": "q3", "agent_id": str(uuid4())}
+            )
+            await asyncio.gather(*session._asides)
+            chat.runner.answer_aside = AsyncMock(side_effect=RuntimeError("boom"))
+            await session.handle_frame(
+                {"type": "side_question", "text": "y", "id": "q4", "agent_id": str(uuid4())}
+            )
+            await asyncio.gather(*session._asides)
+
+        errors = {data["id"]: data["error"] for event, data in _sent_events(session)}
+        assert errors["q3"] == "Over budget"
+        assert errors["q4"]
+        assert session._asides == set()
+
+    async def test_an_empty_side_question_is_ignored(self):
+        session = _session()
+
+        await session.handle_frame({"type": "side_question", "text": " "})
+
+        assert session._asides == set()
+        assert _sent_events(session) == []
+
+    async def test_a_closing_socket_stops_side_answers_nobody_will_read(self):
+        session = _session()
+        started = asyncio.Event()
+
+        async def slow(**_kwargs: Any) -> tuple[str, Any]:
+            started.set()
+            await asyncio.sleep(30)
+            return "late", MagicMock()
+
+        with _chat(AsyncMock()) as chat:
+            chat.runner.answer_aside = AsyncMock(side_effect=slow)
+            await session.handle_frame(
+                {"type": "side_question", "text": "x", "id": "q5", "agent_id": str(uuid4())}
+            )
+            await _wait(started)
+            (aside,) = session._asides
+            await session.shutdown()
+
+        assert aside.cancelled()

@@ -314,6 +314,19 @@ describe("the ordered timeline", () => {
     expect(getByText("eu-west-1")).toBeInTheDocument();
   });
 
+  it("shows what the person added mid-run where it landed in the turn (#2087)", () => {
+    const { getByText } = item({
+      parts: [
+        { id: "p-1", type: "text", content: "Pulling the US numbers." },
+        { id: "p-2", type: "steer", content: "use the EU numbers" },
+        { id: "p-3", type: "text", content: "Switching to the EU numbers." },
+      ],
+    });
+
+    expect(getByText("You added:")).toBeInTheDocument();
+    expect(getByText("use the EU numbers")).toBeInTheDocument();
+  });
+
   it("names the delegate that asked, where one did (#1042)", () => {
     // "the deployer asked" and "the agent asked" are different things to read on
     // a replayed turn, and the transcript could not tell them apart.
@@ -805,6 +818,16 @@ describe("the runs a turn is made of", () => {
     expect(runsOf([{ id: "t1", type: "text", content: "" }])).toEqual([]);
     expect(runsOf([{ id: "t2", type: "thinking" }])).toEqual([]);
     expect(runsOf([])).toEqual([]);
+  });
+
+  it("keeps a steer as its own run and drops an empty one (#2087)", () => {
+    const runs = runsOf([
+      { id: "s1", type: "steer", content: "shorter" },
+      { id: "s2", type: "steer", content: "" },
+    ]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind === "other" && runs[0].part.type).toBe("steer");
   });
 
   it("keeps an ask_user part as its own run, empty content notwithstanding (#502)", () => {
