@@ -330,6 +330,20 @@ describe("the Architect widget", () => {
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
   });
 
+  it("keeps waiting approvals quiet on the next page after Not now", () => {
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    const { rerender } = render(<AssistantWidget />);
+    lookAtThePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    state.pathname = "/skills";
+    rerender(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+  });
+
   it("offers the first steps to an organization with no agents", () => {
     state.signals.noAgents = true;
     state.pathname = "/runs";

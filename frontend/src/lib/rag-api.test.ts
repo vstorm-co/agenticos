@@ -39,6 +39,19 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("listing sync sources", () => {
+  it("lists every source the caller reaches, or one collection's", async () => {
+    await rag.listSyncSources();
+    await rag.listSyncSources("Policies & HR");
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/rag/sync/sources");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/rag/sync/sources?collection_name=Policies%20%26%20HR",
+    );
+  });
+});
+
 describe("search and parsed documents", () => {
   it("sends a search as a body, because a query is not a path", async () => {
     await rag.searchDocuments({ query: "refunds", limit: 5 });
