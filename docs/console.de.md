@@ -1,5 +1,5 @@
 ---
-source_sha: "e502ad9ccdea"
+source_sha: "284770479850"
 ---
 
 # Die Konsole { #the-console }
@@ -143,9 +143,16 @@ Sie könnten, und nicht mehr. Seine Kosten zählen wie die jedes Agents.
 Eine Sprechblase über ihm spricht an, was auf Sie wartet — Freigaben, eine
 Organisation ohne Agents — oder die Seite, auf der Sie sind, und bietet ab und zu
 einen Tipp an. Ein Klick auf die Sprechblase fragt ihn; × schaltet die Seite
-stumm, und die Glocke in seinem Fenster schaltet die Sprechblasen ganz ab. Sein
-Fenster öffnet sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist, und
-führt einen eigenen Verlauf. Auf dem Telefon füllt es den Bildschirm.
+stumm, und die Glocke in seinem Fenster schaltet die Sprechblasen ganz ab. Eine
+unbeantwortete Sprechblase verschwindet nach ein paar Sekunden. Bleibt die
+Schaltfläche knapp eine Minute unberührt, schiebt sie sich in den rechten
+Bildschirmrand und lässt einen schmalen Streifen stehen, an dem man sie
+herauszieht - mit einem Punkt, wenn etwas wartet - und bleibt dort von Seite zu
+Seite, bis sie geöffnet wird.
+
+Sein Fenster ist der Chat der Konsole selbst, keine Seite in der Seite, und öffnet
+sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist; es führt einen
+eigenen Verlauf. Auf dem Telefon füllt es den Bildschirm.
 
 Nennt er eine Seite, öffnet der Link sie in der Konsole hinter dem Fenster und
 zeigt auf das gemeinte Bedienelement — die Schaltfläche, die einen Agent anlegt,

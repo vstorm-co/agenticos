@@ -1,5 +1,5 @@
 ---
-source_sha: "e502ad9ccdea"
+source_sha: "284770479850"
 ---
 
 # Konsola { #the-console }
@@ -134,9 +134,14 @@ koszty liczą się jak każdego agenta.
 Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
 żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
 Kliknięcie dymka zadaje mu pytanie; × wycisza tę stronę, a dzwonek w jego oknie
-wyłącza dymki w ogóle. Okno otwiera się na czterech kafelkach, więc pierwsza
-wiadomość to jedno kliknięcie, i ma własną historię rozmów. Na telefonie zajmuje
-cały ekran.
+wyłącza dymki w ogóle. Dymek bez odpowiedzi znika po kilku sekundach. Pozostawiony
+w spokoju na niecałą minutę przycisk chowa się w prawą krawędź ekranu i zostawia
+wąski pasek, za który można go wyciągnąć - z kropką, gdy coś czeka - i zostaje
+tam między stronami, dopóki go nie otworzysz.
+
+Okno to ten sam czat co w konsoli, a nie strona osadzona w stronie. Otwiera się
+na czterech kafelkach, więc pierwsza wiadomość to jedno kliknięcie, i ma własną
+historię rozmów. Na telefonie zajmuje cały ekran.
 
 Gdy wskazuje stronę, link otwiera się w konsoli za oknem i podświetla kontrolkę,
 o którą chodzi — przycisk tworzący agenta, zakładkę z akceptacjami. Aparat w

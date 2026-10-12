@@ -46,7 +46,6 @@ function originOf(url: string): string {
 export function cspDirectives(
   config: PublicConfig,
   nonce: string,
-  { framedBySelf = false }: { framedBySelf?: boolean } = {},
 ): Readonly<Record<CspDirective, readonly string[]>> {
   return {
     "default-src": ["'self'"],
@@ -80,10 +79,9 @@ export function cspDirectives(
     // deployment's configuration, not a scheme: `wss:` alone would let the socket
     // open to any host.
     "connect-src": [...new Set(["'self'", originOf(config.apiUrl), originOf(config.wsUrl)])],
-    // Nothing may frame the console. The embed widget is served from its own
-    // route, which sets its own header; the AI Architect's frame (#2063) is the
-    // one page the console frames itself, and only from this origin.
-    "frame-ancestors": framedBySelf ? ["'self'"] : ["'none'"],
+    // Nothing may frame the console, itself included. The embed widget is served
+    // from its own route, which sets its own header.
+    "frame-ancestors": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
     // No `<object>`, `<embed>` or `<applet>` at all - the console renders none, and
@@ -93,12 +91,8 @@ export function cspDirectives(
 }
 
 /** The header value for a deployment, as one line, carrying this request's nonce. */
-export function contentSecurityPolicy(
-  config: PublicConfig,
-  nonce: string,
-  options: { framedBySelf?: boolean } = {},
-): string {
-  return Object.entries(cspDirectives(config, nonce, options))
+export function contentSecurityPolicy(config: PublicConfig, nonce: string): string {
+  return Object.entries(cspDirectives(config, nonce))
     .map(([directive, sources]) => `${directive} ${sources.join(" ")}`)
     .join("; ");
 }

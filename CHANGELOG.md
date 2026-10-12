@@ -389,6 +389,11 @@ Two things are versioned separately from this file and worth knowing about:
   there, so the file editor and Create are reachable.
 - **The tab you are on is in view on a phone.** A tab strip wider than the
   screen centres the active tab.
+- **A Claude model through OpenRouter answers wherever OpenRouter sends it.**
+  Prompt-cache breakpoints no longer name a `ttl`, which Amazon Bedrock refuses;
+  the Architect failed every turn OpenRouter routed there.
+- **No rating on an answer that was never saved.** A turn that failed before
+  the server stored it offered thumbs that answered "Message not found".
 - **A run over the API checks the conversation it names.** An unknown
   `conversation_id` was a 500, and another member's conversation lent the run
   its workspace and its plan; both now answer `404`.
@@ -414,6 +419,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Architect's window and the Builder's test panel are the console's own
+  chat, not a page framed inside it.** Each keeps a conversation of its own
+  beside the main chat; the window is wider and its opening fits without
+  scrolling, and a message's actions show on hover as in `/chat`.
+- **The Architect stays out of the way.** An unanswered bubble fades after a few
+  seconds and no longer labels itself; left alone, the button tucks into the
+  right edge, keeps a dot when something waits, and stays there across pages.
+  The bell says whether tips are on, and confirms the switch.
+- **The Architect's conversation list is a panel of its own** - newest first,
+  each with when it was last touched, the open one marked, a filter, and a
+  button to start afresh.
+- **The chat's files button sits among the composer's controls**, instead of a
+  strip down the conversation's right edge that cost a margin for one icon.
 - **Artifacts are Apps.** The console page, navigation, dashboard widget,
   notifications, the capability's name and the docs in four languages call
   them apps; `/artifacts` console links redirect to `/apps`, and public links

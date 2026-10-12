@@ -651,6 +651,14 @@ describe("the footer", () => {
     expect(screen.queryByRole("button", { name: "rate" })).toBeNull();
   });
 
+  it("offers no rating on an answer the server never saved", () => {
+    // A turn that failed before `message_saved` keeps its client id, which the
+    // rating endpoint answers with "Message not found".
+    item({ isTemporaryId: true });
+
+    expect(screen.queryByRole("button", { name: "rate" })).toBeNull();
+  });
+
   it("writes a rating back into the message it belongs to", async () => {
     // The store is the source of truth for the transcript; a rating that only
     // lived in the button would vanish on the next re-render.

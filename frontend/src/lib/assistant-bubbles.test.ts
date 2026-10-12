@@ -8,6 +8,7 @@ import {
   readPreferences,
   resetSilenced,
   setBubblesOff,
+  setDocked,
   silencePage,
 } from "./assistant-bubbles";
 
@@ -67,7 +68,12 @@ describe("preferences", () => {
     silencePage("/agents");
     setBubblesOff(true);
 
-    expect(readPreferences()).toEqual({ silenced: ["/agents"], off: true, seenRun: null });
+    expect(readPreferences()).toEqual({
+      silenced: ["/agents"],
+      off: true,
+      seenRun: null,
+      docked: false,
+    });
   });
 
   it("lets every silenced page speak again without touching the switch", () => {
@@ -76,7 +82,7 @@ describe("preferences", () => {
 
     resetSilenced();
 
-    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null });
+    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null, docked: false });
   });
 
   it("remembers the failed run the reader has heard about", () => {
@@ -86,16 +92,29 @@ describe("preferences", () => {
 
   it("reads anything unreadable as the default", () => {
     localStorage.setItem("assistant-bubbles", "not json");
-    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null });
+    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null, docked: false });
 
     localStorage.setItem("assistant-bubbles", JSON.stringify({ silenced: [1, "/kb"], off: "yes" }));
-    expect(readPreferences()).toEqual({ silenced: ["/kb"], off: false, seenRun: null });
+    expect(readPreferences()).toEqual({
+      silenced: ["/kb"],
+      off: false,
+      seenRun: null,
+      docked: false,
+    });
 
     localStorage.setItem("assistant-bubbles", JSON.stringify({ off: true }));
-    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null });
+    expect(readPreferences()).toEqual({ silenced: [], off: true, seenRun: null, docked: false });
 
     localStorage.setItem("assistant-bubbles", "42");
-    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null });
+    expect(readPreferences()).toEqual({ silenced: [], off: false, seenRun: null, docked: false });
+  });
+
+  it("remembers the button tucked into the edge, and pulled back out", () => {
+    setDocked(true);
+    expect(readPreferences().docked).toBe(true);
+
+    setDocked(false);
+    expect(readPreferences().docked).toBe(false);
   });
 
   it("survives storage that refuses to be written", () => {

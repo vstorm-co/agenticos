@@ -626,6 +626,9 @@ function ChatUI({
   // every message and this component re-renders on every streaming delta.
   const plan = useMemo(() => planProgress(messages), [messages]);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
+  // Where the files button sits: among the composer's own controls, rather than
+  // in a strip of its own down the conversation's right edge.
+  const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   useLayoutEffect(() => {
@@ -798,6 +801,8 @@ function ChatUI({
                         controlsSlot={agentFixed ? undefined : <AgentPicker />}
                         actionsSlot={
                           <>
+                            {/* Wide screens only, as is the panel it opens. */}
+                            <span ref={setFilesSlot} className="hidden lg:contents" />
                             <UsageMeter
                               usage={lastUsage}
                               workspace={workspace}
@@ -832,16 +837,16 @@ function ChatUI({
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a
-          button in the corner until somebody opens it, because a permanent third
-          column took space from every conversation including the ones where the
-          agent keeps nothing, so closed it is a strip holding one icon. Hidden on a
-          narrow screen, where there is no room for either, and absent entirely for
-          an agent with no workspace. */}
+          button among the composer's controls until somebody opens it, because a
+          permanent third column took space from every conversation including the
+          ones where the agent keeps nothing. Hidden on a narrow screen, where there
+          is no room for it. */}
       <div className="hidden lg:block">
         <WorkspaceFiles
           conversationId={conversationId}
           revision={turns}
           attachments={attachments}
+          buttonSlot={filesSlot}
         />
       </div>
     </div>

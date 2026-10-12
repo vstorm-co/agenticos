@@ -1,27 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { BellOff, Camera, History, MessageSquarePlus, X } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { toast } from "sonner";
 
+import type { ChatPrompt } from "@/components/chat/chat-container";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useAssistantSignals } from "@/hooks/use-assistant-signals";
-import { ASSISTANT_FRAME_PATH } from "@/lib/assistant-frame";
-import { consoleLink, pointAt } from "@/lib/assistant-highlight";
-import { captureThisTab } from "@/lib/assistant-screenshot";
-import {
-  ASK,
-  ATTACH,
-  CONTEXT,
-  HISTORY,
-  NAVIGATE,
-  NEW,
-  readFromFrame,
-  type ToFrame,
-} from "@/lib/assistant-messages";
+import { pointAt, type ConsoleLink } from "@/lib/assistant-highlight";
 import {
   bubbleFor,
   isProactive,
@@ -29,24 +15,22 @@ import {
   pageOf,
   readPreferences,
   setBubblesOff,
+  setDocked,
 } from "@/lib/assistant-bubbles";
-import { cn } from "@/lib/utils";
 import { useRouter } from "@/lib/locale-navigation";
-import { defaultLocale } from "@/i18n";
+import { ChatScope, useOrgStore } from "@/stores";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
-import {
-  architectName,
-  AssistantFace,
-  AssistantLauncher,
-  WINDOW_CLASSES,
-  WidgetRoot,
-} from "./assistant-launcher";
+import { architectName, AssistantLauncher, WidgetRoot } from "./assistant-launcher";
 import { AssistantSetup } from "./assistant-setup";
+import { AssistantWindow } from "./assistant-window";
 
 /** How long a page is looked at before the bubble speaks. */
 const BUBBLE_DELAY_MS = 3000;
+
+/** How long the button waits, untouched, before it tucks itself into the edge. */
+export const DOCK_AFTER_MS = 45_000;
 
 /** Where the window is full screen, and covers the page a link opens. */
 const PHONE = "(max-width: 767px)";
@@ -76,69 +60,44 @@ export function AssistantWidget() {
 
 function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
   const t = useTranslations("assistantWidget");
-  const locale = useLocale();
   const pathname = usePathname();
   const signals = useAssistantSignals();
+  const organization = useOrgStore((state) => state.activeOrgId);
   const [open, setOpen] = useState(false);
   const [everOpened, setEverOpened] = useState(false);
   // The page the bubble has waited out its moment on; on any other it is quiet.
   const [readyOn, setReadyOn] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(readPreferences);
-  // "Not now" on a page: quiet there for the rest of this visit to the console.
+  // "Not now", or a bubble left to fade, on a page: quiet there for the rest
+  // of this visit to the console.
   const [setAside, setSetAside] = useState<string | null>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
-  const loaded = useRef(false);
-  const queued = useRef<ToFrame[]>([]);
+  const [prompt, setPrompt] = useState<ChatPrompt | null>(null);
+  // Bumped by anything the reader does with the widget, which restarts the
+  // wait before the button tucks itself away.
+  const [touched, setTouched] = useState(0);
   const router = useRouter();
 
-  const post = useCallback((message: ToFrame) => {
-    const target = frame.current?.contentWindow;
-    if (loaded.current && target) target.postMessage(message, window.location.origin);
-    else queued.current.push(message);
+  const touch = useCallback(() => setTouched((count) => count + 1), []);
+
+  const dock = useCallback((docked: boolean) => {
+    setDocked(docked);
+    setPreferences(readPreferences());
   }, []);
 
-  const context = useCallback(
-    (): ToFrame => ({ type: CONTEXT, path: pageOf(pathname), title: document.title }),
-    [pathname],
-  );
-
-  // A new page: tell the frame where the reader is, and give the bubble a moment.
+  // A new page gives the bubble a moment before it speaks.
   useEffect(() => {
     visits += 1;
-    post(context());
     const timer = setTimeout(() => setReadyOn(pathname), BUBBLE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [context, post, pathname]);
+  }, [pathname]);
 
-  // Whatever was sent before the frame could hear it goes once it can, after
-  // the page it opened on.
+  // Left alone with the window closed, the button steps into the edge of the
+  // screen; it stays there across pages and visits until it is pulled out.
   useEffect(() => {
-    const element = frame.current;
-    if (!element) return;
-    const onLoad = () => {
-      loaded.current = true;
-      const pending = [context(), ...queued.current];
-      queued.current = [];
-      for (const message of pending) post(message);
-    };
-    element.addEventListener("load", onLoad);
-    return () => element.removeEventListener("load", onLoad);
-  }, [everOpened, context, post]);
-
-  // "Show me where": a console link the Architect wrote opens here, and on a
-  // phone the full-screen window steps aside so the page can be seen.
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const message = readFromFrame(event, window.location.origin, frame.current?.contentWindow);
-      const link = message?.type === NAVIGATE && consoleLink(message.href, window.location.origin);
-      if (!link) return;
-      if (window.matchMedia(PHONE).matches) setOpen(false);
-      router.push(link.path);
-      if (link.anchor) void pointAt(link.anchor);
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [router]);
+    if (open || preferences.docked) return;
+    const timer = setTimeout(() => dock(true), DOCK_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [open, preferences.docked, touched, dock]);
 
   const failedRun = signals.failedRunId !== preferences.seenRun ? signals.failedRunId : null;
   const bubble = bubbleFor(
@@ -160,81 +119,56 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     readyOn === pathname &&
     setAside !== pathname &&
     !open &&
+    !preferences.docked &&
     bubble !== null &&
     !preferences.off &&
     !preferences.silenced.includes(pageOf(pathname));
 
   const openWindow = () => {
+    dock(false);
     setOpen(true);
     setEverOpened(true);
   };
 
   const ask = (text: string) => {
     openWindow();
-    post({ type: ASK, text });
+    setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
 
-  // The window steps aside while the page is photographed, so the screenshot
-  // shows the page rather than the conversation about it.
-  const screenshot = async () => {
-    // Committed before the capture starts, or the first frame still has it.
-    flushSync(() => setOpen(false));
-    try {
-      const file = await captureThisTab();
-      if (file) post({ type: ATTACH, file });
-    } catch {
-      toast.error(t("screenshotFailed"));
-    } finally {
-      setOpen(true);
-    }
+  const followLink = (link: ConsoleLink) => {
+    // On a phone the full-screen window steps aside so the page can be seen.
+    if (window.matchMedia(PHONE).matches) setOpen(false);
+    router.push(link.path);
+    if (link.anchor) void pointAt(link.anchor);
   };
-
-  const prefix = locale === defaultLocale ? "" : `/${locale}`;
 
   return (
     <WidgetRoot>
       {everOpened && (
-        <div
-          role="dialog"
-          data-assistant-window
-          aria-label={architectName(assistant, t("defaultName"))}
-          className={cn(WINDOW_CLASSES, !open && "hidden")}
-        >
-          <header className="border-border flex items-center gap-2 border-b px-3 py-2">
-            <AssistantFace assistant={assistant} agentId={agentId} size="sm" />
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {architectName(assistant, t("defaultName"))}
-            </p>
-            <HeaderButton label={t("screenshot")} onClick={() => void screenshot()}>
-              <Camera className="h-4 w-4" />
-            </HeaderButton>
-            <HeaderButton label={t("history")} onClick={() => post({ type: HISTORY })}>
-              <History className="h-4 w-4" />
-            </HeaderButton>
-            <HeaderButton label={t("newConversation")} onClick={() => post({ type: NEW })}>
-              <MessageSquarePlus className="h-4 w-4" />
-            </HeaderButton>
-            <HeaderButton
-              label={preferences.off ? t("tipsOn") : t("tipsOff")}
-              pressed={preferences.off}
-              onClick={() => {
-                setBubblesOff(!preferences.off);
-                setPreferences(readPreferences());
-              }}
-            >
-              <BellOff className="h-4 w-4" />
-            </HeaderButton>
-            <HeaderButton label={t("close")} onClick={() => setOpen(false)}>
-              <X className="h-4 w-4" />
-            </HeaderButton>
-          </header>
-          <iframe
-            ref={frame}
-            title={architectName(assistant, t("defaultName"))}
-            src={`${prefix}${ASSISTANT_FRAME_PATH}?agent=${agentId}`}
-            className="min-h-0 w-full flex-1 border-0"
+        // Keyed by organization: a switch starts the conversation afresh rather
+        // than carrying one organization's thread into another.
+        <ChatScope key={organization ?? "none"} agentId={agentId}>
+          <AssistantWindow
+            assistant={assistant}
+            agentId={agentId}
+            open={open}
+            prompt={prompt}
+            page={{
+              path: pageOf(pathname),
+              title: typeof document === "undefined" ? "" : document.title,
+            }}
+            tipsOff={preferences.off}
+            onTipsOff={(off) => {
+              setBubblesOff(off);
+              setPreferences(readPreferences());
+            }}
+            onOpenChange={(next) => {
+              setOpen(next);
+              touch();
+            }}
+            onConsoleLink={followLink}
           />
-        </div>
+        </ChatScope>
       )}
 
       {speaking && (
@@ -251,6 +185,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             heard();
             setSetAside(pathname);
           }}
+          onFade={() => setSetAside(pathname)}
           name={architectName(assistant, t("defaultName"))}
           path={pathname}
         />
@@ -260,34 +195,12 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         assistant={assistant}
         agentId={agentId}
         open={open}
+        docked={preferences.docked}
+        waiting={preferences.docked && bubble !== null && isProactive(bubble)}
         onToggle={() => (open ? setOpen(false) : openWindow())}
+        onHover={touch}
         overComposer={pageOf(pathname).startsWith("/chat")}
       />
     </WidgetRoot>
-  );
-}
-
-function HeaderButton({
-  label,
-  onClick,
-  pressed,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  pressed?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      onClick={onClick}
-      className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] rounded-md p-1.5"
-    >
-      {children}
-    </button>
   );
 }

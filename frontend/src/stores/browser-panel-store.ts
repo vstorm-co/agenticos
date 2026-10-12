@@ -1,6 +1,8 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 
 export const MIN_PANEL_WIDTH = 360;
 export const MAX_PANEL_WIDTH = 880;
@@ -9,7 +11,7 @@ export const DEFAULT_PANEL_WIDTH = 520;
 /** Where an expanded browse is drawn. */
 export type BrowserViewMode = "panel" | "full";
 
-interface BrowserPanelState {
+export interface BrowserPanelState {
   /**
    * Which browse is expanded, by `call_id`, or `null` for none.
    *
@@ -39,7 +41,7 @@ interface BrowserPanelState {
  * survive a reload and also has to be wrapped in try/catch and tolerate coming
  * back empty, which is a lot of machinery for remembering a drag.
  */
-export const useBrowserPanelStore = create<BrowserPanelState>((set) => ({
+const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,
   mode: "panel",
   width: DEFAULT_PANEL_WIDTH,
@@ -47,4 +49,12 @@ export const useBrowserPanelStore = create<BrowserPanelState>((set) => ({
   close: () => set({ openCallId: null }),
   setWidth: (width) =>
     set({ width: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, Math.round(width))) }),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createBrowserPanelStore = () => createStore<BrowserPanelState>()(browserPanelState);
+
+export const useBrowserPanelStore = scopedStore(
+  create<BrowserPanelState>()(browserPanelState),
+  (scope) => scope.browserPanel,
+);

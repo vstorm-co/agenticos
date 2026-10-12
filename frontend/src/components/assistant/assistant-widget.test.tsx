@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
-import { ASK, ATTACH, CONTEXT, HISTORY, NAVIGATE, NEW } from "@/lib/assistant-messages";
+import type { ChatPrompt } from "@/components/chat/chat-container";
+import type { IncomingFiles } from "@/components/chat/chat-input";
 import type { AssistantState } from "@/types/assistant";
 
-import { AssistantWidget } from "./assistant-widget";
+import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
+import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
 
 const state = vi.hoisted(() => ({
   assistant: null as AssistantState | null,
@@ -17,11 +19,50 @@ const state = vi.hoisted(() => ({
     failedRunId: null as string | null,
     stuckIn: null as string | null,
   },
-  defaultLocale: "en",
   push: vi.fn(),
   pointAt: vi.fn(),
   capture: vi.fn(),
+  startNewChat: vi.fn(),
+  selectConversation: vi.fn(),
+  conversations: [] as { id: string; title?: string; created_at: string; updated_at: string }[],
+  currentConversationId: null as string | null,
   phone: false,
+}));
+
+const CONSOLE_LINK = "/agents?highlight=agents-new";
+
+// The chat itself is the console's own and tested where it lives; here it is
+// what the window hands it - the prompt a bubble asked, the files attached, the
+// welcome - and two links, one to the console and one away from it.
+vi.mock("@/components/chat/chat-container", () => ({
+  ChatContainer: ({
+    prompt,
+    incomingFiles,
+    emptyState,
+  }: {
+    prompt: ChatPrompt | null;
+    incomingFiles: IncomingFiles | null;
+    emptyState: (onPick: (text: string) => void) => React.ReactNode;
+  }) => (
+    <div
+      data-testid="chat"
+      data-prompt={prompt?.text ?? ""}
+      data-files={incomingFiles?.files.length ?? 0}
+    >
+      {emptyState(() => undefined)}
+      <a href={CONSOLE_LINK}>console link</a>
+      <a href="https://evil.example">outside link</a>
+    </div>
+  ),
+}));
+vi.mock("@/hooks/use-conversations", () => ({
+  useConversations: () => ({
+    startNewChat: state.startNewChat,
+    conversations: state.conversations,
+    currentConversationId: state.currentConversationId,
+    fetchConversations: vi.fn(),
+    selectConversation: state.selectConversation,
+  }),
 }));
 
 vi.mock("@/hooks/use-assistant", () => ({
@@ -33,16 +74,8 @@ vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
   pointAt: state.pointAt,
 }));
 vi.mock("@/lib/assistant-screenshot", () => ({ captureThisTab: state.capture }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
-// The reader's locale is always "en" under the test translator, so a reader on
-// another one is the default locale moving instead.
-vi.mock("@/i18n", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/i18n")>()),
-  get defaultLocale() {
-    return state.defaultLocale;
-  },
-}));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push: state.push }) }));
 
 function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
@@ -70,35 +103,28 @@ function lookAtThePage() {
   });
 }
 
-/** The frame, loaded, with what it is sent recorded. */
-function loadedFrame() {
-  const frame = document.querySelector("iframe")!;
-  const sent = vi.spyOn(frame.contentWindow!, "postMessage");
-  fireEvent.load(frame);
-  return { frame, sent };
-}
+const chat = () => screen.getByTestId("chat");
 
 beforeEach(() => {
   vi.useFakeTimers();
   state.assistant = assistant();
   state.pathname = "/agents";
   state.signals = { pendingApprovals: 0, noAgents: false, failedRunId: null, stuckIn: null };
-  state.defaultLocale = "en";
   state.phone = false;
-  for (const fn of [state.push, state.pointAt, state.capture]) fn.mockReset();
+  state.conversations = [];
+  state.currentConversationId = null;
+  for (const fn of [
+    state.push,
+    state.pointAt,
+    state.capture,
+    state.startNewChat,
+    state.selectConversation,
+  ])
+    fn.mockReset();
   vi.mocked(toast.error).mockReset();
+  vi.mocked(toast).mockReset();
   window.matchMedia = ((query: string) => ({ matches: state.phone, media: query })) as never;
 });
-
-/** The frame asking the console to open a page, as the frame's click handler does. */
-function frameSays(data: unknown) {
-  const source = document.querySelector("iframe")!.contentWindow;
-  act(() => {
-    window.dispatchEvent(
-      new MessageEvent("message", { data, origin: window.location.origin, source }),
-    );
-  });
-}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -150,41 +176,125 @@ describe("the Architect widget", () => {
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
 
     lookAtThePage();
-    // It says who is speaking, and asks through its one action.
-    expect(screen.getByText("on this page")).toBeInTheDocument();
+    // It says who is speaking - and no more: no label of what kind of bubble it is.
+    expect(screen.queryByText("on this page")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Describe it" }));
 
     const dialog = screen.getByRole("dialog", { name: "Architect" });
     expect(dialog).not.toHaveClass("hidden");
-    expect(document.querySelector("iframe")).toHaveAttribute("src", "/assistant-frame?agent=a1");
-    const { sent } = loadedFrame();
-    expect(sent.mock.calls.map(([message]) => message)).toEqual([
-      expect.objectContaining({ type: CONTEXT, path: "/agents" }),
-      expect.objectContaining({ type: CONTEXT, path: "/agents" }),
-      { type: ASK, text: expect.stringMatching(/new agent/) },
-    ]);
+    // The console's own chat, in the page - not a page framed inside it.
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(chat()).toHaveAttribute("data-prompt", expect.stringMatching(/new agent/));
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
   });
 
-  it("opens the frame under the reader's locale", () => {
-    state.defaultLocale = "pl";
+  it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {
     render(<AssistantWidget />);
+    lookAtThePage();
+    const bubble = screen.getByRole("status");
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    fireEvent.pointerEnter(bubble);
+    act(() => {
+      vi.advanceTimersByTime(BUBBLE_VISIBLE_MS * 2);
+    });
+    expect(screen.getByText(/Want a new agent/)).toBeInTheDocument();
 
-    expect(document.querySelector("iframe")).toHaveAttribute("src", "/en/assistant-frame?agent=a1");
+    fireEvent.pointerLeave(bubble);
+    act(() => {
+      vi.advanceTimersByTime(BUBBLE_VISIBLE_MS);
+    });
+    expect(screen.queryByText(/Want a new agent/)).toBeNull();
+    // Faded, not silenced: the page may speak again on another visit.
+    const stored = localStorage.getItem("assistant-bubbles");
+    expect(stored === null ? [] : JSON.parse(stored).silenced).toEqual([]);
   });
 
-  it("sends history and a new conversation straight to a loaded frame", () => {
+  it("tucks its button into the edge when left alone, and remembers it there", () => {
+    const { unmount } = render(<AssistantWidget />);
+    const launcher = screen.getByRole("button", { name: "Open Architect" });
+    act(() => {
+      vi.advanceTimersByTime(DOCK_AFTER_MS - 1000);
+    });
+    // The pointer passing over it is the reader still being about.
+    fireEvent.pointerEnter(launcher);
+    act(() => {
+      vi.advanceTimersByTime(DOCK_AFTER_MS - 1000);
+    });
+    expect(launcher).not.toHaveAttribute("data-docked");
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(launcher).toHaveAttribute("data-docked");
+    unmount();
+
+    // Another page, another visit: still tucked away, and quiet.
+    render(<AssistantWidget />);
+    lookAtThePage();
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute("data-docked");
+    expect(screen.queryByText(/Want a new agent/)).toBeNull();
+  });
+
+  it("comes out of the edge when it is opened, and marks what waits while it is tucked away", () => {
+    localStorage.setItem("assistant-bubbles", JSON.stringify({ docked: true }));
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    render(<AssistantWidget />);
+    const launcher = screen.getByRole("button", { name: "Open Architect" });
+    expect(launcher.querySelector("span[aria-hidden]")).not.toBeNull();
+
+    fireEvent.click(launcher);
+
+    expect(launcher).not.toHaveAttribute("data-docked");
+    expect(JSON.parse(localStorage.getItem("assistant-bubbles")!).docked).toBe(false);
+  });
+
+  it("shows the earlier conversations and starts a new one from its header", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
-    const { sent } = loadedFrame();
-    sent.mockClear();
 
     fireEvent.click(screen.getByRole("button", { name: "Conversations" }));
-    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(screen.getByText("No conversations yet.")).toBeInTheDocument();
+    // The list's own button, then the header's.
+    fireEvent.click(screen.getAllByRole("button", { name: "New conversation" })[1]!);
+    expect(state.startNewChat).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("No conversations yet.")).toBeNull();
 
-    expect(sent.mock.calls.map(([message]) => message)).toEqual([{ type: HISTORY }, { type: NEW }]);
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(state.startNewChat).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens an earlier conversation from the list, and closes the list", () => {
+    const now = new Date().toISOString();
+    state.conversations = [
+      { id: "c1", title: "Build a support bot", created_at: now, updated_at: now },
+      { id: "c2", created_at: now, updated_at: "" },
+    ];
+    state.currentConversationId = "c1";
+    render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Conversations" }));
+    expect(screen.getByRole("button", { name: /Untitled conversation/ })).toBeInTheDocument();
+    // Filtered by title, as typed.
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search conversations" }), {
+      target: { value: "support" },
+    });
+    expect(screen.queryByRole("button", { name: /Untitled conversation/ })).toBeNull();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search conversations" }), {
+      target: { value: "nothing like it" },
+    });
+    expect(screen.getByText("No conversation matches.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search conversations" }), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Build a support bot/ }));
+    expect(state.selectConversation).toHaveBeenCalledWith("c1");
+    expect(screen.queryByRole("button", { name: /Untitled conversation/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Conversations" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to the conversation" }));
+    expect(screen.queryByRole("button", { name: /Untitled conversation/ })).toBeNull();
   });
 
   it("puts what is waiting first", () => {
@@ -211,11 +321,7 @@ describe("the Architect widget", () => {
     lookAtThePage();
 
     fireEvent.click(screen.getByRole("button", { name: "Explain it" }));
-    const { sent } = loadedFrame();
-    expect(sent.mock.calls.map(([message]) => message)).toContainEqual({
-      type: ASK,
-      text: expect.stringContaining("run-7"),
-    });
+    expect(chat()).toHaveAttribute("data-prompt", expect.stringContaining("run-7"));
 
     fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
     rerender(<AssistantWidget />);
@@ -255,7 +361,7 @@ describe("the Architect widget", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
-    frameSays({ type: NAVIGATE, href: "/agents?highlight=agents-new" });
+    fireEvent.click(screen.getByRole("link", { name: "console link" }));
 
     expect(state.push).toHaveBeenCalledWith("/agents");
     expect(state.pointAt).toHaveBeenCalledWith("agents-new");
@@ -267,26 +373,17 @@ describe("the Architect widget", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
-    frameSays({ type: NAVIGATE, href: "/runs" });
+    fireEvent.click(screen.getByRole("link", { name: "console link" }));
 
-    expect(state.push).toHaveBeenCalledWith("/runs");
-    expect(state.pointAt).not.toHaveBeenCalled();
+    expect(state.push).toHaveBeenCalledWith("/agents");
     expect(screen.getByRole("dialog")).toHaveClass("hidden");
   });
 
-  it("ignores a link to anywhere but the console, and a message from anything but its frame", () => {
+  it("leaves a link to anywhere but the console to the browser", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
 
-    frameSays({ type: NAVIGATE, href: "https://evil.example" });
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent("message", {
-          data: { type: NAVIGATE, href: "/agents" },
-          origin: window.location.origin,
-        }),
-      );
-    });
+    fireEvent.click(screen.getByRole("link", { name: "outside link" }));
 
     expect(state.push).not.toHaveBeenCalled();
   });
@@ -300,28 +397,25 @@ describe("the Architect widget", () => {
     });
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
-    const { sent } = loadedFrame();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Show it this page" }));
     });
 
     expect(hiddenWhileTaken).toBe(true);
-    expect(sent).toHaveBeenCalledWith({ type: ATTACH, file }, window.location.origin);
+    expect(chat()).toHaveAttribute("data-files", "1");
     expect(screen.getByRole("dialog")).not.toHaveClass("hidden");
   });
 
   it("sends nothing when the person declines to share the page, and says so when it breaks", async () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
-    const { sent } = loadedFrame();
-    sent.mockClear();
 
     state.capture.mockResolvedValueOnce(null);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Show it this page" }));
     });
-    expect(sent).not.toHaveBeenCalled();
+    expect(chat()).toHaveAttribute("data-files", "0");
 
     state.capture.mockRejectedValueOnce(new Error("no"));
     await act(async () => {
@@ -359,6 +453,8 @@ describe("the Architect widget", () => {
       "aria-pressed",
       "true",
     );
+    // Said, so the bell is not a button that seems to do nothing.
+    expect(toast).toHaveBeenCalledWith(expect.stringMatching(/Tips are off/));
     fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
     lookAtThePage();
     expect(screen.queryByText(/Want a new agent/)).toBeNull();

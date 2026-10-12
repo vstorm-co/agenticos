@@ -113,6 +113,8 @@ vi.mock("@/components/agents/stale-references", () => ({ StaleReferences: () => 
 vi.mock("@/components/agents/model-profile-picker", () => ({ ModelProfilePicker: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
+// The test panel brings the whole chat with it, and is not what this test is about.
+vi.mock("@/components/agents/test-panel/test-panel", () => ({ TestPanel: () => null }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

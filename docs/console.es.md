@@ -1,5 +1,5 @@
 ---
-source_sha: "e502ad9ccdea"
+source_sha: "284770479850"
 ---
 
 # La consola { #the-console }
@@ -132,9 +132,15 @@ cuenta como el de cualquier agent.
 Un bocadillo sobre él habla de lo que te espera — aprobaciones, una organización
 sin ningún agent — o de la página en la que estás, y de vez en cuando ofrece un
 consejo. Haz clic en el bocadillo para preguntarle; × silencia esa página, y la
-campana de su ventana apaga los bocadillos. Su ventana se abre con cuatro
-mosaicos, para que el primer mensaje sea un clic, y guarda su propio historial de
-conversaciones. En un teléfono ocupa toda la pantalla.
+campana de su ventana apaga los bocadillos. Un bocadillo sin respuesta desaparece
+a los pocos segundos. Si nadie lo toca durante menos de un minuto, el botón se
+esconde en el borde derecho de la pantalla y deja una franja para sacarlo - con
+un punto cuando algo espera - y se queda allí de página en página hasta que se
+abre.
+
+Su ventana es el propio chat de la consola, no una página dentro de la página, y
+se abre con cuatro mosaicos, para que el primer mensaje sea un clic; guarda su
+propio historial de conversaciones. En un teléfono ocupa toda la pantalla.
 
 Cuando nombra una página, el enlace la abre en la consola detrás de la ventana y
 señala el control al que se refiere — el botón que crea un agent, la pestaña de

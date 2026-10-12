@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Columns2, GitCompare, PanelRightClose, Repeat, RotateCcw } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 import {
   Button,
@@ -12,18 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { defaultLocale } from "@/i18n";
-import { AGENT_TEST_FRAME_PATH } from "@/lib/assistant-frame";
-import { ASK, NEW, PIN, readFromFrame, REPLAY, type ToFrame } from "@/lib/assistant-messages";
 import {
   readTestPanel,
   TEST_PANEL_OPEN,
   writeTestPanel,
   type TestPanelState,
 } from "@/lib/test-panel-state";
+import type { ChatPrompt } from "@/components/chat/chat-container";
 import { cn } from "@/lib/utils";
+import { ChatScope } from "@/stores";
 import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 import { DraftChanges } from "./draft-changes";
+import { TestChat, testingFromMode } from "./test-chat";
 import { TestPanelPrompts } from "./test-panel-prompts";
 
 const MIN_WIDTH = 320;
@@ -45,7 +45,7 @@ interface TestPanelProps {
 /**
  * Try the agent beside the Builder while building it (#2074).
  *
- * The real chat, in a frame of its own, answering as the unpublished draft or as
+ * The real chat, with stores of its own, answering as the unpublished draft or as
  * one environment's version - every turn a test run, budgeted and recorded. Two
  * of them can answer side by side, asked the same thing at once. It shares the
  * page's width rather than covering the Builder, can be resized from its edge,
@@ -60,10 +60,10 @@ export function TestPanel({
   onClose,
 }: TestPanelProps) {
   const t = useTranslations("agents");
-  const locale = useLocale();
-  const prefix = locale === defaultLocale ? "" : `/${locale}`;
-  const first = useRef<HTMLIFrameElement>(null);
-  const second = useRef<HTMLIFrameElement>(null);
+  // Bumped to start both conversations afresh, by keying their scopes on it.
+  const [conversation, setConversation] = useState(0);
+  const [replay, setReplay] = useState(0);
+  const [ask, setAsk] = useState<ChatPrompt | null>(null);
   const [state, setState] = useState<TestPanelState>(() => readTestPanel(agentId));
   const [showingChanges, setShowingChanges] = useState(false);
   const published = currentVersionId !== null;
@@ -87,37 +87,22 @@ export function TestPanel({
     return () => root.removeAttribute(TEST_PANEL_OPEN);
   }, []);
 
-  // A question pinned or taken off from either frame's conversation (#2075). The
-  // panel keeps the list, so the frames ask and it writes - idempotently, as a
-  // strict-mode updater may run twice.
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const message =
-        readFromFrame(event, window.location.origin, first.current?.contentWindow) ??
-        readFromFrame(event, window.location.origin, second.current?.contentWindow);
-      if (message?.type !== PIN) return;
-      setState((current) => {
-        const pinned = current.pinned.includes(message.text)
-          ? current.pinned.filter((entry) => entry !== message.text)
-          : [...current.pinned, message.text];
-        const next = { ...current, pinned };
-        writeTestPanel(agentId, next);
-        return next;
-      });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [agentId]);
+  // A question pinned or taken off from either conversation (#2075). The panel
+  // keeps the list - idempotently, as a strict-mode updater may run twice.
+  const togglePin = (text: string) =>
+    setState((current) => {
+      const pinned = current.pinned.includes(text)
+        ? current.pinned.filter((entry) => entry !== text)
+        : [...current.pinned, text];
+      const next = { ...current, pinned };
+      writeTestPanel(agentId, next);
+      return next;
+    });
 
   const update = (next: Partial<TestPanelState>) => {
     const merged = { ...state, ...next };
     setState(merged);
     writeTestPanel(agentId, merged);
-  };
-  const post = (message: ToFrame) => {
-    for (const frame of [first, second]) {
-      frame.current?.contentWindow?.postMessage(message, window.location.origin);
-    }
   };
   const label = (value: string) => {
     const env = environments.find((entry) => entry.id === value);
@@ -218,7 +203,7 @@ export function TestPanel({
             className="h-8 w-8"
             aria-label={t("testPanelNew")}
             title={t("testPanelNew")}
-            onClick={() => post({ type: NEW })}
+            onClick={() => setConversation((count) => count + 1)}
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
@@ -228,7 +213,7 @@ export function TestPanel({
             className="h-8 w-8"
             aria-label={t("testPanelReplay")}
             title={t("testPanelReplay")}
-            onClick={() => post({ type: REPLAY })}
+            onClick={() => setReplay((count) => count + 1)}
           >
             <Repeat className="h-4 w-4" />
           </Button>
@@ -256,25 +241,29 @@ export function TestPanel({
           <TestPanelPrompts
             pinned={state.pinned}
             comparing
-            onAsk={(text) => post({ type: ASK, text })}
+            onAsk={(text) => setAsk((last) => ({ id: (last?.id ?? 0) + 1, text }))}
             onPinnedChange={(pinned) => update({ pinned })}
           />
         )}
       </header>
       <div className={cn("flex min-h-0 flex-1 flex-col lg:flex-row", compare && "lg:divide-x")}>
-        {modes.map((value, index) => (
+        {modes.map((value) => (
           <div key={value} className="flex min-h-0 min-w-0 flex-1 flex-col">
             {compare !== null && (
               <p className="text-muted-foreground border-b px-3 py-1.5 text-xs font-medium">
                 {label(value)}
               </p>
             )}
-            <iframe
-              ref={index === 0 ? first : second}
-              title={index === 0 ? t("testPanel") : t("testPanelComparedWith")}
-              src={`${prefix}${AGENT_TEST_FRAME_PATH}?agent=${agentId}&mode=${value}`}
-              className="min-h-0 w-full flex-1 border-0 lg:rounded-b-xl"
-            />
+            <ChatScope key={`${value}:${conversation}`} agentId={agentId}>
+              <TestChat
+                agentId={agentId}
+                testing={testingFromMode(value)}
+                pinned={state.pinned}
+                onTogglePin={togglePin}
+                ask={ask}
+                replay={replay}
+              />
+            </ChatScope>
           </div>
         ))}
       </div>

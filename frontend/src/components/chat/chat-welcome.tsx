@@ -49,23 +49,28 @@ export function ChatWelcome({
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   return (
-    <div className={cn("mx-auto w-full", compact ? "px-4 py-6" : "max-w-2xl px-4 py-6 md:py-16")}>
+    <div className={cn("mx-auto w-full", compact ? "px-3 py-2" : "max-w-2xl px-4 py-6 md:py-16")}>
       <div className="text-center">
-        <div className="mx-auto mb-5 flex justify-center">{mark}</div>
+        <div className={cn("mx-auto flex justify-center", compact ? "mb-3" : "mb-5")}>{mark}</div>
         <h2
           className={cn(
             "text-foreground font-semibold tracking-tight",
-            compact ? "text-xl" : "text-2xl md:text-3xl",
+            compact ? "text-lg" : "text-2xl md:text-3xl",
           )}
         >
           {title}
         </h2>
-        <p className="text-muted-foreground mx-auto mt-2 max-w-md text-sm leading-relaxed">
+        <p
+          className={cn(
+            "text-muted-foreground mx-auto max-w-md leading-relaxed",
+            compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
+          )}
+        >
           {lead}
         </p>
       </div>
 
-      <div className={cn("grid", compact ? "mt-5 gap-2" : "mt-8 gap-3 sm:grid-cols-2")}>
+      <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-8 gap-3 sm:grid-cols-2")}>
         {suggestions.map((suggestion) => (
           <div key={suggestion.key} className="relative">
             <button
@@ -73,7 +78,7 @@ export function ChatWelcome({
               onClick={() => onPick(suggestion.prompt)}
               className={cn(
                 "group border-border bg-card hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-xl border text-left transition-colors",
-                compact ? "p-3" : "p-3 md:p-4",
+                compact ? "px-3 py-2.5" : "p-3 md:p-4",
               )}
             >
               <span className="bg-muted text-muted-foreground group-hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors">

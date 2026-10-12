@@ -13,6 +13,7 @@ import {
   useAuthStore,
   useConversationStore,
   useChatStore,
+  useInChatScope,
   useOrgStore,
 } from "@/stores";
 import type {
@@ -152,6 +153,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
+  // The scope's own stores, for reads made in a callback rather than a render.
+  const chatApi = useChatStore.useApi();
+  const conversationApi = useConversationStore.useApi();
+  const selectionApi = useAgentSelectionStore.useApi();
+  const scoped = useInChatScope();
   // State, not a ref, because it is returned. Reading a ref to build the return
   // value hands whoever asked a value React will never re-render them for - a
   // "load more" control driven by it would stay on screen after the last page
@@ -269,8 +275,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // URL ?id= param always takes priority: select that conversation and load
     // its messages if it isn't already the current one.
     const startedAs = useAuthStore.getState().user?.id;
-    const urlId = new URLSearchParams(window.location.search).get("id");
-    if (urlId && useConversationStore.getState().currentConversationId !== urlId) {
+    // A scoped chat owns no part of the address: `?id=` is the main chat's thread.
+    const urlId = scoped ? null : new URLSearchParams(window.location.search).get("id");
+    if (urlId && conversationApi.getState().currentConversationId !== urlId) {
       setCurrentConversationId(urlId);
       clearMessages();
       setCurrentMessages([]);
@@ -287,7 +294,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         setCurrentConversationId(null);
       }
     }
-  }, [invalidateLists, setCurrentConversationId, setCurrentMessages, clearMessages]);
+  }, [
+    invalidateLists,
+    setCurrentConversationId,
+    setCurrentMessages,
+    clearMessages,
+    conversationApi,
+    scoped,
+  ]);
 
   const loadingMoreRef = useRef(false);
 
@@ -358,7 +372,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
 
       setCurrentConversationId(id);
       clearMessages();
-      setUrlParam("id", id);
+      if (!scoped) setUrlParam("id", id);
       setLoading(true);
       setError(null);
       try {
@@ -388,7 +402,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         }
       }
     },
-    [setCurrentConversationId, clearMessages, setCurrentMessages, setLoading, setError, t, tErrors],
+    [
+      setCurrentConversationId,
+      clearMessages,
+      setCurrentMessages,
+      setLoading,
+      setError,
+      t,
+      tErrors,
+      scoped,
+    ],
   );
 
   const archiveConversation = useCallback(
@@ -515,7 +538,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         await invalidateLists();
         // Mirror the old store behavior: clear the active selection if it was
         // the conversation we just removed.
-        if (useConversationStore.getState().currentConversationId === id) {
+        if (conversationApi.getState().currentConversationId === id) {
           setCurrentConversationId(null);
         }
         toast.success(t("conversationDeleted"));
@@ -525,7 +548,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         toast.error(message);
       }
     },
-    [invalidateLists, setCurrentConversationId, setError, t, tErrors],
+    [invalidateLists, setCurrentConversationId, setError, t, tErrors, conversationApi],
   );
 
   const renameConversation = useCallback(
@@ -547,7 +570,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // Mid-thread switches stay per-thread; this is the reset point. If the
     // default has since been unpublished, the picker resolves the stale
     // selection to the first published agent as usual.
-    const { defaultAgentId, select } = useAgentSelectionStore.getState();
+    const { defaultAgentId, select } = selectionApi.getState();
     if (defaultAgentId) select(defaultAgentId);
     // Reuse the conversation already open when it is empty, so a stray click does
     // not leave an untitled row in the sidebar.
@@ -562,10 +585,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // reporting the previous turn's tokens and its workspace fill, the file panel
     // stayed open on the old workspace, and the next message landed in the
     // conversation the user thought they had left.
-    const currentId = useConversationStore.getState().currentConversationId;
+    const currentId = conversationApi.getState().currentConversationId;
     if (currentId) {
-      const fetched = useConversationStore.getState().currentMessages;
-      const onScreen = useChatStore.getState().messages;
+      const fetched = conversationApi.getState().currentMessages;
+      const onScreen = chatApi.getState().messages;
       if (fetched.length === 0 && onScreen.length === 0) return;
     }
     clearMessages();
@@ -574,8 +597,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // Strip the stale ?id= immediately so a refresh mid-flight lands on a
     // fresh /chat instead of the old conversation. The new id will be set
     // by the WS conversation_created event on first message.
-    setUrlParam("id", null);
-  }, [clearMessages, setCurrentMessages, setCurrentConversationId]);
+    if (!scoped) setUrlParam("id", null);
+  }, [
+    clearMessages,
+    setCurrentMessages,
+    setCurrentConversationId,
+    chatApi,
+    conversationApi,
+    scoped,
+    selectionApi,
+  ]);
 
   return {
     conversations,

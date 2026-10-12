@@ -13,6 +13,12 @@ interface AssistantLauncherProps {
   agentId: string;
   open: boolean;
   onToggle: () => void;
+  /** Tucked into the screen's right edge, with only a sliver showing. */
+  docked?: boolean;
+  /** Something is waiting for the reader while the button is tucked away. */
+  waiting?: boolean;
+  /** The pointer reached the button - the reader is still about. */
+  onHover?: () => void;
   /**
    * Whether the page has a composer along the bottom. The corner the button
    * sits in is that composer's send controls on any screen, so it steps out
@@ -26,7 +32,10 @@ export function AssistantLauncher({
   assistant,
   agentId,
   open,
+  docked = false,
+  waiting = false,
   onToggle,
+  onHover,
   overComposer = false,
 }: AssistantLauncherProps) {
   const t = useTranslations("assistantWidget");
@@ -37,16 +46,28 @@ export function AssistantLauncher({
         open ? t("close") : t("open", { name: architectName(assistant, t("defaultName")) })
       }
       aria-expanded={open}
+      data-docked={docked || undefined}
       onClick={onToggle}
+      onPointerEnter={onHover}
       // Gone while the window is open, on every screen: the window takes its
-      // corner, and the window's own × closes it.
+      // corner, and the window's own × closes it. Docked, it slides into the
+      // right edge and leaves a sliver to pull it back out by; a pointer over
+      // the sliver shows the whole face again.
       className={cn(
-        "bg-background border-border fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
+        "bg-background border-border fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform duration-300 ease-out hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
+        docked &&
+          "right-0 translate-x-[calc(100%-1.125rem)] rounded-r-none border-r-0 hover:translate-x-0 hover:scale-100 focus-visible:translate-x-0 md:right-0",
         open && "hidden",
         overComposer && "hidden",
       )}
     >
       <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
+      {waiting && (
+        <span
+          aria-hidden
+          className="bg-destructive ring-background absolute top-1 left-1 h-2.5 w-2.5 rounded-full ring-2"
+        />
+      )}
     </button>
   );
 }
@@ -87,7 +108,7 @@ export function architectName(
 
 /** Where the assistant's window sits: full screen on a phone, a panel above the button otherwise. */
 export const WINDOW_CLASSES =
-  "bg-background border-border fixed z-50 flex flex-col overflow-hidden shadow-2xl inset-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:inset-auto md:pt-0 md:pb-0 md:right-6 md:bottom-6 md:h-[min(600px,calc(100vh-3rem))] md:w-[440px] md:rounded-2xl md:border";
+  "bg-background border-border fixed z-50 flex flex-col overflow-hidden shadow-2xl inset-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:inset-auto md:pt-0 md:pb-0 md:right-6 md:bottom-6 md:h-[min(720px,calc(100vh-3rem))] md:w-[min(520px,calc(100vw-3rem))] md:rounded-2xl md:border";
 
 /**
  * The widget's root: usable above an open dialog, without closing it.

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { useAgentSelectionStore } from "./agent-selection-store";
+import { createAgentSelectionStore, useAgentSelectionStore } from "./agent-selection-store";
 
 describe("Agent selection store", () => {
   beforeEach(() => {
@@ -58,19 +58,16 @@ describe("Agent selection store", () => {
   });
 });
 
-describe("inside the AI Architect's frame", () => {
-  it("keeps its selection out of the console's storage", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/assistant-frame", () => ({ inAssistantFrame: () => true }));
+describe("a scoped copy", () => {
+  it("starts on its own agent and keeps its selection out of the console's storage", () => {
     localStorage.removeItem("agent-selection");
-    const { useAgentSelectionStore: framed } = await import("./agent-selection-store");
+    const scoped = createAgentSelectionStore("assistant");
 
-    framed.getState().select("assistant");
-    framed.getState().setDefault(null);
-    await framed.persist.rehydrate();
-    await framed.persist.clearStorage();
+    expect(scoped.getState().selectedAgentId).toBe("assistant");
+    scoped.getState().select("other");
+    scoped.getState().setDefault("other");
 
     expect(localStorage.getItem("agent-selection")).toBeNull();
-    vi.doUnmock("@/lib/assistant-frame");
+    expect(useAgentSelectionStore.getState().selectedAgentId).not.toBe("other");
   });
 });

@@ -1,21 +1,9 @@
 "use client";
 
-import { create } from "zustand";
-import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { create, createStore, type StateCreator } from "zustand";
+import { persist } from "zustand/middleware";
 
-import { inAssistantFrame } from "@/lib/assistant-frame";
-
-/** Where the AI Architect's frame keeps its selection: nowhere the console reads. */
-const kept = new Map<string, string>();
-const frameStorage: StateStorage = {
-  getItem: (name) => kept.get(name) ?? null,
-  setItem: (name, value) => {
-    kept.set(name, value);
-  },
-  removeItem: (name) => {
-    kept.delete(name);
-  },
-};
+import { scopedStore } from "./chat-scope-context";
 
 /**
  * Which published agent the chat is addressed to.
@@ -31,36 +19,43 @@ const frameStorage: StateStorage = {
  * leaves it alone, and it only takes effect when a conversation begins or the
  * live selection is empty or stale.
  *
- * Persisted to localStorage the same way the knowledge-base draft is (except in
- * the AI Architect's frame, which keeps its own in memory), so the
- * choice survives a refresh or a new tab. Only ids are kept: the name is
+ * Persisted to localStorage the same way the knowledge-base draft is, so the
+ * choice survives a refresh or a new tab. A scoped conversation - the
+ * Architect's window, the Builder's test panel - keeps its own in memory: it
+ * shares this origin's storage with the console, and writing there would switch
+ * the main chat to the agent the window is fixed on. Only ids are kept: the name is
  * server state and is resolved where it is rendered, so a renamed agent does
  * not keep answering under its old label.
  */
-interface AgentSelectionState {
+export interface AgentSelectionState {
   selectedAgentId: string | null;
   defaultAgentId: string | null;
   select: (agentId: string | null) => void;
   setDefault: (agentId: string | null) => void;
 }
 
-export const useAgentSelectionStore = create<AgentSelectionState>()(
-  persist(
-    (set) => ({
-      selectedAgentId: null,
-      defaultAgentId: null,
-      select: (agentId) => set({ selectedAgentId: agentId }),
-      setDefault: (agentId) => set({ defaultAgentId: agentId }),
-    }),
-    {
+const agentSelectionState: StateCreator<AgentSelectionState> = (set) => ({
+  selectedAgentId: null,
+  defaultAgentId: null,
+  select: (agentId) => set({ selectedAgentId: agentId }),
+  setDefault: (agentId) => set({ defaultAgentId: agentId }),
+});
+
+/** A copy of its own, held in memory and addressed to `agentId`, for a conversation in a scope - see `ChatScope`. */
+export const createAgentSelectionStore = (agentId: string) =>
+  createStore<AgentSelectionState>()((...args) => ({
+    ...agentSelectionState(...args),
+    selectedAgentId: agentId,
+  }));
+
+export const useAgentSelectionStore = scopedStore(
+  create<AgentSelectionState>()(
+    persist(agentSelectionState, {
       name: "agent-selection",
-      // The assistant's frame selects its own agent (#2063). It shares this
-      // origin's localStorage with the console around it, so writing there would
-      // switch the main chat to the assistant on its next load.
-      storage: createJSONStorage(() => (inAssistantFrame() ? frameStorage : localStorage)),
       // Still version 1: adding `defaultAgentId` is backward-compatible - a
       // persisted state without it merges over the initial `null`.
       version: 1,
-    },
+    }),
   ),
+  (scope) => scope.agentSelection,
 );

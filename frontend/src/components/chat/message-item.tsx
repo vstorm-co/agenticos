@@ -364,7 +364,10 @@ export function MessageItem({
                 <RefreshCw className="h-3 w-3" />
               </button>
             )}
-            {!isUser && (
+            {/* A rating is stored against the saved message; a turn that failed
+                before the server saved it has only a client id, which the
+                rating endpoint answers with "Message not found". */}
+            {!isUser && !message.isTemporaryId && (
               <RatingButtons
                 messageId={message.id}
                 conversationId={message.conversationId ?? ""}

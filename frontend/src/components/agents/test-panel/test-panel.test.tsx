@@ -1,15 +1,50 @@
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import type { ChatPrompt } from "@/components/chat/chat-container";
 import { TestPanel } from "./test-panel";
 import { useTestShortcut } from "./use-test-shortcut";
-import { ASK, NEW, PIN, REPLAY } from "@/lib/assistant-messages";
 import { readTestPanel, TEST_PANEL_OPEN, writeTestPanel } from "@/lib/test-panel-state";
 import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 
 const useAgentVersion = vi.fn();
 vi.mock("@/hooks", () => ({ useAgentVersion: (...args: unknown[]) => useAgentVersion(...args) }));
+
+// Each conversation as what the panel hands it: what answers, the pins, the
+// question asked of both, the replays - and a record of every time one began.
+const began: string[] = [];
+interface StubProps {
+  testing: { mode: string };
+  pinned: readonly string[];
+  onTogglePin: (text: string) => void;
+  ask: ChatPrompt | null;
+  replay: number;
+}
+function StubChat({ testing, pinned, onTogglePin, ask, replay }: StubProps) {
+  useEffect(() => {
+    began.push(testing.mode);
+  }, [testing.mode]);
+  return (
+    <section
+      aria-label={`chat ${testing.mode}`}
+      data-ask={ask?.text ?? ""}
+      data-replay={replay}
+      data-pinned={pinned.join("|")}
+    >
+      <button type="button" onClick={() => onTogglePin("Refunds?")}>
+        pin from {testing.mode}
+      </button>
+    </section>
+  );
+}
+vi.mock("./test-chat", () => ({
+  testingFromMode: (mode: string) => ({ mode }),
+  TestChat: (props: StubProps) => <StubChat {...props} />,
+}));
+
+const chat = (mode: string) => screen.getByRole("region", { name: `chat ${mode}` });
 
 const PRODUCTION = {
   id: "env-prod",
@@ -36,20 +71,20 @@ function open(props: Partial<Parameters<typeof TestPanel>[0]> = {}) {
       {...props}
     />,
   );
-  const frame = screen.getByTitle("Test") as HTMLIFrameElement;
-  const post = vi.fn();
-  Object.defineProperty(frame, "contentWindow", { value: { postMessage: post } });
-  return { onClose, frame, post };
+  return { onClose };
 }
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  began.length = 0;
+});
 
 describe("the Builder's test panel", () => {
   it("tries the draft by default, and leaves saying so to the conversation", () => {
-    const { frame } = open();
+    open();
 
-    expect(frame.getAttribute("src")).toBe("/agent-test-frame?agent=a1&mode=draft");
-    // What answers is the frame's own opening line now (#2075).
+    expect(chat("draft")).toBeInTheDocument();
+    // What answers is the conversation's own opening line now (#2075).
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
@@ -65,9 +100,7 @@ describe("the Builder's test panel", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "What answers" }));
     await userEvent.click(await screen.findByRole("option", { name: "production (version 3)" }));
 
-    expect((screen.getByTitle("Test") as HTMLIFrameElement).getAttribute("src")).toContain(
-      "mode=env-prod",
-    );
+    expect(chat("env-prod")).toBeInTheDocument();
     expect(readTestPanel("a1").mode).toBe("env-prod");
   });
 
@@ -80,51 +113,32 @@ describe("the Builder's test panel", () => {
       compare: "draft",
       pinned: [],
     });
-    const { frame } = open({ currentVersionId: null });
-    expect(frame.getAttribute("src")).toContain("mode=draft");
-    expect(screen.queryByTitle("Compared with")).toBeNull();
+    open({ currentVersionId: null });
+    expect(chat("draft")).toBeInTheDocument();
+    expect(screen.getAllByRole("region")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Compare two side by side" })).toBeNull();
   });
 
-  it("starts over and replays the last question in the frame", async () => {
-    const { post } = open();
+  it("starts the conversation over, and replays its last question", async () => {
+    open();
 
     await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
-    await userEvent.click(screen.getByRole("button", { name: "Send the last message again" }));
+    expect(began).toEqual(["draft", "draft"]);
 
-    expect(post.mock.calls.map((call) => call[0])).toEqual([{ type: NEW }, { type: REPLAY }]);
+    await userEvent.click(screen.getByRole("button", { name: "Send the last message again" }));
+    expect(chat("draft")).toHaveAttribute("data-replay", "1");
     // A single conversation is asked from its own box, as in /chat.
     expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
   });
 
-  it("keeps a question the frame pins, and drops it when it is unpinned (#2075)", () => {
-    const { frame } = open();
-    const fromFrame = (text: string) => {
-      const event = new MessageEvent("message", {
-        data: { type: PIN, text },
-        origin: window.location.origin,
-      });
-      Object.defineProperty(event, "source", { value: frame.contentWindow });
-      act(() => {
-        window.dispatchEvent(event);
-      });
-    };
+  it("keeps a question the conversation pins, and drops it when it is unpinned (#2075)", async () => {
+    open();
 
-    fromFrame("Refunds?");
+    await userEvent.click(screen.getByRole("button", { name: "pin from draft" }));
     expect(readTestPanel("a1").pinned).toEqual(["Refunds?"]);
+    expect(chat("draft")).toHaveAttribute("data-pinned", "Refunds?");
 
-    fromFrame("Refunds?");
-    expect(readTestPanel("a1").pinned).toEqual([]);
-
-    // Somebody else's message is not a pin.
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent("message", {
-          data: { type: PIN, text: "x" },
-          origin: window.location.origin,
-        }),
-      );
-    });
+    await userEvent.click(screen.getByRole("button", { name: "pin from draft" }));
     expect(readTestPanel("a1").pinned).toEqual([]);
   });
 
@@ -162,32 +176,23 @@ describe("the Builder's test panel", () => {
   });
 
   it("compares two side by side, asks both at once, and stops comparing", async () => {
-    const { post } = open({ environments: [PRODUCTION, STAGING] });
+    open({ environments: [PRODUCTION, STAGING] });
 
     await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
-    const beside = screen.getByTitle("Compared with") as HTMLIFrameElement;
-    const besidePost = vi.fn();
-    Object.defineProperty(beside, "contentWindow", { value: { postMessage: besidePost } });
 
-    expect(beside.getAttribute("src")).toContain("mode=env-prod");
+    expect(chat("env-prod")).toBeInTheDocument();
     expect(readTestPanel("a1")).toMatchObject({ compare: "env-prod", width: 440 });
     expect(screen.getByRole("complementary")).toHaveStyle("--test-panel-width: 880px");
     expect(screen.getByRole("status")).toHaveTextContent("Ask both");
 
     await userEvent.click(screen.getByRole("combobox", { name: "Compared with" }));
     await userEvent.click(await screen.findByRole("option", { name: "staging (version 4)" }));
-    const restaged = screen.getByTitle("Compared with") as HTMLIFrameElement;
-    const restagedPost = vi.fn();
-    Object.defineProperty(restaged, "contentWindow", { value: { postMessage: restagedPost } });
-    expect(restaged.getAttribute("src")).toContain("mode=env-stg");
+    expect(chat("env-stg")).toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Prompt" }), "Refunds?");
     await userEvent.click(screen.getByRole("button", { name: "Ask both" }));
-    expect(post).toHaveBeenCalledWith({ type: ASK, text: "Refunds?" }, window.location.origin);
-    expect(restagedPost).toHaveBeenCalledWith(
-      { type: ASK, text: "Refunds?" },
-      window.location.origin,
-    );
+    expect(chat("draft")).toHaveAttribute("data-ask", "Refunds?");
+    expect(chat("env-stg")).toHaveAttribute("data-ask", "Refunds?");
 
     const edge = screen.getByRole("separator", { name: "Resize the test panel" });
     fireEvent.pointerDown(edge, { clientX: 1000 });
@@ -197,7 +202,7 @@ describe("the Builder's test panel", () => {
 
     // Stopping gives the Builder back the room it had, not the comparison's.
     await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
-    expect(screen.queryByTitle("Compared with")).toBeNull();
+    expect(screen.getAllByRole("region")).toHaveLength(1);
     expect(readTestPanel("a1")).toMatchObject({ compare: null, width: 440, compareWidth: 1400 });
     expect(screen.getByRole("complementary")).toHaveStyle("--test-panel-width: 440px");
   });
@@ -215,9 +220,8 @@ describe("the Builder's test panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
 
-    expect((screen.getByTitle("Compared with") as HTMLIFrameElement).getAttribute("src")).toContain(
-      "mode=draft",
-    );
+    expect(chat("draft")).toBeInTheDocument();
+    expect(chat("env-prod")).toBeInTheDocument();
   });
 
   it("shows what the draft changes against the published version", async () => {

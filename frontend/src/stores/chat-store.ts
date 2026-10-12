@@ -1,10 +1,12 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, ToolCall } from "@/types";
 
-interface ChatState {
+export interface ChatState {
   messages: ChatMessage[];
   isStreaming: boolean;
 
@@ -29,7 +31,7 @@ interface ChatState {
   clearMessages: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+const chatState: StateCreator<ChatState> = (set) => ({
   messages: [],
   isStreaming: false,
 
@@ -134,4 +136,9 @@ export const useChatStore = create<ChatState>((set) => ({
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
   clearMessages: () => set({ messages: [] }),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createChatStore = () => createStore<ChatState>()(chatState);
+
+export const useChatStore = scopedStore(create<ChatState>()(chatState), (scope) => scope.chat);

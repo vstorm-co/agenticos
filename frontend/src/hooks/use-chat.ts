@@ -8,7 +8,7 @@ import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
-import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
+import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import { Perm } from "@/types/permissions";
@@ -111,6 +111,11 @@ export function useChat(options: UseChatOptions = {}) {
   // no catalog message holds it, so it belongs to the copy the guard has never
   // looked at rather than to this defect.
   const t = useTranslations("chat");
+  // The scope's own stores, for reads made in a callback rather than a render.
+  const chatApi = useChatStore.useApi();
+  const conversationApi = useConversationStore.useApi();
+  const selectionApi = useAgentSelectionStore.useApi();
+  const scoped = useInChatScope();
   const {
     setCurrentConversationId,
     setCurrentCost,
@@ -304,25 +309,25 @@ export function useChat(options: UseChatOptions = {}) {
     // From the store rather than the render closure, for the same reason the
     // usage above is: a turn that created the conversation learns its id in this
     // same handler, and the closure still holds `null`.
-    const id = useConversationStore.getState().currentConversationId ?? activeConversationId;
+    const id = conversationApi.getState().currentConversationId ?? activeConversationId;
     if (id === null) return;
     try {
       const page = await apiClient.get<{ cost: ConversationCost | null }>(
         `/conversations/${id}/messages?skip=0&limit=1`,
       );
       // Only if the reader is still looking at the thread it was asked about.
-      if (useConversationStore.getState().currentConversationId === id) setCurrentCost(page.cost);
+      if (conversationApi.getState().currentConversationId === id) setCurrentCost(page.cost);
     } catch {
       // Deliberately silent: see above.
     }
-  }, [activeConversationId, setCurrentCost]);
+  }, [activeConversationId, setCurrentCost, conversationApi]);
 
   // A call whose arguments were still streaming when the turn ended never became a
   // call: the model was stopped or failed mid-way. `unfinished` rather than left
   // `pending`, which animates under a turn that is over.
   const abandonStreamingCalls = useCallback(
     (messageId: string) => {
-      const message = useChatStore.getState().messages.find((m) => m.id === messageId);
+      const message = chatApi.getState().messages.find((m) => m.id === messageId);
       for (const { id } of streamingCallsRef.current.values()) {
         const call = message?.toolCalls?.find((c) => c.id === id);
         if (call?.status === "pending") {
@@ -331,7 +336,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
       streamingCallsRef.current.clear();
     },
-    [updateToolCallPart],
+    [updateToolCallPart, chatApi],
   );
 
   const handleWebSocketMessage = useCallback(
@@ -368,8 +373,8 @@ export function useChat(options: UseChatOptions = {}) {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
-          setUrlParam("id", conversation_id);
-          const { updateMessagesWhere } = useChatStore.getState();
+          if (!scoped) setUrlParam("id", conversation_id);
+          const { updateMessagesWhere } = chatApi.getState();
           updateMessagesWhere(
             (msg) => !msg.conversationId,
             (msg) => ({ ...msg, conversationId: conversation_id }),
@@ -395,7 +400,7 @@ export function useChat(options: UseChatOptions = {}) {
             setCurrentMessageId(message_id);
           } else {
             // This handles cases where currentMessageId was already cleared
-            const messages = useChatStore.getState().messages;
+            const messages = chatApi.getState().messages;
             const lastTemp = [...messages]
               .reverse()
               .find((msg) => msg.role === "assistant" && !!msg.isTemporaryId);
@@ -520,7 +525,7 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
-            const drawn = useChatStore
+            const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
               ?.toolCalls?.some((call) => call.id === tool_call_id);
@@ -557,7 +562,7 @@ export function useChat(options: UseChatOptions = {}) {
             const { output } = wsEvent.data as { output: string };
             // If the model returned text only via final_result (no streamed
             // text_delta), append it as the trailing text part.
-            const fr = useChatStore
+            const fr = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current);
             if (output && fr && !fr.content) {
@@ -738,7 +743,7 @@ export function useChat(options: UseChatOptions = {}) {
                 // the conversation learns its id from `conversation_created` in this
                 // same handler, and the closure still holds `null`.
                 conversationId:
-                  useConversationStore.getState().currentConversationId ?? activeConversationId,
+                  conversationApi.getState().currentConversationId ?? activeConversationId,
                 usage,
               });
               // Also on the message itself. The strip under the input only ever
@@ -766,6 +771,9 @@ export function useChat(options: UseChatOptions = {}) {
       }
     },
     [
+      chatApi,
+      conversationApi,
+      scoped,
       // currentMessageId is read via currentMessageIdRef inside the handler,
       // so we deliberately omit it here - that's the whole point of the ref.
       addMessage,
@@ -954,12 +962,13 @@ export function useChat(options: UseChatOptions = {}) {
       // whenever the organization has one, so a frame without an `agent_id`
       // only happens when nothing is published at all - and the backend
       // refuses it with the message that says to publish one.
-      const agentId = useAgentSelectionStore.getState().selectedAgentId;
+      const agentId = selectionApi.getState().selectedAgentId;
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
     },
     [
+      selectionApi,
       addMessage,
       updateMessage,
       setCurrentMessageId,
@@ -1564,7 +1573,7 @@ export function useChat(options: UseChatOptions = {}) {
       // stop makes it *finished* by the count's own definition, so a baseline
       // read a moment earlier would be one short and the notice would clear
       // itself immediately.
-      finishedWhenInterrupted.current = useChatStore
+      finishedWhenInterrupted.current = chatApi
         .getState()
         .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
     }
@@ -1573,7 +1582,7 @@ export function useChat(options: UseChatOptions = {}) {
     interruptedRef.current = null;
     if (thread.id !== activeConversationId) return;
     onTurnInterrupted?.();
-  }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted]);
+  }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted, chatApi]);
 
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn

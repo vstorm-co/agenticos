@@ -124,9 +124,14 @@ and does what you could, and no more. Its cost counts like any agent's.
 A speech bubble above it speaks to what is waiting for you — approvals, an
 organization with no agents yet — or to the page you are on, and now and then
 offers a tip. Click the bubble to ask it; × silences that page, and the bell in
-its window turns the bubbles off. Its window opens on four tiles, so a first
-message is a click, and keeps its own conversation history. On a phone it fills
-the screen.
+its window turns the bubbles off. Left unanswered, a bubble fades after a few
+seconds. Left alone for under a minute, the button tucks itself into the right
+edge of the screen, leaving a sliver to pull it out by - with a dot when
+something is waiting - and stays there from page to page until it is opened.
+
+Its window is the console's own chat, not a page inside the page, and opens on
+four tiles, so a first message is a click; it keeps its own conversation
+history. On a phone it fills the screen.
 
 When it names a page, the link opens in the console behind the window and
 points at the control it means — the button that creates an agent, the tab with
