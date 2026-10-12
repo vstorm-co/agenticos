@@ -1,6 +1,6 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, FileDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CopyButton } from "@/components/chat/copy-button";
@@ -163,8 +163,13 @@ export function FileUnavailable({
   const t = useTranslations("files");
 
   return (
-    <div className="space-y-2 py-4 text-center">
-      <p className="text-muted-foreground text-sm">{reason}</p>
+    // In the middle of the viewer, with the file's mark over it: one line and a
+    // button at the top of an empty window read as the page failing to load.
+    <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 py-8 text-center">
+      <span className="bg-muted text-muted-foreground flex h-14 w-14 items-center justify-center rounded-2xl">
+        <FileDown className="h-6 w-6" aria-hidden />
+      </span>
+      <p className="text-muted-foreground max-w-md text-sm text-balance">{reason}</p>
       <Button variant="outline" size="sm" onClick={onDownload}>
         <Download className="h-3.5 w-3.5" />
         {t("download")}
@@ -176,14 +181,6 @@ export function FileUnavailable({
   );
 }
 
-/**
- * The characters, as they are.
- *
- * `whitespace-pre` and a scroll rather than `pre-wrap`: source read as source is
- * read by its indentation, and wrapping a 200-character line into four rows at the
- * left margin destroys exactly the thing somebody switched to this view for. Prose
- * in a `.txt` loses nothing by scrolling, and gains not being reflowed.
- */
 /** Past this, the gutter costs more than it is worth: one element per line. */
 const NUMBERED_UP_TO = 5000;
 
