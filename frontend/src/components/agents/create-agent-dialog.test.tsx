@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,21 +68,19 @@ describe("CreateAgentDialog", () => {
     open();
     await userEvent.type(name(), "Support Copilot");
 
-    // Twice, and they have to agree: once under the field as the prediction the
-    // refusal will be about, once in the preview as the row it becomes.
-    expect(screen.getAllByText("@support-copilot")).toHaveLength(2);
+    expect(screen.getByText("@support-copilot")).toBeInTheDocument();
   });
 
-  it("previews the row this is about to become", async () => {
-    // Name, handle and description are easier to judge as a row than as three
-    // fields - a name that looked fine in an input is the one that truncates
-    // here.
+  it("keeps the optional details folded until asked for", async () => {
+    // A draft needs a name and an audience; the description and the catalog
+    // labels wait behind More options rather than lengthening every create.
     open();
-    await userEvent.type(name(), "Support Copilot");
 
-    const preview = screen.getByText("Preview").parentElement!;
-    expect(within(preview).getByText("Support Copilot")).toBeInTheDocument();
-    expect(within(preview).getByText("@support-copilot")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+
+    expect(screen.getByLabelText("Description")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add a tag")).toBeInTheDocument();
   });
 
   it("offers the agent to the organization unless somebody says otherwise", async () => {
@@ -144,6 +142,7 @@ describe("CreateAgentDialog", () => {
     open();
 
     await userEvent.type(name(), "Support");
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.type(screen.getByLabelText("Add a category"), "support{Enter}");
     await userEvent.type(screen.getByLabelText("Add a tag"), "billing{Enter}");
     await userEvent.click(create());
@@ -161,6 +160,7 @@ describe("CreateAgentDialog", () => {
     const { onCreated } = open();
 
     await userEvent.type(name(), "Support");
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.type(screen.getByLabelText("Description"), "Answers questions.");
     await userEvent.click(create());
 

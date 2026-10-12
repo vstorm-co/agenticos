@@ -703,7 +703,6 @@
     "alreadyOnAgent": "{agent} already has {name}.",
     "usedByNobody": "Not used by any agent yet",
     "usedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
-    "visibilityGroups": "Chosen groups",
     "testPanel": "Test",
     "testWelcomeTitle": "Test {name}",
     "testWelcomeDraft": "Answers as your unpublished draft, as a test run. Nothing is published, and it is billed like any run.",
@@ -747,7 +746,8 @@
     "serverSettings": "Settings",
     "serverSettingsTitle": "{name} in this agent",
     "serverSettingsDescription": "Whose account the agent speaks through, and which of the server's tools it may call.",
-    "chooseAccount": "Choose an account"
+    "chooseAccount": "Choose an account",
+    "moreOptions": "More options"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

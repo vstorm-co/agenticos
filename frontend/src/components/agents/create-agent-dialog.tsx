@@ -7,13 +7,11 @@ import {
   type Audience,
 } from "@/components/sharing/audience-picker";
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
-import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { ChipsInput } from "@/components/agents/chips-input";
-import { AvatarFace } from "@/components/ui/avatar-face";
 import {
-  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -79,6 +77,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
+  const [moreOpen, setMoreOpen] = useState(false);
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -181,106 +180,71 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               maxLength={MAX_NAME}
             />
           </FormField>
-          <FormField
-            label={t("description")}
-            htmlFor="agent-description"
-            error={errors.description}
-          >
-            <Textarea
-              value={description}
-              onChange={(event) => edit("description", event.target.value)}
-              placeholder={t("answersCustomerQuestionsFrom")}
-              maxLength={MAX_DESCRIPTION}
-              rows={2}
-            />
-          </FormField>
           <div className="space-y-1.5">
             <Label>{t("whoCanFindIt")}</Label>
             <AudiencePicker value={audience} onChange={setAudience} />
           </div>
 
-          {/* Side by side, because they are two halves of one question - and the
-              preview below shows what they look like on the row, which is where
-              somebody will read them back. Optional: the detail page changes
-              them later without a publish. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>{tAgents("categories")}</Label>
-              <ChipsInput
-                values={categories}
-                onChange={setCategories}
-                inputLabel={tAgents("addCategory")}
-                removeLabel={(value) => tAgents("removeCategory", { value })}
-                placeholder={tAgents("addCategoryPlaceholder")}
-                maxItems={MAX_AGENT_CATEGORIES}
-                maxLength={MAX_LABEL}
+          {/* Optional, and folded: a draft needs a name and an audience, and the
+              catalog details can wait for the detail page - which changes them
+              later without a publish. */}
+          <div>
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((open) => !open)}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
+            >
+              <ChevronRight
+                className={cn("h-4 w-4 transition-transform", moreOpen && "rotate-90")}
+                aria-hidden
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{tAgents("tags")}</Label>
-              <ChipsInput
-                values={tags}
-                onChange={setTags}
-                inputLabel={tAgents("addTag")}
-                removeLabel={(value) => tAgents("removeTag", { value })}
-                placeholder={tAgents("addTagPlaceholder")}
-                maxItems={MAX_AGENT_TAGS}
-                maxLength={MAX_LABEL}
-              />
-            </div>
-          </div>
-
-          {/* The row this is about to become, drawn from what has been typed.
-              The handle and the description are what a colleague scanning the
-              catalog reads, and they are easier to judge as a row than as three
-              fields - a name that looked fine in an input is the one that
-              truncates here. */}
-          <div className="space-y-1.5">
-            <Label>{t("preview")}</Label>
-            <div className="border-border bg-card rounded-xl border p-3">
-              <div className="flex items-start justify-between gap-2">
-                {/* The real face, not a placeholder: an agent's is drawn from its
-                    handle, and the handle is derived from the name on every
-                    keystroke - so this is the picture the agent will actually
-                    wear, changing as somebody types their way to it. */}
-                <span className="mr-3 h-9 w-9 shrink-0 overflow-hidden rounded-full">
-                  <AvatarFace seed={deriveHandle(name || t("handlePlaceholder"))} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-foreground truncate font-medium">
-                    {name.trim() || t("supportCopilot")}
-                  </p>
-                  <p className="text-muted-foreground truncate font-mono text-xs">
-                    @{deriveHandle(name || t("handlePlaceholder"))}
-                  </p>
+              {t("moreOptions")}
+            </button>
+            {moreOpen && (
+              <div className="mt-3 space-y-4">
+                <FormField
+                  label={t("description")}
+                  htmlFor="agent-description"
+                  error={errors.description}
+                >
+                  <Textarea
+                    value={description}
+                    onChange={(event) => edit("description", event.target.value)}
+                    placeholder={t("answersCustomerQuestionsFrom")}
+                    maxLength={MAX_DESCRIPTION}
+                    rows={2}
+                  />
+                </FormField>
+                {/* Side by side: two halves of one question. */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>{tAgents("categories")}</Label>
+                    <ChipsInput
+                      values={categories}
+                      onChange={setCategories}
+                      inputLabel={tAgents("addCategory")}
+                      removeLabel={(value) => tAgents("removeCategory", { value })}
+                      placeholder={tAgents("addCategoryPlaceholder")}
+                      maxItems={MAX_AGENT_CATEGORIES}
+                      maxLength={MAX_LABEL}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>{tAgents("tags")}</Label>
+                    <ChipsInput
+                      values={tags}
+                      onChange={setTags}
+                      inputLabel={tAgents("addTag")}
+                      removeLabel={(value) => tAgents("removeTag", { value })}
+                      placeholder={tAgents("addTagPlaceholder")}
+                      maxItems={MAX_AGENT_TAGS}
+                      maxLength={MAX_LABEL}
+                    />
+                  </div>
                 </div>
-                <AgentStatusBadge status="draft" />
               </div>
-              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
-                {description.trim() || t("answersCustomerQuestionsFrom")}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline">
-                  {t(
-                    audience.mode === "org"
-                      ? "visibilityOrg"
-                      : audience.mode === "private"
-                        ? "visibilityPrivate"
-                        : "visibilityGroups",
-                  )}
-                </Badge>
-                {categories.map((value) => (
-                  <Badge key={value} variant="secondary">
-                    {value}
-                  </Badge>
-                ))}
-                {tags.map((value) => (
-                  <span key={value} className="text-muted-foreground text-xs">
-                    #{value}
-                  </span>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         </div>
         <DialogFooter>

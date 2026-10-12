@@ -703,7 +703,6 @@
     "alreadyOnAgent": "Agent {agent} ma już {name}.",
     "usedByNobody": "Nie używa tego jeszcze żaden agent",
     "usedBy": "{more, plural, =0 {Używa: {names}} other {Używa: {names} i jeszcze #}}",
-    "visibilityGroups": "Wybrane grupy",
     "testPanel": "Test",
     "testWelcomeTitle": "Przetestuj {name}",
     "testWelcomeDraft": "Odpowiada jako twoja nieopublikowana wersja robocza, w runie testowym. Nic nie zostaje opublikowane, a koszt liczy się jak przy każdym runie.",
@@ -747,7 +746,8 @@
     "serverSettings": "Ustawienia",
     "serverSettingsTitle": "{name} w tym agencie",
     "serverSettingsDescription": "Przez czyje konto agent rozmawia z serwerem i których jego narzędzi może używać.",
-    "chooseAccount": "Wybierz konto"
+    "chooseAccount": "Wybierz konto",
+    "moreOptions": "Więcej opcji"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

@@ -232,6 +232,7 @@ test.describe("Agents", () => {
       dialog.locator("#agent-name-desc").getByText(SEEDED_AGENT_HANDLE, { exact: true }),
     ).toBeVisible();
 
+    await dialog.getByRole("button", { name: "More options" }).click();
     await dialog.getByLabel("Description").fill("A second one, which should not be created.");
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
 
