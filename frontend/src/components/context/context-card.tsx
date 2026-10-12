@@ -36,7 +36,8 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
         onClick={onOpen}
         className="flex h-full w-full flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
       >
-        <DocPeek className="h-32">
+        {/* Not on a phone - see `SkillCard`. */}
+        <DocPeek className="h-32 max-sm:hidden">
           {file.excerpt ? (
             <TextPeek
               source={file.excerpt}

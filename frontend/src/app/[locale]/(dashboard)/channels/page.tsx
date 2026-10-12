@@ -22,8 +22,10 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   return (
     <ListCard
       data-tour="channels-list"
+      namedByPage
       title={t("bots")}
       counted={count === null ? null : t("registeredCount", { count })}
+      empty={count === 0}
       contentClassName="p-0"
     >
       {children}

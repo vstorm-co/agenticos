@@ -121,8 +121,10 @@ export function GroupList({
 
   return (
     <ListCard
+      namedByPage
       title={t("title")}
       counted={isLoading || error ? null : t("groupCount", { count: groups.length })}
+      empty={!isLoading && !error && groups.length === 0}
       contentClassName="p-0"
     >
       {error ? (

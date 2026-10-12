@@ -42,7 +42,10 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
         <DocPeek
           sheets={skill.file_count}
           badge={skill.file_count > 0 ? t("moreFiles", { count: skill.file_count }) : undefined}
-          className="h-32"
+          // A phone shows one card per row, and the page of text it previews
+          // tripled each card's height for an excerpt the description already
+          // summarises.
+          className="h-32 max-sm:hidden"
         >
           {skill.excerpt ? <TextPeek source={skill.excerpt} /> : <BlankPeek />}
         </DocPeek>

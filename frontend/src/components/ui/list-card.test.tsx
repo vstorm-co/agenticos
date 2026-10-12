@@ -38,6 +38,36 @@ describe("ListCard", () => {
 
     expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
   });
+
+  it("leads with the count under a page that names it, keeping the title for a screen reader", () => {
+    const { container, rerender } = render(
+      <ListCard title="Skills" counted="40 skills" namedByPage controls={<button>search</button>}>
+        <p>rows</p>
+      </ListCard>,
+    );
+
+    expect(screen.getByText("Skills")).toHaveClass("sr-only");
+    expect(screen.getByText("40 skills")).toBeVisible();
+    expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
+
+    rerender(
+      <ListCard title="Skills" counted={null} namedByPage>
+        <p>rows</p>
+      </ListCard>,
+    );
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
+  });
+
+  it("drops the toolbar over an empty list, leaving the empty state to say so", () => {
+    render(
+      <ListCard title="Skills" counted="0 skills" namedByPage empty>
+        <p>No skills yet</p>
+      </ListCard>,
+    );
+
+    expect(screen.getByText("0 skills").parentElement).toHaveClass("sr-only");
+    expect(screen.getByText("No skills yet")).toBeVisible();
+  });
 });
 
 describe("ListCard's content padding", () => {

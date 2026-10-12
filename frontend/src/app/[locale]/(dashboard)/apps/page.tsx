@@ -63,8 +63,10 @@ export default function ArtifactsPage() {
       {header}
       <ListCard
         data-tour="artifacts-list"
+        namedByPage
         title={t("title")}
         counted={error || isLoading ? null : t("count", { count: total })}
+        empty={!isLoading && !error && !isFiltering && total === 0}
         controls={
           isFiltering || total > 0 ? (
             <div className="flex flex-wrap items-center gap-2">

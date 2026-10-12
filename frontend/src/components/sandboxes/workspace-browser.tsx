@@ -78,8 +78,10 @@ export function WorkspaceBrowser() {
   const { listing, isLoading } = useAllWorkspaceFiles(true);
   return (
     <ListCard
+      namedByPage
       title={t("workspaces.allFiles")}
       counted={isLoading ? null : t("fileCount", { count: listing?.total ?? 0 })}
+      empty={listing?.total === 0}
       contentClassName="p-0"
     >
       <FlatFiles />

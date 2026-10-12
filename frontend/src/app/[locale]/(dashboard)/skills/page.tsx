@@ -172,7 +172,7 @@ export default function SkillsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <ListCard title={t("skills")} counted={null}>
+        <ListCard namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -204,11 +204,13 @@ export default function SkillsPage() {
 
       <ListCard
         data-tour="skills-list"
+        namedByPage
         title={t("skills")}
         // The count is a claim about the organization, and a failed request has
         // made none - so an error draws the skeleton, not "0 skills".
         counted={error ? null : t("skillCount", { count: total })}
         controls={controls}
+        empty={!error && !isFiltering && total === 0 && categories.length === 0}
       >
         <div className="space-y-4">
           {(categories.length > 0 || isFiltering || total > 0) && (

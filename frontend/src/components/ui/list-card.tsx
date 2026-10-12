@@ -22,6 +22,8 @@ export function ListCard({
   title,
   counted,
   controls,
+  namedByPage = false,
+  empty = false,
   contentClassName,
   children,
   ...rest
@@ -37,9 +39,41 @@ export function ListCard({
   counted: string | null;
   /** The header's right side - a search box, a view toggle. */
   controls?: ReactNode;
+  /**
+   * The card is the page's own list, under a page header that already names
+   * it. "Skills" over "Skills · 11 skills" said the same word twice before the
+   * first row, so the header becomes a toolbar - the count, then the controls -
+   * and the title is kept for a screen reader only.
+   */
+  namedByPage?: boolean;
+  /**
+   * Under `namedByPage`: there is nothing yet, so there is nothing to count or
+   * search, and a strip reading "0 skills" above "No skills yet" said it twice.
+   * The toolbar is dropped and the empty state stands alone.
+   */
+  empty?: boolean;
   contentClassName?: string;
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
+  if (namedByPage) {
+    return (
+      <Card {...rest}>
+        <CardHeader
+          className={cn(
+            "flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            empty && "sr-only",
+          )}
+        >
+          <CardTitle className="sr-only">{title}</CardTitle>
+          <div className="text-muted-foreground shrink-0 text-sm">
+            {counted === null ? <Skeleton className="h-4 w-24" /> : counted}
+          </div>
+          {controls}
+        </CardHeader>
+        <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
+      </Card>
+    );
+  }
   return (
     <Card {...rest}>
       {/* A column on a phone: beside a search box and three filters the title

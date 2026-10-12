@@ -55,6 +55,7 @@ function AgentsCard({
   const t = useTranslations("pages.agents");
   return (
     <ListCard
+      namedByPage
       title={t("catalog")}
       counted={
         visible === null

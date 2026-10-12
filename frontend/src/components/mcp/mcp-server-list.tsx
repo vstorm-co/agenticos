@@ -508,6 +508,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     <>
       <ListCard
         data-tour="mcp-catalog"
+        namedByPage
         title={t("servers")}
         counted={t("serverCount", { count: listing.total + customs.length })}
         controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}

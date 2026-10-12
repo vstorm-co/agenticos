@@ -50,7 +50,7 @@ export default function McpServersPage() {
         // The same card frame the list draws, with card-shaped skeletons in the
         // same columns - a skeleton that draws a different shape is a layout
         // jump on every load.
-        <ListCard title={tMcp("servers")} counted={null} contentClassName="p-4">
+        <ListCard namedByPage title={tMcp("servers")} counted={null} contentClassName="p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }, (_, tile) => (
               <div key={tile} className="border-border rounded-xl border p-4">
@@ -71,12 +71,13 @@ export default function McpServersPage() {
       ) : error ? (
         // `counted` stays null while refused: the count was never answered,
         // and "0 servers" over a failure would state it as fact.
-        <ListCard title={tMcp("servers")} counted={null}>
+        <ListCard namedByPage title={tMcp("servers")} counted={null}>
           <ErrorState description={getErrorMessage(error, tErrors)} />
         </ListCard>
       ) : rows.length === 0 ? (
         <ListCard
           data-tour="mcp-catalog"
+          namedByPage
           title={tMcp("servers")}
           counted={tMcp("serverCount", { count: 0 })}
         >

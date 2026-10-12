@@ -129,8 +129,10 @@ export default function RAGPage() {
 
         <TabsContent value="bases">
           <ListCard
+            namedByPage
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
+            empty={!loading && !listError && kbs.length === 0}
             contentClassName="p-4"
           >
             {loading ? (

@@ -202,7 +202,7 @@ export default function ContextPage() {
     return (
       <div className="space-y-6">
         {header}
-        <ListCard title={t("contextFiles")} counted={null}>
+        <ListCard namedByPage title={t("contextFiles")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -228,8 +228,10 @@ export default function ContextPage() {
 
       <ListCard
         data-tour="context-list"
+        namedByPage
         title={t("contextFiles")}
         counted={error ? null : t("contextCount", { count: total })}
+        empty={!error && !isFiltering && total === 0}
         controls={controls}
       >
         <div className="space-y-4">
