@@ -130,6 +130,16 @@ describe("cards in a strip beside each other", () => {
 });
 
 describe("the chip a composer draws", () => {
+  it("opens the file from anywhere on the chip, in the transcript", async () => {
+    const onOpen = vi.fn();
+    render(<FileCard name="pasted-2026-10-12.txt" typeLabel="Pasted" compact onOpen={onOpen} />);
+
+    expect(screen.getByText("Pasted")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open pasted-2026-10-12.txt" }));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   it("is one row with the name on one line, not a preview band", () => {
     // A file in the composer is pending confirmation, not content being read:
     // what is wanted is whether it is the right file, how big, and how to remove

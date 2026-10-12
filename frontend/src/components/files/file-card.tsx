@@ -170,7 +170,25 @@ export function FileCard({
 
   if (compact) {
     return (
-      <div className={cn(CHIP, onRemove !== undefined && "pr-8", className)}>
+      <div
+        className={cn(
+          CHIP,
+          onRemove !== undefined && "pr-8",
+          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
+          className,
+        )}
+      >
+        {/* The whole chip opens the file, under the remove button where there
+            is one - a chip in the transcript is a file to read (#927's tile
+            stacked eight pastes into a wall of empty pages). */}
+        {onOpen !== undefined && (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={t("openFile", { name })}
+            className="absolute inset-0 rounded-lg"
+          />
+        )}
         <span className="bg-muted/60 relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />

@@ -127,6 +127,7 @@ export function MessageItem({
   pins,
 }: MessageItemProps) {
   const t = useTranslations("chat");
+  const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
   const openPreview = useFilePreviewStore((s) => s.open);
@@ -257,7 +258,9 @@ export function MessageItem({
             // 256 px card with its content at the top and a field of empty border
             // under it.
             return (
-              <div className="flex flex-wrap items-start gap-2">
+              // `justify-end`: a person's files sit flush right with their
+              // message, also on the second row a wrap starts.
+              <div className="flex flex-wrap items-start justify-end gap-2">
                 {attachments.map((att) =>
                   att.kind === "image" ? (
                     <button
@@ -277,13 +280,16 @@ export function MessageItem({
                       />
                     </button>
                   ) : "file" in att ? (
-                    // The same card the composer showed before it was sent, and the
-                    // Files panel shows beside it. It used to be a pill with a generic
-                    // document glyph, so one file looked like three things.
+                    // The chip the composer showed before it was sent: a name, a
+                    // type, and a click that opens it. The tile with a preview band
+                    // stacked eight pastes into a wall of empty pages above the
+                    // question they came with.
                     <FileCard
                       key={att.file.id}
                       name={att.file.filename}
                       mimeType={att.file.mime_type}
+                      typeLabel={PASTED.test(att.file.filename) ? tInput("pastedLabel") : undefined}
+                      compact
                       onOpen={() => openPreview(att.file)}
                     />
                   ) : (
@@ -487,6 +493,9 @@ function MessageBody({
     </>
   );
 }
+
+/** The name the composer gives a long paste it turned into a file. */
+const PASTED = /^pasted-\d{4}-\d{2}-\d{2}\.txt$/;
 
 type AttachmentDisplay =
   | { kind: "image"; file: ChatMessageFile }

@@ -642,6 +642,18 @@ describe("what a person attached", () => {
     expect(screen.getByText("Makefile")).toBeInTheDocument();
   });
 
+  it("calls a long paste what it was, not the name invented for it", () => {
+    item({
+      role: "user",
+      content: "x",
+      files: [
+        file({ filename: "pasted-2026-10-12.txt", mime_type: "text/plain", file_type: "text" }),
+      ],
+    });
+
+    expect(screen.getByText("Pasted")).toBeInTheDocument();
+  });
+
   it("falls back to a link for a legacy attachment with only an id", () => {
     // Older messages stored ids and no metadata; the preview panel needs the
     // metadata, so those open in a tab instead.

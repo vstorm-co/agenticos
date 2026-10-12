@@ -676,7 +676,7 @@ function ChatUI({
           <div
             ref={transcriptRef}
             className={cn(
-              compact ? "px-3 py-3 text-sm" : "mx-auto max-w-3xl px-2 py-4 sm:px-4 sm:py-6",
+              compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
           >
             {isLoadingConversation ? (
@@ -724,12 +724,12 @@ function ChatUI({
           )}
         >
           {personalGaps.length > 0 && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectServicesCard gaps={personalGaps} />
             </div>
           )}
           {pendingApproval && onResumeDecisions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ToolApprovalDialog
                 actionRequests={pendingApproval.actionRequests}
                 reviewConfigs={pendingApproval.reviewConfigs}
@@ -739,7 +739,7 @@ function ChatUI({
             </div>
           )}
           {pendingConnection && onConnectionResponse && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectAccountPrompt
                 request={pendingConnection}
                 disabled={!isConnected}
@@ -748,7 +748,7 @@ function ChatUI({
             </div>
           )}
           {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <QuestionPrompt
                 questions={pendingQuestions}
                 disabled={!isConnected}
@@ -759,7 +759,7 @@ function ChatUI({
           <div
             className={cn(
               "pointer-events-auto mx-auto w-full",
-              compact ? "px-3 pt-1 pb-1.5" : "bg-background max-w-3xl px-2 pb-2 sm:px-4 sm:pb-4",
+              compact ? "px-3 pt-1 pb-1.5" : "bg-background max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4",
             )}
           >
             <InterruptedNotice
