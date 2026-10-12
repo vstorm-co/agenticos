@@ -80,6 +80,76 @@ test.describe("Onboarding", () => {
     await expect(page.locator(POPOVER)).toBeHidden();
   });
 
+  test("leaves a browser extension's prompt clickable, and the page under the tour not", async ({
+    page,
+  }) => {
+    // driver.css turns pointer events off for everything under <body> while the
+    // tour runs, which reached into what extensions inject there: a password
+    // manager's save prompt sat on screen, unclosable, for the whole walk. The
+    // prompt is stood in for the way those extensions build theirs - a custom
+    // element under <body>, its button in a shadow root, stacked at the top.
+    const reset = await page.request.patch("/api/users/me", {
+      data: { onboarding_completed_at: null },
+    });
+    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
+    await page.goto("/dashboard");
+    await expect(page.locator(TITLE)).toHaveText("Welcome to AgenticOS");
+
+    await page.evaluate(() => {
+      const host = document.createElement("extension-prompt");
+      host.style.cssText = "position:fixed;top:12px;right:12px;z-index:2147483647";
+      const button = document.createElement("button");
+      button.textContent = "Dismiss";
+      button.addEventListener("click", () => host.remove());
+      host.attachShadow({ mode: "open" }).appendChild(button);
+      document.body.appendChild(host);
+    });
+    await page.locator("extension-prompt").getByRole("button", { name: "Dismiss" }).click();
+    await expect(page.locator("extension-prompt")).toHaveCount(0);
+
+    // The product itself is still held. Asserted on what the click reached rather
+    // than on the URL or the caption: both still read the same in the moment
+    // before a navigation the click had started would land. Anything a click hits
+    // that is not one of the tour's own layers is the page, and must not be hit.
+    await page.evaluate(() => {
+      const reached: string[] = [];
+      (window as Window & { reached?: string[] }).reached = reached;
+      document.addEventListener(
+        "click",
+        (event) => {
+          const target = event.target as Element;
+          if (!target.closest(".tour-spotlight, .driver-overlay, .driver-popover")) {
+            reached.push(target.outerHTML.slice(0, 120));
+          }
+        },
+        true,
+      );
+    });
+    const reachedPage = () =>
+      page.evaluate(() => (window as Window & { reached?: string[] }).reached);
+
+    const agents = page.getByRole("navigation", { name: "Primary" }).getByRole("link", {
+      name: "Agents",
+    });
+    const link = await agents.boundingBox();
+    expect(link, "the sidebar's Agents link is on screen").not.toBeNull();
+    await page.mouse.click(link!.x + link!.width / 2, link!.y + link!.height / 2);
+    expect(await reachedPage(), "a click on the sidebar reached the page").toEqual([]);
+
+    // And inside the light's padding, beside the control it frames. driver's
+    // overlay has a hole there, so only the tour's own shield stands between the
+    // click and whatever sits next to the control.
+    await page.locator(NEXT).click();
+    await expect(page.locator(TITLE)).toHaveText("Start here");
+    const lit = page.locator('.driver-active-element[data-tour="dashboard-actions"]');
+    await expect(page.locator(".tour-spotlight-ring.is-visible")).toBeVisible();
+    const control = await lit.boundingBox();
+    expect(control, "the lit control is on screen").not.toBeNull();
+    await page.mouse.click(control!.x - 4, control!.y + control!.height / 2);
+    expect(await reachedPage(), "a click in the light's padding reached the page").toEqual([]);
+    await expect(page.locator(TITLE)).toHaveText("Start here");
+  });
+
   test("replays the current page's tips from the header ?, without re-onboarding", async ({
     page,
   }) => {

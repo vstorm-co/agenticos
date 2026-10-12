@@ -1086,7 +1086,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
         <TabsContent value="build" className="mt-6 space-y-6">
           <Card data-tour="agent-instructions">
-            <CardHeader>
+            <CardHeader data-tour="agent-instructions-header">
               <CardTitle>{t("instructions")}</CardTitle>
               <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
             </CardHeader>
@@ -1173,7 +1173,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
         <TabsContent value="toolbox" className="mt-6 space-y-6">
           <Card data-tour="agent-capabilities">
-            <CardHeader>
+            <CardHeader data-tour="agent-capabilities-header">
               <CardTitle>{t("capabilities")}</CardTitle>
               <CardDescription>{t("whatAgentCanDo")}</CardDescription>
             </CardHeader>

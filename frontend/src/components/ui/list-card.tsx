@@ -23,6 +23,7 @@ export function ListCard({
   counted,
   controls,
   contentClassName,
+  headerTour,
   children,
   ...rest
 }: {
@@ -38,6 +39,12 @@ export function ListCard({
   /** The header's right side - a search box, a view toggle. */
   controls?: ReactNode;
   contentClassName?: string;
+  /**
+   * A walkthrough anchor (`data-tour`) on the header alone. A stop that describes
+   * the card spotlights this rather than the card, whose body is the whole list —
+   * lighting a catalog taller than the screen highlights nothing.
+   */
+  headerTour?: string;
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
   return (
@@ -45,7 +52,10 @@ export function ListCard({
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
-      <CardHeader className="flex-col gap-3 space-y-0 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader
+        data-tour={headerTour}
+        className="flex-col gap-3 space-y-0 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
           <CardDescription className="text-xs">

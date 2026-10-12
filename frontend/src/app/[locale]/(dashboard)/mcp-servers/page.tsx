@@ -76,7 +76,7 @@ export default function McpServersPage() {
         </ListCard>
       ) : rows.length === 0 ? (
         <ListCard
-          data-tour="mcp-catalog"
+          headerTour="mcp-catalog"
           title={tMcp("servers")}
           counted={tMcp("serverCount", { count: 0 })}
         >

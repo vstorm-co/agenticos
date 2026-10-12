@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The walkthrough's light can be found, and follows a path the eye can
+  follow.** In the dark theme the spotlighted control stood at 1.1:1 against the
+  dimmed page, so the reader could not tell what a caption described. The tour
+  now draws its own spotlight: a green ring with a pinging beacon on the
+  control, a step darker in the light theme and brighter in the dark one. Moves
+  between controls are eased over 280-700ms instead of crossing the screen in
+  about 200ms. A stop no longer climbs to a tab that is already open and drops
+  back down. Stops with no control dim the page instead of shrinking the light
+  to a dot in the middle. A control the pinned caption would cover is scrolled
+  clear of it. The instructions, capabilities and MCP catalog stops light their
+  card's header instead of a card up to three screens tall.
+- **Browser extensions stay usable during the walkthrough.** driver.js turned
+  off clicks for everything in the page, including what extensions inject: a
+  password manager's prompt could not be closed until the tour ended. The page
+  itself is still held under the tour.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed
