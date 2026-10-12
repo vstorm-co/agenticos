@@ -477,6 +477,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **An organization is called an organization.** Its profile, name, avatar,
+  member count and the admin list said "workspace", a word the console now keeps
+  for nothing; the retention settings call the agents' files documents.
 - **One shape and one type floor across the console.** Fields and selects share
   a 12px corner beside the pill buttons, borders and field edges are a step
   stronger in both themes, small buttons and the console's 11px captions move up
