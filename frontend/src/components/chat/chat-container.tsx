@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
-import type { ChatTesting, SendMode, SideQuestion, SteerDraft } from "@/hooks/use-chat";
+import type { ChatTesting, SendMode, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -26,7 +26,7 @@ import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
-import { SendModePicker, SideAnswers, WaitingSteers } from "./while-working";
+import { WaitingSteers } from "./while-working";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
@@ -52,6 +52,8 @@ import {
   useConversationStore,
   useFilePreviewStore,
 } from "@/stores";
+import { useInChatScope } from "@/stores/chat-scope-context";
+import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
@@ -198,8 +200,6 @@ export function ChatContainer({
     cancelQueued,
     clearQueued,
     steers,
-    asides,
-    dismissAside,
     setModelProfile,
     setApprovalMode,
     pendingApproval,
@@ -340,15 +340,10 @@ export function ChatContainer({
   useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   const { commands: slashCommands } = useSlashCommands();
 
-  // What a message typed while the agent works does - joining the task unless
-  // the person picks otherwise, for this turn only (#2087). Remembered with the
-  // turn it was picked in, so the next turn starts from the default again.
-  const [choice, setChoice] = useState<{ mode: SendMode; turn: number }>({
-    mode: "steer",
-    turn: -1,
-  });
-  const sendMode = choice.turn === turns ? choice.mode : "steer";
-  const setSendMode = useCallback((mode: SendMode) => setChoice({ mode, turn: turns }), [turns]);
+  // What a message typed while the agent works does: it joins the running turn,
+  // unless this person chose in their settings to queue it for after (#2087).
+  const queueWhileWorking = useAuthStore((state) => state.user?.queue_while_working ?? false);
+  const sendMode: SendMode = queueWhileWorking ? "after" : "steer";
   const send = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) =>
       sendMessage(content, fileIds, files, sendMode),
@@ -429,11 +424,7 @@ export function ChatContainer({
       }
       isArchived={isArchived}
       sendMessage={send}
-      sendMode={sendMode}
-      onSendMode={setSendMode}
       steers={steers}
-      asides={asides}
-      onDismissAside={dismissAside}
       // Kept here as well as pushed into the hook, because the context gauge is a
       // share of *this* model's window: a switch has to move the figure at once,
       // and one carried over from a 1M-context model reads "50%" for a history
@@ -532,11 +523,7 @@ interface ChatUIProps {
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
   /** What a message typed while the agent works does (#2087). */
-  sendMode?: SendMode;
-  onSendMode?: (mode: SendMode) => void;
   steers?: SteerDraft[];
-  asides?: SideQuestion[];
-  onDismissAside?: (id: string) => void;
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -580,11 +567,7 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
-  sendMode = "steer",
-  onSendMode,
   steers = [],
-  asides = [],
-  onDismissAside,
   transcriptRef,
   scrollContainerRef,
   pendingApproval,
@@ -603,6 +586,9 @@ function ChatUI({
   // its level. See `VoiceGlow` for why it is a second capture.
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
+  // The Architect's window and the Builder's test panel: a narrow column beside
+  // a page, with no room for the rail and no use for the full chat's spacing.
+  const compact = useInChatScope();
 
   // The rail's ticks, built from the transcript already on screen rather than
   // from a query of its own: one list, drawn twice.
@@ -681,13 +667,18 @@ function ChatUI({
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
-        <TurnRail entries={railEntries} />
+        {!compact && <TurnRail entries={railEntries} />}
         <div
           ref={scrollContainerRef}
           className="flex-1 scrollbar-thin overflow-y-auto"
           style={{ paddingBottom: dockHeight }}
         >
-          <div ref={transcriptRef} className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
+          <div
+            ref={transcriptRef}
+            className={cn(
+              compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
+            )}
+          >
             {isLoadingConversation ? (
               <ConversationSkeleton />
             ) : messages.length === 0 ? (
@@ -721,7 +712,16 @@ function ChatUI({
             it - which, now that the composer is opaque, is the difference
             between a message sliding under the dock and one drawn on top of
             it. */}
-        <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+        {/* Opaque in the narrow column: there the transcript would show through
+            the gutter under the box, behind the disclaimer, as a line of text cut
+            in half. */}
+        <div
+          ref={dockRef}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-20",
+            compact && "bg-background",
+          )}
+        >
           {personalGaps.length > 0 && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectServicesCard gaps={personalGaps} />
@@ -755,19 +755,22 @@ function ChatUI({
               />
             </div>
           )}
-          <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
+          <div
+            className={cn(
+              "pointer-events-auto mx-auto w-full",
+              compact ? "px-3 pt-1 pb-1.5" : "max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4",
+            )}
+          >
             <InterruptedNotice
               interrupted={interrupted}
               detached={detachedTurnPending}
               onRecheck={onRecheck}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
-            {onDismissAside && <SideAnswers asides={asides} onDismiss={onDismissAside} />}
             <WaitingSteers steers={steers} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}
-            {isProcessing && onSendMode && <SendModePicker mode={sendMode} onChange={onSendMode} />}
             {/* The checklist the agent is working to. Here rather than in the
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
@@ -808,7 +811,7 @@ function ChatUI({
                     data-tour="chat-composer"
                     className="panel focus-within:border-foreground/30 rounded-2xl transition-colors"
                   >
-                    <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
+                    <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
                       {isArchived && (
                         <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
                           {t("conversationArchived")}
@@ -861,7 +864,7 @@ function ChatUI({
                   </div>
                 </Beam>
               </VoiceGlow>
-              <ComposerStatus isConnected={isConnected} />
+              <ComposerStatus isConnected={isConnected} compact={compact} />
             </div>
           </div>
         </div>

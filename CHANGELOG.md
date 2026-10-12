@@ -27,12 +27,12 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
-- **Steer a running turn, or ask on the side.** In the chat, a message sent while
-  the agent works now joins the task - it reads it at its next step and the answer
-  shows where it landed - or, picked above the composer, waits for the answer or is
-  asked on the side: answered at once from the conversation so far, in a run of
-  its own with no tools. In Slack, Telegram and Mattermost a mid-turn message from
-  the same person joins the turn, and `/btw ...` asks on the side (#2087).
+- **Steer a running turn.** In the chat, a message sent while the agent works now
+  joins the task - it reads it at its next step and the answer shows where it
+  landed. **Settings → Profile → Queue messages while the agent works** keeps the
+  old behaviour for whoever prefers it, on every device. In Slack, Telegram and
+  Mattermost a mid-turn message from the same person joins the turn, and
+  `/btw ...` asks on the side, answered at once without tools (#2087).
 - **A trigger can run as the person who made it.** *Run as me* on a schedule or
   an event trigger lets each fire reach its creator's memory and their own MCP
   connections - the morning "what matters in my inbox" - on fixed terms: a
@@ -405,6 +405,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A refusal before the agent starts answering is shown.** An agent with no
+  model, or nobody picked to answer, used to leave the question sitting there
+  with no reply; the refusal now appears as the answer.
+- **An agent's generated face no longer flashes before its picture loads.**
 - **A focused field's ring is no longer cut off.** Scrolling dialog bodies,
   tab strips, toolbars on a phone, menu lists, cards and sideways-scrolling
   tables left the ring room, or draw it inside.
@@ -445,6 +449,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Architect's window and the Builder's test panel are compact.** Each
+  message carries its face and name on one line above it and takes the full
+  width, the text is smaller, there is no turn rail, and the composer sits on an
+  opaque strip at the bottom with a smaller footnote.
+- **The Architect's mark follows the theme**, light on a dark page, wherever the
+  Architect appears - until an organization gives it a picture of its own.
+- **A lone question from the agent sits level with its close button**, rather
+  than a row below a bar holding only the ×.
+- **Pickers of people show their faces** when adding a member to a group or
+  sharing with one.
 - **Notifications appear at the top right**, clear of the Architect's
   launcher and bubbles in the bottom corner.
 - **The Architect's window and the Builder's test panel are the console's own

@@ -26,9 +26,11 @@ async def lock_for_install(db: AsyncSession, organization_id: UUID) -> None:
 
 
 async def create(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, mark_path: str | None
 ) -> OrganizationAssistant:
-    row = OrganizationAssistant(organization_id=organization_id, agent_id=agent_id)
+    row = OrganizationAssistant(
+        organization_id=organization_id, agent_id=agent_id, mark_path=mark_path
+    )
     db.add(row)
     await db.flush()
     await db.refresh(row)

@@ -13,6 +13,8 @@ export interface AssistantState {
   greeting: string | null;
   avatar_url: string | null;
   avatar_color: number | null;
+  /** Still wears the mark it shipped with, which the console draws in the theme's colours. */
+  wears_mark: boolean;
   model_profile_id: string | null;
   collection_ids: string[];
   /** `agents:run`, as for any agent. Without it there is no assistant at all. */

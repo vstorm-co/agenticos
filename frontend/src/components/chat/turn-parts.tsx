@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
 import { cn } from "@/lib/utils";
+import { useInChatScope } from "@/stores/chat-scope-context";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
@@ -232,6 +233,8 @@ export function TextBubble({
   onCiteClick?: (index: number) => void;
 }) {
   const visible = useSmoothText(text, showCursor && !isUser);
+  // The narrow chat beside a page reads at the size of the page around it.
+  const compact = useInChatScope();
   // Words keep their fade-in spans until the last one has finished fading: a fast
   // model ends its turn while its final words are still surfacing.
   const flowing = useLinger(showCursor || visible.length < text.length, WORD_FADE_MS);
@@ -242,8 +245,15 @@ export function TextBubble({
     // asked. The border is what keeps the shape in the light theme, where the
     // fill is three percent off the page.
     return (
-      <div className="bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border px-3 py-2 sm:px-4 sm:py-2.5">
-        <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
+      <div
+        className={cn(
+          "bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border",
+          compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
+        )}
+      >
+        <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
+          {text}
+        </p>
       </div>
     );
   }
@@ -253,7 +263,11 @@ export function TextBubble({
     // into place and each new word fades in, instead of appearing; both come off
     // when the turn ends, so nothing already read ever animates again.
     <div
-      className={cn("prose-sm max-w-none text-[15px] leading-relaxed", showCursor && "stream-in")}
+      className={cn(
+        "prose-sm max-w-none leading-relaxed",
+        compact ? "text-[13.5px]" : "text-[15px]",
+        showCursor && "stream-in",
+      )}
     >
       <MarkdownContent content={visible} onCiteClick={onCiteClick} streaming={flowing} />
       {showCursor && (

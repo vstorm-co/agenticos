@@ -9,7 +9,7 @@ administrator switched off.
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy import true as sql_true
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,13 @@ class OrganizationAssistant(Base, TimestampMixin):
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_true())
     greeting: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mark_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    """Where the shipped mark it was installed wearing is stored.
+
+    While the agent's picture is still this file, the console draws the mark
+    itself, in the theme's colours, rather than the picture - which is one fixed
+    image, dark on a dark page. A picture an organization uploaded replaces the
+    file and the console shows that instead, as for any agent."""
 
     def __repr__(self) -> str:
         return (

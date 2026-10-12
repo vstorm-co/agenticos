@@ -83,6 +83,14 @@ class User(Base, TimestampMixin):
         Boolean, default=True, server_default=text("true"), nullable=False
     )
 
+    # What a message typed while the agent works does in the console (#2087):
+    # false joins the running turn at its next step, true waits in the queue for
+    # the turn to end. A person's habit rather than a conversation's, so it is
+    # theirs on every device; channels always join, having no queue to wait in.
+    queue_while_working: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+
     sessions: Mapped[list["Session"]] = relationship(
         "Session",
         back_populates="user",

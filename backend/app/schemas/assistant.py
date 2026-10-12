@@ -34,6 +34,13 @@ class AssistantRead(BaseSchema):
     greeting: str | None
     avatar_url: str | None = None
     avatar_color: int | None = None
+    wears_mark: bool = Field(
+        default=True,
+        description=(
+            "Whether it still wears the mark it shipped with, which the console draws "
+            "in the theme's colours; false once somebody gave it a picture of its own"
+        ),
+    )
     model_profile_id: UUID | None = None
     collection_ids: list[UUID] = Field(default_factory=list)
     can_use: bool = Field(

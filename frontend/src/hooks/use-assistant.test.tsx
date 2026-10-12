@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
 import { useAssistant, useUpdateAssistant } from "./use-assistant";
 
@@ -37,6 +38,18 @@ describe("useAssistant", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/assistant");
   });
 
+  it("names the agent that draws as the Architect's mark, until it wears a picture", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...READY, wears_mark: true });
+    const { unmount } = renderHook(() => useAssistant(), { wrapper });
+    await waitFor(() => expect(useArchitectMarkStore.getState().agentId).toBe("a1"));
+    unmount();
+
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(apiClient.get).mockResolvedValue({ ...READY, wears_mark: false });
+    renderHook(() => useAssistant(), { wrapper });
+    await waitFor(() => expect(useArchitectMarkStore.getState().agentId).toBeNull());
+  });
+
   it("asks nothing before an organization is chosen", () => {
     useOrgStore.setState({ activeOrgId: null });
     const { result } = renderHook(() => useAssistant(), { wrapper });
@@ -56,6 +69,16 @@ describe("useUpdateAssistant", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/assistant", { name: "Ola" });
     expect(client.getQueryData(qk.assistant("org-1"))).toEqual(renamed);
+  });
+
+  it("files the answer under no organization while none is chosen", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    vi.mocked(apiClient.patch).mockResolvedValue(READY);
+    const { result } = renderHook(() => useUpdateAssistant(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ enabled: true }));
+
+    expect(client.getQueryData(qk.assistant(""))).toEqual(READY);
   });
 
   it("says why a change was refused", async () => {

@@ -1373,16 +1373,7 @@
     "imageNotLoaded": "Obraz (niezaładowany)",
     "steerAdded": "Dodałeś:",
     "whileWorking": {
-      "label": "Gdy agent pracuje, twoja wiadomość",
-      "modes": {
-        "steer": "Dołącza do zadania",
-        "after": "Czeka na odpowiedź",
-        "aside": "Pyta na boku"
-      },
-      "steersWaiting": "Dołączone do bieżącego zadania - agent przeczyta to w następnym kroku",
-      "askedAside": "Na boku:",
-      "dismiss": "Zamknij",
-      "answering": "Odpowiadam obok zadania…"
+      "steersWaiting": "Dołączone do bieżącego zadania - agent przeczyta to w następnym kroku"
     }
   },
   "common": {
@@ -4354,7 +4345,11 @@
       "prefMcpServerDown": "Serwer MCP nie odpowiada",
       "prefMcpServerDownTrigger": "Serwer MCP organizacji przestał odpowiadać na sprawdzenie lub w trakcie runu. Wysyłane raz na awarię administratorom i właścicielom agentów, którzy z niego korzystają.",
       "prefMcpServerRecovered": "Serwer MCP znów odpowiada",
-      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia."
+      "prefMcpServerRecoveredTrigger": "Serwer, który przestał odpowiadać, wrócił, a agenci, którzy z niego korzystają, znów mają jego narzędzia.",
+      "chatPreferences": "Chat",
+      "chatPreferencesDescription": "Jak działa chat u ciebie, na każdym urządzeniu.",
+      "queueWhileWorking": "Kolejkuj wiadomości, gdy agent pracuje",
+      "queueWhileWorkingHint": "Wyłączone: wiadomość wysłana w trakcie runu dołącza do niego, a agent czyta ją w następnym kroku. Włączone: czeka w kolejce i zostaje wysłana po zakończeniu runu. W Slacku, Telegramie i Mattermost wiadomość zawsze dołącza do runu."
     },
     "skills": {
       "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",

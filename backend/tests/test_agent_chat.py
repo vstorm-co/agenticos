@@ -1115,23 +1115,3 @@ class TestAddingToTheTurnAndAskingAside:
             await _run(_db(), steering=inbox)
 
         assert prepared.deps.steering is inbox
-
-    async def test_an_aside_is_a_run_of_its_own_on_the_answer_only_path(self):
-        run = MagicMock()
-        history: list[Any] = []
-        with _runner(_prepared()) as runner:
-            runner.execute = AsyncMock(return_value=("Three.", run))
-            answer = await ChatAgentRunner(MagicMock()).answer_aside(
-                user=_user(),
-                organization_id=uuid.uuid4(),
-                agent_id=uuid.uuid4(),
-                question="how many?",
-                message_history=history,
-            )
-
-        assert answer == ("Three.", run)
-        kwargs = runner.execute.await_args.kwargs
-        assert runner.execute.await_args.args[2] == "how many?"
-        assert kwargs["aside"] is True
-        assert kwargs["message_history"] is history
-        assert kwargs["surface"] is RunSurface.WEB

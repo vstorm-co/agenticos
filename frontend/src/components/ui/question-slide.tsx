@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -37,6 +37,8 @@ interface QuestionSlideProps {
   disabled: boolean;
   /** Called with the answer for this slide; the carousel moves on. */
   onAnswer: (answer: QuestionPromptAnswer) => void;
+  /** Drawn level with the question, at its right - the close button of a lone question. */
+  aside?: ReactNode;
 }
 
 /**
@@ -44,7 +46,7 @@ interface QuestionSlideProps {
  * multi-choice question collects ticks until Continue. Digits pick an option,
  * the arrows move between them and Enter chooses the focused one.
  */
-export function QuestionSlide({ item, previous, disabled, onAnswer }: QuestionSlideProps) {
+export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: QuestionSlideProps) {
   const t = useTranslations("ui");
   const options = item.options ?? [];
   const allowCustom = item.allowCustom ?? true;
@@ -109,14 +111,17 @@ export function QuestionSlide({ item, previous, disabled, onAnswer }: QuestionSl
       aria-label={t("questionFromAssistant")}
       className="outline-none"
     >
-      <div className="space-y-1.5 px-4 pb-3">
-        {item.header && (
-          <span className="bg-foreground/[0.06] text-muted-foreground inline-block rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase">
-            {item.header}
-          </span>
-        )}
-        <p className="text-foreground text-[15px] leading-snug font-medium">{item.question}</p>
-        {multi && <p className="text-muted-foreground text-xs">{t("pickAnyNumber")}</p>}
+      <div className={cn("flex items-start gap-3 px-4 pb-3", aside && "pt-3")}>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          {item.header && (
+            <span className="bg-foreground/[0.06] text-muted-foreground inline-block rounded-md px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase">
+              {item.header}
+            </span>
+          )}
+          <p className="text-foreground text-[15px] leading-snug font-medium">{item.question}</p>
+          {multi && <p className="text-muted-foreground text-xs">{t("pickAnyNumber")}</p>}
+        </div>
+        {aside}
       </div>
 
       {options.length > 0 && (

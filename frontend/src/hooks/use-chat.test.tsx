@@ -491,6 +491,18 @@ describe("useChat - failures and interruptions", () => {
     expect(streaming()?.content).toContain("❌ Error: Budget exceeded");
   });
 
+  it("answers a refusal that came before the turn opened a message, instead of dropping it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+
+    receive("error", { message: "This agent has no model" });
+
+    const answer = useChatStore.getState().messages.at(-1);
+    expect(answer).toMatchObject({ role: "assistant", isStreaming: false });
+    expect(answer?.content).toContain("This agent has no model");
+    expect(result.current.isProcessing).toBe(false);
+  });
+
   it("says an error happened even when the server named no reason", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
@@ -2961,7 +2973,7 @@ describe("useChat - a question its person came back to", () => {
   });
 });
 
-describe("useChat - adding to a running turn and asking aside (#2087)", () => {
+describe("useChat - adding to a running turn (#2087)", () => {
   beforeEach(() => {
     sent.mockClear();
     useChatStore.setState({ messages: [] });
@@ -2997,37 +3009,16 @@ describe("useChat - adding to a running turn and asking aside (#2087)", () => {
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["and the totals"]);
   });
 
-  it("asks on the side and shows the answer on its card, or why there is none", () => {
-    useAgentSelectionStore.setState({ selectedAgentId: "agent-1" });
+  it("queues it for after the turn for somebody who chose that", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
-    act(() => result.current.sendMessage("how long will it take?", undefined, undefined, "aside"));
-    act(() => result.current.sendMessage("and the cost?", undefined, undefined, "aside"));
 
-    const asked = frame(1);
-    expect(asked).toMatchObject({
-      type: "side_question",
-      text: "how long will it take?",
-      agent_id: "agent-1",
-    });
-    receive("side_answer", { id: asked.id, answer: "A minute." });
-    receive("side_answer", { id: frame(2).id, error: "Over budget" });
+    act(() => result.current.sendMessage("and then the summary", undefined, undefined, "after"));
 
-    expect(result.current.asides.map(({ answer, error }) => answer ?? error)).toEqual([
-      "A minute.",
-      "Over budget",
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "and then the summary",
     ]);
-    act(() => result.current.dismissAside(String(asked.id)));
-    expect(result.current.asides.map((aside) => aside.question)).toEqual(["and the cost?"]);
-  });
-
-  it("asks without naming an agent when none is selected", () => {
-    useAgentSelectionStore.setState({ selectedAgentId: null });
-    const { result } = renderHook(() => useChat(), { wrapper });
-    act(() => result.current.sendMessage("go"));
-    act(() => result.current.sendMessage("why?", undefined, undefined, "aside"));
-
-    expect(frame(1)).not.toHaveProperty("agent_id");
+    expect(result.current.steers).toEqual([]);
   });
 
   it("holds a message with a file for the answer - a correction carries no file", () => {

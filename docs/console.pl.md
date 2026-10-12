@@ -1,5 +1,5 @@
 ---
-source_sha: "92b2405b2792"
+source_sha: "b26230b385ba"
 ---
 
 # Konsola { #the-console }
@@ -224,10 +224,10 @@ ukryć. Należą do ciebie, nie do organizacji.
 
 **Gdy agent pracuje**, to, co wysyłasz, dołącza do zadania: agent czyta to w
 następnym kroku i zmienia kurs bez zaczynania od nowa, a odpowiedź pokazuje, gdzie
-to dotarło. Nad kompozytorem możesz zamiast tego wybrać **Czeka na odpowiedź**,
-które wysyła to jako następną wiadomość, albo **Pyta na boku**, które odpowiada na
-szybkie pytanie na podstawie dotychczasowej rozmowy - we własnym runie, bez
-narzędzi - podczas gdy zadanie trwa dalej.
+to dotarło. Jeśli wolisz skończyć jedną wymianę przed następną, włącz **Queue
+messages while the agent works** w **Settings → Profile**: wiadomość czeka wtedy w
+kolejce nad kompozytorem i zostaje wysłana po zakończeniu runu. To twój wybór i
+działa na każdym urządzeniu.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,

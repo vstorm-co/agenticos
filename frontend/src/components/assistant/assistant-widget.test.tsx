@@ -87,6 +87,7 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     named_by_default: true,
     greeting: null,
     avatar_url: null,
+    wears_mark: true,
     avatar_color: null,
     model_profile_id: "m1",
     collection_ids: [],
@@ -157,6 +158,7 @@ describe("the Architect widget", () => {
       name: "Ola z IT",
       named_by_default: false,
       avatar_url: "/api/agents/a1/avatar",
+      wears_mark: false,
     });
     render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Ola z IT" })).toBeInTheDocument();

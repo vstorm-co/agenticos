@@ -213,10 +213,10 @@ yours, not the organization's.
 
 **While the agent works**, what you send joins the task: the agent reads it at its
 next step and adjusts course without starting over, and the answer shows where it
-arrived. Above the composer you can pick **Waits for the answer** instead, which
-sends it as the next message, or **Asks on the side**, which answers a quick
-question from the conversation so far - in a run of its own, with no tools -
-while the task keeps going.
+arrived. If you would rather finish one exchange before starting the next, turn on
+**Queue messages while the agent works** under **Settings → Profile**: a message
+then waits in the queue above the composer and is sent when the run ends. The
+choice is yours and follows you to every device.
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,

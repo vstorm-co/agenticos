@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  EntityAvatar,
   Label,
   Select,
   SelectContent,
@@ -39,7 +40,18 @@ export function GroupMemberAdd({ candidates, pending, onAdd }: GroupMemberAddPro
           <SelectContent>
             {candidates.map((member) => (
               <SelectItem key={member.user_id} value={member.user_id}>
-                {member.full_name ? `${member.full_name} (${member.email})` : member.email}
+                <span className="flex min-w-0 items-center gap-2">
+                  <EntityAvatar
+                    seed={member.user_id}
+                    name={member.full_name || member.email}
+                    imageSrc={`/api/users/avatar/${member.user_id}`}
+                    className="h-5 w-5 shrink-0 text-[9px]"
+                    ariaHidden
+                  />
+                  <span className="truncate">
+                    {member.full_name ? `${member.full_name} (${member.email})` : member.email}
+                  </span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

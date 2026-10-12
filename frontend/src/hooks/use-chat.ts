@@ -50,21 +50,16 @@ import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
  *  Held outside the chat history until the drainer ships it. */
-/** How a message typed while the agent works is sent (#2087). */
-export type SendMode = "steer" | "after" | "aside";
+/**
+ * How a message typed while the agent works is sent (#2087): into the running
+ * turn, or into the queue for after it. The person's own setting decides.
+ */
+export type SendMode = "steer" | "after";
 
 /** A correction sent to the running turn, shown until it reaches the model. */
 export interface SteerDraft {
   id: string;
   text: string;
-}
-
-/** A question asked on the side of the running turn, and its answer once it comes. */
-export interface SideQuestion {
-  id: string;
-  question: string;
-  answer?: string;
-  error?: string;
 }
 
 export interface QueuedMessage {
@@ -187,7 +182,6 @@ export function useChat(options: UseChatOptions = {}) {
   // Corrections sent into the running turn, until `steer_applied` says the model
   // has them, and questions asked beside it with their answers (#2087).
   const [steers, setSteers] = useState<SteerDraft[]>([]);
-  const [asides, setAsides] = useState<SideQuestion[]>([]);
   const modelProfileRef = useRef<string | null>(null);
   // Read at send time like the model profile, and for the same reason: the queue
   // drainer sends a turn up to a minute later, and the frame must carry whatever
@@ -660,8 +654,13 @@ export function useChat(options: UseChatOptions = {}) {
         case "error": {
           setPendingConnection(null);
           awaitingConnectionRef.current = false;
-          if (currentMessageIdRef.current) {
-            const id = currentMessageIdRef.current;
+          // A refusal before the turn opened a message - an agent with no model,
+          // nobody picked to answer - lands in a message of its own under the
+          // question it refused. Dropped, the question just sat there unanswered.
+          // With no question waiting there is nothing to answer, and it stays out.
+          const unanswered = chatApi.getState().messages.at(-1)?.role === "user";
+          const id = currentMessageIdRef.current ?? (unanswered ? createNewMessage("") : null);
+          if (id) {
             const { message } = wsEvent.data as { message: string };
             // Into the timeline rather than onto `content` directly: the store's
             // append keeps the two in step, and it starts a parts list for a
@@ -748,18 +747,6 @@ export function useChat(options: UseChatOptions = {}) {
           setSteers((waiting) => waiting.filter((steer) => !texts.includes(steer.text)));
           for (const text of texts) messageQueueRef.current.push({ id: clientId(), content: text });
           setQueuedMessages([...messageQueueRef.current]);
-          break;
-        }
-
-        case "side_answer": {
-          const { id, answer, error } = wsEvent.data as {
-            id: string;
-            answer?: string;
-            error?: string;
-          };
-          setAsides((asked) =>
-            asked.map((aside) => (aside.id === id ? { ...aside, answer, error } : aside)),
-          );
           break;
         }
 
@@ -1040,41 +1027,16 @@ export function useChat(options: UseChatOptions = {}) {
     ],
   );
 
-  const askAside = useCallback(
-    (question: string) => {
-      const id = clientId();
-      setAsides((asked) => [...asked, { id, question }]);
-      const agentId = selectionApi.getState().selectedAgentId;
-      sendMessage({
-        type: "side_question",
-        id,
-        text: question,
-        ...(agentId ? { agent_id: agentId } : {}),
-      });
-    },
-    [selectionApi, sendMessage],
-  );
-
-  const dismissAside = useCallback((id: string) => {
-    setAsides((asked) => asked.filter((aside) => aside.id !== id));
-  }, []);
-
   const sendChatMessage = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[], mode: SendMode = "steer") => {
-      // While the agent works, a message joins the task by default and reaches
-      // it at its next step; a question can be asked beside it instead (#2087).
-      // A file cannot ride along with a correction, so a message carrying one
-      // waits for the turn like "after" does.
-      if (isProcessing && isConnected && !fileIds?.length) {
-        if (mode === "steer") {
-          setSteers((waiting) => [...waiting, { id: clientId(), text: content }]);
-          sendMessage({ type: "steer", text: content });
-          return;
-        }
-        if (mode === "aside") {
-          askAside(content);
-          return;
-        }
+      // While the agent works, a message joins the task and reaches it at its
+      // next step, unless the person chose to queue instead (#2087). A file
+      // cannot ride along with a correction, so a message carrying one waits
+      // for the turn like a queued one does.
+      if (mode === "steer" && isProcessing && isConnected && !fileIds?.length) {
+        setSteers((waiting) => [...waiting, { id: clientId(), text: content }]);
+        sendMessage({ type: "steer", text: content });
+        return;
       }
       // Queue when the agent is busy OR the socket is offline. The queue is
       // surfaced above the input as pending entries the user can cancel; the
@@ -1087,7 +1049,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
       doSend(content, fileIds, files);
     },
-    [isProcessing, isConnected, doSend, sendMessage, askAside],
+    [isProcessing, isConnected, doSend, sendMessage],
   );
 
   const cancelQueued = useCallback((id: string) => {
@@ -1176,7 +1138,6 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setBrowses([]);
     setSteers([]);
-    setAsides([]);
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
@@ -1767,8 +1728,6 @@ export function useChat(options: UseChatOptions = {}) {
     /** Corrections sent into the running turn that have not reached the model yet. */
     steers,
     /** Questions asked beside the running turn, with their answers as they come. */
-    asides,
-    dismissAside,
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
     },

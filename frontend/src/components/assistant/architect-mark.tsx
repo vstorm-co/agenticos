@@ -17,7 +17,8 @@ export function ArchitectMark({
   size,
   className,
 }: {
-  size: keyof typeof SIZES;
+  /** One of its own sizes; omitted where the caller sizes it through `className`. */
+  size?: keyof typeof SIZES;
   className?: string;
 }) {
   return (
@@ -25,7 +26,7 @@ export function ArchitectMark({
       aria-hidden
       className={cn(
         "bg-foreground text-background inline-flex shrink-0 items-center justify-center rounded-full",
-        SIZES[size],
+        size && SIZES[size],
         className,
       )}
     >

@@ -71,6 +71,13 @@ class UserUpdate(BaseSchema):
         default=None,
         description="Email me the weekly and monthly usage reports.",
     )
+    queue_while_working: bool | None = Field(
+        default=None,
+        description=(
+            "In the console, hold a message sent while the agent works until the turn "
+            "ends, instead of adding it to the running turn."
+        ),
+    )
 
     @field_validator("email")
     @classmethod
@@ -98,6 +105,7 @@ class UserRead(UserBase, TimestampSchema):
     notify_budget_alerts: bool = True
     notify_approval_requests: bool = True
     notify_usage_reports: bool = True
+    queue_while_working: bool = False
 
 
 class UserInDB(UserRead):

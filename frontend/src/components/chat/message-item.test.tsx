@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageItem } from "./message-item";
 import { mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
+import { ChatScope } from "@/stores/chat-scope";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
@@ -235,6 +236,47 @@ describe("a turn in the transcript", () => {
     });
 
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("a turn in the narrow chat beside a page (the Architect, the test panel)", () => {
+  const support = { id: "a-1", slug: "support", name: "Support" } as Agent;
+  function compact(
+    overrides: Partial<ChatMessage> = {},
+    props: { agent?: Agent; groupPosition?: "first" | "single"; continuesTurn?: boolean } = {},
+  ) {
+    return render(
+      <ChatScope agentId="a-1">
+        <MessageItem message={message(overrides)} {...props} />
+      </ChatScope>,
+    );
+  }
+
+  it("puts the face and the name on one line above an answer, with its version", () => {
+    compact({ agentVersion: 2 }, { agent: support, groupPosition: "first" });
+
+    expect(screen.getByText("Support")).toBeInTheDocument();
+    expect(screen.getByText(/v2/)).toBeInTheDocument();
+  });
+
+  it("calls an answer by a generic name when the agent is unknown, without a version", () => {
+    compact({});
+
+    expect(screen.getByText("Agent")).toBeInTheDocument();
+    expect(screen.queryByText(/v\d/)).toBeNull();
+  });
+
+  it("calls the person's own message theirs", () => {
+    compact({ role: "user", content: "Refunds?" }, { agent: support });
+
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.queryByText("Support")).toBeNull();
+  });
+
+  it("draws no second line for a segment continuing the same turn", () => {
+    compact({}, { agent: support, continuesTurn: true });
+
+    expect(screen.queryByText("Support")).toBeNull();
   });
 });
 

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  EntityAvatar,
   Label,
   Select,
   SelectContent,
@@ -74,6 +75,13 @@ export function AddShare({ members, groups, pending, onShare }: AddShareProps) {
                     key={member.user_id}
                     value={encodeSubject({ kind: "user", id: member.user_id })}
                   >
+                    <EntityAvatar
+                      seed={member.user_id}
+                      name={member.full_name || member.email}
+                      imageSrc={`/api/users/avatar/${member.user_id}`}
+                      className="h-5 w-5 shrink-0 text-[9px]"
+                      ariaHidden
+                    />
                     {member.email}
                   </SelectItem>
                 ))}

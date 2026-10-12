@@ -1,5 +1,5 @@
 ---
-source_sha: "92b2405b2792"
+source_sha: "b26230b385ba"
 ---
 
 # La consola { #the-console }
@@ -226,10 +226,10 @@ Son tuyos, no de la organización.
 
 **Mientras el agent trabaja**, lo que envías se suma a la tarea: el agent lo lee
 en su siguiente paso y corrige el rumbo sin empezar de nuevo, y la respuesta
-muestra dónde llegó. Encima del cuadro de texto puedes elegir en su lugar **Espera
-a la respuesta**, que lo envía como el siguiente mensaje, o **Pregunta aparte**,
-que responde a una pregunta rápida a partir de la conversación hasta ahora - en un
-run propio, sin herramientas - mientras la tarea sigue.
+muestra dónde llegó. Si prefieres terminar un intercambio antes de empezar el
+siguiente, activa **Queue messages while the agent works** en **Settings →
+Profile**: el mensaje espera entonces en la cola encima del cuadro de texto y se
+envía cuando termina el run. La elección es tuya y te sigue en cada dispositivo.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras

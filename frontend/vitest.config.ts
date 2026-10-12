@@ -81,6 +81,7 @@ export default defineConfig({
         "src/components/settings/connected-apps.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
+        "src/components/settings/chat-preferences.tsx",
         "src/components/settings/copy-code.tsx",
         "src/components/settings/mcp-connect.tsx",
         "src/components/settings/mcp-snippets.ts",

@@ -48,7 +48,6 @@ from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import AgentRun as AgentRunRow
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -658,33 +657,6 @@ class ChatAgentRunner:
     async def _budget(self, ctx: AuthContext) -> Decimal | None:
         organization = await self.db.get(Organization, ctx.organization_id)
         return None if organization is None else organization.monthly_budget_usd
-
-    async def answer_aside(
-        self,
-        *,
-        user: User,
-        organization_id: UUID,
-        agent_id: UUID,
-        question: str,
-        message_history: list[ModelMessage],
-    ) -> tuple[str, AgentRunRow]:
-        """Answer a question asked on the side of a run still working (#2087).
-
-        A run of its own - recorded, budgeted and in Activity like any other - so
-        the main run is neither interrupted nor charged for it. It has the
-        conversation so far and none of the agent's tools: it says what it knows
-        and changes nothing (`AgentRunnerService` with `aside`). Not part of the
-        thread's transcript either; it answers beside it.
-        """
-        ctx = await self._context(user, organization_id)
-        return await self.runner.execute(
-            ctx,
-            agent_id,
-            question,
-            surface=RunSurface.WEB,
-            message_history=message_history,
-            aside=True,
-        )
 
     async def _context(self, user: User, organization_id: UUID) -> AuthContext:
         """The connected user's standing in the organization they are chatting in.

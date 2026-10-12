@@ -15,6 +15,7 @@ import { MessageCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
+import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
@@ -135,6 +136,9 @@ export function MessageItem({
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
   const isGrouped = groupPosition && groupPosition !== "single";
+  // The Architect's window and the Builder's test panel: a narrow column beside
+  // the page, where the full chat's spacing spent most of the width on air.
+  const compact = useInChatScope();
 
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
@@ -148,6 +152,52 @@ export function MessageItem({
   const hasSources = sources.length > 0 && !message.isStreaming;
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
+  const avatar = (
+    <div
+      aria-hidden={continuesTurn}
+      className={cn(
+        "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
+        compact ? "h-6 w-6" : "h-8 w-8 sm:h-9 sm:w-9",
+        // Empty, not absent: the gutter is what keeps every segment of the turn
+        // in one column under the avatar that opened it.
+        continuesTurn
+          ? "bg-transparent"
+          : isUser
+            ? "bg-foreground text-background"
+            : "bg-muted text-foreground",
+        isGrouped && !isUser && !continuesTurn && "ring-background ring-2",
+      )}
+    >
+      {continuesTurn ? null : isUser && authUser?.avatar_url ? (
+        <Image
+          src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
+          alt=""
+          width={36}
+          height={36}
+          className="h-full w-full object-cover"
+          unoptimized
+        />
+      ) : isUser && authUser ? (
+        <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
+      ) : isUser ? (
+        // A signed-out reader of a shared transcript: there is no id to draw a
+        // face from, and a face drawn from nothing would be somebody else's.
+        <User className="h-4 w-4" />
+      ) : agent ? (
+        <AgentAvatar
+          agentId={agent.id}
+          slug={agent.slug}
+          hasAvatar={agent.has_avatar}
+          size="md"
+          thinking={Boolean(message.isStreaming)}
+          className="h-full w-full border-0"
+        />
+      ) : (
+        <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+      )}
+    </div>
+  );
+
   return (
     <div
       // The anchor the turn rail scrolls to. On the row rather than on a wrapper
@@ -155,7 +205,8 @@ export function MessageItem({
       // drawn around it.
       data-message-id={message.id}
       className={cn(
-        "group relative flex gap-2 overflow-visible sm:gap-4",
+        "group relative flex overflow-visible",
+        compact ? "flex-col gap-1.5" : "gap-2 sm:gap-4",
         // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
         // utilities of equal specificity leave which one wins to the order of the
         // generated stylesheet, and a segment reading `py-3 pt-0 pb-0` kept its
@@ -166,15 +217,15 @@ export function MessageItem({
         // turn that ran three commands is three segments, each carrying one step,
         // so three steps of one run sat two message-gaps apart and looked like
         // three separate things the agent did.
-        continuesTurn ? "pt-0" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
-        endsTurn ? (isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
-        isUser && "flex-row-reverse",
+        continuesTurn ? "pt-0" : compact ? "pt-2" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
+        endsTurn ? (compact ? "pb-2" : isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
+        isUser && (compact ? "items-end" : "flex-row-reverse"),
       )}
     >
       {" "}
-      {isGrouped && !isUser && (
+      {isGrouped && !isUser && !compact && (
         <div
-          className="bg-border absolute left-[15px] w-0.5 sm:left-[17px]"
+          className={cn("bg-border absolute left-[15px] w-0.5 sm:left-[17px]")}
           style={
             groupPosition === "first"
               ? { top: "24px", bottom: "0" }
@@ -184,58 +235,35 @@ export function MessageItem({
           }
         />
       )}
-      <div
-        aria-hidden={continuesTurn}
-        className={cn(
-          "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9",
-          // Empty, not absent: the gutter is what keeps every segment of the turn
-          // in one column under the avatar that opened it.
-          continuesTurn
-            ? "bg-transparent"
-            : isUser
-              ? "bg-foreground text-background"
-              : "bg-muted text-foreground",
-          isGrouped && !isUser && !continuesTurn && "ring-background ring-2",
-        )}
-      >
-        {continuesTurn ? null : isUser && authUser?.avatar_url ? (
-          <Image
-            src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
-            alt=""
-            width={36}
-            height={36}
-            className="h-full w-full object-cover"
-            unoptimized
-          />
-        ) : isUser && authUser ? (
-          <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
-        ) : isUser ? (
-          // A signed-out reader of a shared transcript: there is no id to draw a
-          // face from, and a face drawn from nothing would be somebody else's.
-          <User className="h-4 w-4" />
-        ) : agent ? (
-          <AgentAvatar
-            agentId={agent.id}
-            slug={agent.slug}
-            hasAvatar={agent.has_avatar}
-            size="md"
-            thinking={Boolean(message.isStreaming)}
-            className="h-full w-full border-0"
-          />
-        ) : (
-          <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
-        )}
-      </div>
+      {compact
+        ? // One line over the message rather than a column beside it: the face and
+          // the name together, and the message below them at the window's full
+          // width.
+          !continuesTurn && (
+            <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
+              {avatar}
+              <span className="text-muted-foreground truncate text-xs font-medium">
+                {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+                {!isUser && message.agentVersion !== undefined && (
+                  <span className="text-muted-foreground/70"> · v{message.agentVersion}</span>
+                )}
+              </span>
+            </div>
+          )
+        : avatar}
       <div
         className={cn(
-          "max-w-[88%] flex-1 space-y-2 overflow-hidden sm:max-w-[85%]",
+          "flex-1 overflow-hidden",
+          compact
+            ? cn("space-y-1.5", isUser ? "max-w-[85%]" : "w-full")
+            : "max-w-[88%] space-y-2 sm:max-w-[85%]",
           isUser && "flex flex-col items-end",
         )}
       >
         {/* Which agent answered, on the turn it answered. A conversation that
             switched agents mid-way says so, instead of relabelling the whole
             thread with whatever is selected now. */}
-        {!isUser && agent && !continuesTurn && (
+        {!isUser && agent && !continuesTurn && !compact && (
           <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {agent.name}
             {/* The version, where the transcript recorded one. An agent gets

@@ -1,5 +1,7 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
 import { AgentAvatar } from "./agent-avatar";
 
@@ -13,6 +15,8 @@ import { AgentAvatar } from "./agent-avatar";
  * test.
  */
 describe("AgentAvatar", () => {
+  afterEach(() => useArchitectMarkStore.setState({ agentId: null }));
+
   const face = (container: HTMLElement) => container.querySelector("g.mo-root");
   /** The figure itself, for comparing one agent's face against another's. */
   const drawing = (container: HTMLElement) => face(container)!.innerHTML;
@@ -54,22 +58,39 @@ describe("AgentAvatar", () => {
     expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("still shows the face while a stored picture is being fetched", () => {
-    // The fallback is what a reader sees until the request answers - Radix only
-    // puts the picture in the DOM once it has loaded, which in jsdom is never.
-    // The request itself goes through the API, so it carries the same access
-    // check as reading the agent.
+  it("holds the face back while a stored picture loads, then shows it if none came", async () => {
+    // Shown at once, the generated face flashed wherever a picture was about to
+    // appear. Radix only puts the picture in the DOM once it has loaded, which in
+    // jsdom is never - so here the face arrives after the delay, as it would for
+    // a picture that failed. The request goes through the API, so it carries the
+    // same access check as reading the agent.
     const { container } = render(<AgentAvatar agentId="a1" slug="support" hasAvatar />);
 
-    expect(face(container)).not.toBeNull();
+    expect(face(container)).toBeNull();
+    await waitFor(() => expect(face(container)).not.toBeNull());
   });
 
-  it("takes a version, which is what defeats the cache after an upload", () => {
+  it("takes a version, which is what defeats the cache after an upload", async () => {
     // Without it a replaced picture keeps rendering as the old one until a hard
     // reload, because the URL did not change.
     const { container } = render(<AgentAvatar agentId="a1" slug="support" hasAvatar version={2} />);
 
-    expect(face(container)).not.toBeNull();
+    await waitFor(() => expect(face(container)).not.toBeNull());
+  });
+
+  it("draws the Architect's mark, in the theme's colours, while it wears it", () => {
+    // Its stored picture is one fixed image - dark on a dark page - so the mark is
+    // drawn instead, for that agent only.
+    useArchitectMarkStore.setState({ agentId: "architect-1" });
+
+    const { container: architect } = render(
+      <AgentAvatar agentId="architect-1" slug="architect" hasAvatar />,
+    );
+    const { container: other } = render(<AgentAvatar agentId="a1" slug="support" />);
+
+    expect(architect.querySelector('svg path[d^="M12 6.4"]')).not.toBeNull();
+    expect(architect.querySelector("span")).toHaveClass("bg-foreground");
+    expect(face(other)).not.toBeNull();
   });
 
   it("draws the face mid-thought while the agent is answering", () => {

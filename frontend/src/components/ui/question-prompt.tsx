@@ -67,29 +67,42 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
   // goes back as skipped.
   const settle = () => onComplete(questions.map((_, index) => answers[index] ?? SKIPPED));
 
+  // On the bar with the progress when there are several questions, and level
+  // with the question when there is one - a bar holding nothing but the close
+  // button pushed the question a row down for no reason.
+  const close = (
+    <button
+      type="button"
+      onClick={settle}
+      disabled={disabled}
+      aria-label={t("dismissQuestions")}
+      className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
+    >
+      <X className="h-4 w-4" />
+    </button>
+  );
+
   return (
     <div className="bg-muted/40 border-foreground/10 overflow-hidden rounded-2xl border">
-      <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-2">
-        <div className="flex items-center gap-2">
-          {step > 0 && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => setStep(step - 1)}
-              aria-label={t("previousQuestion")}
-              className="text-muted-foreground hover:text-foreground -ml-1 rounded-md p-0.5"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          )}
-          {total > 1 && (
+      {total > 1 && (
+        <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-2">
+          <div className="flex items-center gap-2">
+            {step > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setStep(step - 1)}
+                aria-label={t("previousQuestion")}
+                className="text-muted-foreground hover:text-foreground -ml-1 rounded-md p-0.5"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
             <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
               {reviewing ? t("reviewAnswers") : t("questionStep", { step: step + 1, total })}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {total > 1 && (
+          </div>
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               {questions.map((item, index) => (
                 <button
@@ -109,18 +122,10 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
                 />
               ))}
             </div>
-          )}
-          <button
-            type="button"
-            onClick={settle}
-            disabled={disabled}
-            aria-label={t("dismissQuestions")}
-            className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+            {close}
+          </div>
         </div>
-      </div>
+      )}
 
       {reviewing ? (
         <div className="space-y-3 px-4 pb-3">
@@ -146,6 +151,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
             previous={answers[step]}
             disabled={disabled}
             onAnswer={(given) => answer(step, given)}
+            aside={total > 1 ? undefined : close}
           />
           <div className="border-foreground/8 flex justify-end border-t px-4 py-2">
             <button

@@ -1,5 +1,5 @@
 ---
-source_sha: "92b2405b2792"
+source_sha: "b26230b385ba"
 ---
 
 # Die Konsole { #the-console }
@@ -242,10 +242,11 @@ können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
 **Während der Agent arbeitet**, ergänzt das, was Sie senden, die Aufgabe: Der
 Agent liest es beim nächsten Schritt und ändert den Kurs, ohne neu anzufangen, und
-die Antwort zeigt, wo es ankam. Über dem Eingabefeld können Sie stattdessen
-**Wartet auf die Antwort** wählen, das es als nächste Nachricht schickt, oder
-**Fragt nebenbei**, das eine kurze Frage aus dem bisherigen Gespräch beantwortet -
-in einem eigenen Run, ohne Tools - während die Aufgabe weiterläuft.
+die Antwort zeigt, wo es ankam. Wenn Sie lieber einen Austausch abschließen, bevor
+der nächste beginnt, schalten Sie unter **Settings → Profile** **Queue messages
+while the agent works** ein: Eine Nachricht wartet dann in der Warteschlange über
+dem Eingabefeld und wird gesendet, wenn der Run endet. Die Wahl gehört Ihnen und
+gilt auf jedem Gerät.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten

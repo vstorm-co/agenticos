@@ -85,8 +85,10 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert waiting.status == "needs_model"
     assert waiting.name == "Architect"
     assert waiting.named_by_default
-    # It wears its mark from the start, as a picture any agent surface can draw.
+    # It wears its mark from the start, as a picture any agent surface can draw,
+    # and the console knows the picture is the mark (drawn in the theme's colours).
     assert waiting.avatar_url is not None
+    assert waiting.wears_mark
     assert not waiting.can_configure
 
     profile = await _model(db, organization)
@@ -227,6 +229,22 @@ async def test_a_model_chosen_in_the_builder_is_the_one_it_publishes_on(
 
     assert (published.status, published.model_profile_id) == ("ready", chosen.id)
     assert again == published
+
+
+async def test_a_picture_of_its_own_replaces_the_mark(db: AsyncSession) -> None:
+    from app.services.assistant import AVATAR
+
+    organization, owner = await _organization(db)
+    admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    service = AssistantService(db)
+    installed = await service.state(admin)
+    assert installed.agent_id is not None
+
+    await AgentRegistryService(db).set_avatar(
+        admin, installed.agent_id, file_data=AVATAR.read_bytes(), content_type="image/png"
+    )
+
+    assert not (await service.state(admin)).wears_mark
 
 
 def test_the_row_names_its_organization_and_agent() -> None:

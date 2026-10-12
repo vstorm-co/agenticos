@@ -28,6 +28,9 @@ export interface User {
   notify_budget_alerts?: boolean;
   notify_approval_requests?: boolean;
   notify_usage_reports?: boolean;
+  /** In the console, hold a message sent while the agent works for after the
+   *  turn instead of adding it to the running one (#2087). */
+  queue_while_working?: boolean;
   /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates

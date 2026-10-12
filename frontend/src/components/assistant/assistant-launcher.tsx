@@ -83,7 +83,7 @@ export function AssistantFace({
   size: "sm" | "lg";
 }) {
   // The Architect wears its own mark until an organization gives it a picture.
-  if (assistant.avatar_url === null) return <ArchitectMark size={size} />;
+  if (assistant.wears_mark) return <ArchitectMark size={size} />;
   return (
     <AgentAvatar
       agentId={agentId}

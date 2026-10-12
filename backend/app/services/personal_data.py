@@ -84,6 +84,7 @@ _PROFILE_FIELDS = (
     "notify_budget_alerts",
     "notify_approval_requests",
     "notify_usage_reports",
+    "queue_while_working",
 )
 
 

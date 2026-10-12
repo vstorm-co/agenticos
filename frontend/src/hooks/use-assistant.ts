@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState, AssistantUpdate } from "@/types/assistant";
 
 /**
@@ -21,6 +23,12 @@ export function useAssistant() {
     queryFn: () => apiClient.get<AssistantState>("/assistant"),
     enabled: orgId !== "",
   });
+  // Every avatar of this agent draws the mark while it still wears it.
+  const markedId = data?.wears_mark ? data.agent_id : null;
+  const setMarked = useArchitectMarkStore((state) => state.setAgentId);
+  useEffect(() => {
+    if (data) setMarked(markedId);
+  }, [data, markedId, setMarked]);
   return { assistant: data ?? null, isLoading };
 }
 

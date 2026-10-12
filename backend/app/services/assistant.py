@@ -110,7 +110,10 @@ class AssistantService:
         if row is None:
             agent = await self._install(organization_id)
             row = await organization_assistant_repo.create(
-                self.db, organization_id=organization_id, agent_id=agent.id
+                self.db,
+                organization_id=organization_id,
+                agent_id=agent.id,
+                mark_path=agent.avatar_url,
             )
             return row, agent
         agent = await agent_repo.get(self.db, row.agent_id, organization_id=organization_id)
@@ -196,6 +199,7 @@ class AssistantService:
             greeting=row.greeting,
             avatar_url=agent.avatar_url,
             avatar_color=agent.avatar_color,
+            wears_mark=agent.avatar_url is None or agent.avatar_url == row.mark_path,
             model_profile_id=spec.model_profile_id,
             collection_ids=list(spec.collection_ids),
             can_use=can_use,

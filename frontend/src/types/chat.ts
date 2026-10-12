@@ -208,7 +208,6 @@ export type WSEventType =
   | "ask_user"
   | "steer_applied"
   | "steer_unapplied"
-  | "side_answer"
   | "connect_account"
   | "compaction_started"
   | "compaction_finished"
