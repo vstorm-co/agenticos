@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { useGroupMembers, useMembers } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { Group } from "@/types/groups";
@@ -59,7 +59,7 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
           <DialogTitle>{t("membersOf", { name: group.name })}</DialogTitle>
           <DialogDescription>{t("membersBody")}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+        <div className={cn(DIALOG_BODY, "space-y-2")}>
           {error ? (
             <ErrorState description={getErrorMessage(error, tErrors)} />
           ) : isLoading ? (

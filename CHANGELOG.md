@@ -367,6 +367,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A focused field's ring is no longer cut off.** Scrolling dialog bodies,
+  tab strips, toolbars on a phone, menu lists, cards and sideways-scrolling
+  tables left the ring room, or draw it inside.
+- **New skill can be finished on a phone.** The dialog scrolls as one column
+  there, so the file editor and Create are reachable.
+- **The tab you are on is in view on a phone.** A tab strip wider than the
+  screen centres the active tab.
+
 - **An MCP account whose OAuth sign-in could not be renewed asks to be authorized
   again** on the server list and in the Builder, instead of reading as a server
   that stopped answering (#2073).

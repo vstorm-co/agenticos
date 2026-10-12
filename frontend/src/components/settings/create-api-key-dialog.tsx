@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import type { ApiKeyCreateInput, ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
 
 /** How long a new key lives. `never` is a choice, not a default. */
@@ -97,7 +98,7 @@ export function CreateApiKeyDialog({
           <DialogDescription>{created ? t("createdWhy") : t("createWhy")}</DialogDescription>
         </DialogHeader>
         {created ? (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          <div className={cn(DIALOG_BODY, "space-y-4")}>
             <SecretRevealField
               id="api-key-secret"
               secret={created.key}
@@ -113,7 +114,7 @@ export function CreateApiKeyDialog({
             </div>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          <div className={cn(DIALOG_BODY, "space-y-4")}>
             <div className="space-y-1.5">
               <Label htmlFor="api-key-name">{t("name")}</Label>
               <Input

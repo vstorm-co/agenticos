@@ -24,7 +24,7 @@ import {
 } from "@/components/ui";
 import { useGroupSharing } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Group, GroupResource } from "@/types/groups";
 import type { GrantLevel } from "@/types/sharing";
@@ -105,7 +105,7 @@ export function AddToGroupDialog({
             className="pl-8"
           />
         </div>
-        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+        <div className={cn(DIALOG_BODY, "space-y-1")}>
           {error ? (
             <ErrorState description={getErrorMessage(error, tErrors)} />
           ) : isLoading ? (

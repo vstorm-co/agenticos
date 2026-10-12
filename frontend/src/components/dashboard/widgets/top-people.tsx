@@ -59,7 +59,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
         />
       ) : (
         <div className="flex h-full flex-col gap-3">
-          <div className="overflow-x-auto">
+          <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground border-border border-b text-xs">

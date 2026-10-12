@@ -121,7 +121,7 @@ export function AgentChoices({
             type="button"
             disabled={add.isPending}
             onClick={() => pick(agent.id, agent.name)}
-            className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm disabled:opacity-50"
+            className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm focus-visible:outline-offset-[-2px] disabled:opacity-50"
           >
             <AgentAvatar
               agentId={agent.id}

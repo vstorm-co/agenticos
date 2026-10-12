@@ -54,7 +54,7 @@ export function FilterRow({
       {/* On a phone each group is one row swiped sideways, not three wrapped rows. */}
       <div
         data-tour="dashboard-filters"
-        className="flex scrollbar-none flex-wrap items-center gap-2 max-md:-mx-3 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 [&>*]:shrink-0"
+        className="flex scrollbar-none flex-wrap items-center gap-2 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
       >
         <PeriodControl period={period} onChange={onPeriodChange} />
 
@@ -103,7 +103,7 @@ export function FilterRow({
           the product puts its primary, and what is left here is quiet. */}
       <div
         data-tour="dashboard-actions"
-        className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-3 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 [&>*]:shrink-0"
+        className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
       >
         {can(Perm.agentsEdit) ? (
           <Button asChild variant="ghost" size="sm" className="gap-1.5">

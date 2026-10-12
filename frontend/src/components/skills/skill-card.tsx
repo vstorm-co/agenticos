@@ -31,7 +31,11 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
   const tc = useTranslations("common");
   return (
     <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
-      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col text-left">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex h-full w-full flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
+      >
         {/* The body's opening on the front page, and one page behind it per file
             the skill carries - a skill with scripts and references looks like
             more than a single instruction before anyone opens it. */}

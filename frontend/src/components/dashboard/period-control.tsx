@@ -32,7 +32,7 @@ export function PeriodControl({
     <div
       // One line that scrolls on a phone wherever it is placed: squeezed, its
       // buttons broke "Last 7 days" over three lines.
-      className="flex max-w-full shrink-0 scrollbar-none items-center gap-1 max-md:overflow-x-auto md:flex-wrap [&>*]:shrink-0 [&>*]:whitespace-nowrap"
+      className="flex max-w-full shrink-0 scrollbar-none items-center gap-1 max-md:-m-1 max-md:overflow-x-auto max-md:p-1 md:flex-wrap [&>*]:shrink-0 [&>*]:whitespace-nowrap"
       role="group"
       aria-label={t("period.label")}
     >

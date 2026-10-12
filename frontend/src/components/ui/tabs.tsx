@@ -35,7 +35,7 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
       // foreground colour, the label darkening with it - no pill, no fill.
-      "focus-visible:ring-ring -mb-px inline-flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+      "focus-visible:ring-ring -mb-px inline-flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
       "hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground",
       className,
     )}
@@ -51,7 +51,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+      "focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
       className,
     )}
     {...props}

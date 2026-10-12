@@ -15,7 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useAddDepartments } from "@/hooks";
-import { DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
+import { DIALOG_BODY, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import type { Group, GroupIcon as GroupIconName } from "@/types/groups";
 
 /** The departments most companies start from, each with its mark (#2072). */
@@ -84,7 +85,7 @@ export function DepartmentTemplates({
           <DialogTitle>{t("addDepartments")}</DialogTitle>
           <DialogDescription>{t("addDepartmentsWhy")}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+        <div className={cn(DIALOG_BODY, "space-y-1")}>
           {offered.length === 0 && (
             <p className="text-muted-foreground py-6 text-center text-sm">
               {t("allDepartmentsAdded")}

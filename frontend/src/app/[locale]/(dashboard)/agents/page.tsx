@@ -146,7 +146,7 @@ export default function AgentsPage() {
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
       {/* One row under the search on a phone, swiped sideways, rather than
           three filters wrapping into two more rows. */}
-      <div className="flex scrollbar-none items-center gap-2 max-sm:-mx-4 max-sm:max-w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:px-4 [&>*]:shrink-0">
+      <div className="flex scrollbar-none items-center gap-2 max-sm:-mx-4 max-sm:-my-1 max-sm:max-w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:px-4 max-sm:py-1 [&>*]:shrink-0">
         <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
           <SelectTrigger className="w-32 sm:w-40" aria-label={t("filterByStatus")}>
             <SelectValue />

@@ -30,7 +30,7 @@ import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 import { ASK_USER_ID, unboundBinding } from "@/lib/agent-spec";
@@ -160,7 +160,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             how the body grows past the dialog's own ceiling instead of scrolling
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
-        <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
           <FormField
             label={t("name4")}
             htmlFor="agent-name"

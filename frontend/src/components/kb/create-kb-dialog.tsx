@@ -43,7 +43,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { CreateKnowledgeBaseInput, IngestionConfig } from "@/types";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -176,7 +176,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           <DialogDescription>{t("createKbDescription")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
+          <div className={cn(DIALOG_BODY, "scrollbar-thin space-y-4")}>
             <div data-tour="kb-dialog-name">
               <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
                 <Input
