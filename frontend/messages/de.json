@@ -1062,7 +1062,6 @@
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",
     "linkGenerated": "Freigabelink erzeugt",
-    "linkIsViewOnly": "Wer den Link hat, kann diese Unterhaltung lesen. Ein Link ist immer nur lesend.",
     "loading": "Wird geladen …",
     "membersCouldNotBeRead": "Die Personen in dieser Organisation konnten nicht gelesen werden.",
     "modelPicker": {
@@ -1124,7 +1123,6 @@
       "open": "Unterhaltung teilen",
       "view": "Ansehen"
     },
-    "sharedWith": "Geteilt mit",
     "sidebar": {
       "active": "Aktiv",
       "agentFilterHint": "Stränge, in denen dieser Agent geantwortet hat",
@@ -1393,7 +1391,10 @@
     "steerAdded": "Sie haben ergänzt:",
     "whileWorking": {
       "steersWaiting": "Zur laufenden Aufgabe hinzugefügt - er liest es beim nächsten Schritt"
-    }
+    },
+    "restricted": "Eingeschränkt",
+    "restrictedHint": "Nur die Personen oben können sie öffnen.",
+    "anyoneWithLink": "Alle mit dem Link können sie ansehen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

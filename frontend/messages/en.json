@@ -1062,7 +1062,6 @@
     "knowledgeBase": "Knowledge base",
     "link": "Link",
     "linkGenerated": "Share link generated",
-    "linkIsViewOnly": "Anyone with the link can read this conversation. A link is always read-only.",
     "loading": "Loading…",
     "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
@@ -1124,7 +1123,6 @@
       "open": "Share conversation",
       "view": "View"
     },
-    "sharedWith": "Shared with",
     "sidebar": {
       "active": "Active",
       "agentFilterHint": "Threads this agent answered in",
@@ -1393,7 +1391,10 @@
     "steerAdded": "You added:",
     "whileWorking": {
       "steersWaiting": "Added to the current task - it reads this at its next step"
-    }
+    },
+    "restricted": "Restricted",
+    "restrictedHint": "Only the people above can open it.",
+    "anyoneWithLink": "Anyone with the link can view"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

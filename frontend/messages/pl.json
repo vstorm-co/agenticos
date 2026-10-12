@@ -1062,7 +1062,6 @@
     "knowledgeBase": "Baza wiedzy",
     "link": "Link",
     "linkGenerated": "Link do udostępnienia wygenerowany",
-    "linkIsViewOnly": "Każdy z linkiem może czytać tę konwersację. Link zawsze jest tylko do czytania.",
     "loading": "Wczytywanie…",
     "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
     "modelPicker": {
@@ -1124,7 +1123,6 @@
       "open": "Udostępnij rozmowę",
       "view": "Podgląd"
     },
-    "sharedWith": "Udostępniono dla",
     "sidebar": {
       "active": "Aktywne",
       "agentFilterHint": "Wątki, w których odpowiadał ten agent",
@@ -1393,7 +1391,10 @@
     "steerAdded": "Dodałeś:",
     "whileWorking": {
       "steersWaiting": "Dołączone do bieżącego zadania - agent przeczyta to w następnym kroku"
-    }
+    },
+    "restricted": "Ograniczony",
+    "restrictedHint": "Otworzyć ją mogą tylko osoby powyżej.",
+    "anyoneWithLink": "Każdy z linkiem może wyświetlić"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
