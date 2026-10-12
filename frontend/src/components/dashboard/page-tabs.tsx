@@ -82,36 +82,3 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
     </div>
   );
 }
-
-/**
- * The same tabs as a column, for a section with more of them than a content
- * column's width holds - the settings layout, as account settings are drawn
- * in most products. Below `lg` the section uses `PageTabs` instead.
- */
-export function PageSideNav({ tabs, className }: { tabs: readonly PageTab[]; className?: string }) {
-  const isActive = useActiveRoute();
-  const t = useTranslations("nav");
-  return (
-    <nav className={cn("flex flex-col gap-0.5", className)}>
-      {tabs.map((tab) => {
-        const active = isActive(tab.href, tab.exact);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex h-9 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors",
-              active
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-            )}
-          >
-            {tab.icon && <tab.icon className="h-4 w-4 shrink-0" aria-hidden />}
-            {t(tab.labelKey)}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
