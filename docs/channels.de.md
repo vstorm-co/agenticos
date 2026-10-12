@@ -1,5 +1,5 @@
 ---
-source_sha: "d03283d41114"
+source_sha: "b60f73f32ab0"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -112,6 +112,11 @@ wählen:
   welcher Ecke es sitzt. Alle sieben, und die Begrüßung wird vom Widget
   gezeichnet statt an das Modell geschickt: eine Begrüßung in der Historie des
   Modells ist eine Runde, von der der Agent glaubt, er habe sie gemacht.
+- **Vorgeschlagene Nachrichten** — bis zu vier erste Nachrichten als Schaltflächen
+  unter der Begrüßung; ein Klick sendet eine als Nachricht des Besuchers.
+- **Quellen** — standardmäßig aus. Eingeschaltet nennt eine Antwort, die sich auf
+  die Wissensbasis stützt, diese Dokumente darunter: nur die Dateinamen, nie die
+  Passagen, in einem eigenen `sources`-Frame.
 - **Context** — eine Notiz, die an die erste Nachricht des Besuchers angehängt
   wird: *„Sie sind auf der Preisseite"*, *„Antworte auf Deutsch"*. Sie ersetzt
   nie die eigenen Instruktionen des Agents, die zur veröffentlichten Version
@@ -304,6 +309,7 @@ Jeder Frame trägt `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | Ein Schritt. `args` nur, wenn der Betreiber Ergebnisse zeigt. |
 | `tool_call_delta` | `index`, `args_delta` | Die Argumente eines Aufrufs, während sie streamen. |
 | `tool_result` | `tool_call_id`, `content` | Was der Schritt zurückgegeben hat. |
+| `sources` | `names` | Die Dokumente, die eine Suche in der Wissensbasis geliefert hat, beim Namen. **Nur bei einem Widget, dessen Betreiber Quellen eingeschaltet hat**, und nie die Passagen. |
 | `final_result_start` | `tool_name` | Die Antwort wird von einem Output-Tool erzeugt. |
 | `final_result` | `output` | Womit der Run geendet hat. Leer bei einer Runde, die geparkt hat. |
 | `complete` | — | Die Runde ist vorbei. Sie trägt **keine Nutzungsdaten**: was ein Run gekostet hat, ist Sache des Betreibers, nicht des Besuchers. |
@@ -330,10 +336,12 @@ eine verschlechterte Antwort, kein geparkter Run.
 
 **Ein Client ignoriert, was er nicht zeichnet**, und `widget.js` ist das
 durchgearbeitete Beispiel: es liest `model_request_start`, `text_delta`,
-`final_result`, `complete` und `error` und ignoriert das Reasoning und die
-Schritte mit Absicht — eine Antwort, die Wort für Wort eintrifft, ist in einer
-Blase in der Ecke einer Seite etwas wert, und eine Erzählung von Tool-Aufrufen
-ist es nicht. Die gehostete Seite zeichnet sie alle.
+`final_result`, `complete` und `error` für die Antwort, `tool_call` und
+`tool_result`, um jeden Schritt als Chip zu zeigen (*Durchsucht die
+Wissensbasis*), und `sources` für die Dokumente, die eine Antwort genannt hat. Das
+Reasoning ignoriert es mit Absicht. Es trägt das Gesicht des Agents, rendert die
+Antwort als Markdown in Knoten statt in HTML, folgt der hellen oder dunklen
+Einstellung des Besuchers und füllt auf dem Telefon den Bildschirm.
 
 **Close-Codes**
 

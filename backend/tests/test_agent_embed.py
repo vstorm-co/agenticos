@@ -18,13 +18,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
 import pytest
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, rewrap, seal_fields
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo
-from app.schemas.agent_embed import EmbedUpdate, EmbedVariable
+from app.schemas.agent_embed import EmbedUpdate, EmbedVariable, WidgetConfig
 from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
 from app.services.embed_session import (
     HISTORY_MESSAGES,
@@ -1487,3 +1488,115 @@ class TestAPagesOwnPicture:
 
         assert config.logo_url is not None
         assert config.logo_url.endswith(f"/api/v1/embed/{embed.public_key}/logo")
+
+
+def _faced_agent(*, avatar_url: str | None = None, slot: int | None = 4) -> MagicMock:
+    agent = _agent(avatar_url)
+    agent.slug = "clerk"
+    agent.avatar_color = slot
+    return agent
+
+
+def _storage(*, exists: bool) -> MagicMock:
+    storage = MagicMock()
+    storage.exists = AsyncMock(return_value=exists)
+    return storage
+
+
+class TestTheWidgetsFace:
+    """The widget wears the agent's face, as the console does (#2006)."""
+
+    @pytest.mark.anyio
+    async def test_a_drawn_face_comes_from_the_console_with_a_thinking_twin(self, monkeypatch):
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://console.example/api/public/face?seed=clerk&slot=4"
+        assert config.avatar_thinking_url == f"{config.avatar_url}&thinking=1"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_colour_lets_its_handle_pick_one(self, monkeypatch):
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent(slot=None))):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://console.example/api/public/face?seed=clerk"
+
+    @pytest.mark.anyio
+    async def test_an_uploaded_picture_is_served_by_the_widget_and_has_no_twin(self, monkeypatch):
+        monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example")
+        agent = _faced_agent(avatar_url="0f9c/clerk.png")
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=True)),
+        ):
+            config = await _service().public_config(_embed())
+
+        assert config.avatar_url == "https://api.example/api/v1/embed/key-123/avatar"
+        assert config.avatar_thinking_url is None
+
+    @pytest.mark.anyio
+    async def test_a_picture_whose_file_is_gone_falls_back_to_the_drawn_face(self):
+        """A browser cannot tell a 404 from a slow image; it draws a broken glyph."""
+        agent = _faced_agent(avatar_url="0f9c/gone.png")
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=False)),
+        ):
+            config = await _service().public_config(_embed())
+
+        assert "/api/public/face?seed=clerk" in config.avatar_url
+
+    @pytest.mark.anyio
+    async def test_an_agent_that_is_gone_still_has_a_face(self):
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)):
+            config = await _service().public_config(_embed())
+
+        assert "seed=key-123" in config.avatar_url
+
+    @pytest.mark.anyio
+    async def test_the_quick_replies_reach_the_widget(self):
+        embed = _embed(config={"quick_replies": ["Opening hours?", "Refunds?"]})
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            config = await _service().public_config(embed)
+
+        assert config.quick_replies == ["Opening hours?", "Refunds?"]
+
+    def test_quick_replies_are_few_and_short(self):
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=["a", "b", "c", "d", "e"])
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=["x" * 61])
+        with pytest.raises(ValidationError):
+            WidgetConfig(quick_replies=[""])
+
+
+class TestTheWidgetsPicture:
+    """The uploaded picture, served without a session for a widget and nothing wider."""
+
+    @pytest.mark.anyio
+    async def test_an_active_widget_hands_out_its_agents_picture(self):
+        service = _service()
+        service.find_public = AsyncMock(return_value=_embed(is_active=True))
+        with (
+            patch(
+                f"{MODULE}.agent_repo.get",
+                new=AsyncMock(return_value=_faced_agent(avatar_url="0f9c/clerk.png")),
+            ),
+            patch(f"{MODULE}.get_file_storage", return_value=_storage(exists=True)),
+        ):
+            assert await service.widget_avatar_path("key-123") == "0f9c/clerk.png"
+
+    @pytest.mark.anyio
+    async def test_nothing_for_another_kind_a_paused_widget_or_no_picture(self):
+        service = _service()
+        service.find_public = AsyncMock(return_value=None)
+        assert await service.widget_avatar_path("key-123") is None
+
+        service.find_public = AsyncMock(return_value=_embed(is_active=False))
+        assert await service.widget_avatar_path("key-123") is None
+
+        service.find_public = AsyncMock(return_value=_embed(is_active=True))
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
+            assert await service.widget_avatar_path("key-123") is None

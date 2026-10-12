@@ -98,6 +98,11 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   says, what the launcher button says, the accent colour and which corner it sits
   in. All seven, and the greeting is drawn by the widget rather than sent to the
   model: a greeting in the model's history is a turn the agent thinks it took.
+- **Suggested messages** — up to four first messages offered as buttons under the
+  greeting; a click sends one as the visitor.
+- **Sources** — off by default. On, an answer that drew on the knowledge base
+  names those documents under it: the file names only, never the passages, sent as
+  their own `sources` frame.
 - **Context** — a note appended to the visitor's first message: *"You are on the
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
@@ -279,6 +284,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | A step. `args` only when the operator shows results. |
 | `tool_call_delta` | `index`, `args_delta` | A call's arguments as they stream. |
 | `tool_result` | `tool_call_id`, `content` | What the step returned. |
+| `sources` | `names` | The documents a knowledge search returned, by name. **Only on a widget whose operator turned sources on**, and never the passages. |
 | `final_result_start` | `tool_name` | The answer is being produced by an output tool. |
 | `final_result` | `output` | What the run ended with. Empty on a turn that parked. |
 | `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
@@ -302,9 +308,11 @@ on to answer without the input — a degraded answer, not a parked run.
 
 **A client ignores what it does not draw**, and `widget.js` is the worked example:
 it reads `model_request_start`, `text_delta`, `final_result`, `complete` and
-`error`, and ignores the reasoning and the steps on purpose — an answer arriving
-a word at a time is worth having in a bubble in the corner of a page, and a
-narration of tool calls is not. The hosted page draws all of them.
+`error` for the answer, `tool_call` and `tool_result` to show each step as a chip
+(*Searching the knowledge base*), and `sources` for the documents an answer named.
+It ignores the reasoning on purpose. It wears the agent's face, renders the answer
+as Markdown into nodes rather than HTML, follows the visitor's light or dark
+setting, and fills a phone's screen.
 
 **Close codes**
 

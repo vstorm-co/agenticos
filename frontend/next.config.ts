@@ -61,6 +61,11 @@ const nextConfig: NextConfig = {
   pageExtensions: ["ts", "tsx"],
   // The development badge sits in the corner the console's own controls use.
   devIndicators: false,
+  // The widget's face route reads the generator's motion stylesheet from disk,
+  // which nothing imports - so the standalone build would leave it behind.
+  outputFileTracingIncludes: {
+    "/api/public/face": ["./node_modules/blobatar/dist/motion.css"],
+  },
 
   async redirects() {
     // `localePrefix: "as-needed"` means both `/settings/providers` and

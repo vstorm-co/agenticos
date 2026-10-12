@@ -1629,6 +1629,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # write any.
         ("GET", f"{V1}/embed/{{public_key}}/hosted"),
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
+        # A widget's agent picture, on the same terms as a page's logo (#2006).
+        ("GET", f"{V1}/embed/{{public_key}}/avatar"),
         # The one open route on this surface that *writes*, and the only one whose
         # exemption is about more than a read. It exists because a page whose
         # operator ticked "a visitor may attach a file" has to accept bytes from

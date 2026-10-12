@@ -1,5 +1,5 @@
 ---
-source_sha: "d03283d41114"
+source_sha: "b60f73f32ab0"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -105,6 +105,11 @@ En el Builder, abre el agent → **Availability** → *Website widget*. Eliges:
   vacía, lo que dice el botón lanzador, el color de acento y en qué esquina se
   coloca. Los siete, y el saludo lo dibuja el widget en vez de enviarlo al modelo:
   un saludo en el historial del modelo es un turno que el agent cree haber dado.
+- **Mensajes sugeridos** — hasta cuatro primeros mensajes como botones bajo el
+  saludo; un clic envía uno como el visitante.
+- **Fuentes** — desactivadas por defecto. Activadas, una respuesta apoyada en la
+  base de conocimiento nombra esos documentos debajo: solo los nombres de archivo,
+  nunca los pasajes, en un frame `sources` propio.
 - **Contexto** — una nota añadida al primer mensaje del visitante: *«Estás en la
   página de precios»*, *«Responde en alemán»*. Nunca sustituye a las instrucciones
   propias del agent, que pertenecen a la versión publicada.
@@ -287,6 +292,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | Un paso. `args` solo cuando el operador muestra los resultados. |
 | `tool_call_delta` | `index`, `args_delta` | Los argumentos de una llamada según llegan. |
 | `tool_result` | `tool_call_id`, `content` | Lo que devolvió el paso. |
+| `sources` | `names` | Los documentos que devolvió una búsqueda en la base de conocimiento, por nombre. **Solo en un widget cuyo operador activó las fuentes**, y nunca los pasajes. |
 | `final_result_start` | `tool_name` | La respuesta la está produciendo una output tool. |
 | `final_result` | `output` | Con qué terminó el run. Vacío en un turno que quedó aparcado. |
 | `complete` | — | El turno ha terminado. **No lleva uso**: lo que costó un run es asunto del operador, no del visitante. |
@@ -310,10 +316,12 @@ llama (`app/agents/ask_user.py`) y el modelo sigue adelante y responde sin esa
 entrada — una respuesta degradada, no un run aparcado.
 
 **Un cliente ignora lo que no dibuja**, y `widget.js` es el ejemplo resuelto: lee
-`model_request_start`, `text_delta`, `final_result`, `complete` y `error`, e
-ignora el razonamiento y los pasos a propósito — una respuesta que llega palabra a
-palabra merece la pena en una burbuja en la esquina de una página, y una narración
-de llamadas a herramientas no. La página alojada los dibuja todos.
+`model_request_start`, `text_delta`, `final_result`, `complete` y `error` para la
+respuesta, `tool_call` y `tool_result` para mostrar cada paso como una etiqueta
+(*Buscando en la base de conocimiento*), y `sources` para los documentos que
+nombró una respuesta. Ignora el razonamiento a propósito. Lleva la cara del agent,
+convierte la respuesta de Markdown en nodos y no en HTML, sigue el tema claro u
+oscuro del visitante y ocupa toda la pantalla de un teléfono.
 
 **Códigos de cierre**
 

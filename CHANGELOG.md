@@ -27,6 +27,14 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
+- **The website widget looks like a product.** It wears the agent's face -
+  breathing at rest, pondering while it answers - renders answers as Markdown,
+  shows each step as a chip (*Searching the knowledge base*), streams with a
+  caret and holds the send button until the turn ends, follows the visitor's
+  light or dark setting and fills a phone's screen, and closes on Escape. The
+  Builder adds up to four **suggested messages** under the greeting and a
+  **Sources** switch that names the documents an answer drew on - names only,
+  in a new `sources` frame (#2006).
 - **The public API from a script, with no browser.** `docs/api.md` shows how a
   script signs in, issues its own key and revokes it, what is safe to retry, and
   what the public API does not do yet; `docs/examples/public-api.sh` runs that

@@ -1,5 +1,5 @@
 ---
-source_sha: "d03283d41114"
+source_sha: "b60f73f32ab0"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -104,6 +104,11 @@ W Builderze otwórz agenta → **Availability** → *Website widget*. Wybierasz:
   przycisk otwierający, kolor akcentu i róg, w którym siedzi. Wszystkie siedem,
   a powitanie rysuje widget, zamiast wysyłać je do modelu: powitanie w historii
   modelu to tura, o której agent sądzi, że ją odbył.
+- **Podpowiedzi wiadomości** — do czterech pierwszych wiadomości jako przyciski pod
+  powitaniem; kliknięcie wysyła jedną jako wiadomość odwiedzającego.
+- **Źródła** — domyślnie wyłączone. Włączone sprawiają, że odpowiedź oparta na
+  bazie wiedzy wymienia pod sobą te dokumenty: tylko nazwy plików, nigdy
+  fragmenty, wysyłane własną ramką `sources`.
 - **Context** — notatka doklejana do pierwszej wiadomości odwiedzającego: *„Jesteś
   na stronie z cennikiem"*, *„Odpowiadaj po polsku"*. Nigdy nie zastępuje
   własnych instrukcji agenta, które należą do opublikowanej wersji.
@@ -288,6 +293,7 @@ Każda ramka niesie `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | Krok. `args` tylko wtedy, gdy operator pokazuje wyniki. |
 | `tool_call_delta` | `index`, `args_delta` | Argumenty wywołania w miarę, jak płyną strumieniem. |
 | `tool_result` | `tool_call_id`, `content` | Co zwrócił ten krok. |
+| `sources` | `names` | Dokumenty zwrócone przez wyszukiwanie w bazie wiedzy, po nazwie. **Tylko w widgecie, którego operator włączył źródła**, i nigdy fragmenty. |
 | `final_result_start` | `tool_name` | Odpowiedź jest produkowana przez narzędzie wyjściowe. |
 | `final_result` | `output` | Czym run się zakończył. Puste w turze, która zaparkowała. |
 | `complete` | — | Tura się skończyła. Nie niesie **żadnego usage**: ile run kosztował, to sprawa operatora, nie odwiedzającego. |
@@ -313,9 +319,11 @@ zaparkowany run.
 
 **Klient ignoruje to, czego nie rysuje**, a `widget.js` jest tego rozpracowanym
 przykładem: czyta `model_request_start`, `text_delta`, `final_result`, `complete`
-i `error`, a rozumowanie i kroki ignoruje celowo — odpowiedź przychodząca słowo
-po słowie jest warta pokazania w dymku w rogu strony, a narracja wywołań narzędzi
-nie. Hostowana strona rysuje je wszystkie.
+i `error` dla odpowiedzi, `tool_call` i `tool_result`, by pokazać każdy krok jako
+etykietę (*Przeszukuję bazę wiedzy*), oraz `sources` dla dokumentów, które
+odpowiedź wymieniła. Rozumowanie ignoruje celowo. Nosi twarz agenta, renderuje
+odpowiedź jako Markdown do węzłów, a nie do HTML, dopasowuje się do jasnego lub
+ciemnego motywu odwiedzającego i na telefonie zajmuje cały ekran.
 
 **Kody zamknięcia**
 
