@@ -237,7 +237,12 @@ export function FocusedRun({
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
             {onClose !== undefined && (
-              <Button variant="ghost" size="sm" aria-label={t("closeRunDetail")} onClick={onClose}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("closeRunDetail")}
+                onClick={onClose}
+              >
                 <X className="h-4 w-4" aria-hidden />
               </Button>
             )}

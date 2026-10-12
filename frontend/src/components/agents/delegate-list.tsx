@@ -235,7 +235,7 @@ function DelegateRow({
           <PinBadge status={status} />
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             disabled={disabled}
             aria-label={t("removeDelegate", { name: agent?.name ?? reference.agent_id })}
             onClick={onRemove}

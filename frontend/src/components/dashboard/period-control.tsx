@@ -76,6 +76,8 @@ export function PeriodControl({
 function segment(active: boolean): string {
   return cn(
     "h-8 rounded-full px-3.5 text-sm font-medium transition-colors",
-    active ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
+    active
+      ? "bg-primary text-primary-foreground shadow-card"
+      : "text-muted-foreground hover:text-foreground",
   );
 }
