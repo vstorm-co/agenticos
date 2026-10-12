@@ -60,7 +60,6 @@ import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
-import { KnowledgeReach } from "@/components/agents/knowledge-reach";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -1276,7 +1275,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           <TabsContent value="toolbox" className="mt-6 space-y-6">
-            <KnowledgeReach agentId={id} />
             <Card data-tour="agent-capabilities">
               <CardHeader>
                 <CardTitle>{t("capabilities")}</CardTitle>

@@ -80,7 +80,6 @@ export const qk = {
     // caching it as a page would hand a pager the whole history.
     allVersions: (id: string) => ["agents", id, "versions", "all"] as const,
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
-    knowledgeReach: (id: string) => ["agents", id, "knowledge-reach"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
     // The system variables instructions may use; fixed for the deployment.

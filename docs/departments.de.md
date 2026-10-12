@@ -1,5 +1,5 @@
 ---
-source_sha: "b1d46e98afc0"
+source_sha: "089586546dbd"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -73,8 +73,7 @@ seine ID und veröffentlicht keinen Agent, der ihn nutzt. Siehe
 
 Ein Agent, der ihn bereits nutzt, funktioniert weiter für alle, die ihn ausführen
 dürfen. Die Auswahl entscheidet, wer den Server wählen darf, nicht, wer über ihn
-Antworten bekommt; deshalb zeigt der Builder ihn dort, wo das Wissen des Agents
-herkommt.
+Antworten bekommt - siehe [woher das Wissen eines Agents kommt](#where-an-agents-knowledge-comes-from).
 
 ## Die Seite einer Gruppe { #a-groups-page }
 
@@ -139,11 +138,11 @@ MCP-Server gebunden werden, die enger geteilt sind als der Agent selbst, und nic
 das. Alle, die der Agent erreicht, bekommen dann Antworten aus dieser Quelle,
 auch Personen, die sie selbst nicht öffnen könnten.
 
-Der Tab **Toolbox** im Builder zeigt, woher das Wissen des Agents kommt: wen der
-Agent erreicht und bei jeder Quelle, ob sie der ganzen Organisation gehört oder
-welchen Gruppen. Eine Quelle, die mit weniger Personen geteilt ist als der Agent,
-ist markiert, mit einer Warnung über der Liste. Wenn das nicht gewollt ist,
-schränken Sie den Agent auf dieselben Gruppen ein oder erweitern Sie die Quelle.
+`GET /agents/{agent_id}/knowledge-reach` beantwortet, woher das Wissen des Agents
+kommt: wen der Agent erreicht und bei jeder Quelle, ob sie der ganzen Organisation
+gehört oder welchen Gruppen, wobei Quellen markiert sind, die enger geteilt sind
+als der Agent. Wenn das nicht gewollt ist, schränken Sie den Agent auf dieselben
+Gruppen ein oder erweitern Sie die Quelle.
 
 ## Die Gruppen der Person in Anweisungen { #the-persons-groups-in-instructions }
 

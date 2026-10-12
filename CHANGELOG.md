@@ -477,6 +477,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Builder's Toolbox opens on the capabilities.** The card listing where an
+  agent's knowledge comes from left the tab; the same answer stays at
+  `GET /agents/{agent_id}/knowledge-reach`.
 - **Agent files are Documents.** The page every file an agent keeps for you lands
   on is called **Documents** and lives at `/documents`; `/workspaces` links
   redirect. It opens on the list of files alone - the table of workspaces and the

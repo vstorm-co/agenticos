@@ -1,5 +1,5 @@
 ---
-source_sha: "b1d46e98afc0"
+source_sha: "089586546dbd"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -72,7 +72,7 @@ la lista, no lo abre por su id y no publica un agent que lo use. Consulta
 
 Un agent que ya lo usa sigue funcionando para todos los que pueden ejecutarlo. La
 elección decide quién puede escoger el servidor, no quién recibe respuestas a
-través de él, por eso el Builder lo muestra donde viene el conocimiento del agent.
+través de él - consulta [de dónde viene el conocimiento de un agent](#where-an-agents-knowledge-comes-from).
 
 ## La página de un grupo { #a-groups-page }
 
@@ -135,11 +135,10 @@ contexto o un servidor MCP compartidos con menos gente que el propio agent, y na
 aquel al que llega el agent recibe entonces respuestas de esa fuente, incluidas
 personas que no podrían abrirla por sí mismas.
 
-La pestaña **Toolbox** del Builder muestra de dónde viene el conocimiento del
-agent: a quién llega el agent y, para cada fuente, si es de toda la organización
-o de qué grupos. Una fuente compartida con menos personas que el agent aparece
-marcada, con un aviso encima de la lista. Si no es lo que querías, limita el agent
-a los mismos grupos o amplía la fuente.
+`GET /agents/{agent_id}/knowledge-reach` responde de dónde viene el conocimiento
+del agent: a quién llega y, para cada fuente, si es de toda la organización o de
+qué grupos, con las fuentes compartidas con menos gente que el agent marcadas. Si
+no es lo que querías, limita el agent a los mismos grupos o amplía la fuente.
 
 ## Los grupos de la persona en las instrucciones { #the-persons-groups-in-instructions }
 

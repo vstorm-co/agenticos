@@ -15,7 +15,6 @@ import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
   AgentDetail,
-  AgentKnowledgeReach,
   AgentList,
   AgentSpec,
   AgentVersion,
@@ -539,19 +538,4 @@ export function useAddToAgent() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
-}
-
-/**
- * Which groups an agent's knowledge, skills and context come from (#2072).
- *
- * Under `qk.agents.all()`, so saving the draft - a source bound or unbound -
- * reads it again.
- */
-export function useKnowledgeReach(agentId: string | null) {
-  const { data } = useQuery({
-    queryKey: qk.agents.knowledgeReach(agentId ?? ""),
-    queryFn: () => apiClient.get<AgentKnowledgeReach>(`/agents/${agentId}/knowledge-reach`),
-    enabled: !!agentId,
-  });
-  return { reach: data ?? null };
 }

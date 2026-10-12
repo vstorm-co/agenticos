@@ -64,8 +64,8 @@ by its id, and cannot publish an agent bound to it. See
 [MCP](mcp.md#personal-or-organization-wide).
 
 An agent already bound to one keeps working for everyone who may run the agent.
-The choice decides who may pick the server, not who is answered through it, so
-the Builder shows it where the agent's knowledge comes from.
+The choice decides who may pick the server, not who is answered through it - see
+[where an agent's knowledge comes from](#where-an-agents-knowledge-comes-from).
 
 ## A group's page
 
@@ -122,11 +122,11 @@ is shared more narrowly than the agent itself, and nothing refuses it. Everyone 
 reaches is then answered from that source, including people who could not open
 it themselves.
 
-The Builder's **Toolbox** tab shows where the agent's knowledge comes from: who
-the agent reaches, and for each source, whether it is the whole organization's
-or which groups it belongs to. A source shared with fewer people than the agent
-is marked, with a warning above the list. Narrow the agent to the same groups,
-or widen the source, if that is not what you meant.
+`GET /agents/{agent_id}/knowledge-reach` answers where the agent's knowledge
+comes from: who the agent reaches, and for each source, whether it is the whole
+organization's or which groups it belongs to, with the sources shared more
+narrowly than the agent flagged. Narrow the agent to the same groups, or widen
+the source, if that is not what you meant.
 
 ## The person's groups in instructions
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b1d46e98afc0"
+source_sha: "089586546dbd"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -68,7 +68,7 @@ identyfikatorze i nie opublikuje agenta, który go używa. Zobacz
 
 Agent, który już go używa, działa dalej dla każdego, kto może go uruchomić. Ten
 wybór decyduje o tym, kto może serwer wybrać, a nie o tym, kto dostaje przez
-niego odpowiedzi, dlatego Builder pokazuje go tam, skąd pochodzi wiedza agenta.
+niego odpowiedzi - zobacz [skąd pochodzi wiedza agenta](#where-an-agents-knowledge-comes-from).
 
 ## Strona grupy { #a-groups-page }
 
@@ -127,11 +127,11 @@ udostępnionego węższemu gronu niż on sam i nic tego nie zablokuje. Każdy, d
 agent dociera, dostaje wtedy odpowiedzi z tego źródła, także osoby, które same nie
 mogłyby go otworzyć.
 
-Zakładka **Toolbox** w Builderze pokazuje, skąd pochodzi wiedza agenta: do kogo
-agent dociera, a przy każdym źródle, czy jest całej organizacji, czy których grup.
-Źródło udostępnione mniejszej liczbie osób niż agent jest oznaczone, a nad listą
-pojawia się ostrzeżenie. Jeśli to nie to, co planowano, zawęź agenta do tych
-samych grup albo poszerz źródło.
+`GET /agents/{agent_id}/knowledge-reach` odpowiada, skąd pochodzi wiedza agenta:
+do kogo agent dociera, a przy każdym źródle, czy jest całej organizacji, czy
+których grup, z oznaczeniem źródeł udostępnionych węższemu gronu niż agent.
+Jeśli to nie to, co planowano, zawęź agenta do tych samych grup albo poszerz
+źródło.
 
 ## Grupy osoby w instrukcjach { #the-persons-groups-in-instructions }
 

@@ -57,7 +57,6 @@ export {
   useAllAgentVersions,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
-  useKnowledgeReach,
   useAddToAgent,
   useDelegationTree,
   usePromptVariables,
