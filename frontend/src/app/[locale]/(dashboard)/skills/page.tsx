@@ -358,7 +358,7 @@ export default function SkillsPage() {
         }}
       >
         {selected !== null && (
-          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>

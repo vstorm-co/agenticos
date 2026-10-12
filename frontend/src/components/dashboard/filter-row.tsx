@@ -59,11 +59,9 @@ export function FilterRow({
     // Wrapped as groups they stack as two legible rows rather than spilling one
     // button at a time, and each row still starts where the eye already is.
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-      {/* On a phone each group is one row swiped sideways, not three wrapped rows. */}
-      <div
-        data-tour="dashboard-filters"
-        className="flex scrollbar-none flex-wrap items-center gap-2 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
-      >
+      {/* Wrapped on a phone too: swiped sideways, the last controls sat past
+          the screen's edge cut mid-word, and nobody found them. */}
+      <div data-tour="dashboard-filters" className="flex flex-wrap items-center gap-2">
         <PeriodControl period={period} onChange={onPeriodChange} />
 
         {filterable.length > 1 ? (
@@ -110,10 +108,7 @@ export function FilterRow({
           and talk to an agent - sits in the header where every other page in
           the product puts its primary, and what is left here is quiet. */}
       {showActions ? (
-        <div
-          data-tour="dashboard-actions"
-          className="flex scrollbar-none flex-wrap items-center gap-1 max-md:-mx-3 max-md:-my-1 max-md:max-w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:py-1 [&>*]:shrink-0"
-        >
+        <div data-tour="dashboard-actions" className="flex flex-wrap items-center gap-1">
           {can(Perm.agentsEdit) ? (
             <Button asChild variant="ghost" size="sm" className="gap-1.5">
               <Link href={ROUTES.AGENTS}>

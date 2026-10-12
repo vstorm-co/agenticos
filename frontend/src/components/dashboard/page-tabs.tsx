@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
+import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { useActiveRoute } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
   const t = useTranslations("nav");
   const strip = useRef<HTMLElement>(null);
   const activeHref = tabs.find((tab) => isActive(tab.href, tab.exact))?.href;
+  useScrollFade(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
   // API, opened from a link - was active but out of sight. Centre it, moving
@@ -52,7 +54,10 @@ export function PageTabs({ tabs, className }: { tabs: readonly PageTab[]; classN
     <div className={cn("border-border border-b", className)}>
       <nav
         ref={strip}
-        className="-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "-mb-px flex [scrollbar-width:none] gap-0.5 overflow-x-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+          SCROLL_FADE,
+        )}
       >
         {tabs.map((tab) => {
           const active = isActive(tab.href, tab.exact);

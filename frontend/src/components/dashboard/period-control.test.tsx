@@ -49,7 +49,9 @@ describe("PeriodControl", () => {
 
     const onChange = renderControl(resolvePreset("30d"));
 
-    await userEvent.click(screen.getByRole("button", { name: "Custom range" }));
+    // The strip and the phone's select each carry the calendar; CSS shows one.
+    const [calendar] = screen.getAllByRole("button", { name: "Custom range" });
+    await userEvent.click(calendar!);
     // Later date first: the picker orders the pair itself.
     await userEvent.click(await screen.findByRole("button", { name: to }));
     await userEvent.click(screen.getByRole("button", { name: from }));
@@ -60,7 +62,19 @@ describe("PeriodControl", () => {
   it("names the custom range on its own trigger once one is active", () => {
     renderControl({ preset: "custom", from: "2026-08-03", to: "2026-08-10" });
 
-    const trigger = screen.getByRole("button", { name: /2026-08-03 – 2026-08-10/ });
-    expect(trigger).toHaveAttribute("aria-pressed", "true");
+    for (const trigger of screen.getAllByRole("button", { name: /2026-08-03 – 2026-08-10/ })) {
+      expect(trigger).toHaveAttribute("aria-pressed", "true");
+    }
+  });
+
+  it("offers the presets as a select on a phone, where the strip ran off the screen", async () => {
+    const onChange = renderControl(resolvePreset("30d"));
+
+    const select = screen.getByRole("combobox", { name: "Period" });
+    expect(select).toHaveTextContent("Last 30 days");
+    await userEvent.click(select);
+    await userEvent.click(await screen.findByRole("option", { name: "Last month" }));
+
+    expect(onChange.mock.calls[0]?.[0]).toMatchObject({ preset: "lm" });
   });
 });

@@ -4,26 +4,37 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
 
+import { SCROLL_FADE, useScrollFade } from "./scroll-fade";
+
 const Tabs = TabsPrimitive.Root;
 
 const TabsList = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      // The underline strip is the console's one tab dialect - the rag page's
-      // look, promoted to the primitive so every tab strip reads the same.
-      // A strip wider than a phone scrolls itself rather than widening the
-      // page: it pushed the main column sideways, and focusing a tab scrolled
-      // the whole page out from under the reader.
-      "border-border text-muted-foreground flex max-w-full scrollbar-none gap-6 overflow-x-auto overflow-y-hidden border-b bg-transparent [&>*]:shrink-0",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, ...props }, ref) => {
+  const strip = React.useRef<HTMLDivElement | null>(null);
+  useScrollFade(strip);
+  return (
+    <TabsPrimitive.List
+      ref={(node) => {
+        strip.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
+      className={cn(
+        // The underline strip is the console's one tab dialect - the rag page's
+        // look, promoted to the primitive so every tab strip reads the same.
+        // A strip wider than a phone scrolls itself rather than widening the
+        // page: it pushed the main column sideways, and focusing a tab scrolled
+        // the whole page out from under the reader.
+        "border-border text-muted-foreground flex max-w-full scrollbar-none gap-6 overflow-x-auto overflow-y-hidden border-b bg-transparent [&>*]:shrink-0",
+        SCROLL_FADE,
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 const TabsTrigger = React.forwardRef<

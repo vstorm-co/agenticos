@@ -3,8 +3,11 @@
 import { Building2, Server, User, UsersRound, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useRef } from "react";
+
 import { GroupIcon } from "@/components/groups/group-icon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import type { DashboardView } from "@/lib/dashboard/layouts";
 import type { Group } from "@/types/groups";
 
@@ -42,6 +45,8 @@ export function ViewSwitcher({
   onGroupChange: (groupId: string) => void;
 }) {
   const t = useTranslations("dashboard.views");
+  const strip = useRef<HTMLDivElement>(null);
+  useScrollFade(strip);
   if (views.length < 2) return null;
 
   return (
@@ -50,7 +55,8 @@ export function ViewSwitcher({
     // under one another read as two filters of equal weight.
     <div className="border-border mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b">
       <div
-        className="-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto"
+        ref={strip}
+        className={cn("-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto", SCROLL_FADE)}
         role="group"
         aria-label={t("label")}
       >

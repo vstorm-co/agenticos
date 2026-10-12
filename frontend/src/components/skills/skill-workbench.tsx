@@ -91,7 +91,7 @@ export function SkillWorkbench({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none">
       {/* Above the split rather than inside the body pane: the description and
           the switch are facts about the skill, not about the file being read,
           and they have to stay reachable while somebody is in `checklist.md`.
@@ -136,7 +136,7 @@ export function SkillWorkbench({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
         <div className="flex min-h-0 flex-col gap-2">
           {canEdit && (
             // One row of three, above the tree: stacked below it they wrapped
@@ -162,7 +162,7 @@ export function SkillWorkbench({
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1">
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-48 max-md:min-h-24">
             <button
               type="button"
               onClick={() => {
@@ -189,7 +189,10 @@ export function SkillWorkbench({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col">
+        {/* On a phone the dialog scrolls as one column (`create-skill-dialog`
+            does the same), so the file pane needs a height of its own -
+            squeezed into what was left of 90vh it showed one line of the file. */}
+        <div className="flex min-h-0 flex-col max-md:min-h-[22rem]">
           {adding ? (
             <NewFileForm
               busy={addResource.isPending}

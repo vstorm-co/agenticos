@@ -298,7 +298,11 @@ export default function RunsPage() {
                 <div
                   className={cn(
                     PAGE_CLEARANCE,
-                    "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)] lg:self-start lg:pb-0",
+                    // The only column below `lg`, so it takes the row's width: a
+                    // flex item with no width of its own shrank to its content,
+                    // and the panel's content is clipped by `overflow-hidden` -
+                    // it collapsed to its 2px border and a phone saw a blank page.
+                    "w-full lg:sticky lg:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)] lg:w-auto lg:self-start lg:pb-0",
                   )}
                 >
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />

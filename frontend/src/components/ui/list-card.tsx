@@ -129,9 +129,9 @@ export function ListCardControlsRow({
   return (
     <div
       className={cn(
-        // One row swiped sideways on a phone, never a column of filters
-        // stacked above the table they narrow.
-        "border-border flex scrollbar-none items-center gap-2 border-b px-4 py-3 max-sm:overflow-x-auto sm:flex-wrap sm:px-5 [&>*]:shrink-0",
+        // Wrapped on every screen: swiped sideways on a phone, the last
+        // filter sat past the edge cut mid-word, and nobody found it.
+        "border-border flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5",
         className,
       )}
       {...props}
