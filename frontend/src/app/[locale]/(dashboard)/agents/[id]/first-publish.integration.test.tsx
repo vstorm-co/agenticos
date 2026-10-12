@@ -144,7 +144,10 @@ vi.mock("@/stores", () => ({
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
-vi.mock("@/components/ui/markdown-editor", () => ({ MarkdownEditor: () => null }));
+vi.mock("@/components/ui/markdown-editor", () => ({
+  MarkdownEditor: () => null,
+  MarkdownModeToggle: () => null,
+}));
 // What the Availability tab holds is covered where each panel lives; here the
 // only question is whether the hint opens the tab.
 vi.mock("@/components/agents/exposures-panel", () => ({ ExposuresPanel: () => null }));

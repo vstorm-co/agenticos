@@ -3,7 +3,7 @@
 import { useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
-import { MarkdownEditor } from "@/components/ui";
+import { MarkdownEditor, type MarkdownMode } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
   insertVariable,
@@ -27,6 +27,8 @@ interface InstructionsEditorProps {
   variables: VariableOption[];
   /** Lets the variables panel insert at the caret. */
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  /** Source or preview, toggled from the card header that holds the editor. */
+  mode: MarkdownMode;
 }
 
 /**
@@ -45,6 +47,7 @@ export function InstructionsEditor({
   disabled,
   variables,
   textareaRef,
+  mode,
 }: InstructionsEditorProps) {
   const t = useTranslations("agents");
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -100,6 +103,7 @@ export function InstructionsEditor({
         rows={10}
         disabled={disabled}
         placeholder={placeholder}
+        mode={mode}
       />
       {showing && (
         <ul

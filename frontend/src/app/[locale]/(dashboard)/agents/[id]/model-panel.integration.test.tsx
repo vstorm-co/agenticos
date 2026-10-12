@@ -130,7 +130,10 @@ vi.mock("@/stores", () => ({
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
-vi.mock("@/components/ui/markdown-editor", () => ({ MarkdownEditor: () => null }));
+vi.mock("@/components/ui/markdown-editor", () => ({
+  MarkdownEditor: () => null,
+  MarkdownModeToggle: () => null,
+}));
 
 /**
  * The page reads its route params with `use()`, so the first render suspends and

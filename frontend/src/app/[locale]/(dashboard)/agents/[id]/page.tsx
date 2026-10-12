@@ -96,6 +96,8 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  MarkdownModeToggle,
+  type MarkdownMode,
 } from "@/components/ui";
 import {
   useAgent,
@@ -200,6 +202,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { capabilities } = useCapabilityCatalog();
   const { variables: promptVariables } = usePromptVariables();
   const instructionsBox = useRef<HTMLTextAreaElement>(null);
+  const [instructionsMode, setInstructionsMode] = useState<MarkdownMode>("source");
   const { profiles, profilesStatus } = useModelProviders();
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
@@ -1218,11 +1221,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <TabsContent value="build" className="mt-6 space-y-6">
             <Card data-tour="agent-instructions">
-              <CardHeader>
-                <CardTitle>{t("instructions")}</CardTitle>
-                <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
+              <CardHeader className="flex-row items-start gap-3 space-y-0">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <CardTitle>{t("instructions")}</CardTitle>
+                  <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
+                </div>
+                <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <InstructionsEditor
                   // Named, because a placeholder is not a label: it is the only
                   // accessible name this control had, and it is the one thing that
@@ -1233,6 +1239,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   disabled={!canEdit}
                   placeholder={t("youAreSupportCopilot")}
                   textareaRef={instructionsBox}
+                  mode={instructionsMode}
                   variables={[
                     ...promptVariables,
                     ...(spec.variables ?? []).map((variable) => ({
@@ -1241,17 +1248,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     })),
                   ]}
                 />
-                <PromptVariablesPanel
-                  system={promptVariables}
-                  custom={spec.variables ?? []}
-                  timeZone={spec.time_zone ?? "system"}
-                  disabled={!canEdit}
-                  onInsert={insertVariableAtCaret}
-                  onCustomChange={(variables) => update({ variables })}
-                  onTimeZoneChange={(time_zone) => update({ time_zone })}
-                />
+              </CardContent>
+            </Card>
+
+            <PromptVariablesPanel
+              system={promptVariables}
+              custom={spec.variables ?? []}
+              timeZone={spec.time_zone ?? "system"}
+              disabled={!canEdit}
+              onInsert={insertVariableAtCaret}
+              onCustomChange={(variables) => update({ variables })}
+              onTimeZoneChange={(time_zone) => update({ time_zone })}
+            />
+
+            {/* The model, then how it is asked: one card, apart from the
+                instructions, which are a thing to read rather than to set. */}
+            <Card data-tour="agent-model">
+              <CardHeader>
+                <CardTitle>{t("model")}</CardTitle>
+                <CardDescription>{t("howAgentAsksIts")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2" data-tour="agent-model-picker">
-                  <Label>{t("model")}</Label>
                   <ModelProfilePicker
                     // A model profile is `connections:manage`, which somebody who
                     // may edit this agent need not hold - and both halves of this
@@ -1275,15 +1293,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card data-tour="agent-model">
-              <CardHeader>
-                <CardTitle>{t("modelSettings")}</CardTitle>
-                <CardDescription>{t("howAgentAsksIts")}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
                 <ModelSettingsForm
                   value={spec.model_settings}
                   onChange={(model_settings) => update({ model_settings })}

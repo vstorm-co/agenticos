@@ -20,6 +20,7 @@ function Harness({ initial = "", onChange }: { initial?: string; onChange?: (v: 
         onChange?.(next);
       }}
       variables={VARIABLES}
+      mode="source"
     />
   );
 }

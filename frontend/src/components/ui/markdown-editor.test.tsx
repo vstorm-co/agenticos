@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { MarkdownEditor } from "./markdown-editor";
+import { MarkdownEditor, MarkdownModeToggle } from "./markdown-editor";
 
 // The real renderer is a `next/dynamic` import of react-markdown. What matters
 // here is that the preview pane shows the value rather than the textarea, so the
@@ -102,5 +102,24 @@ describe("the markdown editor", () => {
     await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(screen.getByTestId("rendered")).toHaveTextContent("# Heading");
+  });
+
+  it("leaves the toggle to a caller that holds the mode, and draws what it is told", () => {
+    mount({ mode: "preview" });
+
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Instructions preview" })).toBeInTheDocument();
+  });
+});
+
+describe("MarkdownModeToggle", () => {
+  it("marks the open mode and answers a click", async () => {
+    const onChange = vi.fn();
+    render(<MarkdownModeToggle mode="source" onChange={onChange} />);
+
+    expect(screen.getByRole("button", { name: "Source" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(onChange).toHaveBeenCalledWith("preview");
   });
 });
