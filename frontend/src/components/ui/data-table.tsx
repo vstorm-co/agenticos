@@ -199,7 +199,9 @@ export function DataTable<T>({
                       sorted ? (sorted.dir === "asc" ? "ascending" : "descending") : undefined
                     }
                     className={cn(
-                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider uppercase",
+                      // One line: a two-word heading wrapped to two rows made every
+                      // header taller than the rows under it.
+                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider whitespace-nowrap uppercase",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,

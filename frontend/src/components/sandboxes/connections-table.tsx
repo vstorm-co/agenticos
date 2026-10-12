@@ -57,6 +57,9 @@ export function ConnectionsTable({
         key: "name",
         // Takes what the others leave and cuts a long name short, rather than
         // pushing the actions off a phone.
+        // The room the other columns leave, which they take first: they keep to
+        // one line (the address used to wrap while the name sat in a sea of
+        // space), and the name truncates only when the row truly runs out.
         className: "w-full max-w-0 pl-5",
         header: t("name"),
         sortable: true,
@@ -96,7 +99,7 @@ export function ConnectionsTable({
         hideBelow: "sm",
         header: t("address"),
         cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs">
+          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
             {addressLabel(connection)}
           </span>
         ),
