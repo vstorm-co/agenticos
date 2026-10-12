@@ -397,7 +397,11 @@ describe("the steward's dashboard", () => {
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
     const before = callsTo("/stats/usage").length;
 
-    await userEvent.click(screen.getByText("dashboard.period.7d"));
+    // One button names the window; the presets open from it.
+    await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
+    await userEvent.click(
+      await screen.findByRole("menuitemradio", { name: "dashboard.period.7d" }),
+    );
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(before));
     const lastUrl = String(replaceState.mock.calls.at(-1)?.[2] ?? "");

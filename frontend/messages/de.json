@@ -1432,10 +1432,7 @@
   },
   "dashboard": {
     "actions": {
-      "createAgent": "Einen Agent erstellen",
-      "invite": "Jemanden ins Team einladen",
-      "newChat": "Neuer Chat",
-      "reviewApprovals": "Freigaben prüfen"
+      "newChat": "Neuer Chat"
     },
     "activeSessions": "Aktive Sitzungen",
     "allOtherSessionsRevoked": "Alle anderen Sitzungen widerrufen",
@@ -3031,10 +3028,6 @@
       "context-new": {
         "title": "Ständigen Kontext hinzufügen",
         "body": "Kontextdateien sind der Hintergrund, den jeder Agent mitträgt - Firmenfakten, Tonfall, Begriffe - in jeden Prompt eingefügt, ohne dass Sie sie jedes Mal einfügen müssen. Fügen Sie hier eine hinzu."
-      },
-      "dashboard-actions": {
-        "title": "Fangen Sie hier an",
-        "body": "Diese Abkürzungen sind der schnellste Weg hinein: einen Chat öffnen, Ihren ersten Agent erstellen, prüfen, was auf eine Entscheidung wartet, oder eine Kollegin oder einen Kollegen einladen."
       },
       "dashboard-customize": {
         "title": "Machen Sie es zu Ihrem",

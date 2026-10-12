@@ -1432,10 +1432,7 @@
   },
   "dashboard": {
     "actions": {
-      "createAgent": "Create an agent",
-      "invite": "Invite a teammate",
-      "newChat": "New chat",
-      "reviewApprovals": "Review approvals"
+      "newChat": "New chat"
     },
     "activeSessions": "Active sessions",
     "allOtherSessionsRevoked": "All other sessions revoked",
@@ -3149,10 +3146,6 @@
       "context-new": {
         "title": "Add standing context",
         "body": "Context files are the background every agent carries - company facts, tone, terms - injected into each prompt without you pasting them in every time. Add one here."
-      },
-      "dashboard-actions": {
-        "title": "Start here",
-        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
       },
       "dashboard-customize": {
         "title": "Make it your own",

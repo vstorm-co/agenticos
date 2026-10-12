@@ -1432,10 +1432,7 @@
   },
   "dashboard": {
     "actions": {
-      "createAgent": "Utwórz agenta",
-      "invite": "Zaproś współpracownika",
-      "newChat": "Nowy czat",
-      "reviewApprovals": "Przejrzyj zatwierdzenia"
+      "newChat": "Nowy czat"
     },
     "activeSessions": "Aktywne sesje",
     "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
@@ -2919,10 +2916,6 @@
       "context-new": {
         "title": "Dodaj stały kontekst",
         "body": "Pliki kontekstu to tło, które nosi każdy agent - fakty o firmie, ton, terminy - wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
-      },
-      "dashboard-actions": {
-        "title": "Zacznij tutaj",
-        "body": "Te skróty to najszybsze wejście: otwórz czat, utwórz pierwszego agenta, przejrzyj to, co czeka na decyzję, albo zaproś współpracownika."
       },
       "dashboard-customize": {
         "title": "Dostosuj po swojemu",

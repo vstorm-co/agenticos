@@ -155,7 +155,7 @@ describe("OnboardingTour", () => {
     expect(localeRouter.push).toHaveBeenCalledWith("/dashboard", { locale: "pl" });
 
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
-    await waitFor(() => expect(shownStep().popover?.title).toBe("Start here"));
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Slice the dashboard"));
     expect(shownStep().popover?.onPopoverRender).toBeUndefined();
   });
 
@@ -166,7 +166,7 @@ describe("OnboardingTour", () => {
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
-    await waitFor(() => expect(shownStep().popover?.title).toBe("Start here"));
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Slice the dashboard"));
     expect(shownStep().popover?.progressText).toBe(`Step 2 of ${OWNER_LAUNCH}`);
   });
 

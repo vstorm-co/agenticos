@@ -25,7 +25,6 @@ import { Perm, type Permission } from "@/types/permissions";
 // permission drops out — including the whole builder walk, which is agents:view.
 const UNGATED_LAUNCH = [
   "welcome",
-  "dashboard-actions",
   "dashboard-filters",
   "chat-start",
   "chat-agent-picker",
@@ -147,7 +146,6 @@ describe("visibleTourSteps", () => {
     const held = new Set<Permission>([Perm.agentsView, Perm.skillsView, Perm.collectionsView]);
     expect(visibleTourSteps((permission) => held.has(permission)).map((step) => step.id)).toEqual([
       "welcome",
-      "dashboard-actions",
       "dashboard-filters",
       "chat-start",
       "chat-agent-picker",

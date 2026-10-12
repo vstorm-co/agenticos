@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { Bot, ListFilter, ShieldCheck, UserPlus } from "lucide-react";
+import { ListFilter } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,13 +11,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { PeriodControl } from "@/components/dashboard/period-control";
-import { useApprovals, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
-import { ROUTES } from "@/lib/constants";
 import type { SectionDef } from "@/lib/dashboard/layouts";
 import type { Period } from "@/lib/dashboard/period";
 import { filterableSectionIds, isFilterable, sectionLabel } from "@/lib/dashboard/sections";
-import { Perm } from "@/types/permissions";
 
 interface FilterRowProps {
   period: Period;
@@ -27,19 +22,13 @@ interface FilterRowProps {
   sections: SectionDef[];
   selectedSections: string[] | null;
   onSectionsChange: (selected: string[] | null) => void;
-  /**
-   * Whether the shortcuts are drawn. They act on the organization - create an
-   * agent, review approvals, invite somebody - so a group's or the
-   * deployment's page leaves them out rather than offering them beside numbers
-   * they do not change.
-   */
-  showActions: boolean;
 }
 
 /**
- * The page's one control strip: period presets, the custom range, the
- * sections filter, and one quick action per permission - a caller who may
- * not do a thing is not shown its button.
+ * The page's controls: which window, and which sections. Two quiet buttons -
+ * the shortcuts that sat beside them (create an agent, review approvals,
+ * invite) and the seven-choice period strip made the page a toolbar before it
+ * was a dashboard.
  */
 export function FilterRow({
   period,
@@ -47,22 +36,14 @@ export function FilterRow({
   sections,
   selectedSections,
   onSectionsChange,
-  showActions,
 }: FilterRowProps) {
   const t = useTranslations("dashboard");
-  const { can } = usePermissions();
-  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const filterable = filterableSectionIds(sections);
 
   return (
-    // Two groups, not eight controls: what narrows the page and what leaves it.
-    // Wrapped as groups they stack as two legible rows rather than spilling one
-    // button at a time, and each row still starts where the eye already is.
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-      {/* Wrapped on a phone too: swiped sideways, the last controls sat past
-          the screen's edge cut mid-word, and nobody found them. */}
+    <div className="flex flex-wrap items-center gap-2">
       <div data-tour="dashboard-filters" className="flex flex-wrap items-center gap-2">
-        <PeriodControl period={period} onChange={onPeriodChange} />
+        <PeriodControl period={period} onChange={onPeriodChange} variant="menu" />
 
         {filterable.length > 1 ? (
           <DropdownMenu>
@@ -102,55 +83,6 @@ export function FilterRow({
           </DropdownMenu>
         ) : null}
       </div>
-
-      {/* Shortcuts, drawn as shortcuts. Four buttons of near-equal weight is
-          four decisions asked at once, so the page's one primary action - go
-          and talk to an agent - sits in the header where every other page in
-          the product puts its primary, and what is left here is quiet. */}
-      {showActions ? (
-        <div data-tour="dashboard-actions" className="flex flex-wrap items-center gap-1">
-          {can(Perm.agentsEdit) ? (
-            <Button asChild variant="ghost" size="sm" className="gap-1.5">
-              <Link href={ROUTES.AGENTS}>
-                <Bot className="size-3.5" aria-hidden />
-                {t("actions.createAgent")}
-              </Link>
-            </Button>
-          ) : null}
-          {can(Perm.approvalsDecide) ? <ReviewApprovalsAction /> : null}
-          {can(Perm.membersManage) && activeOrgId ? (
-            <Button asChild variant="ghost" size="sm" className="gap-1.5">
-              <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>
-                <UserPlus className="size-3.5" aria-hidden />
-                {t("actions.invite")}
-              </Link>
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
-  );
-}
-
-/**
- * Its own component so the approvals query is only ever issued by a caller
- * holding approvals:decide - a hook cannot sit behind an `if`.
- */
-function ReviewApprovalsAction() {
-  const t = useTranslations("dashboard");
-  const { total } = useApprovals();
-
-  return (
-    <Button asChild variant="ghost" size="sm" className="gap-1.5">
-      <Link href={ROUTES.RUNS}>
-        <ShieldCheck className="size-3.5" aria-hidden />
-        {t("actions.reviewApprovals")}
-        {total > 0 ? (
-          <span className="border-warning/35 bg-warning/10 text-foreground ml-0.5 rounded-full border px-1.5 text-xs font-semibold tabular-nums">
-            {total}
-          </span>
-        ) : null}
-      </Link>
-    </Button>
   );
 }

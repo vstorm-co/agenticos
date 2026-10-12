@@ -14,10 +14,10 @@ import { resolvePreset, type Period } from "@/lib/dashboard/period";
  * active choice is marked so a reader can see which window the page is on.
  */
 
-function renderControl(period: Period, onChange = vi.fn()) {
+function renderControl(period: Period, onChange = vi.fn(), variant?: "strip" | "menu") {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <PeriodControl period={period} onChange={onChange} />
+      <PeriodControl period={period} onChange={onChange} variant={variant} />
     </NextIntlClientProvider>,
   );
   return onChange;
@@ -76,5 +76,51 @@ describe("PeriodControl", () => {
     await userEvent.click(await screen.findByRole("option", { name: "Last month" }));
 
     expect(onChange.mock.calls[0]?.[0]).toMatchObject({ preset: "lm" });
+  });
+});
+
+describe("PeriodControl as one button", () => {
+  it("names the window and answers a preset picked from it", async () => {
+    const onChange = renderControl(resolvePreset("30d"), vi.fn(), "menu");
+
+    const button = screen.getByRole("button", { name: "Period" });
+    expect(button).toHaveTextContent("Last 30 days");
+    await userEvent.click(button);
+    expect(screen.getByRole("menuitemradio", { name: "Last 30 days" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "This month" }));
+
+    expect(onChange.mock.calls[0]?.[0]).toMatchObject({ preset: "tm" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens the calendar for a custom range and answers two picks", async () => {
+    const today = new Date();
+    const earlier = new Date(today);
+    earlier.setUTCDate(earlier.getUTCDate() - 3);
+    const [to, from] = [today, earlier].map((date) => date.toISOString().slice(0, 10));
+    const onChange = renderControl(resolvePreset("30d"), vi.fn(), "menu");
+
+    await userEvent.click(screen.getByRole("button", { name: "Period" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Custom range" }));
+    await userEvent.click(await screen.findByRole("button", { name: from }));
+    await userEvent.click(screen.getByRole("button", { name: to }));
+
+    expect(onChange).toHaveBeenCalledWith({ preset: "custom", from, to });
+  });
+
+  it("names a custom range on the button, and closes back to the presets", async () => {
+    renderControl({ preset: "custom", from: "2026-08-03", to: "2026-08-10" }, vi.fn(), "menu");
+
+    const button = screen.getByRole("button", { name: "Period" });
+    expect(button).toHaveTextContent("2026-08-03 – 2026-08-10");
+    await userEvent.click(button);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Custom range" }));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(button);
+
+    expect(screen.getByRole("menu", { name: "Period" })).toBeInTheDocument();
   });
 });

@@ -126,7 +126,6 @@ export interface TourStep {
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: "welcome", inTour: true },
 
-  { id: "dashboard-actions", page: ROUTES.DASHBOARD, target: "dashboard-actions", inTour: true },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
