@@ -1,5 +1,5 @@
 ---
-source_sha: "7b9aa914e4ff"
+source_sha: "b9c53e13093a"
 ---
 
 # La consola { #the-console }
@@ -248,6 +248,13 @@ una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la pági
 una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
+
+La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
+**Knowledge** reúne Knowledge bases, Agent files, Skills y Context. Dos grupos se
+pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
+poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
+**Organization** (Organizations, Groups). Un grupo plegado se abre solo en
+cualquier página que le pertenezca, y se queda como lo dejaste.
 
 | Área | Contiene | Lee |
 |---|---|---|

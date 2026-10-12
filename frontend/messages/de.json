@@ -2846,7 +2846,9 @@
     "assistant": "Assistent",
     "groups": "Gruppen",
     "api": "API",
-    "mcpClients": "MCP-Clients"
+    "mcpClients": "MCP-Clients",
+    "connections": "Verbindungen",
+    "organization": "Organisation"
   },
   "navigation": {
     "dashboard": "Dashboard",

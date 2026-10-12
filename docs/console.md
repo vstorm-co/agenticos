@@ -234,6 +234,13 @@ closed for that browse.
 
 ## What each area is for
 
+The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
+**Knowledge** holds Knowledge bases, Agent files, Skills and Context. Two groups
+fold to their heading until you open them, because they are set up once and
+visited rarely: **Connections** (MCP servers, Channels, Vault, Sandboxes) and
+**Organization** (Organizations, Groups). A folded group opens by itself on any
+page inside it, and stays the way you left it.
+
 | Area | It holds | Read |
 |---|---|---|
 | **Agents** | The catalog, the Builder, versions, sharing, testing, activity | [Your first agent](first-agent.md) |

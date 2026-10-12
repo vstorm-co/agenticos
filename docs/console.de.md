@@ -1,5 +1,5 @@
 ---
-source_sha: "7b9aa914e4ff"
+source_sha: "b9c53e13093a"
 ---
 
 # Die Konsole { #the-console }
@@ -265,6 +265,14 @@ endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließ
 es, bleibt es für diesen Durchlauf geschlossen.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
+
+Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
+Activity; **Knowledge** enthält Knowledge bases, Agent files, Skills und Context.
+Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
+einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
+Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
+Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
+verlassen haben.
 
 | Bereich | Er hält | Lesen Sie |
 |---|---|---|

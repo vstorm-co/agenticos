@@ -477,6 +477,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A calmer sidebar.** Knowledge bases, agent files, skills and context sit
+  together under **Knowledge**; MCP servers, channels, the vault and sandboxes
+  fold under **Connections**, and organizations and groups under
+  **Organization** - each folded until opened, open by itself on any page inside
+  it, and remembered the way it was left.
 - **The dashboard opens on the numbers.** The default arrangement leads with the
   period's figures, runs day by day and how they ended, then what needs
   attention, then usage and cost; a deployment admin's platform band moves to

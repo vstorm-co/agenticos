@@ -57,6 +57,13 @@ export type NavGroup = {
   domain: NavDomain;
   items: NavItem[];
   adminOnly?: boolean;
+  /**
+   * Folded to its heading until somebody opens it, or until the page they are
+   * on is inside it. For the groups set up once and visited rarely - the
+   * connections an organization holds, its people - so the column a person
+   * reads every day is the part they use every day.
+   */
+  collapsible?: boolean;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -79,8 +86,10 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
         dataTour: "nav-agents",
       },
-      { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
-      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
+      // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
+      // the floor for seeing an agent's schedule; the create controls inside gate
+      // further on `agents:run`, so a viewer sees the list without the buttons.
+      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,
@@ -88,12 +97,10 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.artifactsView,
       },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
-      // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
-      // the floor for seeing an agent's schedule; the create controls inside gate
-      // further on `agents:run`, so a viewer sees the list without the buttons.
-      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
     ],
   },
+  // What an agent knows: the documents it searches, the files it kept, the
+  // how-tos it follows and the standing context it is always given.
   {
     labelKey: "knowledge",
     domain: "knowledge",
@@ -104,25 +111,26 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Database,
         permission: Perm.collectionsView,
       },
+      {
+        // Deliberately ungated. These are the files an agent kept *for the
+        // person looking*, and the backend narrows the listing to what they are
+        // part of - so a permission here would hide somebody's own files behind
+        // an operator's authority.
+        labelKey: "workspaces",
+        href: ROUTES.WORKSPACES,
+        icon: FolderOpen,
+      },
+      { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
+      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
     ],
   },
+  // What the organization is connected to. Set up once, revisited rarely, so
+  // folded until opened.
   {
-    labelKey: "workspace",
+    labelKey: "connections",
     domain: "workspace",
+    collapsible: true,
     items: [
-      { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
-      // A company's departments, with their people and what they were given
-      // (#2072). Ungated: any member may read the groups, as sharing needs.
-      { labelKey: "groups", href: ROUTES.GROUPS, icon: UsersRound },
-      {
-        // Gated on what the backend gates listing on: a Member holding secrets
-        // at OWN scope can use the Vault, so the nav must not hide it behind
-        // the broader connections:manage.
-        labelKey: "vault",
-        href: ROUTES.VAULT,
-        icon: KeyRound,
-        permission: Perm.secretsView,
-      },
       {
         labelKey: "mcpServers",
         href: ROUTES.MCP_SERVERS,
@@ -141,6 +149,15 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Perm.agentsView,
       },
       {
+        // Gated on what the backend gates listing on: a Member holding secrets
+        // at OWN scope can use the Vault, so the nav must not hide it behind
+        // the broader connections:manage.
+        labelKey: "vault",
+        href: ROUTES.VAULT,
+        icon: KeyRound,
+        permission: Perm.secretsView,
+      },
+      {
         // Gated on what the backend gates reading these on. Watching where
         // sandboxes run - the session list, a host's ceilings - is an operator's
         // job and rides on connections:view; only the add-and-edit controls on
@@ -150,15 +167,17 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Boxes,
         permission: Perm.connectionsView,
       },
-      {
-        // Deliberately ungated, unlike Sandboxes above. These are the files an
-        // agent kept *for the person looking*, and the backend narrows the listing
-        // to what they are part of - so a permission here would hide somebody's own
-        // workspace behind an operator's authority.
-        labelKey: "workspaces",
-        href: ROUTES.WORKSPACES,
-        icon: FolderOpen,
-      },
+    ],
+  },
+  {
+    labelKey: "organization",
+    domain: "workspace",
+    collapsible: true,
+    items: [
+      { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
+      // A company's departments, with their people and what they were given
+      // (#2072). Ungated: any member may read the groups, as sharing needs.
+      { labelKey: "groups", href: ROUTES.GROUPS, icon: UsersRound },
     ],
   },
   {

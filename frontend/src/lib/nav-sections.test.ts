@@ -24,7 +24,7 @@ describe("navSectionFor", () => {
   });
 
   it("strips a locale prefix before it decides", () => {
-    expect(navSectionFor("/pl/skills")).toMatchObject({ domain: "build", isRoot: true });
+    expect(navSectionFor("/pl/skills")).toMatchObject({ domain: "knowledge", isRoot: true });
   });
 
   it("answers null outside every section", () => {

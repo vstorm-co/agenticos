@@ -1,5 +1,5 @@
 ---
-source_sha: "7b9aa914e4ff"
+source_sha: "b9c53e13093a"
 ---
 
 # Konsola { #the-console }
@@ -245,6 +245,13 @@ zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go
 zostanie zamknięty dla tego przeglądania.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
+
+Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
+**Knowledge** to Knowledge bases, Agent files, Skills i Context. Dwie grupy są
+zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
+rzadko: **Connections** (MCP servers, Channels, Vault, Sandboxes) i
+**Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
+każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
 | Obszar | Zawiera | Przeczytaj |
 |---|---|---|

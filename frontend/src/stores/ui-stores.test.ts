@@ -55,15 +55,19 @@ describe("the two sidebars", () => {
     expect(useSidebarStore.getState().isCollapsed).toBe(false);
   });
 
-  it("remembers the collapse and nothing else about itself", () => {
+  it("remembers the collapse and the open groups, never the drawer", () => {
     // A preference that resets on every load is one nobody sets twice - but
     // restoring `isOpen` would open a drawer over a page somebody just
-    // loaded, so only one of the two is persisted.
-    useSidebarStore.setState({ isOpen: true, isCollapsed: true });
+    // loaded, so it is the one thing not persisted.
+    useSidebarStore.setState({ isOpen: true, isCollapsed: true, openGroups: [] });
+    useSidebarStore.getState().toggleGroup("connections");
 
     const persisted = JSON.parse(window.localStorage.getItem("agenticos.sidebar") ?? "{}");
 
-    expect(persisted.state).toEqual({ isCollapsed: true });
+    expect(persisted.state).toEqual({ isCollapsed: true, openGroups: ["connections"] });
+
+    useSidebarStore.getState().toggleGroup("connections");
+    expect(useSidebarStore.getState().openGroups).toEqual([]);
   });
 });
 
