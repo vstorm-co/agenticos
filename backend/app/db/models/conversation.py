@@ -56,6 +56,10 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    origin: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Where a conversation was opened from, when it was not the console: `api`
+    for one an organization key's run opened (#2122). Shown in its owner's chat
+    list with that label, and filterable out of it."""
 
     summary_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     """The history as the model last saw it, after a summary replaced part of it.

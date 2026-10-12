@@ -53,10 +53,17 @@ REFUSED=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$API/agents" \
 echo "creating an agent with this key answers $REFUSED"
 
 if [[ -n "${AGENT_ID:-}" ]]; then
-  # An agent whose workspace is shared per conversation refuses a call with no
-  # conversation (400, details.session_scope); docs/api.md#running-an-agent.
+  # The first call opens a conversation; the second continues it, and the agent
+  # reads what was said before (docs/api.md#running-an-agent).
   ANSWER=$(as_key -X POST "$API/agents/$AGENT_ID/run" -H "Content-Type: application/json" \
-    -d '{"prompt": "Reply with one word: ready"}') || { echo "run refused: $ANSWER" >&2; exit 1; }
+    -d '{"prompt": "Remember the word: heron. Reply with one word: ready"}') \
+    || { echo "run refused: $ANSWER" >&2; exit 1; }
   echo "answer:      $(jq -r .output <<<"$ANSWER")"
   as_key "$API/runs/$(jq -r .run_id <<<"$ANSWER")" | jq -c '{status, input_tokens, output_tokens, cost_usd}'
+  CONVERSATION=$(jq -r .conversation_id <<<"$ANSWER")
+  AGAIN=$(as_key -X POST "$API/agents/$AGENT_ID/run" -H "Content-Type: application/json" \
+    -d "{\"prompt\": \"Which word did I ask you to remember?\", \"conversation_id\": \"$CONVERSATION\"}") \
+    || { echo "run refused: $AGAIN" >&2; exit 1; }
+  echo "remembered:  $(jq -r .output <<<"$AGAIN")"
+  echo "turns:       $(as_key "$API/conversations/$CONVERSATION/transcript" | jq -r '.total')"
 fi

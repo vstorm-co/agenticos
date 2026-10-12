@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient, Response
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -4982,6 +4982,102 @@ class TestCallingWithAnOrganizationKey:
         assert run is not None
         assert run.status == RunStatus.FAILED.value
         assert run.surface == RunSurface.API.value
+
+    @staticmethod
+    async def _key_for(db, tenant: Tenant, *scopes: Perm) -> str:
+        created = await ApiKeyService(db).create(
+            tenant.ctx, ApiKeyCreate(name="script", scopes=list(scopes))
+        )
+        return created.key
+
+    @staticmethod
+    async def _get(db, path: str, key: str) -> Response:
+        async def session():
+            yield db
+
+        app.dependency_overrides[deps.get_db_session] = session
+        app.dependency_overrides[deps.get_redis] = lambda: MagicMock()
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                return await http.get(
+                    f"{settings.API_V1_STR}{path}", headers={"Authorization": f"Bearer {key}"}
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    async def test_a_conversation_continues_across_calls_and_the_agent_remembers(
+        self, db, monkeypatch
+    ) -> None:
+        """A run that names no conversation opens one, labelled as the API's, and
+        the next call that names it sends the model what was said before (#2122)."""
+        from app.agents.model_resolver import ModelRequestSpec
+
+        seen: list[list[str]] = []
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            said = [
+                part.content
+                for message in messages
+                for part in message.parts
+                if isinstance(part, UserPromptPart) and isinstance(part.content, str)
+            ]
+            seen.append(said)
+            return ModelResponse(parts=[TextPart("noted")])
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(respond))
+        tenant = await _tenant(db, name="KeyThreaded")
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        key = await self._key_for(db, tenant, Perm.AGENTS_VIEW, Perm.AGENTS_RUN, Perm.RUNS_VIEW)
+
+        first = await self._run(db, agent, key, prompt="my order number is 4417")
+        assert first.status_code == 200, first.text
+        conversation_id = first.json()["conversation_id"]
+        opened = await db.get(Conversation, uuid.UUID(conversation_id))
+        assert opened is not None
+        assert (opened.origin, opened.user_id) == ("api", tenant.user.id)
+        assert opened.title == "my order number is 4417"
+
+        second = await self._run(
+            db, agent, key, prompt="what was my order number?", conversation_id=conversation_id
+        )
+
+        assert second.status_code == 200, second.text
+        assert second.json()["conversation_id"] == conversation_id
+        assert any("4417" in text for text in seen[-1]), "the second turn reads the first"
+
+        transcript = await self._get(db, f"/conversations/{conversation_id}/transcript", key)
+        assert transcript.status_code == 200, transcript.text
+        assert [m["role"] for m in transcript.json()["items"]] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+
+    @pytest.mark.security
+    async def test_a_key_reads_only_its_issuers_conversations_and_only_with_runs_view(
+        self, db
+    ) -> None:
+        tenant = await _tenant(db, name="KeyTranscript")
+        colleague = await _join(db, tenant, OrgRoleName.MEMBER)
+        mine = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        theirs = Conversation(organization_id=tenant.organization.id, user_id=colleague.user_id)
+        db.add_all([mine, theirs])
+        await db.flush()
+        reader = await self._key_for(db, tenant, Perm.RUNS_VIEW)
+        runner = await self._key_for(db, tenant, Perm.AGENTS_RUN)
+
+        assert (
+            await self._get(db, f"/conversations/{mine.id}/transcript", reader)
+        ).status_code == 200
+        assert (
+            await self._get(db, f"/conversations/{theirs.id}/transcript", reader)
+        ).status_code == 404
+        assert (
+            await self._get(db, f"/conversations/{mine.id}/transcript", runner)
+        ).status_code == 403
 
     @pytest.mark.security
     async def test_a_conversation_that_is_not_the_issuers_is_reported_missing(self, db) -> None:

@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A script can hold a conversation with an agent.** A run over the public API
+  opens a conversation when it names none and returns its `conversation_id`; the
+  next call that sends it continues it, with the model reading what was said
+  before. `GET /api/v1/conversations/{id}/transcript` reads it back for a key
+  with `runs:view`, and such conversations show in their owner's chat list
+  labelled **API**, with a switch to hide them (#2122).
 - **The MCP catalog is checked, and says so.** `agenticos cmd mcp-catalog-check`
   calls every curated and registry server the way a first connection would and
   records whether it answered, how it wants to be signed into and how many of its

@@ -51,6 +51,16 @@ from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
+API_HISTORY_MESSAGES = 200
+"""How much of a conversation an API run sends the model: what a channel thread
+sends, with the same summary taking over beyond it."""
+
+
+def _api_title(prompt: str) -> str:
+    """A conversation opened over the API is named for what it was first asked."""
+    first = " ".join(prompt.split())
+    return first if len(first) <= 80 else f"{first[:79]}…"
+
 
 def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     """Parse client-sent file ids, naming the ones that are not UUIDs at all.
@@ -430,6 +440,7 @@ class ConversationService:
         archived_only: bool = False,
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
+        hide_api: bool = False,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -474,6 +485,7 @@ class ConversationService:
                 None if archived_only or include_archived or user_id is None else user_id
             ),
             participant_conversation_ids=participant_ids,
+            hide_api=hide_api,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -484,6 +496,7 @@ class ConversationService:
             include_archived=include_archived,
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
+            hide_api=hide_api,
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -626,6 +639,45 @@ class ConversationService:
             for conv, msg_count, email in rows
         ]
         return AdminConversationList(items=items, total=total)
+
+    async def for_api_run(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID | None,
+        *,
+        prompt: str,
+    ) -> tuple[UUID, list[ModelMessage] | None]:
+        """The conversation an API run files under, and what the model reads of it.
+
+        A run that names none opens one for the key's issuer, labelled as opened
+        over the API, so the next call can continue it and a workspace scoped to
+        the conversation has one to be scoped to (#2122). A run that names one
+        must name the caller's own, and the model reads its history the way a
+        channel thread's is read - the recent window, or the summary and what
+        came after it.
+
+        Raises:
+            NotFoundError: If the named conversation is unknown or not the caller's.
+        """
+        if conversation_id is None:
+            opened = await conversation_repo.create_conversation(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                title=_api_title(prompt),
+                origin="api",
+            )
+            return opened.id, None
+        await self.get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            for_write=True,
+            include_favourite=False,
+        )
+        return conversation_id, await self.model_history(
+            conversation_id, limit=API_HISTORY_MESSAGES
+        )
 
     async def create_conversation(
         self,

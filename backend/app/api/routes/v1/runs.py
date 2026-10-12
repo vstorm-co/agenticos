@@ -14,6 +14,7 @@ from app.api.deps import (
     AgentRunnerSvc,
     ApprovalSvc,
     Auth,
+    ConversationSvc,
     RunExportSvc,
     require,
 )
@@ -44,6 +45,7 @@ from app.schemas.agent_run import (
     RunTranscript,
     RunTranscriptMessage,
 )
+from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -294,6 +296,38 @@ async def get_run_transcript(
         ],
         total=total,
     )
+
+
+@router.get(
+    "/conversations/{conversation_id}/transcript",
+    response_model=MessageList,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def get_conversation_transcript(
+    conversation_id: UUID,
+    conversations: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> Any:
+    """One of the caller's own conversations, turn by turn (#2122).
+
+    For a script continuing a conversation it opened over the API: what was asked
+    and answered, with the tools each turn called and what the thread has cost.
+    The caller's own conversations only - a key reads as its issuer, and another
+    member's thread answers `404` like one that does not exist. The console reads
+    the same transcript through its own route.
+    """
+    items, total, cost = await conversations.transcript(
+        conversation_id,
+        skip=skip,
+        limit=limit,
+        include_tool_calls=True,
+        organization_id=ctx.organization_id,
+        user_id=ctx.subject_id,
+        ctx=ctx,
+    )
+    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
 
 @router.get("/runs/{run_id}/files/{file_id}", response_model=None)

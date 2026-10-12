@@ -336,6 +336,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
     user_id: UUID | None = None
     organization_id: UUID | None = None
     is_archived: bool = False
+    origin: Literal["api"] | None = Field(
+        default=None,
+        description="`api` for a conversation an organization key's run opened; null otherwise",
+    )
     is_favourite: bool = Field(
         default=False,
         description=(

@@ -2373,3 +2373,12 @@ class TestAFavouriteBelongsToTheReader:
 
         asked.assert_not_awaited()
         assert items[0].is_favourite is False
+
+
+def test_a_conversation_opened_over_the_api_is_named_for_its_first_question() -> None:
+    """One line, and short enough for the sidebar (#2122)."""
+    from app.services.conversation import _api_title
+
+    assert _api_title("refund window\nplease") == "refund window please"
+    long = _api_title("x" * 200)
+    assert len(long) == 80 and long.endswith("…")

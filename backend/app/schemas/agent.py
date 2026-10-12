@@ -608,10 +608,11 @@ class AgentRunRequest(BaseSchema):
     conversation_id: UUID | None = Field(
         default=None,
         description=(
-            "One of the caller's own conversations to file this turn under. The "
-            "turn is recorded there and the agent's conversation-scoped workspace "
-            "is that conversation's, but its earlier messages are not sent to the "
-            "model. Unknown, or somebody else's, answers 404"
+            "One of the caller's own conversations to continue: the model reads "
+            "what was said in it before, the turn is recorded there, and a "
+            "conversation-scoped workspace is that conversation's. Left out, the run "
+            "opens a new conversation and returns its id. Unknown, or somebody "
+            "else's, answers 404"
         ),
     )
     environment_id: UUID | None = Field(
@@ -701,6 +702,14 @@ class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
     run_id: UUID
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The conversation the turn was filed under. A run that named none opened "
+            "it; send it as `conversation_id` to continue, and the agent reads what "
+            "was said before"
+        ),
+    )
     output: str
     status: str
     cost_usd: Decimal

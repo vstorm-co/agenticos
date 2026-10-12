@@ -23,6 +23,7 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
   const onSearchChange = vi.fn();
   const onAgentChange = vi.fn();
   const onSortChange = vi.fn();
+  const onHideApiChange = vi.fn();
   render(
     <ConversationFilters
       search=""
@@ -31,10 +32,12 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
       onAgentChange={onAgentChange}
       sort={DEFAULT_SORT}
       onSortChange={onSortChange}
+      hideApi={false}
+      onHideApiChange={onHideApiChange}
       {...props}
     />,
   );
-  return { onSearchChange, onAgentChange, onSortChange };
+  return { onSearchChange, onAgentChange, onSortChange, onHideApiChange };
 }
 
 describe("the sort value", () => {
@@ -123,6 +126,8 @@ describe("the filter bar", () => {
         onAgentChange={vi.fn()}
         sort={DEFAULT_SORT}
         onSortChange={vi.fn()}
+        hideApi={false}
+        onHideApiChange={vi.fn()}
       />,
     );
     expect(screen.queryByText("Threads this agent answered in")).not.toBeInTheDocument();
@@ -135,6 +140,8 @@ describe("the filter bar", () => {
         onAgentChange={vi.fn()}
         sort={DEFAULT_SORT}
         onSortChange={vi.fn()}
+        hideApi={false}
+        onHideApiChange={vi.fn()}
       />,
     );
     expect(screen.getByText("Threads this agent answered in")).toBeVisible();
@@ -160,5 +167,25 @@ describe("the filter bar", () => {
 
     const box = screen.getByRole("textbox", { name: "Search conversations" });
     expect(box.parentElement?.className).not.toMatch(/(^|:)w-64\b/);
+  });
+});
+
+describe("conversations opened over the API (#2122)", () => {
+  it("hides them with one press, and says it is pressed", async () => {
+    const { onHideApiChange } = mount();
+    const toggle = screen.getByRole("button", { name: "Hide conversations opened over the API" });
+
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
+    expect(onHideApiChange).toHaveBeenCalledWith(true);
+  });
+
+  it("shows them again from the pressed state", async () => {
+    const { onHideApiChange } = mount({ hideApi: true });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Hide conversations opened over the API" }),
+    );
+    expect(onHideApiChange).toHaveBeenCalledWith(false);
   });
 });

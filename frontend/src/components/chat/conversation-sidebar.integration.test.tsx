@@ -471,3 +471,34 @@ describe("the favourites band", () => {
     expect(within(list()).queryByText("Favourites")).toBeNull();
   });
 });
+
+describe("conversations opened over the API (#2122)", () => {
+  it("labels them, and leaves them out on request", async () => {
+    serve([
+      { ...conversation("c-api", "Nightly report"), origin: "api" } as ReturnType<
+        typeof conversation
+      >,
+    ]);
+    mount();
+    await screen.findAllByText("Nightly report");
+
+    expect(within(list()).getByText("API")).toBeInTheDocument();
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Hide conversations opened over the API" }),
+    );
+
+    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+    expect(window.location.search).toContain("api=hide");
+  });
+
+  it("clears it with the other filters", async () => {
+    urlParams = new URLSearchParams("api=hide");
+    serve([]);
+    mount();
+
+    await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+    await userEvent.click(await within(list()).findByRole("button", { name: /clear/i }));
+
+    await waitFor(() => expect(listRequests().at(-1)).not.toContain("hide_api"));
+  });
+});

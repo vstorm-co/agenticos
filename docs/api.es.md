@@ -1,5 +1,5 @@
 ---
-source_sha: "35c84eab89b3"
+source_sha: "88c49bc97aa7"
 ---
 
 # La API HTTP { #the-http-api }
@@ -146,15 +146,18 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 La respuesta trae el id del run, la salida, el estado, los tokens y el coste.
 `environment_id` en el cuerpo elige [qué entorno](environments.md) responde.
 
-**Un run por HTTP es un turno.** `conversation_id` archiva el turno en una de las
-conversaciones propias de quien llama, así que la transcripción queda allí y un
-workspace con alcance de conversación es el de esa conversación, pero los
-mensajes anteriores no se envían al modelo. Un id desconocido, o la conversación
-de otra persona, responde `404`. No hay ruta que abra una conversación para una
-clave, así que un agent cuyo [workspace](sandbox.md) se comparte por
-conversación (el valor por defecto) responde `400` con
-`details.session_scope = "conversation"` a una llamada sin ella; dale a ese agent
-el alcance `run` o `agent` para llamarlo desde un script.
+**Un run continúa una conversación.** Una llamada sin `conversation_id` abre una
+conversación nueva para quien emitió la clave y devuelve su id como
+`conversation_id`; envíalo en la siguiente llamada y el agent lee lo que se dijo
+antes - los últimos turnos, o el resumen de los anteriores y lo que vino
+después. Un workspace compartido por conversación, el valor por defecto, es el de
+esa conversación. Un id desconocido, o la conversación de otra persona, responde
+`404`. La conversación aparece en la lista de chats de quien emitió la clave con
+la etiqueta **API**, donde un interruptor oculta esas conversaciones.
+
+`GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de
+quien emitió la clave turno a turno, con las herramientas que llamó cada turno y
+lo que costó, para una clave con `runs:view`.
 
 !!! info "Un llamante de la API no puede esquivar el governance"
 
@@ -396,8 +399,6 @@ encima:
 
 - **Virtual Tables** no están en ella; leer y escribir una tabla con una clave es
   [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
-- **Un run es un turno.** No hay conversación que una clave pueda abrir y
-  continuar, como dice [Ejecutar un agent](#running-an-agent).
 - **Sin streaming para una clave.** El socket del chat solo acepta la sesión de
   una persona.
 - **Sin claves de idempotencia ni revisiones**, como arriba.

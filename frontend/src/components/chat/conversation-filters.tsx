@@ -1,12 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ArrowDownUp } from "lucide-react";
+import { ArrowDownUp, Code2 } from "lucide-react";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { SearchInput } from "@/components/ui/list-controls";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents } from "@/hooks";
+import { cn } from "@/lib/utils";
 import type { ConversationSortDir, ConversationSortKey } from "@/hooks/use-conversations";
 
 /** The sort control's value: one string, because a `Select` carries one. */
@@ -42,6 +43,9 @@ interface ConversationFiltersProps {
   onAgentChange: (agentId: string | null) => void;
   sort: ConversationSort;
   onSortChange: (sort: ConversationSort) => void;
+  /** Leave out conversations an API key's runs opened. */
+  hideApi: boolean;
+  onHideApiChange: (hide: boolean) => void;
   /** Put the cursor in the search box on mount - see the collapsed rail. */
   autoFocusSearch?: boolean;
 }
@@ -66,6 +70,8 @@ export function ConversationFilters({
   onAgentChange,
   sort,
   onSortChange,
+  hideApi,
+  onHideApiChange,
   autoFocusSearch = false,
 }: ConversationFiltersProps) {
   const t = useTranslations("chat.sidebar");
@@ -130,6 +136,23 @@ export function ConversationFilters({
             <SelectItem value="title:desc">{t("sortTitleDesc")}</SelectItem>
           </SelectContent>
         </Select>
+        {/* A script's threads beside a person's: shown, labelled, and one press
+            from out of the way (#2122). */}
+        <button
+          type="button"
+          aria-pressed={hideApi}
+          aria-label={t("hideApi")}
+          title={t("hideApi")}
+          onClick={() => onHideApiChange(!hideApi)}
+          className={cn(
+            "border-input inline-flex h-8 w-9 shrink-0 items-center justify-center rounded-md border",
+            hideApi
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Code2 className="h-3.5 w-3.5" />
+        </button>
       </div>
       {agentId !== null && (
         <p className="text-muted-foreground text-[11px]">{t("agentFilterHint")}</p>

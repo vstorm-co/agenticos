@@ -1149,7 +1149,9 @@
       "sortNewest": "Najnowsze najpierw",
       "sortRecent": "Ostatnia aktywność",
       "sortTitleAsc": "Tytuł A–Z",
-      "sortTitleDesc": "Tytuł Z–A"
+      "sortTitleDesc": "Tytuł Z–A",
+      "apiBadge": "API",
+      "hideApi": "Ukryj rozmowy otwarte przez API"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",

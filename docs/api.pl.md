@@ -1,5 +1,5 @@
 ---
-source_sha: "35c84eab89b3"
+source_sha: "88c49bc97aa7"
 ---
 
 # API HTTP { #the-http-api }
@@ -142,14 +142,17 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 Odpowiedź niesie identyfikator runa, wynik, status, tokeny i koszt.
 `environment_id` w ciele wybiera, [które środowisko](environments.md) odpowiada.
 
-**Run przez HTTP to jedna tura.** `conversation_id` zapisuje turę w jednej z
-własnych rozmów wywołującego, więc transkrypt trafia tam, a workspace o zakresie
-rozmowy jest workspace'em tej rozmowy, ale wcześniejsze wiadomości nie są
-wysyłane do modelu. Nieznany identyfikator albo cudza rozmowa dostają `404`. Nie
-ma trasy, która otwiera rozmowę dla klucza, więc agent, którego
-[workspace](sandbox.md) jest współdzielony per rozmowa (domyślnie), odpowiada
-`400` z `details.session_scope = "conversation"` na wywołanie bez niej; żeby
-wołać go ze skryptu, daj mu zakres `run` albo `agent`.
+**Run kontynuuje rozmowę.** Wywołanie bez `conversation_id` otwiera nową rozmowę
+dla wystawcy klucza i zwraca jej identyfikator jako `conversation_id`; wyślij go
+w kolejnym wywołaniu, a agent przeczyta, co padło wcześniej - ostatnie tury albo
+podsumowanie starszych i to, co po nim. Workspace współdzielony per rozmowa
+(domyślny) należy do tej rozmowy. Nieznany identyfikator albo cudza rozmowa
+dostają `404`. Rozmowa pojawia się na liście czatów wystawcy z etykietą **API**,
+a przełącznik ukrywa takie rozmowy.
+
+`GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po
+turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z
+`runs:view`.
 
 !!! info "Wywołujący API nie może obejść nadzoru"
 
@@ -385,8 +388,6 @@ Czego publiczne API jeszcze nie robi, żeby nikt nie budował na tym klienta:
 
 - **Virtual Tables** w nim nie ma; czytanie i zapis tabeli kluczem to
   [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
-- **Run to jedna tura.** Nie ma rozmowy, którą klucz mógłby otworzyć i
-  kontynuować, jak mówi [Uruchamianie agenta](#running-an-agent).
 - **Brak streamingu dla klucza.** Socket czatu przyjmuje tylko sesję osoby.
 - **Brak kluczy idempotencji i rewizji**, jak wyżej.
 

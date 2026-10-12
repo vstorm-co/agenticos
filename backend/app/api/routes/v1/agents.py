@@ -604,18 +604,12 @@ async def run_agent(
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
     """
-    if data.conversation_id is not None:
-        # The runner takes the id on trust - a channel passes one it opened
-        # itself - so the one surface where a caller names it checks it first:
-        # an unknown id was a foreign-key 500, and somebody else's conversation
-        # would have handed this run its workspace and its plan (#1796).
-        await conversations.get_conversation(
-            data.conversation_id,
-            organization_id=ctx.organization_id,
-            user_id=ctx.subject_id,
-            for_write=True,
-            include_favourite=False,
-        )
+    # The caller's own conversation, checked - an unknown id was a foreign-key
+    # 500, and somebody else's would have handed this run its workspace and its
+    # plan (#1796) - or a new one, so the next call can continue it (#2122).
+    conversation_id, history = await conversations.for_api_run(
+        ctx, data.conversation_id, prompt=data.prompt
+    )
     attachments = await load_attached_files(
         db,
         [str(file_id) for file_id in data.file_ids],
@@ -629,13 +623,15 @@ async def run_agent(
         agent_id,
         data.prompt,
         surface=RunSurface.API,
-        conversation_id=data.conversation_id,
+        conversation_id=conversation_id,
+        message_history=history,
         environment_id=data.environment_id,
         attachments=attachments,
         reports_failure=True,
     )
     return AgentRunResult(
         run_id=run.id,
+        conversation_id=conversation_id,
         output=output,
         status=run.status,
         cost_usd=run.cost_usd,

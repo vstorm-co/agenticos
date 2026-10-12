@@ -1149,7 +1149,9 @@
       "sortNewest": "Newest first",
       "sortRecent": "Recent activity",
       "sortTitleAsc": "Title A–Z",
-      "sortTitleDesc": "Title Z–A"
+      "sortTitleDesc": "Title Z–A",
+      "apiBadge": "API",
+      "hideApi": "Hide conversations opened over the API"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",

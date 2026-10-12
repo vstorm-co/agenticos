@@ -141,6 +141,12 @@ function ConversationItem({
                 being the useful part - `timeAgo` in `lib/utils`, the same
                 reading the notification rows use. */}
             {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+            {/* Opened by a script through an API key, not typed here (#2122). */}
+            {conversation.origin === "api" && (
+              <span className="border-border rounded border px-1 font-mono text-[10px] leading-4">
+                {t("sidebar.apiBadge")}
+              </span>
+            )}
           </span>
         </div>
       )}
@@ -597,6 +603,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   );
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
+  const [hideApi, setHideApi] = useState(searchParams.get("api") === "hide");
   const [sort, setSort] = useState<ConversationSort>(() => {
     const fromUrl = searchParams.get("sort");
     return isConversationSort(fromUrl) ? fromUrl : DEFAULT_SORT;
@@ -624,6 +631,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     view,
     search: debouncedSearch,
     agentId,
+    hideApi,
     ...splitSort(sort),
   });
 
@@ -647,9 +655,14 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     setSort(next);
     setUrlParam("sort", next === DEFAULT_SORT ? null : next);
   };
+  const changeHideApi = (next: boolean) => {
+    setHideApi(next);
+    setUrlParam("api", next ? "hide" : null);
+  };
   const clearFilters = () => {
     changeSearch("");
     changeAgent(null);
+    changeHideApi(false);
   };
 
   const listProps = {
@@ -660,7 +673,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     // The sort is not a filter: it reorders the same threads, so an empty list
     // under it is empty for some other reason and "clear the filters" would do
     // nothing a reader could see.
-    isFiltered: debouncedSearch.trim() !== "" || agentId !== null,
+    isFiltered: debouncedSearch.trim() !== "" || agentId !== null || hideApi,
     onClearFilters: clearFilters,
     filters: (
       <ConversationFilters
@@ -670,6 +683,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         onAgentChange={changeAgent}
         sort={sort}
         onSortChange={changeSort}
+        hideApi={hideApi}
+        onHideApiChange={changeHideApi}
         autoFocusSearch={focusSearchOnOpen}
       />
     ),

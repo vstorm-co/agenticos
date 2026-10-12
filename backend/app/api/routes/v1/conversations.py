@@ -79,6 +79,7 @@ async def list_conversations(
         "updated_at", description="Sort column"
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
 ) -> Any:
     """List conversations for the current user.
 
@@ -104,6 +105,7 @@ async def list_conversations(
         archived_only=archived_only,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        hide_api=hide_api,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 

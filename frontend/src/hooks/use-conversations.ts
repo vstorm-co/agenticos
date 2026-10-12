@@ -86,6 +86,8 @@ export interface ConversationQuery {
   agentId: string | null;
   sortBy: ConversationSortKey;
   sortDir: ConversationSortDir;
+  /** Leave out conversations an API key's runs opened (#2122). */
+  hideApi: boolean;
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -94,6 +96,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   agentId: null,
   sortBy: "updated_at",
   sortDir: "desc",
+  hideApi: false,
 };
 
 /**
@@ -125,6 +128,7 @@ function listParams(query: ConversationQuery): string {
   if (query.view === "archived") params.set("archived_only", "true");
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
 
@@ -132,14 +136,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir } = { ...DEFAULT_QUERY, ...query };
+  const { view, search, agentId, sortBy, sortDir, hideApi } = { ...DEFAULT_QUERY, ...query };
   // Memoized on the five values rather than on the object they arrive in: a
   // caller building that object inline hands over a new reference every render,
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir }),
-    [view, search, agentId, sortBy, sortDir],
+    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi }),
+    [view, search, agentId, sortBy, sortDir, hideApi],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {

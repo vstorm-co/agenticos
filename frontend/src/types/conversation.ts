@@ -29,6 +29,8 @@ export interface Conversation {
   is_favourite?: boolean;
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
+  /** `api` for a conversation an organization key's run opened (#2122). */
+  origin?: "api" | null;
 }
 
 export interface ConversationMessage {

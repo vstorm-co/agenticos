@@ -1,5 +1,5 @@
 ---
-source_sha: "35c84eab89b3"
+source_sha: "88c49bc97aa7"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -154,15 +154,19 @@ Die Antwort trägt die Id des Runs, die Ausgabe, den Status, die Tokens und die
 Kosten. `environment_id` im Body wählt, [welche Umgebung](environments.md)
 antwortet.
 
-**Ein Run über HTTP ist ein Zug.** `conversation_id` legt den Zug in einer der
-eigenen Unterhaltungen des Aufrufers ab, das Transkript landet also dort, und ein
-Workspace mit Unterhaltungs-Scope ist der dieser Unterhaltung, aber die früheren
-Nachrichten gehen nicht an das Modell. Eine unbekannte Id oder die Unterhaltung
-eines anderen antwortet `404`. Es gibt keine Route, die einem Schlüssel eine
-Unterhaltung öffnet, also antwortet ein Agent, dessen [Workspace](sandbox.md) pro
-Unterhaltung geteilt wird (der Standard), auf einen Aufruf ohne eine mit `400`
-und `details.session_scope = "conversation"`; geben Sie einem solchen Agent den
-Scope `run` oder `agent`, um ihn aus einem Skript aufzurufen.
+**Ein Run setzt eine Unterhaltung fort.** Ein Aufruf ohne `conversation_id`
+öffnet eine neue Unterhaltung für den Aussteller des Schlüssels und gibt ihre Id
+als `conversation_id` zurück; senden Sie sie mit dem nächsten Aufruf, und der
+Agent liest, was zuvor gesagt wurde - die letzten Züge oder die Zusammenfassung
+älterer und was danach kam. Ein pro Unterhaltung geteilter Workspace, der
+Standard, ist der dieser Unterhaltung. Eine unbekannte Id oder die Unterhaltung
+eines anderen antwortet `404`. Die Unterhaltung erscheint in der Chatliste des
+Ausstellers mit dem Label **API**, wo ein Schalter solche Unterhaltungen
+ausblendet.
+
+`GET /api/v1/conversations/{id}/transcript` liest eine der Unterhaltungen des
+Ausstellers Zug für Zug, mit den Tools, die jeder Zug aufgerufen hat, und den
+Kosten, für einen Schlüssel mit `runs:view`.
 
 !!! info "Ein API-Aufrufer kann die Governance nicht umgehen"
 
@@ -410,8 +414,6 @@ Was die öffentliche API noch nicht kann, damit niemand einen Client darauf baut
 
 - **Virtual Tables** sind nicht darin; eine Tabelle mit einem Schlüssel zu lesen
   und zu schreiben ist [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
-- **Ein Run ist ein Zug.** Es gibt keine Unterhaltung, die ein Schlüssel öffnen
-  und fortsetzen kann, wie [Einen Agent ausführen](#running-an-agent) sagt.
 - **Kein Streaming für einen Schlüssel.** Der Chat-Socket nimmt nur die Session
   einer Person.
 - **Keine Idempotenz-Schlüssel und keine Revisionen**, wie oben.

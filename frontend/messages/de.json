@@ -1149,7 +1149,9 @@
       "sortNewest": "Neueste zuerst",
       "sortRecent": "Neueste Aktivität",
       "sortTitleAsc": "Titel A–Z",
-      "sortTitleDesc": "Titel Z–A"
+      "sortTitleDesc": "Titel Z–A",
+      "apiBadge": "API",
+      "hideApi": "Über die API eröffnete Unterhaltungen ausblenden"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",

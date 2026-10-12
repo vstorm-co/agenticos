@@ -137,14 +137,17 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 The response carries the run id, the output, the status, the tokens and the cost.
 `environment_id` in the body picks [which environment](environments.md) answers.
 
-**A run over HTTP is one turn.** `conversation_id` files the turn under one of
-the caller's own conversations, so the transcript lands there and a workspace
-scoped to the conversation is that conversation's, but the earlier messages are
-not sent to the model. An unknown id, or somebody else's, answers `404`. There is
-no route that opens a conversation for a key, so an agent whose
-[workspace](sandbox.md) is shared per conversation, the default, answers `400`
-with `details.session_scope = "conversation"` to a call without one; give such an
-agent `run` or `agent` as its scope to call it from a script.
+**A run continues a conversation.** A call without `conversation_id` opens a new
+conversation for the key's issuer and returns its id as `conversation_id`; send
+it with the next call and the agent reads what was said before - the recent
+turns, or the summary of older ones and what came after. A workspace shared per
+conversation, the default, is that conversation's. An unknown id, or somebody
+else's, answers `404`. The conversation shows in the issuer's chat list labelled
+**API**, where a switch hides such conversations.
+
+`GET /api/v1/conversations/{id}/transcript` reads one of the issuer's
+conversations turn by turn, with the tools each turn called and what it cost,
+for a key holding `runs:view`.
 
 !!! info "An API caller cannot route around governance"
 
@@ -377,8 +380,6 @@ What the public API does not do yet, so a client is not built on it:
 
 - **Virtual Tables** are not on it; reading and writing a table with a key is
   [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
-- **A run is one turn.** There is no conversation a key can open and continue,
-  as [Running an agent](#running-an-agent) says.
 - **No streaming for a key.** The chat socket takes a person's session only.
 - **No idempotency keys and no revisions**, as above.
 
