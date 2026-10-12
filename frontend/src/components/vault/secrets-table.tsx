@@ -1,22 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Lock, RotateCw, Trash2, Users } from "lucide-react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import {
-  Badge,
-  Button,
-  DataTable,
-  EntityAvatar,
-  ListCardControlsRow,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  type Column,
-} from "@/components/ui";
+import { Badge, Button, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 import { useTranslations } from "next-intl";
@@ -38,11 +26,6 @@ function purposeLabel(
 ): string {
   if (!purpose || purpose === "custom") return t("customService");
   return purposes.find((entry) => entry.id === purpose)?.label ?? purpose;
-}
-
-/** The stored purpose as one filterable id, `custom` for a missing one. */
-function purposeId(secret: Secret): string {
-  return secret.purpose && secret.purpose !== "custom" ? secret.purpose : "custom";
 }
 
 /**
@@ -83,26 +66,6 @@ export function SecretsTable({
   const t = useTranslations("vault");
   const tc = useTranslations("common");
 
-  // The service narrowing, in the controls strip like every list's filters -
-  // never a second header row under the columns (the rejected pattern).
-  const [purpose, setPurpose] = useState("all");
-  const rows = useMemo(
-    () =>
-      purpose === "all" ? [...secrets] : secrets.filter((secret) => purposeId(secret) === purpose),
-    [secrets, purpose],
-  );
-
-  const purposeOptions = useMemo(() => {
-    const present = new Map<string, string>();
-    for (const secret of secrets) {
-      const id = purposeId(secret);
-      if (!present.has(id)) present.set(id, purposeLabel(purposes, secret.purpose, t));
-    }
-    return [...present]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [secrets, purposes, t]);
-
   const columns = useMemo<Column<Secret>[]>(() => {
     const cols: Column<Secret>[] = [
       {
@@ -137,7 +100,7 @@ export function SecretsTable({
         hideBelow: "sm",
         header: t("for"),
         cell: (secret) => (
-          <span className="text-muted-foreground text-sm">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
             {purposeLabel(purposes, secret.purpose, t)}
           </span>
         ),
@@ -250,24 +213,9 @@ export function SecretsTable({
 
   return (
     <>
-      <ListCardControlsRow>
-        <Select value={purpose} onValueChange={setPurpose}>
-          <SelectTrigger className="h-8 w-[200px]" aria-label={t("filterByService")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("anyService")}</SelectItem>
-            {purposeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </ListCardControlsRow>
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={[...secrets]}
         getRowKey={(secret) => secret.id}
         className="rounded-none border-0 bg-transparent"
       />
