@@ -61,6 +61,42 @@ Each key is also rate limited on its own, `RATE_LIMIT_API_KEY_PER_MINUTE`
 requests a minute (600 by default), and a run or an ML call it makes counts
 against those limits for the key rather than for its issuer.
 
+### Without a browser
+
+A script can get its own key with no console open. Sign in with a form body (the
+OAuth2 password grant, so JSON answers `422`), pick the organization, issue the
+key with the session token, and revoke it the same way when it is done:
+
+```bash
+SESSION=$(curl -s -X POST "$BASE/api/v1/auth/login" \
+  -d "username=$EMAIL" --data-urlencode "password=$PASSWORD" | jq -r .access_token)
+
+ORG_ID=$(curl -s "$BASE/api/v1/orgs" -H "Authorization: Bearer $SESSION" \
+  | jq -r '[.items[] | select(.is_personal)][0].id')
+
+curl -s -X POST "$BASE/api/v1/api-keys" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "nightly import", "scopes": ["collections:view", "collections:edit"]}'
+# -> {"id": "...", "key": "aos_...", "prefix": "aos_1a2b3c4d", ...}
+
+curl -s -X DELETE "$BASE/api/v1/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/api-keys/scopes` lists what the signed-in member may put on a key,
+and the presets over it. A deployment that signs people in only through SSO has
+no password to send; there a member issues the key in the console.
+
+[`examples/public-api.sh`](examples/public-api.sh) is the whole round trip as
+one script: it issues a read-only key, lists agents and runs with it, shows the
+`403` for a route outside the key's permissions, runs an agent and reads the run
+back when `AGENT_ID` is set, and revokes the key on exit.
+
+```bash
+BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
+```
+
 ### Sessions and revocation
 
 A JWT access token is bound to the session its sign-in opened — the session's id
@@ -98,9 +134,17 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
 
-The response carries the run id, the output and the status. Two optional fields
-in the body are worth knowing: `conversation_id` continues an existing thread,
-and `environment_id` picks [which environment](environments.md) answers.
+The response carries the run id, the output, the status, the tokens and the cost.
+`environment_id` in the body picks [which environment](environments.md) answers.
+
+**A run over HTTP is one turn.** `conversation_id` files the turn under one of
+the caller's own conversations, so the transcript lands there and a workspace
+scoped to the conversation is that conversation's, but the earlier messages are
+not sent to the model. An unknown id, or somebody else's, answers `404`. There is
+no route that opens a conversation for a key, so an agent whose
+[workspace](sandbox.md) is shared per conversation, the default, answers `400`
+with `details.session_scope = "conversation"` to a call without one; give such an
+agent `run` or `agent` as its scope to call it from a script.
 
 !!! info "An API caller cannot route around governance"
 
@@ -270,6 +314,23 @@ re-scan the page for.
 A `401` carries `WWW-Authenticate: Bearer`. A cross-tenant read answers `404`,
 not `403`, for the reason above.
 
+## Retries, idempotency and revisions
+
+v1 has no `Idempotency-Key` header and no revision preconditions: no `ETag`, no
+`If-Match`. A write is applied when it arrives, and the last one wins.
+
+- **`GET`, `PUT` and `DELETE` are safe to repeat.** Reading twice reads twice;
+  deleting what is already gone answers `404`, which a retry can treat as done.
+- **`PATCH` is safe to repeat with the same body**, and only then: two clients
+  patching one field overwrite each other rather than conflicting.
+- **`POST` is not.** A repeated `POST /agents/{id}/run` starts a second run and
+  is billed as one; a repeated create makes a second row. After a timeout or a
+  dropped connection, look before you retry: `GET /api/v1/runs?agent_id=…&surface=api`
+  lists the runs newest first, and a list read finds a row the first attempt did
+  create.
+- **`429` is the one refusal to retry**, after the `Retry-After` it carries. Every
+  other `4xx` is final for that request.
+
 ## Conventions
 
 | | |
@@ -304,6 +365,15 @@ names and the addresses a published page is served from keep their names.
 The console's own routes carry no such promise and change with the console; a key
 cannot call them. There is no client library yet.
 
+What the public API does not do yet, so a client is not built on it:
+
+- **Virtual Tables** are not on it; reading and writing a table with a key is
+  [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
+- **A run is one turn.** There is no conversation a key can open and continue,
+  as [Running an agent](#running-an-agent) says.
+- **No streaming for a key.** The chat socket takes a person's session only.
+- **No idempotency keys and no revisions**, as above.
+
 The [agent spec](reference/spec.md) carries its own promise: it is versioned and
 only moves forward.
 
@@ -319,5 +389,9 @@ only moves forward.
   like a missing resource.
 - Running an agent over HTTP is the **same runner** — budget, approval and audit
   all apply.
+- A script gets its own key **without a browser** — sign in, issue, revoke — and
+  `examples/public-api.sh` runs that round trip.
+- **Only `429` is worth retrying**; a `POST` is not idempotent, so look before
+  repeating one.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.

@@ -1,5 +1,5 @@
 ---
-source_sha: "a62977c3aff8"
+source_sha: "97fc5cae2144"
 ---
 
 # La API HTTP { #the-http-api }
@@ -67,6 +67,45 @@ Cada clave tiene además su propio límite, `RATE_LIMIT_API_KEY_PER_MINUTE`
 peticiones por minuto (600 por defecto), y un run o una llamada de ML que haga
 cuenta contra esos límites para la clave y no para su emisor.
 
+### Sin navegador { #without-a-browser }
+
+Un script puede conseguir su propia clave sin abrir la consola. Inicia sesión con
+un cuerpo de formulario (el password grant de OAuth2, así que JSON recibe `422`),
+elige la organización, emite la clave con el token de sesión y revócala igual
+cuando haya terminado:
+
+```bash
+SESSION=$(curl -s -X POST "$BASE/api/v1/auth/login" \
+  -d "username=$EMAIL" --data-urlencode "password=$PASSWORD" | jq -r .access_token)
+
+ORG_ID=$(curl -s "$BASE/api/v1/orgs" -H "Authorization: Bearer $SESSION" \
+  | jq -r '[.items[] | select(.is_personal)][0].id')
+
+curl -s -X POST "$BASE/api/v1/api-keys" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "nightly import", "scopes": ["collections:view", "collections:edit"]}'
+# -> {"id": "...", "key": "aos_...", "prefix": "aos_1a2b3c4d", ...}
+
+curl -s -X DELETE "$BASE/api/v1/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/api-keys/scopes` lista lo que el miembro con sesión puede
+poner en una clave, y los presets sobre ello. Un despliegue que solo inicia
+sesión mediante SSO no tiene contraseña que enviar; allí un miembro emite la
+clave en la consola.
+
+[`examples/public-api.sh`](examples/public-api.sh) es todo el recorrido en un
+script: emite una clave de solo lectura, lista con ella agents y runs, muestra el
+`403` de una ruta fuera de los permisos de la clave, ejecuta un agent y lee el
+run cuando `AGENT_ID` está definido, y revoca la clave al salir.
+
+```bash
+BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
+```
+
+
 ### Sesiones y revocación { #sessions-and-revocation }
 
 Un access token JWT queda ligado a la sesión que abrió su inicio de sesión — el id
@@ -104,9 +143,18 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
 
-La respuesta trae el id del run, la salida y el estado. Conviene conocer dos
-campos opcionales del cuerpo: `conversation_id` continúa un hilo existente, y
-`environment_id` elige [qué entorno](environments.md) responde.
+La respuesta trae el id del run, la salida, el estado, los tokens y el coste.
+`environment_id` en el cuerpo elige [qué entorno](environments.md) responde.
+
+**Un run por HTTP es un turno.** `conversation_id` archiva el turno en una de las
+conversaciones propias de quien llama, así que la transcripción queda allí y un
+workspace con alcance de conversación es el de esa conversación, pero los
+mensajes anteriores no se envían al modelo. Un id desconocido, o la conversación
+de otra persona, responde `404`. No hay ruta que abra una conversación para una
+clave, así que un agent cuyo [workspace](sandbox.md) se comparte por
+conversación (el valor por defecto) responde `400` con
+`details.session_scope = "conversation"` a una llamada sin ella; dale a ese agent
+el alcance `run` o `agent` para llamarlo desde un script.
 
 !!! info "Un llamante de la API no puede esquivar el governance"
 
@@ -280,6 +328,25 @@ alguien tiene que buscar releyendo la página.
 Un `401` lleva `WWW-Authenticate: Bearer`. Una lectura entre inquilinos responde
 `404`, no `403`, por el motivo de arriba.
 
+## Reintentos, idempotencia y revisiones { #retries-idempotency-and-revisions }
+
+v1 no tiene cabecera `Idempotency-Key` ni precondiciones de revisión: ni `ETag`
+ni `If-Match`. Una escritura se aplica cuando llega, y gana la última.
+
+- **`GET`, `PUT` y `DELETE` se pueden repetir sin riesgo.** Leer dos veces lee
+  dos veces; borrar lo que ya no está responde `404`, que un reintento puede dar
+  por hecho.
+- **`PATCH` se puede repetir con el mismo cuerpo**, y solo entonces: dos clientes
+  que cambian un campo se sobrescriben en lugar de entrar en conflicto.
+- **`POST` no.** Un `POST /agents/{id}/run` repetido inicia un segundo run y se
+  factura como tal; una creación repetida hace una segunda fila. Tras un timeout
+  o una conexión cortada, mira antes de reintentar:
+  `GET /api/v1/runs?agent_id=…&surface=api` lista los runs del más reciente al
+  más antiguo, y una lectura de la lista encuentra la fila que el primer intento
+  sí creó.
+- **`429` es el único rechazo que se reintenta**, tras el `Retry-After` que
+  lleva. Cualquier otro `4xx` es definitivo para esa petición.
+
 ## Convenciones { #conventions }
 
 | | |
@@ -315,6 +382,17 @@ desde las que se sirve una página publicada conservan su nombre.
 Las rutas propias de la consola no tienen esa promesa y cambian con la consola; una
 clave no puede llamarlas. Todavía no hay biblioteca cliente.
 
+Lo que la API pública todavía no hace, para que nadie construya un cliente
+encima:
+
+- **Virtual Tables** no están en ella; leer y escribir una tabla con una clave es
+  [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
+- **Un run es un turno.** No hay conversación que una clave pueda abrir y
+  continuar, como dice [Ejecutar un agent](#running-an-agent).
+- **Sin streaming para una clave.** El socket del chat solo acepta la sesión de
+  una persona.
+- **Sin claves de idempotencia ni revisiones**, como arriba.
+
 El [spec del agent](reference/spec.md) tiene su propia promesa: está versionado y
 solo avanza.
 
@@ -331,5 +409,9 @@ solo avanza.
   equivocada parece un recurso inexistente.
 - Ejecutar un agent por HTTP usa el **mismo runner** — budget, aprobación y
   auditoría se aplican igual.
+- Un script consigue su propia clave **sin navegador** — iniciar sesión, emitir,
+  revocar — y `examples/public-api.sh` hace todo ese recorrido.
+- **Solo vale la pena reintentar un `429`**; un `POST` no es idempotente, así que
+  mira antes de repetirlo.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.

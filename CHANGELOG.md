@@ -27,6 +27,12 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
+- **The public API from a script, with no browser.** `docs/api.md` shows how a
+  script signs in, issues its own key and revokes it, what is safe to retry, and
+  what the public API does not do yet; `docs/examples/public-api.sh` runs that
+  round trip. Tests now check each key-readable list against the OpenAPI
+  document, the per-key rate limit, a run over budget made with a key, and that
+  a key appears in no log, response or document (#1796).
 
 - **A glossary of the console's words.** `docs/reference/glossary.md`, in all four
   languages, names each thing as the console does, says what it is and gives its
@@ -383,6 +389,11 @@ Two things are versioned separately from this file and worth knowing about:
   there, so the file editor and Create are reachable.
 - **The tab you are on is in view on a phone.** A tab strip wider than the
   screen centres the active tab.
+- **A run over the API checks the conversation it names.** An unknown
+  `conversation_id` was a 500, and another member's conversation lent the run
+  its workspace and its plan; both now answer `404`.
+- **The public OpenAPI document says an error's `details` may be `null`**, which
+  a `401` sends (#1796).
 
 - **An MCP account whose OAuth sign-in could not be renewed asks to be authorized
   again** on the server list and in the Builder, instead of reading as a server

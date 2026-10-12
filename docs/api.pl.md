@@ -1,5 +1,5 @@
 ---
-source_sha: "a62977c3aff8"
+source_sha: "97fc5cae2144"
 ---
 
 # API HTTP { #the-http-api }
@@ -65,6 +65,43 @@ Każdy klucz ma też własny limit, `RATE_LIMIT_API_KEY_PER_MINUTE` żądań na 
 (domyślnie 600), a run albo wywołanie ML, które wykona, liczy się do tych limitów
 dla klucza, a nie dla jego wydającego.
 
+### Bez przeglądarki { #without-a-browser }
+
+Skrypt może zdobyć własny klucz bez otwierania konsoli. Zaloguj się ciałem
+formularza (OAuth2 password grant, więc JSON dostaje `422`), wybierz organizację,
+wydaj klucz tokenem sesji i tak samo go unieważnij, kiedy skończy:
+
+```bash
+SESSION=$(curl -s -X POST "$BASE/api/v1/auth/login" \
+  -d "username=$EMAIL" --data-urlencode "password=$PASSWORD" | jq -r .access_token)
+
+ORG_ID=$(curl -s "$BASE/api/v1/orgs" -H "Authorization: Bearer $SESSION" \
+  | jq -r '[.items[] | select(.is_personal)][0].id')
+
+curl -s -X POST "$BASE/api/v1/api-keys" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "nightly import", "scopes": ["collections:view", "collections:edit"]}'
+# -> {"id": "...", "key": "aos_...", "prefix": "aos_1a2b3c4d", ...}
+
+curl -s -X DELETE "$BASE/api/v1/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $SESSION" -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/api-keys/scopes` wymienia, co zalogowany członek może dać
+kluczowi, i presety nad tym. Deployment, który loguje ludzi wyłącznie przez SSO,
+nie ma hasła do wysłania; tam członek wydaje klucz w konsoli.
+
+[`examples/public-api.sh`](examples/public-api.sh) to cała ta droga w jednym
+skrypcie: wydaje klucz tylko do odczytu, listuje nim agentów i runy, pokazuje
+`403` dla trasy spoza uprawnień klucza, uruchamia agenta i czyta run, gdy
+ustawione jest `AGENT_ID`, a na koniec unieważnia klucz.
+
+```bash
+BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
+```
+
+
 ### Sesje i unieważnianie { #sessions-and-revocation }
 
 Access token JWT jest związany z sesją, którą otworzyło logowanie — identyfikator
@@ -102,9 +139,17 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
 
-Odpowiedź niesie identyfikator runa, wynik i status. Dwa opcjonalne pola w ciele
-warto znać: `conversation_id` kontynuuje istniejący wątek, a `environment_id`
-wybiera, [które środowisko](environments.md) odpowiada.
+Odpowiedź niesie identyfikator runa, wynik, status, tokeny i koszt.
+`environment_id` w ciele wybiera, [które środowisko](environments.md) odpowiada.
+
+**Run przez HTTP to jedna tura.** `conversation_id` zapisuje turę w jednej z
+własnych rozmów wywołującego, więc transkrypt trafia tam, a workspace o zakresie
+rozmowy jest workspace'em tej rozmowy, ale wcześniejsze wiadomości nie są
+wysyłane do modelu. Nieznany identyfikator albo cudza rozmowa dostają `404`. Nie
+ma trasy, która otwiera rozmowę dla klucza, więc agent, którego
+[workspace](sandbox.md) jest współdzielony per rozmowa (domyślnie), odpowiada
+`400` z `details.session_scope = "conversation"` na wywołanie bez niej; żeby
+wołać go ze skryptu, daj mu zakres `run` albo `agent`.
 
 !!! info "Wywołujący API nie może obejść nadzoru"
 
@@ -275,6 +320,24 @@ stronę ponownie.
 Odpowiedź `401` niesie `WWW-Authenticate: Bearer`. Odczyt spoza najemcy
 odpowiada `404`, a nie `403`, z podanego wyżej powodu.
 
+## Ponawianie, idempotencja i rewizje { #retries-idempotency-and-revisions }
+
+v1 nie ma nagłówka `Idempotency-Key` ani warunków na rewizję: żadnego `ETag`,
+żadnego `If-Match`. Zapis jest stosowany, kiedy przychodzi, i wygrywa ostatni.
+
+- **`GET`, `PUT` i `DELETE` można bezpiecznie powtórzyć.** Dwa odczyty czytają
+  dwa razy; usunięcie czegoś, czego już nie ma, dostaje `404`, które ponowienie
+  może uznać za wykonane.
+- **`PATCH` można powtórzyć z tym samym ciałem**, i tylko wtedy: dwóch klientów
+  zmieniających jedno pole nadpisuje się nawzajem, zamiast dostać konflikt.
+- **`POST` nie.** Powtórzony `POST /agents/{id}/run` startuje drugi run i jest
+  rozliczany jak każdy; powtórzone utworzenie robi drugi wiersz. Po timeoucie
+  albo zerwanym połączeniu sprawdź, zanim ponowisz:
+  `GET /api/v1/runs?agent_id=…&surface=api` listuje runy od najnowszych, a
+  odczyt listy znajdzie wiersz, który pierwsza próba jednak utworzyła.
+- **`429` to jedyna odmowa do ponowienia**, po `Retry-After`, który niesie. Każde
+  inne `4xx` jest ostateczne dla tego żądania.
+
 ## Konwencje { #conventions }
 
 | | |
@@ -310,6 +373,15 @@ strona, zachowują swoje nazwy.
 Własne trasy konsoli nie mają takiej obietnicy i zmieniają się razem z konsolą;
 klucz nie może ich wywołać. Biblioteki klienckiej jeszcze nie ma.
 
+Czego publiczne API jeszcze nie robi, żeby nikt nie budował na tym klienta:
+
+- **Virtual Tables** w nim nie ma; czytanie i zapis tabeli kluczem to
+  [#1795](https://github.com/vstorm-co/agenticos/issues/1795).
+- **Run to jedna tura.** Nie ma rozmowy, którą klucz mógłby otworzyć i
+  kontynuować, jak mówi [Uruchamianie agenta](#running-an-agent).
+- **Brak streamingu dla klucza.** Socket czatu przyjmuje tylko sesję osoby.
+- **Brak kluczy idempotencji i rewizji**, jak wyżej.
+
 [Spec agenta](reference/spec.md) ma własną obietnicę: jest wersjonowany i idzie
 tylko do przodu.
 
@@ -324,5 +396,9 @@ tylko do przodu.
   niego wraca do organizacji osobistej. Zły nagłówek wygląda jak brakujący zasób.
 - Uruchomienie agenta przez HTTP to **ten sam runner** — budżet, zatwierdzenie i
   audyt obowiązują tak samo.
+- Skrypt zdobywa własny klucz **bez przeglądarki** — logowanie, wydanie,
+  unieważnienie — a `examples/public-api.sh` przechodzi całą tę drogę.
+- **Warto ponawiać tylko `429`**; `POST` nie jest idempotentny, więc sprawdź,
+  zanim go powtórzysz.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.

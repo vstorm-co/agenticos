@@ -80,11 +80,15 @@ _ERROR_ENVELOPE: dict[str, Any] = {
     "properties": {
         "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": ["code", "message", "details"],
             "properties": {
                 "code": {"type": "string", "examples": ["NOT_FOUND"]},
                 "message": {"type": "string"},
-                "details": {"type": "object", "additionalProperties": True},
+                # Always present, and null when a refusal has nothing to name -
+                # a 401 says only that the credential did not hold.
+                "details": {
+                    "anyOf": [{"type": "object", "additionalProperties": True}, {"type": "null"}]
+                },
             },
         }
     },

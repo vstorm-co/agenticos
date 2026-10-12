@@ -574,7 +574,13 @@ class AgentRunRequest(BaseSchema):
 
     prompt: str = Field(min_length=1)
     conversation_id: UUID | None = Field(
-        default=None, description="Continue an existing conversation"
+        default=None,
+        description=(
+            "One of the caller's own conversations to file this turn under. The "
+            "turn is recorded there and the agent's conversation-scoped workspace "
+            "is that conversation's, but its earlier messages are not sent to the "
+            "model. Unknown, or somebody else's, answers 404"
+        ),
     )
     environment_id: UUID | None = Field(
         default=None,

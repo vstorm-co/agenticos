@@ -23,10 +23,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
@@ -83,6 +83,7 @@ from app.repositories import (
 )
 from app.repositories.agent_run import RunFilters
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
+from app.schemas.api_key import ApiKeyCreate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
@@ -90,6 +91,7 @@ from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
+from app.services.api_key import ApiKeyService
 from app.services.approvals import ApprovalService
 from app.services.channel_link import ChannelLinkService
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
@@ -4871,3 +4873,106 @@ class TestTheBuildersTestPanel:
 
         with pytest.raises(BadRequestError, match="archived"):
             await AgentRunnerService(db).prepare(tenant.ctx, agent.id, draft=True)
+
+
+class TestCallingWithAnOrganizationKey:
+    """A key reaches the runner through the public API, and the runner governs it.
+
+    Its permissions are checked at the route; what a key cannot route around is
+    everything after that - the organization's budget is checked before the model
+    is asked, the run is recorded as the issuer's on the API surface, and nothing
+    is charged for a run the budget stopped (#1796).
+    """
+
+    @staticmethod
+    async def _capped_agent_and_key(db, name: str) -> tuple[Tenant, Agent, str]:
+        """An agent in an organization already over its budget, so no model is asked."""
+        tenant = await _tenant(db, name=name, monthly_budget_usd=Decimal("1"))
+        agent = await TestChattingWithAPublishedAgent._publish(db, tenant)
+        await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=Decimal("5"),
+            started_at=datetime.now(UTC),
+        )
+        created = await ApiKeyService(db).create(
+            tenant.ctx,
+            ApiKeyCreate(name="nightly", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_RUN]),
+        )
+        return tenant, agent, created.key
+
+    @staticmethod
+    async def _run(db, agent: Agent, key: str, **body: str) -> Response:
+        async def session():
+            yield db
+
+        app.dependency_overrides[deps.get_db_session] = session
+        app.dependency_overrides[deps.get_redis] = lambda: MagicMock()
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as http:
+                return await http.post(
+                    f"{settings.API_V1_STR}/agents/{agent.id}/run",
+                    headers={"Authorization": f"Bearer {key}"},
+                    json={"prompt": "what is the refund window", **body},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.security
+    async def test_a_run_over_the_monthly_budget_is_stopped_and_recorded_as_the_issuers(
+        self, db
+    ) -> None:
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyCapped")
+
+        answer = await self._run(db, agent, key)
+
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["status"] == RunStatus.BUDGET_EXCEEDED.value
+        run = await db.get(AgentRun, uuid.UUID(answer.json()["run_id"]))
+        assert run is not None
+        assert run.surface == RunSurface.API.value
+        assert run.user_id == tenant.user.id
+        assert run.status == RunStatus.BUDGET_EXCEEDED.value
+        assert run.cost_usd == 0
+
+    async def test_a_run_files_under_a_conversation_of_the_issuers_own(self, db) -> None:
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyThread")
+        thread = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        db.add(thread)
+        await db.flush()
+
+        answer = await self._run(db, agent, key, conversation_id=str(thread.id))
+
+        assert answer.status_code == 200, answer.text
+        run = await db.get(AgentRun, uuid.UUID(answer.json()["run_id"]))
+        assert run is not None
+        assert run.conversation_id == thread.id
+
+    @pytest.mark.security
+    async def test_a_conversation_that_is_not_the_issuers_is_reported_missing(self, db) -> None:
+        """Unknown, another member's, another tenant's: one 404, and no run.
+
+        An unknown id used to be a foreign-key 500, and somebody else's thread
+        handed the run its workspace and its plan."""
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyForeign")
+        colleague = await _join(db, tenant, OrgRoleName.MEMBER)
+        elsewhere = await _tenant(db, name="Elsewhere")
+        theirs = Conversation(organization_id=tenant.organization.id, user_id=colleague.user_id)
+        foreign = Conversation(organization_id=elsewhere.organization.id, user_id=tenant.user.id)
+        db.add_all([theirs, foreign])
+        await db.flush()
+        runs_before = await db.scalar(select(func.count()).select_from(AgentRun))
+
+        answers = [
+            await self._run(db, agent, key, conversation_id=str(conversation_id))
+            for conversation_id in (uuid.uuid4(), theirs.id, foreign.id)
+        ]
+
+        assert [answer.status_code for answer in answers] == [404, 404, 404]
+        assert {answer.json()["error"]["message"] for answer in answers} == {
+            "Conversation not found"
+        }
+        assert await db.scalar(select(func.count()).select_from(AgentRun)) == runs_before

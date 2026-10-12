@@ -30,6 +30,7 @@ from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
     Auth,
+    ConversationSvc,
     DBSession,
     KnowledgeReachSvc,
     limit_agent_run,
@@ -582,6 +583,7 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    conversations: ConversationSvc,
     db: DBSession,
     ctx: Auth,
 ) -> Any:
@@ -600,6 +602,18 @@ async def run_agent(
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
     """
+    if data.conversation_id is not None:
+        # The runner takes the id on trust - a channel passes one it opened
+        # itself - so the one surface where a caller names it checks it first:
+        # an unknown id was a foreign-key 500, and somebody else's conversation
+        # would have handed this run its workspace and its plan (#1796).
+        await conversations.get_conversation(
+            data.conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            for_write=True,
+            include_favourite=False,
+        )
     attachments = await load_attached_files(
         db,
         [str(file_id) for file_id in data.file_ids],

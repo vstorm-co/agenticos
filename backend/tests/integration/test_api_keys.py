@@ -9,7 +9,9 @@ with.
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections import Counter
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -30,6 +32,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
 from app.schemas.api_key import ApiKeyCreate
+from app.services import rate_limit
 from app.services.api_key import ApiKeyService
 
 pytestmark = pytest.mark.anyio
@@ -362,6 +365,66 @@ class TestTheServiceDirectly:
 
         assert [item.user_id for item in listed.items] == [member.id]
         assert listed.items[0].issuer_email == member.email
+
+
+class _WindowCounter:
+    """Stands in for Redis's per-window counter: each call is one more use of the key."""
+
+    def __init__(self) -> None:
+        self.uses: Counter[str] = Counter()
+
+    async def count_in_window(self, key: str, *, ttl: int) -> int:
+        self.uses[key] += 1
+        return self.uses[key]
+
+
+class TestLimits:
+    @pytest.mark.security
+    async def test_a_key_past_its_minute_is_refused_with_retry_after_and_another_key_is_not(
+        self, db: AsyncSession, client: Client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each key is limited on its own, so one runaway script cannot starve
+        another integration of the same issuer."""
+        monkeypatch.setattr(rate_limit, "_redis", _WindowCounter())
+        monkeypatch.setattr(settings, "RATE_LIMIT_API_KEY_PER_MINUTE", 2)
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        busy = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        quiet = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+
+        async with client() as http:
+            answers = [await http.get(_url("/agents"), headers=_bearer(busy)) for _ in range(3)]
+            other = await http.get(_url("/agents"), headers=_bearer(quiet))
+
+        assert [answer.status_code for answer in answers] == [200, 200, 429]
+        assert answers[2].headers["Retry-After"] == "60"
+        assert answers[2].json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+        assert other.status_code == 200
+
+
+class TestSecrets:
+    @pytest.mark.security
+    async def test_a_key_is_in_no_log_line_response_or_published_document(
+        self, db: AsyncSession, client: Client, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        key = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        wrong = key[:12] + "x" * (len(key) - 12)
+
+        with caplog.at_level(logging.DEBUG):
+            async with client() as http:
+                used = await http.get(_url("/agents"), headers=_bearer(key))
+                refused = await http.get(_url("/agents"), headers=_bearer(wrong))
+                elsewhere = await http.get(_url("/api-keys"), headers=_bearer(key))
+                document = await http.get(_url("/public/openapi.json"))
+
+        assert (used.status_code, refused.status_code, elsewhere.status_code) == (200, 401, 403)
+        for answer in (used, refused, elsewhere, document):
+            assert key not in answer.text and wrong not in answer.text
+            assert key not in str(answer.headers)
+        logged = "\n".join(record.getMessage() + str(record.__dict__) for record in caplog.records)
+        assert key not in logged and wrong not in logged
 
 
 class TestSockets:

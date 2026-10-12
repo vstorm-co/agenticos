@@ -287,6 +287,10 @@ dev = [
     # `ldap3` ships no annotations; typeshed's stubs are what lets the adapter
     # over it be held to the platform layer's type gate.
     "types-ldap3>=2.9.13",
+    # The public API's contract test validates real responses against the
+    # schemas its OpenAPI document publishes (#1796). It already arrives
+    # through the MCP SDK; declared so the test does not lean on that.
+    "jsonschema>=4.26.0",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
 # reference pages import the application to read its docstrings - so this group
