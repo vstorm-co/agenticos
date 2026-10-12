@@ -477,6 +477,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Fixes from a screen-by-screen pass.** The Architect says what is waiting for
+  approval once a visit instead of on every page, until more arrives; badges
+  and short table values no longer break over two or three lines; an
+  organization's card says it is the current one once; the MCP servers page
+  explains itself in two lines; the period control is as wide as its choices;
+  the deployment admin is titled Administration.
 - **An organization is called an organization.** Its profile, name, avatar,
   member count and the admin list said "workspace", a word the console now keeps
   for nothing; the retention settings call the agents' files documents.

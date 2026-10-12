@@ -3669,7 +3669,7 @@
       "user": "User",
       "usersConversationsOrgsSystem": "Users, conversations, organizations, and system health.",
       "view": "View",
-      "workspaceAdministration": "Organization administration",
+      "workspaceAdministration": "Administration",
       "usersCard": "Users",
       "organizationsCouldNotBeRead": "The organizations could not be read.",
       "settingsSaved": "Deployment settings saved.",
@@ -4105,7 +4105,7 @@
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",
-      "externalToolsYourAgents": "External tools your agents and your assistant can call. Connecting a server for the organization makes it available to every agent; connecting it for yourself keeps it to your own chat. A published agent can only use the organization's, because what an agent reaches must not depend on who is running it.",
+      "externalToolsYourAgents": "Tools your agents can use - Notion, GitHub, your CRM. Connect one for the whole organization, or just for yourself.",
       "mcpServers": "MCP servers",
       "noServersConnect": "No servers to connect"
     },

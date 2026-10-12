@@ -3439,7 +3439,7 @@
       "user": "Użytkownik",
       "usersConversationsOrgsSystem": "Użytkownicy, rozmowy, organizacje i stan systemu.",
       "view": "Pokaż",
-      "workspaceAdministration": "Administracja organizacjami",
+      "workspaceAdministration": "Administracja",
       "usersCard": "Użytkownicy",
       "organizationsCouldNotBeRead": "Nie udało się odczytać organizacji.",
       "settingsSaved": "Ustawienia wdrożenia zapisane.",
@@ -3875,7 +3875,7 @@
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
-      "externalToolsYourAgents": "Zewnętrzne narzędzia, po które mogą sięgnąć Twoi agenci i Twój asystent. Serwer podłączony dla organizacji jest dostępny dla każdego agenta; podłączony dla Ciebie zostaje w Twoim własnym czacie. Opublikowany agent może korzystać wyłącznie z serwerów organizacji, bo to, po co sięga agent, nie może zależeć od tego, kto go uruchomił.",
+      "externalToolsYourAgents": "Narzędzia, których mogą używać Twoi agenci - Notion, GitHub, Twój CRM. Połącz serwer dla całej organizacji albo tylko dla siebie.",
       "mcpServers": "Serwery MCP",
       "noServersConnect": "Brak serwerów do podłączenia"
     },

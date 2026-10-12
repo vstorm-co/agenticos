@@ -3551,7 +3551,7 @@
       "user": "Benutzer",
       "usersConversationsOrgsSystem": "Benutzer, Unterhaltungen, Organisationen und Systemzustand.",
       "view": "Ansehen",
-      "workspaceAdministration": "Organisationsverwaltung",
+      "workspaceAdministration": "Administration",
       "usersCard": "Benutzer",
       "organizationsCouldNotBeRead": "Die Organisationen konnten nicht gelesen werden.",
       "settingsSaved": "Deployment-Einstellungen gespeichert.",
@@ -3987,7 +3987,7 @@
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
-      "externalToolsYourAgents": "Externe Tools, die Ihre Agents und Ihr Assistent aufrufen können. Einen Server für die Organisation zu verbinden stellt ihn jedem Agent zur Verfügung; ihn für sich selbst zu verbinden hält ihn in Ihrem eigenen Chat. Ein veröffentlichter Agent kann nur die der Organisation nutzen, denn was ein Agent erreicht, darf nicht davon abhängen, wer ihn ausführt.",
+      "externalToolsYourAgents": "Werkzeuge, die Ihre Agents nutzen können - Notion, GitHub, Ihr CRM. Verbinden Sie einen Server für die ganze Organisation oder nur für sich.",
       "mcpServers": "MCP-Server",
       "noServersConnect": "Keine Server zum Verbinden"
     },

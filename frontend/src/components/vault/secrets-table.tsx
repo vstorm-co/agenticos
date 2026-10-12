@@ -17,6 +17,7 @@ import {
   SelectValue,
   type Column,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -194,7 +195,12 @@ export function SecretsTable({
         cell: (secret) => {
           const used = secret.used_by ?? [];
           return (
-            <span className="text-muted-foreground text-xs">
+            <span
+              className={cn(
+                "text-muted-foreground text-xs",
+                used.length === 0 && "whitespace-nowrap",
+              )}
+            >
               {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
             </span>
           );

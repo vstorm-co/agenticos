@@ -173,12 +173,6 @@ export default function OrgsPage() {
                         {/* The same badges every other card uses, rather than a
                             shouty uppercase pair of its own. */}
                         {org.is_personal && <Badge variant="outline">{t("personal")}</Badge>}
-                        {isActive && (
-                          <Badge variant="secondary" className="gap-1">
-                            <Check className="h-3 w-3" />
-                            {t("active")}
-                          </Badge>
-                        )}
                       </div>
                       {/* Only the parts there are: an organization with no tier
                           used to read "· admin", a separator in front of nothing. */}
@@ -203,7 +197,13 @@ export default function OrgsPage() {
                         router.push(ROUTES.DASHBOARD);
                       }}
                     >
-                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      {/* The one place the card says it is the open one: a badge
+                          beside the name said it as well, twice on one card. */}
+                      {isActive ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                      )}
                       {isActive ? t("current") : t("switch")}
                     </Button>
                   </div>

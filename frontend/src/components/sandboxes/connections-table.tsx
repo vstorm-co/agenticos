@@ -85,7 +85,7 @@ export function ConnectionsTable({
         hideBelow: "sm",
         header: t("kind"),
         cell: (connection) => (
-          <span className="text-muted-foreground flex items-center gap-2">
+          <span className="text-muted-foreground flex items-center gap-2 whitespace-nowrap">
             <ConnectionKindIcon kind={connection.kind} className="h-3.5 w-3.5" />
             {kindLabel(connection.kind, t)}
           </span>
@@ -127,7 +127,9 @@ export function ConnectionsTable({
               {connection.default_runtime}
             </span>
           ) : (
-            <span className="text-muted-foreground text-xs">{t("serviceSOwn")}</span>
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {t("serviceSOwn")}
+            </span>
           ),
       },
       {

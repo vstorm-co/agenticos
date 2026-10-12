@@ -35,7 +35,7 @@ export function PeriodControl({
       // A segmented control: one pill holding the choices, the chosen one
       // filled in ink. Loose `text-xs` chips with a square-cornered fill read
       // as smaller and squarer than every button beside them.
-      className="border-border bg-muted/60 flex max-w-full shrink-0 scrollbar-none items-center gap-0.5 rounded-full border p-0.5 max-md:overflow-x-auto [&>*]:shrink-0 [&>*]:whitespace-nowrap"
+      className="border-border bg-muted/60 flex w-fit max-w-full shrink-0 scrollbar-none items-center gap-0.5 rounded-full border p-0.5 max-md:overflow-x-auto [&>*]:shrink-0 [&>*]:whitespace-nowrap"
       role="group"
       aria-label={t("period.label")}
     >

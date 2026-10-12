@@ -71,6 +71,11 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // "Not now", or a bubble left to fade, on a page: quiet there for the rest
   // of this visit to the console.
   const [setAside, setSetAside] = useState<string | null>(null);
+  // How many waiting approvals the bubble has already raised this visit. They
+  // are not about the page, so once said they stay said on every page, until
+  // more arrive - raised again on each navigation, the same sentence followed
+  // the reader through the whole console.
+  const [approvalsHeard, setApprovalsHeard] = useState(0);
   const [prompt, setPrompt] = useState<ChatPrompt | null>(null);
   // Bumped by anything the reader does with the widget, which restarts the
   // wait before the button tucks itself away.
@@ -104,7 +109,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     pathname,
     {
       stuck: signals.stuckIn !== null,
-      pendingApprovals: signals.pendingApprovals,
+      pendingApprovals: signals.pendingApprovals > approvalsHeard ? signals.pendingApprovals : 0,
       failedRun: failedRun !== null,
       noAgents: signals.noAgents,
     },
@@ -113,6 +118,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // Asking about a failed run, or waving it away, is hearing about it.
   const heard = () => {
     if (bubble === "failedRun" && failedRun !== null) markRunSeen(failedRun);
+    if (bubble === "approvals") setApprovalsHeard(signals.pendingApprovals);
     setPreferences(readPreferences());
   };
   const speaking =
@@ -185,7 +191,10 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             heard();
             setSetAside(pathname);
           }}
-          onFade={() => setSetAside(pathname)}
+          onFade={() => {
+            if (bubble === "approvals") setApprovalsHeard(signals.pendingApprovals);
+            setSetAside(pathname);
+          }}
           name={architectName(assistant, t("defaultName"))}
           path={pathname}
         />

@@ -81,7 +81,7 @@ export const RUN_LABEL: Record<RunStatus, string> = {
 export function RunStatusBadge({ status }: { status: RunStatus }) {
   const t = useTranslations("agents");
   return (
-    <Badge variant="outline" className="text-muted-foreground">
+    <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
       <StatusDot className={RUN_DOT[status]} />
       {t(RUN_LABEL[status])}
     </Badge>

@@ -308,6 +308,28 @@ describe("the Architect widget", () => {
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
   });
 
+  it("says what is waiting once a visit, not again on every page, until more arrives", () => {
+    state.signals.pendingApprovals = 2;
+    state.pathname = "/runs";
+    const { rerender } = render(<AssistantWidget />);
+    lookAtThePage();
+    act(() => {
+      vi.advanceTimersByTime(BUBBLE_VISIBLE_MS);
+    });
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+
+    state.pathname = "/skills";
+    rerender(<AssistantWidget />);
+    lookAtThePage();
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+
+    state.signals.pendingApprovals = 3;
+    state.pathname = "/agents";
+    rerender(<AssistantWidget />);
+    lookAtThePage();
+    expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
+  });
+
   it("offers the first steps to an organization with no agents", () => {
     state.signals.noAgents = true;
     state.pathname = "/runs";
