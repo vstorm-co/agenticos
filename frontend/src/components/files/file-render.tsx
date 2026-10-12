@@ -70,8 +70,9 @@ export function FileTextView({ kind, name, text, asSource = false }: FileTextVie
       // with its own language rather than this growing a second highlighter.
       return <MarkdownContent content={`\`\`\`${codeLanguage(name)}\n${text}\n\`\`\``} />;
     default:
-      // `text`, and anything whose bytes turned out to be characters after all.
-      return <PlainText text={text} />;
+      // `text`, and anything whose bytes turned out to be characters after all:
+      // prose and pastes, read down rather than across, so wrapped.
+      return <PlainText text={text} wrap />;
   }
 }
 
@@ -200,13 +201,44 @@ const NUMBERED_UP_TO = 5000;
  * that has to be cleaned up by hand - which is the thing the copy button exists
  * to avoid.
  *
- * Lines are not wrapped, deliberately. A wrapped line and its number stop lining
- * up, and a CSV row is a record rather than a paragraph: sideways is the direction
- * it is read in.
+ * Source and JSON are not wrapped: a line of code is read across, and a
+ * record is a record. Plain text - prose, a paste - is (`wrap`): one 2,000
+ * character line ran off the side of the viewer as a single unreadable row.
+ * Wrapped, each line is its own row with its number beside it, so a number
+ * stays with the line it counts however many rows the line takes.
  */
-function PlainText({ text }: { text: string }) {
+function PlainText({ text, wrap = false }: { text: string; wrap?: boolean }) {
   const lines = text.split("\n");
   const numbered = lines.length <= NUMBERED_UP_TO;
+
+  if (wrap) {
+    return (
+      <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
+        <CopyButton text={text} className="absolute top-1 right-1 z-10" />
+        <div className="h-full overflow-auto py-3 pr-10 font-mono text-xs leading-[1.6]">
+          {numbered ? (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)]">
+              {lines.map((line, index) => (
+                <div key={index} className="contents">
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground px-3 text-right tabular-nums select-none"
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="text-foreground/90 break-all whitespace-pre-wrap">
+                    {line === "" ? "\u00a0" : line}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <pre className="text-foreground/90 px-3 break-all whitespace-pre-wrap">{text}</pre>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
