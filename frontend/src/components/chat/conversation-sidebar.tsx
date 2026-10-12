@@ -1,30 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useCanCreateTrigger, useConversations } from "@/hooks";
+import { useConversations } from "@/hooks";
+import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui";
-import { useDebounced } from "@/components/ui/list-controls";
+import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
-import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
   Star,
-  CalendarClock,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -35,7 +26,6 @@ import {
   Share2,
   SquarePen,
   Trash2,
-  Zap,
 } from "lucide-react";
 import type { Conversation } from "@/types";
 import {
@@ -302,7 +292,6 @@ interface ConversationListProps {
   /** Whether a search or an agent is narrowing the list right now. */
   isFiltered: boolean;
   onClearFilters: () => void;
-  filters: ReactNode;
   currentConversationId: string | null;
   isLoading: boolean;
   onSelect: (id: string) => void;
@@ -311,12 +300,14 @@ interface ConversationListProps {
   onUnarchive: (id: string) => void;
   onFavourite: (id: string, favourite: boolean) => void;
   onRename: (id: string, title: string) => void;
-  onNewChat: () => void;
   onNavigate?: () => void;
   onLoadMore?: () => void;
   /** Whether the list is newest-activity first, so it can be read by day. */
   datedOrder: boolean;
 }
+
+/** An icon in the list's header: square, quiet until pointed at. */
+const HEADER_ICON = "text-muted-foreground hover:text-foreground h-8 w-8 rounded-lg [&_svg]:size-4";
 
 /** The bands a dated list falls into, newest first. */
 const AGES = ["today", "yesterday", "week", "month", "older"] as const;
@@ -357,7 +348,6 @@ function ConversationList({
   onViewChange,
   isFiltered,
   onClearFilters,
-  filters,
   currentConversationId,
   isLoading,
   onSelect,
@@ -366,32 +356,16 @@ function ConversationList({
   onUnarchive,
   onFavourite,
   onRename,
-  onNewChat,
   onNavigate,
   onLoadMore,
   datedOrder,
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
-  const tt = useTranslations("triggers");
-  // The floor for creating a trigger is a per-agent signal, not the role-level
-  // `agents:run`: a caller who may run any one agent - by role or by a grant on
-  // that agent - may create a trigger on it, so this menu shows for them. The
-  // section itself still shows to a viewer (viewing a schedule is `agents:view`),
-  // and each row decides its own controls from its `can_manage`, so a create menu
-  // hidden here never hides a row the caller may in fact manage.
-  const canManageTriggers = useCanCreateTrigger();
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
-  const [creatingSchedule, setCreatingSchedule] = useState(false);
-  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const handleSelect = (id: string) => {
     onSelect(id);
-    onNavigate?.();
-  };
-
-  const handleNewChat = () => {
-    onNewChat();
     onNavigate?.();
   };
 
@@ -443,46 +417,6 @@ function ConversationList({
 
   return (
     <>
-      {/* A split button: the wide half is New Chat exactly as before, and the
-          chevron opens the two unattended kinds - a schedule, an event trigger -
-          which are "new conversations nobody types into" and so belong here. */}
-      <div className="flex items-center gap-1 px-3 pt-3 pb-2">
-        <button
-          type="button"
-          data-tour="chat-start"
-          onClick={handleNewChat}
-          className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
-        >
-          <SquarePen className="h-4 w-4 shrink-0" />
-          {t("newChat")}
-        </button>
-        {canManageTriggers && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={tt("newMenu")}
-                className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-              >
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setCreatingSchedule(true)}>
-                <CalendarClock className="mr-2 h-4 w-4" />
-                {tt("newSchedule")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setCreatingEvent(true)}>
-                <Zap className="mr-2 h-4 w-4" />
-                {tt("newEvent")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-
-      {filters}
-
       {/* Where the archive is said, since the switch to it now sits behind
           the filter button: a list of old threads with nothing saying so reads
           as the active list gone strange. */}
@@ -601,19 +535,6 @@ function ConversationList({
           }}
         />
       )}
-      {creatingSchedule && (
-        <TriggerFormDialog
-          // No agent in context here - the dialog offers its picker, seeded
-          // with the user's default agent.
-          agentId={null}
-          open
-          initialType="schedule"
-          onOpenChange={(next) => !next && setCreatingSchedule(false)}
-        />
-      )}
-      {creatingEvent && (
-        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
-      )}
     </>
   );
 }
@@ -623,17 +544,10 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ className }: ConversationSidebarProps) {
-  const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // One-shot, set only by the rail's search button: the box that appears should
-  // already have the cursor in it, and expanding with the chevron next time must
-  // not steal focus from the composer. Cleared when the sidebar closes again.
-  const [focusSearchOnOpen, setFocusSearchOnOpen] = useState(false);
-  const collapse = () => {
-    setIsCollapsed(true);
-    setFocusSearchOnOpen(false);
-  };
+  const [searchOpen, setSearchOpen] = useState(false);
+  const collapse = () => setIsCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
   // Seeded from the URL and written back to it, so a reload lands on the list
   // somebody was reading rather than on the default one. Written with
@@ -643,7 +557,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const [view, setView] = useState<ConversationView>(
     searchParams.get("view") === "archived" ? "archived" : "active",
   );
-  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
   // Hidden unless asked for: an organization key's runs open a conversation
   // each, and a script calling the API every minute buried the chats a person
@@ -653,10 +566,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     const fromUrl = searchParams.get("sort");
     return isConversationSort(fromUrl) ? fromUrl : DEFAULT_SORT;
   });
-  // The request is what the search box is *for*, so it waits until the typing
-  // stops. Without this the sidebar issues a round trip per keystroke and the
-  // answers can land out of order.
-  const debouncedSearch = useDebounced(search);
 
   const {
     conversations,
@@ -674,7 +583,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     startNewChat,
   } = useConversations({
     view,
-    search: debouncedSearch,
     agentId,
     hideApi,
     ...splitSort(sort),
@@ -687,10 +595,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const changeView = (next: ConversationView) => {
     setView(next);
     setUrlParam("view", next === "active" ? null : next);
-  };
-  const changeSearch = (next: string) => {
-    setSearch(next);
-    setUrlParam("q", next.trim() || null);
   };
   const changeAgent = (next: string | null) => {
     setAgentId(next);
@@ -705,7 +609,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     setUrlParam("api", next ? null : "show");
   };
   const clearFilters = () => {
-    changeSearch("");
     changeAgent(null);
     // Back to the default, which hides them - not to "everything".
     changeHideApi(true);
@@ -719,23 +622,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     // The sort is not a filter: it reorders the same threads, so an empty list
     // under it is empty for some other reason and "clear the filters" would do
     // nothing a reader could see.
-    isFiltered: debouncedSearch.trim() !== "" || agentId !== null,
+    isFiltered: agentId !== null,
     onClearFilters: clearFilters,
-    filters: (
-      <ConversationFilters
-        search={search}
-        onSearchChange={changeSearch}
-        agentId={agentId}
-        onAgentChange={changeAgent}
-        sort={sort}
-        onSortChange={changeSort}
-        hideApi={hideApi}
-        onHideApiChange={changeHideApi}
-        view={view}
-        onViewChange={changeView}
-        autoFocusSearch={focusSearchOnOpen}
-      />
-    ),
     currentConversationId,
     isLoading,
     onSelect: selectConversation,
@@ -744,55 +632,109 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onUnarchive: unarchiveConversation,
     onFavourite: setFavourite,
     onRename: renameConversation,
-    onNewChat: startNewChat,
     onLoadMore: fetchMoreConversations,
     datedOrder: sort === DEFAULT_SORT,
   };
 
+  // The list's own controls, in its header beside the title the way a chat
+  // app heads its list: search in a window of its own, the filters, and a new
+  // chat. A row of them under the header, and a search box and a New chat
+  // button before that, sat between the title and the first conversation.
+  const toolbar = (afterNewChat?: () => void) => (
+    <div className="flex items-center gap-0.5">
+      <IconButton
+        size="icon"
+        aria-label={ts("searchLabel")}
+        title={ts("searchLabel")}
+        onClick={() => setSearchOpen(true)}
+        className={HEADER_ICON}
+      >
+        <Search />
+      </IconButton>
+      <ConversationFilters
+        agentId={agentId}
+        onAgentChange={changeAgent}
+        sort={sort}
+        onSortChange={changeSort}
+        hideApi={hideApi}
+        onHideApiChange={changeHideApi}
+        view={view}
+        onViewChange={changeView}
+      />
+      <IconButton
+        size="icon"
+        data-tour="chat-start"
+        aria-label={ts("newChat")}
+        title={ts("newChat")}
+        onClick={() => {
+          startNewChat();
+          afterNewChat?.();
+        }}
+        className={HEADER_ICON}
+      >
+        <SquarePen />
+      </IconButton>
+    </div>
+  );
+  const searchDialog = (
+    <ConversationSearchDialog
+      open={searchOpen}
+      onOpenChange={setSearchOpen}
+      onSelect={(id) => {
+        selectConversation(id);
+        close();
+      }}
+    />
+  );
+
   if (isCollapsed) {
     return (
-      <CollapsedSidebar
-        conversations={conversations}
-        currentConversationId={currentConversationId}
-        view={view}
-        onExpand={() => setIsCollapsed(false)}
-        onSearch={() => {
-          setFocusSearchOnOpen(true);
-          setIsCollapsed(false);
-        }}
-        onViewChange={(next) => {
-          changeView(next);
-          setIsCollapsed(false);
-        }}
-        onSelect={selectConversation}
-        onNewChat={startNewChat}
-        className={className}
-      />
+      <>
+        {searchDialog}
+        <CollapsedSidebar
+          conversations={conversations}
+          currentConversationId={currentConversationId}
+          view={view}
+          onExpand={() => setIsCollapsed(false)}
+          onSearch={() => setSearchOpen(true)}
+          onViewChange={(next) => {
+            changeView(next);
+            setIsCollapsed(false);
+          }}
+          onSelect={selectConversation}
+          onNewChat={startNewChat}
+          className={className}
+        />
+      </>
     );
   }
 
   return (
     <>
       <aside className={cn("bg-sidebar hidden w-64 shrink-0 flex-col border-r md:flex", className)}>
-        <div className="flex h-12 items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">{t("conversations")}</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
+        <div className="flex h-12 items-center gap-1 border-b pr-2 pl-4">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{ts("title")}</h2>
+          {toolbar()}
+          <IconButton
+            size="icon"
             onClick={collapse}
             aria-label={ts("collapse")}
+            title={ts("collapse")}
+            className={HEADER_ICON}
           >
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-          </Button>
+            <ChevronLeft />
+          </IconButton>
         </div>
         <ConversationList {...listProps} />
       </aside>
 
+      {searchDialog}
+
       <Sheet open={isOpen} onOpenChange={close}>
         <SheetContent side="left" className="w-80 p-0">
           <SheetHeader className="h-12 px-4">
-            <SheetTitle>{t("conversations")}</SheetTitle>
+            <SheetTitle className="min-w-0 flex-1 truncate">{ts("title")}</SheetTitle>
+            {toolbar(close)}
             <SheetClose onClick={close} />
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">

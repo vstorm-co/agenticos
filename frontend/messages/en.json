@@ -1141,7 +1141,6 @@
       "noArchived": "No archived conversations",
       "noMatches": "Nothing matches",
       "noMatchesHint": "No conversation matches this search or agent.",
-      "searchPlaceholder": "Search",
       "sortLabel": "Sort conversations",
       "sortLeastRecent": "Least recent activity",
       "sortNewest": "Newest first",
@@ -1160,7 +1159,12 @@
         "month": "Previous 30 days",
         "older": "Older"
       },
-      "searchLabel": "Search conversations"
+      "searchLabel": "Search conversations",
+      "searchHint": "Type to search your conversations by title.",
+      "searching": "Searching…",
+      "noSearchResults": "No conversation matches.",
+      "untitled": "Untitled",
+      "title": "Chats"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -5556,7 +5560,6 @@
     "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
-    "newMenu": "New schedule or trigger",
     "sourceWebhook": "API (your own code)",
     "sourceHelpGithub": "Add this webhook to a repository's settings; it fires on the issue actions you choose.",
     "sourceHelpGmail": "Gmail is read from the mailbox you connect, so there is nothing to point at this and no secret to keep. Create one from the Gmail card.",

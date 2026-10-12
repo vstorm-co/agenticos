@@ -20,7 +20,6 @@ vi.mock("@/components/agents/agent-avatar", () => ({
 }));
 
 function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
-  const onSearchChange = vi.fn();
   const onAgentChange = vi.fn();
   const onSortChange = vi.fn();
   const onHideApiChange = vi.fn();
@@ -29,8 +28,6 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
     <ConversationFilters
       view="active"
       onViewChange={onViewChange}
-      search=""
-      onSearchChange={onSearchChange}
       agentId={null}
       onAgentChange={onAgentChange}
       sort={DEFAULT_SORT}
@@ -40,7 +37,7 @@ function mount(props: Partial<Parameters<typeof ConversationFilters>[0]> = {}) {
       {...props}
     />,
   );
-  return { onSearchChange, onAgentChange, onSortChange, onHideApiChange, onViewChange };
+  return { onAgentChange, onSortChange, onHideApiChange, onViewChange };
 }
 
 /** Everything but the search sits behind one button. */
@@ -75,18 +72,6 @@ describe("the sort value", () => {
 });
 
 describe("the filter bar", () => {
-  it("reports what was typed, without deciding when to ask for it", () => {
-    // Debouncing belongs to the sidebar, which owns the request. This reports
-    // every keystroke so the box stays responsive under a slow list.
-    const { onSearchChange } = mount();
-
-    const box = screen.getByRole("textbox", { name: "Search conversations" });
-    box.focus();
-
-    expect(box).toHaveValue("");
-    expect(onSearchChange).not.toHaveBeenCalled();
-  });
-
   it("offers every agent the caller may see, retired ones included", async () => {
     // A thread answered by an agent that has since been archived is exactly the
     // one somebody comes to this filter looking for.
@@ -169,18 +154,6 @@ describe("the filter bar", () => {
 
     expect(onSortChange).toHaveBeenCalledWith("title:asc");
     expect(isConversationSort(onSortChange.mock.calls[0]?.[0])).toBe(true);
-  });
-
-  it("leaves the search box no fixed width to overflow the sidebar with", () => {
-    // `SearchInput` defaults to `sm:w-64` for the wide pages every other caller
-    // sits on. The sidebar is `w-64` itself, so from the `sm` breakpoint up that
-    // default made the box 24px wider than the column holding it and it hung
-    // over the right edge. jsdom lays nothing out, so the class is the only
-    // observable the bug leaves behind.
-    mount();
-
-    const box = screen.getByRole("textbox", { name: "Search conversations" });
-    expect(box.parentElement?.className).not.toMatch(/(^|:)w-64\b/);
   });
 });
 

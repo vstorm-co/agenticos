@@ -1141,7 +1141,6 @@
       "noArchived": "Keine archivierten Unterhaltungen",
       "noMatches": "Nichts passt",
       "noMatchesHint": "Keine Unterhaltung passt zu dieser Suche oder diesem Agent.",
-      "searchPlaceholder": "Suchen",
       "sortLabel": "Unterhaltungen sortieren",
       "sortLeastRecent": "Älteste Aktivität",
       "sortNewest": "Neueste zuerst",
@@ -1160,7 +1159,12 @@
         "month": "Letzte 30 Tage",
         "older": "Älter"
       },
-      "searchLabel": "Unterhaltungen durchsuchen"
+      "searchLabel": "Unterhaltungen durchsuchen",
+      "searchHint": "Tippen, um Unterhaltungen nach Titel zu suchen.",
+      "searching": "Suche…",
+      "noSearchResults": "Keine Unterhaltung passt.",
+      "untitled": "Ohne Titel",
+      "title": "Chats"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -5439,7 +5443,6 @@
     "activityEmptyDescription": "Sobald ein Agent sich selbst ausführen soll, erscheint er hier.",
     "agent": "Agent",
     "chooseAgent": "Agent wählen",
-    "newMenu": "Neuer Zeitplan oder Trigger",
     "sourceWebhook": "API (Ihr eigener Code)",
     "sourceHelpGithub": "Fügen Sie diesen Webhook in den Einstellungen eines Repositorys hinzu; er löst bei den Issue-Aktionen aus, die Sie wählen.",
     "sourceHelpGmail": "Gmail wird aus dem Postfach gelesen, das Sie verbinden, es gibt also nichts, worauf man zeigen müsste, und kein Secret zu verwahren. Legen Sie einen über die Gmail-Karte an.",

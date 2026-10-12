@@ -1141,7 +1141,6 @@
       "noArchived": "Brak zarchiwizowanych rozmów",
       "noMatches": "Nic nie pasuje",
       "noMatchesHint": "Żadna rozmowa nie pasuje do tego wyszukiwania lub agenta.",
-      "searchPlaceholder": "Szukaj",
       "sortLabel": "Sortuj rozmowy",
       "sortLeastRecent": "Najdawniejsza aktywność",
       "sortNewest": "Najnowsze najpierw",
@@ -1160,7 +1159,12 @@
         "month": "Ostatnie 30 dni",
         "older": "Starsze"
       },
-      "searchLabel": "Szukaj rozmów"
+      "searchLabel": "Szukaj rozmów",
+      "searchHint": "Wpisz, aby wyszukać rozmowy po tytule.",
+      "searching": "Szukam…",
+      "noSearchResults": "Żadna rozmowa nie pasuje.",
+      "untitled": "Bez tytułu",
+      "title": "Czaty"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -5328,7 +5332,6 @@
     "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
     "agent": "Agent",
     "chooseAgent": "Wybierz agenta",
-    "newMenu": "Nowy harmonogram lub wyzwalacz",
     "sourceWebhook": "API (własny kod)",
     "sourceHelpGithub": "Dodaj ten webhook w ustawieniach repozytorium; uruchamia się przy wybranych akcjach zgłoszeń.",
     "sourceHelpGmail": "Gmail jest czytany ze skrzynki, którą podłączysz, więc nie ma tu nic do wskazania ani sekretu do przechowania. Utwórz go z karty Gmail.",

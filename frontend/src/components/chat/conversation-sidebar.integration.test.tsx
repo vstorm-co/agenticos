@@ -103,54 +103,13 @@ beforeEach(() => {
   serve([conversation("c-1", "Quarterly numbers")]);
 });
 
-describe("searching the conversation list", () => {
-  it("asks the server, rather than filtering the page it holds", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
-  });
-
-  it("waits for the typing to stop rather than asking per keystroke", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-    const before = listRequests().length;
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refunds",
-    );
-
-    // Seven characters, and not seven requests: the settled value is what the
-    // key is built from, so nothing is fetched until the box stops moving.
-    expect(listRequests().length).toBeLessThan(before + 7);
-    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refunds"));
-  });
-
-  it("writes the search to the URL, so a reload lands on the same list", async () => {
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    await waitFor(() => expect(window.location.search).toContain("q=refund"));
-  });
-
+describe("the list the URL asks for", () => {
   it("starts from the URL it was given", async () => {
-    urlParams = new URLSearchParams("q=refund&agent=a-1&sort=title:asc&view=archived");
+    urlParams = new URLSearchParams("agent=a-1&sort=title:asc&view=archived");
     mount();
 
     await waitFor(() => {
       const request = listRequests().at(-1) ?? "";
-      expect(request).toContain("search=refund");
       expect(request).toContain("agent_id=a-1");
       expect(request).toContain("sort_by=title&sort_dir=asc");
       expect(request).toContain("archived_only=true");
@@ -168,14 +127,6 @@ describe("searching the conversation list", () => {
 });
 
 describe("what the sidebar says about the list", () => {
-  it("counts what a search matches, not what it fetched", async () => {
-    urlParams = new URLSearchParams("q=numbers");
-    serve([conversation("c-1", "Quarterly numbers")], 214);
-    mount();
-
-    expect(await screen.findAllByText("214 conversations")).not.toHaveLength(0);
-  });
-
   it("reads the plain list by day, with no count over it", async () => {
     serve(
       [
@@ -203,35 +154,25 @@ describe("what the sidebar says about the list", () => {
     expect(within(list()).queryByText("Today")).toBeNull();
   });
 
-  it("distinguishes an empty deployment from an empty search", async () => {
+  it("distinguishes an empty deployment from an empty filter", async () => {
     serve([]);
     mount();
 
     expect(await screen.findAllByText("No conversations yet")).not.toHaveLength(0);
     expect(screen.queryByText("Nothing matches")).not.toBeInTheDocument();
-
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
-
-    expect((await screen.findAllByText("Nothing matches"))[0]).toBeVisible();
   });
 
   it("offers a way out of a filter that matches nothing", async () => {
+    urlParams = new URLSearchParams("agent=a-1");
     serve([]);
     mount();
-    await userEvent.type(
-      within(list()).getByRole("textbox", { name: "Search conversations" }),
-      "refund",
-    );
     await screen.findAllByText("Nothing matches");
 
     serve([conversation("c-1", "Quarterly numbers")]);
     await userEvent.click(within(list()).getAllByRole("button", { name: "Clear filters" })[0]!);
 
     expect((await screen.findAllByText("Quarterly numbers"))[0]).toBeVisible();
-    await waitFor(() => expect(window.location.search).not.toContain("q="));
+    await waitFor(() => expect(window.location.search).not.toContain("agent="));
   });
 
   it("says the archive is empty rather than that nothing matched", async () => {
@@ -306,17 +247,6 @@ describe("the collapsed rail", () => {
     expect(await within(rail).findByRole("button", { name: "New conversation" })).toBeVisible();
   });
 
-  it("expands with the cursor already in the search box", async () => {
-    // Otherwise the button is a second Expand, and costs a click to reach the
-    // thing it is named after.
-    const rail = await collapse();
-
-    await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
-
-    const box = within(list()).getByRole("textbox", { name: "Search conversations" });
-    await waitFor(() => expect(box).toHaveFocus());
-  });
-
   it("expands onto the archived tab", async () => {
     const rail = await collapse();
 
@@ -325,78 +255,53 @@ describe("the collapsed rail", () => {
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
   });
 
-  it("does not steal the cursor when it is expanded with the chevron", async () => {
-    // The search button's focus is a one-shot. Left set, every later expand would
-    // take the cursor out of whatever somebody was typing in the composer.
+  it("searches from the rail in the same window", async () => {
     const rail = await collapse();
+
     await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
-    await userEvent.click(
-      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
-    );
 
-    await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
-
-    expect(within(list()).getByRole("textbox", { name: "Search conversations" })).not.toHaveFocus();
+    expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
   });
 });
 
-describe("the New Chat split button", () => {
-  it("keeps New Chat itself starting a chat, not opening a menu", async () => {
+describe("the three icons over the list", () => {
+  it("starts a chat from the first, with no menu under it", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
     await userEvent.click(within(list()).getByRole("button", { name: "New chat" }));
 
-    // No dialog and no menu: the wide half of the split button is exactly the
-    // button it always was.
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("opens the schedule dialog from the chevron menu", async () => {
+  it("searches the server from a window, and opens the pick", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "New schedule" }));
+    await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
+    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
 
-    const dialog = await screen.findByRole("dialog");
-    // No agent is in context here, so the form asks whom to schedule.
-    expect(within(dialog).getByRole("combobox", { name: "Agent" })).toBeVisible();
+    serve([conversation("c-9", "Refund policy")]);
+    await userEvent.type(within(dialog).getByRole("textbox"), "refund");
+    await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
+    await userEvent.click(await within(dialog).findByRole("button", { name: /Refund policy/ }));
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-9"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("opens the portal grid for a new event trigger from the chevron menu", async () => {
+  it("says when nothing matches the search", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
+    await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
 
-    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "New event trigger" }));
+    serve([]);
+    await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
 
-    // Portals are the default event path, so the menu opens the grid, not the
-    // raw source-and-secret form.
-    expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeVisible();
-  });
-});
-
-describe("who the trigger menu is offered to", () => {
-  it("shows it to a caller who may run at least one agent", async () => {
-    // Runnability, not role: this list holds a runnable agent, which is the whole
-    // floor - a Viewer granted run on one agent reads `can_run` true there.
-    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    expect(
-      within(list()).getByRole("button", { name: "New schedule or trigger" }),
-    ).toBeInTheDocument();
-  });
-
-  it("withholds it when no agent is runnable", async () => {
-    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: false }];
-    mount();
-    await screen.findAllByText("Quarterly numbers");
-
-    expect(within(list()).queryByRole("button", { name: "New schedule or trigger" })).toBeNull();
+    expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
   });
 });
 
@@ -511,7 +416,7 @@ describe("conversations opened over the API (#2122)", () => {
   });
 
   it("goes back to hiding them when the filters are cleared", async () => {
-    urlParams = new URLSearchParams("api=show&q=report");
+    urlParams = new URLSearchParams("api=show&agent=a-1");
     serve([]);
     mount();
 

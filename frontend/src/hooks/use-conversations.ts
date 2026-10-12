@@ -643,3 +643,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     startNewChat,
   };
 }
+
+/**
+ * Conversations whose title matches `term`, archived ones included - what the
+ * chat's search window lists. Nothing is asked until something is typed.
+ */
+export function useConversationSearch(term: string) {
+  const params = listParams({ ...DEFAULT_QUERY, search: term });
+  return useQuery({
+    queryKey: qk.conversations.list(params),
+    queryFn: () => apiClient.get<ConversationListResponse>(`/conversations?${params}`),
+    enabled: term.trim() !== "",
+  });
+}

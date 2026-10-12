@@ -14,7 +14,7 @@ export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";
-export { useConversations } from "./use-conversations";
+export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
