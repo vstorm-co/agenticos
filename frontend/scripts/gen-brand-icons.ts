@@ -75,10 +75,17 @@ const BRANDS: Readonly<Record<string, Source>> = {
   calendly: simple("calendly"),
   canva: simple("canva"),
   circleci: simple("circleci"),
+  // The MCP clients Settings → MCP clients shows a setup for. VS Code has no
+  // mark in any of the three sets (Simple Icons dropped it), so it takes a
+  // lucide glyph at the call site instead.
+  claude: lobehub("claude"),
+  claudecode: lobehub("claudecode"),
   clerk: simple("clerk"),
   clickup: simple("clickup"),
+  codex: lobehub("codex"),
   cloudflare: simple("cloudflare"),
   contentful: simple("contentful"),
+  cursor: lobehub("cursor"),
   databricks: simple("databricks"),
   datadog: simple("datadog"),
   deepl: simple("deepl"),

@@ -44,6 +44,14 @@ describe("McpConnect", () => {
     expect(screen.getByText(/cannot open a browser/)).toBeInTheDocument();
   });
 
+  it("marks every client's tab with its icon", () => {
+    renderCard();
+
+    for (const name of ["Claude Code", "Codex", "Claude Desktop", "Cursor", "VS Code"]) {
+      expect(screen.getByRole("tab", { name }).querySelector("svg")).not.toBeNull();
+    }
+  });
+
   it("tells Claude Desktop to add a custom connector, with no command to copy", async () => {
     renderCard();
 

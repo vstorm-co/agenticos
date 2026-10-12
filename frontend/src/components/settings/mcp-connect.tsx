@@ -1,15 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen } from "lucide-react";
+import { useState, type ComponentType } from "react";
+import { BookOpen, Code2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { brandMark } from "@/components/icons/brand-icon";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { CopyCode } from "@/components/settings/copy-code";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { DOCS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { MCP_CLIENT_NAME, MCP_CLIENTS, mcpSnippet, type McpAuth } from "./mcp-snippets";
+import {
+  MCP_CLIENT_NAME,
+  MCP_CLIENTS,
+  mcpSnippet,
+  type McpAuth,
+  type McpClient,
+} from "./mcp-snippets";
+
+/**
+ * Each client's own mark. VS Code has none in the generated set - Simple Icons
+ * dropped it - so it wears the generic code glyph rather than a hand-drawn logo.
+ */
+const CLIENT_ICON: Record<McpClient, ComponentType<{ className?: string }>> = {
+  "claude-code": brandMark("claudecode"),
+  codex: brandMark("codex"),
+  "claude-desktop": brandMark("claude"),
+  cursor: brandMark("cursor"),
+  vscode: Code2,
+};
 
 /**
  * How to point Claude Code, Codex or any MCP client at this deployment's own MCP
@@ -75,11 +94,15 @@ export function McpConnect() {
         </div>
         <Tabs defaultValue="claude-code">
           <TabsList>
-            {MCP_CLIENTS.map((client) => (
-              <TabsTrigger key={client} value={client}>
-                {MCP_CLIENT_NAME[client]}
-              </TabsTrigger>
-            ))}
+            {MCP_CLIENTS.map((client) => {
+              const Icon = CLIENT_ICON[client];
+              return (
+                <TabsTrigger key={client} value={client}>
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  {MCP_CLIENT_NAME[client]}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           {MCP_CLIENTS.map((client) => {
             const snippet = mcpSnippet(client, auth, url);
