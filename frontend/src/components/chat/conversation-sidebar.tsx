@@ -197,9 +197,11 @@ function ConversationItem({
         {showMenu && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-            <div className="bg-popover absolute top-8 right-0 z-20 w-40 rounded-md border shadow-lg">
+            {/* Drawn like every other menu in the console: one line per item,
+                read from the left, as wide as its longest label. */}
+            <div className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg">
               <button
-                className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsEditing(true);
@@ -210,7 +212,7 @@ function ConversationItem({
                 {t("rename")}
               </button>
               <button
-                className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   onShare();
@@ -223,7 +225,7 @@ function ConversationItem({
               {/* In the menu as well as on the row: the hover control does not
                   exist on a touch screen until something is long-pressed. */}
               <button
-                className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   onFavourite(conversation.is_favourite !== true);
@@ -240,7 +242,7 @@ function ConversationItem({
               </button>
               {conversation.is_archived ? (
                 <button
-                  className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     onUnarchive();
@@ -252,7 +254,7 @@ function ConversationItem({
                 </button>
               ) : (
                 <button
-                  className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     onArchive();
@@ -264,7 +266,7 @@ function ConversationItem({
                 </button>
               )}
               <button
-                className="text-destructive hover:bg-destructive/10 flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete();
