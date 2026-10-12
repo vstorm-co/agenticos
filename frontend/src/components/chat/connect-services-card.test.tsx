@@ -104,15 +104,12 @@ describe("ConnectServicesCard", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("connecting Notion");
   });
 
-  it("sends a person who already holds accounts to the servers page instead", () => {
-    // `?connect=` would mint a third Notion; choosing between two is done there.
+  it("sends a person who already holds an account to the servers page instead", () => {
+    // `?connect=` would mint a second Notion; authorizing the first is done there.
     // Navigated to in the app, so the path keeps the viewer's locale prefix.
     state.push.mockClear();
-    render(<ConnectServicesCard gaps={[gap({ gap: "undecided" })]} />);
+    render(<ConnectServicesCard gaps={[gap({ gap: "unauthorized" })]} />);
 
-    expect(
-      screen.getByText("You hold several connections to it and none is marked as default."),
-    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     screen.getByRole("button", { name: "Open MCP servers" }).click();
 

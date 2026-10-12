@@ -670,8 +670,7 @@ export interface Delegation {
 }
 
 /** Why a personal MCP service could not be reached on this turn. */
-export type PersonalServiceGapKind =
-  "nobody_to_speak_as" | "not_connected" | "undecided" | "unauthorized";
+export type PersonalServiceGapKind = "nobody_to_speak_as" | "not_connected" | "unauthorized";
 
 /**
  * One of the agent's personal MCP services this person cannot reach yet.

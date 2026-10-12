@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { bindingKey, McpServerPicker } from "./mcp-server-picker";
@@ -319,7 +319,7 @@ describe("several connections behind one catalog entry", () => {
   ];
 
   it("shows one row for the server and offers its accounts in a select", async () => {
-    render(picker({ connections: THREE }));
+    render(picker({ connections: THREE, value: [bound("c1")] }));
 
     expect(screen.getAllByText("GitHub")).toHaveLength(1);
     await settings();
@@ -360,6 +360,149 @@ describe("several connections behind one catalog entry", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1")]);
+  });
+
+  it("binds the server from its settings by choosing whose account", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: THREE, onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
+    expect(onChange).toHaveBeenLastCalledWith([personal("github")]);
+
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "The organization's account" }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("binds a second account of the server beside the first (#2125)", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: THREE, value: [bound("c1")], onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("button", { name: "Add another account" }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1"), bound("c2")]);
+  });
+
+  it("lists every bound account and offers each only the accounts still free", async () => {
+    render(picker({ connections: THREE, value: [bound("c1"), bound("c3")] }));
+
+    expect(screen.getByRole("button", { name: "2 accounts" })).toBeInTheDocument();
+    await settings();
+    const [first] = screen.getAllByRole("combobox", { name: /which github account/i });
+    await userEvent.click(first!);
+
+    expect(await screen.findByRole("option", { name: "gh-readonly" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "gh-issues" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: "gh-admin" })).toBeNull();
+  });
+
+  it("moves one of several accounts to another connection, leaving the rest", async () => {
+    const onChange = vi.fn();
+    const labelled = [
+      ...THREE,
+      connection({ id: "c4", name: "gh-info", label: "info@", catalog_key: "github" }),
+    ];
+    render(picker({ connections: labelled, value: [bound("c1"), bound("c3")], onChange }));
+
+    await settings();
+    const [, second] = screen.getAllByRole("combobox", { name: /which github account/i });
+    await userEvent.click(second!);
+    await userEvent.click(await screen.findByRole("option", { name: /^info@/ }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1"), bound("c4")]);
+  });
+
+  it("names each bound account even when there is nothing left to switch to", async () => {
+    const two = [
+      connection({ id: "c1", name: "github", label: "Company", catalog_key: "github" }),
+      connection({ id: "c2", name: "github-oss", catalog_key: "github" }),
+    ];
+    render(picker({ connections: two, value: [bound("c1"), bound("c2")] }));
+
+    const dialog = await settings();
+
+    expect(within(dialog).getByText("Company")).toBeVisible();
+    expect(within(dialog).getAllByText("github-oss")[0]).toBeVisible();
+    expect(within(dialog).queryByRole("combobox", { name: /which github account/i })).toBeNull();
+  });
+
+  it("drops one account and keeps the others", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: THREE, value: [bound("c1"), bound("c3")], onChange }));
+
+    await settings();
+    const [, second] = screen.getAllByRole("button", { name: "Stop using this GitHub account" });
+    await userEvent.click(second!);
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1")]);
+  });
+
+  it("adds each person's own account once the organization's are all bound", async () => {
+    const onChange = vi.fn();
+    const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];
+    render(picker({ connections: one, value: [bound("c1")], onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("button", { name: "Add another account" }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1"), personal("github")]);
+  });
+
+  it("offers to connect another account when every one is already bound", async () => {
+    const onConnect = vi.fn();
+    const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];
+    render(picker({ connections: one, value: [bound("c1"), personal("github")], onConnect }));
+
+    await settings();
+    expect(screen.queryByRole("button", { name: "Add another account" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Connect another account" }));
+
+    expect(onConnect).toHaveBeenCalledWith(GITHUB);
+  });
+
+  it("narrows each person's own accounts to the labels typed, on leaving the field", async () => {
+    const onChange = vi.fn();
+    render(picker({ value: [personal("github")], onChange }));
+
+    await settings();
+    const field = screen.getByLabelText("Only their accounts labelled");
+    await userEvent.type(field, "Sales inbox, info@ ,");
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.tab();
+
+    expect(onChange).toHaveBeenCalledWith([
+      { ...personal("github"), account_labels: ["Sales inbox", "info@"] },
+    ]);
+  });
+
+  it("clears the narrowing when the labels are emptied", async () => {
+    const onChange = vi.fn();
+    render(picker({ value: [{ ...personal("github"), account_labels: ["info@"] }], onChange }));
+
+    await settings();
+    await userEvent.clear(screen.getByLabelText("Only their accounts labelled"));
+    await userEvent.tab();
+
+    expect(onChange).toHaveBeenCalledWith([{ ...personal("github"), account_labels: null }]);
+  });
+
+  it("switches an account between the organization's and each person's own", async () => {
+    const onChange = vi.fn();
+    const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];
+    render(picker({ connections: one, value: [personal("github", ["read"])], onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "The organization's account" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1", ["read"])]);
   });
 
   it("offers no choice where there is none to make", () => {

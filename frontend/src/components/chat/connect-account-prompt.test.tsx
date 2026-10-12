@@ -216,7 +216,6 @@ describe("ConnectAccountPrompt", () => {
   });
 
   it.each([
-    ["undecided", "You hold several Notion connections. Mark one as default, then continue."],
     [
       "unauthorized",
       "Your Notion connection needs authorizing again. Authorize it, then continue.",

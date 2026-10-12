@@ -619,7 +619,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     await mount({ own: TWO });
     const dialog = await openConnections();
 
-    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(2);
+    expect(dialog.getAllByLabelText("Main account for agents")).toHaveLength(2);
   });
 
   it("offers nothing where there is no choice to make", async () => {
@@ -628,7 +628,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     await mount({ own: [connection({ id: "p1", name: "notion" })] });
     const dialog = await openConnections();
 
-    expect(dialog.queryByLabelText("Agents speak as this one")).toBeNull();
+    expect(dialog.queryByLabelText("Main account for agents")).toBeNull();
   });
 
   it("offers nothing for a connection with no catalog key", async () => {
@@ -643,7 +643,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     });
     const dialog = await openConnections();
 
-    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(1);
+    expect(dialog.getAllByLabelText("Main account for agents")).toHaveLength(1);
   });
 
   it("records the nomination against the account it is beside", async () => {
@@ -653,7 +653,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ ...TWO[1], is_default: true });
     const dialog = await openConnections();
 
-    const [, side] = dialog.getAllByLabelText("Agents speak as this one");
+    const [, side] = dialog.getAllByLabelText("Main account for agents");
     await userEvent.click(side!);
 
     await waitFor(() =>
@@ -672,7 +672,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     });
     const dialog = await openConnections();
 
-    const boxes = dialog.getAllByLabelText("Agents speak as this one");
+    const boxes = dialog.getAllByLabelText("Main account for agents");
     expect(boxes[0]).toBeChecked();
     expect(boxes[1]).not.toBeChecked();
   });

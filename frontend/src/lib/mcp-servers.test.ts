@@ -369,15 +369,18 @@ describe("ownAccountStatus", () => {
     expect(ownAccountStatus("notion", [own()])).toBe("connected");
   });
 
-  it("is undecided with several and none marked default", () => {
+  it("is connected with several, none marked default - every one answers (#2125)", () => {
     expect(ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2" })])).toBe(
-      "undecided",
+      "connected",
     );
   });
 
-  it("follows the default among several", () => {
+  it("stays connected while any one of several still authorizes", () => {
     expect(
-      ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2", is_default: true })]),
+      ownAccountStatus("notion", [
+        own({ authorized: false }),
+        own({ id: "m2", name: "notion-2", authorized: true }),
+      ]),
     ).toBe("connected");
   });
 

@@ -656,6 +656,13 @@
     "zoom": "Powiększ",
     "zoomOut": "Pomniejsz",
     "whichAccount": "Którego konta {name} używa ten agent",
+    "addAnotherAccount": "Dodaj kolejne konto",
+    "connectAnotherAccount": "Podłącz kolejne konto",
+    "removeAccount": "Przestań używać tego konta {name}",
+    "accountCount": "{count, plural, one {1 konto} few {# konta} many {# kont} other {# konta}}",
+    "accountLabels": "Tylko ich konta z etykietą",
+    "accountLabelsPlaceholder": "Każde konto, które mają",
+    "accountLabelsHint": "Etykiety, którymi każda osoba nazwała swoje konta {name}, rozdzielone przecinkami - Sales inbox, info@. Zostaw puste, by sięgać do każdego.",
     "accountForServer": "Czyjego konta {name} używa ten agent",
     "organizationsAccount": "Konto organizacji",
     "eachPersonsOwnAccount": "Własne konto każdej osoby",
@@ -910,14 +917,12 @@
       "yourAccounts": "Ten agent używa Twoich własnych kont w tych usługach.",
       "gap": {
         "not_connected": "Jeszcze tego nie połączyłeś.",
-        "undecided": "Masz kilka połączeń i żadne nie jest oznaczone jako domyślne.",
         "unauthorized": "Twoje połączenie wymaga ponownej autoryzacji.",
         "nobody_to_speak_as": "Nikt tu nie jest zalogowany, więc to niedostępne."
       },
       "status": {
         "connected": "Połączone",
         "not_connected": "Niepołączone",
-        "undecided": "Kilka kont, żadne domyślne",
         "unauthorized": "Wymaga ponownej autoryzacji"
       }
     },
@@ -929,7 +934,6 @@
       "skip": "Pomiń",
       "gap": {
         "not_connected": "Połącz własne konto {name}, a agent będzie z niego dalej korzystał.",
-        "undecided": "Masz kilka połączeń z {name}. Oznacz jedno jako domyślne i kontynuuj.",
         "unauthorized": "Twoje połączenie z {name} wymaga ponownej autoryzacji. Autoryzuj je i kontynuuj."
       }
     },
@@ -2516,9 +2520,9 @@
     "accessToken": "Token dostępu",
     "accountsOnThisServer": "Każde konto podłączone do tego serwera i gdzie może być użyte.",
     "addCustomServer": "Dodaj własny serwer",
-    "agentsNoLongerSpeak": "Agenci nie mówią już jako to konto",
-    "agentsSpeakAsThis": "Agenci będą mówić jako to konto",
-    "agentsSpeakAsThisOne": "Agenci mówią jako to konto",
+    "noLongerMainAccount": "To już nie jest Twoje główne konto dla agentów",
+    "nowMainAccount": "Teraz to Twoje główne konto dla agentów",
+    "mainAccount": "Główne konto dla agentów",
     "allCategories": "Wszystkie kategorie",
     "anyState": "Dowolny stan",
     "authApiToken": "Token API",

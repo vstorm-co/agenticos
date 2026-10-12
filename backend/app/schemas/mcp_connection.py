@@ -81,9 +81,10 @@ class McpConnectionUpdate(BaseSchema):
     is_default: bool | None = Field(
         default=None,
         description=(
-            "Speak as this account, where an agent binding asked for the "
-            "member's own and they hold several on this service. Setting it "
-            "clears the flag on the others (#1342)."
+            "Answer under the service's own tool prefix, where an agent bound to "
+            "the member's own account reaches several of theirs on this service; "
+            "the others add their label to it. Setting it clears the flag on the "
+            "others (#1342, #2125)."
         ),
     )
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "785274d96fc0"
+source_sha: "94ac28bb0aaa"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -205,14 +205,10 @@ canal sería entregárselo al canal.
     con el enlace que lo conecta (`/mcp-servers?connect=notion`), o con «envía
     `/link` a este bot primero» cuando lo que falta es la cuenta de chat.
 
-    Una persona que tiene *varias* conexiones propias a un mismo servicio elige
-    una, en MCP servers → You: la cuenta que marca como predeterminada es aquella
-    como la que habla un agent. Hasta que elija, el agent se lo pide — adivinar en
-    silencio el workspace más antiguo sería peor.
 
     El chat del dashboard pregunta cuando el agent necesita el servicio, no antes.
-    Un servicio que la persona no ha conectado, del que tiene varias conexiones o
-    que debe autorizar de nuevo se ofrece al modelo como `connect_account`: cuando
+    Un servicio que la persona no ha conectado o que debe autorizar de nuevo se
+    ofrece al modelo como `connect_account`: cuando
     una pregunta necesita Notion, el run se detiene en una tarjeta con el botón para
     conectar y, en cuanto la cuenta está conectada, el mismo run sigue con las
     herramientas de Notion. Si se omite, sigue sin ellas. Los controles del chat
@@ -247,9 +243,28 @@ intersecan.
     través de qué vinculación está hablando - en lugar de perderlo en una línea de
     log que nadie lee. Renombrar una de las dos conexiones es el arreglo del autor.
 
-Un agent vincula cada servicio una vez, de una manera. Un agent que necesita el
-Notion del manual de la organización *y* el propio de cada persona son dos agents,
-o el mismo servidor conectado dos veces bajo dos nombres.
+Un agent puede vincular un servicio de las dos maneras — el Notion del manual de
+la organización *y* el propio de cada persona — siempre que la conexión de la
+organización no se llame como la clave del catálogo, que es el prefijo que toma
+la cuenta propia de cada persona.
+
+### Varias cuentas de un mismo servidor { #several-accounts-of-one-server }
+
+Un agent puede leer a la vez el buzón de la empresa e `info@`. A una persona con
+varias cuentas propias en un servicio se la alcanza a través de **cada una de
+ellas**: la que marca como su cuenta principal en MCP servers → You (si no, la
+primera que conectó) conserva el prefijo simple, `outlook_send`, y cada cuenta
+más añade su etiqueta, `outlook_info_send`. `account_labels` en la vinculación la
+limita a las cuentas con esas etiquetas (sin distinguir mayúsculas), así que un
+agent para el buzón de ventas no alcanza de paso el correo privado de nadie.
+
+Las cuentas de la organización se vinculan una junto a otra del mismo modo: cada
+una de sus conexiones a un servidor es su propia vinculación, con su propio
+nombre y sus propias herramientas. En el Builder, los ajustes de un servidor
+listan sus cuentas vinculadas con **Add another account**. Cuando un run alcanza
+un servicio a través de más de una cuenta, una línea de sus instrucciones nombra
+cada cuenta junto a su prefijo y le pide al modelo que pregunte cuando no esté
+claro a cuál se refiere la persona.
 
 ## Autenticación { #authentication }
 
@@ -494,8 +509,10 @@ apaño: los nombres son únicos por organización y no por entrada de catálogo,
 nombre es el prefijo de herramientas, así que el modelo ve
 `notion_readonly_search` y `notion_admin_search` como herramientas distintas.
 
-Vincula la que deba tener el agent. El Builder lista una fila por conexión y
-etiqueta cada una con su nombre cuando una entrada tiene más de una.
+Vincula la que deba tener el agent, o varias una junto a otra — ver
+[varias cuentas de un mismo servidor](#several-accounts-of-one-server). El
+Builder muestra una tarjeta por servidor y lista sus cuentas en los ajustes del
+servidor, cada una con su etiqueta y su nombre.
 
 !!! tip "El nombre es toda la distinción"
 

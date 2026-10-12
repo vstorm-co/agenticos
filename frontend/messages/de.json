@@ -656,6 +656,13 @@
     "zoom": "Vergrößern",
     "zoomOut": "Verkleinern",
     "whichAccount": "Welches {name}-Konto dieser Agent nutzt",
+    "addAnotherAccount": "Weiteres Konto hinzufügen",
+    "connectAnotherAccount": "Weiteres Konto verbinden",
+    "removeAccount": "Dieses {name}-Konto nicht mehr verwenden",
+    "accountCount": "{count, plural, =1 {1 Konto} other {# Konten}}",
+    "accountLabels": "Nur ihre Konten mit dem Label",
+    "accountLabelsPlaceholder": "Jedes Konto, das sie haben",
+    "accountLabelsHint": "Labels, wie jede Person ihre {name}-Konten benannt hat, durch Kommas getrennt - Sales inbox, info@. Leer lassen, um jedes zu erreichen.",
     "accountForServer": "Wessen {name}-Konto dieser Agent nutzt",
     "organizationsAccount": "Das Konto der Organisation",
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
@@ -910,14 +917,12 @@
       "yourAccounts": "Dieser Agent nutzt für diese Dienste Ihre eigenen Konten.",
       "gap": {
         "not_connected": "Sie haben das noch nicht verbunden.",
-        "undecided": "Sie haben mehrere Verbindungen dorthin, und keine ist als Standard markiert.",
         "unauthorized": "Ihre Verbindung dorthin muss erneut autorisiert werden.",
         "nobody_to_speak_as": "Hier ist niemand angemeldet, deshalb steht es nicht zur Verfügung."
       },
       "status": {
         "connected": "Verbunden",
         "not_connected": "Nicht verbunden",
-        "undecided": "Mehrere Konten, keines als Standard",
         "unauthorized": "Muss erneut autorisiert werden"
       }
     },
@@ -929,7 +934,6 @@
       "skip": "Überspringen",
       "gap": {
         "not_connected": "Verbinden Sie Ihr eigenes {name}-Konto, und der Agent arbeitet damit weiter.",
-        "undecided": "Sie haben mehrere {name}-Verbindungen. Markieren Sie eine als Standard und fahren Sie dann fort.",
         "unauthorized": "Ihre {name}-Verbindung muss erneut autorisiert werden. Autorisieren Sie sie und fahren Sie dann fort."
       }
     },
@@ -2629,9 +2633,9 @@
     "accessToken": "Access-Token",
     "accountsOnThisServer": "Jedes mit diesem Server verbundene Konto und wo es verwendet werden kann.",
     "addCustomServer": "Eigenen Server hinzufügen",
-    "agentsNoLongerSpeak": "Agents sprechen nicht mehr als dieses Konto",
-    "agentsSpeakAsThis": "Agents werden als dieses Konto sprechen",
-    "agentsSpeakAsThisOne": "Agents sprechen als dieses",
+    "noLongerMainAccount": "Nicht mehr dein Hauptkonto für Agents",
+    "nowMainAccount": "Jetzt dein Hauptkonto für Agents",
+    "mainAccount": "Hauptkonto für Agents",
     "allCategories": "Alle Kategorien",
     "anyState": "Beliebiger Zustand",
     "authApiToken": "API-Token",

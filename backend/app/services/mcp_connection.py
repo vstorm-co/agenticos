@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import secrets
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -2015,6 +2017,22 @@ UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
 
 
 @dataclass(frozen=True)
+class AccountNote:
+    """One of several accounts on one service a turn reaches, and its tool prefix.
+
+    Written only where a service answers through more than one account - two
+    of the organization's Outlook connections, or a person's own work and
+    private Notion - because there the prefixes alone do not say which mailbox
+    `outlook_info_send` writes from, and the model has to be told (#2125).
+    """
+
+    service: str
+    prefix: str
+    account: str
+    whose: Literal["organization", "personal"]
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
@@ -2027,6 +2045,8 @@ class ResolvedMcpToolsets:
 
     toolsets: list[Any]
     unavailable: list[UnavailableBinding]
+    accounts: list[AccountNote] = field(default_factory=list)
+    """The accounts of each service reached through more than one, by prefix."""
     origins: dict[str, UUID] = field(default_factory=dict)
     """Each tool an organization connection serves, by the name the model calls,
     mapped to that connection. Filled as the run lists its tools, so read it once
@@ -2062,15 +2082,18 @@ async def build_toolsets_for_agent(
     with `platform_credential` - minted by the runner for the person the run is
     for, and `None` where there is nobody, which leaves the server out.
 
-    A person holding two accounts to one service is left alone rather than
-    guessed at: they nominate one in their own connections, and until they do
-    the binding is unavailable to them (#1342).
+    A person holding several accounts on one service is reached through every
+    one of them, or those the binding names by label: each under its own tool
+    prefix, and listed on `accounts` so the run can be told which is which
+    (#2125).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
+    # Which service and account each spec reaches, for the accounts briefing.
+    reaches: dict[int, AccountNote] = {}
     # Whether each organization server had an outage open when this run read it.
     outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
@@ -2091,10 +2114,16 @@ async def build_toolsets_for_agent(
                 bindings[id(spec)] = "this platform's own server"
             continue
         if isinstance(ref, PersonalMcpServerRef):
-            spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
-            if spec is not None:
-                specs.append(spec)
-                bindings[id(spec)] = f"each person's own {ref.catalog_key}"
+            own, gap = await _personal_specs(db, ref, sender_user_id=sender_user_id)
+            for account in own:
+                specs.append(account.spec)
+                bindings[id(account.spec)] = f"each person's own {ref.catalog_key}"
+                reaches[id(account.spec)] = AccountNote(
+                    service=ref.catalog_key,
+                    prefix=tool_prefix(account.spec.name),
+                    account=account.label,
+                    whose="personal",
+                )
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
@@ -2131,6 +2160,12 @@ async def build_toolsets_for_agent(
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
+        reaches[id(spec)] = AccountNote(
+            service=connection.catalog_key or connection.name,
+            prefix=tool_prefix(connection.name),
+            account=connection.label or connection.name,
+            whose="organization",
+        )
         outage_open[connection.id] = connection.unreachable_since is not None
     # The same prefix arithmetic publish refuses a collision with, applied to the
     # servers that answered their probe: a duplicate reaching pydantic-ai aborts
@@ -2171,61 +2206,111 @@ async def build_toolsets_for_agent(
                 )
             )
     origins: dict[str, UUID] = {}
+    attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
     return ResolvedMcpToolsets(
         toolsets=[
             toolset
             if spec.connection_id is None
             else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
-            for spec, toolset in reachable
-            if id(spec) not in dropped
+            for spec, toolset in attached
         ],
         unavailable=unavailable,
+        accounts=_several_accounts(
+            [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
+        ),
         origins=origins,
     )
 
 
-async def _personal_spec(
+def _several_accounts(notes: list[AccountNote]) -> list[AccountNote]:
+    """The notes of every service this turn reaches through more than one account."""
+    per_service = Counter(note.service for note in notes)
+    return [note for note in notes if per_service[note.service] > 1]
+
+
+@dataclass(frozen=True)
+class _OwnAccount:
+    """One of a person's own accounts on a service, as a server, and what they call it."""
+
+    spec: McpServerSpec
+    label: str
+
+
+async def _personal_specs(
     db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
-) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
-    """The sender's own connection to this service as a server spec, or why not."""
+) -> tuple[list[_OwnAccount], PersonalServiceGapKind | None]:
+    """The sender's own accounts on this service as servers, or why there are none."""
     if sender_user_id is None:
-        return None, "nobody_to_speak_as"
-    own = await _own_spec(db, ref, user_id=sender_user_id)
-    return (own, None) if isinstance(own, McpServerSpec) else (None, own)
+        return [], "nobody_to_speak_as"
+    own = await _own_specs(db, ref, user_id=sender_user_id)
+    return (own, None) if isinstance(own, list) else ([], own)
 
 
-async def _own_spec(
+async def _own_specs(
     db: AsyncSession, ref: PersonalMcpServerRef, *, user_id: UUID
-) -> McpServerSpec | OwnAccountGap:
-    """One person's own connection to this service as a server spec, or why not.
+) -> list[_OwnAccount] | OwnAccountGap:
+    """One person's own accounts on this service as servers, or why there are none.
 
-    The tool prefix is the catalog key rather than the connection's name: the
-    agent presents `notion_search` to everyone, whatever each person called
-    their own Notion. The allowlist is the binding's ceiling intersected with
-    the person's own - the same fold an organization binding makes, with the
+    Every account they hold, or those `account_labels` names - the one marked
+    default first, else the first connected. That one's tool prefix is the
+    catalog key, so an agent presents `notion_search` to everyone whatever each
+    person called their own Notion; every other account adds its label to the
+    key (#2125). The allowlist is the binding's ceiling intersected with the
+    person's own - the same fold an organization binding makes, with the
     administrator's side coming from the spec because there is no connection
     row of the organization's to read it from.
+
+    An account whose credential no longer works is left out and the rest
+    answer; only when none does is the gap `unauthorized`.
     """
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
         db, user_id=user_id, catalog_key=ref.catalog_key
     )
-    connection = _nominated(owned)
-    if connection is None:
-        return "undecided" if owned else "not_connected"
-    headers = await _resolve_auth_headers(db, connection)
-    if headers is None:
-        logger.info(
-            "Skipping the sender's own %r connection for this run: no usable credentials",
-            ref.catalog_key,
+    if ref.account_labels is not None:
+        wanted = {label.casefold() for label in ref.account_labels}
+        owned = [account for account in owned if _account_name(account).casefold() in wanted]
+    if not owned:
+        return "not_connected"
+    primary = next((account for account in owned if account.is_default), owned[0])
+    accounts: list[_OwnAccount] = []
+    for account in [primary, *(other for other in owned if other is not primary)]:
+        headers = await _resolve_auth_headers(db, account)
+        if headers is None:
+            logger.info(
+                "Skipping one of the sender's own %r connections for this run: "
+                "no usable credentials",
+                ref.catalog_key,
+            )
+            continue
+        name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
+        spec = McpServerSpec(
+            name=name,
+            url=account.url,
+            headers=headers,
+            allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
+            approval=ref.approval,
         )
-        return "unauthorized"
-    return McpServerSpec(
-        name=ref.catalog_key,
-        url=connection.url,
-        headers=headers,
-        allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
-        approval=ref.approval,
-    )
+        accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
+    return accounts or "unauthorized"
+
+
+def _account_name(account: McpConnection) -> str:
+    """What a person calls one of their accounts: its label, else its name."""
+    return account.label or account.name
+
+
+def _extra_prefix(catalog_key: str, account: McpConnection) -> str:
+    """The server name a person's second, third... account on a service answers under.
+
+    The key and the account's own label, so `outlook` and `outlook-info` sit
+    side by side and the tool names say which mailbox each one is. The key is
+    not repeated where the label already starts with it (`notion-2`, not
+    `notion-notion-2`), and an account whose label holds nothing a tool name
+    can carry falls back to its id.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", _account_name(account).casefold()).strip("-")
+    slug = "" if slug == catalog_key else slug.removeprefix(f"{catalog_key}-")
+    return f"{catalog_key}-{slug or account.id.hex[:8]}"[:64]
 
 
 async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
@@ -2238,10 +2323,12 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
     refresh spent on the way is committed with that session.
     """
     async with get_db_context() as db:
-        own = await _own_spec(db, ref, user_id=user_id)
-    if not isinstance(own, McpServerSpec):
+        own = await _own_specs(db, ref, user_id=user_id)
+    if not isinstance(own, list):
         return own
-    ((_, toolset),) = await probe_toolsets([own])
+    # One account answers the turn that waited - their default, else their
+    # first; any others of theirs join from their next message on.
+    ((_, toolset),) = await probe_toolsets([own[0].spec])
     return "unreachable" if toolset is None else toolset
 
 
@@ -2264,17 +2351,3 @@ def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> 
         return connection
     within = set(binding)
     return [tool for tool in connection if tool in within]
-
-
-def _nominated(owned: list[McpConnection]) -> McpConnection | None:
-    """Which of a member's accounts on one service to speak as, if any is clear.
-
-    One account needs no nomination - there is nothing to choose between - so it
-    answers whether or not it is marked. Several answer only the one marked
-    default, which a partial unique index keeps to at most one; several with none
-    marked answer nothing, because picking the older workspace silently is worse
-    than telling the person to pick (#1342).
-    """
-    if len(owned) == 1:
-        return owned[0]
-    return next((account for account in owned if account.is_default), None)

@@ -475,7 +475,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     setBusyId(connection.id);
     try {
       await api("personal").update(connection.id, { is_default: use });
-      toast.success(use ? t("agentsSpeakAsThis") : t("agentsNoLongerSpeak"));
+      toast.success(use ? t("nowMainAccount") : t("noLongerMainAccount"));
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors));
     } finally {

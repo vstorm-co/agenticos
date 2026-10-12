@@ -1,5 +1,5 @@
 ---
-source_sha: "785274d96fc0"
+source_sha: "94ac28bb0aaa"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -209,15 +209,10 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
     (`/mcp-servers?connect=notion`), oder mit „senden Sie zuerst `/link` an diesen
     Bot“, wo das Chat-Konto das fehlende Stück ist.
 
-    Wer *mehrere* eigene Connections zu einem Dienst hält, wählt eine aus, unter
-    MCP servers → You: Das als Standard markierte Konto ist das, als das ein Agent
-    spricht. Bis zur Wahl fordert der Agent dazu auf — still den älteren Workspace
-    zu raten wäre schlechter.
 
     Der Dashboard-Chat fragt, wenn der Agent den Dienst braucht, nicht vorher.
-    Ein Dienst, den die Person nicht verbunden hat, zu dem sie mehrere
-    Connections hält oder den sie erneut autorisieren muss, wird dem Modell
-    stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
+    Ein Dienst, den die Person nicht verbunden hat oder erneut autorisieren
+    muss, wird dem Modell stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
     der Run an einer Karte mit der Schaltfläche zum Verbinden an, und sobald das
     Konto verbunden ist, arbeitet derselbe Run mit den Notion-Tools weiter.
     Übersprungen, arbeitet er ohne sie weiter. Die Bedienelemente des Chats listen
@@ -253,9 +248,29 @@ beiden schneiden sich.
     ihn an eine Logzeile zu verlieren, die niemand liest. Eine der beiden
     Connections umzubenennen ist die Korrektur des Autors.
 
-Ein Agent bindet jeden Dienst einmal, auf eine Weise. Ein Agent, der das
-Handbuch-Notion der Organisation *und* das jeweils eigene braucht, sind zwei
-Agents, oder derselbe Server zweimal unter zwei Namen verbunden.
+Ein Agent darf einen Dienst auf beide Weisen binden — das Handbuch-Notion der
+Organisation *und* das jeweils eigene —, solange die Organisations-Connection
+nicht nach dem Katalogschlüssel benannt ist, denn diesen Präfix erhält das
+eigene Konto jeder Person.
+
+### Mehrere Konten eines Servers { #several-accounts-of-one-server }
+
+Ein Agent kann das Firmenpostfach und `info@` zugleich lesen. Wer mehrere eigene
+Konten bei einem Dienst hält, wird über **jedes davon** erreicht: Das Konto, das
+die Person unter MCP servers → You als Hauptkonto markiert (sonst das zuerst
+verbundene), behält den schlichten Präfix, `outlook_send`, und jedes weitere
+Konto fügt sein Label hinzu, `outlook_info_send`. `account_labels` auf dem
+Binding grenzt es auf die Konten mit diesen Labels ein (ohne Beachtung der
+Groß- und Kleinschreibung), sodass ein Agent für das Vertriebspostfach nicht
+nebenbei die private Post von jemandem erreicht.
+
+Die Konten der Organisation binden auf dieselbe Weise nebeneinander: Jede ihrer
+Connections zu einem Server ist ein eigenes Binding unter eigenem Namen, mit
+eigenen Tools. Im Builder listen die Einstellungen eines Servers seine
+gebundenen Konten mit **Add another account**. Wo ein Run einen Dienst über mehr
+als ein Konto erreicht, nennt eine Zeile seiner Anweisungen jedes Konto neben
+seinem Präfix und weist das Modell an nachzufragen, wenn unklar ist, welches die
+Person meint.
 
 ## Authentifizierung { #authentication }
 
@@ -504,8 +519,10 @@ keine Notlösung: Namen sind pro Organisation eindeutig statt pro Katalogeintrag
 und der Name ist das Tool-Präfix, sodass das Modell `notion_readonly_search` und
 `notion_admin_search` als verschiedene Tools sieht.
 
-Binden Sie das, was der Agent haben soll. Der Builder listet eine Zeile je
-Connection und beschriftet jede mit ihrem Namen, wo ein Eintrag mehr als eine hat.
+Binden Sie das, was der Agent haben soll, oder mehrere nebeneinander — siehe
+[mehrere Konten eines Servers](#several-accounts-of-one-server). Der Builder
+zeigt eine Karte je Server und listet dessen Konten in den Einstellungen des
+Servers, jedes unter seinem Label und seinem Namen.
 
 !!! tip "Der Name ist der ganze Unterschied"
 

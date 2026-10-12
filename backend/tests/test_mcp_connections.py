@@ -54,6 +54,7 @@ from app.services import impersonation as impersonation_service
 from app.services import mcp_connection as mcp_connection_service
 from app.services.impersonation import ActiveImpersonation
 from app.services.mcp_connection import (
+    AccountNote,
     McpConnectionService,
     UnavailablePersonalService,
     UnavailablePrefixCollision,
@@ -811,7 +812,8 @@ class TestEachPersonsOwnAccount:
     """A personal binding: the sender's own connection, found by catalog key.
 
     The tool prefix is the catalog key whatever the person called their
-    connection, so the agent presents the same tools to everybody, and the
+    connection, so the agent presents the same tools to everybody - each further
+    account of theirs adding its label (#2125) - and the
     allowlist is the binding's ceiling intersected with their own. Where the
     binding cannot be honoured it is *reported* rather than skipped: a server
     that silently goes missing reads as a broken agent to the person asking,
@@ -971,15 +973,18 @@ class TestEachPersonsOwnAccount:
         assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
     @pytest.mark.anyio
-    async def test_two_accounts_with_none_nominated_are_not_guessed_between(self, monkeypatch):
-        """Nothing records which of them they meant, and picking the older
-        Notion workspace silently is worse than telling them to pick (#1342)."""
-        self._capture(monkeypatch)
+    async def test_every_account_they_hold_answers_each_under_its_own_prefix(self, monkeypatch):
+        """Two mailboxes on one agent at once (#2125): the first connected keeps
+        the service's own prefix, the other adds its label, and the run is told
+        which prefix is which account."""
+        seen = self._capture(monkeypatch)
         self._owns(
             monkeypatch,
             [
                 _connection(name="work", url="https://a/mcp", catalog_key="notion"),
-                _connection(name="side", url="https://b/mcp", catalog_key="notion"),
+                _connection(
+                    name="side", label="Side project", url="https://b/mcp", catalog_key="notion"
+                ),
             ],
         )
 
@@ -987,12 +992,25 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert _attached(resolved) == []
-        assert resolved.unavailable == [UnavailablePersonalService("notion", "undecided")]
+        assert [(spec.name, spec.url) for spec in seen[0]] == [
+            ("notion", "https://a/mcp"),
+            ("notion-side-project", "https://b/mcp"),
+        ]
+        assert _attached(resolved) == ["notion", "notion-side-project"]
+        assert resolved.unavailable == []
+        assert resolved.accounts == [
+            AccountNote(service="notion", prefix="notion", account="work", whose="personal"),
+            AccountNote(
+                service="notion",
+                prefix="notion_side_project",
+                account="Side project",
+                whose="personal",
+            ),
+        ]
 
     @pytest.mark.anyio
-    async def test_the_account_they_nominated_is_the_one_that_answers(self, monkeypatch):
-        """Two accounts, one marked. The mark is the whole answer (#1342)."""
+    async def test_the_account_they_nominated_keeps_the_services_own_prefix(self, monkeypatch):
+        """Two accounts, one marked: the mark decides which is plain `notion`."""
         seen = self._capture(monkeypatch)
         self._owns(
             monkeypatch,
@@ -1008,12 +1026,131 @@ class TestEachPersonsOwnAccount:
             AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
         )
 
-        assert seen[0][0].url == "https://work/mcp"
+        assert [(spec.name, spec.url) for spec in seen[0]] == [
+            ("notion", "https://work/mcp"),
+            ("notion-side", "https://side/mcp"),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_binding_naming_labels_reaches_only_those_accounts(self, monkeypatch):
+        """Compared without case, against the label - or the name, for an
+        account nobody labelled."""
+        seen = self._capture(monkeypatch)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="work", url="https://work/mcp", catalog_key="notion"),
+                _connection(
+                    name="info", label="Info@", url="https://info/mcp", catalog_key="notion"
+                ),
+                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
+            ],
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[self._personal(account_labels=["info@", "SIDE"])],
+            sender_user_id=uuid4(),
+        )
+
+        assert [spec.url for spec in seen[0]] == ["https://info/mcp", "https://side/mcp"]
+        assert len(resolved.accounts) == 2
+
+    @pytest.mark.anyio
+    async def test_labels_none_of_their_accounts_carry_are_not_connected(self, monkeypatch):
+        self._capture(monkeypatch)
+        self._owns(monkeypatch, [_connection(name="work", catalog_key="notion")])
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[self._personal(account_labels=["Sales inbox"])],
+            sender_user_id=uuid4(),
+        )
+
+        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
+
+    @pytest.mark.anyio
+    async def test_an_account_that_no_longer_authorizes_leaves_the_others_answering(
+        self, monkeypatch
+    ):
+        seen = self._capture(monkeypatch)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(
+                    name="work", catalog_key="notion", auth_token="enc:not-valid-ciphertext"
+                ),
+                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
+            ],
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
+        )
+
+        assert [spec.url for spec in seen[0]] == ["https://side/mcp"]
+        assert resolved.unavailable == []
+        # One account answered, so there is nothing to tell apart.
+        assert resolved.accounts == []
+
+    @pytest.mark.anyio
+    async def test_two_of_the_organizations_accounts_on_one_service_are_told_apart(
+        self, monkeypatch
+    ):
+        """The company mailbox and `info@`, both the organization's: two
+        connections, two prefixes, and the labels the run is briefed with."""
+        self._capture(monkeypatch)
+        main = _connection(name="outlook", label="Company", catalog_key="outlook", scope="org")
+        info = _connection(name="outlook-info", catalog_key="outlook", scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={main.id: main, info.id: info}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=main.id), OrgMcpServerRef(connection_id=info.id)],
+        )
+
+        assert resolved.accounts == [
+            AccountNote(
+                service="outlook", prefix="outlook", account="Company", whose="organization"
+            ),
+            AccountNote(
+                service="outlook",
+                prefix="outlook_info",
+                account="outlook-info",
+                whose="organization",
+            ),
+        ]
+
+    @pytest.mark.parametrize(
+        ("name", "label", "expected"),
+        [
+            ("notion-2", None, "notion-2"),
+            ("x", "Notion Work", "notion-work"),
+            ("x", "Sales inbox", "notion-sales-inbox"),
+            ("x", "Notional", "notion-notional"),
+        ],
+    )
+    def test_a_further_accounts_prefix_does_not_repeat_the_service(self, name, label, expected):
+        account = _connection(name=name, label=label, catalog_key="notion")
+        assert mcp_connection_service._extra_prefix("notion", account) == expected
+
+    def test_a_label_with_nothing_a_tool_name_carries_falls_back_to_the_id(self):
+        account = _connection(name="notion", label="✉️", catalog_key="notion")
+        assert mcp_connection_service._extra_prefix("notion", account) == (
+            f"notion-{account.id.hex[:8]}"
+        )
 
     @pytest.mark.anyio
     async def test_one_account_needs_no_nomination(self, monkeypatch):
-        """There is nothing to choose between, so an unmarked single account
-        answers - which is why no upgrade has to backfill a default."""
+        """An unmarked single account answers under the service's own prefix -
+        which is why no upgrade has to backfill a default."""
         seen = self._capture(monkeypatch)
         self._owns(
             monkeypatch, [_connection(name="mine", url="https://mine/mcp", catalog_key="notion")]
@@ -1159,10 +1296,6 @@ class TestConnectingOneMidRun:
         [
             ([], "not_connected"),
             (
-                [_connection(catalog_key="notion"), _connection(catalog_key="notion")],
-                "undecided",
-            ),
-            (
                 [_connection(catalog_key="notion", auth_token="enc:not-valid-ciphertext")],
                 "unauthorized",
             ),
@@ -1181,6 +1314,27 @@ class TestConnectingOneMidRun:
 
         assert outcome == gap
         assert seen == []
+
+    @pytest.mark.anyio
+    async def test_with_several_accounts_their_default_answers_the_waiting_turn(self, monkeypatch):
+        self._session(monkeypatch)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
+                _connection(
+                    name="work", url="https://work/mcp", catalog_key="notion", is_default=True
+                ),
+            ],
+        )
+        seen = self._probe(monkeypatch, answers=True)
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"), user_id=uuid4()
+        )
+
+        assert outcome == "notion"
+        assert [spec.url for spec in seen] == ["https://work/mcp"]
 
     @pytest.mark.anyio
     async def test_a_server_that_does_not_answer_is_unreachable(self, monkeypatch):

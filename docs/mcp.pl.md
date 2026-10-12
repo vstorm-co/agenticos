@@ -1,5 +1,5 @@
 ---
-source_sha: "785274d96fc0"
+source_sha: "94ac28bb0aaa"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -202,14 +202,10 @@ oddawałoby go kanałowi.
     który go podłącza (`/mcp-servers?connect=notion`), albo zdaniem „najpierw
     wyślij `/link` do tego bota”, gdy brakującym elementem jest konto czatu.
 
-    Osoba mająca *kilka* własnych połączeń do jednej usługi wybiera jedno,
-    w MCP servers → You: konto oznaczone jako domyślne jest tym, którym mówi
-    agent. Dopóki nie wybierze, agent jej to mówi — ciche zgadnięcie starszego
-    workspace'u byłoby gorsze.
 
     Czat w dashboardzie pyta wtedy, gdy agent potrzebuje usługi, nie wcześniej.
-    Usługa, której osoba nie podłączyła, ma do niej kilka połączeń albo musi
-    autoryzować ją ponownie, trafia do modelu jako `connect_account`: gdy pytanie
+    Usługa, której osoba nie podłączyła albo musi autoryzować ponownie, trafia
+    do modelu jako `connect_account`: gdy pytanie
     wymaga Notion, run zatrzymuje się na karcie z przyciskiem podłączenia, a po
     podłączeniu konta ten sam run idzie dalej z narzędziami Notion. Pominięty,
     idzie dalej bez nich. Kontrolki czatu wypisują też osobiste usługi agenta
@@ -242,9 +238,26 @@ z drugim się przecina.
     — zamiast gubić to w wierszu logu, którego nikt nie czyta. Naprawą po stronie
     autora jest przemianowanie jednego z dwóch połączeń.
 
-Jeden agent wiąże każdą usługę raz i w jeden sposób. Agent, który potrzebuje
-firmowego Notion z podręcznikiem *i* własnego Notion każdej osoby, to dwaj
-agenci albo ten sam serwer podłączony dwa razy pod dwiema nazwami.
+Agent może powiązać usługę na oba sposoby — firmowe Notion z podręcznikiem
+*i* własne Notion każdej osoby — o ile połączenie organizacji nie nosi nazwy
+klucza katalogowego, bo to ten prefiks dostaje własne konto każdej osoby.
+
+### Kilka kont jednego serwera { #several-accounts-of-one-server }
+
+Jeden agent może naraz czytać firmową skrzynkę i `info@`. Do osoby, która ma
+kilka własnych kont w jednej usłudze, agent sięga przez **każde z nich**: konto
+oznaczone przez nią jako główne w MCP servers → You (a bez tego to podłączone
+jako pierwsze) zachowuje zwykły prefiks, `outlook_send`, a każde kolejne dokłada
+swoją etykietę, `outlook_info_send`. `account_labels` na powiązaniu zawęża je do
+kont z tymi etykietami (bez rozróżniania wielkości liter), więc agent od skrzynki
+sprzedaży nie sięga przy okazji do czyjejś prywatnej poczty.
+
+Konta organizacji wiążą się obok siebie tak samo: każde jej połączenie z serwerem
+to osobne powiązanie pod własną nazwą i z własnymi narzędziami. W Builderze
+ustawienia serwera wypisują powiązane konta z przyciskiem **Add another
+account**. Gdy run sięga do jednej usługi przez więcej niż jedno konto, jeden
+wiersz jego instrukcji wymienia każde konto obok jego prefiksu i każe modelowi
+dopytać, gdy nie wiadomo, o które konto chodzi.
 
 ## Uwierzytelnianie { #authentication }
 
@@ -480,8 +493,10 @@ unikalne w obrębie organizacji, a nie w obrębie wpisu katalogowego, a nazwa je
 prefiksem narzędzi, więc model widzi `notion_readonly_search`
 i `notion_admin_search` jako różne narzędzia.
 
-Powiąż to, które agent ma mieć. Builder wypisuje po jednym wierszu na połączenie
-i opisuje każdy jego nazwą tam, gdzie wpis ma ich więcej niż jedno.
+Powiąż to, które agent ma mieć, albo kilka obok siebie — zobacz
+[kilka kont jednego serwera](#several-accounts-of-one-server). Builder
+pokazuje jedną kartę na serwer, a jego konta wypisuje w ustawieniach serwera,
+każde pod etykietą i nazwą.
 
 !!! tip "Cała różnica tkwi w nazwie"
 

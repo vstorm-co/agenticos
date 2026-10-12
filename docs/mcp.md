@@ -191,14 +191,9 @@ channel.
     it (`/mcp-servers?connect=notion`), or with "send `/link` to this bot
     first" where the chat account is the missing piece.
 
-    A person holding *several* of their own connections to one service picks
-    one, in MCP servers → You: the account they mark as default is the one an
-    agent speaks as. Until they pick, the agent tells them to — guessing the
-    older workspace silently would be worse.
-
     The dashboard chat asks when the agent needs the service, not before. A
-    service the person has not connected, holds several of or must authorize
-    again is offered to the model as `connect_account` instead: when a question
+    service the person has not connected or must authorize again is offered to
+    the model as `connect_account` instead: when a question
     needs Notion the run pauses on a card with the connect button, and once the
     account is connected the same run carries on with the Notion tools. Skipped,
     it carries on without them. The chat's controls also list the agent's
@@ -230,9 +225,27 @@ connection may narrow further, and the two intersect.
     log line nobody reads. Renaming one of the two connections is the author's
     fix.
 
-One agent binds each service once, one way. An agent that needs the
-organization's handbook Notion *and* each person's own is two agents, or the
-same server connected twice under two names.
+An agent may bind a service both ways - the organization's handbook Notion
+*and* each person's own - as long as the organization's connection is not named
+after the catalog key, which is the prefix each person's own account takes.
+
+### Several accounts of one server
+
+One agent can read the company mailbox and `info@` at once. A person holding
+several of their own accounts on a service is reached through **every one of
+them**: the one they mark as their main account in MCP servers → You (else the
+one they connected first) keeps the plain prefix, `outlook_send`, and each
+other account adds its label, `outlook_info_send`. `account_labels` on the
+binding narrows it to the accounts carrying those labels (compared without
+case), so an agent for the sales inbox does not also reach somebody's private
+mail.
+
+The organization's accounts bind side by side the same way: each of its
+connections to a server is its own binding under its own name, with its own
+tools. In the Builder, a server's settings list its bound accounts with **Add
+another account**. Wherever a run reaches one service through more than one
+account, one line of its instructions names each account beside its prefix
+and tells the model to ask when it is unclear which one the person means.
 
 ## Authentication
 
@@ -458,8 +471,10 @@ are unique per organization rather than per catalog entry, and the name is the
 tool prefix, so the model sees `notion_readonly_search` and
 `notion_admin_search` as different tools.
 
-Bind whichever the agent should have. The Builder lists one row per connection
-and labels each with its name where an entry has more than one.
+Bind whichever the agent should have, or several side by side - see
+[several accounts of one server](#several-accounts-of-one-server). The Builder
+keeps one card per server and lists its accounts in the server's settings,
+each under its label and its name.
 
 !!! tip "The name is the whole distinction"
 

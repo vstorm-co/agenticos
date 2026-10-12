@@ -191,10 +191,9 @@ async def list_user_scoped_by_catalog_key(
 ) -> list[McpConnection]:
     """This person's own enabled connections to one catalog entry.
 
-    A list rather than one row: nothing stops somebody holding two Notion
-    accounts, and which of them an agent should speak through is a question only
-    they can answer. The caller substitutes when there is exactly one and
-    declines to guess otherwise (#1342).
+    A list rather than one row: somebody may hold two Notion accounts, and an
+    agent bound to their own account reaches every one of them (#2125). Oldest
+    first, because without a default the first connected keeps the plain prefix.
     """
     result = await db.execute(
         select(McpConnection)

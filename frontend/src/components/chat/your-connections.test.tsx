@@ -125,15 +125,11 @@ describe("YourConnections", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("sends a person with several accounts and no default to the servers page", () => {
+  it("says connected with several accounts and none marked main - every one answers", () => {
     state.connections = [own(), own({ id: "m2", name: "notion-2" })];
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
     render(<YourConnections />);
 
-    expect(screen.getByText("Several accounts, none marked default")).toBeInTheDocument();
-    screen.getByRole("button", { name: "Open MCP servers" }).click();
-
-    expect(opened).toHaveBeenCalledWith("/mcp-servers", "_blank", "noopener");
+    expect(screen.getByText("Connected")).toBeInTheDocument();
   });
 
   it("says when the chosen account no longer authorizes", () => {

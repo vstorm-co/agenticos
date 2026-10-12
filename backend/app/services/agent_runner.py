@@ -227,6 +227,7 @@ from app.services.context import ContextService
 from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
+    AccountNote,
     PersonalServiceGapKind,
     UnavailableBinding,
     UnavailablePersonalService,
@@ -1519,6 +1520,38 @@ def _with_personal_service_gaps(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_account_notes(spec: AgentSpec, notes: Sequence[AccountNote]) -> AgentSpec:
+    """The spec told which account each prefix reaches, where a service has several.
+
+    Two Outlook accounts are `outlook_send` and `outlook_info_send` to the
+    model, and nothing in those names says which one is the company mailbox -
+    so the run names each account beside its prefix and asks the model to use
+    the one the person means (#2125). Per run, like the gaps: which accounts a
+    person holds is true of this message, not of the published version.
+    """
+    if not notes:
+        return spec
+    services: dict[str, list[AccountNote]] = {}
+    for note in notes:
+        services.setdefault(note.service, []).append(note)
+    lines = [
+        f"You reach {service} through {len(held)} accounts: "
+        + "; ".join(
+            f"tools starting `{note.prefix}_` act as "
+            + (
+                f"this person's own account {note.account!r}"
+                if note.whose == "personal"
+                else f"the organization's account {note.account!r}"
+            )
+            for note in held
+        )
+        + ". Use the account the person means; if it is unclear which, ask before acting."
+        for service, held in services.items()
+    ]
+    added = "\n\n".join(lines)
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
+
+
 def _connect_on_use(
     unavailable: Sequence[UnavailableBinding],
     *,
@@ -1616,13 +1649,6 @@ def _personal_gap_briefing(
             f"{bound}, and nobody is signed in on this surface, so the {gap.name} tools are not "
             f"available here. If asked for anything in {gap.name}, say so plainly rather than "
             "attempting a workaround."
-        )
-    if gap.gap == "undecided":
-        return (
-            f"{bound}, and this person holds several {gap.name} connections with none marked as "
-            f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {gap.name}, say so and {_servers_pointer(surface)} to mark one of "
-            f"their {gap.name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
@@ -2566,6 +2592,7 @@ class AgentRunnerService:
             request_connection=request_connection,
         )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
+        spec = _with_account_notes(spec, resolved.accounts)
 
         run = existing_run
         if run is None:
@@ -3312,6 +3339,7 @@ class AgentRunnerService:
             delegation.surface,
             sender_present=delegation.sender_present,
         )
+        runnable = _with_account_notes(runnable, resolved.accounts)
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
             name=delegate.slug,

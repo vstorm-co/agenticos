@@ -87,12 +87,14 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _with_account_notes,
     _with_personal_service_gaps,
     month_start,
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
 from app.services.mcp_connection import (
+    AccountNote,
     ResolvedMcpToolsets,
     UnavailablePersonalService,
     UnavailablePrefixCollision,
@@ -4292,6 +4294,44 @@ class TestACommitThatCannotLandRunner:
                     await service.execute(_ctx(), uuid.uuid4(), "hello")
 
 
+class TestTellingTheAgentWhichAccountIsWhich:
+    """A service reached through several accounts names each one beside its
+    prefix, because `outlook_info_send` alone does not say which mailbox it
+    writes from (#2125)."""
+
+    def test_each_account_is_named_beside_its_prefix(self):
+        spec = _with_account_notes(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                AccountNote("outlook", "outlook", "Company", "organization"),
+                AccountNote("outlook", "outlook_info", "info@", "personal"),
+            ],
+        )
+
+        assert spec.instructions.startswith("x\n\nYou reach outlook through 2 accounts")
+        assert "`outlook_` act as the organization's account 'Company'" in spec.instructions
+        assert "`outlook_info_` act as this person's own account 'info@'" in spec.instructions
+        assert "ask before acting" in spec.instructions
+
+    def test_one_paragraph_per_service(self):
+        spec = _with_account_notes(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                AccountNote("outlook", "outlook", "a", "personal"),
+                AccountNote("outlook", "outlook_b", "b", "personal"),
+                AccountNote("notion", "notion", "c", "personal"),
+                AccountNote("notion", "notion_d", "d", "personal"),
+            ],
+        )
+
+        assert spec.instructions.count("You reach") == 2
+
+    def test_nothing_to_tell_apart_leaves_the_spec_alone(self):
+        spec = AgentSpec(name="Support", instructions="x")
+
+        assert _with_account_notes(spec, []) is spec
+
+
 class TestTellingTheAgentWhatItCannotReach:
     """A personal binding nobody can speak through is a sentence, not a silence.
 
@@ -4335,13 +4375,6 @@ class TestTellingTheAgentWhatItCannotReach:
         assert "the MCP servers page" in text
         assert self._SERVERS not in text
 
-    def test_several_accounts_with_no_default_are_sent_to_pick_one(self):
-        text = self._briefed("undecided")
-
-        assert "none marked as the one agents use" in text
-        assert "the MCP servers page" in text
-        assert self._SERVERS not in text
-
     def test_an_expired_grant_is_sent_to_authorize_again(self):
         """Re-authorizing is done on the connection they have; the connect link
         would mint a second one beside it, so the connect flow is never offered."""
@@ -4361,10 +4394,9 @@ class TestTellingTheAgentWhatItCannotReach:
         `?connect=` would mint a second one."""
         assert self._CONNECT in self._briefed("not_connected", surface)
 
-        for held in ("undecided", "unauthorized"):
-            text = self._briefed(held, surface)
-            assert self._SERVERS in text
-            assert self._CONNECT not in text
+        text = self._briefed("unauthorized", surface)
+        assert self._SERVERS in text
+        assert self._CONNECT not in text
 
     @pytest.mark.parametrize(
         "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
@@ -4414,7 +4446,7 @@ class TestTellingTheAgentWhatItCannotReach:
             AgentSpec(name="Support", instructions="x"),
             [
                 UnavailablePersonalService("notion", "not_connected"),
-                UnavailablePersonalService("linear", "undecided"),
+                UnavailablePersonalService("linear", "unauthorized"),
             ],
             RunSurface.WEB,
         )
@@ -4558,7 +4590,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                         [],
                         [
                             UnavailablePersonalService("notion", "not_connected"),
-                            UnavailablePersonalService("linear", "undecided"),
+                            UnavailablePersonalService("linear", "unauthorized"),
                         ],
                     )
                 ),
@@ -4569,7 +4601,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
 
         assert prepared.personal_service_gaps == [
             PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected"),
-            PersonalServiceGap(catalog_key="linear", name="Linear", gap="undecided"),
+            PersonalServiceGap(catalog_key="linear", name="Linear", gap="unauthorized"),
         ]
 
     @pytest.mark.anyio
@@ -4613,7 +4645,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                         [],
                         [
                             UnavailablePersonalService("notion", "not_connected"),
-                            UnavailablePersonalService("linear", "undecided"),
+                            UnavailablePersonalService("linear", "unauthorized"),
                             collision,
                         ],
                     )
@@ -4630,7 +4662,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         assert isinstance(on_use, ConnectOnUse)
         assert [pending.request for pending in on_use.services] == [
             ConnectionRequest(catalog_key="notion", name="Notion", gap="not_connected"),
-            ConnectionRequest(catalog_key="linear", name="Linear", gap="undecided"),
+            ConnectionRequest(catalog_key="linear", name="Linear", gap="unauthorized"),
         ]
         briefed = build.call_args.args[0].instructions
         assert "has not connected their own Notion" not in briefed

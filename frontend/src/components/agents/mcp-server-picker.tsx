@@ -22,6 +22,7 @@ import {
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
 } from "@/lib/mcp-servers";
+import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
@@ -87,7 +88,9 @@ interface McpServerPickerProps {
  * unanswerable without leaving the page - and a catalog nobody sees is a
  * catalog nobody connects from.
  *
- * A binding is one of two kinds, and the card asks which. **The organization's
+ * A binding is one of two kinds, and the card's settings ask which - for each
+ * of the accounts the agent reaches the server through, since one agent may
+ * read two mailboxes at once (#2125). **The organization's
  * account** names one of the organization's connections and answers for
  * everybody - the reviewable default. **Each person's own account** names the
  * catalog service instead: whoever talks to the agent connects their own, and
@@ -134,17 +137,10 @@ export function McpServerPicker({
           : [ref.catalog_key],
   );
 
-  /** Replace whatever this row's binding was with `next`, or drop it. */
-  const rebind = (row: CardRow, next: McpServerRef | null) => {
-    const ids = new Set(row.connections.map((connection) => connection.id));
-    const others = value.filter(
-      (ref) =>
-        !(
-          (ref.account === "organization" && ids.has(ref.connection_id)) ||
-          (ref.account === "personal" && ref.catalog_key === row.entry?.key)
-        ),
-    );
-    onChange(next === null ? others : [...others, next]);
+  /** Replace every binding this row held with `next` - several, one, or none. */
+  const rebind = (row: CardRow, next: AccountRef[]) => {
+    const mine = new Set<McpServerRef>(bindingsFor(row, value));
+    onChange([...value.filter((ref) => !mine.has(ref)), ...next]);
   };
 
   // A connection the catalog does not describe is a custom server somebody
@@ -216,7 +212,7 @@ export function McpServerPicker({
           <ServerCard
             key={row.key}
             row={row}
-            binding={bindingFor(row, value)}
+            bindings={bindingsFor(row, value)}
             onRebind={(next) => rebind(row, next)}
             onTools={onTools}
             onConnect={onConnect}
@@ -260,21 +256,22 @@ interface CardRow {
   entry: McpCatalogEntry | null;
 }
 
-/** The spec's binding for this row, of either kind, or none. */
-function bindingFor(row: CardRow, value: McpServerRef[]): McpServerRef | null {
+/**
+ * Every binding the spec holds for this row, of either kind - the same server
+ * may be reached through several accounts at once (#2125).
+ */
+function bindingsFor(row: CardRow, value: McpServerRef[]): AccountRef[] {
   const ids = new Set(row.connections.map((connection) => connection.id));
-  return (
-    value.find(
-      (ref) =>
-        (ref.account === "organization" && ids.has(ref.connection_id)) ||
-        (ref.account === "personal" && row.entry !== null && ref.catalog_key === row.entry.key),
-    ) ?? null
+  return value.filter(
+    (ref): ref is AccountRef =>
+      (ref.account === "organization" && ids.has(ref.connection_id)) ||
+      (ref.account === "personal" && row.entry !== null && ref.catalog_key === row.entry.key),
   );
 }
 
 function ServerCard({
   row,
-  binding,
+  bindings,
   onRebind,
   onTools,
   onConnect,
@@ -282,8 +279,8 @@ function ServerCard({
   disabled,
 }: {
   row: CardRow;
-  binding: McpServerRef | null;
-  onRebind: (next: McpServerRef | null) => void;
+  bindings: AccountRef[];
+  onRebind: (next: AccountRef[]) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   onCheck?: (connectionId: string) => Promise<unknown>;
@@ -293,51 +290,35 @@ function ServerCard({
   // The state words belong to the MCP page, which is where they are also read.
   const tMcp = useTranslations("mcp");
   const { name, description, icon, auth, connections, entry } = row;
-  // Which of the organization's accounts this row acts on: the one the spec
-  // names, else the first. Ticking the row binds it; the select changes which.
+  const boundIds = new Set(
+    bindings.flatMap((ref) => (ref.account === "organization" ? [ref.connection_id] : [])),
+  );
+  // The account the card reports on: the first one bound, else the first held.
   const connection =
-    connections.find(
-      (account) => binding?.account === "organization" && account.id === binding.connection_id,
-    ) ??
-    connections[0] ??
-    null;
+    connections.find((account) => boundIds.has(account.id)) ?? connections[0] ?? null;
   const state = connectionState(connection);
-  const isOn = binding !== null;
-  const personal = binding?.account === "personal";
+  const isOn = bindings.length > 0;
+  const onlyPersonal = isOn && boundIds.size === 0;
   const orgBindable = connection !== null;
   // A server the catalog does not describe has no key for a person's own
   // connection to be matched on, so only an organization's can be bound.
   const personalBindable = entry !== null;
 
-  const bindOrganization = (target: OrgMcpConnectionRecord) =>
-    onRebind({
-      account: "organization",
-      connection_id: target.id,
-      // Carried over: the tools are chosen for the *agent*, and the account it
-      // speaks through is a different question - the server offers the same
-      // tools either way.
-      allowed_tools: binding?.allowed_tools ?? null,
-    });
-  const bindPersonal = () =>
-    entry &&
-    onRebind({
-      account: "personal",
-      catalog_key: entry.key,
-      allowed_tools: binding?.allowed_tools ?? null,
-    });
-
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Switched on, a card binds the organization's account where there is one and
   // each person's own where there is not - the one kind that needs no connection
-  // to exist - and opens its settings, because which account and which tools is
-  // the next thing to decide. Off unbinds it, whichever kind it was.
+  // to exist - and opens its settings, because which accounts and which tools
+  // is the next thing to decide. Off unbinds every account it had.
   const toggle = (on: boolean) => {
     if (!on) {
-      onRebind(null);
+      onRebind([]);
       return;
     }
-    if (connection) bindOrganization(connection);
-    else bindPersonal();
+    if (connection) {
+      onRebind([{ account: "organization", connection_id: connection.id, allowed_tools: null }]);
+    } else if (entry) {
+      onRebind([{ account: "personal", catalog_key: entry.key, allowed_tools: null }]);
+    }
     setSettingsOpen(true);
   };
 
@@ -355,7 +336,7 @@ function ServerCard({
             )}
             {/* Only for an account that exists and is not working: a server
                 with none says so through the Connect at its foot. */}
-            {!personal && orgBindable && state !== "connected" && (
+            {!onlyPersonal && orgBindable && state !== "connected" && (
               <Badge variant={state === "error" ? "destructive" : "secondary"} className="shrink-0">
                 {tMcp(MCP_STATE_LABEL[state])}
               </Badge>
@@ -388,7 +369,11 @@ function ServerCard({
               onClick={() => setSettingsOpen(true)}
             >
               <Settings2 className="mr-1 h-3.5 w-3.5" />
-              {personal ? t("eachPersonsOwnAccount") : t("serverSettings")}
+              {bindings.length > 1
+                ? t("accountCount", { count: bindings.length })
+                : onlyPersonal
+                  ? t("eachPersonsOwnAccount")
+                  : t("serverSettings")}
             </Button>
           ) : (
             // Here rather than on the servers page, which would throw away an
@@ -414,12 +399,10 @@ function ServerCard({
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         name={name}
-        binding={binding}
+        bindings={bindings}
         connections={connections}
-        connection={connection}
-        personalBindable={personalBindable}
-        onBindOrganization={bindOrganization}
-        onBindPersonal={bindPersonal}
+        catalogKey={personalBindable ? entry.key : null}
+        onChange={onRebind}
         onTools={(ref, probed, server) => {
           setSettingsOpen(false);
           onTools(ref, probed, server);

@@ -321,7 +321,7 @@ function Account({
               disabled={busy}
               onCheckedChange={(next) => onNominate(next === true)}
             />
-            <span className="text-muted-foreground text-xs">{t("agentsSpeakAsThisOne")}</span>
+            <span className="text-muted-foreground text-xs">{t("mainAccount")}</span>
           </label>
         )}
       </span>

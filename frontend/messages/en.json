@@ -656,6 +656,13 @@
     "zoom": "Zoom in",
     "zoomOut": "Zoom out",
     "whichAccount": "Which {name} account this agent uses",
+    "addAnotherAccount": "Add another account",
+    "connectAnotherAccount": "Connect another account",
+    "removeAccount": "Stop using this {name} account",
+    "accountCount": "{count, plural, =1 {1 account} other {# accounts}}",
+    "accountLabels": "Only their accounts labelled",
+    "accountLabelsPlaceholder": "Every account they hold",
+    "accountLabelsHint": "Labels as each person named their {name} accounts, separated by commas - Sales inbox, info@. Leave empty to reach every one.",
     "accountForServer": "Whose {name} account this agent uses",
     "organizationsAccount": "The organization's account",
     "eachPersonsOwnAccount": "Each person's own account",
@@ -910,14 +917,12 @@
       "yourAccounts": "This agent uses your own accounts for these services.",
       "gap": {
         "not_connected": "You have not connected this yet.",
-        "undecided": "You hold several connections to it and none is marked as default.",
         "unauthorized": "Your connection to it needs authorizing again.",
         "nobody_to_speak_as": "Nobody is signed in here, so it is not available."
       },
       "status": {
         "connected": "Connected",
         "not_connected": "Not connected",
-        "undecided": "Several accounts, none marked default",
         "unauthorized": "Needs authorizing again"
       }
     },
@@ -929,7 +934,6 @@
       "skip": "Skip",
       "gap": {
         "not_connected": "Connect your own {name} account and the agent carries on with it.",
-        "undecided": "You hold several {name} connections. Mark one as default, then continue.",
         "unauthorized": "Your {name} connection needs authorizing again. Authorize it, then continue."
       }
     },
@@ -2747,9 +2751,9 @@
     "accessToken": "Access token",
     "accountsOnThisServer": "Each account connected to this server, and where it can be used.",
     "addCustomServer": "Add a custom server",
-    "agentsNoLongerSpeak": "Agents no longer speak as this account",
-    "agentsSpeakAsThis": "Agents will speak as this account",
-    "agentsSpeakAsThisOne": "Agents speak as this one",
+    "noLongerMainAccount": "No longer your main account for agents",
+    "nowMainAccount": "Now your main account for agents",
+    "mainAccount": "Main account for agents",
     "allCategories": "All categories",
     "anyState": "Any state",
     "authApiToken": "API token",
