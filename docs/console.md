@@ -146,6 +146,7 @@ closed for that browse.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Datasets** | Versioned test cases, imported, exported or added from a rated answer | [Datasets](datasets.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Isolated file-and-shell sessions an agent worked in | [The sandbox](sandbox.md) |

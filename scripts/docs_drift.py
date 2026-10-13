@@ -60,6 +60,8 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/directory/", "docs/directory.md"),
     ("backend/app/services/group.py", "docs/directory.md"),
     ("backend/app/services/skills.py", "docs/skills.md"),
+    ("backend/app/services/dataset.py", "docs/datasets.md"),
+    ("backend/app/services/dataset_files.py", "docs/datasets.md"),
     ("backend/app/services/skill_library.py", "docs/skills.md"),
     ("backend/app/core/catalog/skills/", "docs/skills.md"),
     ("backend/app/core/catalog/skill_gallery/", "docs/skills.md"),

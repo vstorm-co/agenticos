@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "f9095b371b20"
 ---
 
 # Die Konsole { #the-console }
@@ -166,6 +166,7 @@ es, bleibt es für diesen Durchlauf geschlossen.
 | **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
 | **Skills** | Geschriebene Abläufe, die ein Agent bei Bedarf lädt | [Skills](skills.md) |
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
+| **Datasets** | Versionierte Testfälle, importiert, exportiert oder aus einer bewerteten Antwort übernommen | [Datasets](datasets.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Isolierte Datei- und Shell-Sessions, in denen ein Agent gearbeitet hat | [Die Sandbox](sandbox.md) |
